@@ -677,9 +677,8 @@ class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):
 
         cgc_contour = context.user_preferences.addons[AL.FolderName].preferences
 
+        layout.operator("cgcookie.polystrips")
         layout.operator("cgcookie.retop_contour")
-        if cgc_contour.show_experimental:
-            layout.operator("cgcookie.retopo_poly_sketch")
 
 class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
     '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
