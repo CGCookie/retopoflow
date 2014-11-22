@@ -640,9 +640,6 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
             col.label(text='No 2nd Object!')
 
         col = layout.column(align=True)
-        col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
-
-        col = layout.column(align=True)
         col.operator("cgcookie.retop_contour", icon='IPO_LINEAR')
         col.prop(settings, "vertex_count")
 
@@ -664,6 +661,8 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
 
         col.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
+        col = layout.column(align=True)
+        col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
 
 class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):  
     bl_label = "Retopology"
@@ -675,8 +674,8 @@ class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
         layout.operator("cgcookie.retop_contour", icon="IPO_LINEAR")
+        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
 
 class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
     '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
