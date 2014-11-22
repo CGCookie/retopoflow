@@ -186,6 +186,13 @@ class RetopoFlowPreferences(AddonPreferences):
         default=True
         )
 
+    # Tool settings
+    contour_panel_settings = BoolProperty(
+        name="Show Contour Settings",
+        description = "Show the Contour settings",
+        default=False,
+        )
+
     # System settings
     quad_prev_radius = IntProperty(
         name="Pixel Brush Radius",
@@ -633,7 +640,6 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        # cgc_contour = context.user_preferences.addons[AL.FolderName].preferences
         settings = common_utilities.get_settings()
 
         if 'EDIT' in context.mode and len(context.selected_objects) != 2:
@@ -641,25 +647,26 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
 
         col = layout.column(align=True)
         col.operator("cgcookie.retop_contour", icon='IPO_LINEAR')
-        col.prop(settings, "vertex_count")
 
-        col = layout.column()
-        col.label("Guide Mode:")
-        col.prop(settings, "ring_count")
+        box = layout.box()
+        row = box.row()
 
-        # Commenting out for now until this is further improved and made to work again ###
-        # row = box.row()
-        # row.prop(cgc_contour, "cyclic")
+        row.prop(settings, "contour_panel_settings")
 
-        col = layout.column()
-        col.label("Contour Cache:")
+        if settings.contour_panel_settings:
+            col = box.column()
+            col.prop(settings, "vertex_count")
 
-        col.prop(settings, "recover", text="Recover Contours")
+            col.label("Guide Mode:")
+            col.prop(settings, "ring_count")
 
-        if settings.recover:
-            col.prop(settings, "recover_clip")
+            col.label("Cache:")
+            col.prop(settings, "recover", text="Recover")
 
-        col.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
+            if settings.recover:
+                col.prop(settings, "recover_clip")
+
+            col.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
         col = layout.column(align=True)
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
