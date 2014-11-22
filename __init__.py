@@ -149,13 +149,7 @@ class RetopoFlowPreferences(AddonPreferences):
     def update_theme(self, context):
         print('theme updated to ' + str(theme))
 
-    debug = IntProperty(
-        name="Debug Level",
-        default=1,
-        min=0,
-        max=4,
-        )
-
+    # Theme definitions
     theme = EnumProperty(
         items=[
             ('blue', 'Blue', 'Blue color scheme'),
@@ -169,6 +163,11 @@ class RetopoFlowPreferences(AddonPreferences):
     def rgba_to_float(r, g, b, a):
         return (r/255.0, g/255.0, b/255.0, a/255.0)
 
+    theme_colors_active = {
+        'blue': rgba_to_float(105, 246, 113, 255),
+        'green': rgba_to_float(102, 165, 240, 255),
+        'orange': rgba_to_float(102, 165, 240, 255)
+    }
     theme_colors_selection = {
         'blue': rgba_to_float(105, 246, 113, 255),
         'green': rgba_to_float(102, 165, 240, 255),
@@ -180,12 +179,14 @@ class RetopoFlowPreferences(AddonPreferences):
         'orange': rgba_to_float(254, 145, 0, 255)
     }
 
+    # User settings
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
         description='Show segment count on selection',
         default=True
         )
 
+    # System settings
     quad_prev_radius = IntProperty(
         name="Pixel Brush Radius",
         description="Pixel brush size",
@@ -197,24 +198,6 @@ class RetopoFlowPreferences(AddonPreferences):
         description="Max number of undo steps",
         default=15,
         )
-
-
-    simple_vert_inds = BoolProperty(
-            name="Simple Inds",
-            default=False,
-            )
-    
-    vert_inds = BoolProperty(
-            name="Vert Inds",
-            description = "Display indices of the raw contour verts",
-            default=False,
-            )
-    
-    show_verts = BoolProperty(
-            name="Show Raw Verts",
-            description = "Display the raw contour verts",
-            default=False,
-            )
     
     show_edges = BoolProperty(
             name="Show Span Edges",
@@ -222,57 +205,24 @@ class RetopoFlowPreferences(AddonPreferences):
             default=True,
             )
     
-    show_cut_indices = BoolProperty(
-            name="Show Cut Indices",
-            description = "Display the order the operator stores cuts. Usually only turned on for debugging",
-            default=False,
-            )
-        
-    
     show_ring_edges = BoolProperty(
             name="Show Ring Edges",
             description = "Display the extracted mesh edges. Usually only turned off for debugging",
             default=True,
             )
-    
+
     draw_widget = BoolProperty(
             name="Draw Widget",
             description = "Turn display of widget on or off",
             default=True,
             )
     
-    debug = IntProperty(
-            name="Debug Level",
-            default=1,
-            min = 0,
-            max = 4,
-            )
-    
-    show_backbone = BoolProperty(
-            name = "show_backbone",
-            description = "Show Cut Series Backbone",
-            default = False)
-    
-    show_nodes = BoolProperty(
-            name = "show_nodes",
-            description = "Show Cut Nodes",
-            default = False)
-    
-    show_ring_inds = BoolProperty(
-            name = "show_ring_inds",
-            description = "Show Ring Indices",
-            default = False)
-    
     show_axes = BoolProperty(
             name = "show_axes",
             description = "Show Cut Axes",
             default = False)
     
-    show_debug = BoolProperty(
-            name="Show Debug Settings",
-            description = "Show the debug settings, useful for troubleshooting",
-            default=False,
-            )
+
     
     show_experimental = BoolProperty(
             name="Enable Experimental",
@@ -303,34 +253,20 @@ class RetopoFlowPreferences(AddonPreferences):
         default='blue'
         )
     
-    def rgba_to_float(r, g, b, a):
-        return (r/255.0, g/255.0, b/255.0, a/255.0)
-
-    theme_colors_active = {
-        'blue': rgba_to_float(105, 246, 113, 255),
-        'green': rgba_to_float(102, 165, 240, 255),
-        'orange': rgba_to_float(102, 165, 240, 255)
-    }
-    theme_colors_mesh = {
-        'blue': rgba_to_float(102, 165, 240, 255),
-        'green': rgba_to_float(105, 246, 113, 255),
-        'orange': rgba_to_float(254, 145, 0, 255)
-    }
-
-    raw_vert_size = IntProperty(
-            name="Raw Vertex Size",
-            default=1,
-            min = 1,
-            max = 10,
-            )
+    #TODO  Theme this out nicely :-) 
+    widget_color = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0,1), subtype="COLOR")
+    widget_color2 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(1,0,0), subtype="COLOR")
+    widget_color3 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,1,0), subtype="COLOR")
+    widget_color4 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0.2,.8), subtype="COLOR")
+    widget_color5 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(.9,.1,0), subtype="COLOR")
     
+ 
     handle_size = IntProperty(
             name="Handle Vertex Size",
             default=8,
             min = 1,
             max = 10,
             )
- 
     
     line_thick = IntProperty(
             name="Line Thickness",
@@ -370,20 +306,6 @@ class RetopoFlowPreferences(AddonPreferences):
             description = 'Make non parallel cuts project from the same view to improve expected outcome',
             default=True,
             )
-    
-    new_method = BoolProperty(
-            name="New Method",
-            description = "Use robust cutting, may be slower, more accurate on dense meshes",
-            default=True,
-            )
-    
-    #TODO  Theme this out nicely :-) 
-    widget_color = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0,1), subtype="COLOR")
-    widget_color2 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(1,0,0), subtype="COLOR")
-    widget_color3 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,1,0), subtype="COLOR")
-    widget_color4 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0.2,.8), subtype="COLOR")
-    widget_color5 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(.9,.1,0), subtype="COLOR")
-    
     
     widget_radius = IntProperty(
             name="Widget Radius",
@@ -430,6 +352,7 @@ class RetopoFlowPreferences(AddonPreferences):
             min=5,
             max=50,
             )      
+    
     vertex_count = IntProperty(
             name = "Vertex Count",
             description = "The Number of Vertices Per Edge Ring",
@@ -525,7 +448,73 @@ class RetopoFlowPreferences(AddonPreferences):
             min = 0,
             max = 100,
             )
+
+    ## Debug Settings
+    show_debug = BoolProperty(
+            name="Show Debug Settings",
+            description = "Show the debug settings, useful for troubleshooting",
+            default=False,
+            )
+
+    debug = IntProperty(
+        name="Debug Level",
+        default=1,
+        min=0,
+        max=4,
+        )
+
+    raw_vert_size = IntProperty(
+            name="Raw Vertex Size",
+            default=1,
+            min = 1,
+            max = 10,
+            )
+
+    simple_vert_inds = BoolProperty(
+            name="Simple Inds",
+            default=False,
+            )
     
+    vert_inds = BoolProperty(
+            name="Vert Inds",
+            description = "Display indices of the raw contour verts",
+            default=False,
+            )
+
+    show_backbone = BoolProperty(
+            name = "show_backbone",
+            description = "Show Cut Series Backbone",
+            default = False)
+
+    show_nodes = BoolProperty(
+            name = "show_nodes",
+            description = "Show Cut Nodes",
+            default = False)
+
+    show_ring_inds = BoolProperty(
+            name = "show_ring_inds",
+            description = "Show Ring Indices",
+            default = False)
+
+    show_verts = BoolProperty(
+            name="Show Raw Verts",
+            description = "Display the raw contour verts",
+            default=False,
+            )
+
+    show_cut_indices = BoolProperty(
+            name="Show Cut Indices",
+            description = "Display the order the operator stores cuts. Usually only turned on for debugging",
+            default=False,
+            )
+
+    new_method = BoolProperty(
+            name="New Method",
+            description = "Use robust cutting, may be slower, more accurate on dense meshes",
+            default=True,
+            )
+
+
     def draw(self, context):
         
         # Polystrips 
