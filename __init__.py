@@ -675,10 +675,8 @@ class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        cgc_contour = context.user_preferences.addons[AL.FolderName].preferences
-
-        layout.operator("cgcookie.polystrips")
-        layout.operator("cgcookie.retop_contour")
+        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+        layout.operator("cgcookie.retop_contour", icon="IPO_LINEAR")
 
 class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
     '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
