@@ -617,10 +617,10 @@ class RetopoFlowPreferences(AddonPreferences):
 
                    
         
-class CGCOOKIE_OT_retopo_contour_panel(bpy.types.Panel):
-    '''Retopologize Forms with Contour Strokes'''
+class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
+    '''RetopoFlow Tools'''
     bl_category = "Retopology"
-    bl_label = "Contour Retopolgy"
+    bl_label = "RetopoFlow"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
 
@@ -630,11 +630,8 @@ class CGCOOKIE_OT_retopo_contour_panel(bpy.types.Panel):
         obj = context.active_object
         return (obj and obj.type == 'MESH' and mode in ('OBJECT', 'EDIT_MESH'))
 
-
-
     def draw(self, context):
         layout = self.layout
-        col = layout.column(align=True)
 
         # cgc_contour = context.user_preferences.addons[AL.FolderName].preferences
         settings = common_utilities.get_settings()
@@ -642,6 +639,10 @@ class CGCOOKIE_OT_retopo_contour_panel(bpy.types.Panel):
         if 'EDIT' in context.mode and len(context.selected_objects) != 2:
             col.label(text='No 2nd Object!')
 
+        col = layout.column(align=True)
+        col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+
+        col = layout.column(align=True)
         col.operator("cgcookie.retop_contour", icon='IPO_LINEAR')
         col.prop(settings, "vertex_count")
 
@@ -654,19 +655,17 @@ class CGCOOKIE_OT_retopo_contour_panel(bpy.types.Panel):
         # row.prop(cgc_contour, "cyclic")
 
         col = layout.column()
-        col.label("Cache:")
+        col.label("Contour Cache:")
 
-        row = layout.row()
-        row.prop(settings, "recover")
+        col.prop(settings, "recover", text="Recover Contours")
 
         if settings.recover:
-            row.prop(settings, "recover_clip")
+            col.prop(settings, "recover_clip")
 
-        row = layout.row()
-        row.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
+        col.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
 
-class CGCOOKIE_OT_retopo_contour_menu(bpy.types.Menu):  
+class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):  
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
     bl_idname = "object.retopology_menu"
@@ -915,7 +914,7 @@ class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
         TODO: What if errors?
         '''
         path = ContourCutSeries(context, self.draw_cache,
-                                    segments = settings.cut_count,
+                                    segments = settings.ring_count,
                                     ring_segments = settings.vertex_count,
                                     cull_factor = settings.cull_factor, 
                                     smooth_factor = settings.smooth_factor,
@@ -1895,7 +1894,7 @@ class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
         #default verts in a loop (spans)
         self.segments = settings.vertex_count
         #default number of loops in a segment
-        self.guide_cuts = settings.cut_count
+        self.guide_cuts = settings.ring_count
         
         #if edit mode
         if context.mode == 'EDIT_MESH':
@@ -2176,30 +2175,6 @@ class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
 
 ################### Polystrips ###################
 
-
-class CGCOOKIE_OT_retopo_polystrips_panel(bpy.types.Panel):
-    '''Retopologize Forms with polygon strips'''
-    bl_category = "Retopology"
-    bl_label = "Polystrips"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        mode = bpy.context.mode
-        obj = context.active_object
-        return (obj and obj.type == 'MESH' and mode in ('OBJECT', 'EDIT_MESH'))
-
-    def draw(self, context):
-        layout = self.layout
-
-        col = layout.column(align=True)
-
-        if 'EDIT' in context.mode and len(context.selected_objects) != 2:
-            col.label(text='No 2nd Object!')
-        col.operator("cgcookie.polystrips", icon="IPO_BEZIER")
-
-
 class CGCOOKIE_OT_polystrips(bpy.types.Operator):
     bl_idname = "cgcookie.polystrips"
     bl_label = "Polystrips"
@@ -2243,13 +2218,12 @@ addon_keymaps = []
 
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_polystrips_panel)
 
     bpy.utils.register_class(RetopoFlowPreferences)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_contour_panel)
+    bpy.utils.register_class(CGCOOKIE_OT_retopo_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_contour)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_contour_menu)
+    bpy.utils.register_class(CGCOOKIE_OT_retopo_menu)
 
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -2263,14 +2237,13 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_polystrips_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_polystrips)
 
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_contour)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_cache_clear)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_contour_panel)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_contour_menu)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_panel)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # Remove addon hotkeys
