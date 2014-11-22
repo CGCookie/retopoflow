@@ -731,7 +731,7 @@ def retopo_draw_callback(self,context):
 class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
     '''Draw Perpendicular Strokes to Cylindrical Form for Retopology'''
     bl_idname = "cgcookie.retop_contour"
-    bl_label = "Draw Contours"
+    bl_label = "Contours"
     
     @classmethod
     def poll(cls,context):
