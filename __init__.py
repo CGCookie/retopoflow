@@ -696,7 +696,7 @@ class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
     
 def retopo_draw_callback(self,context):
     
-    settings = context.user_preferences.addons[AL.FolderName].preferences
+    settings = common_utilities.get_settings()
 
     if (self.post_update or self.modal_state == 'NAVIGATING') and context.space_data.use_occlude_geometry:
         for path in self.cut_paths:
@@ -1198,7 +1198,7 @@ class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
     
     def modal(self, context, event):
         context.area.tag_redraw()
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         if event.type == 'Z' and event.ctrl and event.value == 'PRESS':
             self.temporary_message_start(context, "Undo Action")
@@ -1871,7 +1871,7 @@ class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
     def invoke(self, context, event):
         #HINT you are in contours code
         #TODO Settings harmon CODE REVIEW
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             self.report({'ERROR'}, 'Viewport shading must be at lease SOLID')

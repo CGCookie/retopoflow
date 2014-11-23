@@ -33,12 +33,13 @@ import blf
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
-import contour_utilities, general_utilities
+import contour_utilities
+from lib import common_utilities
 
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
-AL = general_utilities.AddonLocator()
+AL = common_utilities.AddonLocator()
 
 class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, SegmentCuts, SegmentCutSeries?
     def __init__(self, context, raw_points,
@@ -48,7 +49,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                  smooth_factor = 5,
                  feature_factor = 5):
         
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         self.seg_lock = False
         self.ring_lock = False
@@ -116,7 +117,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         region = context.region
         rv3d = context.space_data.region_3d
         mx = ob.matrix_world
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         rc = contour_utilities.ray_cast_region2d
         hits = [rc(region,rv3d,v,ob,settings)[1] for v in self.raw_screen]
         self.raw_world = [mx*hit[0] for hit in hits if hit[2] != -1]
@@ -274,7 +275,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             
     def cuts_on_path(self,context,ob,bme):
         
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         self.cuts = []
         
@@ -851,7 +852,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         check is completed. For now, that distnace is 4x the
         bounding box diag of the existing cut in the segment
         '''
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         if settings.debug > 1:
             print('testing for cut insertion')
@@ -1385,7 +1386,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
     def draw(self,context, path = True, nodes = True, rings = True, follows = True, backbone = True):
         
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
 
         stroke_color = settings.theme_colors_active[settings.theme]
         mesh_color = settings.theme_colors_mesh[settings.theme]
@@ -1491,7 +1492,7 @@ class ExistingVertList(object):
         key_type - enum in {'EDGES', 'INDS'}
         
         '''
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         self.desc = 'EXISTING_VERT_LIST'
         
@@ -1671,7 +1672,7 @@ class ExistingVertList(object):
             '''
             
             debug = settings.debug
-            #settings = context.user_preferences.addons[AL.FolderName].preferences
+            #settings = common_utilities.get_settings()
             
             stroke_color = settings.theme_colors_active[settings.theme]
             mesh_color = settings.theme_colors_mesh[settings.theme]
@@ -1830,7 +1831,7 @@ class ContourCutLine(object):
         mesh_color = settings.theme_colors_mesh[settings.theme]
 
         debug = settings.debug
-        #settings = context.user_preferences.addons[AL.FolderName].preferences
+        #settings = common_utilities.get_settings()
         
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -1952,7 +1953,7 @@ class ContourCutLine(object):
     
     #draw contour points? later    
     def hit_object(self, context, ob, method = 'VIEW'):
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         region = context.region  
         rv3d = context.space_data.region_3d
         
@@ -2079,7 +2080,8 @@ class ContourCutLine(object):
         pno = self.plane_no
         indx = self.seed_face_index
         
-        meth = context.user_preferences.addons[AL.FolderName].preferences.new_method
+        settings = common_utilities.get_settings()
+        meth = settings.new_method
         if pt and pno:
             cross = contour_utilities.cross_section_seed(bme, mx, pt, pno, indx, debug = True, method = meth)   
             if cross and cross[0] and cross[1]:
@@ -2429,7 +2431,7 @@ class ContourCutLine(object):
                 self.int_shift = 0
                 
     def active_element(self,context,x,y):
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         if self.head: #this makes sure the head and tail haven't been removed
             active_head = self.head.mouse_over(x, y)
@@ -2939,7 +2941,7 @@ class CutLineManipulatorWidget(object):
                               
     def draw(self, context):
         
-        settings = context.user_preferences.addons[AL.FolderName].preferences
+        settings = common_utilities.get_settings()
         
         if self.a:
             contour_utilities.draw_3d_points(context, [self.a], self.color3, 5)
