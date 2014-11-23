@@ -65,7 +65,6 @@ from polystrips_draw import *
 
 # Contour imports
 import contour_utilities
-import general_utilities
 from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
 from lib import common_drawing
@@ -79,7 +78,7 @@ polystrips_undo_cache = []
 
 
 # Create a class that contains all location information for addons
-AL = general_utilities.AddonLocator()
+AL = common_utilities.AddonLocator()
 
 #a place to store stokes for later
 global contour_cache 
