@@ -72,17 +72,12 @@ from polystrips_draw import *
 import contour_utilities
 from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
-# Used to store undo snapshots
-polystrips_undo_cache = []
-
-
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()
 
 #a place to store stokes for later
 global contour_cache 
 contour_cache = {}
-
 contour_undo_cache = []
 
 #store any temporary triangulated objects
@@ -90,6 +85,9 @@ contour_undo_cache = []
 #each time :-)
 global contour_mesh_cache
 contour_mesh_cache = {}
+
+# Used to store undo snapshots
+polystrips_undo_cache = []
 
 
 class RetopoFlowPreferences(AddonPreferences):
@@ -177,9 +175,7 @@ class RetopoFlowPreferences(AddonPreferences):
             name = "show_axes",
             description = "Show Cut Axes",
             default = False)
-    
 
-    
     show_experimental = BoolProperty(
             name="Enable Experimental",
             description = "Enable experimental features and functions that are still in development, useful for experimenting and likely to crash",
@@ -198,7 +194,7 @@ class RetopoFlowPreferences(AddonPreferences):
             min=1,
             max=10,
             )
-    
+
     theme = EnumProperty(
         items=[
             ('blue', 'Blue', 'Blue color scheme'),
@@ -215,7 +211,6 @@ class RetopoFlowPreferences(AddonPreferences):
     widget_color3 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,1,0), subtype="COLOR")
     widget_color4 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0.2,.8), subtype="COLOR")
     widget_color5 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(.9,.1,0), subtype="COLOR")
-    
  
     handle_size = IntProperty(
             name="Handle Vertex Size",
@@ -760,7 +755,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
-        #identify hover target for highlighting
+        # Identify hover target for highlighting
         if self.cut_paths != []:
             target_at_all = False
             breakout = False
@@ -782,7 +777,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             if not target_at_all:
                 self.hover_target = None
         
-        #assess snap points
+        # Assess snap points
         if self.cut_paths != [] and not self.force_new:
             rv3d = context.space_data.region_3d
             breakout = False
@@ -800,9 +795,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     
                 for n, end_cut in enumerate(end_cuts):
                     
-                    #potential verts to snap to
+                    # Potential verts to snap to
                     snaps = [v for i, v in enumerate(end_cut.verts_simple) if end_cut.verts_simple_visible[i]]
-                    #the screen versions os those
+                    # The screen versions os those
                     screen_snaps = [location_3d_to_region_2d(context.region,rv3d,snap) for snap in snaps]
                     
                     mouse = Vector((event.mouse_region_x,event.mouse_region_y))
@@ -857,7 +852,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         '''
         Handles mouse selection and hovering
         '''
-        #identify hover target for highlighting
+        # Identify hover target for highlighting
         if self.cut_paths != []:
             
             new_target = False
@@ -901,8 +896,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                                 self.cut_line_widget.x = event.mouse_region_x
                                 self.cut_line_widget.y = event.mouse_region_y
                                 self.cut_line_widget.derive_screen(context)
-                    #elif not c_cut.select:
-                        #c_cut.geom_color = (settings.geom_rgb[0],settings.geom_rgb[1],settings.geom_rgb[2],1)          
+                    # elif not c_cut.select:
+                        # c_cut.geom_color = (settings.geom_rgb[0],settings.geom_rgb[1],settings.geom_rgb[2],1)          
             if not target_at_all:
                 self.hover_target = None
                 self.cut_line_widget = None
@@ -970,14 +965,14 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         width = Vector((self.selected.head.x, self.selected.head.y)) - Vector((self.selected.tail.x, self.selected.tail.y))
         
-        #prevent small errant strokes
+        # Prevent small errant strokes
         if width.length < 20: #TODO: Setting for minimum pixel width
             self.cut_lines.remove(self.selected)
             self.selected = None
             print('Placed cut is too short')
             return
         
-        #hit the mesh for the first time
+        # Hit the mesh for the first time
         hit = self.selected.hit_object(context, self.original_form, method = 'VIEW')
         
         if not hit:
@@ -1008,7 +1003,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if self.cut_paths != [] and not self.force_new:
             for path in self.cut_paths:
                 if path.insert_new_cut(context, self.original_form, self.bme, self.selected, search = settings.search_factor):
-                    #the cut belongs to the series now
+                    # The cut belongs to the series now
                     path.connect_cuts_to_make_mesh(self.original_form)
                     path.update_visibility(context, self.original_form)
                     path.seg_lock = True
@@ -1019,17 +1014,17 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     for other_path in self.cut_paths:
                         if other_path != self.selected_path:
                             other_path.deselect(settings)
-                    # no need to search for more paths
+                    # No need to search for more paths
                     return
         
-        #create a blank segment
+        # Create a blank segment
         path = ContourCutSeries(context, [],
                         cull_factor = settings.cull_factor, 
                         smooth_factor = settings.smooth_factor,
                         feature_factor = settings.feature_factor)
         
         path.insert_new_cut(context, self.original_form, self.bme, self.selected, search = settings.search_factor)
-        path.seg_lock = False  #not locked yet...not until a 2nd cut is added in loop mode
+        path.seg_lock = False  # Not locked yet...not until a 2nd cut is added in loop mode
         path.segments = 1
         path.ring_segments = len(self.selected.verts_simple)
         path.connect_cuts_to_make_mesh(self.original_form)
@@ -1048,7 +1043,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
     def finish_mesh(self, context):
         back_to_edit = (context.mode == 'EDIT_MESH')
                     
-        #This is where all the magic happens
+        # This is where all the magic happens
         print('pushing data into bmesh')
         for path in self.cut_paths:
             path.push_data_into_bmesh(context, self.destination_ob, self.dest_bme, self.original_form, self.dest_me)
@@ -1058,11 +1053,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             bmesh.update_edit_mesh(self.dest_me, tessface=False, destructive=True)
         
         else:
-            #write the data into the object
+            # Write the data into the object
             print('write data into the object')
             self.dest_bme.to_mesh(self.dest_me)
         
-            #remember we created a new object
+            # Remember we created a new object
             print('link destination object')
             context.scene.objects.link(self.destination_ob)
             
@@ -1138,11 +1133,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if not event.ctrl and not event.shift:
             act = 'BETWEEN'
                 
-        #align ahead    
+        # Align ahead    
         elif event.ctrl and not event.shift:
             act = 'FORWARD'
             
-        #align behind    
+        # Align behind    
         elif event.shift and not event.ctrl:
             act = 'BACKWARD'
             
@@ -1201,7 +1196,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.temporary_message_start(context, "Undo Action")
             self.undo_action()
             
-        #check messages
+        # Check messages
         if event.type == 'TIMER':
             now = time.time()
             if now - self.msg_start_time > self.msg_duration:
@@ -1300,7 +1295,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         context.scene.cursor_location = self.selected.plane_com
                         self.temporary_message_start(context, 'Cursor to selected loop or segment')
                 
-                #NAVIGATION KEYS
+                # NAVIGATION KEYS
                 elif (event.type in {'MIDDLEMOUSE', 
                                     'NUMPAD_2', 
                                     'NUMPAD_4', 
@@ -1325,7 +1320,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
 
                     return {'PASS_THROUGH'}
                 
-                #ZOOM KEYS
+                # ZOOM KEYS
                 elif (event.type in  {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'} and not 
                         (event.ctrl or event.shift)):
                     
@@ -1348,7 +1343,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                                 else:
                                     path.deselect(settings)
                         
-                        #select the ring
+                        # Select the ring
                         self.hover_target.do_select(settings)
                         
                     
@@ -1356,7 +1351,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         
                         self.create_undo_snapshot('WIDGET_TRANSFORM')
                         self.modal_state = 'WIDGET_TRANSFORM'
-                        #sometimes, there is not a widget from the hover?
+                        # Sometimes, there is not a widget from the hover?
                         self.cut_line_widget = CutLineManipulatorWidget(context, 
                                                                         settings,
                                                                         self.original_form, self.bme,
@@ -1370,7 +1365,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         self.create_undo_snapshot('CUTTING')
                         self.modal_state = 'CUTTING'
                         self.temporary_message_start(context, self.mode + ': CUTTING')
-                        #make a new cut and handle it with self.selected
+                        # Make a new cut and handle it with self.selected
                         self.selected = self.click_new_cut(context, settings, event)
                         
                         
@@ -1388,7 +1383,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         self.loop_hotkey_modal(context,event)
                         self.temporary_message_start(context, self.mode + ':Hotkey Grab')
                         return {'RUNNING_MODAL'}
-                    #R -> HOTKEY
+                    # R -> HOTKEY
                     if event.type == 'R' and event.value == 'PRESS':
                         
                         self.create_undo_snapshot('HOTKEY_TRANSFORM')
@@ -1398,7 +1393,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         self.temporary_message_start(context, self.mode + ':Hotkey Rotate')
                         return {'RUNNING_MODAL'}
                     
-                    #X, DEL -> DELETE
+                    # X, DEL -> DELETE
                     elif event.type == 'X' and event.value == 'PRESS':
                         
                         self.create_undo_snapshot('DELETE')
@@ -1415,9 +1410,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                         self.selected = None
                         self.temporary_message_start(context, self.mode + ': DELETE')
                     
-                    #S -> CURSOR SELECTED CoM
+                    # S -> CURSOR SELECTED CoM
                     
-                    #LEFT_ARROW, RIGHT_ARROW to shift
+                    # LEFT_ARROW, RIGHT_ARROW to shift
                     elif (event.type in {'LEFT_ARROW', 'RIGHT_ARROW'} and 
                           event.value == 'PRESS'):
                         self.create_undo_snapshot('LOOP_SHIFT') 
@@ -1476,7 +1471,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             elif self.modal_state == 'CUTTING':
                 
                 if event.type == 'MOUSEMOVE':
-                    #pass mouse coords to widget
+                    # Pass mouse coords to widget
                     x = str(event.mouse_region_x)
                     y = str(event.mouse_region_y)
                     message = self.mode + ':CUTTING: X: ' +  x + '  Y:  ' +  y
@@ -1497,7 +1492,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     self.release_place_cut(context, settings, event)
                     
                     
-                    #we return to waiting
+                    # We return to waiting
                     self.modal_state = 'WAITING'
                     return {'RUNNING_MODAL'}
             
