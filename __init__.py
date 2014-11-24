@@ -32,42 +32,45 @@ bl_info = {
     "category":    "3D View"
     }
 
-# Add the current __file__ path to the search path
-import sys
+
+# System imports
 import os
+import sys
+
+# Add the current __file__ path to the search path
 sys.path.append(os.path.dirname(__file__))
 
-import math
 import copy
+import math
 import random
 import time
 from math import sqrt
-
-import bpy
-import bmesh
-import blf
-import bgl
-from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, FloatVectorProperty, FloatProperty
-from bpy.types import Operator, AddonPreferences
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_line_plane, intersect_point_line
 
+# Blender imports
+import bgl
+import blf
+import bmesh
+import bpy
+from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, FloatVectorProperty, FloatProperty
+from bpy.types import Operator, AddonPreferences
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
+
+# Common imports
 from lib import common_utilities
 from lib.common_utilities import get_object_length_scale, dprint, profiler, frange
 from lib.common_classes import SketchBrush
-
+from lib import common_drawing
 
 # Polystrip imports
-from polystrips import *
 import polystrips_utilities
+from polystrips import *
 from polystrips_draw import *
 
 # Contour imports
 import contour_utilities
 from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
-
-from lib import common_drawing
 
 
 # Used to store keymaps for addon

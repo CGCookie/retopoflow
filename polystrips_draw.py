@@ -19,24 +19,25 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-####class definitions####
-
-import bpy
-import math
-import time
+# System imports
 import copy
+import math
+import itertools
+import time
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import intersect_point_line, intersect_line_plane
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
-import bmesh
-import blf
-import bgl
-import itertools
 
+# Blender imports
+import bgl
+import blf
+import bmesh
+import bpy
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+
+# Common imports
 from lib import common_utilities
 from lib import common_drawing
 from lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
-
 from polystrips_utilities import *
 
 

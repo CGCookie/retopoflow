@@ -19,24 +19,25 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-####class definitions####
-
-import bpy
-import math
-import time
-import copy
+# System imports
 import os
 import sys
+import copy
+import itertools
+import math
+import time
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import intersect_point_line, intersect_line_plane
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
-import bmesh
-import blf
-import itertools
 
+# Blender imports
+import blf
+import bmesh
+import bpy
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+
+# Common imports
 from lib import common_utilities
 from lib.common_utilities import dprint
-
 
 
 def blender_bezier_to_even_points(b_ob, dist):

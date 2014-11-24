@@ -19,20 +19,21 @@ Created by Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-####class definitions####
-
+# System imports
 import copy
 import math
 import time
 from mathutils import Vector, Quaternion
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 
+# Blender imports
 import bgl
-import bpy
 import blf
 import bmesh
+import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
+# Common imports
 import contour_utilities
 from lib import common_utilities
 

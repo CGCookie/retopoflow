@@ -24,13 +24,17 @@ Note: not all of the following code was provided by Plasmasolutions
 TODO: split into separate files?
 '''
 
-import sys, os
-import bpy
-import time
-import math
+# System imports
+import os
+import sys
 import inspect
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+import math
+import time
 from mathutils import Vector, Matrix, Quaternion
+
+# Blender imports
+import bpy
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 
 class AddonLocator(object):
