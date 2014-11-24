@@ -96,55 +96,6 @@ global contour_mesh_cache
 contour_mesh_cache = {}
 
 
-################### Contours ###################
-
-def object_validation(ob):
-    me = ob.data
-    
-    # get object data to act as a hash
-    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
-    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
-    
-    return (ob.name, counts, bbox, vsum)
-
-def is_object_valid(ob):
-    global contour_mesh_cache
-    if 'valid' not in contour_mesh_cache: return False
-    return contour_mesh_cache['valid'] == object_validation(ob)
-
-def write_mesh_cache(orig_ob,tmp_ob, bme):
-    print('writing mesh cache')
-    global contour_mesh_cache
-    clear_mesh_cache()
-    contour_mesh_cache['valid'] = object_validation(orig_ob)
-    contour_mesh_cache['bme'] = bme
-    contour_mesh_cache['tmp'] = tmp_ob
-    
-def clear_mesh_cache():
-    print('clearing mesh cache')
-    
-    global contour_mesh_cache
-    
-    if 'valid' in contour_mesh_cache and contour_mesh_cache['valid']:
-        del contour_mesh_cache['valid']
-        
-    if 'bme' in contour_mesh_cache and contour_mesh_cache['bme']:
-        bme_old = contour_mesh_cache['bme']
-        bme_old.free()
-        del contour_mesh_cache['bme']
-    
-    if 'tmp' in contour_mesh_cache and contour_mesh_cache['tmp']:
-        old_obj = contour_mesh_cache['tmp']
-        #context.scene.objects.unlink(self.tmp_ob)
-        old_me = old_obj.data
-        old_obj.user_clear()
-        if old_obj and old_obj.name in bpy.data.objects:
-            bpy.data.objects.remove(old_obj)
-        if old_me and old_me.name in bpy.data.meshes:
-            bpy.data.meshes.remove(old_me)
-        del contour_mesh_cache['tmp']
-        
 class RetopoFlowPreferences(AddonPreferences):
     bl_idname = __name__
     
@@ -538,7 +489,6 @@ class RetopoFlowPreferences(AddonPreferences):
         row = layout.row(align=True)
         row.prop(self, "debug") 
 
-
         # Contours
         layout = self.layout
 
@@ -624,8 +574,7 @@ class RetopoFlowPreferences(AddonPreferences):
             row.prop(self, "show_nodes", text="Show Cut Nodes")
             row.prop(self, "show_ring_inds", text="Show Ring Indices")
 
-                   
-        
+
 class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
     bl_category = "Retopology"
@@ -673,6 +622,7 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
 
+
 class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):  
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
@@ -686,19 +636,70 @@ class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):
         layout.operator("cgcookie.retop_contour", icon="IPO_LINEAR")
         layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
 
+
+################### Contours ###################
+
+def object_validation(ob):
+    me = ob.data
+
+    # get object data to act as a hash
+    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
+    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
+
+    return (ob.name, counts, bbox, vsum)
+
+def is_object_valid(ob):
+    global contour_mesh_cache
+    if 'valid' not in contour_mesh_cache: return False
+    return contour_mesh_cache['valid'] == object_validation(ob)
+
+def write_mesh_cache(orig_ob,tmp_ob, bme):
+    print('writing mesh cache')
+    global contour_mesh_cache
+    clear_mesh_cache()
+    contour_mesh_cache['valid'] = object_validation(orig_ob)
+    contour_mesh_cache['bme'] = bme
+    contour_mesh_cache['tmp'] = tmp_ob
+
+def clear_mesh_cache():
+    print('clearing mesh cache')
+
+    global contour_mesh_cache
+
+    if 'valid' in contour_mesh_cache and contour_mesh_cache['valid']:
+        del contour_mesh_cache['valid']
+
+    if 'bme' in contour_mesh_cache and contour_mesh_cache['bme']:
+        bme_old = contour_mesh_cache['bme']
+        bme_old.free()
+        del contour_mesh_cache['bme']
+
+    if 'tmp' in contour_mesh_cache and contour_mesh_cache['tmp']:
+        old_obj = contour_mesh_cache['tmp']
+        #context.scene.objects.unlink(self.tmp_ob)
+        old_me = old_obj.data
+        old_obj.user_clear()
+        if old_obj and old_obj.name in bpy.data.objects:
+            bpy.data.objects.remove(old_obj)
+        if old_me and old_me.name in bpy.data.meshes:
+            bpy.data.meshes.remove(old_me)
+        del contour_mesh_cache['tmp']
+
+
 class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
     '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
     bl_idname = "cgcookie.clear_cache"
     bl_label = "Clear Contour Cache" 
-    
+
     def execute(self,context):
-        
+
         clear_mesh_cache()
-        
+
         return {'FINISHED'}
-    
+
 def retopo_draw_callback(self,context):
-    
+
     settings = common_utilities.get_settings()
 
     if (self.post_update or self.modal_state == 'NAVIGATING') and context.space_data.use_occlude_geometry:
