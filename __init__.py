@@ -642,10 +642,12 @@ def object_validation(ob):
 
     return (ob.name, counts, bbox, vsum)
 
+
 def is_object_valid(ob):
     global contour_mesh_cache
     if 'valid' not in contour_mesh_cache: return False
     return contour_mesh_cache['valid'] == object_validation(ob)
+
 
 def write_mesh_cache(orig_ob,tmp_ob, bme):
     print('writing mesh cache')
@@ -654,6 +656,7 @@ def write_mesh_cache(orig_ob,tmp_ob, bme):
     contour_mesh_cache['valid'] = object_validation(orig_ob)
     contour_mesh_cache['bme'] = bme
     contour_mesh_cache['tmp'] = tmp_ob
+
 
 def clear_mesh_cache():
     print('clearing mesh cache')
@@ -690,6 +693,7 @@ class CGCOOKIE_OT_contours_cache_clear(bpy.types.Operator):
         clear_mesh_cache()
 
         return {'FINISHED'}
+
 
 def retopo_draw_callback(self,context):
 
@@ -730,7 +734,8 @@ def retopo_draw_callback(self,context):
             
     if len(self.snap_circle):
         contour_utilities.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
-        
+
+  
 class CGCOOKIE_OT_contours(bpy.types.Operator):
     '''Draw Perpendicular Strokes to Cylindrical Form for Retopology'''
     bl_idname = "cgcookie.contours"
@@ -850,9 +855,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             if not breakout:
                 self.snap = []
                 self.snap_circle = []
-                    
-                    
-        
+
+
     def hover_loop_mode(self,context, settings, event):
         '''
         Handles mouse selection and hovering
@@ -1585,12 +1589,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     self.selected_path.update_visibility(context, self.original_form)
                     
                 return {'RUNNING_MODAL'}
-            
-            
-                
-                
+
             return{'RUNNING_MODAL'}
-        
+
         if self.mode == 'GUIDE':
             
             if self.modal_state == 'WAITING':
@@ -2211,6 +2212,7 @@ class CGCOOKIE_OT_polystrips(bpy.types.Operator):
         self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
+
 
 # Used to store keymaps for addon
 addon_keymaps = []
