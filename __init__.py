@@ -72,10 +72,6 @@ from polystrips_draw import *
 import contour_utilities
 from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
-
-# Used to store keymaps for addon
-polystrips_keymaps = []
-
 # Used to store undo snapshots
 polystrips_undo_cache = []
 
