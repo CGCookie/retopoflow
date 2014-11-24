@@ -540,13 +540,6 @@ class RetopoFlowPreferences(AddonPreferences):
             row.prop(self, "arrow_size", text="Arrow Size")
             row.prop(self, "arrow_size2", text="Translate Arrow Size")
 
-            row = box.row()
-            row.prop(self, "widget_color", text="Color 1")
-            row.prop(self, "widget_color2", text="Color 2")
-            row.prop(self, "widget_color3", text="Color 3")
-            row.prop(self, "widget_color4", text="Color 4")
-            row.prop(self, "widget_color5", text="Color 5")
-
         # Debug Settings
         box = layout.box().column(align=False)
         row = box.row()
