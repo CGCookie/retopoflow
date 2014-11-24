@@ -728,7 +728,7 @@ def retopo_draw_callback(self,context):
 
   
 class CGCOOKIE_OT_contours(bpy.types.Operator):
-    '''Draw Perpendicular Strokes to Cylindrical Form for Retopology'''
+    '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
     bl_idname = "cgcookie.contours"
     bl_label = "Contours"
     
