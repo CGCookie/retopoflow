@@ -597,7 +597,7 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
             col.label(text='No 2nd Object!')
 
         col = layout.column(align=True)
-        col.operator("cgcookie.retop_contour", icon='IPO_LINEAR')
+        col.operator("cgcookie.contours", icon='IPO_LINEAR')
 
         box = layout.box()
         row = box.row()
@@ -633,7 +633,7 @@ class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        layout.operator("cgcookie.retop_contour", icon="IPO_LINEAR")
+        layout.operator("cgcookie.contours", icon="IPO_LINEAR")
         layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
 
 
@@ -738,9 +738,9 @@ def retopo_draw_callback(self,context):
     if len(self.snap_circle):
         contour_utilities.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
         
-class CGCOOKIE_OT_retopo_contour(bpy.types.Operator):
+class CGCOOKIE_OT_contours(bpy.types.Operator):
     '''Draw Perpendicular Strokes to Cylindrical Form for Retopology'''
-    bl_idname = "cgcookie.retop_contour"
+    bl_idname = "cgcookie.contours"
     bl_label = "Contours"
     
     @classmethod
@@ -2228,7 +2228,7 @@ def register():
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_cache_clear)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_contour)
+    bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_menu)
 
     # Create the addon hotkeys
@@ -2246,7 +2246,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_polystrips)
 
     clear_mesh_cache()
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_contour)
+    bpy.utils.unregister_class(CGCOOKIE_OT_contours)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_cache_clear)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_menu)
