@@ -35,7 +35,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Common imports
 import contour_utilities
-from lib import common_utilities
+from lib import common_utilities, common_drawing
 
 #from development.cgc-retopology import contour_utilities
 
@@ -1422,7 +1422,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             if not context.space_data.use_occlude_geometry:
                 
                 for follow in self.follow_lines:
-                    contour_utilities.draw_polyline_from_3dpoints(context, follow, 
+                    common_drawing.draw_polyline_from_3dpoints(context, follow, 
                                                           mesh_color, 
                                                           self.line_thickness,"GL_LINE_STIPPLE")
 
@@ -1431,7 +1431,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 for i, line in enumerate(self.follow_lines):
                     for n in range(0,len(line)-1):
                         if self.follow_vis[i][n] and self.follow_vis[i][n+1]:
-                            contour_utilities.draw_polyline_from_3dpoints(context, [line[n],line[n+1]], 
+                            common_drawing.draw_polyline_from_3dpoints(context, [line[n],line[n+1]], 
                                                           mesh_color, 
                                                           self.line_thickness,"GL_LINE_STIPPLE")
 
@@ -1692,27 +1692,27 @@ class ExistingVertList(object):
                         
                         factor = (1 - abs(self.vec_x.dot(screen_z)))
                         screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                        contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,0,1), 2, 'GL_LINE_STRIP')
+                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,0,1), 2, 'GL_LINE_STRIP')
 
                     if self.vec_y and debug > 2:
                         
                         vec_screen = imx.transposed() * self.vec_y
                         factor = (1 - abs(self.vec_y.dot(screen_z)))
                         screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                        contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,0,1), 2, 'GL_LINE_STRIP')
+                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,0,1), 2, 'GL_LINE_STRIP')
     
                     if self.plane_no:
                         vec_screen = imx.transposed() * self.plane_no
                         factor = (1 - abs(self.plane_no.dot(screen_z)))
                         screen_pt_x = com_2d + factor* 40 * vec_screen.to_2d().normalized()
-                        contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,0,1,1), 2, 'GL_LINE_STRIP')
+                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,0,1,1), 2, 'GL_LINE_STRIP')
                         
             if False not in self.verts_simple_visible:
                     contour_utilities.draw_3d_points(context, self.verts_simple, self.vert_color, 3)
-                    contour_utilities.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
+                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
                     
                     if 0 in self.eds_simple[-1]:
-                        contour_utilities.draw_polyline_from_3dpoints(context, 
+                        common_drawing.draw_polyline_from_3dpoints(context, 
                                                                       [self.verts_simple[-1],self.verts_simple[0]], 
                                                                       mesh_color,  
                                                                       settings.line_thick, 
@@ -1724,10 +1724,10 @@ class ExistingVertList(object):
                         contour_utilities.draw_3d_points(context, [v], mesh_color, settings.vert_size)
                             
                         if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
-                            contour_utilities.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
+                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
             
                 if 0 in self.eds_simple[-1] and self.verts_simple_visible[0] and self.verts_simple_visible[-1]:
-                        contour_utilities.draw_polyline_from_3dpoints(context, 
+                        common_drawing.draw_polyline_from_3dpoints(context, 
                                                                       [self.verts_simple[-1],self.verts_simple[0]], 
                                                                       mesh_color,  
                                                                       settings.line_thick, 
@@ -1860,20 +1860,20 @@ class ContourCutLine(object):
                     
                     factor = (1 - abs(self.vec_x.dot(screen_z)))
                     screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                    contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,1,0,1), 2, 'GL_LINE_STRIP')
+                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,1,0,1), 2, 'GL_LINE_STRIP')
 
                 if self.vec_y and debug > 2:
                     
                     vec_screen = imx.transposed() * self.vec_y
                     factor = (1 - abs(self.vec_y.dot(screen_z)))
                     screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                    contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,1,1), 2, 'GL_LINE_STRIP')
+                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,1,1), 2, 'GL_LINE_STRIP')
 
                 if self.plane_no:
                     vec_screen = imx.transposed() * self.plane_no
                     factor = (1 - abs(self.plane_no.dot(screen_z)))
                     screen_pt_x = com_2d + factor* 40 * vec_screen.to_2d().normalized()
-                    contour_utilities.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,1,1), 2, 'GL_LINE_STRIP')
+                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,1,1), 2, 'GL_LINE_STRIP')
 
                     
         
@@ -1881,7 +1881,7 @@ class ContourCutLine(object):
         if self.head:
             points = [(self.head.x,self.head.y),(self.tail.x,self.tail.y)]
             
-            contour_utilities.draw_polyline_from_points(context, points, stroke_color, settings.stroke_thick, "GL_LINE_STIPPLE")
+            common_drawing.draw_polyline_from_points(context, points, stroke_color, settings.stroke_thick, "GL_LINE_STIPPLE")
         
             #draw the two handles
             contour_utilities.draw_points(context, points, stroke_color, settings.handle_size)
@@ -1891,7 +1891,7 @@ class ContourCutLine(object):
             #point1 = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_pt)
             #point2 = (self.plane_tan.x, self.plane_tan.y)
 
-            #contour_utilities.draw_polyline_from_points(context, [point1,point2], (0,.2,1,1), settings.stroke_thick, "GL_LINE_STIPPLE")
+            #common_drawing.draw_polyline_from_points(context, [point1,point2], (0,.2,1,1), settings.stroke_thick, "GL_LINE_STIPPLE")
             #contour_utilities.draw_points(context, [point2], self.plane_tan.color, settings.handle_size)
             #contour_utilities.draw_points(context, [point1], self.head.color, settings.handle_size)
         
@@ -1909,13 +1909,13 @@ class ContourCutLine(object):
         if False not in self.verts_simple_visible:
                 contour_utilities.draw_3d_points(context, self.verts_simple, mesh_color, 3)
                 if self.is_highlighted:
-                    contour_utilities.draw_polyline_from_3dpoints(context, self.verts_simple, stroke_color,  settings.line_thick*2, 'GL_LINE_STIPPLE')
+                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, stroke_color,  settings.line_thick*2, 'GL_LINE_STIPPLE')
                 else: 
-                    contour_utilities.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
+                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
 
 
                 if self.edges != [] and 0 in self.edges[-1]:
-                    contour_utilities.draw_polyline_from_3dpoints(context, 
+                    common_drawing.draw_polyline_from_3dpoints(context, 
                                                                   [self.verts_simple[-1],self.verts_simple[0]], 
                                                                   mesh_color,  
                                                                   settings.line_thick, 
@@ -1928,15 +1928,15 @@ class ContourCutLine(object):
                         
                     if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
                         if self.is_highlighted:
-                            contour_utilities.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], stroke_color, settings.line_thick*2, 'GL_LINE_STIPPLE')
+                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], stroke_color, settings.line_thick*2, 'GL_LINE_STIPPLE')
                         else:
-                            contour_utilities.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
+                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
 
             if self.edges != [] and 0 in self.edges[-1] and self.verts_simple_visible[0] and self.verts_simple_visible[-1]:
                     if self.is_highlighted:
-                        contour_utilities.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], stroke_color, settings.line_thick, 'GL_LINE_STIPPLE')
+                        common_drawing.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], stroke_color, settings.line_thick, 'GL_LINE_STIPPLE')
                     else:
-                        contour_utilities.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
+                        common_drawing.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
 
 
         if debug:
@@ -2958,12 +2958,12 @@ class CutLineManipulatorWidget(object):
             l = len(self.arc_arrow_1)
             
             #draw outer circle half
-            contour_utilities.draw_polyline_from_points(context, self.outer_circle_1[0:l-2], self.color4, self.line_width, "GL_LINES")
-            contour_utilities.draw_polyline_from_points(context, self.outer_circle_2[0:l-2], self.color4, self.line_width, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, self.outer_circle_1[0:l-2], self.color4, self.line_width, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, self.outer_circle_2[0:l-2], self.color4, self.line_width, "GL_LINES")
             
             #draw outer translation arrows
-            #contour_utilities.draw_polyline_from_points(context, self.trans_arrow_up, self.color3, self.line_width, "GL_LINES")
-            #contour_utilities.draw_polyline_from_points(context, self.trans_arrow_down, self.color3, self.line_width, "GL_LINES")            
+            #common_drawing.draw_polyline_from_points(context, self.trans_arrow_up, self.color3, self.line_width, "GL_LINES")
+            #common_drawing.draw_polyline_from_points(context, self.trans_arrow_down, self.color3, self.line_width, "GL_LINES")            
             
             
             contour_utilities.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[:4], self.color3)
@@ -2974,43 +2974,43 @@ class CutLineManipulatorWidget(object):
             #draw a line perpendicular to arc
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle), math.sin(self.angle)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle), math.sin(self.angle)))
-            #contour_utilities.draw_polyline_from_points(context, [point_1, point_2], self.color3, self.line_width, "GL_LINES")
+            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color3, self.line_width, "GL_LINES")
             
             
             #try the straight red line
             point_1 = Vector((self.x,self.y)) #+ self.inner_radius * Vector((math.cos(self.angle), math.sin(self.angle)))
             point_2 = Vector((self.x,self.y)) +  self.radius * Vector((math.cos(self.angle), math.sin(self.angle)))
-            contour_utilities.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width2 , "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width2 , "GL_LINES")
             
             point_1 = Vector((self.x,self.y))# + -self.inner_radius * Vector((math.cos(self.angle), math.sin(self.angle)))
             point_2 = Vector((self.x,self.y)) +  -self.radius * Vector((math.cos(self.angle), math.sin(self.angle)))
-            contour_utilities.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width, "GL_LINES")
             
             #drawa arc 2
-            #contour_utilities.draw_polyline_from_points(context, self.arc_arrow_2[:l-1], self.color2, self.line_width, "GL_LINES")
+            #common_drawing.draw_polyline_from_points(context, self.arc_arrow_2[:l-1], self.color2, self.line_width, "GL_LINES")
             
             #new rotation thingy
-            contour_utilities.draw_polyline_from_points(context, self.arc_arrow_rotate_ccw[:l-1], self.color, self.line_width2, "GL_LINES")
-            contour_utilities.draw_polyline_from_points(context, self.arc_arrow_rotate_cw[:l-1], self.color, self.line_width2, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, self.arc_arrow_rotate_ccw[:l-1], self.color, self.line_width2, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, self.arc_arrow_rotate_cw[:l-1], self.color, self.line_width2, "GL_LINES")
             
             #other half the tips
-            contour_utilities.draw_polyline_from_points(context, [self.arc_arrow_rotate_ccw[l-1],self.arc_arrow_rotate_ccw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
-            contour_utilities.draw_polyline_from_points(context, [self.arc_arrow_rotate_cw[l-1],self.arc_arrow_rotate_cw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, [self.arc_arrow_rotate_ccw[l-1],self.arc_arrow_rotate_ccw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, [self.arc_arrow_rotate_cw[l-1],self.arc_arrow_rotate_cw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
             
             #draw an up and down arrow
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle + .5*math.pi), math.sin(self.angle + .5*math.pi)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle + .5*math.pi), math.sin(self.angle + .5*math.pi)))
-            #contour_utilities.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
+            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
             
             #draw little hash
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle +  3/2 * math.pi), math.sin(self.angle +  3/2 * math.pi)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle +  3/2 * math.pi), math.sin(self.angle +  3/2 * math.pi)))
-            #contour_utilities.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
+            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
         
         elif self.transform_mode:
 
             #draw a small inner circle
-            contour_utilities.draw_polyline_from_points(context, self.inner_circle, self.color, self.line_width, "GL_LINES")
+            common_drawing.draw_polyline_from_points(context, self.inner_circle, self.color, self.line_width, "GL_LINES")
             
             
             if not settings.live_update:
@@ -3018,7 +3018,7 @@ class CutLineManipulatorWidget(object):
                     #draw a line representing the COM translation
                     points = [self.initial_com, self.cut_line.plane_com]
                     contour_utilities.draw_3d_points(context, points, self.color3, 4)
-                    contour_utilities.draw_polyline_from_3dpoints(context, points, self.color ,2 , "GL_STIPPLE")
+                    common_drawing.draw_polyline_from_3dpoints(context, points, self.color ,2 , "GL_STIPPLE")
                     
                 else:
                     rv3d = context.space_data.region_3d
@@ -3037,7 +3037,7 @@ class CutLineManipulatorWidget(object):
                     p6_2d = p1_2d - self.radius * vec_2d
                     
                     contour_utilities.draw_points(context, [p1_2d, p4_2d, p6_2d], self.color3, 5)
-                    contour_utilities.draw_polyline_from_points(context, [p6_2d, p4_2d], self.color ,2 , "GL_STIPPLE")
+                    common_drawing.draw_polyline_from_points(context, [p6_2d, p4_2d], self.color ,2 , "GL_STIPPLE")
             
 class ContourStatePreserver(object):
     def __init__(self, operator):

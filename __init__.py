@@ -717,14 +717,14 @@ def retopo_draw_callback(self,context):
         self.cut_line_widget.draw(context)
         
     if len(self.draw_cache):
-        contour_utilities.draw_polyline_from_points(context, self.draw_cache, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
+        contour_utilities.polyline_from_points(context, self.draw_cache, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
         
     if len(self.cut_paths):
         for path in self.cut_paths:
             path.draw(context, path = True, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
             
     if len(self.snap_circle):
-        contour_utilities.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
+        common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
 
   
 class CGCOOKIE_OT_contours(bpy.types.Operator):
@@ -1079,7 +1079,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         print('wrap up')
         context.area.header_text_set()
-        contour_utilities.callback_cleanup(self,context)
+        common_utilities.callback_cleanup(self,context)
         if self._timer:
             context.window_manager.event_timer_remove(self._timer)
         
@@ -1242,7 +1242,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     event.value == 'PRESS'):
                     
                     context.area.header_text_set()
-                    contour_utilities.callback_cleanup(self,context)
+                    common_utilities.callback_cleanup(self,context)
                     if self._timer:
                         context.window_manager.event_timer_remove(self._timer)
                         
@@ -1608,7 +1608,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     event.value == 'PRESS'):
                     
                     context.area.header_text_set()
-                    contour_utilities.callback_cleanup(self,context)
+                    common_utilities.callback_cleanup(self,context)
                     if self._timer:
                         context.window_manager.event_timer_remove(self._timer)
                         

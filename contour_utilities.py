@@ -43,7 +43,8 @@ def callback_register(self, context):
         #else:
             #self._handle = context.region.callback_add(self.menu.draw, (self, context), 'POST_PIXEL')
         #return None
-            
+
+# Depriciated
 def callback_cleanup(self, context):
     #if str(bpy.app.build_revision)[2:7].lower() == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
     bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
@@ -483,6 +484,7 @@ def draw_3d_points(context, points, color, size):
     bgl.glEnd()   
     return
 
+# Depreciated
 def draw_polyline_from_points(context, points, color, thickness, LINE_TYPE):
     '''
     a simple way to draw a line
@@ -514,6 +516,7 @@ def draw_polyline_from_points(context, points, color, thickness, LINE_TYPE):
       
     return
 
+# Depreciated
 def draw_polyline_from_3dpoints(context, points_3d, color, thickness, LINE_TYPE):
     '''
     a simple way to draw a line
