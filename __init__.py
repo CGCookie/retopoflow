@@ -617,7 +617,7 @@ class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
             if settings.recover:
                 col.prop(settings, "recover_clip")
 
-            col.operator("cgcookie.clear_cache", text = "Clear Cache", icon = 'CANCEL')
+            col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
         col = layout.column(align=True)
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
@@ -687,9 +687,9 @@ def clear_mesh_cache():
         del contour_mesh_cache['tmp']
 
 
-class CGCOOKIE_OT_retopo_cache_clear(bpy.types.Operator):
+class CGCOOKIE_OT_contours_cache_clear(bpy.types.Operator):
     '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
-    bl_idname = "cgcookie.clear_cache"
+    bl_idname = "cgcookie.contours_clear_cache"
     bl_label = "Clear Contour Cache" 
 
     def execute(self,context):
@@ -2227,7 +2227,7 @@ def register():
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_panel)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_cache_clear)
+    bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_menu)
 
@@ -2247,7 +2247,7 @@ def unregister():
 
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_cache_clear)
+    bpy.utils.unregister_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
