@@ -616,7 +616,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
 
 
-class CGCOOKIE_OT_retopo_menu(bpy.types.Menu):  
+class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
     bl_idname = "object.retopology_menu"
@@ -2222,7 +2222,7 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_contours)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_menu)
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -2242,7 +2242,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)
     bpy.utils.unregister_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_menu)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # Remove addon hotkeys
