@@ -568,7 +568,7 @@ class RetopoFlowPreferences(AddonPreferences):
             row.prop(self, "show_ring_inds", text="Show Ring Indices")
 
 
-class CGCOOKIE_OT_retopo_panel(bpy.types.Panel):
+class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
     bl_category = "Retopology"
     bl_label = "RetopoFlow"
@@ -2219,7 +2219,7 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
 
     bpy.utils.register_class(RetopoFlowPreferences)
-    bpy.utils.register_class(CGCOOKIE_OT_retopo_panel)
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopo_menu)
@@ -2241,7 +2241,7 @@ def unregister():
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)
     bpy.utils.unregister_class(CGCOOKIE_OT_contours_cache_clear)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopo_panel)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopo_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
