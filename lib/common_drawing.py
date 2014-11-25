@@ -39,6 +39,7 @@ from .common_utilities import dprint
 
 
 
+
 def bgl_col(rgb, alpha):
     '''
     takes a Vector of len 3 (eg, a color setting)
@@ -67,6 +68,32 @@ def draw_points(context, points, color, size):
     
     bgl.glEnd()   
     return
+
+
+def draw_3d_points(context, points, color, size):
+    '''
+    draw a bunch of dots
+    args:
+        points: a list of tuples representing x,y SCREEN coordinate eg [(10,30),(11,31),...]
+        color: tuple (r,g,b,a)
+        size: integer? maybe a float
+    '''
+    points_2d = [location_3d_to_region_2d(context.region, context.space_data.region_3d, loc) for loc in points]
+
+    bgl.glColor4f(*color)
+    bgl.glPointSize(size)
+    bgl.glBegin(bgl.GL_POINTS)
+    for coord in points_2d:
+        #TODO:  Debug this problem....perhaps loc_3d is returning points off of the screen.
+        if coord:
+            bgl.glVertex2f(*coord)  
+        else:
+            print('how the f did nones get in here')
+            print(coord)
+    
+    bgl.glEnd()   
+    return
+
 
 def draw_circle(context, c,n,r,col,step=10):
     x = Vector((0.42,-0.42,0.42)).cross(n).normalized() * r

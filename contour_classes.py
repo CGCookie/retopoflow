@@ -1397,10 +1397,10 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         #TODO:  Debug if None in self.world path.  How could this happen?       
         if path and self.world_path != [] and None not in self.world_path:
             
-            contour_utilities.draw_3d_points(context, self.world_path, (1,.5,0,1), 3)
+            common_drawing.draw_3d_points(context, self.world_path, (1,.5,0,1), 3)
        
         if nodes and len(self.cut_points):
-            contour_utilities.draw_3d_points(context, self.cut_points, (0,1,.5,1), 2)
+            common_drawing.draw_3d_points(context, self.cut_points, (0,1,.5,1), 2)
          
         if rings:
             if len(self.cuts):
@@ -1415,7 +1415,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         if backbone and len(self.backbone):
             for vertebra3d in self.backbone:
-                contour_utilities.draw_3d_points(context, vertebra3d, 
+                common_drawing.draw_3d_points(context, vertebra3d, 
                                                           (.2,.2,1, 1), 
                                                           3)   
         if self.follow_lines != [] and settings.show_edges:
@@ -1446,7 +1446,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                     if fv[i0][j0] and fv[i1][j0] and fv[i1][j1] and fv[i0][j1]:
                         quad_pts += [fl[i0][j0], fl[i1][j0], fl[i1][j1], fl[i0][j1]]
                 i1 = i0
-            contour_utilities.draw_quads_from_3dpoints(context, quad_pts, (mesh_color[0],mesh_color[1],mesh_color[2],mesh_color[3]*0.2))
+            common_drawing.draw_quads_from_3dpoints(context, quad_pts, (mesh_color[0],mesh_color[1],mesh_color[2],mesh_color[3]*0.2))
                 
 class ContourControlPoint(object):
     
@@ -1682,7 +1682,7 @@ class ExistingVertList(object):
                 if self.plane_com:
                     com_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_com)
                     
-                    contour_utilities.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
+                    common_drawing.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
                     
                     rv3d = context.space_data.region_3d
                     imx = rv3d.view_matrix.inverted()
@@ -1708,7 +1708,7 @@ class ExistingVertList(object):
                         common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,0,1,1), 2, 'GL_LINE_STRIP')
                         
             if False not in self.verts_simple_visible:
-                    contour_utilities.draw_3d_points(context, self.verts_simple, self.vert_color, 3)
+                    common_drawing.draw_3d_points(context, self.verts_simple, self.vert_color, 3)
                     common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
                     
                     if 0 in self.eds_simple[-1]:
@@ -1721,7 +1721,7 @@ class ExistingVertList(object):
             else:
                 for i, v in enumerate(self.verts_simple):
                     if self.verts_simple_visible[i]:
-                        contour_utilities.draw_3d_points(context, [v], mesh_color, settings.vert_size)
+                        common_drawing.draw_3d_points(context, [v], mesh_color, settings.vert_size)
                             
                         if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
                             common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
@@ -1849,7 +1849,7 @@ class ContourCutLine(object):
             if self.plane_com:
                 com_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_com)
                 
-                contour_utilities.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
+                common_drawing.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
                 
                 
                 rv3d = context.space_data.region_3d
@@ -1884,7 +1884,7 @@ class ContourCutLine(object):
             common_drawing.draw_polyline_from_points(context, points, stroke_color, settings.stroke_thick, "GL_LINE_STIPPLE")
         
             #draw the two handles
-            contour_utilities.draw_points(context, points, stroke_color, settings.handle_size)
+            common_drawing.draw_points(context, points, stroke_color, settings.handle_size)
         
         #draw the current plane point and the handle to change plane orientation
         #if self.plane_pt and settings.draw_widget:
@@ -1892,22 +1892,22 @@ class ContourCutLine(object):
             #point2 = (self.plane_tan.x, self.plane_tan.y)
 
             #common_drawing.draw_polyline_from_points(context, [point1,point2], (0,.2,1,1), settings.stroke_thick, "GL_LINE_STIPPLE")
-            #contour_utilities.draw_points(context, [point2], self.plane_tan.color, settings.handle_size)
-            #contour_utilities.draw_points(context, [point1], self.head.color, settings.handle_size)
+            #common_drawing.draw_points(context, [point2], self.plane_tan.color, settings.handle_size)
+            #common_drawing.draw_points(context, [point1], self.head.color, settings.handle_size)
         
         #draw the raw contour vertices
         if (self.verts and self.verts_simple == []) or (debug > 0 and settings.show_verts):
             
             if three_dimensional:
                 
-                contour_utilities.draw_3d_points(context, self.verts, mesh_color, settings.raw_vert_size)
+                common_drawing.draw_3d_points(context, self.verts, mesh_color, settings.raw_vert_size)
 
         
         
         
         
         if False not in self.verts_simple_visible:
-                contour_utilities.draw_3d_points(context, self.verts_simple, mesh_color, 3)
+                common_drawing.draw_3d_points(context, self.verts_simple, mesh_color, 3)
                 if self.is_highlighted:
                     common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, stroke_color,  settings.line_thick*2, 'GL_LINE_STIPPLE')
                 else: 
@@ -1924,7 +1924,7 @@ class ContourCutLine(object):
         else:
             for i, v in enumerate(self.verts_simple):
                 if self.verts_simple_visible[i]:
-                    contour_utilities.draw_3d_points(context, [v], mesh_color, settings.vert_size)
+                    common_drawing.draw_3d_points(context, [v], mesh_color, settings.vert_size)
                         
                     if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
                         if self.is_highlighted:
@@ -2945,13 +2945,13 @@ class CutLineManipulatorWidget(object):
         settings = common_utilities.get_settings()
         
         if self.a:
-            contour_utilities.draw_3d_points(context, [self.a], self.color3, 5)
+            common_drawing.draw_3d_points(context, [self.a], self.color3, 5)
         if self.path_ahead and self.path_ahead != [] and settings.debug > 1:
-            contour_utilities.draw_3d_points(context, self.path_ahead, self.color5, 6)
+            common_drawing.draw_3d_points(context, self.path_ahead, self.color5, 6)
         if self.b:
-            contour_utilities.draw_3d_points(context, [self.b], self.color3, 5)
+            common_drawing.draw_3d_points(context, [self.b], self.color3, 5)
         if self.path_behind and self.path_behind != [] and settings.debug > 1:
-            contour_utilities.draw_3d_points(context, self.path_behind, self.color3, 6)
+            common_drawing.draw_3d_points(context, self.path_behind, self.color3, 6)
             
         if not self.transform and not self.hotkey:
             
@@ -2966,10 +2966,10 @@ class CutLineManipulatorWidget(object):
             #common_drawing.draw_polyline_from_points(context, self.trans_arrow_down, self.color3, self.line_width, "GL_LINES")            
             
             
-            contour_utilities.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[:4], self.color3)
-            contour_utilities.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[:4], self.color3)
-            contour_utilities.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[4:], self.color3)
-            contour_utilities.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[4:], self.color3)
+            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[:4], self.color3)
+            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[:4], self.color3)
+            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[4:], self.color3)
+            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[4:], self.color3)
             
             #draw a line perpendicular to arc
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle), math.sin(self.angle)))
@@ -3017,7 +3017,7 @@ class CutLineManipulatorWidget(object):
                 if self.transform_mode in {"NORMAL_TRANSLATE", "EDGE_SLIDE"}:
                     #draw a line representing the COM translation
                     points = [self.initial_com, self.cut_line.plane_com]
-                    contour_utilities.draw_3d_points(context, points, self.color3, 4)
+                    common_drawing.draw_3d_points(context, points, self.color3, 4)
                     common_drawing.draw_polyline_from_3dpoints(context, points, self.color ,2 , "GL_STIPPLE")
                     
                 else:
@@ -3036,7 +3036,7 @@ class CutLineManipulatorWidget(object):
                     p4_2d = p1_2d + self.radius * vec_2d
                     p6_2d = p1_2d - self.radius * vec_2d
                     
-                    contour_utilities.draw_points(context, [p1_2d, p4_2d, p6_2d], self.color3, 5)
+                    common_drawing.draw_points(context, [p1_2d, p4_2d, p6_2d], self.color3, 5)
                     common_drawing.draw_polyline_from_points(context, [p6_2d, p4_2d], self.color ,2 , "GL_STIPPLE")
             
 class ContourStatePreserver(object):

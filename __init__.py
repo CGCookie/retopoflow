@@ -59,9 +59,9 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Common imports
 from lib import common_utilities
+from lib import common_drawing
 from lib.common_utilities import get_object_length_scale, dprint, profiler, frange
 from lib.common_classes import SketchBrush
-from lib import common_drawing
 
 # Polystrip imports
 import polystrips_utilities
@@ -717,7 +717,7 @@ def retopo_draw_callback(self,context):
         self.cut_line_widget.draw(context)
         
     if len(self.draw_cache):
-        contour_utilities.polyline_from_points(context, self.draw_cache, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
+        common_drawing.draw_polyline_from_points(context, self.draw_cache, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
         
     if len(self.cut_paths):
         for path in self.cut_paths:
