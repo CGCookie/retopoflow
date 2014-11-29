@@ -69,3 +69,12 @@ def draw_gedge_info(gedge,context):
     else:
         n_quads = 3
     draw_gedge_text(gedge, context, str(n_quads))
+
+def cubic_bezier_surface_t(v00,v01,v02,v03, v10,v11,v12,v13, v20,v21,v22,v23, v30,v31,v32,v33, t02,t13):
+    b00,b01,b02,b03 = cubic_bezier_weights(t02)
+    b10,b11,b12,b13 = cubic_bezier_weights(t13)
+    v0 = v00*b00*b10 + v01*b01*b10 + v02*b02*b10 + v03*b03*b10
+    v1 = v10*b00*b11 + v11*b01*b11 + v12*b02*b11 + v13*b03*b11
+    v2 = v20*b00*b12 + v21*b01*b12 + v22*b02*b12 + v23*b03*b12
+    v3 = v30*b00*b13 + v31*b01*b13 + v32*b02*b13 + v33*b03*b13
+    return v0+v1+v2+v3
