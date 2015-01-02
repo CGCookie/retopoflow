@@ -3521,7 +3521,7 @@ class PolystripsUI:
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] == 'S':
+            if eventd['press'] == 'S' and not self.sel_gvert.is_unconnected():
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_gvert_radius)
                 return 'scale tool'
@@ -3542,7 +3542,7 @@ class PolystripsUI:
                 self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
-            if eventd['press'] == 'CTRL+S':
+            if eventd['press'] == 'CTRL+S' and not self.sel_gvert.is_unconnected():
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_gvert)
                 return 'scale tool'
