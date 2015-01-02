@@ -578,10 +578,13 @@ class GEdge:
         return len(self.gpatches)
     
     def attach_gpatch(self, gpatch):
-        if len(self.gpatches) == 2:
+        if len(self.gpatches) >= 2:
             print('Cannot attach more than two gpatches')
             return
-        self.gpatches += [gpatch]
+        self.gpatches.append(gpatch)
+    
+    def detach_gpatch(self, gpatch):
+        self.gpatches.remove(gpatch)
     
     def rotate_gverts_at(self, gv, quat):
         if gv == self.gvert0:
@@ -1037,7 +1040,19 @@ class GPatch(object):
         self.ge3.set_count(count13)
         
         self.pts = []
+        self.map_pts = {}
         self.update()
+    
+    def disconnect(self):
+        self.ge0.detach_gpatch(self)
+        self.ge1.detach_gpatch(self)
+        self.ge2.detach_gpatch(self)
+        self.ge3.detach_gpatch(self)
+        
+        self.ge0 = None
+        self.ge1 = None
+        self.ge2 = None
+        self.ge3 = None
     
     def set_count(self, ge):
         if ge == self.ge0:
@@ -1180,6 +1195,29 @@ class GPatch(object):
                 l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * p)
                 p = mx * l
                 self.pts += [(i0,i1,p)]
+        
+        self.map_pts = {(i0,i1):p for (i0,i1,p) in self.pts }
+        
+    
+    def is_picked(self, pt):
+        for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
+            c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
+            n = (c0-c1).cross(c2-c1)
+            d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
+            if d0>0 and d1>0 and d2>0 and d3>0:
+                return True
+        return False
+    
+    def iter_segments(self, only_visible=False):
+        l0,l1 = len(self.ge0.cache_igverts),len(self.ge1.cache_igverts)
+        for i0 in range(1,l0-2,2):
+            for i1 in range(1,l1-2,2):
+                p0 = self.map_pts[(i0,i1)]
+                p1 = self.map_pts[(i0+2,i1)]
+                p2 = self.map_pts[(i0+2,i1+2)]
+                p3 = self.map_pts[(i0,i1+2)]
+                yield (p0,p1,p2,p3)
+
 
 class PolyStrips(object):
     def __init__(self, context, obj):
@@ -1192,7 +1230,11 @@ class PolyStrips(object):
         self.gverts = []
         self.gedges = []
         self.gpatches = []
-        
+    
+    def disconnect_gpatch(self, gpatch):
+        assert gpatch in self.gpatches
+        gpatch.disconnect()
+        self.gpatches = [gp for gp in self.gpatches if gp != gpatch]
     
     def disconnect_gedge(self, gedge):
         assert gedge in self.gedges

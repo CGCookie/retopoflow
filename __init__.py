@@ -2359,6 +2359,7 @@ class PolystripsUI:
         self.sel_gedges = set()
         self.sel_gvert  = None                          # selected gvert
         self.act_gvert  = None                          # active gvert (operated upon)
+        self.act_gpatch = None
 
         self.polystrips = PolyStrips(context, self.obj)
 
@@ -2529,6 +2530,16 @@ class PolystripsUI:
             
             # Draw patch vertices
             common_drawing.draw_3d_points(context, [p for _,_,p in gpatch.pts], color_fill, 3)
+            
+            if gpatch == self.act_gpatch:
+                color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
+                color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            else:
+                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            
+            for p0,p1,p2,p3 in gpatch.iter_segments(only_visible=True):
+                common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             
             # draw edge directions
             if settings.debug > 2:
@@ -3316,6 +3327,7 @@ class PolystripsUI:
                     self.act_gedge = None
                     self.sel_gedges.clear()
                     self.sel_gvert = cpt
+                    self.act_gpatch = None
                     return ''
 
             for gv in self.polystrips.gverts:
@@ -3324,6 +3336,7 @@ class PolystripsUI:
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 self.sel_gvert = gv
+                self.act_gpatch = None
                 return ''
 
             for ge in self.polystrips.gedges:
@@ -3333,9 +3346,18 @@ class PolystripsUI:
                 if not eventd['shift']:
                     self.sel_gedges.clear()
                 self.sel_gedges.add(ge)
+                self.act_gpatch = None
+                return ''
+            
+            for gp in self.polystrips.gpatches:
+                if not gp.is_picked(pt): continue
+                self.sel_gvert = None
+                self.act_gedge = None
+                self.sel_gedges.clear()
+                self.act_gpatch = gp
                 return ''
 
-            self.act_gedge,self.sel_gvert = None,None
+            self.act_gedge,self.sel_gvert,self.act_gpatch = None,None,None
             self.sel_gedges.clear()
             return ''
 
@@ -3380,6 +3402,16 @@ class PolystripsUI:
             self.create_undo_snapshot('update')
             for gv in self.polystrips.gverts:
                 gv.update_gedges()
+        
+        ###################################
+        # Selected gpatch commands
+        
+        if self.act_gpatch:
+            if eventd['press'] == 'X':
+                self.create_undo_snapshot('delete')
+                self.polystrips.disconnect_gpatch(self.act_gpatch)
+                self.act_gpatch = None
+                return ''
 
         ###################################
         # Selected gedge commands
