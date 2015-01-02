@@ -3315,6 +3315,7 @@ class PolystripsUI:
                     if not cpt.is_picked(pt): continue
                     self.act_gedge = None
                     self.sel_gedges.clear()
+                    self.sel_gvert = cpt
                     return ''
 
             for gv in self.polystrips.gverts:
@@ -3322,6 +3323,7 @@ class PolystripsUI:
                 if not gv.is_picked(pt): continue
                 self.act_gedge = None
                 self.sel_gedges.clear()
+                self.sel_gvert = gv
                 return ''
 
             for ge in self.polystrips.gedges:

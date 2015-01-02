@@ -346,7 +346,11 @@ class GVert:
         c2 = self.corner2 - pt
         c3 = self.corner3 - pt
         n = self.snap_norm
-        return c1.cross(c0).dot(n)>0 and c2.cross(c1).dot(n)>0 and c3.cross(c2).dot(n)>0 and c0.cross(c3).dot(n)>0
+        d0 = c1.cross(c0).dot(n)
+        d1 = c2.cross(c1).dot(n)
+        d2 = c3.cross(c2).dot(n)
+        d3 = c0.cross(c3).dot(n)
+        return d0>0 and d1>0 and d2>0 and d3>0
     
     def get_corners_of(self, gedge):
         if gedge == self.gedge0: return (self.corner0, self.corner1)
