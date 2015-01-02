@@ -1851,10 +1851,10 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         if action in repeated_actions:
             if action == contour_undo_cache[-1][2]:
-                print('repeatable...dont take snapshot')
+                dprint('repeatable...dont take snapshot')
                 return
         
-        print('undo: ' + action)    
+        dprint('undo: ' + action)
         cut_data = copy.deepcopy(self.cut_paths)
         #perhaps I don't even need to copy this?
         state = copy.deepcopy(ContourStatePreserver(self))
@@ -2383,7 +2383,7 @@ class PolystripsUI:
 
         if action in repeated_actions and len(polystrips_undo_cache):
             if action == polystrips_undo_cache[-1][1]:
-                print('repeatable...dont take snapshot')
+                dprint('repeatable...dont take snapshot')
                 return
 
         p_data = copy.deepcopy(self.polystrips)
@@ -3399,7 +3399,7 @@ class PolystripsUI:
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts:
                     return ''
-                t,_    = self.act_gedge.get_closest_point(pt)
+                t,_    = self.act_gedge.get_closest_point(pts[0])
                 _,_,gv = self.polystrips.split_gedge_at_t(self.act_gedge, t)
                 self.act_gedge = None
                 self.sel_gedges.clear()
