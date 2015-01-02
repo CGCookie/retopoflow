@@ -930,6 +930,10 @@ class GEdge:
         note: approx => not snapped to surface
         '''
         
+        # update inner gverts so they can be selectable
+        self.gvert1.radius = self.gvert0.radius*0.7 + self.gvert3.radius*0.3
+        self.gvert2.radius = self.gvert0.radius*0.3 + self.gvert3.radius*0.7
+        
         if self.zip_to_gedge:
             self.update_zip(debug=debug)
         else:
@@ -1292,8 +1296,8 @@ class PolyStrips(object):
         return (ge0,ge1,gv_split)
 
     def insert_gedge_between_gverts(self, gv0, gv3):
-        gv1 = self.create_gvert(gv0.position*0.7 + gv3.position*0.3)
-        gv2 = self.create_gvert(gv0.position*0.3 + gv3.position*0.7)
+        gv1 = self.create_gvert(gv0.position*0.7 + gv3.position*0.3, radius=gv0.radius*0.7 + gv3.radius*0.3)
+        gv2 = self.create_gvert(gv0.position*0.3 + gv3.position*0.7, radius=gv0.radius*0.3 + gv3.radius*0.7)
         return self.create_gedge(gv0,gv1,gv2,gv3)
     
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
