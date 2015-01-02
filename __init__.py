@@ -2504,7 +2504,7 @@ class PolystripsUI:
 
         color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
         color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_selection[settings.theme] # Not used at the moment
+        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -2539,7 +2539,10 @@ class PolystripsUI:
 
         for i_ge,gedge in enumerate(self.polystrips.gedges):
             if gedge == self.act_gedge:
-                color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
+                color_border = (color_active[0], color_active[1], color_active[2], 1.00)
+                color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gedge in self.sel_gedges:
+                color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
@@ -2555,6 +2558,12 @@ class PolystripsUI:
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 common_drawing.draw_polyline_from_3dpoints(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
 
+        sel_gverts = set()
+        for ge in self.sel_gedges:
+            if ge == self.act_gedge: continue
+            sel_gverts.add(ge.gvert0)
+            sel_gverts.add(ge.gvert3)
+
         for i_gv,gv in enumerate(self.polystrips.gverts):
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
@@ -2565,23 +2574,36 @@ class PolystripsUI:
             is_selected |= gv == self.sel_gvert
             is_selected |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
             is_selected |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
+
+            # Theme colors for selected and unselected gverts
             if is_selected:
-                color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
-                color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+                color_border = (color_active[0], color_active[1], color_active[2], 0.75)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            # Take care of gverts in selected edges
+            if sel_gverts:
+                color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
+                color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
 
+        # Draw inner gvert handles
         p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible()]
         color = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         common_drawing.draw_3d_points(context, p3d, color, 4)
 
+        if self.act_gvert:
+            color = (color_active[0], color_active[1], color_active[2], 1.00)
+            gv = self.act_gvert
+            p0 = gv.position
+            common_drawing.draw_3d_points(context, [p0], color, 8)
+
         if self.sel_gvert:
-            color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
+            color = (color_selection[0], color_selection[1], color_selection[2], 0.75)
             gv = self.sel_gvert
             p0 = gv.position
             if gv.is_inner():
@@ -2595,7 +2617,7 @@ class PolystripsUI:
                     common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color, 2, "GL_LINE_SMOOTH")
 
         if self.act_gedge:
-            color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
+            color = (color_active[0], color_active[1], color_active[2], 1.00)
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
@@ -2609,11 +2631,6 @@ class PolystripsUI:
             if settings.show_segment_count:
                 draw_gedge_info(self.act_gedge, context)
 
-        if self.act_gvert:
-            color = (color_active[0], color_active[1], color_active[2], 1.00)
-            gv = self.act_gvert
-            p0 = gv.position
-            common_drawing.draw_3d_points(context, [p0], color, 8)
 
         if self.mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
