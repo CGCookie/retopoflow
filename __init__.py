@@ -2647,11 +2647,12 @@ class PolystripsUI:
             common_drawing.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
 
             # Report pressure reading
-            info = str(round(self.sketch_pressure,3))
-            txt_width, txt_height = blf.dimensions(0, info)
-            d = self.sketch_brush.pxl_rad
-            blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
-            blf.draw(0, info)
+            if settings.use_pressure:
+                info = str(round(self.sketch_pressure,3))
+                txt_width, txt_height = blf.dimensions(0, info)
+                d = self.sketch_brush.pxl_rad
+                blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
+                blf.draw(0, info)
 
         if self.mode in {'scale tool','rotate tool'}:
             # Draw a scale/rotate line from tool origin to current mouse position
