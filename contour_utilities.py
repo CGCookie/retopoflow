@@ -37,18 +37,6 @@ from bpy_extras import view3d_utils
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 
-def bgl_col(rgb, alpha):
-    '''
-    takes a Vector of len 3 (eg, a color setting)
-    returns a 4 item tuple (r,g,b,a) for use with 
-    bgl drawing.
-    '''
-    #TODO Test variables for acceptability
-    color = (rgb[0], rgb[1], rgb[2], alpha)
-    
-    return color
-
-
 def edge_loops_from_bmedges(bmesh, bm_edges):
     """
     Edge loops defined by edges
