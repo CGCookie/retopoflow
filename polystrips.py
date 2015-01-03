@@ -44,11 +44,11 @@ import polystrips_utilities
 AL = AddonLocator()
 
 
-
 class GVert:
-    def __init__(self, obj, length_scale, position, radius, normal, tangent_x, tangent_y):
+    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, from_mesh = False):
         # store info
         self.o_name       = obj.name
+        self.targ_o_name  = targ_obj.name
         self.length_scale = length_scale
         
         self.position  = position
@@ -77,13 +77,24 @@ class GVert:
         
         self.visible = True
         
+        #data used when extending or emulating data
+        #already within a BMesh
+        self.from_mesh = from_mesh
+        self.from_mesh_ind = -1 #needs to be set explicitly
+        self.corner0_ind = -1
+        self.corner1_ind = -1
+        self.corner2_ind = -1
+        self.corner3_ind = -1
+        
+        
+        self.frozen = True if self.from_mesh else False
         self.update()
     
     def clone_detached(self):
         '''
         creates detached clone of gvert (without gedges)
         '''
-        gv = GVert(bpy.data.objects[self.o_name], self.length_scale, Vector(self.position), self.radius, Vector(self.normal), Vector(self.tangent_x), Vector(self.tangent_y))
+        gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, Vector(self.position), self.radius, Vector(self.normal), Vector(self.tangent_x), Vector(self.tangent_y))
         gv.snap_pos = Vector(self.snap_pos)
         gv.snap_norm = Vector(self.snap_norm)
         gv.snap_tanx = Vector(self.snap_tanx)
@@ -128,7 +139,7 @@ class GVert:
         else:
             l_gedges = self.get_gedges_notnone()
             assert gedge in l_gedges
-            l_gedges = [ge for ge in l_gedges if ge != gedge]
+            l_gedges = [ge for ge in l_gedges if ge != gedge]  #interesting way of removing
             l = len(l_gedges)
             l_gedges = [l_gedges[i] if i < l else None for i in range(4)]
             self._set_gedges(*l_gedges)
@@ -211,6 +222,7 @@ class GVert:
         else: assert False
     
     def snap_corners(self):
+        if self.frozen: return
         pr = profiler.start()
         
         mx = bpy.data.objects[self.o_name].matrix_world
@@ -226,7 +238,6 @@ class GVert:
     
     def update(self, do_edges=True):
         if self.doing_update: return
-        
         if self.zip_over_gedge and do_edges:
             self.zip_over_gedge.update()
             return
@@ -238,18 +249,15 @@ class GVert:
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
-        self.snap_norm = (mxnorm * n).normalized()
-        self.snap_tanx = self.tangent_x.normalized()
-        self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
-        
-        if not self.is_unconnected() or True:
+        if not self.frozen:
+            l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
+            self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
             self.position = self.snap_pos
-        else:
-            self.snap_pos = self.position
+
+        self.snap_tanx = self.tangent_x.normalized()
+        self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
         # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
-        
         if do_edges:
             self.doing_update = True
             for gedge in [self.gedge0,self.gedge1,self.gedge2,self.gedge3]:
@@ -259,6 +267,26 @@ class GVert:
         
         self.snap_tanx = (Vector((0.2,0.1,0.5)) if not self.gedge0 else self.gedge0.get_derivative_at(self)).normalized()
         self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
+        if self.frozen and self.gedge0:
+             vy = self.corner0 - self.corner1
+             vy.normalize()
+             
+             vx = self.corner1 - self.corner2
+             vx.normalize()
+             
+             test1 = vx.dot(self.snap_tanx)
+             test2 = vy.dot(self.snap_tany)
+            
+             if test1 < -.7:
+                 self.corner0, self.corner1, self.corner2, self.corner3 = self.corner2, self.corner3, self.corner0, self.corner1
+                 self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner2_ind, self.corner3_ind, self.corner0_ind, self.corner1_ind
+             if test1  > -.7 and test1 < .7:
+                 if test2 > .7:
+                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner3, self.corner0, self.corner1, self.corner2
+                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner3_ind, self.corner0_ind, self.corner1_ind, self.corner2_ind
+                 else:
+                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner1, self.corner2, self.corner3, self.corner0  
+                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner1_ind, self.corner2_ind, self.corner3_ind, self.corner0_ind
         
         if not self.zip_over_gedge:
             # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
@@ -295,10 +323,11 @@ class GVert:
             r2 = 0 if not igv2 else (igv2.radius*(1 if igv2.tangent_x.dot(self.snap_tanx)<0 else -1))
             r3 = 0 if not igv3 else (igv3.radius*(1 if igv3.tangent_x.dot(self.snap_tany)>0 else -1))
             
-            self.corner0 = get_corner(self, 1, 1, igv0,r0, igv3,r3)
-            self.corner1 = get_corner(self, 1,-1, igv1,r1, igv0,r0)
-            self.corner2 = get_corner(self,-1,-1, igv2,r2, igv1,r1)
-            self.corner3 = get_corner(self,-1, 1, igv3,r3, igv2,r2)
+            if not self.frozen:
+                self.corner0 = get_corner(self, 1, 1, igv0,r0, igv3,r3)
+                self.corner1 = get_corner(self, 1,-1, igv1,r1, igv0,r0)
+                self.corner2 = get_corner(self,-1,-1, igv2,r2, igv1,r1)
+                self.corner3 = get_corner(self,-1, 1, igv3,r3, igv2,r2)
         
         self.snap_corners()
         
@@ -477,9 +506,10 @@ class GEdge:
     '''
     Graph Edge (GEdge) stores end points and "way points" (cubic bezier)
     '''
-    def __init__(self, obj, length_scale, gvert0, gvert1, gvert2, gvert3):
+    def __init__(self, obj, targ_obj, length_scale, gvert0, gvert1, gvert2, gvert3):
         # store end gvertices
         self.o_name = obj.name
+        self.targ_o_name = targ_obj.name
         self.length_scale = length_scale
         self.gvert0 = gvert0
         self.gvert1 = gvert1
@@ -766,7 +796,9 @@ class GEdge:
             l_tanx  = [oigv.tangent_x*zdir for _i,oigv in enumerate(loigv)]
             l_tany  = [oigv.tangent_y*zdir for _i,oigv in enumerate(loigv)]
             
-            self.cache_igverts = [GVert(bpy.data.objects[self.o_name],self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
+            self.cache_igverts = [GVert(bpy.data.objects[self.o_name], 
+                                        bpy.data.objects[self.targ_o_name], 
+                                        self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
             self.snap_igverts()
             
             assert len(self.cache_igverts)>=2, 'not enough! %i (%f) %i (%f) %i' % (i0,t0,i3,t3,ic)
@@ -914,7 +946,7 @@ class GEdge:
         l_tany  = [t.cross(n).normalized() for t,n in zip(l_tanx,l_norms)]
         
         # create igverts!
-        self.cache_igverts = [GVert(bpy.data.objects[self.o_name],self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
+        self.cache_igverts = [GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
         if not self.force_count:
             self.n_quads = int((len(self.cache_igverts)+1)/2)
             
@@ -1253,17 +1285,19 @@ class GPatch(object):
 
 
 class PolyStrips(object):
-    def __init__(self, context, obj):
+    def __init__(self, context, obj, targ_obj):
         settings = common_utilities.get_settings()
         
         self.o_name = obj.name
+        self.targ_o_name =targ_obj.name
         self.length_scale = get_object_length_scale(bpy.data.objects[self.o_name])
         
         # graph vertices and edges
         self.gverts = []
         self.gedges = []
         self.gpatches = []
-    
+        self.extension_geometry = []
+        
     def disconnect_gpatch(self, gpatch):
         assert gpatch in self.gpatches
         gpatch.disconnect()
@@ -1278,14 +1312,25 @@ class PolyStrips(object):
     
     def disconnect_gvert(self, gvert):
         assert gvert in self.gverts
+        if gvert.from_mesh:
+            self.extension_geometry.append(gvert)
+            
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
     
+        
+            
     def remove_unconnected_gverts(self):
         egvs = set(gv for gedge in self.gedges for gv in gedge.gverts())
         gvs = set(gv for gv in self.gverts if gv.is_unconnected() and gv not in egvs)
+        ext_gvs = [gv for gv in self.gverts if gv.from_mesh and gv not in egvs]
+        
+        for gv in ext_gvs:
+            if gv not in self.extension_geometry:
+                self.extension_geometry.append(gv)
+        
         self.gverts = [gv for gv in self.gverts if gv not in gvs]
     
     def create_gvert(self, co, radius=0.005):
@@ -1295,12 +1340,14 @@ class PolyStrips(object):
         n0  = Vector((0,0,1))
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
-        gv = GVert(bpy.data.objects[self.o_name],self.length_scale,p0,r0,n0,tx0,ty0)
+        gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
         self.gverts += [gv]
         return gv
     
     def create_gedge(self, gv0, gv1, gv2, gv3):
-        ge = GEdge(bpy.data.objects[self.o_name], self.length_scale, gv0, gv1, gv2, gv3)
+        ge = GEdge(bpy.data.objects[self.o_name],
+                   bpy.data.objects[self.targ_o_name], 
+                   self.length_scale, gv0, gv1, gv2, gv3)
         ge.update()
         self.gedges += [ge]
         return ge
@@ -1383,13 +1430,65 @@ class PolyStrips(object):
         gv2 = self.create_gvert(gv0.position*0.3 + gv3.position*0.7, radius=gv0.radius*0.3 + gv3.radius*0.7)
         return self.create_gedge(gv0,gv1,gv2,gv3)
     
+    def extension_geometry_from_bme(self, bme):
+        self.extension_geometry = []
+        mx = bpy.data.objects[self.targ_o_name].matrix_world
+        for f in bme.faces:
+            if len(f.edges) != 4:
+                continue
+            for ed in f.edges:
+                if len(ed.link_faces) < 2:
+                    pos = mx * f.calc_center_median()
+                    no = mx.transposed().inverted().to_3x3() * f.normal  #TEST THIS....can it be right?
+                    no.normalize()
+                    rad = 1/3 * 1/8 * sum(mx.to_scale()) * f.calc_perimeter()  #HACK...better way to estimate rad?
+                    tan_x = mx * f.verts[1].co - mx * f.verts[0].co
+                    tan_x.normalize()
+                    tan_y = no.cross(tan_x)
+                    
+                    
+                    gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
+                    #Freeze Corners
+                    #Note, left handed Gvert order wrt to Normal
+                    gv.corner0 = mx * f.verts[0].co 
+                    gv.corner0_ind = f.verts[0].index
+                    gv.corner1 = mx * f.verts[3].co
+                    gv.corner1_ind = f.verts[3].index
+                    gv.corner2 = mx * f.verts[2].co
+                    gv.corner2_ind = f.verts[2].index
+                    gv.corner3 = mx * f.verts[1].co
+                    gv.corner3_ind = f.verts[1].index
+                    
+                    
+                    
+                    gv.snap_pos = gv.position
+                    gv.snap_norm = gv.normal
+                    gv.visible = True
+                    gv.from_mesh_ind = f.index
+                    self.extension_geometry.append(gv)
+                    break
+                
+        print('found %i possible faces to extend' % len(self.extension_geometry))
+        
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
         yikes....pressure and radius need to be reconciled!
         for now, assumes 
         '''
-        
+        if depth == 0:
+            gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0])]
+            gv3 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[-1][0])]
+            
+            if len(gv0):
+                self.extension_geometry.remove(gv0[0])
+                self.gverts.append(gv0[0])
+                sgv0 = gv0[0]
+            if len(gv3):
+                self.extension_geometry.remove(gv3[0])
+                self.gverts.append(gv3[0])
+                sgv3 = gv3[0]
+            
         assert depth < 10
         
         spc = '  '*depth + '- '

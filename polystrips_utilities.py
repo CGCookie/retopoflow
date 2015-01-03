@@ -386,6 +386,7 @@ def vector_angle_between(v0, v1, vcross):
     return a if d<0 else 2*math.pi - a
 
 def sort_objects_by_angles(vec_about, l_objs, l_vecs):
+    if len(l_objs) <= 1:  return l_objs
     o0,v0 = l_objs[0],l_vecs[0]
     l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
