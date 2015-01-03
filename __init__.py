@@ -2545,12 +2545,15 @@ class PolystripsUI:
 
         ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
+            # Color active strip
             if gedge == self.act_gedge:
                 color_border = (color_active[0], color_active[1], color_active[2], 1.00)
                 color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
+            # Color selected strips
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            # Color unselected strips
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
