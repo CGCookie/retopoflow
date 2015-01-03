@@ -37,21 +37,6 @@ from bpy_extras import view3d_utils
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 
-def callback_register(self, context):
-        #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
-        #else:
-            #self._handle = context.region.callback_add(self.menu.draw, (self, context), 'POST_PIXEL')
-        #return None
-
-# Depriciated
-def callback_cleanup(self, context):
-    #if str(bpy.app.build_revision)[2:7].lower() == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
-    #else:
-        #context.region.callback_remove(self._handle)
-    #return None
-
 def bgl_col(rgb, alpha):
     '''
     takes a Vector of len 3 (eg, a color setting)
