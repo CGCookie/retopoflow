@@ -2889,8 +2889,7 @@ class PolystripsUI:
         # check that we have a hole
         # TODO: handle multiple edges on one side
 
-        lgedges = list(self.sel_gedges)
-        lgedge,rgedge = lgedges
+        lgedge,rgedge = self.act_gedge,[ge for ge in self.sel_gedges if ge != self.act_gedge][0]
         tlgvert = lgedge.gvert0
         blgvert = lgedge.gvert3
 
@@ -2910,6 +2909,10 @@ class PolystripsUI:
                 if ge.gvert3 == blgvert:
                     brgvert = ge.gvert0
                     bgedge = ge
+        
+        if any(ge.is_zippered() for ge in [lgedge,rgedge,tgedge,bgedge] if ge):
+            showErrorMessage('Cannot use simple fill with zippered edges')
+            return
 
         # handle cases where selected gedges have no or only one connecting gedge
         if not trgvert and not brgvert:
@@ -2941,8 +2944,15 @@ class PolystripsUI:
         if not all(gv.is_ljunction for gv in [trgvert,tlgvert,blgvert,brgvert]):
             showErrorMessage('All corners must be L-Junctions')
             return
+        
+        if tlgvert.snap_norm.dot((trgvert.snap_pos-tlgvert.snap_pos).cross(blgvert.snap_pos-tlgvert.snap_pos)) < 0:
+            lgedge,bgedge,rgedge,tgedge = lgedge,tgedge,rgedge,bgedge
 
-        self.polystrips.create_gpatch(lgedge, bgedge, rgedge, tgedge)
+        gp = self.polystrips.create_gpatch(lgedge, bgedge, rgedge, tgedge)
+        self.sel_gvert = None
+        self.act_gedge = None
+        self.sel_gedges.clear()
+        self.act_gpatch = gp
 
 
 
@@ -3355,6 +3365,7 @@ class PolystripsUI:
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 self.act_gpatch = gp
+                print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
                 return ''
 
             self.act_gedge,self.sel_gvert,self.act_gpatch = None,None,None
@@ -3371,7 +3382,13 @@ class PolystripsUI:
 
             for gv in self.polystrips.gverts:
                 if not gv.is_picked(pt): continue
-                if not (gv.is_endpoint() or gv.is_endtoend() or gv.is_ljunction()): continue
+                if not (gv.is_endpoint() or gv.is_endtoend() or gv.is_ljunction()):
+                    showErrorMessage('Can only delete endpoint, end-to-end, or l-junction GVerts')
+                    continue
+                
+                if any(ge.is_zippered() or ge.is_gpatched() for ge in gv.get_gedges_notnone()):
+                    showErrorMessage('Cannot delete/dissolve GVert that is zippered or patched')
+                    continue
 
                 if gv.is_endpoint():
                     self.polystrips.disconnect_gvert(gv)
@@ -3387,6 +3404,10 @@ class PolystripsUI:
 
             for ge in self.polystrips.gedges:
                 if not ge.is_picked(pt): continue
+                
+                if ge.is_zippered() or ge.is_gpatched():
+                    showErrorMessage('Cannot delete zippered or patched GEdge')
+                    continue
 
                 self.polystrips.disconnect_gedge(ge)
                 self.polystrips.remove_unconnected_gverts()
@@ -3412,6 +3433,9 @@ class PolystripsUI:
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
+            if eventd['press'] == 'R':
+                self.act_gpatch.reverse()
+                return ''
 
         ###################################
         # Selected gedge commands
@@ -3425,7 +3449,7 @@ class PolystripsUI:
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
-            if eventd['press'] == 'K' and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered():
+            if eventd['press'] == 'K' and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
@@ -3455,7 +3479,7 @@ class PolystripsUI:
                     self.act_gedge.set_count(self.act_gedge.n_quads - 1)
                 return ''
 
-            if eventd['press'] == 'Z':
+            if eventd['press'] == 'Z' and not self.act_gedge.is_gpatched():
 
                 if self.act_gedge.zip_to_gedge:
                     self.create_undo_snapshot('unzip')
@@ -3474,10 +3498,10 @@ class PolystripsUI:
                     return ''
                 pt = pts[0]
                 for ge in self.polystrips.gedges:
-                    if ge == self.sel_gedge: continue
+                    if ge == self.act_gedge: continue
                     if not ge.is_picked(pt): continue
                     self.create_undo_snapshot('zip')
-                    self.sel_gedge.zip_to(ge)
+                    self.act_gedge.zip_to(ge)
                     return ''
                 return ''
 
@@ -3500,19 +3524,16 @@ class PolystripsUI:
                 return ''
 
             if eventd['press'] == 'CTRL+R' and not self.act_gedge.is_zippered():
-                self.create_undo_snapshot('rib')
+                self.create_undo_snapshot('rip')
                 self.act_gedge = self.polystrips.rip_gedge(self.act_gedge)
                 self.sel_gedges = [self.act_gedge]
                 self.ready_tool(eventd, self.grab_tool_gedge)
                 return 'grab tool'
 
-        
-        #if len(self.sel_gedges) > 2:
-        if eventd['press'] == 'SHIFT+F':
-            self.create_undo_snapshot('simplefill')
-            self.fill(eventd)
-            
-            return ''
+            if eventd['press'] == 'SHIFT+F':
+                self.create_undo_snapshot('simplefill')
+                self.fill(eventd)
+                return ''
 
         ###################################
         # selected gvert commands
@@ -3521,7 +3542,7 @@ class PolystripsUI:
 
             if eventd['press'] == 'K':
                 if not self.sel_gvert.is_endpoint():
-                    print('Selected GVert must be endpoint (exactly one GEdge)')
+                    showErrorMessage('Selected GVert must be endpoint (exactly one GEdge)')
                     return ''
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
@@ -3530,6 +3551,9 @@ class PolystripsUI:
                 pt = pts[0]
                 for ge in self.polystrips.gedges:
                     if not ge.is_picked(pt): continue
+                    if ge.is_zippered() or ge.is_gpatched():
+                        showErrorMessage('Cannot knife a GEdge that is zippered or patched')
+                        continue
                     self.create_undo_snapshot('split')
                     t,d = ge.get_closest_point(pt)
                     self.polystrips.split_gedge_at_t(ge, t, connect_gvert=self.sel_gvert)
@@ -3546,6 +3570,9 @@ class PolystripsUI:
                 return ''
 
             if eventd['press'] == 'CTRL+D':
+                if any(ge.is_zippered() or ge.is_gpatched() for ge in self.sel_gvert.get_gedges_notnone()):
+                    showErrorMessage('Cannot dissolve GVert with GEdge that is zippered or patched')
+                    return ''
                 self.create_undo_snapshot('dissolve')
                 self.polystrips.dissolve_gvert(self.sel_gvert)
                 self.sel_gvert = None
@@ -3569,6 +3596,9 @@ class PolystripsUI:
                 return 'grab tool'
 
             if eventd['press'] == 'CTRL+C':
+                if any(ge.is_zippered() or ge.is_gpatched() for ge in self.sel_gvert.get_gedges_notnone()):
+                    showErrorMessage('Cannot change corner type of GVert with GEdge that is zippered or patched')
+                    return ''
                 self.create_undo_snapshot('toggle')
                 self.sel_gvert.toggle_corner()
                 self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
@@ -3598,6 +3628,9 @@ class PolystripsUI:
                 # self.polystrips.rip_gvert(self.sel_gvert)
                 # self.sel_gvert = None
                 # return ''
+                if any(ge.is_zippered() or ge.is_gpatched() for ge in self.sel_gvert.get_gedges_notnone()):
+                    showErrorMessage('Cannot rip GVert with GEdge that is zippered or patched')
+                    return ''
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts:
@@ -3612,7 +3645,12 @@ class PolystripsUI:
                 return ''
   
             if eventd['press'] == 'M':
-                if self.sel_gvert.is_inner(): return ''
+                if self.sel_gvert.is_inner():
+                    showErrorMessage('Cannot merge inner GVert')
+                    return ''
+                if any(ge.is_zippered() or ge.is_gpatched() for ge in self.sel_gvert.get_gedges_notnone()):
+                    showErrorMessage('Cannot merge inner GVert with GEdge that is zippered or patched')
+                    return ''
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts:
@@ -3621,11 +3659,14 @@ class PolystripsUI:
                 sel_ge = set(self.sel_gvert.get_gedges_notnone())
                 for gv in self.polystrips.gverts:
                     if gv.is_inner() or not gv.is_picked(pt) or gv == self.sel_gvert: continue
+                    if any(ge.is_zippered() or ge.is_gpatched() for ge in gv.get_gedges_notnone()):
+                        showErrorMessage('Cannot merge GVert with GEdge that is zippered or patched')
+                        return ''
                     if len(self.sel_gvert.get_gedges_notnone()) + len(gv.get_gedges_notnone()) > 4:
-                        dprint('Too many connected GEdges for merge!')
+                        showErrorMessage('Too many connected GEdges for merge!')
                         continue
                     if any(ge in sel_ge for ge in gv.get_gedges_notnone()):
-                        dprint('Cannot merge GVerts that share a GEdge')
+                        showErrorMessage('Cannot merge GVerts that share a GEdge')
                         continue
                     self.create_undo_snapshot('merge')
                     self.polystrips.merge_gverts(self.sel_gvert, gv)

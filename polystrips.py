@@ -1029,7 +1029,9 @@ class GPatch(object):
         self.rev2 = self.ge2.gvert0 in [self.ge3.gvert0, self.ge3.gvert3]
         self.rev3 = self.ge3.gvert0 in [self.ge0.gvert0, self.ge0.gvert3]
         
-        self.inside = (not self.rev0 and self.ge0.gvert3.gedge1==self.ge0) or (self.rev0 and self.ge0.gvert0.gedge1==self.ge0)
+        self.inside = True # (not self.rev0 and self.ge0.gvert3.gedge1==self.ge0) or (self.rev0 and self.ge0.gvert0.gedge1==self.ge0)
+        
+        self.assert_correctness()
         
         # make sure opposite gedges have same count
         count02 = max(self.ge0.get_count(), self.ge2.get_count())
@@ -1042,6 +1044,22 @@ class GPatch(object):
         self.pts = []
         self.map_pts = {}
         self.update()
+    
+    def assert_correctness(self):
+        cps0 = self.ge0.gverts()
+        cps1 = self.ge1.gverts()
+        cps2 = self.ge2.gverts()
+        cps3 = self.ge3.gverts()
+        
+        if self.rev0:     cps0 = list(reversed(cps0))
+        if self.rev1:     cps1 = list(reversed(cps1))
+        if not self.rev2: cps2 = list(reversed(cps2))
+        if not self.rev3: cps3 = list(reversed(cps3))
+        
+        assert cps0[0] == cps3[0]
+        assert cps0[3] == cps1[0]
+        assert cps2[0] == cps3[3]
+        assert cps2[3] == cps1[3]
     
     def disconnect(self):
         self.ge0.detach_gpatch(self)
@@ -1087,12 +1105,16 @@ class GPatch(object):
         
         return zip(segs1,segs3)
     
+    def reverse(self):
+        self.inside = not self.inside
+        self.update()
+        print('self.inside = ' + str(self.inside))
     
     def update(self):
         mx = bpy.data.objects[self.o_name].matrix_world
-        mxnorm = mx.transposed().inverted().to_3x3()
-        mx3x3 = mx.to_3x3()
         imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
         
         cps0,lts0 = self.ge0.gverts(),self.ge0.l_ts
         cps1,lts1 = self.ge1.gverts(),self.ge1.l_ts
@@ -1123,14 +1145,11 @@ class GPatch(object):
         #          e2
         
         v00,v01,v02,v03 = cps0
-        _,v13,v23,_     = cps1
-        _,v10,v20,_     = cps3
+        _  ,v13,v23,_   = cps1
+        _  ,v10,v20,_   = cps3
         v30,v31,v32,v33 = cps2
         
-        assert cps0[0] == cps3[0]
-        assert cps0[3] == cps1[0]
-        assert cps2[0] == cps3[3]
-        assert cps2[3] == cps1[3]
+        self.assert_correctness()
         
         v00,v01,v02,v03 = v00.position,v01.position,v02.position,v03.position
         v13,v23,v10,v20 = v13.position,v23.position,v10.position,v20.position
@@ -1217,6 +1236,12 @@ class GPatch(object):
                 p2 = self.map_pts[(i0+2,i1+2)]
                 p3 = self.map_pts[(i0,i1+2)]
                 yield (p0,p1,p2,p3)
+    
+    def normal(self):
+        n = Vector()
+        for p0,p1,p2,p3 in self.iter_segments():
+            n += (p3-p0).cross(p1-p0).normalized()
+        return n.normalized()
 
 
 class PolyStrips(object):
@@ -1238,6 +1263,8 @@ class PolyStrips(object):
     
     def disconnect_gedge(self, gedge):
         assert gedge in self.gedges
+        for gp in list(gedge.gpatches):
+            self.disconnect_gpatch(gp)
         gedge.disconnect()
         self.gedges = [ge for ge in self.gedges if ge != gedge]
     
@@ -1272,6 +1299,10 @@ class PolyStrips(object):
     
     def create_gpatch(self, ge0, ge1, ge2, ge3):
         gp = GPatch(bpy.data.objects[self.o_name], ge0, ge1, ge2, ge3)
+        gp.update()
+        for ge in [ge0,ge1,ge2,ge3]:
+            for gp_ in ge.gpatches:
+                if gp_ != gp: gp_.update()
         self.gpatches += [gp]
         return gp
 
