@@ -37,33 +37,6 @@ from bpy_extras import view3d_utils
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 
-def callback_register(self, context):
-        #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
-        #else:
-            #self._handle = context.region.callback_add(self.menu.draw, (self, context), 'POST_PIXEL')
-        #return None
-
-# Depriciated
-def callback_cleanup(self, context):
-    #if str(bpy.app.build_revision)[2:7].lower() == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
-    #else:
-        #context.region.callback_remove(self._handle)
-    #return None
-
-def bgl_col(rgb, alpha):
-    '''
-    takes a Vector of len 3 (eg, a color setting)
-    returns a 4 item tuple (r,g,b,a) for use with 
-    bgl drawing.
-    '''
-    #TODO Test variables for acceptability
-    color = (rgb[0], rgb[1], rgb[2], alpha)
-    
-    return color
-
-
 def edge_loops_from_bmedges(bmesh, bm_edges):
     """
     Edge loops defined by edges
@@ -217,67 +190,6 @@ def simplify_RDP(splineVerts, error, method = 1):
             
     print('finished simplification with method %i in %f seconds' % (method, time.time() - start))
     return newVerts
-
-def ray_cast_visible(verts, ob, rv3d):
-    '''
-    returns list of Boolean values indicating whether the corresponding vert
-    is visible (not occluded by object) in region associated with rv3d
-    '''
-    view_dir = rv3d.view_rotation * Vector((0,0,1))
-    imx = ob.matrix_world.inverted()
-    
-    if rv3d.is_perspective:
-        eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
-        eyeloc_local = imx*eyeloc
-        source = [eyeloc_local for vert in verts]
-        target = [imx*(vert+ 0.01*view_dir) for vert in verts]
-    else:
-        source = [imx*(vert+10000*view_dir) for vert in verts]
-        target = [imx*(vert+ 0.01*view_dir) for vert in verts]
-    
-    return [ob.ray_cast(s,t)[2]==-1 for s,t in zip(source,target)]
-
-def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
-    '''
-    performs ray casting on object given region, rv3d, and coords wrt region.
-    returns tuple of ray vector (from coords of region) and hit info
-    '''
-    mx = ob.matrix_world
-    imx = mx.inverted()
-    
-    if True:
-        # JD's attempt at correcting bug #48
-        ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
-        ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
-        if not rv3d.is_perspective:
-            # need to back up the ray's origin, because ortho projection has front and back
-            # projection planes at inf
-            ray_origin = ray_origin + ray_vector * 1000
-            ray_target = ray_origin - ray_vector * 2000
-            ray_vector = -ray_vector # why does this need to be negated?
-        else:
-            ray_target = ray_origin + ray_vector * 1000
-        #TODO: make a max ray depth or pull this depth from clip depth
-    else:
-        ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord)
-        ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
-        ray_target = ray_origin + (10000 * ray_vector) #TODO: make a max ray depth or pull this depth from clip depth
-    
-    ray_start_local  = imx * ray_origin
-    ray_target_local = imx * ray_target
-    
-    if settings.debug > 1:
-        print('ray_persp  = ' + str(rv3d.is_perspective))
-        print('ray_origin = ' + str(ray_origin))
-        print('ray_target = ' + str(ray_target))
-        print('ray_vector = ' + str(ray_vector))
-        print('ray_diff   = ' + str((ray_target - ray_origin).normalized()))
-        print('start:  ' + str(ray_start_local))
-        print('target: ' + str(ray_target_local))
-    
-    hit = ob.ray_cast(ray_start_local, ray_target_local)
-    
-    return (ray_vector, hit)
 
 
 def relax(verts, factor = .75, in_place = True):

@@ -119,7 +119,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         rv3d = context.space_data.region_3d
         mx = ob.matrix_world
         settings = common_utilities.get_settings()
-        rc = contour_utilities.ray_cast_region2d
+        rc = common_utilities.ray_cast_region2d
         hits = [rc(region,rv3d,v,ob,settings)[1] for v in self.raw_screen]
         self.raw_world = [mx*hit[0] for hit in hits if hit[2] != -1]
         
@@ -834,7 +834,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         #update connecting edges between ring
         if context.space_data.use_occlude_geometry:
             rv3d = context.space_data.region_3d
-            is_vis = contour_utilities.ray_cast_visible
+            is_vis = common_utilities.ray_cast_visible
             self.follow_vis = [is_vis(vert_list, ob, rv3d) for vert_list in self.follow_lines]
         else:
             self.follow_vis = [[True]*len(vert_list) for vert_list in self.follow_lines]
@@ -1663,7 +1663,7 @@ class ExistingVertList(object):
             #self.visible_u = []
             #self.visible_d = []
             rv3d = context.space_data.region_3d
-            self.verts_simple_visible = contour_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
+            self.verts_simple_visible = common_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
         else:
             self.verts_simple_visible = [True] * len(self.verts_simple)
     
@@ -1815,7 +1815,7 @@ class ContourCutLine(object):
     def update_visibility(self,context,ob):
         if context.space_data.use_occlude_geometry:
             rv3d = context.space_data.region_3d
-            self.verts_simple_visible  = contour_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
+            self.verts_simple_visible  = common_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
             #TODO: should the following be uncommented?
             #self.visible_poly = []
             #self.visible_u = []
@@ -1981,7 +1981,7 @@ class ContourCutLine(object):
             self.vec_x = -1 * cut_vec.normalized()
             self.vec_y = self.plane_no.cross(self.vec_x)
             
-            ray_vector,hit = contour_utilities.ray_cast_region2d(region, rv3d, screen_coord, ob, settings)
+            ray_vector,hit = common_utilities.ray_cast_region2d(region, rv3d, screen_coord, ob, settings)
             
             if hit[2] != -1:
                 mx = ob.matrix_world

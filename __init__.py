@@ -153,6 +153,12 @@ class RetopoFlowPreferences(AddonPreferences):
         default=True
         )
 
+    use_pressure = BoolProperty(
+        name='Use Pressure Sensitivity',
+        description='Adjust size of Polystrip with pressure of tablet pen',
+        default=False
+        )
+
     # Tool settings
     contour_panel_settings = BoolProperty(
         name="Show Contour Settings",
@@ -495,6 +501,7 @@ class RetopoFlowPreferences(AddonPreferences):
         row.prop(self, "theme", "Theme")
 
         row = layout.row(align=True)
+        row.prop(self, "use_pressure")
         row.prop(self, "show_segment_count")
 
         row = layout.row(align=True)
@@ -2634,11 +2641,12 @@ class PolystripsUI:
             common_drawing.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
 
             # Report pressure reading
-            info = str(round(self.sketch_pressure,3))
-            txt_width, txt_height = blf.dimensions(0, info)
-            d = self.sketch_brush.pxl_rad
-            blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
-            blf.draw(0, info)
+            if settings.use_pressure:
+                info = str(round(self.sketch_pressure,3))
+                txt_width, txt_height = blf.dimensions(0, info)
+                d = self.sketch_brush.pxl_rad
+                blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
+                blf.draw(0, info)
 
         if self.mode in {'scale tool','rotate tool'}:
             # Draw a scale/rotate line from tool origin to current mouse position
@@ -2658,7 +2666,10 @@ class PolystripsUI:
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
-                common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                if settings.use_pressure:
+                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                else:
+                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
             if self.mode == 'sketch':
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
                 hit_p3d,hit_norm,hit_idx = hit
@@ -2667,7 +2678,10 @@ class PolystripsUI:
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    if settings.use_pressure:
+                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    else:
+                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if self.hover_ed and False:
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -3276,6 +3290,9 @@ class PolystripsUI:
         return ''
 
     def modal_main(self, eventd):
+
+        settings = common_utilities.get_settings()
+
         self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, CTRL+Wheel Up/Down: adjust segments, CTRL+C: change selected junction type'
 
         #############################################
@@ -3339,8 +3356,12 @@ class PolystripsUI:
             # start sketching
             self.footer = 'Sketching'
             x,y = eventd['mouse']
-            p   = eventd['pressure']
-            r   = eventd['mradius']
+            if settings.use_pressure:
+                p = eventd['pressure']
+                r = eventd['mradius']
+            else:
+                p = 1
+                r = self.stroke_radius
 
             self.sketch_curpos = (x,y)
 
@@ -3747,12 +3768,19 @@ class PolystripsUI:
         return ''
 
     def modal_sketching(self, eventd):
+
+        settings = common_utilities.get_settings()
+
         #my_str = eventd['type'] + ' ' + str(round(eventd['pressure'],2)) + ' ' + str(round(self.stroke_radius_pressure,2))
         #print(my_str)
         if eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            p = eventd['pressure']
-            r = eventd['mradius']
+            if settings.use_pressure:
+                p = eventd['pressure']
+                r = eventd['mradius']
+            else:
+                p = 1
+                r = self.stroke_radius
 
             stroke_point = self.sketch[-1]
 
@@ -3764,8 +3792,10 @@ class PolystripsUI:
             ss0,ss1 = self.stroke_smoothing,1-self.stroke_smoothing
             # Smooth radii
             self.stroke_radius_pressure = lr*ss0 + r*ss1
-
-            self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
+            if settings.use_pressure:
+                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
+            else:
+                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
 
             return ''
 
@@ -3773,6 +3803,7 @@ class PolystripsUI:
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
+
 
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
@@ -3996,7 +4027,7 @@ class PolystripsUI:
 
         event_pressure = 1 if not hasattr(event, 'pressure') else event.pressure
 
-        def pressure_to_radius(r, p, map = 3):
+        def pressure_to_radius(r, p, map = 0):
             if   map == 0:  p = max(0.25,p)
             elif map == 1:  p = 0.25 + .75 * p
             elif map == 2:  p = max(0.05,p)
