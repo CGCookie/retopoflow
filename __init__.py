@@ -2540,11 +2540,11 @@ class PolystripsUI:
         ### Patches ###
         for i_gp,gpatch in enumerate(self.polystrips.gpatches):
             if gpatch == self.act_gpatch:
-                color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
-                color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+                color_border = (color_active[0], color_active[1], color_active[2], 0.50)
+                color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
             else:
-                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
+                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
             
             for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
                 common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
