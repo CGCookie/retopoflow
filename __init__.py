@@ -3450,9 +3450,6 @@ class PolystripsUI:
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
-            if eventd['press'] == 'R':
-                self.act_gpatch.reverse()
-                return ''
 
         ###################################
         # Selected gedge commands

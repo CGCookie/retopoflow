@@ -1105,11 +1105,6 @@ class GPatch(object):
         
         return zip(segs1,segs3)
     
-    def reverse(self):
-        self.inside = not self.inside
-        self.update()
-        print('self.inside = ' + str(self.inside))
-    
     def update(self):
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
