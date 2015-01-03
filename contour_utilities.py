@@ -112,7 +112,7 @@ def perp_vector_point_line(pt1, pt2, ptn):
             |
             ptn
     '''
-    pt_on_line = intersect_point_line(ptn, pt1, pt2)[0]
+    pt_on_line = intersect_point_line(ptn.to_3d(), pt1.to_3d(), pt2.to_3d())[0]
     alt_vect = pt_on_line - ptn
     
     return alt_vect
@@ -544,7 +544,7 @@ def cross_section(bme, mx, point, normal, debug = True):
             v = intersect_line_plane(A,B,pt,no)
            
             if v:
-                check = intersect_point_line(v,A,B)
+                check = intersect_point_line(v.to_3d(),A.to_3d(),B.to_3d())
                 if check[1] >= 0 and check[1] <= 1:
                     
                                              
@@ -636,7 +636,7 @@ def cross_edge(A,B,pt,no):
         v = intersect_line_plane(A,B,pt,no)
        
         if v:
-            check = intersect_point_line(v,A,B)
+            check = intersect_point_line(v.to_3d(),A.to_3d(),B.to_3d())
             if check[1] > 0 and check[1] < 1:  #this is the purest cross...no co-points
                 #the vert coord index    =  the face indices it came from
                 ret_val = ['CROSS',v,None]
@@ -1262,7 +1262,7 @@ def com_line_cross_test(com1, com2, pt, no, factor = 2):
         #than 1/factor the distance between the current pair
         #than this pair is invalide because there is a loop
         #in between
-        check = intersect_point_line(v,com1,com2)
+        check = intersect_point_line(v.to_3d(),com1.to_3d(),com2.to_3d())
         invalid_length = (com2 - com1).length/factor  #length beyond which an intersection is invalid
         test_length = (v - pt).length
         
@@ -1482,10 +1482,10 @@ def intersect_paths(path1, path2, cyclic1 = False, cyclic2 = False, threshold = 
             if intersect:
                 #make sure the intersection is within the segment
                 inter_1 = intersect[0]
-                verif1 = intersect_point_line(inter_1, v1,v2)
+                verif1 = intersect_point_line(inter_1.to_3d(), v1.to_3d(),v2.to_3d())
                 
                 inter_2 = intersect[1]
-                verif2 = intersect_point_line(inter_1, v3,v4)
+                verif2 = intersect_point_line(inter_1.to_3d(), v3.to_3d(),v4.to_3d())
             
                 diff = inter_2 - inter_1
                 if diff.length < threshold and verif1[1] > 0 and verif2[1] > 0 and verif1[1] < 1 and verif2[1] < 1:
