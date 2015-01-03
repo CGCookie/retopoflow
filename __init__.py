@@ -2652,17 +2652,10 @@ class PolystripsUI:
             
             else:
                 p3d = [gv.position for gv in ge.gverts()]
-<<<<<<< HEAD
-                common_drawing.draw_3d_points(context, p3d, color, 8)
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color, 2, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color, 2, "GL_LINE_SMOOTH")
-            
-=======
                 common_drawing.draw_3d_points(context, p3d, color_handle, 8)
                 common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
                 common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
 
->>>>>>> issue/16_1
             if settings.show_segment_count:
                 draw_gedge_info(self.act_gedge, context)
                 
