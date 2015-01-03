@@ -37,9 +37,6 @@ bl_info = {
 import os
 import sys
 
-# Add the current __file__ path to the search path
-sys.path.append(os.path.dirname(__file__))
-
 import copy
 import math
 import random
@@ -58,19 +55,19 @@ from bpy.types import Operator, AddonPreferences
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
 
 # Common imports
-from lib import common_utilities
-from lib import common_drawing
-from lib.common_utilities import get_object_length_scale, dprint, profiler, frange
-from lib.common_classes import SketchBrush
+from .lib import common_utilities
+from .lib import common_drawing
+from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange
+from .lib.common_classes import SketchBrush
 
 # Polystrip imports
-import polystrips_utilities
-from polystrips import *
-from polystrips_draw import *
+from . import polystrips_utilities
+from .polystrips import *
+from .polystrips_draw import *
 
 # Contour imports
-import contour_utilities
-from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
+from . import contour_utilities
+from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()

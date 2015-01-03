@@ -34,8 +34,8 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-import contour_utilities
-from lib import common_utilities, common_drawing
+from . import contour_utilities
+from .lib import common_utilities, common_drawing
 
 #from development.cgc-retopology import contour_utilities
 

@@ -35,10 +35,10 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-from lib import common_utilities
-from lib import common_drawing
-from lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
-from polystrips_utilities import *
+from .lib import common_utilities
+from .lib import common_drawing
+from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from .polystrips_utilities import *
 
 
 #Make the addon name and location accessible
