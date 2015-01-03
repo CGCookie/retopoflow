@@ -2827,7 +2827,6 @@ class PolystripsUI:
         
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
-        print('checking for hover gv')
         for gv in self.polystrips.extension_geometry:
             if not gv.is_visible(): continue
             rgn   = eventd['context'].region
@@ -3513,6 +3512,8 @@ class PolystripsUI:
             dprint('')
             dprint('')
             dprint('inserting stroke')
+            
+            
             self.polystrips.insert_gedge_from_stroke(stroke, False)
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])

@@ -228,8 +228,6 @@ class GVert:
     
     def update(self, do_edges=True):
         if self.doing_update: return
-        if self.frozen: return
-        
         if self.zip_over_gedge and do_edges:
             self.zip_over_gedge.update()
             return
@@ -241,18 +239,15 @@ class GVert:
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
-        self.snap_norm = (mxnorm * n).normalized()
-        self.snap_tanx = self.tangent_x.normalized()
-        self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
-        
-        if not self.is_unconnected() or True:
+        if not self.frozen:
+            l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
+            self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
             self.position = self.snap_pos
-        else:
-            self.snap_pos = self.position
+
+        self.snap_tanx = self.tangent_x.normalized()
+        self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
         # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
-        
         if do_edges:
             self.doing_update = True
             for gedge in [self.gedge0,self.gedge1,self.gedge2,self.gedge3]:
@@ -262,6 +257,25 @@ class GVert:
         
         self.snap_tanx = (Vector((0.2,0.1,0.5)) if not self.gedge0 else self.gedge0.get_derivative_at(self)).normalized()
         self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
+        if self.frozen and self.gedge0:
+             vy = self.corner0 - self.corner1
+             vy.normalize()
+             
+             vx = self.corner1 - self.corner2
+             vx.normalize()
+             
+             test1 = vx.dot(self.snap_tanx)
+             test2 = vy.dot(self.snap_tany)
+            
+             if test1 < -.7:
+                 self.corner0, self.corner1, self.corner2, self.corner3 = self.corner2, self.corner3, self.corner0, self.corner1
+             
+             if test1  > -.7 and test1 < .7:
+                 if test2 > .7:
+                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner3, self.corner0, self.corner1, self.corner2
+                 else:
+                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner1, self.corner2, self.corner3, self.corner0  
+        
         
         if not self.zip_over_gedge:
             # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
@@ -298,10 +312,11 @@ class GVert:
             r2 = 0 if not igv2 else (igv2.radius*(1 if igv2.tangent_x.dot(self.snap_tanx)<0 else -1))
             r3 = 0 if not igv3 else (igv3.radius*(1 if igv3.tangent_x.dot(self.snap_tany)>0 else -1))
             
-            self.corner0 = get_corner(self, 1, 1, igv0,r0, igv3,r3)
-            self.corner1 = get_corner(self, 1,-1, igv1,r1, igv0,r0)
-            self.corner2 = get_corner(self,-1,-1, igv2,r2, igv1,r1)
-            self.corner3 = get_corner(self,-1, 1, igv3,r3, igv2,r2)
+            if not self.frozen:
+                self.corner0 = get_corner(self, 1, 1, igv0,r0, igv3,r3)
+                self.corner1 = get_corner(self, 1,-1, igv1,r1, igv0,r0)
+                self.corner2 = get_corner(self,-1,-1, igv2,r2, igv1,r1)
+                self.corner3 = get_corner(self,-1, 1, igv3,r3, igv2,r2)
         
         self.snap_corners()
         
@@ -1078,18 +1093,20 @@ class PolyStrips(object):
                     pos = mx * f.calc_center_median()
                     no = mx.transposed().inverted().to_3x3() * f.normal  #TEST THIS....can it be right?
                     no.normalize()
-                    rad = sum(mx.to_scale())/3 * f.calc_perimeter()/4  #HACK...better way to estimate rad?
+                    rad = 1/3 * 1/8 * sum(mx.to_scale()) * f.calc_perimeter()  #HACK...better way to estimate rad?
                     tan_x = mx * f.verts[1].co - mx * f.verts[0].co
                     tan_x.normalize()
                     tan_y = no.cross(tan_x)
                     
+                    
                     gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, frozen = True)
                     #Freeze Corners
-                    gv.corner0 = mx * f.verts[0].co
-                    gv.corner1 = mx * f.verts[1].co
+                    gv.corner0 = mx * f.verts[0].co #Note, left handed Gvert Normal
+                    gv.corner1 = mx * f.verts[3].co
                     gv.corner2 = mx * f.verts[2].co
-                    gv.corner3 = mx * f.verts[3].co
+                    gv.corner3 = mx * f.verts[1].co
                     gv.snap_pos = gv.position
+                    gv.snap_norm = gv.normal
                     gv.visible = True
                     self.extension_geometry.append(gv)
                     break
@@ -1102,7 +1119,19 @@ class PolyStrips(object):
         yikes....pressure and radius need to be reconciled!
         for now, assumes 
         '''
-        
+        if depth == 0:
+            gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0])]
+            gv3 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[-1][0])]
+            
+            if len(gv0):
+                self.extension_geometry.remove(gv0[0])
+                self.gverts.append(gv0[0])
+                sgv0 = gv0[0]
+            if len(gv3):
+                self.extension_geometry.remove(gv3[0])
+                self.gverts.append(gv3[0])
+                sgv3 = gv3[0]
+            
         assert depth < 10
         
         spc = '  '*depth + '- '
