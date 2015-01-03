@@ -3425,6 +3425,7 @@ class PolystripsUI:
                 if not gv.is_picked(pt): continue
                 self.act_gedge = None
                 self.sel_gedges.clear()
+                self.sel_gverts.clear()
                 self.act_gvert = gv
                 self.act_gpatch = None
                 return ''
