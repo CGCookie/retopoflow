@@ -178,8 +178,9 @@ def draw_polyline_from_3dpoints(context, points_3d, color, thickness, LINE_TYPE)
     bgl.glColor4f(*color)
     bgl.glLineWidth(thickness)
     bgl.glBegin(bgl.GL_LINE_STRIP)
-    for coord in points:  
-        bgl.glVertex2f(*coord)  
+    for coord in points:
+        if coord:
+            bgl.glVertex2f(*coord)
     
     bgl.glEnd()  
       
