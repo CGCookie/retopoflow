@@ -3242,6 +3242,9 @@ class PolystripsUI:
         return ''
 
     def modal_main(self, eventd):
+
+        settings = common_utilities.get_settings()
+
         self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, CTRL+Wheel Up/Down: adjust segments, CTRL+C: change selected junction type'
 
         #############################################
@@ -3305,8 +3308,12 @@ class PolystripsUI:
             # start sketching
             self.footer = 'Sketching'
             x,y = eventd['mouse']
-            p   = eventd['pressure']
-            r   = eventd['mradius']
+            if settings.use_pressure:
+                p = eventd['pressure']
+                r = eventd['mradius']
+            else:
+                p = 1
+                r = self.stroke_radius
 
             self.sketch_curpos = (x,y)
 
@@ -3655,12 +3662,19 @@ class PolystripsUI:
         return ''
 
     def modal_sketching(self, eventd):
+
+        settings = common_utilities.get_settings()
+
         #my_str = eventd['type'] + ' ' + str(round(eventd['pressure'],2)) + ' ' + str(round(self.stroke_radius_pressure,2))
         #print(my_str)
         if eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            p = eventd['pressure']
-            r = eventd['mradius']
+            if settings.use_pressure:
+                p = eventd['pressure']
+                r = eventd['mradius']
+            else:
+                p = 1
+                r = self.stroke_radius
 
             stroke_point = self.sketch[-1]
 
@@ -3672,8 +3686,10 @@ class PolystripsUI:
             ss0,ss1 = self.stroke_smoothing,1-self.stroke_smoothing
             # Smooth radii
             self.stroke_radius_pressure = lr*ss0 + r*ss1
-
-            self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
+            if settings.use_pressure:
+                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
+            else:
+                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
 
             return ''
 
