@@ -54,3 +54,5 @@ target/
 
 # Mac OS X
 .DS_Store
+.project
+.pydevproject
