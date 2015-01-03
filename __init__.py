@@ -2899,14 +2899,47 @@ class PolystripsUI:
     # fill function
 
     def fill(self, eventd):
+        if self.sel_gvert:
+            if self.sel_gvert.is_ljunction() or self.sel_gvert.is_tjunction() or self.sel_gvert.is_cross():
+                self.act_gedge = self.sel_gvert.gedge0
+                self.sel_gedges = {self.sel_gvert.gedge0, self.sel_gvert.gedge1}
+                self.sel_gvert = None
+            else:
+                showErrorMessage('Cannot simple fill this type of GVert')
+                return
+        
         if len(self.sel_gedges) != 2:
             showErrorMessage('Must have exactly 2 selected edges')
             return
 
         # check that we have a hole
         # TODO: handle multiple edges on one side
-
-        lgedge,rgedge = self.act_gedge,[ge for ge in self.sel_gedges if ge != self.act_gedge][0]
+        
+        sge0 = self.act_gedge
+        sge1 = [ge for ge in self.sel_gedges if ge!=sge0][0]
+        
+        lcgvs = [gv for gv in [sge0.gvert0,sge0.gvert3] if gv in [sge1.gvert0,sge1.gvert3]]
+        if lcgvs:
+            # corner!
+            if len(lcgvs) == 2:
+                # Eye shape
+                showErrorMessage('Cannot simple fill this shape, yet!')
+                return
+            cgv = lcgvs[0]
+            logvs = [gv for gv in [sge0.gvert0,sge0.gvert3,sge1.gvert0,sge1.gvert3] if gv != cgv]
+            assert len(logvs) == 2
+            np = cgv.snap_pos + (logvs[0].snap_pos - cgv.snap_pos) + (logvs[1].snap_pos - cgv.snap_pos)
+            nr = cgv.radius + (logvs[0].radius - cgv.radius) + (logvs[1].radius - cgv.radius)
+            ngv = self.polystrips.create_gvert(np, radius=nr)
+            sge0 = self.polystrips.insert_gedge_between_gverts(logvs[0], ngv)
+            self.polystrips.insert_gedge_between_gverts(logvs[1], ngv)
+            # self.sel_gvert = None
+            # self.act_gedge = sge0
+            # self.sel_gedges = {sge0,sge1}
+            # self.act_gpatch = None
+            # return
+        
+        lgedge,rgedge = sge0,sge1
         tlgvert = lgedge.gvert0
         blgvert = lgedge.gvert3
 
@@ -3708,6 +3741,11 @@ class PolystripsUI:
                     dprint('- %f %f' % (min(gvthis.zip_t, gvthat.zip_t),max(gvthis.zip_t, gvthat.zip_t)), l=4)
                     return ''
 
+            if eventd['press'] == 'SHIFT+F':
+                self.create_undo_snapshot('simplefill')
+                self.fill(eventd)
+                return ''
+                
         return ''
 
     def modal_sketching(self, eventd):
