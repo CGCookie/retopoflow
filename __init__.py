@@ -3039,6 +3039,7 @@ class PolystripsUI:
         self.act_gvert = None
         self.act_gedge = None
         self.sel_gedges.clear()
+        self.sel_gverts.clear()
         self.act_gpatch = gp
         
         gp.update()
@@ -3435,12 +3436,13 @@ class PolystripsUI:
                 self.sel_gedges.add(ge)
                 self.act_gpatch = None
                 return ''
-            
+            # Select patch
             for gp in self.polystrips.gpatches:
                 if not gp.is_picked(pt): continue
                 self.act_gvert = None
                 self.act_gedge = None
                 self.sel_gedges.clear()
+                self.sel_gverts.clear()
                 self.act_gpatch = gp
                 print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
                 return ''
