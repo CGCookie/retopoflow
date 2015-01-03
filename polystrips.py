@@ -1474,8 +1474,6 @@ class PolyStrips(object):
                     gv.from_mesh_ind = f.index
                     self.extension_geometry.append(gv)
                     break
-                
-        print('found %i possible faces to extend' % len(self.extension_geometry))
         
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
