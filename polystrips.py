@@ -46,7 +46,7 @@ AL = AddonLocator()
 
 
 class GVert:
-    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y):
+    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, frozen = False):
         # store info
         self.o_name       = obj.name
         self.targ_o_name  = targ_obj.name
@@ -77,7 +77,7 @@ class GVert:
         self.doing_update = False
         
         self.visible = True
-        
+        self.frozen = frozen
         self.update()
     
     def clone_detached(self):
@@ -99,7 +99,7 @@ class GVert:
     
     def count_gedges(self):   return len(self.get_gedges_notnone())
     
-    def is_unconnected(self): return not (self.has_0() or self.has_1() or self.has_2() or self.has_3())
+    def is_unconnected(self): return not (self.has_0() or self.has_1() or self.has_2() or self.has_3()) if not self.frozen else False
     def is_endpoint(self):    return self.has_0() and not (self.has_1() or self.has_2() or self.has_3())
     def is_endtoend(self):    return self.has_0() and self.has_2() and not (self.has_1() or self.has_3())
     def is_ljunction(self):   return self.has_0() and self.has_1() and not (self.has_2() or self.has_3())
@@ -212,6 +212,7 @@ class GVert:
         else: assert False
     
     def snap_corners(self):
+        if self.frozen: return
         pr = profiler.start()
         
         mx = bpy.data.objects[self.o_name].matrix_world
@@ -227,6 +228,7 @@ class GVert:
     
     def update(self, do_edges=True):
         if self.doing_update: return
+        if self.frozen: return
         
         if self.zip_over_gedge and do_edges:
             self.zip_over_gedge.update()
@@ -965,8 +967,8 @@ class PolyStrips(object):
         # graph vertices and edges
         self.gverts = []
         self.gedges = []
+        self.extension_geometry = []
         
-    
     def disconnect_gedge(self, gedge):
         assert gedge in self.gedges
         gedge.disconnect()
@@ -1065,6 +1067,35 @@ class PolyStrips(object):
         
         return (ge0,ge1,gv_split)
     
+    def extension_geometry_from_bme(self, bme):
+        self.extension_geometry = []
+        mx = bpy.data.objects[self.targ_o_name].matrix_world
+        for f in bme.faces:
+            if len(f.edges) != 4:
+                continue
+            for ed in f.edges:
+                if len(ed.link_faces) < 2:
+                    pos = mx * f.calc_center_median()
+                    no = mx.transposed().inverted().to_3x3() * f.normal  #TEST THIS....can it be right?
+                    no.normalize()
+                    rad = sum(mx.to_scale())/3 * f.calc_perimeter()/4  #HACK...better way to estimate rad?
+                    tan_x = mx * f.verts[1].co - mx * f.verts[0].co
+                    tan_x.normalize()
+                    tan_y = no.cross(tan_x)
+                    
+                    gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, frozen = True)
+                    #Freeze Corners
+                    gv.corner0 = mx * f.verts[0].co
+                    gv.corner1 = mx * f.verts[1].co
+                    gv.corner2 = mx * f.verts[2].co
+                    gv.corner3 = mx * f.verts[3].co
+                    gv.snap_pos = gv.position
+                    gv.visible = True
+                    self.extension_geometry.append(gv)
+                    break
+                
+        print('found %i possible faces to extend' % len(self.extension_geometry))
+        
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)

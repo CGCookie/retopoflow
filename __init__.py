@@ -2298,6 +2298,7 @@ class PolystripsUI:
             self.dest_obj.matrix_world = self.obj.matrix_world
             context.scene.objects.link(self.dest_obj)
             
+            self.extension_geometry = []
             self.snap_eds = []
             self.snap_eds_vis = []
             self.hover_ed = None
@@ -2321,6 +2322,7 @@ class PolystripsUI:
             self.dest_obj = context.object
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
             self.snap_eds = [] #EXTEND
+                   
             #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
             
             
@@ -2347,9 +2349,9 @@ class PolystripsUI:
         self.sel_gedge = None                           # selected gedge
         self.sel_gvert = None                           # selected gvert
         self.act_gvert = None                           # active gvert (operated upon)
-
+        self.hov_gvert = None
         self.polystrips = PolyStrips(context, self.obj, self.dest_obj)
-
+        self.polystrips.extension_geometry_from_bme(self.dest_bme) 
         polystrips_undo_cache = []  # Clear the cache in case any is left over
         if self.obj.grease_pencil:
             self.create_polystrips_from_greasepencil()
@@ -2448,6 +2450,10 @@ class PolystripsUI:
         if self.post_update or self.last_matrix != new_matrix:
             for gv in self.polystrips.gverts:
                 gv.update_visibility(r3d)
+                
+            for gv in self.polystrips.extension_geometry:
+                gv.update_visibility(r3d)
+                
             for ge in self.polystrips.gedges:
                 ge.update_visibility(r3d)
             if self.sel_gedge:
@@ -2501,7 +2507,7 @@ class PolystripsUI:
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 common_drawing.draw_polyline_from_3dpoints(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
 
-        for i_gv,gv in enumerate(self.polystrips.gverts):
+        for gv in itertools.chain(self.polystrips.gverts, self.polystrips.extension_geometry):
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
@@ -2540,6 +2546,16 @@ class PolystripsUI:
                 for p1 in p3d:
                     common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color, 2, "GL_LINE_SMOOTH")
 
+        if self.hov_gvert:  #TODO, hover color
+            color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
+            color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            
+            gv = self.hov_gvert
+            p0,p1,p2,p3 = gv.get_corners()
+            p3d = [p0,p1,p2,p3,p0]
+            common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
+            common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+            
         if self.sel_gedge:
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             ge = self.sel_gedge
@@ -2685,7 +2701,7 @@ class PolystripsUI:
                 for igv in gedge.cache_igverts:
                     common_drawing.common_drawing.draw_circle(context, igv.position, igv.normal, rm, (1,1,1,.3))
 
-        for i_gv,gv in enumerate(self.polystrips.gverts):
+        for gv in itertools.chain(self.polystrips.gverts, self.polystrips.extension_geometry):
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
@@ -2808,45 +2824,24 @@ class PolystripsUI:
     # hover functions
 
     def hover_geom(self,eventd):
-        if not len(self.snap_eds): 
-            return 
-        context = eventd['context']
-        region,r3d = context.region,context.space_data.region_3d
-        new_matrix = [v for l in r3d.view_matrix for v in l]
-        x, y = eventd['mouse']
-        mouse_loc = Vector((x,y))
-        mx = self.dest_obj.matrix_world
-
-        if self.post_update or self.last_matrix != new_matrix:
-            # Update all the visibility stuff
-            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, r3d) for ed in self.snap_eds]
-
-        # Sticky highlight...check the hovered edge first
-        if self.hover_ed:
-            a = location_3d_to_region_2d(region, r3d, mx * self.hover_ed.verts[0].co)
-            b = location_3d_to_region_2d(region, r3d, mx * self.hover_ed.verts[1].co)
-
-            if a and b:
-                intersect = intersect_point_line(mouse_loc, a, b)
-                dist = (intersect[0] - mouse_loc).length_squared
-                bound = intersect[1]
-                if (dist < 100) and (bound < 1) and (bound > 0):
-                    return
-
-        self.hover_ed = None
-        for i,ed in enumerate(self.snap_eds):
-            if self.snap_eds_vis[i]:
-                a = location_3d_to_region_2d(region, r3d, mx * ed.verts[0].co)
-                b = location_3d_to_region_2d(region, r3d, mx * ed.verts[1].co)
-                if a and b:
-                    intersect = intersect_point_line(mouse_loc, a, b)
-
-                    dist = (intersect[0] - mouse_loc).length_squared
-                    bound = intersect[1]
-                    if (dist < 100) and (bound < 1) and (bound > 0):
-                        self.hover_ed = ed
-                        break
-
+        
+        if not len(self.polystrips.extension_geometry): return
+        self.hov_gvert = None
+        print('checking for hover gv')
+        for gv in self.polystrips.extension_geometry:
+            if not gv.is_visible(): continue
+            rgn   = eventd['context'].region
+            r3d   = eventd['context'].space_data.region_3d
+            mx,my = eventd['mouse']
+            c0 = location_3d_to_region_2d(rgn, r3d, gv.corner0)
+            c1 = location_3d_to_region_2d(rgn, r3d, gv.corner1)
+            c2 = location_3d_to_region_2d(rgn, r3d, gv.corner2)
+            c3 = location_3d_to_region_2d(rgn, r3d, gv.corner3)
+            inside = contour_utilities.point_inside_loop2d([c0,c1,c2,c3],Vector((mx,my)))
+            if inside:
+                self.hov_gvert = gv
+                break
+                print('found hover gv')
     ###########################
     # tool functions
 
