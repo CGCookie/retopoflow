@@ -86,8 +86,8 @@ class GVert:
         self.corner2_ind = -1
         self.corner3_ind = -1
         
-        
         self.frozen = True if self.from_mesh else False
+        
         self.update()
     
     def clone_detached(self):
@@ -115,6 +115,8 @@ class GVert:
     def is_ljunction(self):   return self.has_0() and self.has_1() and not (self.has_2() or self.has_3())
     def is_tjunction(self):   return self.has_0() and self.has_1() and self.has_3() and not self.has_2()
     def is_cross(self):       return self.has_0() and self.has_1() and self.has_2() and self.has_3()
+    
+    def is_frozen(self): return self.frozen
     
     def get_gedges(self): return [self.gedge0,self.gedge1,self.gedge2,self.gedge3]
     def _set_gedges(self, ge0, ge1, ge2, ge3):
@@ -524,6 +526,8 @@ class GEdge:
         self.zip_dir        = 1
         
         self.zip_attached   = []
+        
+        self.frozen = False
 
         self.l_ts = []
         self.gpatches = []
@@ -569,6 +573,8 @@ class GEdge:
     
     def is_zippered(self): return (self.zip_to_gedge != None)
     def has_zippered(self): return len(self.zip_attached)!=0
+    
+    def is_frozen(self): return self.frozen
     
     def zip_to(self, gedge):
         assert not self.zip_to_gedge
@@ -971,10 +977,11 @@ class GEdge:
         self.gvert1.radius = self.gvert0.radius*0.7 + self.gvert3.radius*0.3
         self.gvert2.radius = self.gvert0.radius*0.3 + self.gvert3.radius*0.7
         
-        if self.zip_to_gedge:
-            self.update_zip(debug=debug)
-        else:
-            self.update_nozip(debug=debug)
+        if not self.frozen:
+            if self.zip_to_gedge:
+                self.update_zip(debug=debug)
+            else:
+                self.update_nozip(debug=debug)
         
         for zgedge in self.zip_attached:
             zgedge.update(debug=debug)
@@ -1038,6 +1045,22 @@ class GEdge:
                 if not only_visible or gvert.is_visible():
                     yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
+    
+    def iter_igverts(self):
+        l = len(self.cache_igverts)
+        if l == 0: return
+        
+        prev0,prev1 = None,None
+        for i,gvert in enumerate(self.cache_igverts):
+            if i%2 == 0: continue
+            
+            if i == 1:
+                continue
+            elif i == l-2:
+                continue
+            else:
+                yield (i,gvert)
+
 
 
 class GPatch(object):

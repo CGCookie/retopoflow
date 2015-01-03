@@ -2286,6 +2286,8 @@ class PolystripsUI:
         self.sketch_curpos = (0, 0)
         self.sketch_pressure = 1
         self.sketch = []
+        
+        self.tweak_data = None
 
         self.post_update = True
 
@@ -2569,6 +2571,9 @@ class PolystripsUI:
             # else:
                 # color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 # color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            if gedge.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
@@ -2604,6 +2609,9 @@ class PolystripsUI:
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            if gv.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
             # # Take care of gverts in selected edges
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
@@ -3357,7 +3365,16 @@ class PolystripsUI:
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
-
+        
+        if eventd['press'] in {'T','SHIFT+T'}:
+            self.create_undo_snapshot('tweak')
+            self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges = set()
+            self.act_gpatch = None
+            return 'tweak move tool' if eventd['press']=='T' else 'tweak relax tool'
+        
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE'}:
             self.create_undo_snapshot('sketch')                   
             # start sketching
@@ -3382,6 +3399,7 @@ class PolystripsUI:
             self.act_gvert = None
             self.act_gedge = None
             self.sel_gedges = set()
+            self.act_gpatch = None
             return 'sketch'
 
         if eventd['press'] in {'RIGHTMOUSE','SHIFT+RIGHTMOUSE'}:                                         # picking
@@ -3842,6 +3860,154 @@ class PolystripsUI:
     ##############################
     # modal tool functions
 
+    def modal_tweak_move_tool(self, eventd):
+        if eventd['release'] == 'T':
+            return 'main'
+        
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        if eventd['press'] == 'LEFTMOUSE':
+            ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
+            hit_p3d,hit_norm,hit_idx = hit
+            
+            lgvmove = []
+            lgemove = []
+            supdate = set()
+            
+            for gv in self.polystrips.gverts:
+                lcorners = gv.get_corners()
+                ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
+                if not any(d < 1.0 for d in ld):
+                    continue
+                gv.frozen = True
+                lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < 1.0]
+                supdate.add(gv)
+                for ge in gv.get_gedges_notnone():
+                    supdate.add(ge)
+                    for gp in ge.gpatches:
+                        supdate.add(gp)
+            
+            for ge in self.polystrips.gedges:
+                for i,gv in ge.iter_igverts():
+                    p0 = gv.position+gv.tangent_y*gv.radius
+                    p1 = gv.position-gv.tangent_y*gv.radius
+                    d0 = (p0-hit_p3d).length / self.stroke_radius
+                    d1 = (p1-hit_p3d).length / self.stroke_radius
+                    if d0 >= 1.0 and d1 >= 1.0: continue
+                    ge.frozen = True
+                    lgemove += [(gv,i,p0,d0,p1,d1)]
+                    supdate.add(ge)
+                    supdate.add(ge.gvert0)
+                    supdate.add(ge.gvert3)
+                    for gp in ge.gpatches:
+                        supdate.add(gp)
+            
+            mx = self.obj.matrix_world
+            mx3x3 = mx.to_3x3()
+            imx = mx.inverted()
+            
+            self.tweak_data = {
+                'mouse': eventd['mouse'],
+                'lgvmove': lgvmove,
+                'lgemove': lgemove,
+                'supdate': supdate,
+                'mx': mx,
+                'mx3x3': mx3x3,
+                'imx': imx,
+            }
+            return ''
+        
+        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+            cx,cy = eventd['mouse']
+            lx,ly = self.tweak_data['mouse']
+            dx,dy = cx-lx,cy-ly
+            dv = Vector((dx,dy))
+            
+            mx = self.tweak_data['mx']
+            mx3x3 = self.tweak_data['mx3x3']
+            imx = self.tweak_data['imx']
+            
+            def update(p3d, d):
+                if d >= 1.0: return p3d
+                p2d = location_3d_to_region_2d(region, r3d, p3d)
+                p2d += dv * (1.0-d)
+                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
+                if hit[2] == -1: return p3d
+                return mx * hit[0]
+                
+                return pts[0]
+            
+            for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
+            for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
+                nc0 = update(c0,d0)
+                nc1 = update(c1,d1)
+                gv.position = (nc0+nc1)/2.0
+                gv.tangent_y = (nc0-nc1).normalized()
+                gv.radius = (nc0-nc1).length / 2.0
+                
+            
+            if eventd['release'] == 'LEFTMOUSE':
+                for u in self.tweak_data['supdate']:
+                   u.update()
+                for u in self.tweak_data['supdate']:
+                   u.update_visibility(eventd['r3d'])
+                self.tweak_data = None
+        
+        # 
+
+        # if command == 'init':
+        #     self.footer = 'Translating GVert position(s)'
+        #     s2d = l3dr2d(lgv[0].position)
+        #     self.tool_data = [(gv, Vector(gv.position), l3dr2d(gv.position)-s2d) for gv in lgv]
+        # elif command == 'commit':
+        #     pass
+        # elif command == 'undo':
+        #     for gv,p,_ in self.tool_data: gv.position = p
+        #     for gv,_,_ in self.tool_data:
+        #         gv.update()
+        #         gv.update_visibility(eventd['r3d'], update_gedges=True)
+        # else:
+        #     factor_slow,factor_fast = 0.2,1.0
+        #     dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
+        #     s2d = l3dr2d(self.tool_data[0][0].position)
+        #     lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
+        #     pts = common_utilities.ray_cast_path(eventd['context'], self.obj, lgv2d)
+        #     if len(pts) != len(lgv2d): return ''
+        #     for d,p2d in zip(self.tool_data, pts):
+        #         d[0].position = p2d
+        #     for gv,_,_ in self.tool_data:
+        #         gv.update()
+        #         gv.update_visibility(eventd['r3d'], update_gedges=True)
+        
+        # if eventd['type'] == 'MOUSEMOVE' and self.tweak_data:
+            
+        #     x,y = eventd['mouse']
+        #     if settings.use_pressure:
+        #         p = eventd['pressure']
+        #         r = eventd['mradius']
+        #     else:
+        #         p = 1
+        #         r = self.stroke_radius
+        #     return ''
+        
+        return ''
+    
+    def modal_tweak_relax_tool(self, eventd):
+        if eventd['release'] == 'SHIFT+T':
+            return 'main'
+        return ''
+    
     def modal_scale_tool(self, eventd):
         cx,cy = self.action_center
         mx,my = eventd['mouse']
@@ -3955,6 +4121,8 @@ class PolystripsUI:
         FSM['grab tool'] = self.modal_grab_tool
         FSM['rotate tool'] = self.modal_rotate_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
+        FSM['tweak move tool'] = self.modal_tweak_move_tool
+        FSM['tweak relax tool'] = self.modal_tweak_relax_tool
 
         self.cur_pos = eventd['mouse']
         nmode = FSM[self.mode](eventd)
