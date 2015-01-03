@@ -2363,9 +2363,9 @@ class PolystripsUI:
                                         self.obj)
 
         self.act_gedge  = None                          # active gedge
-        self.sel_gedges = set()
-        self.sel_gvert  = None                          # selected gvert
+        self.sel_gedges = set()                         # all selected gedges
         self.act_gvert  = None                          # active gvert (operated upon)
+        self.sel_gverts = set()                         # all selected gverts
 
         self.polystrips = PolyStrips(context, self.obj)
 
@@ -2400,17 +2400,17 @@ class PolystripsUI:
         else:
             act_gedge = None
 
-        if self.sel_gvert:
-            sel_gvert = self.polystrips.gverts.index(self.sel_gvert)
-        else:
-            sel_gvert = None
-
         if self.act_gvert:
-            act_gvert = self.polystrips.gverts.index(self.sel_gvert)
+            act_gvert = self.polystrips.gverts.index(self.act_gvert)
         else:
             act_gvert = None
 
-        polystrips_undo_cache.append(([p_data, sel_gvert, act_gedge, act_gvert], action))
+        if self.act_gvert:
+            act_gvert = self.polystrips.gverts.index(self.act_gvert)
+        else:
+            act_gvert = None
+
+        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
 
         if len(polystrips_undo_cache) > settings.undo_depth:
             polystrips_undo_cache.pop(0)
@@ -2424,9 +2424,9 @@ class PolystripsUI:
             self.polystrips = data[0]
 
             if data[1]:
-                self.sel_gvert = self.polystrips.gverts[data[1]]
+                self.act_gvert = self.polystrips.gverts[data[1]]
             else:
-                self.sel_gvert = None
+                self.act_gvert = None
 
             if data[2]:
                 self.sel_gedge = self.polystrips.gedges[data[2]]
@@ -2472,8 +2472,8 @@ class PolystripsUI:
             if self.act_gedge:
                 for gv in [self.act_gedge.gvert1, self.act_gedge.gvert2]:
                     gv.update_visibility(r3d)
-            if self.sel_gvert:
-                for gv in self.sel_gvert.get_inner_gverts():
+            if self.act_gvert:
+                for gv in self.act_gvert.get_inner_gverts():
                     gv.update_visibility(r3d)
 
             if len(self.snap_eds):
@@ -2565,11 +2565,11 @@ class PolystripsUI:
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 common_drawing.draw_polyline_from_3dpoints(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
 
-        sel_gverts = set()
+        ### Verts ###
         for ge in self.sel_gedges:
             if ge == self.act_gedge: continue
-            sel_gverts.add(ge.gvert0)
-            sel_gverts.add(ge.gvert3)
+            self.sel_gverts.add(ge.gvert0)
+            self.sel_gverts.add(ge.gvert3)
 
         for i_gv,gv in enumerate(self.polystrips.gverts):
             if not gv.is_visible(): continue
@@ -2578,7 +2578,7 @@ class PolystripsUI:
             if gv.is_unconnected(): continue
 
             is_selected = False
-            is_selected |= gv == self.sel_gvert
+            is_selected |= gv == self.act_gvert
             is_selected |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
             is_selected |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
 
@@ -2609,9 +2609,9 @@ class PolystripsUI:
             p0 = gv.position
             common_drawing.draw_3d_points(context, [p0], color, 8)
 
-        if self.sel_gvert:
-            color = (color_selection[0], color_selection[1], color_selection[2], 0.75)
-            gv = self.sel_gvert
+        if self.act_gvert:
+            color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
+            gv = self.act_gvert
             p0 = gv.position
             if gv.is_inner():
                 p1 = gv.gedge_inner.get_outer_gvert_at(gv).position
@@ -2774,7 +2774,7 @@ class PolystripsUI:
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
-            if not draw_unconnected_gverts and gv.is_unconnected() and gv != self.sel_gvert: continue
+            if not draw_unconnected_gverts and gv.is_unconnected() and gv != self.act_gvert: continue
 
             col = color_gvert_unconnected
             if gv.is_endpoint(): col = color_gvert_endpoint
@@ -2783,7 +2783,7 @@ class PolystripsUI:
             elif gv.is_tjunction(): col = color_gvert_tjunction
             elif gv.is_cross(): col = color_gvert_cross
 
-            if gv == self.sel_gvert: col = sel_fn(col)
+            if gv == self.act_gvert: col = sel_fn(col)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_polyline_from_3dpoints(context, p3d, col, 2, "GL_LINE_SMOOTH")
@@ -2810,11 +2810,11 @@ class PolystripsUI:
                     common_drawing.draw_polyline_from_3dpoints(context, p3d, col, 2, "GL_LINE_SMOOTH")
             draw_gedge_info(self.sel_gedge, context)
 
-        if self.sel_gvert:
+        if self.act_gvert:
             col = color_gvert_midpoints
-            for ge in self.sel_gvert.get_gedges_notnone():
+            for ge in self.act_gvert.get_gedges_notnone():
                 if ge.zip_to_gedge: continue
-                gv = ge.get_inner_gvert_at(self.sel_gvert)
+                gv = ge.get_inner_gvert_at(self.act_gvert)
                 if not gv.is_visible(): continue
                 p0,p1,p2,p3 = gv.get_corners()
                 p3d = [p0,p1,p2,p3,p0]
@@ -3016,8 +3016,8 @@ class PolystripsUI:
         rgn   = eventd['context'].region
         r3d   = eventd['context'].space_data.region_3d
         mx,my = eventd['mouse']
-        if self.sel_gvert:
-            loc   = self.sel_gvert.position
+        if self.act_gvert:
+            loc   = self.act_gvert.position
             cx,cy = location_3d_to_region_2d(rgn, r3d, loc)
         elif self.act_gedge:
             loc   = (self.act_gedge.gvert0.position + self.act_gedge.gvert3.position) / 2.0
@@ -3047,7 +3047,7 @@ class PolystripsUI:
     def scale_tool_gvert(self, command, eventd):
         if command == 'init':
             self.footer = 'Scaling GVerts'
-            sgv = self.sel_gvert
+            sgv = self.act_gvert
             lgv = [ge.gvert1 if ge.gvert0==sgv else ge.gvert2 for ge in sgv.get_gedges() if ge]
             self.tool_data = [(gv,Vector(gv.position)) for gv in lgv]
         elif command == 'commit':
@@ -3056,35 +3056,35 @@ class PolystripsUI:
             for gv,p in self.tool_data:
                 gv.position = p
                 gv.update()
-            self.sel_gvert.update()
-            self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
-            sgv = self.sel_gvert
+            sgv = self.act_gvert
             p = sgv.position
             for ge in sgv.get_gedges():
                 if not ge: continue
-                gv = ge.gvert1 if ge.gvert0 == self.sel_gvert else ge.gvert2
+                gv = ge.gvert1 if ge.gvert0 == self.act_gvert else ge.gvert2
                 gv.position = p + (gv.position-p) * m
                 gv.update()
             sgv.update()
-            self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_gvert_radius(self, command, eventd):
         if command == 'init':
             self.footer = 'Scaling GVert radius'
-            self.tool_data = self.sel_gvert.radius
+            self.tool_data = self.act_gvert.radius
         elif command == 'commit':
             pass
         elif command == 'undo':
-            self.sel_gvert.radius = self.tool_data
-            self.sel_gvert.update()
-            self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            self.act_gvert.radius = self.tool_data
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
-            self.sel_gvert.radius *= m
-            self.sel_gvert.update()
-            self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            self.act_gvert.radius *= m
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_stroke_radius(self, command, eventd):
         if command == 'init':
@@ -3135,7 +3135,7 @@ class PolystripsUI:
         translates selected gvert
         '''
         if command == 'init':
-            lgv = [self.sel_gvert]
+            lgv = [self.act_gvert]
         else:
             lgv = None
         self.grab_tool_gvert_list(command, eventd, lgv)
@@ -3146,7 +3146,7 @@ class PolystripsUI:
         note: translation is relative to selected gvert
         '''
         if command == 'init':
-            sgv = self.sel_gvert
+            sgv = self.act_gvert
             lgv = [sgv] + [ge.get_inner_gvert_at(sgv) for ge in sgv.get_gedges_notnone()]
         else:
             lgv = None
@@ -3164,7 +3164,7 @@ class PolystripsUI:
     def rotate_tool_gvert_neighbors(self, command, eventd):
         if command == 'init':
             self.footer = 'Rotating GVerts'
-            self.tool_data = [(gv,Vector(gv.position)) for gv in self.sel_gvert.get_inner_gverts()]
+            self.tool_data = [(gv,Vector(gv.position)) for gv in self.act_gvert.get_inner_gverts()]
         elif command == 'commit':
             pass
         elif command == 'undo':
@@ -3173,8 +3173,8 @@ class PolystripsUI:
                 gv.update()
         else:
             ang = command
-            q = Quaternion(self.sel_gvert.snap_norm, ang)
-            p = self.sel_gvert.position
+            q = Quaternion(self.act_gvert.snap_norm, ang)
+            p = self.act_gvert.position
             for gv,up in self.tool_data:
                 gv.position = p+q*(up-p)
                 gv.update()
@@ -3317,14 +3317,14 @@ class PolystripsUI:
 
             self.sketch_curpos = (x,y)
 
-            if eventd['shift'] and self.sel_gvert:
+            if eventd['shift'] and self.act_gvert:
                 # continue sketching from selected gvert position
-                gvx,gvy = location_3d_to_region_2d(eventd['region'], eventd['r3d'], self.sel_gvert.position)
-                self.sketch = [((gvx,gvy),self.sel_gvert.radius), ((x,y),r)]
+                gvx,gvy = location_3d_to_region_2d(eventd['region'], eventd['r3d'], self.act_gvert.position)
+                self.sketch = [((gvx,gvy),self.act_gvert.radius), ((x,y),r)]
             else:
                 self.sketch = [((x,y),r)]
 
-            self.sel_gvert = None
+            self.act_gvert = None
             self.act_gedge = None
             self.sel_gedges = set()
             return 'sketch'
@@ -3333,18 +3333,19 @@ class PolystripsUI:
             x,y = eventd['mouse']
             pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
             if not pts:
-                self.sel_gvert,self.act_gedge,self.act_gvert = None,None,None
+                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
                 self.sel_gedges.clear()
+                self.sel_gverts.clear()
                 return ''
             pt = pts[0]
 
-            if self.sel_gvert or self.act_gedge:
+            if self.act_gvert or self.act_gedge:
                 # check if user is picking an inner control point
                 if self.act_gedge and not self.act_gedge.zip_to_gedge:
                     lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
-                elif self.sel_gvert:
-                    sgv = self.sel_gvert
-                    lge = self.sel_gvert.get_gedges()
+                elif self.act_gvert:
+                    sgv = self.act_gvert
+                    lge = self.act_gvert.get_gedges()
                     lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
                 else:
                     lcpts = []
@@ -3353,35 +3354,36 @@ class PolystripsUI:
                     if not cpt.is_picked(pt): continue
                     self.act_gedge = None
                     self.sel_gedges.clear()
-                    self.sel_gvert = cpt
+                    self.act_gvert = cpt
                     return ''
-
+            # Select gvert
             for gv in self.polystrips.gverts:
                 if gv.is_unconnected(): continue
                 if not gv.is_picked(pt): continue
                 self.act_gedge = None
                 self.sel_gedges.clear()
-                self.sel_gvert = gv
+                self.act_gvert = gv
                 return ''
 
             for ge in self.polystrips.gedges:
                 if not ge.is_picked(pt): continue
-                self.sel_gvert = None
+                self.act_gvert = None
                 self.act_gedge = ge
                 if not eventd['shift']:
                     self.sel_gedges.clear()
                 self.sel_gedges.add(ge)
                 return ''
 
-            self.act_gedge,self.sel_gvert = None,None
+            self.act_gedge,self.act_gvert = None,None
             self.sel_gedges.clear()
+            self.sel_gverts.clear()
             return ''
 
         if eventd['press'] == 'CTRL+LEFTMOUSE':                                     # delete/dissolve
             x,y = eventd['mouse']
             pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
             if not pts:
-                self.sel_gvert,self.act_gedge,self.act_gvert = None,None,None
+                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
                 return ''
             pt = pts[0]
 
@@ -3407,11 +3409,11 @@ class PolystripsUI:
                 self.polystrips.disconnect_gedge(ge)
                 self.polystrips.remove_unconnected_gverts()
 
-                self.sel_gvert = None
+                self.act_gvert = None
                 self.sel_gedge = None
                 return ''
 
-            self.act_gedge,self.sel_gvert = None,None
+            self.act_gedge,self.act_gvert = None,None
             return ''
 
         if eventd['press'] == 'CTRL+U':
@@ -3441,7 +3443,7 @@ class PolystripsUI:
                 _,_,gv = self.polystrips.split_gedge_at_t(self.act_gedge, t)
                 self.act_gedge = None
                 self.sel_gedges.clear()
-                self.sel_gvert = gv
+                self.act_gvert = gv
 
             if eventd['press'] == 'U':
                 self.create_undo_snapshot('update')
@@ -3495,12 +3497,12 @@ class PolystripsUI:
                 return ''
 
             if eventd['press'] == 'A':
-                self.sel_gvert = self.act_gedge.gvert0
+                self.act_gvert = self.act_gedge.gvert0
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 return ''
             if eventd['press'] == 'B':
-                self.sel_gvert = self.act_gedge.gvert3
+                self.act_gvert = self.act_gedge.gvert3
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 return ''
@@ -3523,10 +3525,10 @@ class PolystripsUI:
         ###################################
         # selected gvert commands
 
-        if self.sel_gvert:
+        if self.act_gvert:
 
             if eventd['press'] == 'K':
-                if not self.sel_gvert.is_endpoint():
+                if not self.act_gvert.is_endpoint():
                     print('Selected GVert must be endpoint (exactly one GEdge)')
                     return ''
                 x,y = eventd['mouse']
@@ -3538,23 +3540,23 @@ class PolystripsUI:
                     if not ge.is_picked(pt): continue
                     self.create_undo_snapshot('split')
                     t,d = ge.get_closest_point(pt)
-                    self.polystrips.split_gedge_at_t(ge, t, connect_gvert=self.sel_gvert)
+                    self.polystrips.split_gedge_at_t(ge, t, connect_gvert=self.act_gvert)
                     return ''
                 return ''
 
             if eventd['press'] == 'X':
-                if self.sel_gvert.is_inner():
+                if self.act_gvert.is_inner():
                     return ''
                 self.create_undo_snapshot('delete')
-                self.polystrips.disconnect_gvert(self.sel_gvert)
-                self.sel_gvert = None
+                self.polystrips.disconnect_gvert(self.act_gvert)
+                self.act_gvert = None
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
             if eventd['press'] == 'CTRL+D':
                 self.create_undo_snapshot('dissolve')
-                self.polystrips.dissolve_gvert(self.sel_gvert)
-                self.sel_gvert = None
+                self.polystrips.dissolve_gvert(self.act_gvert)
+                self.act_gvert = None
                 self.polystrips.remove_unconnected_gverts()
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
@@ -3576,8 +3578,8 @@ class PolystripsUI:
 
             if eventd['press'] == 'CTRL+C':
                 self.create_undo_snapshot('toggle')
-                self.sel_gvert.toggle_corner()
-                self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+                self.act_gvert.toggle_corner()
+                self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
             if eventd['press'] == 'CTRL+S':
@@ -3587,8 +3589,8 @@ class PolystripsUI:
 
             if eventd['press'] == 'C':
                 self.create_undo_snapshot('smooth')
-                self.sel_gvert.smooth()
-                self.sel_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+                self.act_gvert.smooth()
+                self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
             if eventd['press'] == 'R':
@@ -3597,51 +3599,51 @@ class PolystripsUI:
                 return 'rotate tool'
 
             if eventd['press'] == 'U':
-                self.sel_gvert.update_gedges()
+                self.act_gvert.update_gedges()
                 return ''
 
             if eventd['press'] == 'CTRL+R':
-                # self.polystrips.rip_gvert(self.sel_gvert)
-                # self.sel_gvert = None
+                # self.polystrips.rip_gvert(self.act_gvert)
+                # self.act_gvert = None
                 # return ''
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]
-                for ge in self.sel_gvert.get_gedges_notnone():
+                for ge in self.act_gvert.get_gedges_notnone():
                     if not ge.is_picked(pt): continue
                     self.create_undo_snapshot('rip')
-                    self.sel_gvert = self.polystrips.rip_gedge(ge, at_gvert=self.sel_gvert)
+                    self.act_gvert = self.polystrips.rip_gedge(ge, at_gvert=self.act_gvert)
                     self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                     return 'grab tool'
                 return ''
   
             if eventd['press'] == 'M':
-                if self.sel_gvert.is_inner(): return ''
+                if self.act_gvert.is_inner(): return ''
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]
-                sel_ge = set(self.sel_gvert.get_gedges_notnone())
+                sel_ge = set(self.act_gvert.get_gedges_notnone())
                 for gv in self.polystrips.gverts:
-                    if gv.is_inner() or not gv.is_picked(pt) or gv == self.sel_gvert: continue
-                    if len(self.sel_gvert.get_gedges_notnone()) + len(gv.get_gedges_notnone()) > 4:
+                    if gv.is_inner() or not gv.is_picked(pt) or gv == self.act_gvert: continue
+                    if len(self.act_gvert.get_gedges_notnone()) + len(gv.get_gedges_notnone()) > 4:
                         dprint('Too many connected GEdges for merge!')
                         continue
                     if any(ge in sel_ge for ge in gv.get_gedges_notnone()):
                         dprint('Cannot merge GVerts that share a GEdge')
                         continue
                     self.create_undo_snapshot('merge')
-                    self.polystrips.merge_gverts(self.sel_gvert, gv)
-                    self.sel_gvert = gv
+                    self.polystrips.merge_gverts(self.act_gvert, gv)
+                    self.act_gvert = gv
                     return ''
                 return ''
 
-            if self.sel_gvert.zip_over_gedge:
-                gvthis = self.sel_gvert
-                gvthat = self.sel_gvert.get_zip_pair()
+            if self.act_gvert.zip_over_gedge:
+                gvthis = self.act_gvert
+                gvthat = self.act_gvert.get_zip_pair()
 
                 if eventd['press'] == 'CTRL+NUMPAD_PLUS':
                     self.create_undo_snapshot('zip count')
