@@ -2511,7 +2511,7 @@ class PolystripsUI:
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
-            if gv.is_unconnected(): continue
+            if gv.is_unconnected() and not gv.from_mesh: continue
 
             is_selected = False
             is_selected |= gv == self.sel_gvert
