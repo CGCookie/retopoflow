@@ -2672,7 +2672,10 @@ class PolystripsUI:
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
-                common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                if settings.use_pressure:
+                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                else:
+                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
             if self.mode == 'sketch':
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
                 hit_p3d,hit_norm,hit_idx = hit
@@ -2681,7 +2684,10 @@ class PolystripsUI:
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    if settings.use_pressure:
+                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    else:
+                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if self.hover_ed and False:
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
