@@ -2518,6 +2518,11 @@ class PolystripsUI:
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
+        color_handle = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+
+        ### Patches ###
         for i_gp,gpatch in enumerate(self.polystrips.gpatches):
             if gpatch == self.act_gpatch:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -2538,6 +2543,7 @@ class PolystripsUI:
                 self.draw_gedge_direction(context, gpatch.ge2, (0.4,0.4,0.8,1.0))
                 self.draw_gedge_direction(context, gpatch.ge3, (0.4,0.4,0.4,1.0))
 
+        ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
             if gedge == self.act_gedge:
                 color_border = (color_active[0], color_active[1], color_active[2], 1.00)
@@ -2545,9 +2551,9 @@ class PolystripsUI:
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
-            else:
-                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            # else:
+                # color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+                # color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
@@ -2583,8 +2589,8 @@ class PolystripsUI:
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
-            # Take care of gverts in selected edges
-            if sel_gverts:
+            # # Take care of gverts in selected edges
+            if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
 
@@ -2592,42 +2598,47 @@ class PolystripsUI:
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
 
-        # Draw inner gvert handles
+        # Draw inner gvert handles (dots) on each gedge
         p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible()]
-        color = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-        common_drawing.draw_3d_points(context, p3d, color, 4)
+        # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
+        common_drawing.draw_3d_points(context, p3d, color_handle, 4)
 
+        ### Vert Handles ###
         if self.act_gvert:
-            color = (color_active[0], color_active[1], color_active[2], 1.00)
+            color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             gv = self.act_gvert
             p0 = gv.position
-            common_drawing.draw_3d_points(context, [p0], color, 8)
+            common_drawing.draw_3d_points(context, [p0], color_handle, 8)
 
         if self.act_gvert:
             color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             gv = self.act_gvert
             p0 = gv.position
+            # Draw inner handle when selected
             if gv.is_inner():
                 p1 = gv.gedge_inner.get_outer_gvert_at(gv).position
-                common_drawing.draw_3d_points(context, [p0], color, 8)
-                common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color, 2, "GL_LINE_SMOOTH")
+                common_drawing.draw_3d_points(context, [p0], color_handle, 8)
+                common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
+            # Draw both handles when gvert is selected
             else:
                 p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered()]
-                common_drawing.draw_3d_points(context, [p0] + p3d, color, 8)
+                common_drawing.draw_3d_points(context, [p0] + p3d, color_handle, 8)
+                # Draw connecting line between handles
                 for p1 in p3d:
-                    common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color, 2, "GL_LINE_SMOOTH")
+                    common_drawing.draw_polyline_from_3dpoints(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
 
+        # Draw gvert handles on active gedge
         if self.act_gedge:
-            color = (color_active[0], color_active[1], color_active[2], 1.00)
+            color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
                 common_drawing.draw_3d_points(context, p3d, color, 8)
             else:
                 p3d = [gv.position for gv in ge.gverts()]
-                common_drawing.draw_3d_points(context, p3d, color, 8)
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color, 2, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color, 2, "GL_LINE_SMOOTH")
+                common_drawing.draw_3d_points(context, p3d, color_handle, 8)
+                common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
+                common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
 
             if settings.show_segment_count:
                 draw_gedge_info(self.act_gedge, context)
