@@ -2580,13 +2580,13 @@ class PolystripsUI:
 
             if gv.is_unconnected(): continue
 
-            is_selected = False
-            is_selected |= gv == self.act_gvert
-            is_selected |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
-            is_selected |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
+            is_active = False
+            is_active |= gv == self.act_gvert
+            is_active |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
+            is_active |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
 
             # Theme colors for selected and unselected gverts
-            if is_selected:
+            if is_active:
                 color_border = (color_active[0], color_active[1], color_active[2], 0.75)
                 color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             else:
