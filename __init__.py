@@ -3698,6 +3698,7 @@ class PolystripsUI:
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
 
+
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
@@ -3920,7 +3921,7 @@ class PolystripsUI:
 
         event_pressure = 1 if not hasattr(event, 'pressure') else event.pressure
 
-        def pressure_to_radius(r, p, map = 3):
+        def pressure_to_radius(r, p, map = 0):
             if   map == 0:  p = max(0.25,p)
             elif map == 1:  p = 0.25 + .75 * p
             elif map == 2:  p = max(0.05,p)
