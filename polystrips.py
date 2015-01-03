@@ -76,8 +76,17 @@ class GVert:
         self.doing_update = False
         
         self.visible = True
+        
+        #data used when extending or emulating data
+        #already within a BMesh
         self.from_mesh = from_mesh
         self.from_mesh_ind = -1 #needs to be set explicitly
+        self.corner0_ind = -1
+        self.corner1_ind = -1
+        self.corner2_ind = -1
+        self.corner3_ind = -1
+        
+        
         self.frozen = True if self.from_mesh else False
         self.update()
     
@@ -270,13 +279,14 @@ class GVert:
             
              if test1 < -.7:
                  self.corner0, self.corner1, self.corner2, self.corner3 = self.corner2, self.corner3, self.corner0, self.corner1
-             
+                 self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner2_ind, self.corner3_ind, self.corner0_ind, self.corner1_ind
              if test1  > -.7 and test1 < .7:
                  if test2 > .7:
                      self.corner0, self.corner1, self.corner2, self.corner3 = self.corner3, self.corner0, self.corner1, self.corner2
+                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner3_ind, self.corner0_ind, self.corner1_ind, self.corner2_ind
                  else:
                      self.corner0, self.corner1, self.corner2, self.corner3 = self.corner1, self.corner2, self.corner3, self.corner0  
-        
+                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner1_ind, self.corner2_ind, self.corner3_ind, self.corner0_ind
         
         if not self.zip_over_gedge:
             # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
@@ -1113,10 +1123,18 @@ class PolyStrips(object):
                     
                     gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
                     #Freeze Corners
-                    gv.corner0 = mx * f.verts[0].co #Note, left handed Gvert order wrt to Normal
+                    #Note, left handed Gvert order wrt to Normal
+                    gv.corner0 = mx * f.verts[0].co 
+                    gv.corner0_ind = f.verts[0].index
                     gv.corner1 = mx * f.verts[3].co
+                    gv.corner1_ind = f.verts[3].index
                     gv.corner2 = mx * f.verts[2].co
+                    gv.corner2_ind = f.verts[2].index
                     gv.corner3 = mx * f.verts[1].co
+                    gv.corner3_ind = f.verts[1].index
+                    
+                    
+                    
                     gv.snap_pos = gv.position
                     gv.snap_norm = gv.normal
                     gv.visible = True
