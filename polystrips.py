@@ -44,9 +44,8 @@ import polystrips_utilities
 AL = AddonLocator()
 
 
-
 class GVert:
-    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, frozen = False):
+    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, from_mesh = False):
         # store info
         self.o_name       = obj.name
         self.targ_o_name  = targ_obj.name
@@ -77,7 +76,9 @@ class GVert:
         self.doing_update = False
         
         self.visible = True
-        self.frozen = frozen
+        self.from_mesh = from_mesh
+        self.from_mesh_ind = -1 #needs to be set explicitly
+        self.frozen = True if self.from_mesh else False
         self.update()
     
     def clone_detached(self):
@@ -99,7 +100,7 @@ class GVert:
     
     def count_gedges(self):   return len(self.get_gedges_notnone())
     
-    def is_unconnected(self): return not (self.has_0() or self.has_1() or self.has_2() or self.has_3()) if not self.frozen else False
+    def is_unconnected(self): return not (self.has_0() or self.has_1() or self.has_2() or self.has_3())
     def is_endpoint(self):    return self.has_0() and not (self.has_1() or self.has_2() or self.has_3())
     def is_endtoend(self):    return self.has_0() and self.has_2() and not (self.has_1() or self.has_3())
     def is_ljunction(self):   return self.has_0() and self.has_1() and not (self.has_2() or self.has_3())
@@ -129,7 +130,7 @@ class GVert:
         else:
             l_gedges = self.get_gedges_notnone()
             assert gedge in l_gedges
-            l_gedges = [ge for ge in l_gedges if ge != gedge]
+            l_gedges = [ge for ge in l_gedges if ge != gedge]  #interesting way of removing
             l = len(l_gedges)
             l_gedges = [l_gedges[i] if i < l else None for i in range(4)]
             self._set_gedges(*l_gedges)
@@ -991,14 +992,25 @@ class PolyStrips(object):
     
     def disconnect_gvert(self, gvert):
         assert gvert in self.gverts
+        if gvert.from_mesh:
+            self.extension_geometry.append(gvert)
+            
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
         if gvert.gedge0: self.disconnect_gedge(gvert.gedge0)
     
+        
+            
     def remove_unconnected_gverts(self):
         egvs = set(gv for gedge in self.gedges for gv in gedge.gverts())
         gvs = set(gv for gv in self.gverts if gv.is_unconnected() and gv not in egvs)
+        ext_gvs = [gv for gv in self.gverts if gv.from_mesh and gv not in egvs]
+        
+        for gv in ext_gvs:
+            if gv not in self.extension_geometry:
+                self.extension_geometry.append(gv)
+        
         self.gverts = [gv for gv in self.gverts if gv not in gvs]
     
     def create_gvert(self, co, radius=0.005):
@@ -1099,15 +1111,16 @@ class PolyStrips(object):
                     tan_y = no.cross(tan_x)
                     
                     
-                    gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, frozen = True)
+                    gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
                     #Freeze Corners
-                    gv.corner0 = mx * f.verts[0].co #Note, left handed Gvert Normal
+                    gv.corner0 = mx * f.verts[0].co #Note, left handed Gvert order wrt to Normal
                     gv.corner1 = mx * f.verts[3].co
                     gv.corner2 = mx * f.verts[2].co
                     gv.corner3 = mx * f.verts[1].co
                     gv.snap_pos = gv.position
                     gv.snap_norm = gv.normal
                     gv.visible = True
+                    gv.from_mesh_ind = f.index
                     self.extension_geometry.append(gv)
                     break
                 
