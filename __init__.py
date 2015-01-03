@@ -2551,9 +2551,9 @@ class PolystripsUI:
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
-            # else:
-                # color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                # color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            else:
+                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
