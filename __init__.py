@@ -2636,6 +2636,18 @@ class PolystripsUI:
             color = (color_active[0], color_active[1], color_active[2], 1.00)
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
+                p3d = [ge.gvert0.position, ge.gvert3.position]
+                common_drawing.draw_3d_points(context, p3d, color, 8)
+            
+            else:
+                p3d = [gv.position for gv in ge.gverts()]
+                common_drawing.draw_3d_points(context, p3d, color, 8)
+                common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color, 2, "GL_LINE_SMOOTH")
+                common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color, 2, "GL_LINE_SMOOTH")
+            
+            if settings.show_segment_count:
+                draw_gedge_info(self.act_gedge, context)
+                
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
@@ -2646,21 +2658,6 @@ class PolystripsUI:
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
             
-        if self.sel_gedge:
-            color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
-            ge = self.sel_gedge
-            if self.sel_gedge.is_zippered():
-                p3d = [ge.gvert0.position, ge.gvert3.position]
-                common_drawing.draw_3d_points(context, p3d, color, 8)
-            else:
-                p3d = [gv.position for gv in ge.gverts()]
-                common_drawing.draw_3d_points(context, p3d, color, 8)
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[0], p3d[1]], color, 2, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color, 2, "GL_LINE_SMOOTH")
-
-            if settings.show_segment_count:
-                draw_gedge_info(self.act_gedge, context)
-
 
         if self.mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
