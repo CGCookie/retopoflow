@@ -234,9 +234,9 @@ class GVert:
         pr = profiler.start()
         
         mx = bpy.data.objects[self.o_name].matrix_world
-        mxnorm = mx.transposed().inverted().to_3x3()
-        mx3x3 = mx.to_3x3()
         imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
         
         l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
         self.snap_norm = (mxnorm * n).normalized()
@@ -585,6 +585,8 @@ class GEdge:
     
     def detach_gpatch(self, gpatch):
         self.gpatches.remove(gpatch)
+        for gp in self.gpatches:
+            gp.update()
     
     def rotate_gverts_at(self, gv, quat):
         if gv == self.gvert0:
@@ -1043,6 +1045,8 @@ class GPatch(object):
         
         self.pts = []
         self.map_pts = {}
+        self.visible = {}
+        
         self.update()
     
     def assert_correctness(self):
@@ -1071,6 +1075,7 @@ class GPatch(object):
         self.ge1 = None
         self.ge2 = None
         self.ge3 = None
+        
     
     def set_count(self, ge):
         if ge == self.ge0:
@@ -1226,10 +1231,13 @@ class GPatch(object):
         l0,l1 = len(self.ge0.cache_igverts),len(self.ge1.cache_igverts)
         for i0 in range(1,l0-2,2):
             for i1 in range(1,l1-2,2):
-                p0 = self.map_pts[(i0,i1)]
-                p1 = self.map_pts[(i0+2,i1)]
-                p2 = self.map_pts[(i0+2,i1+2)]
-                p3 = self.map_pts[(i0,i1+2)]
+                lidxs = [(i0+0,i1+0),(i0+2,i1+0),(i0+2,i1+2),(i0+0,i1+2)]
+                if not all(self.visible[idx] for idx in lidxs):
+                    continue
+                p0 = self.map_pts[lidxs[0]]
+                p1 = self.map_pts[lidxs[1]]
+                p2 = self.map_pts[lidxs[2]]
+                p3 = self.map_pts[lidxs[3]]
                 yield (p0,p1,p2,p3)
     
     def normal(self):
@@ -1237,6 +1245,11 @@ class GPatch(object):
         for p0,p1,p2,p3 in self.iter_segments():
             n += (p3-p0).cross(p1-p0).normalized()
         return n.normalized()
+        
+    def update_visibility(self, r3d):
+        lp = [p for _,_,p in self.pts]
+        lv = common_utilities.ray_cast_visible(lp, bpy.data.objects[self.o_name], r3d)
+        self.visible = {(pt[0],pt[1]):v for pt,v in zip(self.pts,lv)}
 
 
 class PolyStrips(object):
@@ -1315,6 +1328,8 @@ class PolyStrips(object):
             gv.update_visibility(r3d)
         for ge in self.gedges:
             ge.update_visibility(r3d)
+        for gp in self.gpatches:
+            gp.update_visibility(r3d)
     
     def split_gedge_at_t(self, gedge, t, connect_gvert=None):
         if gedge.zip_to_gedge or gedge.zip_attached: return

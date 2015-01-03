@@ -2463,6 +2463,8 @@ class PolystripsUI:
                 gv.update_visibility(r3d)
             for ge in self.polystrips.gedges:
                 ge.update_visibility(r3d)
+            for gp in self.polystrips.gpatches:
+                gp.update_visibility(r3d)
             if self.act_gedge:
                 for gv in [self.act_gedge.gvert1, self.act_gedge.gvert2]:
                     gv.update_visibility(r3d)
@@ -2510,27 +2512,6 @@ class PolystripsUI:
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         for i_gp,gpatch in enumerate(self.polystrips.gpatches):
-
-            color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
-
-            l0 = len(gpatch.ge0.cache_igverts)
-            l1 = len(gpatch.ge1.cache_igverts)
-
-            # Draw patch edges 
-            for i0 in range(1,l0,2):
-                r = i0 / (l0-1)
-                c = (1,1,1,0.5) # (r,0,1,0.5)
-                pts = [p for _i0,_i1,p in gpatch.pts if _i0==i0]
-                common_drawing.draw_polyline_from_3dpoints(context, pts, color_fill, 1, "GL_LINE_STIPPLE")
-            for i1 in range(1,l1,2):
-                g = i1 / (l1-1)
-                c = (1,1,1,0.5) # (0,g,1,0.5)
-                pts = [p for _i0,_i1,p in gpatch.pts if _i1==i1]
-                common_drawing.draw_polyline_from_3dpoints(context, pts, color_fill, 1, "GL_LINE_STIPPLE")
-            
-            # Draw patch vertices
-            common_drawing.draw_3d_points(context, [p for _,_,p in gpatch.pts], color_fill, 3)
-            
             if gpatch == self.act_gpatch:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
@@ -2538,7 +2519,9 @@ class PolystripsUI:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
-            for p0,p1,p2,p3 in gpatch.iter_segments(only_visible=True):
+            for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
+                common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
+                common_drawing.draw_polyline_from_3dpoints(context, [p0,p1,p2,p3,p0], color_border, 1, "GL_LINE_STIPPLE")
                 common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             
             # draw edge directions
@@ -2900,13 +2883,26 @@ class PolystripsUI:
 
     def fill(self, eventd):
         if self.sel_gvert:
-            if self.sel_gvert.is_ljunction() or self.sel_gvert.is_tjunction() or self.sel_gvert.is_cross():
-                self.act_gedge = self.sel_gvert.gedge0
-                self.sel_gedges = {self.sel_gvert.gedge0, self.sel_gvert.gedge1}
-                self.sel_gvert = None
+            lges = self.sel_gvert.get_gedges()
+            if self.sel_gvert.is_ljunction():
+                lgepairs = [(lges[0],lges[1])]
+            elif self.sel_gvert.is_tjunction():
+                lgepairs = [(lges[0],lges[1]), (lges[3],lges[0])]
+            elif self.sel_gvert.is_cross():
+                lgepairs = [(lges[0],lges[1]), (lges[1],lges[2]), (lges[2],lges[3]), (lges[3],lges[0])]
             else:
-                showErrorMessage('Cannot simple fill this type of GVert')
+                showErrorMessage('GVert must be a L-junction, T-junction, or Cross type to use simple fill')
                 return
+            
+            # find gedge pair that is not a part of a gpatch
+            lgepairs = [(ge0,ge1) for ge0,ge1 in lgepairs if not set(ge0.gpatches).intersection(set(ge1.gpatches))]
+            if not lgepairs:
+                showErrorMessage('Could not find two GEdges that are not already patched')
+                return
+            
+            self.sel_gedges = set(lgepairs[0])
+            self.act_gedge = next(iter(self.sel_gedges))
+            self.sel_gvert = None
         
         if len(self.sel_gedges) != 2:
             showErrorMessage('Must have exactly 2 selected edges')
@@ -2933,11 +2929,6 @@ class PolystripsUI:
             ngv = self.polystrips.create_gvert(np, radius=nr)
             sge0 = self.polystrips.insert_gedge_between_gverts(logvs[0], ngv)
             self.polystrips.insert_gedge_between_gverts(logvs[1], ngv)
-            # self.sel_gvert = None
-            # self.act_gedge = sge0
-            # self.sel_gedges = {sge0,sge1}
-            # self.act_gpatch = None
-            # return
         
         lgedge,rgedge = sge0,sge1
         tlgvert = lgedge.gvert0
@@ -3003,6 +2994,9 @@ class PolystripsUI:
         self.act_gedge = None
         self.sel_gedges.clear()
         self.act_gpatch = gp
+        
+        gp.update()
+        self.polystrips.update_visibility(eventd['r3d'])
 
 
 
@@ -3507,6 +3501,7 @@ class PolystripsUI:
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 self.sel_gvert = gv
+                return ''
 
             if eventd['press'] == 'U':
                 self.create_undo_snapshot('update')
@@ -3517,6 +3512,7 @@ class PolystripsUI:
             if eventd['press']in {'OSKEY+WHEELUPMOUSE', 'CTRL+NUMPAD_PLUS'}:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
+                self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
             if eventd['press'] in {'OSKEY+WHEELDOWNMOUSE', 'CTRL+NUMPAD_MINUS'}:
@@ -3524,6 +3520,7 @@ class PolystripsUI:
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
                     self.act_gedge.set_count(self.act_gedge.n_quads - 1)
+                    self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
             if eventd['press'] == 'Z' and not self.act_gedge.is_gpatched():
@@ -3689,6 +3686,7 @@ class PolystripsUI:
                     self.sel_gvert = self.polystrips.rip_gedge(ge, at_gvert=self.sel_gvert)
                     self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                     return 'grab tool'
+                showErrorMessage('Must hover over GEdge you wish to rip')
                 return ''
   
             if eventd['press'] == 'M':
