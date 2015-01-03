@@ -218,24 +218,6 @@ def simplify_RDP(splineVerts, error, method = 1):
     print('finished simplification with method %i in %f seconds' % (method, time.time() - start))
     return newVerts
 
-def ray_cast_visible(verts, ob, rv3d):
-    '''
-    returns list of Boolean values indicating whether the corresponding vert
-    is visible (not occluded by object) in region associated with rv3d
-    '''
-    view_dir = rv3d.view_rotation * Vector((0,0,1))
-    imx = ob.matrix_world.inverted()
-    
-    if rv3d.is_perspective:
-        eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
-        eyeloc_local = imx*eyeloc
-        source = [eyeloc_local for vert in verts]
-        target = [imx*(vert+ 0.01*view_dir) for vert in verts]
-    else:
-        source = [imx*(vert+10000*view_dir) for vert in verts]
-        target = [imx*(vert+ 0.01*view_dir) for vert in verts]
-    
-    return [ob.ray_cast(s,t)[2]==-1 for s,t in zip(source,target)]
 
 def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
     '''
