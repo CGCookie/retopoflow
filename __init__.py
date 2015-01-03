@@ -153,6 +153,12 @@ class RetopoFlowPreferences(AddonPreferences):
         default=True
         )
 
+    use_pressure = BoolProperty(
+        name='Use Pressure Sensitivity',
+        description='Adjust size of Polystrip with pressure of tablet pen',
+        default=False
+        )
+
     # Tool settings
     contour_panel_settings = BoolProperty(
         name="Show Contour Settings",
@@ -495,6 +501,7 @@ class RetopoFlowPreferences(AddonPreferences):
         row.prop(self, "theme", "Theme")
 
         row = layout.row(align=True)
+        row.prop(self, "use_pressure")
         row.prop(self, "show_segment_count")
 
         row = layout.row(align=True)
