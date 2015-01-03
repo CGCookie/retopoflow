@@ -234,9 +234,9 @@ class GVert:
         pr = profiler.start()
         
         mx = bpy.data.objects[self.o_name].matrix_world
-        mxnorm = mx.transposed().inverted().to_3x3()
-        mx3x3 = mx.to_3x3()
         imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
         
         l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
         self.snap_norm = (mxnorm * n).normalized()
@@ -578,10 +578,15 @@ class GEdge:
         return len(self.gpatches)
     
     def attach_gpatch(self, gpatch):
-        if len(self.gpatches) == 2:
+        if len(self.gpatches) >= 2:
             print('Cannot attach more than two gpatches')
             return
-        self.gpatches += [gpatch]
+        self.gpatches.append(gpatch)
+    
+    def detach_gpatch(self, gpatch):
+        self.gpatches.remove(gpatch)
+        for gp in self.gpatches:
+            gp.update()
     
     def rotate_gverts_at(self, gv, quat):
         if gv == self.gvert0:
@@ -930,6 +935,10 @@ class GEdge:
         note: approx => not snapped to surface
         '''
         
+        # update inner gverts so they can be selectable
+        self.gvert1.radius = self.gvert0.radius*0.7 + self.gvert3.radius*0.3
+        self.gvert2.radius = self.gvert0.radius*0.3 + self.gvert3.radius*0.7
+        
         if self.zip_to_gedge:
             self.update_zip(debug=debug)
         else:
@@ -1022,7 +1031,9 @@ class GPatch(object):
         self.rev2 = self.ge2.gvert0 in [self.ge3.gvert0, self.ge3.gvert3]
         self.rev3 = self.ge3.gvert0 in [self.ge0.gvert0, self.ge0.gvert3]
         
-        self.inside = (not self.rev0 and self.ge0.gvert3.gedge1==self.ge0) or (self.rev0 and self.ge0.gvert0.gedge1==self.ge0)
+        self.inside = True # (not self.rev0 and self.ge0.gvert3.gedge1==self.ge0) or (self.rev0 and self.ge0.gvert0.gedge1==self.ge0)
+        
+        self.assert_correctness()
         
         # make sure opposite gedges have same count
         count02 = max(self.ge0.get_count(), self.ge2.get_count())
@@ -1033,7 +1044,38 @@ class GPatch(object):
         self.ge3.set_count(count13)
         
         self.pts = []
+        self.map_pts = {}
+        self.visible = {}
+        
         self.update()
+    
+    def assert_correctness(self):
+        cps0 = self.ge0.gverts()
+        cps1 = self.ge1.gverts()
+        cps2 = self.ge2.gverts()
+        cps3 = self.ge3.gverts()
+        
+        if self.rev0:     cps0 = list(reversed(cps0))
+        if self.rev1:     cps1 = list(reversed(cps1))
+        if not self.rev2: cps2 = list(reversed(cps2))
+        if not self.rev3: cps3 = list(reversed(cps3))
+        
+        assert cps0[0] == cps3[0]
+        assert cps0[3] == cps1[0]
+        assert cps2[0] == cps3[3]
+        assert cps2[3] == cps1[3]
+    
+    def disconnect(self):
+        self.ge0.detach_gpatch(self)
+        self.ge1.detach_gpatch(self)
+        self.ge2.detach_gpatch(self)
+        self.ge3.detach_gpatch(self)
+        
+        self.ge0 = None
+        self.ge1 = None
+        self.ge2 = None
+        self.ge3 = None
+        
     
     def set_count(self, ge):
         if ge == self.ge0:
@@ -1068,12 +1110,11 @@ class GPatch(object):
         
         return zip(segs1,segs3)
     
-    
     def update(self):
         mx = bpy.data.objects[self.o_name].matrix_world
-        mxnorm = mx.transposed().inverted().to_3x3()
-        mx3x3 = mx.to_3x3()
         imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
         
         cps0,lts0 = self.ge0.gverts(),self.ge0.l_ts
         cps1,lts1 = self.ge1.gverts(),self.ge1.l_ts
@@ -1104,14 +1145,11 @@ class GPatch(object):
         #          e2
         
         v00,v01,v02,v03 = cps0
-        _,v13,v23,_     = cps1
-        _,v10,v20,_     = cps3
+        _  ,v13,v23,_   = cps1
+        _  ,v10,v20,_   = cps3
         v30,v31,v32,v33 = cps2
         
-        assert cps0[0] == cps3[0]
-        assert cps0[3] == cps1[0]
-        assert cps2[0] == cps3[3]
-        assert cps2[3] == cps1[3]
+        self.assert_correctness()
         
         v00,v01,v02,v03 = v00.position,v01.position,v02.position,v03.position
         v13,v23,v10,v20 = v13.position,v23.position,v10.position,v20.position
@@ -1176,6 +1214,43 @@ class GPatch(object):
                 l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * p)
                 p = mx * l
                 self.pts += [(i0,i1,p)]
+        
+        self.map_pts = {(i0,i1):p for (i0,i1,p) in self.pts }
+        
+    
+    def is_picked(self, pt):
+        for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
+            c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
+            n = (c0-c1).cross(c2-c1)
+            d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
+            if d0>0 and d1>0 and d2>0 and d3>0:
+                return True
+        return False
+    
+    def iter_segments(self, only_visible=False):
+        l0,l1 = len(self.ge0.cache_igverts),len(self.ge1.cache_igverts)
+        for i0 in range(1,l0-2,2):
+            for i1 in range(1,l1-2,2):
+                lidxs = [(i0+0,i1+0),(i0+2,i1+0),(i0+2,i1+2),(i0+0,i1+2)]
+                if not all(self.visible[idx] for idx in lidxs):
+                    continue
+                p0 = self.map_pts[lidxs[0]]
+                p1 = self.map_pts[lidxs[1]]
+                p2 = self.map_pts[lidxs[2]]
+                p3 = self.map_pts[lidxs[3]]
+                yield (p0,p1,p2,p3)
+    
+    def normal(self):
+        n = Vector()
+        for p0,p1,p2,p3 in self.iter_segments():
+            n += (p3-p0).cross(p1-p0).normalized()
+        return n.normalized()
+        
+    def update_visibility(self, r3d):
+        lp = [p for _,_,p in self.pts]
+        lv = common_utilities.ray_cast_visible(lp, bpy.data.objects[self.o_name], r3d)
+        self.visible = {(pt[0],pt[1]):v for pt,v in zip(self.pts,lv)}
+
 
 class PolyStrips(object):
     def __init__(self, context, obj):
@@ -1188,10 +1263,16 @@ class PolyStrips(object):
         self.gverts = []
         self.gedges = []
         self.gpatches = []
-        
+    
+    def disconnect_gpatch(self, gpatch):
+        assert gpatch in self.gpatches
+        gpatch.disconnect()
+        self.gpatches = [gp for gp in self.gpatches if gp != gpatch]
     
     def disconnect_gedge(self, gedge):
         assert gedge in self.gedges
+        for gp in list(gedge.gpatches):
+            self.disconnect_gpatch(gp)
         gedge.disconnect()
         self.gedges = [ge for ge in self.gedges if ge != gedge]
     
@@ -1226,6 +1307,10 @@ class PolyStrips(object):
     
     def create_gpatch(self, ge0, ge1, ge2, ge3):
         gp = GPatch(bpy.data.objects[self.o_name], ge0, ge1, ge2, ge3)
+        gp.update()
+        for ge in [ge0,ge1,ge2,ge3]:
+            for gp_ in ge.gpatches:
+                if gp_ != gp: gp_.update()
         self.gpatches += [gp]
         return gp
 
@@ -1243,6 +1328,8 @@ class PolyStrips(object):
             gv.update_visibility(r3d)
         for ge in self.gedges:
             ge.update_visibility(r3d)
+        for gp in self.gpatches:
+            gp.update_visibility(r3d)
     
     def split_gedge_at_t(self, gedge, t, connect_gvert=None):
         if gedge.zip_to_gedge or gedge.zip_attached: return
@@ -1292,8 +1379,8 @@ class PolyStrips(object):
         return (ge0,ge1,gv_split)
 
     def insert_gedge_between_gverts(self, gv0, gv3):
-        gv1 = self.create_gvert(gv0.position*0.7 + gv3.position*0.3)
-        gv2 = self.create_gvert(gv0.position*0.3 + gv3.position*0.7)
+        gv1 = self.create_gvert(gv0.position*0.7 + gv3.position*0.3, radius=gv0.radius*0.7 + gv3.radius*0.3)
+        gv2 = self.create_gvert(gv0.position*0.3 + gv3.position*0.7, radius=gv0.radius*0.3 + gv3.radius*0.7)
         return self.create_gedge(gv0,gv1,gv2,gv3)
     
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
