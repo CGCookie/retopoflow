@@ -2873,7 +2873,7 @@ class PolystripsUI:
     # function to convert polystrips => mesh
 
     def create_mesh(self, context):
-        verts,quads = self.polystrips.create_mesh()
+        verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
             mx = self.dest_obj.matrix_world
@@ -2894,21 +2894,28 @@ class PolystripsUI:
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
-
-        bmverts = [self.dest_bme.verts.new(imx * mx2 * v) for v in verts]
-        self.dest_bme.verts.index_update()
+        
+        container_bme = bmesh.new()
+        
+        bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
+        container_bme.verts.index_update()
         for q in quads: 
-            self.dest_bme.faces.new([bmverts[i] for i in q])
-
-        self.dest_bme.faces.index_update()
+            container_bme.faces.new([bmverts[i] for i in q])
+        for nq in non_quads:
+            container_bme.faces.new([bmverts[i] for i in nq])
+        
+        container_bme.faces.index_update()
 
         if 'EDIT' in context.mode: #self.dest_bme and self.dest_obj:
-            bmesh.update_edit_mesh(self.dest_obj.data, tessface=False, destructive=True)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            container_bme.to_mesh(self.dest_obj.data)
+            bpy.ops.object.mode_set(mode = 'EDIT')
+            #bmesh.update_edit_mesh(self.dest_obj.data, tessface=False, destructive=True)
         else: 
-            self.dest_bme.to_mesh(self.dest_obj.data)
+            container_bme.to_mesh(self.dest_obj.data)
         
         self.dest_bme.free()
-
+        container_bme.free()
 
     ###########################
     # fill function
