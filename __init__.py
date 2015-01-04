@@ -57,7 +57,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from .lib import common_utilities
 from .lib import common_drawing
-from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange
+from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange, showErrorMessage
 from .lib.common_classes import SketchBrush
 
 # Polystrip imports
@@ -85,26 +85,6 @@ contour_mesh_cache = {}
 
 # Used to store undo snapshots
 polystrips_undo_cache = []
-
-
-def showErrorMessage(message, wrap=80):
-    lines = []
-    if wrap > 0:
-        while len(message) > wrap:
-            i = message.rfind(' ',0,wrap)
-            if i == -1:
-                lines += [message[:wrap]]
-                message = message[wrap:]
-            else:
-                lines += [message[:i]]
-                message = message[i+1:]
-    if message:
-        lines += [message]
-    def draw(self,context):
-        for line in lines:
-            self.layout.label(line)
-    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
-    return
 
 
 class RetopoFlowPreferences(AddonPreferences):
