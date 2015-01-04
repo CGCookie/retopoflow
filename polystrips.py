@@ -359,8 +359,12 @@ class GVert:
         else:
             assert False
     
-    def update_visibility(self, r3d, update_gedges=False):
-        self.visible = common_utilities.ray_cast_visible([self.snap_pos], bpy.data.objects[self.o_name], r3d)[0]
+    def update_visibility(self, r3d, update_gedges=False, hq = True):
+        if hq:
+            self.visible = False not in common_utilities.ray_cast_visible(self.get_corners(), bpy.data.objects[self.o_name], r3d)
+        else:
+            self.visible = common_utilities.ray_cast_visible([self.snap_pos], bpy.data.objects[self.o_name], r3d)[0]
+        
         if not update_gedges: return
         for ge in self.get_gedges_notnone():
             ge.update_visibility(r3d)
@@ -369,6 +373,9 @@ class GVert:
     
     def get_corners(self):
         return (self.corner0, self.corner1, self.corner2, self.corner3)
+    
+    def get_corner_inds(self):
+        return (self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind)
     
     def is_picked(self, pt):
         if not self.visible: return False
@@ -1496,8 +1503,6 @@ class PolyStrips(object):
                     gv.from_mesh_ind = f.index
                     self.extension_geometry.append(gv)
                     break
-                
-        print('found %i possible faces to extend' % len(self.extension_geometry))
         
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
@@ -1763,9 +1768,10 @@ class PolyStrips(object):
             cb_split = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
             assert len(cb_split) == 2, 'Could not split bezier (' + (','.join(str(p) for p in [p0,p1,p2,p3])) + ') at %f' % t
             cb0,cb1 = cb_split
-            rm = (r0+r3)/2
+            rm = (r0+r3)/2  #stroke radius
+            rm_prime = polystrips_utilities.cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
             
-            gv_split = self.create_gvert(cb0[3], radius=rm)
+            gv_split = self.create_gvert(cb0[3], radius=rm_prime)
             gv0_0    = gedge.gvert0
             gv0_1    = self.create_gvert(cb0[1], radius=rm)
             gv0_2    = self.create_gvert(cb0[2], radius=rm)
@@ -1876,12 +1882,13 @@ class PolyStrips(object):
         gv3.update()
         gv3.update_gedges()
     
-    def create_mesh(self):
+    def create_mesh(self, bme):
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
         
         verts = []
         quads = []
+        non_quads = []
         
         igv_corner_vind = {}    # maps (igv,corner) to idx into verts
         ige_side_lvind  = {}    # maps (ige,side) to list of vert indices
@@ -1889,18 +1896,26 @@ class PolyStrips(object):
         gv_idx = {gv:i for i,gv in enumerate(self.gverts)}
         ge_idx = {ge:i for i,ge in enumerate(self.gedges)}
         
+        def create_non_quad(indices):
+            non_quads.append(tuple(indices))
+            
         def create_quad(iv0,iv1,iv2,iv3):
+            '''
+            indices are in presumptive BMesh index
+            '''
             quads.append((iv0,iv1,iv2,iv3))
         
         def insert_vert(v):
             verts.append(imx*v)
             return len(verts)-1
         
-        def create_vert(gv):
+        def create_Gvert(gv):
             i_gv = gv_idx[gv]
             if (i_gv,0) in igv_corner_vind: return
             
-            liv = [insert_vert(p) for p in gv.get_corners()]
+            
+            liv = [insert_vert(p) if i == -1 else i for i,p in zip(gv.get_corner_inds(),gv.get_corners())] #List of Indices(bmesh) for Vertices acronym = liv
+            
             
             if gv.zip_over_gedge:
                 zip_ge   = gv.zip_over_gedge
@@ -1924,12 +1939,24 @@ class PolyStrips(object):
                 liv[ci0] = side_lvind[zip_igv]
                 liv[ci1] = side_lvind[zip_igv-1]
             
-            igv_corner_vind[(i_gv,0)] = liv[0]
+            igv_corner_vind[(i_gv,0)] = liv[0]  #<----because LIV has BMESH Indices, igv_corner_
             igv_corner_vind[(i_gv,1)] = liv[1]
             igv_corner_vind[(i_gv,2)] = liv[2]
             igv_corner_vind[(i_gv,3)] = liv[3]
             
-            create_quad(liv[3],liv[2],liv[1],liv[0])
+            if -1 in gv.get_corner_inds():
+                create_quad(liv[3],liv[2],liv[1],liv[0])
+        
+        
+        #copy all existing mesh data into our format
+        for v in bme.verts:
+            insert_vert(mx * v.co)
+
+        for f in bme.faces:
+            if len(f.verts) == 4:
+                create_quad(*tuple([v.index for v in f.verts]))
+            else:
+                create_non_quad([v.index for v in f.verts])
         
         
         done = set()                    # set of gedges that have been created
@@ -1943,8 +1970,8 @@ class PolyStrips(object):
                     defering |= {ge}
                     continue
                 
-                create_vert(ge.gvert0)
-                create_vert(ge.gvert3)
+                create_Gvert(ge.gvert0)
+                create_Gvert(ge.gvert3)
                 
                 i_ge = ge_idx[ge]
                 l = len(ge.cache_igverts)
@@ -2111,7 +2138,7 @@ class PolyStrips(object):
         verts = [v for u,v in zip(vind_used,verts) if u]
         quads = [tuple(map_vinds[vind] for vind in q) for q in quads]
         
-        return (verts,quads)
+        return (verts,quads,non_quads)
     
     def rip_gvert(self, gvert):
         '''
