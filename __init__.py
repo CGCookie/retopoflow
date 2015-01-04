@@ -3732,8 +3732,14 @@ class PolystripsUI:
         r3d = eventd['r3d']
         
         if eventd['press'] == 'LEFTMOUSE':
+            mx = self.obj.matrix_world
+            mx3x3 = mx.to_3x3()
+            imx = mx.inverted()
+            
             ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
             hit_p3d,hit_norm,hit_idx = hit
+            
+            hit_p3d = mx * hit_p3d
             
             lgvmove = []
             lgemove = []
@@ -3783,10 +3789,6 @@ class PolystripsUI:
                 supdate.add(gp)
                 
             
-            mx = self.obj.matrix_world
-            mx3x3 = mx.to_3x3()
-            imx = mx.inverted()
-            
             self.tweak_data = {
                 'mouse': eventd['mouse'],
                 'lgvmove': lgvmove,
@@ -3797,6 +3799,9 @@ class PolystripsUI:
                 'mx3x3': mx3x3,
                 'imx': imx,
             }
+            
+            print('%d,%d,%d' % (len(lgvmove),len(lgemove),len(lgpmove)))
+            
             return ''
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
@@ -3848,43 +3853,6 @@ class PolystripsUI:
                 for u in self.tweak_data['supdate']:
                    u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
-        
-        # 
-
-        # if command == 'init':
-        #     self.footer = 'Translating GVert position(s)'
-        #     s2d = l3dr2d(lgv[0].position)
-        #     self.tool_data = [(gv, Vector(gv.position), l3dr2d(gv.position)-s2d) for gv in lgv]
-        # elif command == 'commit':
-        #     pass
-        # elif command == 'undo':
-        #     for gv,p,_ in self.tool_data: gv.position = p
-        #     for gv,_,_ in self.tool_data:
-        #         gv.update()
-        #         gv.update_visibility(eventd['r3d'], update_gedges=True)
-        # else:
-        #     factor_slow,factor_fast = 0.2,1.0
-        #     dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
-        #     s2d = l3dr2d(self.tool_data[0][0].position)
-        #     lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
-        #     pts = common_utilities.ray_cast_path(eventd['context'], self.obj, lgv2d)
-        #     if len(pts) != len(lgv2d): return ''
-        #     for d,p2d in zip(self.tool_data, pts):
-        #         d[0].position = p2d
-        #     for gv,_,_ in self.tool_data:
-        #         gv.update()
-        #         gv.update_visibility(eventd['r3d'], update_gedges=True)
-        
-        # if eventd['type'] == 'MOUSEMOVE' and self.tweak_data:
-            
-        #     x,y = eventd['mouse']
-        #     if settings.use_pressure:
-        #         p = eventd['pressure']
-        #         r = eventd['mradius']
-        #     else:
-        #         p = 1
-        #         r = self.stroke_radius
-        #     return ''
         
         return ''
     
