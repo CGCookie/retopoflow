@@ -33,12 +33,12 @@ import bmesh
 import blf, bgl
 import itertools
 
-from lib import common_utilities
-from lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from .lib import common_utilities
+from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
 
-from polystrips_utilities import *
-from polystrips_draw import *
-import polystrips_utilities
+from .polystrips_utilities import *
+from .polystrips_draw import *
+from . import polystrips_utilities
 
 #Make the addon name and location accessible
 AL = AddonLocator()

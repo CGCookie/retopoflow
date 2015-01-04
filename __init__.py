@@ -37,9 +37,6 @@ bl_info = {
 import os
 import sys
 
-# Add the current __file__ path to the search path
-sys.path.append(os.path.dirname(__file__))
-
 import copy
 import math
 import random
@@ -58,19 +55,19 @@ from bpy.types import Operator, AddonPreferences
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
 
 # Common imports
-from lib import common_utilities
-from lib import common_drawing
-from lib.common_utilities import get_object_length_scale, dprint, profiler, frange
-from lib.common_classes import SketchBrush
+from .lib import common_utilities
+from .lib import common_drawing
+from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange
+from .lib.common_classes import SketchBrush
 
 # Polystrip imports
-import polystrips_utilities
-from polystrips import *
-from polystrips_draw import *
+from . import polystrips_utilities
+from .polystrips import *
+from .polystrips_draw import *
 
 # Contour imports
-import contour_utilities
-from contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
+from . import contour_utilities
+from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()
@@ -2506,8 +2503,6 @@ class PolystripsUI:
 
         if settings.debug < 3:
             self.draw_callback_themed(context)
-        else:
-            self.draw_callback_debug(context)
 
     def draw_gedge_direction(self, context, gedge, color):
         p0,p1,p2,p3 = gedge.gvert0.snap_pos,  gedge.gvert1.snap_pos,  gedge.gvert2.snap_pos,  gedge.gvert3.snap_pos
@@ -2542,11 +2537,12 @@ class PolystripsUI:
         ### Patches ###
         for i_gp,gpatch in enumerate(self.polystrips.gpatches):
             if gpatch == self.act_gpatch:
-                color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
-                color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+                color_border = (color_active[0], color_active[1], color_active[2], 0.50)
+                color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
             else:
-                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
+                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
+            
             if gpatch.is_frozen():
                 color_border = (0.80,0.80,0.80,1.00)
                 color_fill   = (0.80,0.80,0.80,0.20)
@@ -2565,15 +2561,19 @@ class PolystripsUI:
 
         ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
+            # Color active strip
             if gedge == self.act_gedge:
                 color_border = (color_active[0], color_active[1], color_active[2], 1.00)
                 color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
+            # Color selected strips
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            # Color unselected strips
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            
             if gedge.is_frozen():
                 color_border = (0.80,0.80,0.80,1.00)
                 color_fill   = (0.80,0.80,0.80,0.20)
@@ -2594,19 +2594,34 @@ class PolystripsUI:
             self.sel_gverts.add(ge.gvert0)
             self.sel_gverts.add(ge.gvert3)
 
-        for gv in itertools.chain(self.polystrips.gverts, self.polystrips.extension_geometry):
+        # Highlight possible extension gverts from existing geometry ### disable for now.
+        # for gv in itertools.chain(self.polystrips.extension_geometry):
+        #     if not gv.is_visible(): continue
+        #     p0,p1,p2,p3 = gv.get_corners()
+
+        #     if gv.is_unconnected() and not gv.from_mesh: continue
+
+        #     color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        #     color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+
+        #     p3d = [p0,p1,p2,p3,p0]
+        #     common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
+        #     common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+
+        # Color all gverts
+        for gv in itertools.chain(self.polystrips.gverts):
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
 
-            is_selected = False
-            is_selected |= gv == self.act_gvert
-            is_selected |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
-            is_selected |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
+            is_active = False
+            is_active |= gv == self.act_gvert
+            is_active |= self.act_gedge!=None and (self.act_gedge.gvert0 == gv or self.act_gedge.gvert1 == gv)
+            is_active |= self.act_gedge!=None and (self.act_gedge.gvert2 == gv or self.act_gedge.gvert3 == gv)
 
             # Theme colors for selected and unselected gverts
-            if is_selected:
+            if is_active:
                 color_border = (color_active[0], color_active[1], color_active[2], 0.75)
                 color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             else:
@@ -2735,164 +2750,6 @@ class PolystripsUI:
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             common_drawing.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
-
-    def draw_callback_debug(self, context):
-        settings = common_utilities.get_settings()
-        region = context.region
-        r3d = context.space_data.region_3d
-
-        draw_original_strokes   = False
-        draw_gedge_directions   = True
-        draw_gvert_orientations = False
-        draw_unconnected_gverts = False
-        draw_gvert_unsnapped    = False
-        draw_gedge_bezier       = False
-        draw_gedge_index        = False
-        draw_gedge_igverts      = False
-
-        cols = [(1,.5,.5,.8),(.5,1,.5,.8),(.5,.5,1,.8),(1,1,.5,.8)]
-
-        color_selected          = (.5,1,.5,.8)
-
-        color_gedge             = (1,.5,.5,.8)
-        color_gedge_nocuts      = (.5,.2,.2,.8)
-        color_gedge_zipped      = (.5,.7,.7,.8)
-
-        color_gvert_unconnected = (.2,.2,.2,.8)
-        color_gvert_endpoint    = (.2,.2,.5,.8)
-        color_gvert_endtoend    = (.5,.5,1,.8)
-        color_gvert_ljunction   = (1,.5,1,.8)
-        color_gvert_tjunction   = (1,1,.5,.8)
-        color_gvert_cross       = (1,1,1,.8)
-        color_gvert_midpoints   = (.7,1,.7,.8)
-
-        t = time.time()
-        tf = t - int(t)
-        tb = tf*2 if tf < 0.5 else 2-(tf*2)
-        tb1 = 1-tb
-        sel_fn = lambda c: tuple(cv*tb+cs*tb1 for cv,cs in zip(c,color_selected))
-
-        if draw_original_strokes:
-            for stroke in self.strokes_original:
-                #p3d = [pt for pt,pr in stroke]
-                #common_drawing.draw_polyline_from_3dpoints(context, p3d, (.7,.7,.7,.8), 3, "GL_LINE_SMOOTH")
-                common_drawing.draw_circle(context, stroke[0][0], Vector((0,0,1)),0.003,(.2,.2,.2,.8))
-                common_drawing.draw_circle(context, stroke[-1][0], Vector((0,1,0)),0.003,(.5,.5,.5,.8))
-
-        for i_ge,gedge in enumerate(self.polystrips.gedges):
-            if draw_gedge_directions:
-                p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
-                n0,n1,n2,n3 = gedge.gvert0.snap_norm, gedge.gvert1.snap_norm, gedge.gvert2.snap_norm, gedge.gvert3.snap_norm
-                pm = cubic_bezier_blend_t(p0,p1,p2,p3,0.5)
-                px = cubic_bezier_derivative(p0,p1,p2,p3,0.5).normalized()
-                pn = (n0+n3).normalized()
-                py = pn.cross(px).normalized()
-                rs = (gedge.gvert0.radius+gedge.gvert3.radius) * 0.35
-                rl = rs * 0.75
-                p3d = [pm-px*rs,pm+px*rs,pm+px*(rs-rl)+py*rl,pm+px*rs,pm+px*(rs-rl)-py*rl]
-                common_drawing.draw_polyline_from_3dpoints(context, p3d, (0.8,0.8,0.8,0.8),1, "GL_LINE_SMOOTH")
-
-            if draw_gedge_bezier:
-                p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
-                p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
-                common_drawing.draw_polyline_from_3dpoints(context, p3d, (0.5,0.5,0.5,0.8),1, "GL_LINE_SMOOTH")
-
-            col = color_gedge if len(gedge.cache_igverts) else color_gedge_nocuts
-            if gedge.zip_to_gedge: col = color_gedge_zipped
-            if gedge == self.sel_gedge: col = sel_fn(col)
-            w = 2 if len(gedge.cache_igverts) else 5
-            for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
-                common_drawing.draw_polyline_from_3dpoints(context, [c0,c1,c2,c3,c0], col, w, "GL_LINE_SMOOTH")
-
-            if draw_gedge_index:
-                draw_gedge_text(gedge, context, str(i_ge))
-
-            if draw_gedge_igverts:
-                rm = (gedge.gvert0.radius + gedge.gvert3.radius)*0.1
-                for igv in gedge.cache_igverts:
-                    common_drawing.common_drawing.draw_circle(context, igv.position, igv.normal, rm, (1,1,1,.3))
-
-        for gv in itertools.chain(self.polystrips.gverts, self.polystrips.extension_geometry):
-            if not gv.is_visible(): continue
-            p0,p1,p2,p3 = gv.get_corners()
-
-            if not draw_unconnected_gverts and gv.is_unconnected() and gv != self.act_gvert: continue
-
-            col = color_gvert_unconnected
-            if gv.is_endpoint(): col = color_gvert_endpoint
-            elif gv.is_endtoend(): col = color_gvert_endtoend
-            elif gv.is_ljunction(): col = color_gvert_ljunction
-            elif gv.is_tjunction(): col = color_gvert_tjunction
-            elif gv.is_cross(): col = color_gvert_cross
-
-            if gv == self.act_gvert: col = sel_fn(col)
-
-            p3d = [p0,p1,p2,p3,p0]
-            common_drawing.draw_polyline_from_3dpoints(context, p3d, col, 2, "GL_LINE_SMOOTH")
-
-            if draw_gvert_orientations:
-                p,x,y = gv.snap_pos,gv.snap_tanx,gv.snap_tany
-                common_drawing.draw_polyline_from_3dpoints(context, [p,p+x*0.005], (1,0,0,1), 1, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p,p+y*0.005], (0,1,0,1), 1, "GL_LINE_SMOOTH")
-
-        if draw_gvert_unsnapped:
-            for gv in self.polystrips.gverts:
-                p,x,y,n = gv.position,gv.snap_tanx,gv.snap_tany,gv.snap_norm
-                common_drawing.draw_polyline_from_3dpoints(context, [p,p+x*0.01], (1,0,0,1), 1, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p,p+y*0.01], (0,1,0,1), 1, "GL_LINE_SMOOTH")
-                common_drawing.draw_polyline_from_3dpoints(context, [p,p+n*0.01], (0,0,1,1), 1, "GL_LINE_SMOOTH")
-
-        if self.sel_gedge:
-            if not self.sel_gedge.zip_to_gedge:
-                col = color_gvert_midpoints
-                for gv in self.sel_gedge.get_inner_gverts():
-                    if not gv.is_visible(): continue
-                    p0,p1,p2,p3 = gv.get_corners()
-                    p3d = [p0,p1,p2,p3,p0]
-                    common_drawing.draw_polyline_from_3dpoints(context, p3d, col, 2, "GL_LINE_SMOOTH")
-            draw_gedge_info(self.sel_gedge, context)
-
-        if self.act_gvert:
-            col = color_gvert_midpoints
-            for ge in self.act_gvert.get_gedges_notnone():
-                if ge.zip_to_gedge: continue
-                gv = ge.get_inner_gvert_at(self.act_gvert)
-                if not gv.is_visible(): continue
-                p0,p1,p2,p3 = gv.get_corners()
-                p3d = [p0,p1,p2,p3,p0]
-                common_drawing.draw_polyline_from_3dpoints(context, p3d, col, 2, "GL_LINE_SMOOTH")
-
-        if self.mode == 'sketch':
-            common_drawing.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], (0.5,0.5,0.2,0.8), 1, "GL_LINE_SMOOTH")
-            common_drawing.draw_polyline_from_points(context, [co[0] for co in self.sketch], (1,1,.5,.8), 2, "GL_LINE_SMOOTH")
-
-            info = str(round(self.sketch_pressure,3))
-            ''' draw text '''
-            txt_width, txt_height = blf.dimensions(0, info)
-            d = self.sketch_brush.pxl_rad
-            blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
-            blf.draw(0, info)
-
-        if self.mode in {'scale tool','rotate tool'}:
-            common_drawing.draw_polyline_from_points(context, [self.action_center, self.mode_pos], (0,0,0,0.5), 1, "GL_LINE_STIPPLE")
-
-        bgl.glLineWidth(1)
-
-        if self.mode not in {'grab tool','scale tool','rotate tool','brush scale tool'}:
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
-            hit_p3d,hit_norm,hit_idx = hit
-            if hit_idx != -1:
-                mx = self.obj.matrix_world
-                hit_p3d = mx * hit_p3d
-                common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-
-        if not self.hover_ed:
-            self.sketch_brush.draw(context)
-        else:
-            common_drawing.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color_selected) #EXTEND
-
-    ############################
-    # function to convert polystrips => mesh
 
     def create_mesh(self, context):
         verts,quads = self.polystrips.create_mesh()
@@ -3047,6 +2904,7 @@ class PolystripsUI:
         self.act_gvert = None
         self.act_gedge = None
         self.sel_gedges.clear()
+        self.sel_gverts.clear()
         self.act_gpatch = gp
         
         gp.update()
@@ -3439,6 +3297,7 @@ class PolystripsUI:
                 if not gv.is_picked(pt): continue
                 self.act_gedge = None
                 self.sel_gedges.clear()
+                self.sel_gverts.clear()
                 self.act_gvert = gv
                 self.act_gpatch = None
                 return ''
@@ -3452,12 +3311,13 @@ class PolystripsUI:
                 self.sel_gedges.add(ge)
                 self.act_gpatch = None
                 return ''
-            
+            # Select patch
             for gp in self.polystrips.gpatches:
                 if not gp.is_picked(pt): continue
                 self.act_gvert = None
                 self.act_gedge = None
                 self.sel_gedges.clear()
+                self.sel_gverts.clear()
                 self.act_gpatch = gp
                 print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
                 return ''
