@@ -1090,6 +1090,8 @@ class GPatch(object):
         
         self.assert_correctness()
         
+        self.frozen = False
+        
         # make sure opposite gedges have same count
         count02 = max(self.ge0.get_count(), self.ge2.get_count())
         count13 = max(self.ge1.get_count(), self.ge3.get_count())
@@ -1097,8 +1099,6 @@ class GPatch(object):
         self.ge2.set_count(count02)
         self.ge1.set_count(count13)
         self.ge3.set_count(count13)
-        
-        self.frozen = False
         
         self.pts = []
         self.map_pts = {}
@@ -1170,6 +1170,8 @@ class GPatch(object):
         return zip(segs1,segs3)
     
     def update(self):
+        if self.frozen: return
+        
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
