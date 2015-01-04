@@ -229,7 +229,53 @@ def draw_outline_or_region(mode, points, color):
  
         bgl.glEnd()
 
-
+def round_box(minx, miny, maxx, maxy, rad, corners = [True, True, True, True]):
+    '''
+    TODO, make smarter indexing decisions so only some corners have
+    to be rounded
+    '''
+   
+    vec0 = [[0.195, 0.02],
+           [0.383, 0.067],
+           [0.55, 0.169],
+           [0.707, 0.293],
+           [0.831, 0.45],
+           [0.924, 0.617],
+           [0.98, 0.805]]
+    
+    #cache so we only scale the corners once
+    vec = [[0,0]]*len(vec0)
+    for i in range(0,len(vec0)):
+        vec[i] = [vec0[i][0]*rad, vec0[i][1]*rad]
+        
+    verts = [[0,0]]*(9*4)
+    
+    # start with corner right-bottom
+    verts[0] = [maxx-rad,miny]
+    for i in range(1,8):
+        verts[i]= [maxx - rad + vec[i-1][0], miny + vec[i-1][1]] #done
+    verts[8] = [maxx, miny + rad]   #done
+           
+    #corner right-top    
+    verts[9] = [maxx, maxy - rad]
+    for i in range(10,17):
+        verts[i]= [maxx - vec[i-10][1], maxy - rad + vec[i-10][0]]
+    verts[17] = [maxx-rad, maxy]
+    
+    #corver left top
+    verts[18] = [minx + rad, maxy]
+    for i in range(19,26):
+        verts[i]= [minx + rad - vec[i-19][0], maxy - vec[i-19][1]] #done
+    verts[26] = [minx, maxy - rad]
+    
+    #corner left bottom    
+    verts[27] = [minx, miny+rad]
+    for i in range(28,35):
+        verts[i]= [minx + vec[i-28][1], miny + rad - vec[i-28][0]]    #done
+    verts[35]=[minx + rad, miny]
+    
+    
+    return verts
 def draw_bmedge(context, bmedge, mx, thickness, color):
     '''
     simple wrapper to drawp a bmedge

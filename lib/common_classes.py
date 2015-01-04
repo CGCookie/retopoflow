@@ -45,10 +45,14 @@ class TextBox(object):
         self.width = width
         self.height = height
         self.border = border
-        border
+        self.spacer = 5
         
+        self.text_size = 12
+        self.text_dpi = 72
+        blf.size(0, self.text_size, self.text_dpi)
+        self.line_height = blf.dimensions(0, 'A')[1]
         self.raw_text = message
-        self.lines = []
+        self.text_lines = []
     
     def screen_boudaries(self):
         print('to be done later')
@@ -60,17 +64,22 @@ class TextBox(object):
     
         
     def format_and_wrap_text(self):
+        '''
+        '''
+        self.text_lines = []
+        #TODO text size settings?
         useful_width = self.width - 2 * self.border
-        spc_size = blf.dimensions(0,' ')[0]
+        spc_size = blf.dimensions(0,' ')
+        spc_width = spc_size[0]
         
         dim_raw = blf.dimensions(0,self.raw_text)
-        if dim_raw < useful_width:
+        if dim_raw[0] < useful_width:
             #TODO fill in the relevant data
             return
         
         #clean up line seps, double spaces
-        self.raw_text.replace('\r','')
-        self.raw_text.replace('  ',' ')
+        self.raw_text = self.raw_text.replace('\r','')
+        #self.raw_text.replace('  ',' ')
         
         def crop_word(word, width):
             '''
@@ -78,49 +87,98 @@ class TextBox(object):
             '''
             ltr_indx = 0
             wrd_width = 0
-            while ltr_indx < len(word) and wrd_width:
-                wrd_with += blf.dimensions(0,word[ltr_indx])
+            while ltr_indx < len(word) and wrd_width < width:
+                wrd_width += blf.dimensions(0,word[ltr_indx])[0]
                 ltr_indx += 1
                 
             return word[0:ltr_indx - 1]  #TODO, check indexing for slice op
         
-        
         def wrap_line(txt_line,width):
             '''
             takes a string, returns a list of strings, corresponding to wrapped
-            text of the specified width, given current BLF settings
+            text of the specified pixel width, given current BLF settings
             '''
-            if blf.dimensions(0,txt_ln)[0] < useful_width:
+            if blf.dimensions(0,txt_line)[0] < useful_width:
                 #TODO fil
                 return [txt_line]
             
-            txt = txt_ln.copy()
+            txt = txt_line  #TODO Clean this
             words = txt.split(' ')
             new_lines = []
-            
-            wrd_i = 0
-            while i < len(words) - 1:
-                line_len = 0
-                new_ln = []
-                while line_len <= useful_width:
-                    word_width = blf.dimensions(0, words[wrd_i])
-                    if word_with >= useful_width:
-                        crp_wrd = crop_word(words[wrd_i], useful_width)
+            current_line = []
+            cur_line_len = 0
+            for i,wrd in enumerate(words):
+                
+                word_width = blf.dimensions(0, wrd)
+                if word_width >= useful_width:
+                    crp_wrd = crop_word(wrd, useful_width)
                         
-                        if len(new_ln):
-                            new_lines.append(new_ln)
-                        new_lines.append([crp_wrd])
-                        break
-                    
-                    words_len += blf.dimensions(0, words[wrd_i])
-                    if i < len(words) -1:
-                        words_len += spc_size
-                    new_ln.append(words[wrd_i])
-                    wrd_i += 1
-            
-            
-        lines = self.raw_text.split()
+                    if len(current_line):
+                        new_lines.append(' '.join(current_line))
+                    new_lines.append(crp_wrd)
+                    current_line = []
+                    cur_line_len = 0
+                    continue
+                
+                if cur_line_len + word_width <= useful_width:
+                    current_line.append(wrd)
+                    cur_line_len += word_width
+                    if i < len(words)-1:
+                        cur_line_len += spc_size[0]
+                else:
+                    new_lines.append(' '.join(current_line))
+                    current_line = [wrd]
+                    cur_line_len = word_width
+                    if i < len(words)-1:
+                        cur_line_len += spc_size[0]
+
+                if i == len(words) - 1 and len(current_line):
+                    new_lines.append(' '.join(current_line))
+                                     
+            return new_lines          
         
+        lines = self.raw_text.split('\n')
+        for ln in lines:
+            self.text_lines.extend(wrap_line(ln, useful_width))
+        
+        for ln in self.text_lines:
+            print(ln)    
+        return
+    
+    def draw(self):
+        txt_color = (.9,.9,.9,1)
+        txt_color_no_poll = (.5, .5, .5, 1)
+        
+        bg_color = (.1, .1, .1, .7)
+        search_color = (.2, .2, .2, 1)
+        border_color = (.05, .05, .05, 1)
+        highlight_color = (0,.3, 1, .8)
+        
+        left = self.x - self.width/2
+        right = left + self.width
+        bottom = self.y - self.height
+        top = self.y
+        
+        left_text = left + self.border
+        bottom_text = bottom + self.border
+        
+        #draw the whole menu bacground
+        outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (self.line_height + 2 * self.spacer)/6)
+        common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
+        common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
+        
+        blf.size(0, self.text_size, self.text_dpi)
+        
+        for i, line in enumerate(self.text_lines):
+            
+            txt_x = left_text + self.spacer
+            txt_y = top - self.border - (i+1) * (self.line_height + self.spacer)
+                
+            blf.position(0,txt_x, txt_y, 0)
+            bgl.glColor4f(*txt_color)
+            blf.draw(0, line)
+            
+            
 class SketchBrush(object):
     def __init__(self,context,settings, x,y,pixel_radius, ob, n_samples = 15):
         
