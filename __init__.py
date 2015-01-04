@@ -57,7 +57,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from .lib import common_utilities
 from .lib import common_drawing
-from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange, showErrorMessage
+from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from .lib.common_classes import SketchBrush
 
 # Polystrip imports

@@ -49,6 +49,18 @@ class AddonLocator(object):
         sys.path.append(self.FolderPath)
         print("Addon path has been registered into system path for this session")
 
+def selection_mouse():
+    select_type = bpy.context.user_preferences.inputs.select_mouse
+    select_mouse = []
+    if select_type == 'RIGHT':
+        select_mouse.append('RIGHTMOUSE')
+        select_mouse.append('SHIFT+RIGHTMOUSE')
+    else:
+        select_mouse.append('LEFTMOUSE')
+        select_mouse.append('SHIFT+LEFTMOUSE')
+
+    return select_mouse
+
 def get_settings():
     addons = bpy.context.user_preferences.addons
     stack = inspect.stack()
