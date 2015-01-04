@@ -3192,11 +3192,14 @@ class PolystripsUI:
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
 
+        # Selecting and Sketching
+        ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE'}:
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
             x,y = eventd['mouse']
+
             if settings.use_pressure:
                 p = eventd['pressure']
                 r = eventd['mradius']
@@ -3213,13 +3216,13 @@ class PolystripsUI:
             else:
                 self.sketch = [((x,y),r)]
 
-            self.act_gvert = None
-            self.act_gedge = None
-            self.sel_gedges = set()
             return 'sketch'
 
-        if eventd['press'] in {'RIGHTMOUSE','SHIFT+RIGHTMOUSE'}:                                         # picking
-
+        # If RMB is set to select, select as normal
+        if eventd['press'] in {'RIGHTMOUSE', 'SHIFT+RIGHTMOUSE'}:
+            if 'LEFTMOUSE' not in selection_mouse():
+                # Select element
+                self.pick(eventd)
             return ''
 
         if eventd['press'] == 'CTRL+LEFTMOUSE':                                     # delete/dissolve
@@ -3652,17 +3655,18 @@ class PolystripsUI:
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
-            
-            dist_traveled = 0.0
-            for s0,s1 in zip(self.sketch[:-1],self.sketch[1:]):
-                dist_traveled += (Vector(s0[0]) - Vector(s1[0])).length
-            
-            # user likely picking, because distance traveled is very small
-            if dist_traveled < 5.0:
-                self.pick(eventd)
-                self.sketch = []
-                return 'main'
 
+            # if is selection mouse, check distance
+            if 'LEFTMOUSE' in selection_mouse():
+                dist_traveled = 0.0
+                for s0,s1 in zip(self.sketch[:-1],self.sketch[1:]):
+                    dist_traveled += (Vector(s0[0]) - Vector(s1[0])).length
+
+                # user like ly picking, because distance traveled is very small
+                if dist_traveled < 5.0:
+                    self.pick(eventd)
+                    self.sketch = []
+                    return 'main'
 
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
@@ -3683,6 +3687,11 @@ class PolystripsUI:
             self.polystrips.insert_gedge_from_stroke(stroke, False)
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
+
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges = set()
+
             return 'main'
 
         return ''
