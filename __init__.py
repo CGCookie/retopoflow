@@ -2184,6 +2184,14 @@ class CGCOOKIE_OT_polystrips(bpy.types.Operator):
         return ret
 
     def invoke(self, context, event):
+
+        if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
+            showErrorMessage('Must select exactly two objects')
+            return {'CANCELLED'}
+        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
+            showErrorMessage('Must select only one object')
+            return {'CANCELLED'}
+
         self.ui = PolystripsUI(context, event)
 
         # Switch to modal
