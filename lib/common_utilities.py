@@ -30,6 +30,7 @@ import sys
 import inspect
 import math
 import time
+import itertools
 from mathutils import Vector, Matrix, Quaternion
 
 # from lib import common_drawing
@@ -509,4 +510,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         print(eds)
         
     return new_verts, eds
- 
+
+def zip_pairs(l):
+    for p in zip(l, itertools.chain(l[1:],l[:1])):
+        yield p

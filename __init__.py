@@ -2273,6 +2273,8 @@ class PolystripsUI:
         settings = common_utilities.get_settings()
 
         self.mode = 'main'
+        
+        self.fullscreened = False
 
         self.mode_pos = (0, 0)
         self.cur_pos = (0, 0)
@@ -2551,13 +2553,6 @@ class PolystripsUI:
                 common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
                 common_drawing.draw_polyline_from_3dpoints(context, [p0,p1,p2,p3,p0], color_border, 1, "GL_LINE_STIPPLE")
                 common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
-            
-            # draw edge directions
-            if settings.debug > 2:
-                self.draw_gedge_direction(context, gpatch.ge0, (0.8,0.4,0.4,1.0))
-                self.draw_gedge_direction(context, gpatch.ge1, (0.4,0.8,0.4,1.0))
-                self.draw_gedge_direction(context, gpatch.ge2, (0.4,0.4,0.8,1.0))
-                self.draw_gedge_direction(context, gpatch.ge3, (0.4,0.4,0.4,1.0))
 
         ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
@@ -3326,7 +3321,6 @@ class PolystripsUI:
                 self.sel_gedges.clear()
                 self.sel_gverts.clear()
                 self.act_gpatch = gp
-                print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
                 return ''
 
             self.act_gedge,self.act_gvert = None,None
@@ -3778,7 +3772,7 @@ class PolystripsUI:
                     supdate.add(gp)
         
         for gp in self.polystrips.gpatches:
-            l0,l1 = len(gp.ge0.cache_igverts),len(gp.ge1.cache_igverts)
+            l0,l1 = len(gp.gedges[0].cache_igverts),len(gp.gedges[1].cache_igverts)
             freeze = False
             for i0 in range(1,l0-1,2):
                 for i1 in range(1,l1-1,2):
@@ -3813,7 +3807,7 @@ class PolystripsUI:
         r3d = eventd['r3d']
         
         if eventd['press'] == 'LEFTMOUSE':
-            modal_tweak_setup(self, eventd)
+            self.modal_tweak_setup(eventd)
             return ''
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
@@ -4025,6 +4019,8 @@ class PolystripsUI:
     # main modal function (FSM)
 
     def modal(self, context, event):
+        if not context.area: return {'RUNNING_MODAL'}
+        
         context.area.tag_redraw()
         settings = common_utilities.get_settings()
 
@@ -4055,9 +4051,17 @@ class PolystripsUI:
         if nmode in {'finish','cancel'}:
             self.kill_timer(context)
             polystrips_undo_cache = []
+            
+            bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.fullscreened = False
+            
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.mode = nmode
+        
+        if not self.fullscreened:
+            bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.fullscreened = True
 
         return {'RUNNING_MODAL'}
 
