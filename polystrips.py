@@ -1739,9 +1739,10 @@ class PolyStrips(object):
             cb_split = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
             assert len(cb_split) == 2, 'Could not split bezier (' + (','.join(str(p) for p in [p0,p1,p2,p3])) + ') at %f' % t
             cb0,cb1 = cb_split
-            rm = (r0+r3)/2
+            rm = (r0+r3)/2  #stroke radius
+            rm_prime = polystrips_utilities.cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
             
-            gv_split = self.create_gvert(cb0[3], radius=rm)
+            gv_split = self.create_gvert(cb0[3], radius=rm_prime)
             gv0_0    = gedge.gvert0
             gv0_1    = self.create_gvert(cb0[1], radius=rm)
             gv0_2    = self.create_gvert(cb0[2], radius=rm)
