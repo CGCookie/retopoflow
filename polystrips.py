@@ -1098,11 +1098,15 @@ class GPatch(object):
         self.ge1.set_count(count13)
         self.ge3.set_count(count13)
         
+        self.frozen = False
+        
         self.pts = []
         self.map_pts = {}
         self.visible = {}
         
         self.update()
+    
+    def is_frozen(self): return self.frozen
     
     def assert_correctness(self):
         cps0 = self.ge0.gverts()

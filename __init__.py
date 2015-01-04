@@ -2547,6 +2547,9 @@ class PolystripsUI:
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            if gpatch.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
             
             for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
                 common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
@@ -2568,9 +2571,9 @@ class PolystripsUI:
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
-            # else:
-                # color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                # color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            else:
+                color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             if gedge.is_frozen():
                 color_border = (0.80,0.80,0.80,1.00)
                 color_fill   = (0.80,0.80,0.80,0.20)
@@ -2609,13 +2612,13 @@ class PolystripsUI:
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
-            if gv.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
             # # Take care of gverts in selected edges
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            if gv.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
@@ -3874,6 +3877,7 @@ class PolystripsUI:
             
             lgvmove = []
             lgemove = []
+            lgpmove = []
             supdate = set()
             
             for gv in self.polystrips.gverts:
@@ -3904,6 +3908,21 @@ class PolystripsUI:
                     for gp in ge.gpatches:
                         supdate.add(gp)
             
+            for gp in self.polystrips.gpatches:
+                l0,l1 = len(gp.ge0.cache_igverts),len(gp.ge1.cache_igverts)
+                freeze = False
+                for i0 in range(1,l0-2,2):
+                    for i1 in range(1,l1-2,2):
+                        p = gp.map_pts[(i0,i1)]
+                        d = (p1-hit_p3d).length / self.stroke_radius
+                        if d >= 1.0: continue
+                        freeze = True
+                        lgpmove += [(gp,i0,i1,p,d)]
+                if not freeze: continue
+                gp.frozen = True
+                supdate.add(gp)
+                
+            
             mx = self.obj.matrix_world
             mx3x3 = mx.to_3x3()
             imx = mx.inverted()
@@ -3912,6 +3931,7 @@ class PolystripsUI:
                 'mouse': eventd['mouse'],
                 'lgvmove': lgvmove,
                 'lgemove': lgemove,
+                'lgpmove': lgpmove,
                 'supdate': supdate,
                 'mx': mx,
                 'mx3x3': mx3x3,
