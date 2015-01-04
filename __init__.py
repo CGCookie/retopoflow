@@ -581,9 +581,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
-        if 'EDIT' in context.mode and len(context.selected_objects) != 2:
-            col.label(text='No 2nd Object!')
-
         col = layout.column(align=True)
         col.operator("cgcookie.contours", icon='IPO_LINEAR')
 
@@ -740,18 +737,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
     def poll(cls,context):
         if context.mode not in {'EDIT_MESH','OBJECT'}:
             return False
-        
-        if context.active_object:
-            if context.mode == 'EDIT_MESH':
-                if len(context.selected_objects) > 1:
-                    return True
-                else:
-                    return False
-            else:
-                return context.object.type == 'MESH'
-        else:
+        elif context.object.type != 'MESH':
             return False
-    
+        else:
+            return True
+
     def hover_guide_mode(self,context, settings, event):
         '''
         handles mouse selection, hovering, highlighting
