@@ -3772,15 +3772,13 @@ class PolystripsUI:
                     supdate.add(gp)
         
         for gp in self.polystrips.gpatches:
-            l0,l1 = len(gp.gedges[0].cache_igverts),len(gp.gedges[1].cache_igverts)
             freeze = False
-            for i0 in range(1,l0-1,2):
-                for i1 in range(1,l1-1,2):
-                    p = gp.map_pts[(i0,i1)]
-                    d = (p-hit_p3d).length / self.stroke_radius
-                    if d >= max_dist: continue
-                    freeze = True
-                    lgpmove += [(gp,i0,i1,p,d)]
+            for i_pt,pt in enumerate(gp.pts):
+                p,_,_ = pt
+                d = (p-hit_p3d).length / self.stroke_radius
+                if d >= max_dist: continue
+                freeze = True
+                lgpmove += [(gp,i_pt,p,d)]
             if not freeze: continue
             gp.frozen = True
             supdate.add(gp)
@@ -3847,11 +3845,10 @@ class PolystripsUI:
                 gv.tangent_y = (nc0-nc1).normalized()
                 gv.radius = (nc0-nc1).length / 2.0
             
-            for gp,i0,i1,c,d in self.tweak_data['lgpmove']:
+            for gp,i_pt,c,d in self.tweak_data['lgpmove']:
+                p,v,k = gp.pts[i_pt]
                 nc = update(c,d)
-                gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
-                gp.map_pts[(i0,i1)] = nc
-                
+                gp.pts[i_pt] = (nc,v,k)
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:

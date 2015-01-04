@@ -1115,9 +1115,13 @@ class GPatch:
             if count%2==0: count += 1
             for ge in self.gedges: ge.set_count(count)
         
-        self.pts = []
-        self.map_pts = {}
-        self.visible = {}
+        #self.pts = []
+        #self.map_pts = {}
+        #self.visible = {}
+        
+        self.pts   = []     # list of tuples of (position,visible,lookup)
+                            # lookup is either (GEdge,ind_igvert) or None
+        self.quads = []     # list of tuples of inds into self.pts
         
         self.update()
     
@@ -1148,7 +1152,119 @@ class GPatch:
         if self.nsides == 4:
             self._update_quad()
     
+    def _update_tri(self):
+        ge0,ge1,ge2 = self.gedges
+        rev0,rev1,rev2 = self.rev
+        closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        
+        mx = bpy.data.objects[self.o_name].matrix_world
+        imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
+        
+        cps0,lts0 = ge0.gverts(),ge0.l_ts
+        cps1,lts1 = ge1.gverts(),ge1.l_ts
+        cps2,lts2 = ge2.gverts(),ge2.l_ts
+        
+        if rev0:
+            cps0 = list(reversed(cps0))
+            lts0 = [ 1-v for v in reversed(lts0)]
+        if rev1:
+            cps1 = list(reversed(cps1))
+            lts1 = [ 1-v for v in reversed(lts1)]
+        if rev2:
+            cps2 = list(reversed(cps2))
+            lts2 = [ 1-v for v in reversed(lts2)]
+        
+        v0,v1,v2 = cps0[0],cps1[0],cps2[0]
+        
+        
+        v00,v01,v02,v03 = cps0
+        _  ,v13,v23,_   = cps1
+        v30,v31,v32,v33 = cps2
+    
     def _update_quad(self):
+        ge0,ge1,ge2,ge3 = self.gedges
+        rev0,rev1,rev2,rev3 = self.rev
+        closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        sz0,sz1,sz2,sz3 = [len(ge.cache_igverts) for ge in self.gedges]
+        
+        # defer update for a bit (counts don't match up!)
+        if sz0 != sz2 or sz1 != sz3: return
+        
+        mx = bpy.data.objects[self.o_name].matrix_world
+        imx = mx.inverted()
+        mxnorm = imx.transposed().to_3x3()
+        mx3x3 = mx.to_3x3()
+        
+        self.pts = []
+        self.quads = []
+        
+        lc0 = list(ge0.iter_segments())
+        idx0 =  (0,1) if rev0 else (3,2)
+        lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
+        if rev0: lc0.reverse()
+        
+        lc1 = list(ge1.iter_segments())
+        idx1 =  (0,1) if rev1 else (3,2)
+        lc1 = [lc1[0][idx1[0]]] + list(_c[idx1[1]] for _c in lc1)
+        if rev1: lc1.reverse()
+        
+        lc2 = list(ge2.iter_segments())
+        idx2 =  (0,1) if rev2 else (3,2)
+        lc2 = [lc2[0][idx2[0]]] + list(_c[idx2[1]] for _c in lc2)
+        if not rev2: lc2.reverse()
+        
+        lc3 = list(ge3.iter_segments())
+        idx3 =  (0,1) if rev3 else (3,2)
+        lc3 = [lc3[0][idx3[0]]] + list(_c[idx3[1]] for _c in lc3)
+        if not rev3: lc3.reverse()
+        
+        wid,hei = len(lc0),len(lc1)
+        
+        for i0,p0 in enumerate(lc0):
+            p2 = lc2[i0]
+            w1 = i0 / (wid-1)
+            w3 = 1.0 - w1
+            for i1,p1 in enumerate(lc1):
+                p3 = lc3[i1]
+                w2 = i1 / (hei-1)
+                w0 = 1.0 - w2
+                
+                if i1 == 0:
+                    self.pts += [(p0, True, (ge0,i0))]
+                    continue
+                if i0 == len(lc0)-1:
+                    self.pts += [(p1, True, (ge1,i1))]
+                    continue
+                if i1 == len(lc1)-1:
+                    self.pts += [(p2, True, (ge2,i0))]
+                    continue
+                if i0 == 0:
+                    self.pts += [(p3, True, (ge3,i1))]
+                    continue
+                
+                p02 = p0*w0 + p2*w2
+                p13 = p1*w1 + p3*w3
+                
+                w02,w13 = max(w0,w2),max(w1,w3)
+                if w02 > w13:
+                    w02 = (w02-0.5)**2 * 2 + 0.5
+                    w13 = 1.0 - w02
+                else:
+                    w13 = (w13-0.5)**2 * 2 + 0.5
+                    w02 = 1.0 - w13
+                
+                p = p02*w02 + p13*w13
+                p = mx * closest_point_on_mesh(imx * p)[0]
+                
+                self.pts += [( p, True, None)]
+        
+        for i0 in range(wid-1):
+            for i1 in range(hei-1):
+                self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
+    
+    def _update_quad_old(self):
         ge0,ge1,ge2,ge3 = self.gedges
         rev0,rev1,rev2,rev3 = self.rev
         closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
@@ -1166,15 +1282,12 @@ class GPatch:
         if rev0:
             cps0 = list(reversed(cps0))
             lts0 = [ 1-v for v in reversed(lts0)]
-            
         if rev1:
             cps1 = list(reversed(cps1))
             lts1 = [ 1-v for v in reversed(lts1)]
-            
         if not rev2:
             cps2 = list(reversed(cps2))
             lts2 = [ 1-v for v in reversed(lts2)]
-            
         if not rev3:
             cps3 = list(reversed(cps3))
             lts3 = [ 1-v for v in reversed(lts3)]
@@ -1268,17 +1381,11 @@ class GPatch:
         return False
     
     def iter_segments(self, only_visible=False):
-        l0,l1 = len(self.gedges[0].cache_igverts),len(self.gedges[1].cache_igverts)
-        for i0 in range(1,l0-2,2):
-            for i1 in range(1,l1-2,2):
-                lidxs = [(i0+0,i1+0),(i0+2,i1+0),(i0+2,i1+2),(i0+0,i1+2)]
-                if not all(self.visible[idx] for idx in lidxs):
-                    continue
-                p0 = self.map_pts[lidxs[0]]
-                p1 = self.map_pts[lidxs[1]]
-                p2 = self.map_pts[lidxs[2]]
-                p3 = self.map_pts[lidxs[3]]
-                yield (p0,p1,p2,p3)
+        for i0,i1,i2,i3 in self.quads:
+            pt0,pt1,pt2,pt3 = self.pts[i0],self.pts[i1],self.pts[i2],self.pts[i3]
+            if only_visible and not all(v for p,v,k in [pt0,pt1,pt2,pt3]):
+                continue
+            yield (pt0[0],pt1[0],pt2[0],pt3[0])
     
     def normal(self):
         n = Vector()
@@ -1287,9 +1394,8 @@ class GPatch:
         return n.normalized()
         
     def update_visibility(self, r3d):
-        lp = [p for _,_,p in self.pts]
-        lv = common_utilities.ray_cast_visible(lp, bpy.data.objects[self.o_name], r3d)
-        self.visible = {(pt[0],pt[1]):v for pt,v in zip(self.pts,lv)}
+        lv = common_utilities.ray_cast_visible([p for p,v,k in self.pts], bpy.data.objects[self.o_name], r3d)
+        self.pts = [(pt[0],v,pt[2]) for pt,v in zip(self.pts,lv)]
 
 
 
