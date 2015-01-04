@@ -25,7 +25,7 @@ import sys, os
 import math
 import copy
 import time
-import bpy, bmesh, blf
+import bpy, bmesh, blf, bgl
 from bpy.props import EnumProperty, StringProperty,BoolProperty, IntProperty, FloatVectorProperty, FloatProperty
 from bpy.types import Operator, AddonPreferences
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
@@ -38,7 +38,7 @@ from . import common_drawing
 
 class TextBox(object):
     
-    def __init__(self,context,settings,x,y,width,height,border,message):
+    def __init__(self,context,x,y,width,height,border,message):
         
         self.x = x
         self.y = y
@@ -53,15 +53,21 @@ class TextBox(object):
         self.line_height = blf.dimensions(0, 'A')[1]
         self.raw_text = message
         self.text_lines = []
+        self.format_and_wrap_text()
     
     def screen_boudaries(self):
         print('to be done later')
+    
+    def snap_to_coner(self,context,corner = [1,1]):
+        '''
+        '''
         
-    def fit_box_to_text(self):
+         
+    def fit_box_height_to_text_lines(self):
         '''
         will make box width match longest line
         '''
-    
+        self.height = len(self.text_lines)*(self.line_height+self.spacer)+2*self.border
         
     def format_and_wrap_text(self):
         '''
@@ -109,7 +115,7 @@ class TextBox(object):
             cur_line_len = 0
             for i,wrd in enumerate(words):
                 
-                word_width = blf.dimensions(0, wrd)
+                word_width = blf.dimensions(0, wrd)[0]
                 if word_width >= useful_width:
                     crp_wrd = crop_word(wrd, useful_width)
                         
@@ -141,15 +147,15 @@ class TextBox(object):
         for ln in lines:
             self.text_lines.extend(wrap_line(ln, useful_width))
         
-        for ln in self.text_lines:
-            print(ln)    
+
+        self.fit_box_height_to_text_lines()
         return
     
     def draw(self):
         txt_color = (.9,.9,.9,1)
         txt_color_no_poll = (.5, .5, .5, 1)
         
-        bg_color = (.1, .1, .1, .7)
+        bg_color = (.1, .1, .1, .5)
         search_color = (.2, .2, .2, 1)
         border_color = (.05, .05, .05, 1)
         highlight_color = (0,.3, 1, .8)

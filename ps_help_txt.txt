@@ -1,0 +1,10 @@
+Polystrips Help:
+
+1.Move mouse over model to preview brush
+2.Action mouse and drag, to draw a stroke
+3.Strokes are editable similar to bezier curves
+4.Stroke and other item selection based on your User Preferences
+5.Normal Transform Functions: G to Grab, R to Rotate, S to scale
+6.Meshlike Functions: Rip, Fill, Knife, Cycle Junction,  Relax Handles
+
+Lets say I make it longer.

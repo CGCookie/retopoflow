@@ -58,7 +58,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from .lib import common_utilities
 from .lib import common_drawing
 from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange
-from .lib.common_classes import SketchBrush
+from .lib.common_classes import SketchBrush, TextBox
 
 # Polystrip imports
 from . import polystrips_utilities
@@ -144,6 +144,11 @@ class RetopoFlowPreferences(AddonPreferences):
     }
 
     # User settings
+    show_help = BoolProperty(
+        name='Show Help Box',
+        description='A help text box will float on 3d view',
+        default=True
+        )
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
         description='Show segment count on selection',
@@ -2288,7 +2293,14 @@ class PolystripsUI:
 
         self.footer = ''
         self.footer_last = ''
+        
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, "ps_help_txt.txt")
+        help_txt = open(filename, mode='r').read()
 
+        self.help_box = TextBox(context,500,500,300,200,5,help_txt)
+        
+        
         self.last_matrix = None
 
         self._timer = context.window_manager.event_timer_add(0.1, context.window)
@@ -2738,6 +2750,9 @@ class PolystripsUI:
             common_drawing.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
 
+        if settings.show_help:
+            self.help_box.draw()
+            
     def create_mesh(self, context):
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
