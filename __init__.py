@@ -1321,7 +1321,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     self.post_update = True
                     return{'PASS_THROUGH'}
                 
-                elif event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+                elif event.type in selection_mouse() and event.value == 'PRESS':
                     
                     if self.hover_target and self.hover_target != self.selected:
                         
@@ -1665,7 +1665,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                     return {'RUNNING_MODAL'}
 
                     
-                elif event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+                elif event.type == in selection_mouse and event.value == 'PRESS':
                     if self.hover_target and self.hover_target.desc == 'CUT SERIES':
                         self.hover_target.do_select(settings)
                         self.selected_path = self.hover_target
