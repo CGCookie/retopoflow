@@ -2171,16 +2171,7 @@ class CGCOOKIE_OT_polystrips(bpy.types.Operator):
         if context.mode not in {'EDIT_MESH', 'OBJECT'}:
             return False
 
-        if context.active_object:
-            if context.mode == 'EDIT_MESH':
-                if len(context.selected_objects) > 1:
-                    return True
-                else:
-                    return False
-            else:
-                return context.object.type == 'MESH'
-        else:
-            return False
+        return context.object.type == 'MESH'
 
     def draw_callback(self, context):
         return self.ui.draw_callback(context)
