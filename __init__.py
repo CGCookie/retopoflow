@@ -1846,18 +1846,20 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             
             self.cut_paths = cut_data
             op_state.push_state(self)
-            
-            
-                    
 
-  
     def invoke(self, context, event):
         #HINT you are in contours code
         #TODO Settings harmon CODE REVIEW
         settings = common_utilities.get_settings()
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
-            self.report({'ERROR'}, 'Viewport shading must be at lease SOLID')
+            showErrorMessage('Viewport shading must be at least SOLID')
+            return {'CANCELLED'}
+        elif context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
+            showErrorMessage('Must select exactly two objects')
+            return {'CANCELLED'}
+        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
+            showErrorMessage('Must select only one object')
             return {'CANCELLED'}
         
         
