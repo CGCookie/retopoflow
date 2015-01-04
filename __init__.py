@@ -2244,12 +2244,19 @@ def register():
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
    
-    # create the mode switch menu hotkey
+    # Create the mode switch menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
     kmi.properties.name = 'object.retopology_menu' 
     kmi.active = True
+
+    km = kc.keymaps.new('RetopoFlow Modal Keymap', space_type='EMPTY', region_type='WINDOW', modal=True)
+
+    kmi = km.keymap_items.new_modal('SELECTION', 'LEFTMOUSE', 'PRESS', any=True)
+    kmi = km.keymap_items.new_modal('REMOVE', 'X', 'PRESS')
+
     addon_keymaps.append((km, kmi))
+
 
 
 def unregister():
