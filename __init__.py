@@ -2584,7 +2584,22 @@ class PolystripsUI:
             self.sel_gverts.add(ge.gvert0)
             self.sel_gverts.add(ge.gvert3)
 
-        for gv in itertools.chain(self.polystrips.gverts, self.polystrips.extension_geometry):
+        # Highlight possible extension gverts from existing geometry ### disable for now.
+        # for gv in itertools.chain(self.polystrips.extension_geometry):
+        #     if not gv.is_visible(): continue
+        #     p0,p1,p2,p3 = gv.get_corners()
+
+        #     if gv.is_unconnected() and not gv.from_mesh: continue
+
+        #     color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        #     color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+
+        #     p3d = [p0,p1,p2,p3,p0]
+        #     common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
+        #     common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+
+        # Color all gverts
+        for gv in itertools.chain(self.polystrips.gverts):
             if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
