@@ -3193,7 +3193,7 @@ class PolystripsUI:
             return ''
 
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE'}:
-            self.create_undo_snapshot('sketch')                   
+            self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
             x,y = eventd['mouse']
@@ -3219,68 +3219,7 @@ class PolystripsUI:
             return 'sketch'
 
         if eventd['press'] in {'RIGHTMOUSE','SHIFT+RIGHTMOUSE'}:                                         # picking
-            x,y = eventd['mouse']
-            pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
-            if not pts:
-                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
-                self.sel_gedges.clear()
-                self.sel_gverts.clear()
-                return ''
-            pt = pts[0]
 
-            if self.act_gvert or self.act_gedge:
-                # check if user is picking an inner control point
-                if self.act_gedge and not self.act_gedge.zip_to_gedge:
-                    lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
-                elif self.act_gvert:
-                    sgv = self.act_gvert
-                    lge = self.act_gvert.get_gedges()
-                    lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
-                else:
-                    lcpts = []
-
-                for cpt in lcpts:
-                    if not cpt.is_picked(pt): continue
-                    self.act_gedge = None
-                    self.sel_gedges.clear()
-                    self.act_gvert = cpt
-                    self.act_gpatch = None
-                    return ''
-            # Select gvert
-            for gv in self.polystrips.gverts:
-                if gv.is_unconnected(): continue
-                if not gv.is_picked(pt): continue
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                self.sel_gverts.clear()
-                self.act_gvert = gv
-                self.act_gpatch = None
-                return ''
-
-            for ge in self.polystrips.gedges:
-                if not ge.is_picked(pt): continue
-                self.act_gvert = None
-                self.act_gedge = ge
-                if not eventd['shift']:
-                    self.sel_gedges.clear()
-                self.sel_gedges.add(ge)
-                self.act_gpatch = None
-                return ''
-            # Select patch
-            for gp in self.polystrips.gpatches:
-                if not gp.is_picked(pt): continue
-                self.act_gvert = None
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                self.sel_gverts.clear()
-                self.act_gpatch = gp
-                print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
-                return ''
-
-            self.act_gedge,self.act_gvert = None,None
-            self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
             return ''
 
         if eventd['press'] == 'CTRL+LEFTMOUSE':                                     # delete/dissolve
@@ -3613,13 +3552,76 @@ class PolystripsUI:
                 return ''
                 
         return ''
+    
+    def pick(self, eventd):
+        x,y = eventd['mouse']
+        pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+        if not pts:
+            # user did not click on the object
+            self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            return ''
+        pt = pts[0]
 
+        if self.act_gvert or self.act_gedge:
+            # check if user is picking an inner control point
+            if self.act_gedge and not self.act_gedge.zip_to_gedge:
+                lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
+            elif self.act_gvert:
+                sgv = self.act_gvert
+                lge = self.act_gvert.get_gedges()
+                lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
+            else:
+                lcpts = []
+
+            for cpt in lcpts:
+                if not cpt.is_picked(pt): continue
+                self.act_gedge = None
+                self.sel_gedges.clear()
+                self.act_gvert = cpt
+                self.act_gpatch = None
+                return ''
+        # Select gvert
+        for gv in self.polystrips.gverts:
+            if gv.is_unconnected(): continue
+            if not gv.is_picked(pt): continue
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gvert = gv
+            self.act_gpatch = None
+            return ''
+
+        for ge in self.polystrips.gedges:
+            if not ge.is_picked(pt): continue
+            self.act_gvert = None
+            self.act_gedge = ge
+            if not eventd['shift']:
+                self.sel_gedges.clear()
+            self.sel_gedges.add(ge)
+            self.act_gpatch = None
+            return ''
+        # Select patch
+        for gp in self.polystrips.gpatches:
+            if not gp.is_picked(pt): continue
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gpatch = gp
+            print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
+            return ''
+
+        self.act_gedge,self.act_gvert = None,None
+        self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
+        self.sel_gedges.clear()
+        self.sel_gverts.clear()
+    
     def modal_sketching(self, eventd):
 
         settings = common_utilities.get_settings()
 
-        #my_str = eventd['type'] + ' ' + str(round(eventd['pressure'],2)) + ' ' + str(round(self.stroke_radius_pressure,2))
-        #print(my_str)
         if eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             if settings.use_pressure:
@@ -3650,6 +3652,16 @@ class PolystripsUI:
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
+            
+            dist_traveled = 0.0
+            for s0,s1 in zip(self.sketch[:-1],self.sketch[1:]):
+                dist_traveled += (Vector(s0[0]) - Vector(s1[0])).length
+            
+            # user likely picking, because distance traveled is very small
+            if dist_traveled < 5.0:
+                self.pick(eventd)
+                self.sketch = []
+                return 'main'
 
 
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
