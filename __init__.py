@@ -3722,7 +3722,81 @@ class PolystripsUI:
 
     ##############################
     # modal tool functions
-
+    
+    def modal_tweak_setup(self, eventd, max_dist=1.0):
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        mx = self.obj.matrix_world
+        mx3x3 = mx.to_3x3()
+        imx = mx.inverted()
+        
+        ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
+        hit_p3d,hit_norm,hit_idx = hit
+        
+        hit_p3d = mx * hit_p3d
+        
+        lgvmove = []
+        lgemove = []
+        lgpmove = []
+        supdate = set()
+        
+        for gv in self.polystrips.gverts:
+            lcorners = gv.get_corners()
+            ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
+            if not any(d < max_dist for d in ld):
+                continue
+            gv.frozen = True
+            lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
+            supdate.add(gv)
+            for ge in gv.get_gedges_notnone():
+                supdate.add(ge)
+                for gp in ge.gpatches:
+                    supdate.add(gp)
+        
+        for ge in self.polystrips.gedges:
+            for i,gv in ge.iter_igverts():
+                p0 = gv.position+gv.tangent_y*gv.radius
+                p1 = gv.position-gv.tangent_y*gv.radius
+                d0 = (p0-hit_p3d).length / self.stroke_radius
+                d1 = (p1-hit_p3d).length / self.stroke_radius
+                if d0 >= max_dist and d1 >= max_dist: continue
+                ge.frozen = True
+                lgemove += [(gv,i,p0,d0,p1,d1)]
+                supdate.add(ge)
+                supdate.add(ge.gvert0)
+                supdate.add(ge.gvert3)
+                for gp in ge.gpatches:
+                    supdate.add(gp)
+        
+        for gp in self.polystrips.gpatches:
+            l0,l1 = len(gp.ge0.cache_igverts),len(gp.ge1.cache_igverts)
+            freeze = False
+            for i0 in range(1,l0-1,2):
+                for i1 in range(1,l1-1,2):
+                    p = gp.map_pts[(i0,i1)]
+                    d = (p-hit_p3d).length / self.stroke_radius
+                    if d >= max_dist: continue
+                    freeze = True
+                    lgpmove += [(gp,i0,i1,p,d)]
+            if not freeze: continue
+            gp.frozen = True
+            supdate.add(gp)
+            
+        
+        self.tweak_data = {
+            'mouse': eventd['mouse'],
+            'lgvmove': lgvmove,
+            'lgemove': lgemove,
+            'lgpmove': lgpmove,
+            'supdate': supdate,
+            'mx': mx,
+            'mx3x3': mx3x3,
+            'imx': imx,
+        }
+        
+    
     def modal_tweak_move_tool(self, eventd):
         if eventd['release'] == 'T':
             return 'main'
@@ -3732,76 +3806,7 @@ class PolystripsUI:
         r3d = eventd['r3d']
         
         if eventd['press'] == 'LEFTMOUSE':
-            mx = self.obj.matrix_world
-            mx3x3 = mx.to_3x3()
-            imx = mx.inverted()
-            
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
-            hit_p3d,hit_norm,hit_idx = hit
-            
-            hit_p3d = mx * hit_p3d
-            
-            lgvmove = []
-            lgemove = []
-            lgpmove = []
-            supdate = set()
-            
-            for gv in self.polystrips.gverts:
-                lcorners = gv.get_corners()
-                ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
-                if not any(d < 1.0 for d in ld):
-                    continue
-                gv.frozen = True
-                lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < 1.0]
-                supdate.add(gv)
-                for ge in gv.get_gedges_notnone():
-                    supdate.add(ge)
-                    for gp in ge.gpatches:
-                        supdate.add(gp)
-            
-            for ge in self.polystrips.gedges:
-                for i,gv in ge.iter_igverts():
-                    p0 = gv.position+gv.tangent_y*gv.radius
-                    p1 = gv.position-gv.tangent_y*gv.radius
-                    d0 = (p0-hit_p3d).length / self.stroke_radius
-                    d1 = (p1-hit_p3d).length / self.stroke_radius
-                    if d0 >= 1.0 and d1 >= 1.0: continue
-                    ge.frozen = True
-                    lgemove += [(gv,i,p0,d0,p1,d1)]
-                    supdate.add(ge)
-                    supdate.add(ge.gvert0)
-                    supdate.add(ge.gvert3)
-                    for gp in ge.gpatches:
-                        supdate.add(gp)
-            
-            for gp in self.polystrips.gpatches:
-                l0,l1 = len(gp.ge0.cache_igverts),len(gp.ge1.cache_igverts)
-                freeze = False
-                for i0 in range(1,l0-1,2):
-                    for i1 in range(1,l1-1,2):
-                        p = gp.map_pts[(i0,i1)]
-                        d = (p-hit_p3d).length / self.stroke_radius
-                        if d >= 1.0: continue
-                        freeze = True
-                        lgpmove += [(gp,i0,i1,p,d)]
-                if not freeze: continue
-                gp.frozen = True
-                supdate.add(gp)
-                
-            
-            self.tweak_data = {
-                'mouse': eventd['mouse'],
-                'lgvmove': lgvmove,
-                'lgemove': lgemove,
-                'lgpmove': lgpmove,
-                'supdate': supdate,
-                'mx': mx,
-                'mx3x3': mx3x3,
-                'imx': imx,
-            }
-            
-            print('%d,%d,%d' % (len(lgvmove),len(lgemove),len(lgpmove)))
-            
+            modal_tweak_setup(self, eventd)
             return ''
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
@@ -3859,6 +3864,62 @@ class PolystripsUI:
     def modal_tweak_relax_tool(self, eventd):
         if eventd['release'] == 'SHIFT+T':
             return 'main'
+        
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        if eventd['press'] == 'LEFTMOUSE':
+            modal_tweak_setup(self, eventd, max_dist=2.0)
+            return ''
+        
+        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+            cx,cy = eventd['mouse']
+            
+            mx = self.tweak_data['mx']
+            mx3x3 = self.tweak_data['mx3x3']
+            imx = self.tweak_data['imx']
+            
+            def update(p3d, d):
+                if d >= 1.0: return p3d
+                p2d = location_3d_to_region_2d(region, r3d, p3d)
+                p2d += dv * (1.0-d)
+                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
+                if hit[2] == -1: return p3d
+                return mx * hit[0]
+                
+                return pts[0]
+            
+            for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
+            for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
+                nc0 = update(c0,d0)
+                nc1 = update(c1,d1)
+                gv.position = (nc0+nc1)/2.0
+                gv.tangent_y = (nc0-nc1).normalized()
+                gv.radius = (nc0-nc1).length / 2.0
+            
+            for gp,i0,i1,c,d in self.tweak_data['lgpmove']:
+                nc = update(c,d)
+                gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
+                gp.map_pts[(i0,i1)] = nc
+                
+            
+            if eventd['release'] == 'LEFTMOUSE':
+                for u in self.tweak_data['supdate']:
+                   u.update()
+                for u in self.tweak_data['supdate']:
+                   u.update_visibility(eventd['r3d'])
+                self.tweak_data = None
+        
         return ''
     
     def modal_scale_tool(self, eventd):
