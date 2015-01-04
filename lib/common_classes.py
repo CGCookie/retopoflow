@@ -36,7 +36,91 @@ from . import common_utilities
 from . import common_drawing
 
 
-
+class TextBox(object):
+    
+    def __init__(self,context,settings,x,y,width,height,border,message):
+        
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.border = border
+        border
+        
+        self.raw_text = message
+        self.lines = []
+    
+    def screen_boudaries(self):
+        print('to be done later')
+        
+    def fit_box_to_text(self):
+        '''
+        will make box width match longest line
+        '''
+    
+        
+    def format_and_wrap_text(self):
+        useful_width = self.width - 2 * self.border
+        spc_size = blf.dimensions(0,' ')[0]
+        
+        dim_raw = blf.dimensions(0,self.raw_text)
+        if dim_raw < useful_width:
+            #TODO fill in the relevant data
+            return
+        
+        #clean up line seps, double spaces
+        self.raw_text.replace('\r','')
+        self.raw_text.replace('  ',' ')
+        
+        def crop_word(word, width):
+            '''
+            word will be cropped to less than width
+            '''
+            ltr_indx = 0
+            wrd_width = 0
+            while ltr_indx < len(word) and wrd_width:
+                wrd_with += blf.dimensions(0,word[ltr_indx])
+                ltr_indx += 1
+                
+            return word[0:ltr_indx - 1]  #TODO, check indexing for slice op
+        
+        
+        def wrap_line(txt_line,width):
+            '''
+            takes a string, returns a list of strings, corresponding to wrapped
+            text of the specified width, given current BLF settings
+            '''
+            if blf.dimensions(0,txt_ln)[0] < useful_width:
+                #TODO fil
+                return [txt_line]
+            
+            txt = txt_ln.copy()
+            words = txt.split(' ')
+            new_lines = []
+            
+            wrd_i = 0
+            while i < len(words) - 1:
+                line_len = 0
+                new_ln = []
+                while line_len <= useful_width:
+                    word_width = blf.dimensions(0, words[wrd_i])
+                    if word_with >= useful_width:
+                        crp_wrd = crop_word(words[wrd_i], useful_width)
+                        
+                        if len(new_ln):
+                            new_lines.append(new_ln)
+                        new_lines.append([crp_wrd])
+                        break
+                    
+                    words_len += blf.dimensions(0, words[wrd_i])
+                    if i < len(words) -1:
+                        words_len += spc_size
+                    new_ln.append(words[wrd_i])
+                    wrd_i += 1
+            
+            
+        lines = self.raw_text.split()
+        
 class SketchBrush(object):
     def __init__(self,context,settings, x,y,pixel_radius, ob, n_samples = 15):
         
