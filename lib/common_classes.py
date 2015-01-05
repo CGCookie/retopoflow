@@ -45,6 +45,8 @@ class TextBox(object):
         self.def_width = width
         self.def_height = height
         
+        
+        
         self.width = width
         self.height = height
         self.border = border
@@ -53,7 +55,7 @@ class TextBox(object):
         self.collapsed_msg = "[?] for Help"
         
         self.text_size = 12
-        self.text_dpi = 72
+        self.text_dpi = context.user_preferences.system.dpi
         blf.size(0, self.text_size, self.text_dpi)
         self.line_height = blf.dimensions(0, 'A')[1]
         self.raw_text = message
@@ -64,9 +66,10 @@ class TextBox(object):
         print('to be done later')
     
     def collapse(self):
+        line_height = blf.dimensions(0, 'A')[1]
         self.is_collapsed = True
         self.width = blf.dimensions(0,self.collapsed_msg)[0] + 2 * self.border
-        self.height = self.line_height + 2*self.border
+        self.height = line_height + 2*self.border
         
     def uncollapse(self):
         self.is_collapsed = False
@@ -94,7 +97,8 @@ class TextBox(object):
         '''
         will make box width match longest line
         '''
-        self.height = len(self.text_lines)*(self.line_height+self.spacer)+2*self.border
+        line_height = blf.dimensions(0, 'A')[1]
+        self.height = len(self.text_lines)*(line_height+self.spacer)+2*self.border
         
     def format_and_wrap_text(self):
         '''
@@ -208,15 +212,17 @@ class TextBox(object):
         top = self.y
         
         #draw the whole menu bacground
-        outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (self.line_height + 2 * self.spacer)/6)
+        line_height = blf.dimensions(0, 'A')[1]
+        outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
         common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
         common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
         
-        blf.size(0, self.text_size, self.text_dpi)
+        dpi = bpy.context.user_preferences.system.dpi
+        blf.size(0, self.text_size, dpi)
         
         if self.is_collapsed:
             txt_x = left + self.border
-            txt_y = top - self.border - self.line_height
+            txt_y = top - self.border - line_height
             blf.position(0,txt_x, txt_y, 0)
             bgl.glColor4f(*txt_color)
             blf.draw(0, self.collapsed_msg)
@@ -225,7 +231,7 @@ class TextBox(object):
         for i, line in enumerate(self.text_lines):
             
             txt_x = left + self.border
-            txt_y = top - self.border - (i+1) * (self.line_height + self.spacer)
+            txt_y = top - self.border - (i+1) * (line_height + self.spacer)
                 
             blf.position(0,txt_x, txt_y, 0)
             bgl.glColor4f(*txt_color)

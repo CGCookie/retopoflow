@@ -773,6 +773,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if len(self.snap_circle):
             common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
 
+        if settings.show_help:
+            self.help_box.draw()
     ####Blender Mesh Data Management####
     
     def new_destination_obj(self,context,name, mx):
@@ -1682,6 +1684,12 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         ########################################
         # accept / cancel hard coded
+        if eventd['press'] in self.keymap['help']:
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         
         if eventd['press'] in self.keymap['confirm']:
             self.finish_mesh(eventd['context'])
@@ -1803,8 +1811,15 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             return nmode
          
         ########################################
-        # accept / cancel
-         
+        #help
+        if eventd['press'] in self.keymap['help']:
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+        # accept / cancel 
         if eventd['press'] in self.keymap['confirm']:
             self.finish_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
