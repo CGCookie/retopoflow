@@ -142,6 +142,11 @@ class RetopoFlowPreferences(AddonPreferences):
         description = "Show the Contour settings",
         default=False,
         )
+    polystrips_panel_settings = BoolProperty(
+        name="Show Polystrips Settings",
+        description = "Show the Polystrips settings",
+        default=False,
+        )
 
     # System settings
     quad_prev_radius = IntProperty(
@@ -462,11 +467,11 @@ class RetopoFlowPreferences(AddonPreferences):
     symmetry_plane = EnumProperty(
         items=[
             ('none', 'None', 'Disable symmetry plane'),
-            ('x', 'X', 'Symmetric along X-axis (YZ plane)'),
-            ('y', 'Y', 'Symmetric along Y-axis (XZ plane)'),
-            ('z', 'Z', 'Symmetric along Z-axis (XY plane)'),
+            ('x', 'X', 'Clip to X-axis (YZ plane)'),
+            # ('y', 'Y', 'Clip to Y-axis (XZ plane)'),
+            # ('z', 'Z', 'Clip to Z-axis (XY plane)'),
             ],
-        name='symmetry_plane',
+        name='Symmetry Plane',
         description = "Clamp and clip to symmetry plane",
         default='none'
         )
@@ -609,6 +614,15 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         col = layout.column(align=True)
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+
+        box = layout.box()
+        row = box.row()
+
+        row.prop(settings, "polystrips_panel_settings")
+
+        if settings.polystrips_panel_settings:
+            col = box.column()
+            col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
