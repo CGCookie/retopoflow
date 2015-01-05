@@ -2258,9 +2258,9 @@ class PolystripsUI:
                 # Comment out for now. Appears to no longer be needed.
                 # bpy.ops.object.mode_set(mode='EDIT')
                 # bpy.ops.object.mode_set(mode='OBJECT')
+                self.obj.matrix_world = self.obj_orig.matrix_world
             else:
                 self.obj = self.obj_orig
-            self.obj.matrix_world = self.obj_orig.matrix_world
 
             # Debug level 2: time end
             check_time.done()
