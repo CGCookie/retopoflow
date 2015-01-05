@@ -3253,7 +3253,7 @@ class PolystripsUI:
         
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
-        if eventd['press'] in {'LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+        if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
