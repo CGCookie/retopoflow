@@ -2244,6 +2244,8 @@ class PolystripsUI:
         settings = common_utilities.get_settings()
 
         self.mode = 'main'
+        
+        self.fullscreened = False
 
         self.mode_pos = (0, 0)
         self.cur_pos = (0, 0)
@@ -2254,6 +2256,8 @@ class PolystripsUI:
         self.sketch_curpos = (0, 0)
         self.sketch_pressure = 1
         self.sketch = []
+        
+        self.tweak_data = None
 
         self.post_update = True
 
@@ -2489,6 +2493,8 @@ class PolystripsUI:
     def draw_callback_themed(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
+        
+        m = Vector([-1,1,1])
 
         # theme_number = int(settings.theme)
 
@@ -2512,17 +2518,15 @@ class PolystripsUI:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
             
+            if gpatch.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
+            
             for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
-                common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
                 common_drawing.draw_polyline_from_3dpoints(context, [p0,p1,p2,p3,p0], color_border, 1, "GL_LINE_STIPPLE")
                 common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
             
-            # draw edge directions
-            if settings.debug > 2:
-                self.draw_gedge_direction(context, gpatch.ge0, (0.8,0.4,0.4,1.0))
-                self.draw_gedge_direction(context, gpatch.ge1, (0.4,0.8,0.4,1.0))
-                self.draw_gedge_direction(context, gpatch.ge2, (0.4,0.4,0.8,1.0))
-                self.draw_gedge_direction(context, gpatch.ge3, (0.4,0.4,0.4,1.0))
+            common_drawing.draw_3d_points(context, [p for p,v,k in gpatch.pts if v], color_border, 3)
 
         ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
@@ -2538,6 +2542,10 @@ class PolystripsUI:
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            
+            if gedge.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
@@ -2592,6 +2600,9 @@ class PolystripsUI:
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            if gv.is_frozen():
+                color_border = (0.80,0.80,0.80,1.00)
+                color_fill   = (0.80,0.80,0.80,0.20)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
@@ -2758,6 +2769,8 @@ class PolystripsUI:
     # fill function
 
     def fill(self, eventd):
+        
+        # GVert active
         if self.act_gvert:
             lges = self.act_gvert.get_gedges()
             if self.act_gvert.is_ljunction():
@@ -2779,6 +2792,52 @@ class PolystripsUI:
             self.sel_gedges = set(lgepairs[0])
             self.act_gedge = next(iter(self.sel_gedges))
             self.act_gvert = None
+        
+        loop_selected = True
+        sgedges = set(self.sel_gedges)
+        ge0 = sgedges.pop()
+        gedges = [ge0]
+        while sgedges and loop_selected:
+            for ge1 in sgedges:
+                if ge1.has_endpoint(ge0.gvert3) or ge1.has_endpoint(ge0.gvert0):
+                    gedges += [ge1]
+                    sgedges.remove(ge1)
+                    ge0 = ge1
+                    break
+            else:
+                loop_selected = False
+        
+        if len(self.sel_gedges) not in {3,4,5} and loop_selected:
+            showErrorMessage('Can only fill a 3-, 4-, or 5-sided patch')
+            return
+            
+        if len(self.sel_gedges) == 5 and not loop_selected:
+            showErrorMessage('Must select five GEdges that form a ring!')
+            return
+        
+        
+        if loop_selected:
+            
+            # test if we need to change direction!
+            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
+            gv2 = gedges[-1].gvert0 if gedges[-1].gvert3 in [gv0,gv1] else gedges[-1].gvert3
+            if gv0 != gedges[-1].gvert0 and gv0 != gedges[-1].gvert3:
+                gv0,gv1 = gv1,gv0
+            n0 = gv0.snap_norm
+            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
+            if n0.dot(n1) > 0:
+                gedges.reverse()
+            
+            gp = self.polystrips.create_gpatch(*gedges)
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gpatch = gp
+            
+            gp.update()
+            self.polystrips.update_visibility(eventd['r3d'])
+            return
         
         if len(self.sel_gedges) != 2:
             showErrorMessage('Must have exactly 2 selected edges')
@@ -3116,15 +3175,6 @@ class PolystripsUI:
             self.post_update = True
             self.is_navigating = True
 
-            # x,y = eventd['mouse']
-            # self.sketch_brush.update_mouse_move_hover(eventd['context'], x,y)
-            # self.sketch_brush.make_circles()
-            # self.sketch_brush.get_brush_world_size(eventd['context'])
-            
-            # if self.sketch_brush.world_width:
-            #     self.stroke_radius = self.sketch_brush.world_width
-            #     self.stroke_radius_pressure = self.sketch_brush.world_width
-                
             return 'nav' if eventd['value']=='PRESS' else 'main'
 
         self.is_navigating = False
@@ -3191,7 +3241,16 @@ class PolystripsUI:
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
-
+        
+        if eventd['press'] in {'T','SHIFT+T'}:
+            self.create_undo_snapshot('tweak')
+            self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges = set()
+            self.act_gpatch = None
+            return 'tweak move tool' if eventd['press']=='T' else 'tweak relax tool'
+        
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE'}:
@@ -3215,7 +3274,7 @@ class PolystripsUI:
                 self.sketch = [((gvx,gvy),self.act_gvert.radius), ((x,y),r)]
             else:
                 self.sketch = [((x,y),r)]
-
+            
             return 'sketch'
 
         # If RMB is set to select, select as normal
@@ -3285,6 +3344,11 @@ class PolystripsUI:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
+                return ''
+            if eventd['press'] in {'R','SHIFT+R'}:
+                reverse = eventd['press']=='SHIFT+R'
+                self.act_gpatch.rotate_pole(reverse=reverse)
+                self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
         ###################################
@@ -3677,14 +3741,24 @@ class PolystripsUI:
             # p3d = [(p0+(p1-p0).normalized()*x) for p0,p1 in zip(p3d[:-1],p3d[1:]) for x in frange(0,(p0-p1).length,length_tess)] + [p3d[-1]]
             # stroke = [(p,self.stroke_radius) for i,p in enumerate(p3d)]
 
-            stroke = p3d
             self.sketch = []
-            dprint('')
-            dprint('')
-            dprint('inserting stroke')
             
-            
-            self.polystrips.insert_gedge_from_stroke(stroke, False)
+            while p3d:
+                next_i_p = len(p3d)
+                for i_p,p in enumerate(p3d):
+                    if p[0].x < 0.0:
+                        next_i_p = i_p
+                        break
+                self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p], False)
+                p3d = p3d[next_i_p:]
+                next_i_p = len(p3d)
+                for i_p,p in enumerate(p3d):
+                    if p[0].x >= 0.0:
+                        next_i_p = i_p
+                        break
+                p3d = p3d[next_i_p:]
+            #stroke = p3d
+            #self.polystrips.insert_gedge_from_stroke(stroke, False)
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
 
@@ -3698,7 +3772,203 @@ class PolystripsUI:
 
     ##############################
     # modal tool functions
-
+    
+    def modal_tweak_setup(self, eventd, max_dist=1.0):
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        mx = self.obj.matrix_world
+        mx3x3 = mx.to_3x3()
+        imx = mx.inverted()
+        
+        ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
+        hit_p3d,hit_norm,hit_idx = hit
+        
+        hit_p3d = mx * hit_p3d
+        
+        lgvmove = []
+        lgemove = []
+        lgpmove = []
+        supdate = set()
+        
+        for gv in self.polystrips.gverts:
+            lcorners = gv.get_corners()
+            ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
+            if not any(d < max_dist for d in ld):
+                continue
+            gv.freeze()
+            lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
+            supdate.add(gv)
+            for ge in gv.get_gedges_notnone():
+                supdate.add(ge)
+                for gp in ge.gpatches:
+                    supdate.add(gp)
+        
+        for ge in self.polystrips.gedges:
+            for i,gv in ge.iter_igverts():
+                p0 = gv.position+gv.tangent_y*gv.radius
+                p1 = gv.position-gv.tangent_y*gv.radius
+                d0 = (p0-hit_p3d).length / self.stroke_radius
+                d1 = (p1-hit_p3d).length / self.stroke_radius
+                if d0 >= max_dist and d1 >= max_dist: continue
+                ge.freeze()
+                lgemove += [(gv,i,p0,d0,p1,d1)]
+                supdate.add(ge)
+                supdate.add(ge.gvert0)
+                supdate.add(ge.gvert3)
+                for gp in ge.gpatches:
+                    supdate.add(gp)
+        
+        for gp in self.polystrips.gpatches:
+            freeze = False
+            for i_pt,pt in enumerate(gp.pts):
+                p,_,_ = pt
+                d = (p-hit_p3d).length / self.stroke_radius
+                if d >= max_dist: continue
+                freeze = True
+                lgpmove += [(gp,i_pt,p,d)]
+            if not freeze: continue
+            gp.freeze()
+            supdate.add(gp)
+            
+        
+        self.tweak_data = {
+            'mouse': eventd['mouse'],
+            'lgvmove': lgvmove,
+            'lgemove': lgemove,
+            'lgpmove': lgpmove,
+            'supdate': supdate,
+            'mx': mx,
+            'mx3x3': mx3x3,
+            'imx': imx,
+        }
+        
+    
+    def modal_tweak_move_tool(self, eventd):
+        if eventd['release'] == 'T':
+            return 'main'
+        
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        if eventd['press'] == 'LEFTMOUSE':
+            self.modal_tweak_setup(eventd)
+            return ''
+        
+        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+            cx,cy = eventd['mouse']
+            lx,ly = self.tweak_data['mouse']
+            dx,dy = cx-lx,cy-ly
+            dv = Vector((dx,dy))
+            
+            mx = self.tweak_data['mx']
+            mx3x3 = self.tweak_data['mx3x3']
+            imx = self.tweak_data['imx']
+            
+            def update(p3d, d):
+                if d >= 1.0: return p3d
+                p2d = location_3d_to_region_2d(region, r3d, p3d)
+                p2d += dv * (1.0-d)
+                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
+                if hit[2] == -1: return p3d
+                return mx * hit[0]
+                
+                return pts[0]
+            
+            for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
+            for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
+                nc0 = update(c0,d0)
+                nc1 = update(c1,d1)
+                gv.position = (nc0+nc1)/2.0
+                gv.tangent_y = (nc0-nc1).normalized()
+                gv.radius = (nc0-nc1).length / 2.0
+            
+            for gp,i_pt,c,d in self.tweak_data['lgpmove']:
+                p,v,k = gp.pts[i_pt]
+                nc = update(c,d)
+                gp.pts[i_pt] = (nc,v,k)
+            
+            if eventd['release'] == 'LEFTMOUSE':
+                for u in self.tweak_data['supdate']:
+                   u.update()
+                for u in self.tweak_data['supdate']:
+                   u.update_visibility(eventd['r3d'])
+                self.tweak_data = None
+        
+        return ''
+    
+    def modal_tweak_relax_tool(self, eventd):
+        if eventd['release'] == 'SHIFT+T':
+            return 'main'
+        
+        settings = common_utilities.get_settings()
+        region = eventd['region']
+        r3d = eventd['r3d']
+        
+        if eventd['press'] == 'LEFTMOUSE':
+            modal_tweak_setup(self, eventd, max_dist=2.0)
+            return ''
+        
+        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+            cx,cy = eventd['mouse']
+            
+            mx = self.tweak_data['mx']
+            mx3x3 = self.tweak_data['mx3x3']
+            imx = self.tweak_data['imx']
+            
+            def update(p3d, d):
+                if d >= 1.0: return p3d
+                p2d = location_3d_to_region_2d(region, r3d, p3d)
+                p2d += dv * (1.0-d)
+                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
+                if hit[2] == -1: return p3d
+                return mx * hit[0]
+                
+                return pts[0]
+            
+            for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
+            for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
+                nc0 = update(c0,d0)
+                nc1 = update(c1,d1)
+                gv.position = (nc0+nc1)/2.0
+                gv.tangent_y = (nc0-nc1).normalized()
+                gv.radius = (nc0-nc1).length / 2.0
+            
+            for gp,i0,i1,c,d in self.tweak_data['lgpmove']:
+                nc = update(c,d)
+                gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
+                gp.map_pts[(i0,i1)] = nc
+                
+            
+            if eventd['release'] == 'LEFTMOUSE':
+                for u in self.tweak_data['supdate']:
+                   u.update()
+                for u in self.tweak_data['supdate']:
+                   u.update_visibility(eventd['r3d'])
+                self.tweak_data = None
+        
+        return ''
+    
     def modal_scale_tool(self, eventd):
         cx,cy = self.action_center
         mx,my = eventd['mouse']
@@ -3795,6 +4065,8 @@ class PolystripsUI:
     # main modal function (FSM)
 
     def modal(self, context, event):
+        if not context.area: return {'RUNNING_MODAL'}
+        
         context.area.tag_redraw()
         settings = common_utilities.get_settings()
 
@@ -3812,6 +4084,8 @@ class PolystripsUI:
         FSM['grab tool'] = self.modal_grab_tool
         FSM['rotate tool'] = self.modal_rotate_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
+        FSM['tweak move tool'] = self.modal_tweak_move_tool
+        FSM['tweak relax tool'] = self.modal_tweak_relax_tool
 
         self.cur_pos = eventd['mouse']
         nmode = FSM[self.mode](eventd)
@@ -3823,9 +4097,17 @@ class PolystripsUI:
         if nmode in {'finish','cancel'}:
             self.kill_timer(context)
             polystrips_undo_cache = []
+            
+            bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.fullscreened = False
+            
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.mode = nmode
+        
+        if not self.fullscreened:
+            bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.fullscreened = True
 
         return {'RUNNING_MODAL'}
 
