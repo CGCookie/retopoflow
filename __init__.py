@@ -2241,22 +2241,29 @@ class PolystripsUI:
 
         if context.mode == 'OBJECT':
 
+            # Debug level 2: time start
+            check_time = profiler.start()
             self.obj_orig = context.object
             # duplicate selected objected to temporary object but with modifiers applied
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
+            if self.obj_orig.modifiers:
+                # Time event
+                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                self.me.update()
+                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+                bpy.context.scene.objects.link(self.obj)
+                self.obj.hide = True
+
+                # HACK
+                # Comment out for now. Appears to no longer be needed.
+                # bpy.ops.object.mode_set(mode='EDIT')
+                # bpy.ops.object.mode_set(mode='OBJECT')
+            else:
+                self.obj = self.obj_orig
             self.obj.matrix_world = self.obj_orig.matrix_world
-            self.me.update()
 
-            # HACK
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.object.mode_set(mode='OBJECT')
+            # Debug level 2: time end
+            check_time.done()
 
-            self.bme = bmesh.new()
-            self.bme.from_mesh(self.me)
 
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
@@ -2273,19 +2280,20 @@ class PolystripsUI:
 
         if context.mode == 'EDIT_MESH':
             self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-            self.bme = bmesh.new()
-            self.bme.from_mesh(self.me)
+            if self.obj_orig.modifiers:
+                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                self.me.update()
 
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
+                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+                bpy.context.scene.objects.link(self.obj)
+                self.obj.hide = True
+            else:
+                self.obj = self.obj_orig
             self.obj.matrix_world = self.obj_orig.matrix_world
-            self.me.update()
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.mode_set(mode='EDIT')
+            # Comment out for now. Appears to no longer be needed.
+            # bpy.ops.object.mode_set(mode='OBJECT')
+            # bpy.ops.object.mode_set(mode='EDIT')
 
             self.dest_obj = context.object
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
@@ -2397,17 +2405,18 @@ class PolystripsUI:
         '''
         dprint('cleaning up!')
 
-        tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-        meobj  = tmpobj.data
+        if self.obj_orig.modifiers:
+            tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
+            meobj  = tmpobj.data
 
-        # Delete object
-        context.scene.objects.unlink(tmpobj)
-        tmpobj.user_clear()
-        if tmpobj.name in bpy.data.objects:
-            bpy.data.objects.remove(tmpobj)
+            # Delete object
+            context.scene.objects.unlink(tmpobj)
+            tmpobj.user_clear()
+            if tmpobj.name in bpy.data.objects:
+                bpy.data.objects.remove(tmpobj)
 
-        bpy.context.scene.update()
-        bpy.data.meshes.remove(meobj)
+            bpy.context.scene.update()
+            bpy.data.meshes.remove(meobj)
 
     ################################
     # Draw functions
