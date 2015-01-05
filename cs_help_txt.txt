@@ -1,0 +1,12 @@
+Contours Help:
+
+1.Welcome to simple help
+2.Action mouse and drag, to cut or draw a stroke
+3.Cuts are transformable with widget or hotkeys
+4."Tab" to enter a stroke mode to generate many cuts
+5.Normal Transform Functions: G to Grab, R to Rotate, S to scale
+6.Editmode works
+7.You can turn this off in user preferences
+8. Hit question mark to collapse me
+
+More information to come!
