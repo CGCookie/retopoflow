@@ -1701,7 +1701,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.hover_loop_mode(eventd['context'], self.settings, x,y)
             return ''
         
-        if eventd['press'] in self.keymap['select']: # selection
+        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
             ret = self.loop_select(eventd['context'], eventd)
             if ret:
                 return ''
@@ -1827,7 +1827,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.hover_guide_mode(eventd['context'], self.settings, x, y)
             return ''
         
-        if eventd['press'] in self.keymap['select']: # selection
+        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
             if self.hover_target and self.hover_target.desc == 'CUT SERIES':
                 self.hover_target.do_select(self.settings)
                 self.sel_path = self.hover_target
