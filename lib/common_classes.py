@@ -42,11 +42,15 @@ class TextBox(object):
         
         self.x = x
         self.y = y
+        self.def_width = width
+        self.def_height = height
+        
         self.width = width
         self.height = height
         self.border = border
         self.spacer = 5
         self.is_collapsed = False
+        self.collapsed_msg = "[?] for Help"
         
         self.text_size = 12
         self.text_dpi = 72
@@ -59,17 +63,33 @@ class TextBox(object):
     def screen_boudaries(self):
         print('to be done later')
     
+    def collapse(self):
+        self.is_collapsed = True
+        self.width = blf.dimensions(0,self.collapsed_msg)[0] + 2 * self.border
+        self.height = self.line_height + 2*self.border
+        
+    def uncollapse(self):
+        self.is_collapsed = False
+        self.width = self.def_width
+        self.format_and_wrap_text()
+        self.fit_box_height_to_text_lines()
+        
     def snap_to_corner(self,context,corner = [1,1]):
         '''
-        '''
-        if self.is_collapsed:
-            self.x = 5 + .25*self.width + corner[0]*(context.region.width - .5*self.width - 10)
-            self.y = 5 + 2*self.border + self.line_height + corner[1]*(context.region.height - 10 - (2*self.border + self.line_height))
-            return
-        
+        '''        
         self.x = 5 + .5*self.width + corner[0]*(context.region.width - self.width - 10)
         self.y = 5 + self.height + corner[1]*(context.region.height - 10 - self.height)
              
+    
+    def fit_box_width_to_text_lines(self):
+        '''
+        '''
+        
+        max_width = max([blf.dimensions(0,line)[0] for line in self.text_lines]) 
+        if max_width < self.width - 2*self.border:
+            self.width = max_width + 2*self.border
+        
+        
     def fit_box_height_to_text_lines(self):
         '''
         will make box width match longest line
@@ -87,7 +107,7 @@ class TextBox(object):
         
         dim_raw = blf.dimensions(0,self.raw_text)
         if dim_raw[0] < useful_width:
-            #TODO fill in the relevant data
+            self.text_lines = [self.raw_text]
             return
         
         #clean up line seps, double spaces
@@ -156,6 +176,8 @@ class TextBox(object):
         
 
         self.fit_box_height_to_text_lines()
+        if len(self.text_lines) == 1 or len(lines) == len(self.text_lines):
+            self.fit_box_width_to_text_lines()
         return
     
     def draw(self):
@@ -179,27 +201,11 @@ class TextBox(object):
         bordB = bordcol[2]
         bordA = .8
         border_color = (bordR, bordG, bordB, bordA) 
-        
-        if self.is_collapsed:
-            left = self.x - self.width/4
-            right = left + self.width/2
-            top = self.y
-            bottom = self.y - self.line_height - 2*self.border
-            outline = common_drawing.round_box(left, bottom, right, top, (top-bottom)/6)
-            common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
-            common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
-            blf.position(0,left + self.border, bottom+self.border, 0)
-            bgl.glColor4f(*txt_color)
-            blf.draw(0, "Press ? for Help")
-            return
             
         left = self.x - self.width/2
         right = left + self.width
         bottom = self.y - self.height
         top = self.y
-        
-        left_text = left + self.border
-        bottom_text = bottom + self.border
         
         #draw the whole menu bacground
         outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (self.line_height + 2 * self.spacer)/6)
@@ -208,9 +214,17 @@ class TextBox(object):
         
         blf.size(0, self.text_size, self.text_dpi)
         
+        if self.is_collapsed:
+            txt_x = left + self.border
+            txt_y = top - self.border - self.line_height
+            blf.position(0,txt_x, txt_y, 0)
+            bgl.glColor4f(*txt_color)
+            blf.draw(0, self.collapsed_msg)
+            return
+        
         for i, line in enumerate(self.text_lines):
             
-            txt_x = left_text + self.spacer
+            txt_x = left + self.border
             txt_y = top - self.border - (i+1) * (self.line_height + self.spacer)
                 
             blf.position(0,txt_x, txt_y, 0)

@@ -3181,7 +3181,10 @@ class PolystripsUI:
         ########################################
         # accept / cancel
         if eventd['press'] == 'SHIFT+SLASH':
-            self.help_box.is_collapsed = self.help_box.is_collapsed == False
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
             self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
             self.create_mesh(eventd['context'])
