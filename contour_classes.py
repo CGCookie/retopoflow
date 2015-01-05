@@ -3042,34 +3042,32 @@ class CutLineManipulatorWidget(object):
 class ContourStatePreserver(object):
     def __init__(self, operator):
         self.mode = operator.mode
-        self.modal_state = operator.modal_state  #should always be waiting?
-        
-        if operator.selected_path:
-            self.selected_path = operator.cut_paths.index(operator.selected_path)
+
+        if operator.sel_path:
+            self.sel_path = operator.cut_paths.index(operator.sel_path)
 
         else:
-            self.selected_path = None
+            self.sel_path = None
             
-        if operator.selected and operator.selected_path and operator.selected in operator.selected_path.cuts:
-            self.selected_loop = operator.selected_path.cuts.index(operator.selected)
+        if operator.sel_loop and operator.sel_path and operator.sel_loop in operator.sel_path.cuts:
+            self.sel_loop = operator.sel_path.cuts.index(operator.sel_loop)
 
         else:
-            self.selected_loop = None
+            self.sel_loop = None
         
         #consider adding nsegments, nlopos etc....but why?
         
     def push_state(self, operator):
         
         operator.mode = self.mode
-        operator.modal_state = self.modal_state
         
-        if self.selected_path != None:  #because it can be a 0 integer
-            operator.selected_path = operator.cut_paths[self.selected_path]
+        if self.sel_path != None:  #because it can be a 0 integer
+            operator.sel_path = operator.cut_paths[self.sel_path]
         else:
-            operator.selected_path = None
+            operator.sel_path = None
         
-        if self.selected_loop != None and self.selected_path != None:
-            operator.selected = operator.cut_paths[self.selected_path].cuts[self.selected_loop]
+        if self.sel_loop != None and self.sel_path != None:
+            operator.sel_loop = operator.cut_paths[self.sel_path].cuts[self.sel_loop]
         else:
-            operator.selected = None
+            operator.sel_loop = None
         
