@@ -688,48 +688,6 @@ class CGCOOKIE_OT_contours_cache_clear(bpy.types.Operator):
         return {'FINISHED'}
 
 
-def retopo_draw_callback(self,context):
-
-    settings = common_utilities.get_settings()
-    r3d = context.space_data.region_3d
-    if context.space_data.use_occlude_geometry:
-        new_matrix = [v for l in r3d.view_matrix for v in l]
-        if new_matrix != self.last_matrix:
-            for path in self.cut_paths:
-                path.update_visibility(context, self.original_form)
-                for cut_line in path.cuts:
-                    cut_line.update_visibility(context, self.original_form)
-                        
-        self.post_update = False
-        self.last_matrix = new_matrix
-        
-
-    for i, c_cut in enumerate(self.cut_lines):
-        if self.widget_interaction and self.drag_target == c_cut:
-            interact = True
-        else:
-            interact = False
-        
-        c_cut.draw(context, settings,three_dimensional = self.navigating, interacting = interact)
-
-        if c_cut.verts_simple != [] and settings.show_cut_indices:
-            loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, c_cut.verts_simple[0])
-            blf.position(0, loc[0], loc[1], 0)
-            blf.draw(0, str(i))
-
-
-    if self.cut_line_widget and settings.draw_widget:
-        self.cut_line_widget.draw(context)
-        
-    if len(self.sketch):
-        common_drawing.draw_polyline_from_points(context, self.sketch, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
-        
-    if len(self.cut_paths):
-        for path in self.cut_paths:
-            path.draw(context, path = True, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
-            
-    if len(self.snap_circle):
-        common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
 
   
 class CGCOOKIE_OT_contours(bpy.types.Operator):
@@ -753,6 +711,50 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             return False
     
+    #####drawing#######
+    def draw_callback(self,context):
+
+        settings = common_utilities.get_settings()
+        r3d = context.space_data.region_3d
+        if context.space_data.use_occlude_geometry:
+            new_matrix = [v for l in r3d.view_matrix for v in l]
+            if new_matrix != self.last_matrix:
+                for path in self.cut_paths:
+                    path.update_visibility(context, self.original_form)
+                    for cut_line in path.cuts:
+                        cut_line.update_visibility(context, self.original_form)
+                            
+            self.post_update = False
+            self.last_matrix = new_matrix
+            
+    
+        for i, c_cut in enumerate(self.cut_lines):
+            if self.widget_interaction and self.drag_target == c_cut:
+                interact = True
+            else:
+                interact = False
+            
+            c_cut.draw(context, settings,three_dimensional = self.navigating, interacting = interact)
+    
+            if c_cut.verts_simple != [] and settings.show_cut_indices:
+                loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, c_cut.verts_simple[0])
+                blf.position(0, loc[0], loc[1], 0)
+                blf.draw(0, str(i))
+    
+    
+        if self.cut_line_widget and settings.draw_widget:
+            self.cut_line_widget.draw(context)
+            
+        if len(self.sketch):
+            common_drawing.draw_polyline_from_points(context, self.sketch, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
+            
+        if len(self.cut_paths):
+            for path in self.cut_paths:
+                path.draw(context, path = True, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
+                
+        if len(self.snap_circle):
+            common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
+
     ####Blender Mesh Data Management####
     
     def new_destination_obj(self,context,name, mx):
@@ -1116,12 +1118,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         stroke_color = settings.theme_colors_active[settings.theme]
         mesh_color = settings.theme_colors_mesh[settings.theme]
 
-        new_cut = ContourCutLine(x, y,
-                                stroke_color = stroke_color,
-                                handle_color = stroke_color,
-                                geom_color = mesh_color,
-                                vert_color = mesh_color)
-        
+        new_cut = ContourCutLine(x, y)
         
         for path in self.cut_paths:
             for cut in path.cuts:
@@ -2097,7 +2094,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         
         # switch to modal
-        self._handle = bpy.types.SpaceView3D.draw_handler_add(retopo_draw_callback, (context, ), 'WINDOW', 'POST_PIXEL')
+        self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
         

@@ -1995,6 +1995,7 @@ class ContourCutLine(object):
                     
                     cut_vec = self.head.world_position - self.tail.world_position
                     cut_vec.normalize()
+                    cut_vec = cut_vec.to_3d()
                     self.plane_no = cut_vec.cross(ray_vector).normalized()
                     self.vec_x = -1 * cut_vec.normalized()
                     self.vec_y = self.plane_no.cross(self.vec_x)
