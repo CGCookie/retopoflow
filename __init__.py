@@ -2023,7 +2023,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if os.path.isfile(filename):
             help_txt = open(filename, mode='r').read()
         else:
-            help_txt = "No Help File found, please reinstall\n"
+            help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,5,help_txt)
         self.help_box.snap_to_corner(context, corner = [1,1])
@@ -2241,7 +2241,7 @@ class PolystripsUI:
         if os.path.isfile(filename):
             help_txt = open(filename, mode='r').read()
         else:
-            help_txt = "No Help File found, please reinstall\n"
+            help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,5,help_txt)
         self.help_box.snap_to_corner(context, corner = [1,1])
