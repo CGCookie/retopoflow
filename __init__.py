@@ -734,7 +734,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             else:
                 interact = False
             
-            c_cut.draw(context, settings,three_dimensional = self.navigating, interacting = interact)
+            c_cut.draw(context, settings)#,three_dimensional = self.navigating, interacting = interact)
     
             if c_cut.verts_simple != [] and settings.show_cut_indices:
                 loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, c_cut.verts_simple[0])
@@ -1158,7 +1158,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.sel_loop.update_screen_coords(context)
         self.sel_loop.head = None
         self.sel_loop.tail = None
-        self.sel_loop.geom_color = (settings.actv_rgb[0],settings.actv_rgb[1],settings.actv_rgb[2],1)
         
         if not len(self.sel_loop.verts) or not len(self.sel_loop.verts_simple):
             self.sel_loop = None
