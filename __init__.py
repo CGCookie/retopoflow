@@ -501,6 +501,7 @@ class RetopoFlowPreferences(AddonPreferences):
 
         row = layout.row(align=True)
         row.prop(self, "debug") 
+        row.prop(self,"show_help")
 
         # Contours
         layout = self.layout
@@ -2016,6 +2017,17 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         settings = common_utilities.get_settings()
         self.settings = settings
         self.keymap = key_maps.rtflow_default_keymap_generate()
+        
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, "cs_help_txt.txt")
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = 'No Help File found, please reinstall'
+
+        self.help_box = TextBox(context,500,500,300,200,5,help_txt)
+        self.help_box.snap_to_corner(context, corner = [1,1])
+        
         print(self.keymap['navigate'])
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
@@ -2226,7 +2238,10 @@ class PolystripsUI:
         
         my_dir = os.path.split(os.path.abspath(__file__))[0]
         filename = os.path.join(my_dir, "ps_help_txt.txt")
-        help_txt = open(filename, mode='r').read()
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = 'No Help File found, please reinstall'
 
         self.help_box = TextBox(context,500,500,300,200,5,help_txt)
         self.help_box.snap_to_corner(context, corner = [1,1])
