@@ -3284,6 +3284,11 @@ class PolystripsUI:
                 self.pick(eventd)
             return ''
 
+        if eventd['press'] == 'CTRL+U':
+            self.create_undo_snapshot('update')
+            for gv in self.polystrips.gverts:
+                gv.update_gedges()
+
         ###################################
         # Selected gpatch commands
         
