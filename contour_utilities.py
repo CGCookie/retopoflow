@@ -132,7 +132,7 @@ def altitude(point1, point2, pointn):
     return altitude 
     
 # iterate through verts
-def iterate(points, newVerts, error,method = 1):
+def iterate(points, newVerts, error,method = 0):
     '''
     args:
     points - list of vectors in order representing locations on a curve
@@ -165,7 +165,7 @@ def iterate(points, newVerts, error,method = 1):
     return new
 
 #### get SplineVertIndices to keep
-def simplify_RDP(splineVerts, error, method = 1):
+def simplify_RDP(splineVerts, error, method = 0):
     '''
     Reduces a curve or polyline based on altitude changes globally and w.r.t. neighbors
     args:
