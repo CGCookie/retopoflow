@@ -404,6 +404,15 @@ class RetopoFlowPreferences(AddonPreferences):
             max = 100,
             )
 
+    smooth_method = EnumProperty(
+        items=[
+            ('ENDPOINT', 'ENDPOINT', 'Blend Between Endpoints'),
+            ('CENTER_MASS', 'CENTER_MASS', 'Use Cut Locations to smooth'),
+            ('PATH_NORMAL', 'PATH_NORMAL', 'Use Cut Orientation only'),
+            ],
+        name='Smooth Method',
+        default='ENDPOINT'
+        )
     ## Debug Settings
     show_debug = BoolProperty(
             name="Show Debug Settings",
@@ -493,7 +502,7 @@ class RetopoFlowPreferences(AddonPreferences):
         row.prop(self, "auto_align")
         row.prop(self, "live_update")
         row.prop(self, "use_perspective")
-        
+        row.prop(self, "smooth_method")
         row = layout.row()
         row.prop(self, "use_x_ray", "Enable X-Ray at Mesh Creation")
         
@@ -864,8 +873,10 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 tmp_ob = self.tmp_obj_and_triangulate(context, self.bme, ngons, ob.matrix_world)
         
         if tmp_ob:
+            print('Load form cache tmp obj, original form set')
             self.original_form = tmp_ob
         else:
+            print('Load new obj, original form set')
             self.original_form = ob
         
         self.tmp_ob = tmp_ob
@@ -1140,7 +1151,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if width.length < 20: #TODO: Setting for minimum pixel width
             self.cut_lines.remove(self.sel_loop)
             self.sel_loop = None
-            print('Placed cut is too short')
+            showErrorMessage('The drawn cut must be more than 20 pixels')
             return
         
         #hit the mesh for the first time
@@ -1149,7 +1160,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if not hit:
             self.cut_lines.remove(self.sel_loop)
             self.sel_loop = None
-            print('Placed cut did not hit the mesh')
+            showErrorMessage('The middle of the cut must be over the object!')
+            
             return
         
         self.sel_loop.cut_object(context, self.original_form, self.bme)
@@ -1161,7 +1173,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         if not len(self.sel_loop.verts) or not len(self.sel_loop.verts_simple):
             self.sel_loop = None
-            print('cut failure')  #TODO, header text message.
+            showErrorMessage('The cut failed for some reason, most likely topology, try again and report bug')
             return
     
         
@@ -1416,7 +1428,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
     
     def segment_smooth(self,context, settings):
         method = settings.smooth_method
-        print(method)
         if method not in {'PATH_NORMAL','CENTER_MASS','ENDPOINT'}: return
         
         self.create_undo_snapshot('SMOOTH')
@@ -1993,6 +2004,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         settings = common_utilities.get_settings()
         self.settings = settings
         self.keymap = key_maps.contours_default_keymap_generate()
+        print(self.keymap['navigate'])
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
@@ -2031,15 +2043,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.stroke_smoothing = 0.5          # 0: no smoothing. 1: no change
         self.segments = settings.vertex_count
         self.guide_cuts = settings.ring_count
-        
-        
-        if context.mode == 'OBJECT':
-            #self.bme, self.dest_bme, self.dest_ob, self.original_form etc are all defined inside
-            self.mesh_data_gather_object_mode(context)
-        elif context.mode == 'EDIT':
-            self.mesh_data_gather_object_mode(context)
-            
-        
+         
         #here is where we will cache verts edges and faces
         #unti lthe user confirms and we output a real mesh.
         self.verts = []
@@ -2049,7 +2053,12 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.cut_lines = []
         self.cut_paths = []
         self.draw_cache = []
-       
+
+        if context.mode == 'OBJECT':
+            #self.bme, self.dest_bme, self.dest_ob, self.original_form etc are all defined inside
+            self.mesh_data_gather_object_mode(context)
+        elif 'EDIT' in context.mode:
+            self.mesh_data_gather_edit_mode(context)       
         if settings.use_x_ray:
             self.orig_x_ray = self.dest_ob.show_x_ray
             self.dest_ob.show_x_ray = True     
