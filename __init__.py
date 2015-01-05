@@ -471,7 +471,7 @@ class RetopoFlowPreferences(AddonPreferences):
     distraction_free = BoolProperty(
             name = "distraction_free",
             description = "Switch to distraction-free mode",
-            default = True,
+            default = False,
             )
     
     symmetry_plane = EnumProperty(
