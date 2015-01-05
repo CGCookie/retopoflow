@@ -3253,7 +3253,7 @@ class PolystripsUI:
         
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
-        if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE'}:
+        if eventd['press'] in {'LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
@@ -3268,7 +3268,7 @@ class PolystripsUI:
 
             self.sketch_curpos = (x,y)
 
-            if eventd['shift'] and self.act_gvert:
+            if eventd['ctrl'] and self.act_gvert:
                 # continue sketching from selected gvert position
                 gvx,gvy = location_3d_to_region_2d(eventd['region'], eventd['r3d'], self.act_gvert.position)
                 self.sketch = [((gvx,gvy),self.act_gvert.radius), ((x,y),r)]
@@ -3715,7 +3715,7 @@ class PolystripsUI:
 
             return ''
 
-        if eventd['release'] in {'LEFTMOUSE','SHIFT+LEFTMOUSE'}:
+        if eventd['release'] in {'LEFTMOUSE','SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
