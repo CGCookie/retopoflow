@@ -2800,16 +2800,50 @@ class PolystripsUI:
         if len(self.sel_gedges) == 3:
             gedges = list(self.sel_gedges)
             
+            # test if we need to change direction!
             gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
             gv2 = gedges[1].gvert0 if gedges[1].gvert3 in [gv0,gv1] else gedges[1].gvert3
-            
-            # test if we need to change direction!
             if gv1 != gedges[1].gvert0 and gv1 != gedges[1].gvert3:
                 gv0,gv1 = gv1,gv0
             n0 = gv0.snap_norm
             n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
             if n0.dot(n1) > 0:
                 gedges[1],gedges[2] = gedges[2],gedges[1]
+            
+            gp = self.polystrips.create_gpatch(*gedges)
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gpatch = gp
+            
+            gp.update()
+            self.polystrips.update_visibility(eventd['r3d'])
+            return
+        
+        if len(self.sel_gedges) == 5:
+            sgedges = set(self.sel_gedges)
+            gedges = [sgedges.pop()]
+            while sgedges:
+                ge0 = gedges[-1]
+                for ge1 in sgedges:
+                    if ge0.gvert3 == ge1.gvert0 or ge0.gvert3 == ge1.gvert3:
+                        gedges += [ge1]
+                        sgedges.remove(ge1)
+                        break
+                else:
+                    showErrorMessage('must select five GEdges that form a ring!')
+                    return
+            
+            # test if we need to change direction!
+            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
+            gv4 = gedges[4].gvert0 if gedges[4].gvert3 in [gv0,gv1] else gedges[4].gvert3
+            if gv4 != gedges[4].gvert0 and gv4 != gedges[4].gvert3:
+                gv0,gv1 = gv1,gv0
+            n0 = gv0.snap_norm
+            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv4.snap_pos-gv0.snap_pos).normalized()
+            if n0.dot(n1) > 0:
+                gedges.reverse()
             
             gp = self.polystrips.create_gpatch(*gedges)
             self.act_gvert = None
@@ -3416,6 +3450,10 @@ class PolystripsUI:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
+                return ''
+            if eventd['press'] == 'R':
+                self.act_gpatch.rotate_pole()
+                self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
         ###################################

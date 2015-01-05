@@ -1100,10 +1100,13 @@ class GPatch:
         
         # should the gedges be reversed?
         self.rev = [ge0.gvert3 not in [ge1.gvert0, ge1.gvert3] for ge0,ge1 in zip_pairs(self.gedges)]
-        print('rev: ' + str(self.rev))
-        
         
         # make sure gedges have proper counts
+        if self.nsides == 3:
+            count = max(ge.get_count() for ge in self.gedges)
+            if count%2==1: count += 1
+            count = max(count,4)
+            for ge in self.gedges: ge.set_count(count)
         if self.nsides == 4:
             count02 = max(self.gedges[0].get_count(), self.gedges[2].get_count())
             count13 = max(self.gedges[1].get_count(), self.gedges[3].get_count())
@@ -1111,14 +1114,39 @@ class GPatch:
             self.gedges[2].set_count(count02)
             self.gedges[1].set_count(count13)
             self.gedges[3].set_count(count13)
-        else:
-            count = max(ge.get_count() for ge in self.gedges)
-            if count%2==1: count += 1
-            count = max(count,4)
-            for ge in self.gedges: ge.set_count(count)
+        elif self.nsides == 5:
+            count0 = self.gedges[0].get_count()-2
+            if count0%2==1: count0 += 1
+            count0 = max(count0,2)
+            count14 = max(self.gedges[1].get_count(), self.gedges[4].get_count())
+            self.gedges[0].set_count(count0+2)
+            self.gedges[2].set_count(count0//2+2)
+            self.gedges[3].set_count(count0//2+2)
+            self.gedges[1].set_count(count14)
+            self.gedges[4].set_count(count14)
         
         self.quads = []     # list of tuples of inds into self.pts
         self.pts   = []     # list of tuples of (position,visible,lookup), where lookup is either (GEdge,ind_igvert) or None
+        
+        self.update()
+    
+    def rotate_pole(self):
+        if self.frozen: return
+        
+        if self.nsides != 5: return
+        
+        self.gedges = self.gedges[1:] + self.gedges[:1]
+        self.rev = [ge0.gvert3 not in [ge1.gvert0, ge1.gvert3] for ge0,ge1 in zip_pairs(self.gedges)]
+        
+        count0 = self.gedges[0].get_count()-2
+        if count0%2==1: count0 += 1
+        count0 = max(count0,2)
+        count14 = max(self.gedges[1].get_count(), self.gedges[4].get_count())
+        self.gedges[0].set_count(count0+2)
+        self.gedges[2].set_count(count0//2+2)
+        self.gedges[3].set_count(count0//2+2)
+        self.gedges[1].set_count(count14)
+        self.gedges[4].set_count(count14)
         
         self.update()
     
@@ -1133,12 +1161,29 @@ class GPatch:
         self.visible = {}
     
     def set_count(self, gedge):
+        n_quads = gedge.n_quads
         if self.nsides == 4:
-            i_ge = self.gedges.index(gedge)
-            oge = self.gedges[(i_ge+2)%4].set_count(gedge.n_quads)
-        else:
+            i_gedge = self.gedges.index(gedge)
+            oge = self.gedges[(i_gedge+2)%4].set_count(n_quads)
+        elif self.nsides == 3:
             for ge in self.gedges:
-                ge.set_count(gedge.n_quads)
+                ge.set_count(n_quads)
+        elif self.nsides == 5:
+            i_gedge = self.gedges.index(gedge)
+            if i_gedge == 0:
+                n_quads = max(n_quads,4)
+                self.gedges[2].set_count((n_quads-2) // 2 + 2)
+                self.gedges[3].set_count((n_quads-2) // 2 + 2)
+            elif i_gedge == 1:
+                self.gedges[4].set_count(gedge.n_quads)
+            elif i_gedge == 2:
+                self.gedges[3].set_count(n_quads)
+                self.gedges[0].set_count((n_quads-2) * 2 + 2)
+            elif i_gedge == 3:
+                self.gedges[2].set_count(n_quads)
+                self.gedges[0].set_count((n_quads-2) * 2 + 2)
+            elif i_gedge == 4:
+                self.gedges[1].set_count(n_quads)
         self.update()
     
     def update(self):
@@ -1148,6 +1193,8 @@ class GPatch:
             self._update_tri()
         elif self.nsides == 4:
             self._update_quad()
+        elif self.nsides == 5:
+            self._update_pent()
     
     def _update_tri(self):
         ge0,ge1,ge2 = self.gedges
@@ -1242,8 +1289,6 @@ class GPatch:
                 #i0 -= w2+1
                 i1 -= w2+1
             self.quads += [(i0,i3,i2,i1)]
-
-    
     
     def _update_quad(self):
         ge0,ge1,ge2,ge3 = self.gedges
@@ -1326,54 +1371,23 @@ class GPatch:
             for i1 in range(hei-1):
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
     
-    def _update_quad_old(self):
-        ge0,ge1,ge2,ge3 = self.gedges
-        rev0,rev1,rev2,rev3 = self.rev
+    def _update_pent(self):
+        ge0,ge1,ge2,ge3,ge4 = self.gedges
+        rev0,rev1,rev2,rev3,rev4 = self.rev
         closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        sz0,sz1,sz2,sz3,sz4 = [(len(ge.cache_igverts)-1)//2 -1 for ge in self.gedges]
+        
+        # defer update for a bit (counts don't match up!)
+        if sz0 != sz2*2 or sz0 != sz3*2 or sz1 != sz4:
+            return
         
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        cps0,lts0 = ge0.gverts(),ge0.l_ts
-        cps1,lts1 = ge1.gverts(),ge1.l_ts
-        cps2,lts2 = ge2.gverts(),ge2.l_ts
-        cps3,lts3 = ge3.gverts(),ge3.l_ts
-        
-        if rev0:
-            cps0 = list(reversed(cps0))
-            lts0 = [ 1-v for v in reversed(lts0)]
-        if rev1:
-            cps1 = list(reversed(cps1))
-            lts1 = [ 1-v for v in reversed(lts1)]
-        if not rev2:
-            cps2 = list(reversed(cps2))
-            lts2 = [ 1-v for v in reversed(lts2)]
-        if not rev3:
-            cps3 = list(reversed(cps3))
-            lts3 = [ 1-v for v in reversed(lts3)]
-        
-        #          e0
-        #     0/0 1 2 3/0           00 01 02 03
-        # e3  1         1  e1       10 11 12 13
-        #     2         2           20 21 22 23
-        #     3/0 1 2 3/3           30 31 32 33
-        #          e2
-        
-        v00,v01,v02,v03 = cps0
-        _  ,v13,v23,_   = cps1
-        _  ,v10,v20,_   = cps3
-        v30,v31,v32,v33 = cps2
-        
-        v00,v01,v02,v03 = v00.position,v01.position,v02.position,v03.position
-        v13,v23,v10,v20 = v13.position,v23.position,v10.position,v20.position
-        v30,v31,v32,v33 = v30.position,v31.position,v32.position,v33.position
-        
-        v11 = ( (v10*2/3+v13*1/3) + (v01*2/3+v31*1/3) )/2
-        v12 = ( (v10*1/3+v13*2/3) + (v02*2/3+v32*1/3) )/2
-        v21 = ( (v20*2/3+v23*1/3) + (v01*1/3+v31*2/3) )/2
-        v22 = ( (v20*1/3+v23*2/3) + (v02*1/3+v32*2/3) )/2
+        self.pts = []
+        self.quads = []
         
         lc0 = list(ge0.iter_segments())
         idx0 =  (0,1) if rev0 else (3,2)
@@ -1395,44 +1409,59 @@ class GPatch:
         lc3 = [lc3[0][idx3[0]]] + list(_c[idx3[1]] for _c in lc3)
         if not rev3: lc3.reverse()
         
-        sz0 = len(ge0.cache_igverts)
-        sz1 = len(ge1.cache_igverts)
+        lc4 = list(ge4.iter_segments())
+        idx4 =  (0,1) if rev4 else (3,2)
+        lc4 = [lc4[0][idx4[0]]] + list(_c[idx4[1]] for _c in lc4)
+        if not rev4: lc4.reverse()
         
-        if len(lc0) != len(lc2):
-            # defer update for a bit
-            return
-        if len(lc1) != len(lc3):
-            return
+        wid,hei = len(lc0),len(lc1)
+        w2 = wid//2
         
-        self.pts = []
-        for i0 in range(1,sz0,2):
-            for i1 in range(1,sz1,2):
-                if i1 == 1:
-                    self.pts += [(i0,i1,lc0[(i0-1)//2])]
+        for i0,p0 in enumerate(lc0):
+            p23 = lc3[i0] if i0 < w2 else lc2[i0-w2]
+            w1 = i0 / (wid-1)
+            w4 = 1.0 - w1
+            for i1,p1 in enumerate(lc1):
+                p4 = lc4[i1]
+                w23 = i1 / (hei-1)
+                w0 = 1.0 - w23
+                
+                if i1 == 0:
+                    self.pts += [(p0, True, (0,i0))]
                     continue
-                if i0 == sz0-2:
-                    self.pts += [(i0,i1,lc1[(i1-1)//2])]
+                if i0 == 0:
+                    self.pts += [(p4, True, (4,hei-1-i1))]
                     continue
-                if i1 == sz1-2:
-                    self.pts += [(i0,i1,lc2[(i0-1)//2])]
+                if i0 == len(lc0)-1:
+                    self.pts += [(p1, True, (1,i1))]
                     continue
-                if i0 == 1:
-                    self.pts += [(i0,i1,lc3[(i1-1)//2])]
+                if i1 == len(lc1)-1:
+                    if i0 < w2:
+                        self.pts += [(p23, True, (3,w2-i0))]
+                    else:
+                        self.pts += [(p23, True, (2,wid-1-i0))]
                     continue
                 
-                p0 = i0 / (sz0-1)
-                p1 = i1 / (sz1-1)
-                p02 = lts0[i0]*(1-p1) + lts2[i0]*p1
-                p13 = lts1[i1]*p0 + lts3[i1]*(1-p0)
+                p023 = p0*w0 + p23*w23
+                p14 = p1*w1 + p4*w4
                 
-                p = cubic_bezier_surface_t(v00,v01,v02,v03, v10,v11,v12,v13, v20,v21,v22,v23, v30,v31,v32,v33, p02,p13)
-                l,n,i = closest_point_on_mesh(imx * p)
-                p = mx * l
-                self.pts += [(i0,i1,p)]
+                w023,w14 = max(w0,w23),max(w1,w4)
+                if w023 > w14:
+                    w023 = (w023-0.5)**2 * 2 + 0.5
+                    w14  = 1.0 - w023
+                else:
+                    w14 = (w14-0.5)**2 * 2 + 0.5
+                    w023 = 1.0 - w14
+                
+                p = p023*w023 + p14*w14
+                p = mx * closest_point_on_mesh(imx * p)[0]
+                
+                self.pts += [(p, True, None)]
         
-        self.map_pts = {(i0,i1):p for (i0,i1,p) in self.pts }
+        for i0 in range(wid-1):
+            for i1 in range(hei-1):
+                self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
         
-    
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
