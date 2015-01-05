@@ -2823,13 +2823,14 @@ class PolystripsUI:
         
         if len(self.sel_gedges) == 5:
             sgedges = set(self.sel_gedges)
-            gedges = [sgedges.pop()]
+            ge0 = sgedges.pop()
+            gedges = [ge0]
             while sgedges:
-                ge0 = gedges[-1]
                 for ge1 in sgedges:
-                    if ge0.gvert3 == ge1.gvert0 or ge0.gvert3 == ge1.gvert3:
+                    if ge1.has_endpoint(ge0.gvert3) or ge1.has_endpoint(ge0.gvert0):
                         gedges += [ge1]
                         sgedges.remove(ge1)
+                        ge0 = ge1
                         break
                 else:
                     showErrorMessage('must select five GEdges that form a ring!')
@@ -2842,7 +2843,7 @@ class PolystripsUI:
                 gv0,gv1 = gv1,gv0
             n0 = gv0.snap_norm
             n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv4.snap_pos-gv0.snap_pos).normalized()
-            if n0.dot(n1) > 0:
+            if n0.dot(n1) < 0:
                 gedges.reverse()
             
             gp = self.polystrips.create_gpatch(*gedges)

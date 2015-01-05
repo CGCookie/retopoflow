@@ -588,6 +588,8 @@ class GEdge:
         self.n_quads = None
         self.update()
     
+    def has_endpoint(self, gv): return gv==self.gvert0 or gv==self.gvert3
+    
     def is_zippered(self): return (self.zip_to_gedge != None)
     def has_zippered(self): return len(self.zip_attached)!=0
     
