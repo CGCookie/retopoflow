@@ -23,7 +23,7 @@ import bpy
    
 def_cs_key_map = {}
 def_cs_key_map['action'] = {'LEFTMOUSE'}
-def_cs_key_map['select'] = {'RIGHTMOUSE'}  #this is only used if there is conflict with user preferences
+def_cs_key_map['select'] = {'LEFTMOUSE'}  #this is only used if there is conflict with user preferences
 def_cs_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
 def_cs_key_map['confirm'] = {'RET', 'NUMPAD_ENTER'}
 def_cs_key_map['modal confirm'] = {'SPACE', 'RET', 'NUMPAD_ENTER'}

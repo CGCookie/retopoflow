@@ -1979,7 +1979,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if nmode == 'nav': return {'PASS_THROUGH'}
         
         if nmode in {'finish','cancel'}:
-            contour_utilities.callback_cleanup(self, context)
+            common_utilities.callback_cleanup(self, context)
             self.kill_timer(context)
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
         
