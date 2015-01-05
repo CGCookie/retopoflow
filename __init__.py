@@ -2839,11 +2839,11 @@ class PolystripsUI:
             # test if we need to change direction!
             gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
             gv4 = gedges[4].gvert0 if gedges[4].gvert3 in [gv0,gv1] else gedges[4].gvert3
-            if gv4 != gedges[4].gvert0 and gv4 != gedges[4].gvert3:
+            if gv0 != gedges[4].gvert0 and gv0 != gedges[4].gvert3:
                 gv0,gv1 = gv1,gv0
             n0 = gv0.snap_norm
             n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv4.snap_pos-gv0.snap_pos).normalized()
-            if n0.dot(n1) < 0:
+            if n0.dot(n1) > 0:
                 gedges.reverse()
             
             gp = self.polystrips.create_gpatch(*gedges)
