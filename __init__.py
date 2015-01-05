@@ -3630,7 +3630,6 @@ class PolystripsUI:
             self.sel_gedges.clear()
             self.sel_gverts.clear()
             self.act_gpatch = gp
-            print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
             return ''
 
         self.act_gedge,self.act_gvert = None,None
