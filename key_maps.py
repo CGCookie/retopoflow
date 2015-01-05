@@ -21,32 +21,32 @@ http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-
 
 import bpy
    
-def_cs_key_map = {}
-def_cs_key_map['action'] = {'LEFTMOUSE'}
-def_cs_key_map['select'] = {'LEFTMOUSE'}  #this is only used if there is conflict with user preferences
-def_cs_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
-def_cs_key_map['confirm'] = {'RET', 'NUMPAD_ENTER'}
-def_cs_key_map['modal confirm'] = {'SPACE', 'RET', 'NUMPAD_ENTER'}
-def_cs_key_map['modal cancel'] = {'RIGHTMOUSE','ESC'}
-def_cs_key_map['modal precise'] = 'SHIFT'
-def_cs_key_map['modal constrain'] = 'ALT'
-def_cs_key_map['scale'] = {'S'}
-def_cs_key_map['translate'] = {'G'}
-def_cs_key_map['rotate'] = {'R'}
-def_cs_key_map['delete'] = {'X', 'DEL'}
-def_cs_key_map['up count'] = {'CTRL+NUMPAD_PLUS','CTRL+WHEELUPMOUSE'}     
-def_cs_key_map['dn count'] = {'CTRL+NUMPAD_MINUS','CTRL+WHEELDOWNMOUSE'}
-def_cs_key_map['bridge'] = {'B'}
-def_cs_key_map['new'] = {'N'}
-def_cs_key_map['align'] = {'SHIFT+A', 'CRTL+A', 'ALT+A'}
-def_cs_key_map['up shift'] = {'LEFT_ARROW'}
-def_cs_key_map['dn shift'] = {'RIGHT_ARROW'}
-def_cs_key_map['smooth'] = {'CTRL+S'}
-def_cs_key_map['view cursor'] = {'C'}
-def_cs_key_map['undo'] = {'CTRL+Z'}
-def_cs_key_map['mode'] = {'TAB'}
-def_cs_key_map['snap cursor'] = {'SHIFT+S'}
-def_cs_key_map['navigate'] = set() #To be filled in last
+def_rf_key_map = {}
+def_rf_key_map['action'] = {'LEFTMOUSE'}
+def_rf_key_map['select'] = {'LEFTMOUSE'}  #this is only used if there is conflict with user preferences
+def_rf_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
+def_rf_key_map['confirm'] = {'RET', 'NUMPAD_ENTER'}
+def_rf_key_map['modal confirm'] = {'SPACE', 'RET', 'NUMPAD_ENTER'}
+def_rf_key_map['modal cancel'] = {'RIGHTMOUSE','ESC'}
+def_rf_key_map['modal precise'] = 'SHIFT'
+def_rf_key_map['modal constrain'] = 'ALT'
+def_rf_key_map['scale'] = {'S'}
+def_rf_key_map['translate'] = {'G'}
+def_rf_key_map['rotate'] = {'R'}
+def_rf_key_map['delete'] = {'X', 'DEL'}
+def_rf_key_map['up count'] = {'CTRL+NUMPAD_PLUS','CTRL+WHEELUPMOUSE'}     
+def_rf_key_map['dn count'] = {'CTRL+NUMPAD_MINUS','CTRL+WHEELDOWNMOUSE'}
+def_rf_key_map['bridge'] = {'B'}
+def_rf_key_map['new'] = {'N'}
+def_rf_key_map['align'] = {'SHIFT+A', 'CRTL+A', 'ALT+A'}
+def_rf_key_map['up shift'] = {'LEFT_ARROW'}
+def_rf_key_map['dn shift'] = {'RIGHT_ARROW'}
+def_rf_key_map['smooth'] = {'CTRL+S'}
+def_rf_key_map['view cursor'] = {'C'}
+def_rf_key_map['undo'] = {'CTRL+Z'}
+def_rf_key_map['mode'] = {'TAB'}
+def_rf_key_map['snap cursor'] = {'SHIFT+S'}
+def_rf_key_map['navigate'] = set() #To be filled in last
 
 navigation_events = {'Rotate View', 'Move View', 'Zoom View', 
                      'View Pan', 'View Orbit', 'Rotate View', 
@@ -85,10 +85,10 @@ def kmi_details(kmi):
 
 #if 'Blender User' in bpy.context.window_manager.keyconfigs:
 #    print('Blender User Key Config')
-#    def_cs_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender User'])
+#    def_rf_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender User'])
 #else:
 #    print('Blender Key Config')
-#    def_cs_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender'])
+#    def_rf_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender'])
 
 
 
@@ -138,8 +138,8 @@ def add_to_dict(km_dict, key,value, safety = True):
         km_dict[key] = set([value])
         return True
        
-def contours_default_keymap_generate():
-    km_dict = def_cs_key_map.copy()
+def rtflow_default_keymap_generate():
+    km_dict = def_rf_key_map.copy()
     
     #bug, WHEELOUTMOUSE and WHEELINMOUSE used in 3dview keymap
     add_to_dict(km_dict,'navigate', 'WHEELUPMOUSE')
@@ -151,7 +151,10 @@ def contours_default_keymap_generate():
     return km_dict
           
           
-def contours_keymap():
+def rtflow_keymap():
+    '''
+    this is a dynamic attempt to generate key map.  Buggy, unpredictable and no very useful
+    '''
     km_dict = {}
     C = bpy.context
     wm = C.window_manager
@@ -167,22 +170,22 @@ def contours_keymap():
     #get a backup, default keymap (which can be edited by user for overrides)
     #TODO make the defaults for these better
     if 'maya' in keycon.name:
-        def_map = def_cs_key_map
+        def_map = def_rf_key_map
     if '3ds' in keycon.name:
-        def_map = def_cs_key_map
+        def_map = def_rf_key_map
     else:
-        def_map = def_cs_key_map
+        def_map = def_rf_key_map
         
     #Attempt to gather user preferred actions from Blender prefs    
     sel = C.user_preferences.inputs.select_mouse
     sel += 'MOUSE'
     
-    act = def_cs_key_map['action']
+    act = def_rf_key_map['action']
     nav_keys = get_nav_keys(keycon)
-    km_dict['cancel'] = def_cs_key_map['cancel']
-    km_dict['confirm'] = def_cs_key_map['confirm']
-    km_dict['modal confirm'] = def_cs_key_map['modal confirm']
-    km_dict['modal cancel'] = def_cs_key_map['modal cancel']
+    km_dict['cancel'] = def_rf_key_map['cancel']
+    km_dict['confirm'] = def_rf_key_map['confirm']
+    km_dict['modal confirm'] = def_rf_key_map['modal confirm']
+    km_dict['modal cancel'] = def_rf_key_map['modal cancel']
     ######################################
     #######  Selection and Action ########
 
@@ -212,7 +215,7 @@ def contours_keymap():
         else:
             print('Default select keymap also conflicts with user navigation keys')
             bpy.ops.wm.url_open(url = "http://cgcookiemarkets.com/blender/forums/topic/custom-modal-hotkeys/")
-            km_dict = contours_default_keymap_generate()
+            km_dict = rtflow_def_default_keymap_generate()
             return(km_dict)
     else:
         print('uneventfully added select keymap :' + str(sel))

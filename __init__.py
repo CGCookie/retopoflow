@@ -2007,7 +2007,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         #TODO Settings harmon CODE REVIEW
         settings = common_utilities.get_settings()
         self.settings = settings
-        self.keymap = key_maps.contours_default_keymap_generate()
+        self.keymap = key_maps.rtflow_default_keymap_generate()
         print(self.keymap['navigate'])
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
