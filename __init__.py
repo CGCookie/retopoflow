@@ -151,12 +151,6 @@ class RetopoFlowPreferences(AddonPreferences):
         default=15,
         )
 
-    undo_depth = IntProperty(
-        name="Undo Depth",
-        description="Max number of undo steps",
-        default=15,
-        )
-    
     show_edges = BoolProperty(
             name="Show Span Edges",
             description = "Display the extracted mesh edges. Usually only turned off for debugging",
@@ -199,16 +193,6 @@ class RetopoFlowPreferences(AddonPreferences):
             max=10,
             )
 
-    theme = EnumProperty(
-        items=[
-            ('blue', 'Blue', 'Blue color scheme'),
-            ('green', 'Green', 'Green color scheme'),
-            ('orange', 'Orange', 'Orange color scheme'),
-            ],
-        name='theme',
-        default='blue'
-        )
-    
     #TODO  Theme this out nicely :-) 
     widget_color = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(0,0,1), subtype="COLOR")
     widget_color2 = FloatVectorProperty(name="Widget Color", description="Choose Widget color", min=0, max=1, default=(1,0,0), subtype="COLOR")
@@ -398,12 +382,13 @@ class RetopoFlowPreferences(AddonPreferences):
             )
 
     undo_depth = IntProperty(
-            name="Undo Depth",
-            default=10,
-            min = 0,
-            max = 100,
-            )
-
+        name="Undo Depth",
+        description="Max number of undo steps",
+        min = 0,
+        max = 100,
+        default=15,
+        )
+    
     smooth_method = EnumProperty(
         items=[
             ('ENDPOINT', 'ENDPOINT', 'Blend Between Endpoints'),
@@ -477,6 +462,24 @@ class RetopoFlowPreferences(AddonPreferences):
             description = "Use robust cutting, may be slower, more accurate on dense meshes",
             default=True,
             )
+
+    distraction_free = BoolProperty(
+            name = "distraction_free",
+            description = "Switch to distraction-free mode",
+            default = False,
+            )
+    
+    symmetry_plane = EnumProperty(
+        items=[
+            ('none', 'None', 'Disable symmetry plane'),
+            ('x', 'X', 'Symmetric along X-axis (YZ plane)'),
+            ('y', 'Y', 'Symmetric along Y-axis (XZ plane)'),
+            ('z', 'Z', 'Symmetric along Z-axis (XY plane)'),
+            ],
+        name='symmetry_plane',
+        description = "Clamp and clip to symmetry plane",
+        default='none'
+        )
 
 
     def draw(self, context):
@@ -3530,9 +3533,11 @@ class PolystripsUI:
         pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
         if not pts:
             # user did not click on the object
-            self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
+            if not eventd['shift']:
+                # clear selection if shift is not held
+                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
+                self.sel_gedges.clear()
+                self.sel_gverts.clear()
             return ''
         pt = pts[0]
 
@@ -3582,13 +3587,12 @@ class PolystripsUI:
             self.sel_gedges.clear()
             self.sel_gverts.clear()
             self.act_gpatch = gp
-            print('norm dot = %f' % gp.normal().dot(gp.ge0.gvert0.snap_norm))
             return ''
-
-        self.act_gedge,self.act_gvert = None,None
-        self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
-        self.sel_gedges.clear()
-        self.sel_gverts.clear()
+        
+        if not eventd['shift']:
+            self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
     
     def modal_sketching(self, eventd):
 
@@ -3648,22 +3652,24 @@ class PolystripsUI:
 
             self.sketch = []
             
-            while p3d:
-                next_i_p = len(p3d)
-                for i_p,p in enumerate(p3d):
-                    if p[0].x < 0.0:
-                        next_i_p = i_p
-                        break
-                self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p], False)
-                p3d = p3d[next_i_p:]
-                next_i_p = len(p3d)
-                for i_p,p in enumerate(p3d):
-                    if p[0].x >= 0.0:
-                        next_i_p = i_p
-                        break
-                p3d = p3d[next_i_p:]
-            #stroke = p3d
-            #self.polystrips.insert_gedge_from_stroke(stroke, False)
+            if settings.symmetry_plane == 'x':
+                while p3d:
+                    next_i_p = len(p3d)
+                    for i_p,p in enumerate(p3d):
+                        if p[0].x < 0.0:
+                            next_i_p = i_p
+                            break
+                    self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p], False)
+                    p3d = p3d[next_i_p:]
+                    next_i_p = len(p3d)
+                    for i_p,p in enumerate(p3d):
+                        if p[0].x >= 0.0:
+                            next_i_p = i_p
+                            break
+                    p3d = p3d[next_i_p:]
+            else:
+                self.polystrips.insert_gedge_from_stroke(p3d, False)
+            
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
 
