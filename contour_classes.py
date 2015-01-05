@@ -1992,10 +1992,9 @@ class ContourCutLine(object):
                 self.seed_face_index = hit[2]
 
                 if settings.use_perspective:
-                    
-                    cut_vec = self.head.world_position - self.tail.world_position
+    
+                    cut_vec = (self.tail.x - self.head.x)*view_x + (self.tail.y - self.head.y)*view_y
                     cut_vec.normalize()
-                    cut_vec = cut_vec.to_3d()
                     self.plane_no = cut_vec.cross(ray_vector).normalized()
                     self.vec_x = -1 * cut_vec.normalized()
                     self.vec_y = self.plane_no.cross(self.vec_x)
