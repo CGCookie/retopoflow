@@ -456,7 +456,7 @@ class RetopoFlowPreferences(AddonPreferences):
     distraction_free = BoolProperty(
             name = "distraction_free",
             description = "Switch to distraction-free mode",
-            default = False,
+            default = True,
             )
     
     symmetry_plane = EnumProperty(
@@ -2248,7 +2248,8 @@ class PolystripsUI:
 
         self.mode = 'main'
         
-        self.fullscreened = False
+        self.is_fullscreen = False
+        self.was_fullscreen = False
 
         self.mode_pos = (0, 0)
         self.cur_pos = (0, 0)
@@ -4057,16 +4058,19 @@ class PolystripsUI:
             self.kill_timer(context)
             polystrips_undo_cache = []
             
-            bpy.ops.screen.screen_full_area(use_hide_panels=True)
-            self.fullscreened = False
+            if not self.was_fullscreen and settings.distraction_free:
+                bpy.ops.screen.screen_full_area(use_hide_panels=True)
+                self.is_fullscreen = False
             
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.mode = nmode
         
-        if not self.fullscreened:
-            bpy.ops.screen.screen_full_area(use_hide_panels=True)
-            self.fullscreened = True
+        if not self.is_fullscreen:
+            was_fullscreen = len(context.screen.areas)==1
+            if not was_fullscreen and settings.distraction_free:
+                bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.is_fullscreen = True
 
         return {'RUNNING_MODAL'}
 
