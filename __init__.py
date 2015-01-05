@@ -3284,58 +3284,6 @@ class PolystripsUI:
                 self.pick(eventd)
             return ''
 
-        if eventd['press'] == 'CTRL+LEFTMOUSE':                                     # delete/dissolve
-            x,y = eventd['mouse']
-            pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
-            if not pts:
-                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
-                return ''
-            pt = pts[0]
-
-            for gv in self.polystrips.gverts:
-                if not gv.is_picked(pt): continue
-                if not (gv.is_endpoint() or gv.is_endtoend() or gv.is_ljunction()):
-                    showErrorMessage('Can only delete endpoint, end-to-end, or l-junction GVerts')
-                    continue
-                
-                if any(ge.is_zippered() or ge.is_gpatched() for ge in gv.get_gedges_notnone()):
-                    showErrorMessage('Cannot delete/dissolve GVert that is zippered or patched')
-                    continue
-
-                if gv.is_endpoint():
-                    self.polystrips.disconnect_gvert(gv)
-                else:
-                    self.polystrips.dissolve_gvert(gv)
-
-                self.polystrips.remove_unconnected_gverts()
-                self.polystrips.update_visibility(eventd['r3d'])
-
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                return ''
-
-            for ge in self.polystrips.gedges:
-                if not ge.is_picked(pt): continue
-                
-                if ge.is_zippered() or ge.is_gpatched():
-                    showErrorMessage('Cannot delete zippered or patched GEdge')
-                    continue
-
-                self.polystrips.disconnect_gedge(ge)
-                self.polystrips.remove_unconnected_gverts()
-
-                self.act_gvert = None
-                self.sel_gedge = None
-                return ''
-
-            self.act_gedge,self.act_gvert = None,None
-            return ''
-
-        if eventd['press'] == 'CTRL+U':
-            self.create_undo_snapshot('update')
-            for gv in self.polystrips.gverts:
-                gv.update_gedges()
-        
         ###################################
         # Selected gpatch commands
         
