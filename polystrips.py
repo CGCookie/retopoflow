@@ -1099,7 +1099,8 @@ class GPatch:
         for ge in self.gedges: ge.attach_gpatch(self)
         
         # should the gedges be reversed?
-        self.rev = [ge0.gvert0 in [ge1.gvert0, ge1.gvert3] for ge0,ge1 in zip_pairs(self.gedges)]
+        self.rev = [ge0.gvert3 not in [ge1.gvert0, ge1.gvert3] for ge0,ge1 in zip_pairs(self.gedges)]
+        print('rev: ' + str(self.rev))
         
         
         # make sure gedges have proper counts
@@ -1112,16 +1113,12 @@ class GPatch:
             self.gedges[3].set_count(count13)
         else:
             count = max(ge.get_count() for ge in self.gedges)
-            if count%2==0: count += 1
+            if count%2==1: count += 1
+            count = max(count,4)
             for ge in self.gedges: ge.set_count(count)
         
-        #self.pts = []
-        #self.map_pts = {}
-        #self.visible = {}
-        
-        self.pts   = []     # list of tuples of (position,visible,lookup)
-                            # lookup is either (GEdge,ind_igvert) or None
         self.quads = []     # list of tuples of inds into self.pts
+        self.pts   = []     # list of tuples of (position,visible,lookup), where lookup is either (GEdge,ind_igvert) or None
         
         self.update()
     
@@ -1137,51 +1134,116 @@ class GPatch:
     
     def set_count(self, gedge):
         if self.nsides == 4:
-            for i_ge,ge in enumerate(self.gedges):
-                if gedge != ge: continue
-                oge = self.gedges[(i_ge + 2)%4].set_count(gedge.n_quads)
-                break
+            i_ge = self.gedges.index(gedge)
+            oge = self.gedges[(i_ge+2)%4].set_count(gedge.n_quads)
         else:
             for ge in self.gedges:
-                if gedge == ge: continue
                 ge.set_count(gedge.n_quads)
         self.update()
     
     def update(self):
         if self.frozen: return
-        if self.nsides == 4:
+        
+        if self.nsides == 3:
+            self._update_tri()
+        elif self.nsides == 4:
             self._update_quad()
     
     def _update_tri(self):
         ge0,ge1,ge2 = self.gedges
         rev0,rev1,rev2 = self.rev
         closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        sz0,sz1,sz2 = [len(ge.cache_igverts) for ge in self.gedges]
+        
+        # defer update for a bit (counts don't match up!)
+        if sz0 != sz1 or sz1 != sz2: return
         
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        cps0,lts0 = ge0.gverts(),ge0.l_ts
-        cps1,lts1 = ge1.gverts(),ge1.l_ts
-        cps2,lts2 = ge2.gverts(),ge2.l_ts
+        self.pts = []
+        self.quads = []
         
-        if rev0:
-            cps0 = list(reversed(cps0))
-            lts0 = [ 1-v for v in reversed(lts0)]
-        if rev1:
-            cps1 = list(reversed(cps1))
-            lts1 = [ 1-v for v in reversed(lts1)]
-        if rev2:
-            cps2 = list(reversed(cps2))
-            lts2 = [ 1-v for v in reversed(lts2)]
+        lc0 = list(ge0.iter_segments())
+        idx0 =  (0,1) if rev0 else (3,2)
+        lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
+        if rev0: lc0.reverse()
         
-        v0,v1,v2 = cps0[0],cps1[0],cps2[0]
+        lc1 = list(ge1.iter_segments())
+        idx1 =  (0,1) if rev1 else (3,2)
+        lc1 = [lc1[0][idx1[0]]] + list(_c[idx1[1]] for _c in lc1)
+        if rev1: lc1.reverse()
+        
+        lc2 = list(ge2.iter_segments())
+        idx2 =  (0,1) if rev2 else (3,2)
+        lc2 = [lc2[0][idx2[0]]] + list(_c[idx2[1]] for _c in lc2)
+        if not rev2: lc2.reverse()
+        
+        wid = len(lc0)
+        w2 = (wid-1) // 2
+        
+        c0,c1,c2 = lc0[w2],lc1[w2],lc2[w2]
+        center = (c0+c1+c2)/3.0
+        
+        # add pts along ge0
+        self.pts += [(c,True,(0,i_c)) for i_c,c in enumerate(lc0)]
+        for i in range(1,w2+1):
+            pi = i/w2
+            self.pts += [(lc2[i],True,(2,wid-1-i))]
+            cc0 = center*pi + c0*(1-pi)
+            for j in range(1,wid-1):
+                if j < w2:
+                    pj = j/w2
+                    p = cc0*pj + lc2[i]*(1-pj)
+                else:
+                    pj = (j-w2)/w2
+                    p = lc1[i]*pj + cc0*(1-pj)
+                p = mx * closest_point_on_mesh(imx * p)[0]
+                self.pts += [(p,True,None)]
+            self.pts += [(lc1[i],True,(1,i))]
+        
+        # add pts in corner of ge1 and ge2
+        chalf = len(self.pts)
+        for i in range(w2+1,wid-1):
+            pi = (i-w2)/w2
+            self.pts += [(lc2[i],True,(2,wid-1-i))]
+            cc1 = c1*pi + center*(1-pi)
+            for j in range(1,w2):
+                pj = j/w2
+                p = cc1*pj + lc2[i]*(1-pj)
+                p = mx * closest_point_on_mesh(imx * p)[0]
+                self.pts += [(p,True,None)]
+        for j in range(0,w2):
+            self.pts += [(lc1[wid-1-j],True,(1,wid-1-j))]
         
         
-        v00,v01,v02,v03 = cps0
-        _  ,v13,v23,_   = cps1
-        v30,v31,v32,v33 = cps2
+        for i in range(w2):
+            for j in range(wid-1):
+                self.quads += [( (i+0)*wid+(j+0), (i+1)*wid+(j+0), (i+1)*wid+(j+1), (i+0)*wid+(j+1) )]
+        
+        for i in range(-1,w2-1):
+            for j in range(w2-1):
+                i0 = chalf + (i+0)*w2+(j+0)
+                i1 = chalf + (i+0)*w2+(j+1)
+                i2 = chalf + (i+1)*w2+(j+1)
+                i3 = chalf + (i+1)*w2+(j+0)
+                if i < 0:
+                    i0 -= w2+1
+                    i1 -= w2+1
+                self.quads += [(i0,i3,i2,i1)]
+        for i in range(-1,w2-1):
+            i0 = chalf + (i+1)*w2+(w2-1)
+            i1 = chalf + (i+0)*w2+(w2-1)
+            i2 = chalf-w2 + i
+            i3 = chalf-w2 + i+1
+            if i < 0:
+                #i0 -= w2+1
+                i1 -= w2+1
+            self.quads += [(i0,i3,i2,i1)]
+
+    
     
     def _update_quad(self):
         ge0,ge1,ge2,ge3 = self.gedges
@@ -1232,16 +1294,16 @@ class GPatch:
                 w0 = 1.0 - w2
                 
                 if i1 == 0:
-                    self.pts += [(p0, True, (ge0,i0))]
+                    self.pts += [(p0, True, (0,i0))]
                     continue
                 if i0 == len(lc0)-1:
-                    self.pts += [(p1, True, (ge1,i1))]
+                    self.pts += [(p1, True, (1,i1))]
                     continue
                 if i1 == len(lc1)-1:
-                    self.pts += [(p2, True, (ge2,i0))]
+                    self.pts += [(p2, True, (2,wid-1-i0))]
                     continue
                 if i0 == 0:
-                    self.pts += [(p3, True, (ge3,i1))]
+                    self.pts += [(p3, True, (3,hei-1-i1))]
                     continue
                 
                 p02 = p0*w0 + p2*w2
@@ -1258,7 +1320,7 @@ class GPatch:
                 p = p02*w02 + p13*w13
                 p = mx * closest_point_on_mesh(imx * p)[0]
                 
-                self.pts += [( p, True, None)]
+                self.pts += [(p, True, None)]
         
         for i0 in range(wid-1):
             for i1 in range(hei-1):
@@ -2156,49 +2218,65 @@ class PolyStrips(object):
                 # mark gedge as done
                 done |= {ge}
 
-        map_i0i1_vert = {}
+        
+        #map_i0i1_vert = {}
+        map_ipt_vert = {}
         for gp in self.gpatches:
-            i_ge0 = self.gedges.index(gp.gedges[0])
-            i_ge1 = self.gedges.index(gp.gedges[1])
-            i_ge2 = self.gedges.index(gp.gedges[2])
-            i_ge3 = self.gedges.index(gp.gedges[3])
-            sz0 = gp.gedges[0].n_quads
-            sz1 = gp.gedges[1].n_quads
-            for i0,i1,p in gp.pts:
-                if i0%2 == 0 or i1%2 == 0: continue
-                i0 = (i0-1)//2
-                i1 = (i1-1)//2
-                if i0 == 0:
-                    i = i1+1 if gp.rev[3] else sz1-1-i1
-                    mto = ige_side_lvind[(i_ge3,1 if gp.rev[3] else -1)][i]
-                    map_i0i1_vert[(i0,i1)] = mto
-                    continue
-                if i0 == sz0-2:
-                    i = i1+1 if not gp.rev[1] else sz1-1-i1
-                    mto = ige_side_lvind[(i_ge1,1 if gp.rev[1] else -1)][i]
-                    map_i0i1_vert[(i0,i1)] = mto
-                    continue
-                if i1 == 0:
-                    i = i0+1 if not gp.rev[0] else sz0-1-i0
-                    mto = ige_side_lvind[(i_ge0,1 if gp.rev[0] else -1)][i]
-                    map_i0i1_vert[(i0,i1)] = mto
-                    continue
-                if i1 == sz1-2:
-                    i = i0+1 if gp.rev[2] else sz0-1-i0
-                    mto = ige_side_lvind[(i_ge2,1 if gp.rev[2] else -1)][i]
-                    map_i0i1_vert[(i0,i1)] = mto
-                    continue
+            li_ge = [self.gedges.index(ge) for ge in gp.gedges]
+            
+            for i_pt,pt in enumerate(gp.pts):
+                p,_,k = pt
+                if not k:
+                    map_ipt_vert[i_pt] = insert_vert(p)
+                else:
+                    i_ge,i_v = k
+                    lverts = ige_side_lvind[(li_ge[i_ge],1 if gp.rev[i_ge] else -1)]
+                    map_ipt_vert[i_pt] = lverts[(i_v+1) if not gp.rev[i_ge] else (len(lverts)-i_v-2)]
+            
+            for i0,i1,i2,i3 in gp.quads:
+                create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
+            
+            # i_ge0 = self.gedges.index(gp.gedges[0])
+            # i_ge1 = self.gedges.index(gp.gedges[1])
+            # i_ge2 = self.gedges.index(gp.gedges[2])
+            # i_ge3 = self.gedges.index(gp.gedges[3])
+            # sz0 = gp.gedges[0].n_quads
+            # sz1 = gp.gedges[1].n_quads
+            # for i0,i1,p in gp.pts:
+            #     if i0%2 == 0 or i1%2 == 0: continue
+            #     i0 = (i0-1)//2
+            #     i1 = (i1-1)//2
+            #     if i0 == 0:
+            #         i = i1+1 if gp.rev[3] else sz1-1-i1
+            #         mto = ige_side_lvind[(i_ge3,1 if gp.rev[3] else -1)][i]
+            #         map_i0i1_vert[(i0,i1)] = mto
+            #         continue
+            #     if i0 == sz0-2:
+            #         i = i1+1 if not gp.rev[1] else sz1-1-i1
+            #         mto = ige_side_lvind[(i_ge1,1 if gp.rev[1] else -1)][i]
+            #         map_i0i1_vert[(i0,i1)] = mto
+            #         continue
+            #     if i1 == 0:
+            #         i = i0+1 if not gp.rev[0] else sz0-1-i0
+            #         mto = ige_side_lvind[(i_ge0,1 if gp.rev[0] else -1)][i]
+            #         map_i0i1_vert[(i0,i1)] = mto
+            #         continue
+            #     if i1 == sz1-2:
+            #         i = i0+1 if gp.rev[2] else sz0-1-i0
+            #         mto = ige_side_lvind[(i_ge2,1 if gp.rev[2] else -1)][i]
+            #         map_i0i1_vert[(i0,i1)] = mto
+            #         continue
                 
-                map_i0i1_vert[(i0,i1)] = insert_vert(p)
-                print(map_i0i1_vert[(i0,i1)])
-            for i0 in range(0,sz0-2):
-                for i1 in range(0,sz1-2):
-                    cc0 = map_i0i1_vert[(i0+0,i1+0)]
-                    cc1 = map_i0i1_vert[(i0+1,i1+0)]
-                    cc2 = map_i0i1_vert[(i0+1,i1+1)]
-                    cc3 = map_i0i1_vert[(i0+0,i1+1)]
-                    print('new quad(%i,%i): %i %i %i %i' % (i0,i1,cc0,cc1,cc2,cc3))
-                    create_quad(cc0,cc3,cc2,cc1)
+            #     map_i0i1_vert[(i0,i1)] = insert_vert(p)
+            #     print(map_i0i1_vert[(i0,i1)])
+            # for i0 in range(0,sz0-2):
+            #     for i1 in range(0,sz1-2):
+            #         cc0 = map_i0i1_vert[(i0+0,i1+0)]
+            #         cc1 = map_i0i1_vert[(i0+1,i1+0)]
+            #         cc2 = map_i0i1_vert[(i0+1,i1+1)]
+            #         cc3 = map_i0i1_vert[(i0+0,i1+1)]
+            #         print('new quad(%i,%i): %i %i %i %i' % (i0,i1,cc0,cc1,cc2,cc3))
+            #         create_quad(cc0,cc3,cc2,cc1)
         
         # remove unused verts and remap quads
         vind_used = [False for v in verts]

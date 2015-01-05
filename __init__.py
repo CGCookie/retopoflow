@@ -2550,9 +2550,10 @@ class PolystripsUI:
                 color_fill   = (0.80,0.80,0.80,0.20)
             
             for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
-                common_drawing.draw_3d_points(context, [p0,p1,p2,p3], color_border, 3)
                 common_drawing.draw_polyline_from_3dpoints(context, [p0,p1,p2,p3,p0], color_border, 1, "GL_LINE_STIPPLE")
                 common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
+            
+            common_drawing.draw_3d_points(context, [p for p,v,k in gpatch.pts if v], color_border, 3)
 
         ### Edges ###
         for i_ge,gedge in enumerate(self.polystrips.gedges):
@@ -2795,6 +2796,32 @@ class PolystripsUI:
     # fill function
 
     def fill(self, eventd):
+        
+        if len(self.sel_gedges) == 3:
+            gedges = list(self.sel_gedges)
+            
+            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
+            gv2 = gedges[1].gvert0 if gedges[1].gvert3 in [gv0,gv1] else gedges[1].gvert3
+            
+            # test if we need to change direction!
+            if gv1 != gedges[1].gvert0 and gv1 != gedges[1].gvert3:
+                gv0,gv1 = gv1,gv0
+            n0 = gv0.snap_norm
+            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
+            if n0.dot(n1) > 0:
+                gedges[1],gedges[2] = gedges[2],gedges[1]
+            
+            gp = self.polystrips.create_gpatch(*gedges)
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gpatch = gp
+            
+            gp.update()
+            self.polystrips.update_visibility(eventd['r3d'])
+            return
+        
         if self.act_gvert:
             lges = self.act_gvert.get_gedges()
             if self.act_gvert.is_ljunction():
