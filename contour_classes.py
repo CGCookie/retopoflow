@@ -680,7 +680,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             
         no_final = self.cuts[end].plane_no
         
-        interps = end - start - 2
+        interps = end - start - 1
         
         if self.existing_head:
             self.cuts[0].align_to_other(self.existing_head)
