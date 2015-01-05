@@ -1153,22 +1153,24 @@ class GPatch:
         
         # make sure gedges have proper counts
         if self.nsides == 3:
-            count = max(ge.get_count() for ge in self.gedges)
+            count = min(ge.get_count() for ge in self.gedges)
             if count%2==1: count += 1
             count = max(count,4)
             for ge in self.gedges: ge.set_count(count)
-        if self.nsides == 4:
-            count02 = max(self.gedges[0].get_count(), self.gedges[2].get_count())
-            count13 = max(self.gedges[1].get_count(), self.gedges[3].get_count())
+        
+        elif self.nsides == 4:
+            count02 = min(self.gedges[0].get_count(), self.gedges[2].get_count())
+            count13 = min(self.gedges[1].get_count(), self.gedges[3].get_count())
             self.gedges[0].set_count(count02)
             self.gedges[2].set_count(count02)
             self.gedges[1].set_count(count13)
             self.gedges[3].set_count(count13)
+        
         elif self.nsides == 5:
             count0 = self.gedges[0].get_count()-2
             if count0%2==1: count0 += 1
-            count0 = max(count0,2)
-            count14 = max(self.gedges[1].get_count(), self.gedges[4].get_count())
+            count0  = max(count0,2)
+            count14 = min(self.gedges[1].get_count(), self.gedges[4].get_count())
             self.gedges[0].set_count(count0+2)
             self.gedges[2].set_count(count0//2+2)
             self.gedges[3].set_count(count0//2+2)
