@@ -121,6 +121,8 @@ class GVert:
     def is_tjunction(self):   return self.has_0() and self.has_1() and self.has_3() and not self.has_2()
     def is_cross(self):       return self.has_0() and self.has_1() and self.has_2() and self.has_3()
     
+    def freeze(self): self.frozen = True
+    def thaw(self): self.frozen = False
     def is_frozen(self): return self.frozen
     
     def get_gedges(self): return [self.gedge0,self.gedge1,self.gedge2,self.gedge3]
@@ -606,6 +608,14 @@ class GEdge:
     def is_zippered(self): return (self.zip_to_gedge != None)
     def has_zippered(self): return len(self.zip_attached)!=0
     
+    def freeze(self):
+        self.frozen = True
+        self.gvert0.freeze()
+        self.gvert3.freeze()
+    def thaw(self):
+        self.frozen = False
+        for gp in self.gpatches:
+            gp.thaw()
     def is_frozen(self): return self.frozen
     
     def zip_to(self, gedge):
@@ -1170,12 +1180,15 @@ class GPatch:
         
         self.update()
     
-    def rotate_pole(self):
+    def rotate_pole(self, reverse=False):
         if self.frozen: return
         
         if self.nsides != 5: return
         
-        self.gedges = self.gedges[1:] + self.gedges[:1]
+        if not reverse:
+            self.gedges = self.gedges[1:] + self.gedges[:1]
+        else:
+            self.gedges = self.gedges[-1:] + self.gedges[:-1]
         self.rev = [ge0.gvert3 not in [ge1.gvert0, ge1.gvert3] for ge0,ge1 in zip_pairs(self.gedges)]
         
         count0 = self.gedges[0].get_count()-2
@@ -1190,6 +1203,12 @@ class GPatch:
         
         self.update()
     
+    def freeze(self):
+        self.frozen = True
+        for ge in self.gedges:
+            ge.freeze()
+    def thaw(self):
+        self.frozen = False
     def is_frozen(self): return self.frozen
     
     def disconnect(self):

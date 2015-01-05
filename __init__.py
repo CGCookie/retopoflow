@@ -2522,6 +2522,8 @@ class PolystripsUI:
     def draw_callback_themed(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
+        
+        m = Vector([-1,1,1])
 
         # theme_number = int(settings.theme)
 
@@ -2797,66 +2799,7 @@ class PolystripsUI:
 
     def fill(self, eventd):
         
-        if len(self.sel_gedges) == 3:
-            gedges = list(self.sel_gedges)
-            
-            # test if we need to change direction!
-            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
-            gv2 = gedges[1].gvert0 if gedges[1].gvert3 in [gv0,gv1] else gedges[1].gvert3
-            if gv1 != gedges[1].gvert0 and gv1 != gedges[1].gvert3:
-                gv0,gv1 = gv1,gv0
-            n0 = gv0.snap_norm
-            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
-            if n0.dot(n1) > 0:
-                gedges[1],gedges[2] = gedges[2],gedges[1]
-            
-            gp = self.polystrips.create_gpatch(*gedges)
-            self.act_gvert = None
-            self.act_gedge = None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
-            self.act_gpatch = gp
-            
-            gp.update()
-            self.polystrips.update_visibility(eventd['r3d'])
-            return
-        
-        if len(self.sel_gedges) == 5:
-            sgedges = set(self.sel_gedges)
-            ge0 = sgedges.pop()
-            gedges = [ge0]
-            while sgedges:
-                for ge1 in sgedges:
-                    if ge1.has_endpoint(ge0.gvert3) or ge1.has_endpoint(ge0.gvert0):
-                        gedges += [ge1]
-                        sgedges.remove(ge1)
-                        ge0 = ge1
-                        break
-                else:
-                    showErrorMessage('must select five GEdges that form a ring!')
-                    return
-            
-            # test if we need to change direction!
-            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
-            gv4 = gedges[4].gvert0 if gedges[4].gvert3 in [gv0,gv1] else gedges[4].gvert3
-            if gv0 != gedges[4].gvert0 and gv0 != gedges[4].gvert3:
-                gv0,gv1 = gv1,gv0
-            n0 = gv0.snap_norm
-            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv4.snap_pos-gv0.snap_pos).normalized()
-            if n0.dot(n1) > 0:
-                gedges.reverse()
-            
-            gp = self.polystrips.create_gpatch(*gedges)
-            self.act_gvert = None
-            self.act_gedge = None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
-            self.act_gpatch = gp
-            
-            gp.update()
-            self.polystrips.update_visibility(eventd['r3d'])
-            return
-        
+        # GVert active
         if self.act_gvert:
             lges = self.act_gvert.get_gedges()
             if self.act_gvert.is_ljunction():
@@ -2878,6 +2821,52 @@ class PolystripsUI:
             self.sel_gedges = set(lgepairs[0])
             self.act_gedge = next(iter(self.sel_gedges))
             self.act_gvert = None
+        
+        loop_selected = True
+        sgedges = set(self.sel_gedges)
+        ge0 = sgedges.pop()
+        gedges = [ge0]
+        while sgedges and loop_selected:
+            for ge1 in sgedges:
+                if ge1.has_endpoint(ge0.gvert3) or ge1.has_endpoint(ge0.gvert0):
+                    gedges += [ge1]
+                    sgedges.remove(ge1)
+                    ge0 = ge1
+                    break
+            else:
+                loop_selected = False
+        
+        if len(self.sel_gedges) not in {3,4,5} and loop_selected:
+            showErrorMessage('Can only fill a 3-, 4-, or 5-sided patch')
+            return
+            
+        if len(self.sel_gedges) == 5 and not loop_selected:
+            showErrorMessage('Must select five GEdges that form a ring!')
+            return
+        
+        
+        if loop_selected:
+            
+            # test if we need to change direction!
+            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
+            gv2 = gedges[-1].gvert0 if gedges[-1].gvert3 in [gv0,gv1] else gedges[-1].gvert3
+            if gv0 != gedges[-1].gvert0 and gv0 != gedges[-1].gvert3:
+                gv0,gv1 = gv1,gv0
+            n0 = gv0.snap_norm
+            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
+            if n0.dot(n1) > 0:
+                gedges.reverse()
+            
+            gp = self.polystrips.create_gpatch(*gedges)
+            self.act_gvert = None
+            self.act_gedge = None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
+            self.act_gpatch = gp
+            
+            gp.update()
+            self.polystrips.update_visibility(eventd['r3d'])
+            return
         
         if len(self.sel_gedges) != 2:
             showErrorMessage('Must have exactly 2 selected edges')
@@ -3443,8 +3432,9 @@ class PolystripsUI:
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
-            if eventd['press'] == 'R':
-                self.act_gpatch.rotate_pole()
+            if eventd['press'] in {'R','SHIFT+R'}:
+                reverse = eventd['press']=='SHIFT+R'
+                self.act_gpatch.rotate_pole(reverse=reverse)
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
@@ -3815,7 +3805,7 @@ class PolystripsUI:
             ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
             if not any(d < max_dist for d in ld):
                 continue
-            gv.frozen = True
+            gv.freeze()
             lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
             supdate.add(gv)
             for ge in gv.get_gedges_notnone():
@@ -3830,7 +3820,7 @@ class PolystripsUI:
                 d0 = (p0-hit_p3d).length / self.stroke_radius
                 d1 = (p1-hit_p3d).length / self.stroke_radius
                 if d0 >= max_dist and d1 >= max_dist: continue
-                ge.frozen = True
+                ge.freeze()
                 lgemove += [(gv,i,p0,d0,p1,d1)]
                 supdate.add(ge)
                 supdate.add(ge.gvert0)
@@ -3847,7 +3837,7 @@ class PolystripsUI:
                 freeze = True
                 lgpmove += [(gp,i_pt,p,d)]
             if not freeze: continue
-            gp.frozen = True
+            gp.freeze()
             supdate.add(gp)
             
         

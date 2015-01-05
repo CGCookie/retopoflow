@@ -169,7 +169,9 @@ def draw_polyline_from_3dpoints(context, points_3d, color, thickness, LINE_TYPE)
         thickness: integer? maybe a float
         LINE_TYPE:  eg...bgl.GL_LINE_STIPPLE or 
     '''
+    
     points = [location_3d_to_region_2d(context.region, context.space_data.region_3d, loc) for loc in points_3d]
+    
     if LINE_TYPE == "GL_LINE_STIPPLE":  
         bgl.glLineStipple(4, 0x5555)  #play with this later
         bgl.glEnable(bgl.GL_LINE_STIPPLE)  
@@ -200,7 +202,9 @@ def draw_quads_from_3dpoints(context, points_3d, color):
         points_3d: a list of tuples as x,y,z
         color: tuple (r,g,b,a)
     '''
+    
     points = [location_3d_to_region_2d(context.region, context.space_data.region_3d, loc) for loc in points_3d]
+    
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glColor4f(*color)
     bgl.glBegin(bgl.GL_QUADS)
