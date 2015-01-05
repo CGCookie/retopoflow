@@ -46,6 +46,7 @@ class TextBox(object):
         self.height = height
         self.border = border
         self.spacer = 5
+        self.is_collapsed = False
         
         self.text_size = 12
         self.text_dpi = 72
@@ -58,11 +59,17 @@ class TextBox(object):
     def screen_boudaries(self):
         print('to be done later')
     
-    def snap_to_coner(self,context,corner = [1,1]):
+    def snap_to_corner(self,context,corner = [1,1]):
         '''
         '''
+        if self.is_collapsed:
+            self.x = 5 + .25*self.width + corner[0]*(context.region.width - .5*self.width - 10)
+            self.y = 5 + 2*self.border + self.line_height + corner[1]*(context.region.height - 10 - (2*self.border + self.line_height))
+            return
         
-         
+        self.x = 5 + .5*self.width + corner[0]*(context.region.width - self.width - 10)
+        self.y = 5 + self.height + corner[1]*(context.region.height - 10 - self.height)
+             
     def fit_box_height_to_text_lines(self):
         '''
         will make box width match longest line
@@ -152,14 +159,40 @@ class TextBox(object):
         return
     
     def draw(self):
-        txt_color = (.9,.9,.9,1)
-        txt_color_no_poll = (.5, .5, .5, 1)
+        bgcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.inner
+        bgR = bgcol[0]
+        bgG = bgcol[1]
+        bgB = bgcol[2]
+        bgA = .7
+        bg_color = (bgR, bgG, bgB, bgA)
         
-        bg_color = (.1, .1, .1, .5)
-        search_color = (.2, .2, .2, 1)
-        border_color = (.05, .05, .05, 1)
-        highlight_color = (0,.3, 1, .8)
+        txtcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.text
+        txR = txtcol[0]
+        txG = txtcol[1]
+        txB = txtcol[2]
+        txA = .9
+        txt_color = (txR, txG, txB, txA)
         
+        bordcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.outline
+        bordR = bordcol[0]
+        bordG = bordcol[1]
+        bordB = bordcol[2]
+        bordA = .8
+        border_color = (bordR, bordG, bordB, bordA) 
+        
+        if self.is_collapsed:
+            left = self.x - self.width/4
+            right = left + self.width/2
+            top = self.y
+            bottom = self.y - self.line_height - 2*self.border
+            outline = common_drawing.round_box(left, bottom, right, top, (top-bottom)/6)
+            common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
+            common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
+            blf.position(0,left + self.border, bottom+self.border, 0)
+            bgl.glColor4f(*txt_color)
+            blf.draw(0, "Press ? for Help")
+            return
+            
         left = self.x - self.width/2
         right = left + self.width
         bottom = self.y - self.height

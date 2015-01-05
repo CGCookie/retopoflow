@@ -2299,7 +2299,7 @@ class PolystripsUI:
         help_txt = open(filename, mode='r').read()
 
         self.help_box = TextBox(context,500,500,300,200,5,help_txt)
-        
+        self.help_box.snap_to_corner(context, corner = [1,1])
         
         self.last_matrix = None
 
@@ -3189,7 +3189,9 @@ class PolystripsUI:
 
         ########################################
         # accept / cancel
-
+        if eventd['press'] == 'SHIFT+SLASH':
+            self.help_box.is_collapsed = self.help_box.is_collapsed == False
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
