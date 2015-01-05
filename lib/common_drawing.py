@@ -225,6 +225,7 @@ def draw_outline_or_region(mode, points, color):
         if mode == 'GL_LINE_LOOP':
             bgl.glBegin(bgl.GL_LINE_LOOP)
         else:
+            bgl.glEnable(bgl.GL_BLEND)
             bgl.glBegin(bgl.GL_POLYGON)
  
         # start with corner right-bottom
