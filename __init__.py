@@ -1923,6 +1923,10 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             x,y = eventd['mouse']
             self.sketch_curpos = (x,y)
             
+            if not len(self.sketch):
+                #somehow we got into sketching w/o sketching
+                return 'main guide'
+            
             (lx, ly) = self.sketch[-1]
             #on the fly, backwards facing, smoothing
             ss0,ss1 = self.stroke_smoothing,1-self.stroke_smoothing
