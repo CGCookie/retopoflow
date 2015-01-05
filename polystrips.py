@@ -51,6 +51,7 @@ AL = AddonLocator()
 
 class GVert:
     def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, from_mesh = False):
+        
         # store info
         self.o_name       = obj.name
         self.targ_o_name  = targ_obj.name
@@ -238,23 +239,24 @@ class GVert:
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        self.corner0.x = max(0.0, self.corner0.x)
-        self.corner1.x = max(0.0, self.corner1.x)
-        self.corner2.x = max(0.0, self.corner2.x)
-        self.corner3.x = max(0.0, self.corner3.x)
+        if PolyStrips.settings.symmetry_plane == 'x':
+            self.corner0.x = max(0.0, self.corner0.x)
+            self.corner1.x = max(0.0, self.corner1.x)
+            self.corner2.x = max(0.0, self.corner2.x)
+            self.corner3.x = max(0.0, self.corner3.x)
         
         self.corner0 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner0)[0]
         self.corner1 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner1)[0]
         self.corner2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner2)[0]
         self.corner3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner3)[0]
         
-        self.corner0.x = max(0.0, self.corner0.x)
-        self.corner1.x = max(0.0, self.corner1.x)
-        self.corner2.x = max(0.0, self.corner2.x)
-        self.corner3.x = max(0.0, self.corner3.x)
-        
-        self.position.x = max(0.0,self.position.x)
-        self.snap_pos.x = max(0.0,self.snap_pos.x)
+        if PolyStrips.settings.symmetry_plane == 'x':
+            self.corner0.x = max(0.0, self.corner0.x)
+            self.corner1.x = max(0.0, self.corner1.x)
+            self.corner2.x = max(0.0, self.corner2.x)
+            self.corner3.x = max(0.0, self.corner3.x)
+            self.position.x = max(0.0,self.position.x)
+            self.snap_pos.x = max(0.0,self.snap_pos.x)
         
         pr.done()
     
@@ -1025,19 +1027,20 @@ class GEdge:
             else:
                 self.update_nozip(debug=debug)
             
-            # clamp to x-plane
-            for igv in self.cache_igverts:
-                p0 = igv.position + igv.tangent_y*igv.radius
-                p1 = igv.position - igv.tangent_y*igv.radius
-                p0.x = max(0.0,p0.x)
-                p1.x = max(0.0,p1.x)
-                igv.position = (p0+p1)/2.0
-                igv.radius = (p0-p1).length/2.0
-                igv.tangent_y = (p0-p1).normalized()
-                
-                igv.snap_pos = igv.position
-                igv.snap_radius = igv.radius
-                igv.snap_tany = igv.tangent_y
+            if PolyStrips.settings.symmetry_plane == 'x':
+                # clamp to x-plane
+                for igv in self.cache_igverts:
+                    p0 = igv.position + igv.tangent_y*igv.radius
+                    p1 = igv.position - igv.tangent_y*igv.radius
+                    p0.x = max(0.0,p0.x)
+                    p1.x = max(0.0,p1.x)
+                    igv.position = (p0+p1)/2.0
+                    igv.radius = (p0-p1).length/2.0
+                    igv.tangent_y = (p0-p1).normalized()
+                    
+                    igv.snap_pos = igv.position
+                    igv.snap_radius = igv.radius
+                    igv.snap_tany = igv.tangent_y
                 
                 
         for zgedge in self.zip_attached:
@@ -1059,13 +1062,14 @@ class GEdge:
             l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * igv.position)
             igv.position = mx * l
             
-            # clamp to x-plane
-            p0 = igv.position + igv.tangent_y*igv.radius
-            p1 = igv.position - igv.tangent_y*igv.radius
-            p0.x = max(0.0,p0.x)
-            p1.x = max(0.0,p1.x)
-            igv.position = (p0+p1)/2.0
-            igv.snap_radius = (p0-p1).length/2.0
+            if PolyStrips.settings.symmetry_plane == 'x':
+                # clamp to x-plane
+                p0 = igv.position + igv.tangent_y*igv.radius
+                p1 = igv.position - igv.tangent_y*igv.radius
+                p0.x = max(0.0,p0.x)
+                p1.x = max(0.0,p1.x)
+                igv.position = (p0+p1)/2.0
+                igv.snap_radius = (p0-p1).length/2.0
             
             
             igv.normal = (mxnorm * n).normalized()
@@ -1557,8 +1561,11 @@ class GPatch:
 # PolyStrips
 
 class PolyStrips(object):
+    # class/static variable (shared across all instances)
+    settings = None
+    
     def __init__(self, context, obj, targ_obj):
-        settings = common_utilities.get_settings()
+        PolyStrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
         self.targ_o_name =targ_obj.name
