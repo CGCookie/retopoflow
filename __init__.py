@@ -108,19 +108,19 @@ class RetopoFlowPreferences(AddonPreferences):
         return (r/255.0, g/255.0, b/255.0, a/255.0)
 
     theme_colors_active = {
-        'blue': rgba_to_float(105, 246, 113, 255),
-        'green': rgba_to_float(102, 165, 240, 255),
-        'orange': rgba_to_float(102, 165, 240, 255)
+        'blue': rgba_to_float(78, 207, 81, 255),
+        'green': rgba_to_float(26, 111, 255, 255),
+        'orange': rgba_to_float(207, 135, 78, 255)
     }
     theme_colors_selection = {
-        'blue': rgba_to_float(105, 246, 113, 255),
-        'green': rgba_to_float(102, 165, 240, 255),
-        'orange': rgba_to_float(102, 165, 240, 255)
+        'blue': rgba_to_float(78, 207, 81, 255),
+        'green': rgba_to_float(26, 111, 255, 255),
+        'orange': rgba_to_float(207, 135, 78, 255)
     }
     theme_colors_mesh = {
-        'blue': rgba_to_float(102, 165, 240, 255),
-        'green': rgba_to_float(105, 246, 113, 255),
-        'orange': rgba_to_float(254, 145, 0, 255)
+        'blue': rgba_to_float(26, 111, 255, 255),
+        'green': rgba_to_float(78, 207, 81, 255),
+        'orange': rgba_to_float(26, 111, 255, 255)
     }
 
     # User settings
