@@ -148,6 +148,11 @@ class RetopoFlowPreferences(AddonPreferences):
         description = "Show the Contour settings",
         default=False,
         )
+    polystrips_panel_settings = BoolProperty(
+        name="Show Polystrips Settings",
+        description = "Show the Polystrips settings",
+        default=False,
+        )
 
     # System settings
     quad_prev_radius = IntProperty(
@@ -477,11 +482,11 @@ class RetopoFlowPreferences(AddonPreferences):
     symmetry_plane = EnumProperty(
         items=[
             ('none', 'None', 'Disable symmetry plane'),
-            ('x', 'X', 'Symmetric along X-axis (YZ plane)'),
-            ('y', 'Y', 'Symmetric along Y-axis (XZ plane)'),
-            ('z', 'Z', 'Symmetric along Z-axis (XY plane)'),
+            ('x', 'X', 'Clip to X-axis (YZ plane)'),
+            # ('y', 'Y', 'Clip to Y-axis (XZ plane)'),
+            # ('z', 'Z', 'Clip to Z-axis (XY plane)'),
             ],
-        name='symmetry_plane',
+        name='Symmetry Plane',
         description = "Clamp and clip to symmetry plane",
         default='none'
         )
@@ -625,6 +630,15 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         col = layout.column(align=True)
         col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+
+        box = layout.box()
+        row = box.row()
+
+        row.prop(settings, "polystrips_panel_settings")
+
+        if settings.polystrips_panel_settings:
+            col = box.column()
+            col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
@@ -2232,7 +2246,8 @@ class PolystripsUI:
 
         self.mode = 'main'
         
-        self.fullscreened = False
+        self.is_fullscreen = False
+        self.was_fullscreen = False
 
         self.mode_pos = (0, 0)
         self.cur_pos = (0, 0)
@@ -2269,22 +2284,29 @@ class PolystripsUI:
 
         if context.mode == 'OBJECT':
 
+            # Debug level 2: time start
+            check_time = profiler.start()
             self.obj_orig = context.object
             # duplicate selected objected to temporary object but with modifiers applied
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
-            self.obj.matrix_world = self.obj_orig.matrix_world
-            self.me.update()
+            if self.obj_orig.modifiers:
+                # Time event
+                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                self.me.update()
+                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+                bpy.context.scene.objects.link(self.obj)
+                self.obj.hide = True
 
-            # HACK
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.object.mode_set(mode='OBJECT')
+                # HACK
+                # Comment out for now. Appears to no longer be needed.
+                # bpy.ops.object.mode_set(mode='EDIT')
+                # bpy.ops.object.mode_set(mode='OBJECT')
+                self.obj.matrix_world = self.obj_orig.matrix_world
+            else:
+                self.obj = self.obj_orig
 
-            self.bme = bmesh.new()
-            self.bme.from_mesh(self.me)
+            # Debug level 2: time end
+            check_time.done()
+
 
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
@@ -2301,19 +2323,20 @@ class PolystripsUI:
 
         if context.mode == 'EDIT_MESH':
             self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-            self.bme = bmesh.new()
-            self.bme.from_mesh(self.me)
+            if self.obj_orig.modifiers:
+                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                self.me.update()
 
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
+                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+                bpy.context.scene.objects.link(self.obj)
+                self.obj.hide = True
+            else:
+                self.obj = self.obj_orig
             self.obj.matrix_world = self.obj_orig.matrix_world
-            self.me.update()
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.mode_set(mode='EDIT')
+            # Comment out for now. Appears to no longer be needed.
+            # bpy.ops.object.mode_set(mode='OBJECT')
+            # bpy.ops.object.mode_set(mode='EDIT')
 
             self.dest_obj = context.object
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
@@ -2425,17 +2448,18 @@ class PolystripsUI:
         '''
         dprint('cleaning up!')
 
-        tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-        meobj  = tmpobj.data
+        if self.obj_orig.modifiers:
+            tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
+            meobj  = tmpobj.data
 
-        # Delete object
-        context.scene.objects.unlink(tmpobj)
-        tmpobj.user_clear()
-        if tmpobj.name in bpy.data.objects:
-            bpy.data.objects.remove(tmpobj)
+            # Delete object
+            context.scene.objects.unlink(tmpobj)
+            tmpobj.user_clear()
+            if tmpobj.name in bpy.data.objects:
+                bpy.data.objects.remove(tmpobj)
 
-        bpy.context.scene.update()
-        bpy.data.meshes.remove(meobj)
+            bpy.context.scene.update()
+            bpy.data.meshes.remove(meobj)
 
     ################################
     # Draw functions
@@ -4059,16 +4083,19 @@ class PolystripsUI:
             self.kill_timer(context)
             polystrips_undo_cache = []
             
-            bpy.ops.screen.screen_full_area(use_hide_panels=True)
-            self.fullscreened = False
+            if not self.was_fullscreen and settings.distraction_free:
+                bpy.ops.screen.screen_full_area(use_hide_panels=True)
+                self.is_fullscreen = False
             
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.mode = nmode
         
-        if not self.fullscreened:
-            bpy.ops.screen.screen_full_area(use_hide_panels=True)
-            self.fullscreened = True
+        if not self.is_fullscreen:
+            was_fullscreen = len(context.screen.areas)==1
+            if not was_fullscreen and settings.distraction_free:
+                bpy.ops.screen.screen_full_area(use_hide_panels=True)
+            self.is_fullscreen = True
 
         return {'RUNNING_MODAL'}
 
