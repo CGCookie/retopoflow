@@ -3215,15 +3215,6 @@ class PolystripsUI:
             self.post_update = True
             self.is_navigating = True
 
-            # x,y = eventd['mouse']
-            # self.sketch_brush.update_mouse_move_hover(eventd['context'], x,y)
-            # self.sketch_brush.make_circles()
-            # self.sketch_brush.get_brush_world_size(eventd['context'])
-            
-            # if self.sketch_brush.world_width:
-            #     self.stroke_radius = self.sketch_brush.world_width
-            #     self.stroke_radius_pressure = self.sketch_brush.world_width
-                
             return 'nav' if eventd['value']=='PRESS' else 'main'
 
         self.is_navigating = False
@@ -3773,14 +3764,24 @@ class PolystripsUI:
             # p3d = [(p0+(p1-p0).normalized()*x) for p0,p1 in zip(p3d[:-1],p3d[1:]) for x in frange(0,(p0-p1).length,length_tess)] + [p3d[-1]]
             # stroke = [(p,self.stroke_radius) for i,p in enumerate(p3d)]
 
-            stroke = p3d
             self.sketch = []
-            dprint('')
-            dprint('')
-            dprint('inserting stroke')
             
-            
-            self.polystrips.insert_gedge_from_stroke(stroke, False)
+            while p3d:
+                next_i_p = len(p3d)
+                for i_p,p in enumerate(p3d):
+                    if p[0].x < 0.0:
+                        next_i_p = i_p
+                        break
+                self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p], False)
+                p3d = p3d[next_i_p:]
+                next_i_p = len(p3d)
+                for i_p,p in enumerate(p3d):
+                    if p[0].x >= 0.0:
+                        next_i_p = i_p
+                        break
+                p3d = p3d[next_i_p:]
+            #stroke = p3d
+            #self.polystrips.insert_gedge_from_stroke(stroke, False)
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
             return 'main'
