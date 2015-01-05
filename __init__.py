@@ -3578,9 +3578,11 @@ class PolystripsUI:
         pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
         if not pts:
             # user did not click on the object
-            self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
+            if not eventd['shift']:
+                # clear selection if shift is not held
+                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
+                self.sel_gedges.clear()
+                self.sel_gverts.clear()
             return ''
         pt = pts[0]
 
@@ -3631,11 +3633,11 @@ class PolystripsUI:
             self.sel_gverts.clear()
             self.act_gpatch = gp
             return ''
-
-        self.act_gedge,self.act_gvert = None,None
-        self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
-        self.sel_gedges.clear()
-        self.sel_gverts.clear()
+        
+        if not eventd['shift']:
+            self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
+            self.sel_gedges.clear()
+            self.sel_gverts.clear()
     
     def modal_sketching(self, eventd):
 
