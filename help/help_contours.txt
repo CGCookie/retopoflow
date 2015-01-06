@@ -1,25 +1,26 @@
 Contours Help (press ? to hide help):
 
 DRAWING:
-- LMB: draw strip on surface
-- SELECTMOUSE: select strip, junction, junction handle, or patch
-- Shift + SELECTMOUSE: select multiple strips
-
-- F: adjust brush size
+- LMB: draw contour stroke perpindicular to form
+- SELECTMOUSE: select stroke
 
 TRANSFORM:
-- G: grab
+- G: slide
 - R: rotate
-- S: scale
 
-MERGE / DELETE / OTHER:
+DELETE / OTHER:
 - X: delete
 
 - N: force new segment
 
-FILL / SEGMENTS:
-- SHIFT+F: fill selected strips w/ patch
-- CTRL - +: adjust segments on strip
+GUIDE MODE:
+- TAB: toggle guide mode
+- LMB: draw stroke parallel to form to generate a series of contour cuts
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation
 
 TIPS:
-- Extend an existing geometry edgeloops by selecting it in Edit Mode before starting Contours.
+- Contouring in Object mode will create a new object. Contouring in Edit Mode will add retopology to existing mesh object.
+- Extrude contours from an existing edgeloops by selecting it in Edit Mode before starting Contours.
