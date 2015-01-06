@@ -1,12 +1,25 @@
-Contours Help:
+Contours Help (press ? to hide help):
 
-1.Welcome to simple help
-2.Action mouse and drag, to cut or draw a stroke
-3.Cuts are transformable with widget or hotkeys
-4."Tab" to enter a stroke mode to generate many cuts
-5.Normal Transform Functions: G to Grab, R to Rotate, S to scale
-6.Editmode works
-7.You can turn this off in user preferences
-8. Hit question mark to collapse me
+DRAWING:
+- LMB: draw strip on surface
+- SELECTMOUSE: select strip, junction, junction handle, or patch
+- Shift + SELECTMOUSE: select multiple strips
 
-More information to come!
+- F: adjust brush size
+
+TRANSFORM:
+- G: grab
+- R: rotate
+- S: scale
+
+MERGE / DELETE / OTHER:
+- X: delete
+
+- N: force new segment
+
+FILL / SEGMENTS:
+- SHIFT+F: fill selected strips w/ patch
+- CTRL - +: adjust segments on strip
+
+TIPS:
+- Extend an existing geometry edgeloops by selecting it in Edit Mode before starting Contours.
