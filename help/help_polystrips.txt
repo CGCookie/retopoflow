@@ -1,0 +1,28 @@
+Polystrips Help (press ? to hide help):
+
+DRAWING:
+- LMB: draw strip on surface
+- SELECTMOUSE: select strip, junction, junction handle, or patch
+- Shift + SELECTMOUSE: select multiple strips
+- F: adjust brush size
+
+TRANSFORM:
+- G: grab
+- R: rotate
+- S: scale
+
+MERGE / DELETE / CONVERT:
+- X: delete
+- CTRL+D: dissolve junction
+- CTRL+C: convert selected junction type
+
+- K: cut new junction under mouse on selected strip
+- M: merge selected junction to hovered
+
+FILL / SEGMENTS:
+- SHIFT+F: fill selected strips w/ patch
+- CTRL - +: adjust segments on strip
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation

@@ -58,7 +58,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from .lib import common_utilities
 from .lib import common_drawing
 from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-from .lib.common_classes import SketchBrush
+from .lib.common_classes import SketchBrush, TextBox
 from . import key_maps
 
 # Polystrip imports
@@ -130,6 +130,11 @@ class RetopoFlowPreferences(AddonPreferences):
     }
 
     # User settings
+    show_help = BoolProperty(
+        name='Show Help Box',
+        description='A help text box will float on 3d view',
+        default=True
+        )
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
         description='Show segment count on selection',
@@ -498,6 +503,7 @@ class RetopoFlowPreferences(AddonPreferences):
 
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
+        row.prop(self,"show_help")
 
         ## Polystrips 
         row = layout.row(align=True)
@@ -748,6 +754,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         if len(self.snap_circle):
             common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
 
+        if settings.show_help:
+            self.help_box.draw()
     ####Blender Mesh Data Management####
     
     def new_destination_obj(self,context,name, mx):
@@ -1657,6 +1665,12 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         ########################################
         # accept / cancel hard coded
+        if eventd['press'] in self.keymap['help']:
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         
         if eventd['press'] in self.keymap['confirm']:
             self.finish_mesh(eventd['context'])
@@ -1778,8 +1792,15 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             return nmode
          
         ########################################
-        # accept / cancel
-         
+        #help
+        if eventd['press'] in self.keymap['help']:
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+        # accept / cancel 
         if eventd['press'] in self.keymap['confirm']:
             self.finish_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
@@ -1993,6 +2014,19 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.settings = settings
         self.keymap = key_maps.rtflow_default_keymap_generate()
         
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, "help/help_contours.txt")
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = "No Help File found, please reinstall!"
+
+        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])
+        
+        print(self.keymap['navigate'])
+        
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
             return {'CANCELLED'}
@@ -2199,6 +2233,17 @@ class PolystripsUI:
 
         self.footer = ''
         self.footer_last = ''
+        
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, "help/help_polystrips.txt")
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = "No Help File found, please reinstall!"
+
+        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])
 
         self.last_matrix = None
 
@@ -2671,6 +2716,9 @@ class PolystripsUI:
             common_drawing.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
 
+        if settings.show_help:
+            self.help_box.draw()
+            
     def create_mesh(self, context):
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
@@ -3023,7 +3071,12 @@ class PolystripsUI:
 
         ########################################
         # accept / cancel
-
+        if eventd['press'] == 'SHIFT+SLASH':
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
