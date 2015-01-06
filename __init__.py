@@ -489,71 +489,33 @@ class RetopoFlowPreferences(AddonPreferences):
 
     def draw(self, context):
         
-        # Polystrips 
         layout = self.layout
 
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
 
+        ## Polystrips 
+        row = layout.row(align=True)
+        row.label("POLYSTRIPS SETTINGS:")
+
         row = layout.row(align=True)
         row.prop(self, "use_pressure")
         row.prop(self, "show_segment_count")
 
+        ##Contours
         row = layout.row(align=True)
-        row.prop(self, "debug") 
-
-        # Contours
-        layout = self.layout
+        row.label("CONTOURS SETTINGS:")
 
         # Interaction Settings
         row = layout.row(align=True)
-        row.prop(self, "auto_align")
-        row.prop(self, "live_update")
-        row.prop(self, "use_perspective")
-        row.prop(self, "smooth_method")
-        row = layout.row()
         row.prop(self, "use_x_ray", "Enable X-Ray at Mesh Creation")
-        
-        # Visualization Settings
-        box = layout.box().column(align=False)
-        row = box.row()
-        row.label(text="Stroke And Loop Settings")        
+        row.prop(self, "smooth_method", text="Smoothing Method")
 
-        row = box.row(align=False)
-        row.prop(self, "handle_size", text="Handle Size")
-        row.prop(self, "stroke_thick", text="Stroke Thickness")
-
-        row = box.row(align=False)
-        row.prop(self, "show_edges", text="Show Edge Loops")
-        row.prop(self, "line_thick", text ="Edge Thickness")
-        
-        row = box.row(align=False)
-        row.prop(self, "show_ring_edges", text="Show Edge Rings")
-        row.prop(self, "vert_size")
-
-        row = box.row(align=True)
-        row.prop(self, "show_cut_indices", text = "Edge Indices")
-        
         # Widget Settings
-        box = layout.box().column(align=False)
-        row = box.row()
-        row.label(text="Widget Settings")
+        row = layout.row()
+        row.prop(self,"draw_widget", text="Display Widget")
 
-        row = box.row()
-        row.prop(self,"draw_widget", text = "Display Widget")
-
-        if self.draw_widget:
-            row = box.row()
-            row.prop(self, "widget_radius", text="Radius")
-            row.prop(self,"widget_radius_inner", text="Active Radius")
-            
-            row = box.row()
-            row.prop(self, "widget_thickness", text="Line Thickness")
-            row.prop(self, "widget_thickness2", text="2nd Line Thickness")
-            row.prop(self, "arrow_size", text="Arrow Size")
-            row.prop(self, "arrow_size2", text="Translate Arrow Size")
-
-        # Debug Settings
+        ## Debug Settings
         box = layout.box().column(align=False)
         row = box.row()
         row.label(text="Debug Settings")
