@@ -27,3 +27,6 @@ FILL / SEGMENTS:
 GENERATE MESH:
 - ENTER / RETURN: confirm retopology and generate mesh
 - ESC: cancel operation
+
+TIPS:
+- Using Polystrips in Object mode will create a new object. In Edit Mode it will add retopology to the current mesh object, snapping to the selected object.
