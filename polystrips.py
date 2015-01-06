@@ -2328,7 +2328,6 @@ class PolyStrips(object):
                 done |= {ge}
 
         
-        #map_i0i1_vert = {}
         map_ipt_vert = {}
         for gp in self.gpatches:
             li_ge = [self.gedges.index(ge) for ge in gp.gedges]
@@ -2345,48 +2344,6 @@ class PolyStrips(object):
             for i0,i1,i2,i3 in gp.quads:
                 create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
             
-            # i_ge0 = self.gedges.index(gp.gedges[0])
-            # i_ge1 = self.gedges.index(gp.gedges[1])
-            # i_ge2 = self.gedges.index(gp.gedges[2])
-            # i_ge3 = self.gedges.index(gp.gedges[3])
-            # sz0 = gp.gedges[0].n_quads
-            # sz1 = gp.gedges[1].n_quads
-            # for i0,i1,p in gp.pts:
-            #     if i0%2 == 0 or i1%2 == 0: continue
-            #     i0 = (i0-1)//2
-            #     i1 = (i1-1)//2
-            #     if i0 == 0:
-            #         i = i1+1 if gp.rev[3] else sz1-1-i1
-            #         mto = ige_side_lvind[(i_ge3,1 if gp.rev[3] else -1)][i]
-            #         map_i0i1_vert[(i0,i1)] = mto
-            #         continue
-            #     if i0 == sz0-2:
-            #         i = i1+1 if not gp.rev[1] else sz1-1-i1
-            #         mto = ige_side_lvind[(i_ge1,1 if gp.rev[1] else -1)][i]
-            #         map_i0i1_vert[(i0,i1)] = mto
-            #         continue
-            #     if i1 == 0:
-            #         i = i0+1 if not gp.rev[0] else sz0-1-i0
-            #         mto = ige_side_lvind[(i_ge0,1 if gp.rev[0] else -1)][i]
-            #         map_i0i1_vert[(i0,i1)] = mto
-            #         continue
-            #     if i1 == sz1-2:
-            #         i = i0+1 if gp.rev[2] else sz0-1-i0
-            #         mto = ige_side_lvind[(i_ge2,1 if gp.rev[2] else -1)][i]
-            #         map_i0i1_vert[(i0,i1)] = mto
-            #         continue
-                
-            #     map_i0i1_vert[(i0,i1)] = insert_vert(p)
-            #     print(map_i0i1_vert[(i0,i1)])
-            # for i0 in range(0,sz0-2):
-            #     for i1 in range(0,sz1-2):
-            #         cc0 = map_i0i1_vert[(i0+0,i1+0)]
-            #         cc1 = map_i0i1_vert[(i0+1,i1+0)]
-            #         cc2 = map_i0i1_vert[(i0+1,i1+1)]
-            #         cc3 = map_i0i1_vert[(i0+0,i1+1)]
-            #         print('new quad(%i,%i): %i %i %i %i' % (i0,i1,cc0,cc1,cc2,cc3))
-            #         create_quad(cc0,cc3,cc2,cc1)
-        
         # remove unused verts and remap quads
         vind_used = [False for v in verts]
         for q in quads:
