@@ -13,12 +13,11 @@ TRANSFORM:
 - T: tweak (hold T and drag with LMB)
 
 MERGE / DELETE / CONVERT:
-- X: delete
 - CTRL+D: dissolve junction
 - CTRL+C: convert selected junction type
-
 - K: cut new junction under mouse on selected strip
 - M: merge selected junction to hovered
+- X: delete
 
 FILL / SEGMENTS:
 - SHIFT+F: fill selected strips w/ patch
