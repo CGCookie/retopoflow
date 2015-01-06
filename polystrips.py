@@ -1297,9 +1297,6 @@ class GPatch:
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        self.pts = []
-        self.quads = []
-        
         lc0 = list(ge0.iter_segments())
         idx0 =  (0,1) if rev0 else (3,2)
         lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
@@ -1316,8 +1313,14 @@ class GPatch:
         if not rev2: lc2.reverse()
         
         wid = len(lc0)
-        self.count_error = (wid%2==1)
+        if wid%2==0:
+            self.count_error = True
+            return
+        self.count_error = False
         w2 = (wid-1) // 2
+        
+        self.pts = []
+        self.quads = []
         
         c0,c1,c2 = lc0[w2],lc1[w2],lc2[w2]
         center = (c0+c1+c2)/3.0

@@ -2469,6 +2469,10 @@ class PolystripsUI:
                 color_border = (0.80,0.80,0.80,1.00)
                 color_fill   = (0.80,0.80,0.80,0.20)
             
+            if gpatch.count_error:
+                color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
+                color_fill   = (color_warning[0], color_warning[1], color_warning[2], 0.10)
+            
             for (p0,p1,p2,p3) in gpatch.iter_segments(only_visible=True):
                 common_drawing.draw_polyline_from_3dpoints(context, [p0,p1,p2,p3,p0], color_border, 1, "GL_LINE_STIPPLE")
                 common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
