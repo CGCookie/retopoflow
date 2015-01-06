@@ -3629,6 +3629,7 @@ class PolystripsUI:
         hit_p3d = mx * hit_p3d
         
         lgvmove = []
+        lgvextmove = []
         lgemove = []
         lgpmove = []
         lmverts = []
@@ -3652,6 +3653,13 @@ class PolystripsUI:
                 supdate.add(ge)
                 for gp in ge.gpatches:
                     supdate.add(gp)
+        
+        for gv in self.polystrips.extension_geometry:
+            lcorners = gv.get_corners()
+            ld = [(c-hit_p3d).length / self.stroke_radius for c in lcorners]
+            if not any(d < max_dist for d in ld):
+                continue
+            lgvextmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
         
         for ge in self.polystrips.gedges:
             for i,gv in ge.iter_igverts():
@@ -3684,6 +3692,7 @@ class PolystripsUI:
         self.tweak_data = {
             'mouse': eventd['mouse'],
             'lgvmove': lgvmove,
+            'lgvextmove': lgvextmove,
             'lgemove': lgemove,
             'lgpmove': lgpmove,
             'lmverts': lmverts,
@@ -3733,6 +3742,16 @@ class PolystripsUI:
                 
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
+            for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
                 elif ic == 1:
