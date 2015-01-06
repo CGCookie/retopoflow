@@ -45,6 +45,7 @@ def_rf_key_map['smooth'] = {'CTRL+S'}
 def_rf_key_map['view cursor'] = {'C'}
 def_rf_key_map['undo'] = {'CTRL+Z'}
 def_rf_key_map['mode'] = {'TAB'}
+def_rf_key_map['help'] = {'SHIFT+SLASH'}
 def_rf_key_map['snap cursor'] = {'SHIFT+S'}
 def_rf_key_map['navigate'] = set() #To be filled in last
 
