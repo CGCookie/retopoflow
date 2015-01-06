@@ -862,7 +862,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             self.original_form = ob
         
-        self.tmp_ob = tmp_ob
     
     def mesh_data_gather_edit_mode(self,context):
         '''
@@ -875,6 +874,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         ob = [obj for obj in context.selected_objects if obj.name != context.object.name][0]
         is_valid = is_object_valid(ob)
+        tmp_ob = None
+        
         if is_valid:
             self.bme = contour_mesh_cache['bme']            
             tmp_ob = contour_mesh_cache['tmp']
@@ -899,7 +900,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.tmp_ob = tmp_ob
         
         #count and collect the selected edges if any
-        ed_inds = [ed.index for ed in self.dest_bme.edges if ed.select]
+        ed_inds = [ed.index for ed in self.dest_bme.edges if ed.select and len(ed.link_faces) < 2]
         
         self.existing_loops = []
         if len(ed_inds):
@@ -1020,7 +1021,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
     
     def check_message(self,context):
         
-
         now = time.time()
         if now - self.msg_start_time > self.msg_duration:
             self.kill_timer(context)
@@ -2025,7 +2025,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         settings = common_utilities.get_settings()
         self.settings = settings
         self.keymap = key_maps.rtflow_default_keymap_generate()
-        print(self.keymap['navigate'])
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
