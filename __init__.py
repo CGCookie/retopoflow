@@ -2048,7 +2048,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.keymap = key_maps.rtflow_default_keymap_generate()
         
         my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, "cs_help_txt.txt")
+        filename = os.path.join(my_dir, "help/cs_help_txt.txt")
         if os.path.isfile(filename):
             help_txt = open(filename, mode='r').read()
         else:
@@ -2267,7 +2267,7 @@ class PolystripsUI:
         self.footer_last = ''
         
         my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, "ps_help_txt.txt")
+        filename = os.path.join(my_dir, "help/ps_help_txt.txt")
         if os.path.isfile(filename):
             help_txt = open(filename, mode='r').read()
         else:
