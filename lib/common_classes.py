@@ -44,7 +44,9 @@ class TextBox(object):
         self.y = y
         self.def_width = width
         self.def_height = height
-
+        self.hang_indent = '-'
+        
+        
         self.width = width
         self.height = height
         self.border = border
@@ -163,8 +165,12 @@ class TextBox(object):
                         cur_line_len += spc_size[0]
                 else:
                     new_lines.append(' '.join(current_line))
-                    current_line = [wrd]
-                    cur_line_len = word_width
+                    if new_lines[0].startswith(self.hang_indent):
+                        current_line = ['  ' + wrd]
+                        cur_line_len = word_width + 2 * spc_width
+                    else:
+                        current_line = [wrd]
+                        cur_line_len = word_width
                     if i < len(words)-1:
                         cur_line_len += spc_size[0]
 
