@@ -3739,7 +3739,8 @@ class PolystripsUI:
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
                 vertices[i_v].co = nc
-                
+                print('update_edit_mesh')
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=True)
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
@@ -3751,16 +3752,24 @@ class PolystripsUI:
                 elif ic == 3:
                     gv.corner3 = update(c,d)
             
+            vertices = self.dest_bme.verts
+            imx = self.dest_obj.matrix_world.inverted()
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
+                    vertices[gv.corner0_ind].co = imx*gv.corner0
                 elif ic == 1:
                     gv.corner1 = update(c,d)
+                    vertices[gv.corner1_ind].co = imx*gv.corner1
                 elif ic == 2:
                     gv.corner2 = update(c,d)
+                    vertices[gv.corner2_ind].co = imx*gv.corner2
                 elif ic == 3:
                     gv.corner3 = update(c,d)
+                    vertices[gv.corner3_ind].co = imx*gv.corner3
             
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=True)
+                
             for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
                 nc0 = update(c0,d0)
                 nc1 = update(c1,d1)
@@ -3780,6 +3789,8 @@ class PolystripsUI:
                    u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
+    
+                
         return ''
     
     def modal_tweak_relax_tool(self, eventd):
