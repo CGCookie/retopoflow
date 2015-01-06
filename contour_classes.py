@@ -2459,7 +2459,7 @@ class ContourCutLine(object):
                         intersect = intersect_point_line(mouse_loc.to_3d(), a.to_3d(),b.to_3d())
                     
                         if intersect:
-                            dist = (intersect[0] - mouse_loc).length_squared
+                            dist = (intersect[0].to_2d() - mouse_loc).length_squared
                             bound = intersect[1]
                             if (dist < 100) and (bound < 1) and (bound > 0):
                                 active_self = True
