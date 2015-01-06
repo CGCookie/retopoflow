@@ -38,22 +38,21 @@ from . import common_drawing
 
 class TextBox(object):
     
-    def __init__(self,context,x,y,width,height,border,message):
+    def __init__(self,context,x,y,width,height,border, margin, message):
         
         self.x = x
         self.y = y
         self.def_width = width
         self.def_height = height
-        
-        
-        
+
         self.width = width
         self.height = height
         self.border = border
-        self.spacer = 5
+        self.margin = margin
+        self.spacer = 5  # pixels between text lines
         self.is_collapsed = False
-        self.collapsed_msg = "[?] for Help"
-        
+        self.collapsed_msg = "Press '?' for Help"
+
         self.text_size = 12
         self.text_dpi = context.user_preferences.system.dpi
         blf.size(0, self.text_size, self.text_dpi)
@@ -61,10 +60,10 @@ class TextBox(object):
         self.raw_text = message
         self.text_lines = []
         self.format_and_wrap_text()
-    
+
     def screen_boudaries(self):
         print('to be done later')
-    
+
     def collapse(self):
         line_height = blf.dimensions(0, 'A')[1]
         self.is_collapsed = True
@@ -80,8 +79,8 @@ class TextBox(object):
     def snap_to_corner(self,context,corner = [1,1]):
         '''
         '''        
-        self.x = 5 + .5*self.width + corner[0]*(context.region.width - self.width - 10)
-        self.y = 5 + self.height + corner[1]*(context.region.height - 10 - self.height)
+        self.x = self.margin + .5*self.width + corner[0]*(context.region.width - self.width - 2*self.margin)
+        self.y = self.margin + self.height + corner[1]*(context.region.height - 2*self.margin - self.height)
              
     
     def fit_box_width_to_text_lines(self):
@@ -189,7 +188,7 @@ class TextBox(object):
         bgR = bgcol[0]
         bgG = bgcol[1]
         bgB = bgcol[2]
-        bgA = .7
+        bgA = .5
         bg_color = (bgR, bgG, bgB, bgA)
         
         txtcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.text

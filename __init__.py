@@ -2054,7 +2054,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             help_txt = "No Help File found, please reinstall!"
 
-        self.help_box = TextBox(context,500,500,300,200,5,help_txt)
+        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         
         print(self.keymap['navigate'])
@@ -2273,9 +2274,10 @@ class PolystripsUI:
         else:
             help_txt = "No Help File found, please reinstall!"
 
-        self.help_box = TextBox(context,500,500,300,200,5,help_txt)
+        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
-        
+
         self.last_matrix = None
 
         self._timer = context.window_manager.event_timer_add(0.1, context.window)
