@@ -49,7 +49,7 @@ class TextBox(object):
         self.height = height
         self.border = border
         self.margin = margin
-        self.spacer = 5  # pixels between text lines
+        self.spacer = 7  # pixels between text lines
         self.is_collapsed = False
         self.collapsed_msg = "Press '?' for Help"
 
