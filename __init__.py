@@ -3572,6 +3572,7 @@ class PolystripsUI:
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 self.act_gvert = cpt
+                self.sel_gverts = set([cpt])
                 self.act_gpatch = None
                 return ''
         # Select gvert
@@ -3592,6 +3593,7 @@ class PolystripsUI:
             if not eventd['shift']:
                 self.sel_gedges.clear()
             self.sel_gedges.add(ge)
+            self.sel_gverts.clear()
             self.act_gpatch = None
             return ''
         # Select patch
@@ -3690,7 +3692,9 @@ class PolystripsUI:
 
             self.act_gvert = None
             self.act_gedge = None
+            self.act_gpatch = None
             self.sel_gedges = set()
+            self.sel_gverts = set()
 
             return 'main'
 
