@@ -2261,7 +2261,7 @@ class PolystripsUI:
             # Comment out for now. Appears to no longer be needed.
             # bpy.ops.object.mode_set(mode='OBJECT')
             # bpy.ops.object.mode_set(mode='EDIT')
-
+            
             self.dest_obj = context.object
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
             self.snap_eds = [] #EXTEND
@@ -2274,7 +2274,7 @@ class PolystripsUI:
             rv3d = context.space_data.region_3d
             self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, rv3d) for ed in self.snap_eds]
             self.hover_ed = None
-
+            
         self.scale = self.obj.scale[0]
         self.length_scale = get_object_length_scale(self.obj)
         # World stroke radius
@@ -3578,7 +3578,14 @@ class PolystripsUI:
         lgvmove = []
         lgemove = []
         lgpmove = []
+        lmverts = []
         supdate = set()
+        
+        for i_mv,mv in enumerate(self.dest_bme.verts):
+            d = (mv.co-hit_p3d).length / self.stroke_radius
+            if not d < max_dist:
+                continue
+            lmverts.append((i_mv,Vector(mv.co),d))
         
         for gv in self.polystrips.gverts:
             lcorners = gv.get_corners()
@@ -3626,6 +3633,7 @@ class PolystripsUI:
             'lgvmove': lgvmove,
             'lgemove': lgemove,
             'lgpmove': lgpmove,
+            'lmverts': lmverts,
             'supdate': supdate,
             'mx': mx,
             'mx3x3': mx3x3,
@@ -3664,6 +3672,12 @@ class PolystripsUI:
                 return mx * hit[0]
                 
                 return pts[0]
+            
+            vertices = self.dest_bme.verts
+            for i_v,c,d in self.tweak_data['lmverts']:
+                nc = update(c,d)
+                vertices[i_v].co = nc
+                
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
