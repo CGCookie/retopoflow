@@ -596,6 +596,7 @@ class GEdge:
         return n_quads
     
     def set_count(self, c):
+        c = min(c,50)
         if self.force_count and self.n_quads == c:
             return
         
@@ -1161,6 +1162,9 @@ class GPatch:
         self.gedges = gedges
         self.nsides = len(gedges)
         
+        self.count_error = False
+        self.setting_count = None
+        
         # attach gedge to gpatch
         for ge in self.gedges: ge.attach_gpatch(self)
         
@@ -1239,6 +1243,9 @@ class GPatch:
     
     def set_count(self, gedge):
         n_quads = gedge.n_quads
+        if self.setting_count:
+            return
+        self.setting_count = gedge
         if self.nsides == 4:
             i_gedge = self.gedges.index(gedge)
             oge = self.gedges[(i_gedge+2)%4].set_count(n_quads)
@@ -1261,6 +1268,7 @@ class GPatch:
                 self.gedges[0].set_count((n_quads-2) * 2 + 2)
             elif i_gedge == 4:
                 self.gedges[1].set_count(n_quads)
+        self.setting_count = None
         self.update()
     
     def update(self):
@@ -1280,7 +1288,9 @@ class GPatch:
         sz0,sz1,sz2 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
-        if sz0 != sz1 or sz1 != sz2: return
+        if sz0 != sz1 or sz1 != sz2:
+            self.count_error = True
+            return
         
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
@@ -1306,6 +1316,7 @@ class GPatch:
         if not rev2: lc2.reverse()
         
         wid = len(lc0)
+        self.count_error = (wid%2==1)
         w2 = (wid-1) // 2
         
         c0,c1,c2 = lc0[w2],lc1[w2],lc2[w2]
@@ -1374,7 +1385,11 @@ class GPatch:
         sz0,sz1,sz2,sz3 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
-        if sz0 != sz2 or sz1 != sz3: return
+        if sz0 != sz2 or sz1 != sz3:
+            self.count_error = True
+            return
+        
+        self.count_error = False
         
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
@@ -1456,7 +1471,9 @@ class GPatch:
         
         # defer update for a bit (counts don't match up!)
         if sz0 != sz2*2 or sz0 != sz3*2 or sz1 != sz4:
+            self.count_error = True
             return
+        self.count_error = False
         
         mx = bpy.data.objects[self.o_name].matrix_world
         imx = mx.inverted()
