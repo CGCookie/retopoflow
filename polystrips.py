@@ -531,6 +531,17 @@ class GVert:
             self.update()
         
         pr.done()
+    
+    def get_gedge_to_left(self, gedge):
+        if self.gedge0 == gedge: return self.gedge1
+        if self.gedge1 == gedge: return self.gedge2
+        if self.gedge2 == gedge: return self.gedge3
+        if self.gedge3 == gedge: return self.gedge0
+    def get_gedge_to_right(self, gedge):
+        if self.gedge0 == gedge: return self.gedge3
+        if self.gedge1 == gedge: return self.gedge0
+        if self.gedge2 == gedge: return self.gedge1
+        if self.gedge3 == gedge: return self.gedge2
 
 
 
@@ -606,6 +617,7 @@ class GEdge:
         self.update()
     
     def has_endpoint(self, gv): return gv==self.gvert0 or gv==self.gvert3
+    def get_other_end(self, gv): return self.gvert0 if gv==self.gvert3 else self.gvert3
     
     def is_zippered(self): return (self.zip_to_gedge != None)
     def has_zippered(self): return len(self.zip_attached)!=0
@@ -2440,6 +2452,150 @@ class PolyStrips(object):
         self.gverts = [gv for gv in self.gverts if gv!=gvert0]
         gvert1.update_gedges()
         return gvert1
-
-
-
+    
+    def attempt_gpatch(self, gedges):
+        if len(gedges) == 0: return 'No GEdges specified'
+        
+        gedges = list(gedges)
+        
+        if any(ge.is_zippered() for ge in gedges):
+            return 'Cannot create GPatches with zippered GEdges'
+        
+        def walkabout(gedge, gvfrom):
+            gefrom = gedge
+            lgedges = [gefrom]
+            sgvseen = set()
+            while True:
+                gvto = gefrom.get_other_end(gvfrom)
+                if gvto in sgvseen: break
+                geto = gvto.get_gedge_to_left(gefrom)
+                if not geto: break
+                sgvseen.add(gvto)
+                lgedges.append(geto)
+                gvfrom = gvto
+                gefrom = geto
+            if lgedges[0] == lgedges[-1] and len(lgedges) > 1:
+                lgedges.reverse()
+                return (lgedges[1:],True)
+            # did not walk all the way around
+            gefrom = lgedges[-1]
+            gvfrom = gvto
+            lgedges = [gefrom]
+            while True:
+                gvto = gefrom.get_other_end(gvfrom)
+                geto = gvto.get_gedge_to_right(gefrom)
+                if not geto: break
+                lgedges.append(geto)
+                gvfrom = gvto
+                gefrom = geto
+            return (lgedges,False)
+        
+        map_ge_idx = {ge:i_ge for i_ge,ge in enumerate(self.gedges)}
+        def cycle_key(lge):
+            # rotate lge to smallest idx
+            lige = [map_ge_idx[ge] for ge in lge]
+            siige = lige.index(min(lige))
+            lige = lige[siige:] + lige[:siige]
+            return tuple(lige)
+        def noncycle_key(lge):
+            return tuple(map_ge_idx[ge] for ge in lge)
+        def compute_key(lge, cycle):
+            if cycle: return cycle_key(lge)
+            return noncycle_key(lge)
+        lgp = set(cycle_key(gp.gedges) for gp in self.gpatches)
+        
+        def gvert_in_common(ge0,ge1):
+            return ge0.gvert0 if ge0.gvert0 == ge1.gvert0 or ge0.gvert0 == ge1.gvert3 else ge0.gvert3
+        
+        first = True
+        fill_cycles    = set()
+        fill_noncycles = set()
+        
+        for ge in gedges:
+            lgedges0,cycle0 = walkabout(ge,ge.gvert0)
+            lgedges3,cycle3 = walkabout(ge,ge.gvert3)
+            key0,key3 = compute_key(lgedges0,cycle0),compute_key(lgedges3,cycle3)
+            
+            cycles    = set(k for c,k in [(cycle0,key0),(cycle3,key3)] if c)
+            noncycles = set(k for c,k in [(cycle0,key0),(cycle3,key3)] if not c and len(k) in {2,3,4})
+            
+            cycles -= lgp
+            
+            if first:
+                fill_cycles = cycles
+                fill_noncycles = noncycles
+                first = False
+            else:
+                fill_cycles &= cycles
+                fill_noncycles &= noncycles
+        
+        if fill_cycles:
+            return [self.create_gpatch(*[self.gedges[kv] for kv in k]) for k in fill_cycles]
+        
+        if len(gedges) < 2:
+            return 'Must select at least two GEdges to create GPatch from non-cycle'
+        
+        if not fill_noncycles:
+            if len(gedges) == 2 and not any(gedges[0].has_endpoint(gv) for gv in [gedges[1].gvert0,gedges[1].gvert3]):
+                # two (possibly) parallel, unconnected edges
+                
+                ge0,ge1 = gedges
+                gv00,gv03 = ge0.gvert0,ge0.gvert3
+                gv10,gv13 = ge1.gvert0,ge1.gvert3
+                if gv00.is_cross() or gv03.is_cross() or gv10.is_cross() or gv13.is_cross():
+                    # no room to attach new gedges
+                    return 'Cannot create new GEdges for quad GPatch, because at least one GVert is full'
+                
+                lgedge,rgedge = ge0,ge1
+                tlgvert = lgedge.gvert0
+                blgvert = lgedge.gvert3
+                
+                # create two gedges
+                dl = (blgvert.position - tlgvert.position).normalized()
+                d0 = (rgedge.gvert0.position - tlgvert.position).normalized()
+                d3 = (rgedge.gvert3.position - tlgvert.position).normalized()
+                if dl.dot(d0) > dl.dot(d3):
+                    trgvert = rgedge.gvert3
+                    brgvert = rgedge.gvert0
+                else:
+                    trgvert = rgedge.gvert0
+                    brgvert = rgedge.gvert3
+                tgedge = self.insert_gedge_between_gverts(tlgvert, trgvert)
+                bgedge = self.insert_gedge_between_gverts(blgvert, brgvert)
+                
+                if tlgvert.snap_norm.dot((trgvert.snap_pos-tlgvert.snap_pos).cross(blgvert.snap_pos-tlgvert.snap_pos)) < 0:
+                    lgedge,bgedge,rgedge,tgedge = lgedge,tgedge,rgedge,bgedge
+                
+                return [self.create_gpatch(lgedge, bgedge, rgedge, tgedge)]
+            
+            return 'Could not determine type of GPatch.  Try selecting more or different GEdges'
+        
+        lgp = []
+        for k in fill_noncycles:
+            l = len(k)
+            if l == 2:
+                # two gedges selected adjacent at L-junction.  create fourth gvert and two connecting gedges
+                sge0,sge1 = self.gedges[k[0]],self.gedges[k[1]]
+                gv1 = gvert_in_common(sge0,sge1)
+                gv0 = sge0.get_other_end(gv1)
+                gv2 = sge1.get_other_end(gv1)
+                sge2 = self.insert_gedge_between_gverts(gv0,gv2)
+                lgp += [self.create_gpatch(sge0,sge1,sge2)]
+            elif l == 3:
+                sge0,sge1,sge2 = self.gedges[k[0]],self.gedges[k[1]],self.gedges[k[2]]
+                gv1 = gvert_in_common(sge0,sge1)
+                gv0 = sge0.get_other_end(gv1)
+                gv2 = gvert_in_common(sge1,sge2)
+                gv3 = sge2.get_other_end(gv2)
+                sge3 = self.insert_gedge_between_gverts(gv0, gv3)
+                lgp += [self.create_gpatch(sge0,sge1,sge2,sge3)]
+            elif l == 4:
+                sge0,sge1,sge2,sge3 = [self.gedges[v] for v in k]
+                gv1 = gvert_in_common(sge0,sge1)
+                gv0 = sge0.get_other_end(gv1)
+                gv3 = gvert_in_common(sge2,sge3)
+                gv4 = sge3.get_other_end(gv3)
+                sge4 = self.insert_gedge_between_gverts(gv0,gv4)
+                lgp += [self.create_gpatch(sge0,sge1,sge2,sge3,sge4)]
+        
+        return lgp

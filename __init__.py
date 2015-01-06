@@ -471,7 +471,7 @@ class RetopoFlowPreferences(AddonPreferences):
     distraction_free = BoolProperty(
             name = "distraction_free",
             description = "Switch to distraction-free mode",
-            default = True,
+            default = False,
             )
     
     symmetry_plane = EnumProperty(
@@ -2742,6 +2742,8 @@ class PolystripsUI:
         
         # GVert active
         if self.act_gvert:
+            showErrorMessage('Not supported at the moment.')
+            return
             lges = self.act_gvert.get_gedges()
             if self.act_gvert.is_ljunction():
                 lgepairs = [(lges[0],lges[1])]
@@ -2763,145 +2765,20 @@ class PolystripsUI:
             self.act_gedge = next(iter(self.sel_gedges))
             self.act_gvert = None
         
-        loop_selected = True
-        sgedges = set(self.sel_gedges)
-        ge0 = sgedges.pop()
-        gedges = [ge0]
-        while sgedges and loop_selected:
-            for ge1 in sgedges:
-                if ge1.has_endpoint(ge0.gvert3) or ge1.has_endpoint(ge0.gvert0):
-                    gedges += [ge1]
-                    sgedges.remove(ge1)
-                    ge0 = ge1
-                    break
-            else:
-                loop_selected = False
-        
-        if len(self.sel_gedges) not in {3,4,5} and loop_selected:
-            showErrorMessage('Can only fill a 3-, 4-, or 5-sided patch')
+        lgpattempt = self.polystrips.attempt_gpatch(self.sel_gedges)
+        if type(lgpattempt) is str:
+            showErrorMessage(lgpattempt)
             return
-            
-        if len(self.sel_gedges) == 5 and not loop_selected:
-            showErrorMessage('Must select five GEdges that form a ring!')
-            return
+        lgp = lgpattempt
         
-        
-        if loop_selected:
-            
-            # test if we need to change direction!
-            gv0,gv1 = gedges[0].gvert0,gedges[0].gvert3
-            gv2 = gedges[-1].gvert0 if gedges[-1].gvert3 in [gv0,gv1] else gedges[-1].gvert3
-            if gv0 != gedges[-1].gvert0 and gv0 != gedges[-1].gvert3:
-                gv0,gv1 = gv1,gv0
-            n0 = gv0.snap_norm
-            n1 = (gv1.snap_pos-gv0.snap_pos).cross(gv2.snap_pos-gv0.snap_pos).normalized()
-            if n0.dot(n1) > 0:
-                gedges.reverse()
-            
-            gp = self.polystrips.create_gpatch(*gedges)
-            self.act_gvert = None
-            self.act_gedge = None
-            self.sel_gedges.clear()
-            self.sel_gverts.clear()
-            self.act_gpatch = gp
-            
-            gp.update()
-            self.polystrips.update_visibility(eventd['r3d'])
-            return
-        
-        if len(self.sel_gedges) != 2:
-            showErrorMessage('Must have exactly 2 selected edges')
-            return
-
-        # check that we have a hole
-        # TODO: handle multiple edges on one side
-        
-        sge0 = self.act_gedge
-        sge1 = [ge for ge in self.sel_gedges if ge!=sge0][0]
-        
-        lcgvs = [gv for gv in [sge0.gvert0,sge0.gvert3] if gv in [sge1.gvert0,sge1.gvert3]]
-        if lcgvs:
-            # corner!
-            if len(lcgvs) == 2:
-                # Eye shape
-                showErrorMessage('Cannot simple fill this shape, yet!')
-                return
-            cgv = lcgvs[0]
-            logvs = [gv for gv in [sge0.gvert0,sge0.gvert3,sge1.gvert0,sge1.gvert3] if gv != cgv]
-            assert len(logvs) == 2
-            np = cgv.snap_pos + (logvs[0].snap_pos - cgv.snap_pos) + (logvs[1].snap_pos - cgv.snap_pos)
-            nr = cgv.radius + (logvs[0].radius - cgv.radius) + (logvs[1].radius - cgv.radius)
-            ngv = self.polystrips.create_gvert(np, radius=nr)
-            sge0 = self.polystrips.insert_gedge_between_gverts(logvs[0], ngv)
-            self.polystrips.insert_gedge_between_gverts(logvs[1], ngv)
-        
-        lgedge,rgedge = sge0,sge1
-        tlgvert = lgedge.gvert0
-        blgvert = lgedge.gvert3
-
-        trgvert,brgvert = None,None
-        tgedge,bgedge = None,None
-        for gv in [rgedge.gvert0,rgedge.gvert3]:
-            for ge in gv.get_gedges_notnone():
-                if ge.gvert0 == tlgvert:
-                    trgvert = ge.gvert3
-                    tgedge = ge
-                if ge.gvert0 == blgvert:
-                    brgvert = ge.gvert3
-                    bgedge = ge
-                if ge.gvert3 == tlgvert:
-                    trgvert = ge.gvert0
-                    tgedge = ge
-                if ge.gvert3 == blgvert:
-                    brgvert = ge.gvert0
-                    bgedge = ge
-        
-        if any(ge.is_zippered() for ge in [lgedge,rgedge,tgedge,bgedge] if ge):
-            showErrorMessage('Cannot use simple fill with zippered edges')
-            return
-
-        # handle cases where selected gedges have no or only one connecting gedge
-        if not trgvert and not brgvert:
-            # create two gedges
-            dl = (blgvert.position - tlgvert.position).normalized()
-            d0 = (rgedge.gvert0.position - tlgvert.position).normalized()
-            d3 = (rgedge.gvert3.position - tlgvert.position).normalized()
-            if dl.dot(d0) > dl.dot(d3):
-                trgvert = rgedge.gvert3
-                brgvert = rgedge.gvert0
-            else:
-                trgvert = rgedge.gvert0
-                brgvert = rgedge.gvert3
-            tgedge = self.polystrips.insert_gedge_between_gverts(tlgvert, trgvert)
-            bgedge = self.polystrips.insert_gedge_between_gverts(blgvert, brgvert)
-        elif not trgvert and brgvert:
-            if brgvert == rgedge.gvert0:
-                trgvert = rgedge.gvert3
-            else:
-                trgvert = rgedge.gvert0
-            tgedge = self.polystrips.insert_gedge_between_gverts(tlgvert, trgvert)
-        elif not brgvert and trgvert:
-            if trgvert == rgedge.gvert0:
-                brgvert = rgedge.gvert3
-            else:
-                brgvert = rgedge.gvert0
-            bgedge = self.polystrips.insert_gedge_between_gverts(blgvert, brgvert)
-
-        if not all(gv.is_ljunction for gv in [trgvert,tlgvert,blgvert,brgvert]):
-            showErrorMessage('All corners must be L-Junctions')
-            return
-        
-        if tlgvert.snap_norm.dot((trgvert.snap_pos-tlgvert.snap_pos).cross(blgvert.snap_pos-tlgvert.snap_pos)) < 0:
-            lgedge,bgedge,rgedge,tgedge = lgedge,tgedge,rgedge,bgedge
-
-        gp = self.polystrips.create_gpatch(lgedge, bgedge, rgedge, tgedge)
         self.act_gvert = None
         self.act_gedge = None
         self.sel_gedges.clear()
         self.sel_gverts.clear()
-        self.act_gpatch = gp
+        self.act_gpatch = lgp[0]
         
-        gp.update()
+        for gp in lgp:
+            gp.update()
         self.polystrips.update_visibility(eventd['r3d'])
 
 
