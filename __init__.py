@@ -123,6 +123,11 @@ class RetopoFlowPreferences(AddonPreferences):
         'green': rgba_to_float(78, 207, 81, 255),
         'orange': rgba_to_float(26, 111, 255, 255)
     }
+    theme_colors_warning = {
+        'blue': rgba_to_float(182, 31, 0, 125),
+        'green': rgba_to_float(182, 31, 0, 125),
+        'orange': rgba_to_float(182, 31, 0, 125)
+    }
 
     # User settings
     show_segment_count = BoolProperty(
@@ -2442,6 +2447,8 @@ class PolystripsUI:
         color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
         color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
         color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+
+        color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
