@@ -3060,7 +3060,7 @@ class PolystripsUI:
 
         settings = common_utilities.get_settings()
 
-        self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, SHIFT+Wheel Up/Down: adjust segments, CTRL+C: change selected junction type'
+        self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, SHIFT+Wheel Up/Down or SHIFT+ +/-: adjust segments, CTRL+C: change selected junction type'
 
         #############################################
         # General navigation
@@ -3217,13 +3217,13 @@ class PolystripsUI:
                 self.act_gedge.gvert3.update_gedges()
                 return ''
 
-            if eventd['press']in {'SHIFT+WHEELUPMOUSE', 'CTRL+NUMPAD_PLUS'}:
+            if eventd['press']in {'SHIFT+WHEELUPMOUSE', 'SHIFT+NUMPAD_PLUS'}:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] in {'SHIFT+WHEELDOWNMOUSE', 'CTRL+NUMPAD_MINUS'}:
+            if eventd['press'] in {'SHIFT+WHEELDOWNMOUSE', 'SHIFT+NUMPAD_MINUS'}:
 
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
