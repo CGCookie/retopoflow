@@ -3628,18 +3628,18 @@ class PolystripsUI:
         
         hit_p3d = mx * hit_p3d
         
-        lgvmove = []
-        lgvextmove = []
-        lgemove = []
-        lgpmove = []
-        lmverts = []
+        lgvmove = []  #GVert
+        lgvextmove = []  #GVerts  and BMVert 
+        lgemove = []  #Gedges
+        lgpmove = [] #Patch
+        lmverts = []  #BMVert
         supdate = set()
         
         for i_mv,mv in enumerate(self.dest_bme.verts):
-            d = (mv.co-hit_p3d).length / self.stroke_radius
+            d = (mx*mv.co-hit_p3d).length / self.stroke_radius
             if not d < max_dist:
                 continue
-            lmverts.append((i_mv,Vector(mv.co),d))
+            lmverts.append((i_mv,mx *mv.co,d))
         
         for gv in self.polystrips.gverts:
             lcorners = gv.get_corners()
@@ -3738,22 +3738,10 @@ class PolystripsUI:
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
-                vertices[i_v].co = nc
+                vertices[i_v].co = imx * nc
                 print('update_edit_mesh')
                 bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=True)
             
-            for gv,ic,c,d in self.tweak_data['lgvmove']:
-                if ic == 0:
-                    gv.corner0 = update(c,d)
-                elif ic == 1:
-                    gv.corner1 = update(c,d)
-                elif ic == 2:
-                    gv.corner2 = update(c,d)
-                elif ic == 3:
-                    gv.corner3 = update(c,d)
-            
-            vertices = self.dest_bme.verts
-            imx = self.dest_obj.matrix_world.inverted()
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
@@ -3769,6 +3757,17 @@ class PolystripsUI:
                     vertices[gv.corner3_ind].co = imx*gv.corner3
             
                 bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=True)
+            
+            for gv,ic,c,d in self.tweak_data['lgvmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+            
                 
             for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
                 nc0 = update(c0,d0)
@@ -3821,6 +3820,29 @@ class PolystripsUI:
                 return mx * hit[0]
                 
                 return pts[0]
+            
+            vertices = self.dest_bme.verts
+            for i_v,c,d in self.tweak_data['lmverts']:
+                nc = update(c,d)
+                vertices[i_v].co = imx * nc
+                print('update_edit_mesh')
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            
+            for gv,ic,c,d in self.tweak_data['lgvextmove']:
+                if ic == 0:
+                    gv.corner0 = update(c,d)
+                    vertices[gv.corner0_ind].co = imx*gv.corner0
+                elif ic == 1:
+                    gv.corner1 = update(c,d)
+                    vertices[gv.corner1_ind].co = imx*gv.corner1
+                elif ic == 2:
+                    gv.corner2 = update(c,d)
+                    vertices[gv.corner2_ind].co = imx*gv.corner2
+                elif ic == 3:
+                    gv.corner3 = update(c,d)
+                    vertices[gv.corner3_ind].co = imx*gv.corner3
+            
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
