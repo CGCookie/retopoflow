@@ -3826,23 +3826,22 @@ class PolystripsUI:
                 nc = update(c,d)
                 vertices[i_v].co = imx * nc
                 print('update_edit_mesh')
-                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
-                    vertices[gv.corner0_ind].co = imx*gv.corner0
+                    #vertices[gv.corner0_ind].co = imx*gv.corner0
                 elif ic == 1:
                     gv.corner1 = update(c,d)
-                    vertices[gv.corner1_ind].co = imx*gv.corner1
+                    #vertices[gv.corner1_ind].co = imx*gv.corner1
                 elif ic == 2:
                     gv.corner2 = update(c,d)
-                    vertices[gv.corner2_ind].co = imx*gv.corner2
+                    #vertices[gv.corner2_ind].co = imx*gv.corner2
                 elif ic == 3:
                     gv.corner3 = update(c,d)
-                    vertices[gv.corner3_ind].co = imx*gv.corner3
+                    #vertices[gv.corner3_ind].co = imx*gv.corner3
             
-                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
