@@ -981,10 +981,7 @@ class GEdge:
                     break
                 if ctest % 2 == 1:
                     c = ctest
-            if c <= 1:
-                self.cache_igverts = []
-                self.n_quads = 3
-                return
+            c = max(3,c)
             
             # compute difference for smoothly interpolating radii
             s = (r3-r0) / float(c-1)
