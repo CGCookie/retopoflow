@@ -2104,8 +2104,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.hot_key = None  #Keep track of which hotkey was pressed
         self.draw = False  #Being in the state of drawing a guide stroke
         
-        self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, CTRL+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
-        self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, CTRL+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
+        self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, SHIFT+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHIFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
+        self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, SHIFT+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
         context.area.header_text_set(self.loop_msg)
         
         is_valid = is_object_valid(self.original_form)
