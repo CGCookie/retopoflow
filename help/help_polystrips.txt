@@ -21,7 +21,7 @@ MERGE / DELETE / CONVERT:
 
 FILL / SEGMENTS:
 - SHIFT+F: fill selected strips w/ patch
-- CTRL - +: adjust segments on strip
+- SHIFT + MouseWheel or SHIFT + +/-: adjust segments on strip
 
 GENERATE MESH:
 - ENTER / RETURN: confirm retopology and generate mesh

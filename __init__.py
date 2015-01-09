@@ -2104,8 +2104,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.hot_key = None  #Keep track of which hotkey was pressed
         self.draw = False  #Being in the state of drawing a guide stroke
         
-        self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, CTRL+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
-        self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, CTRL+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
+        self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, SHIFT+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHIFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
+        self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, SHIFT+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
         context.area.header_text_set(self.loop_msg)
         
         is_valid = is_object_valid(self.original_form)
@@ -3060,7 +3060,7 @@ class PolystripsUI:
 
         settings = common_utilities.get_settings()
 
-        self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, CTRL+Wheel Up/Down: adjust segments, CTRL+C: change selected junction type'
+        self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, SHIFT+Wheel Up/Down or SHIFT+ +/-: adjust segments, CTRL+C: change selected junction type'
 
         #############################################
         # General navigation
@@ -3217,13 +3217,13 @@ class PolystripsUI:
                 self.act_gedge.gvert3.update_gedges()
                 return ''
 
-            if eventd['press']in {'OSKEY+WHEELUPMOUSE', 'CTRL+NUMPAD_PLUS'}:
+            if eventd['press']in {'SHIFT+WHEELUPMOUSE', 'SHIFT+NUMPAD_PLUS'}:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] in {'OSKEY+WHEELDOWNMOUSE', 'CTRL+NUMPAD_MINUS'}:
+            if eventd['press'] in {'SHIFT+WHEELDOWNMOUSE', 'SHIFT+NUMPAD_MINUS'}:
 
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
