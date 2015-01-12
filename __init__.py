@@ -1133,88 +1133,93 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         return new_cut
            
     def release_place_cut(self,context,settings, x, y):
-        
+
         self.sel_loop.tail.x = x
         self.sel_loop.tail.y = y
-        
+
         width = Vector((self.sel_loop.head.x, self.sel_loop.head.y)) - Vector((x,y))
-        
+
         #prevent small errant strokes
-        if width.length < 20: #TODO: Setting for minimum pixel width
+        if width.length in range(5, 20): #TODO: Setting for minimum pixel width
             self.cut_lines.remove(self.sel_loop)
             self.sel_loop = None
             showErrorMessage('The drawn cut must be more than 20 pixels')
             return
-        
-        #hit the mesh for the first time
-        hit = self.sel_loop.hit_object(context, self.original_form, method = 'VIEW')
-        
-        if not hit:
+
+        elif width.length < 5:
             self.cut_lines.remove(self.sel_loop)
-            self.sel_loop = None
-            showErrorMessage('The middle of the cut must be over the object!')
-            
+            # self.sel_loop = None
             return
-        
-        self.sel_loop.cut_object(context, self.original_form, self.bme)
-        self.sel_loop.simplify_cross(self.segments)
-        self.sel_loop.update_com()
-        self.sel_loop.update_screen_coords(context)
-        self.sel_loop.head = None
-        self.sel_loop.tail = None
-        
-        if not len(self.sel_loop.verts) or not len(self.sel_loop.verts_simple):
-            self.sel_loop = None
-            showErrorMessage('The cut failed for some reason, most likely topology, try again and report bug')
+        else: 
+            #hit the mesh for the first time
+            hit = self.sel_loop.hit_object(context, self.original_form, method = 'VIEW')
+
+            if not hit:
+                self.cut_lines.remove(self.sel_loop)
+                self.sel_loop = None
+                showErrorMessage('The middle of the cut must be over the object!')
+
+                return
+
+            self.sel_loop.cut_object(context, self.original_form, self.bme)
+            self.sel_loop.simplify_cross(self.segments)
+            self.sel_loop.update_com()
+            self.sel_loop.update_screen_coords(context)
+            self.sel_loop.head = None
+            self.sel_loop.tail = None
+
+            if not len(self.sel_loop.verts) or not len(self.sel_loop.verts_simple):
+                self.sel_loop = None
+                showErrorMessage('The cut failed for some reason, most likely topology, try again and report bug')
+                return
+
+
+            if settings.debug > 1:
+                print('release_place_cut')
+                print('len(self.cut_paths) = %d' % len(self.cut_paths))
+                print('self.force_new = ' + str(self.force_new))
+
+            if self.cut_paths != [] and not self.force_new:
+                for path in self.cut_paths:
+                    if path.insert_new_cut(context, self.original_form, self.bme, self.sel_loop, search = settings.search_factor):
+                        #the cut belongs to the series now
+                        path.connect_cuts_to_make_mesh(self.original_form)
+                        path.update_visibility(context, self.original_form)
+                        path.seg_lock = True
+                        path.do_select(settings)
+                        path.unhighlight(settings)
+                        self.sel_path = path
+                        self.cut_lines.remove(self.sel_loop)
+                        for other_path in self.cut_paths:
+                            if other_path != self.sel_path:
+                                other_path.deselect(settings)
+                        # no need to search for more paths
+                        return
+
+            #create a blank segment
+            path = ContourCutSeries(context, [],
+                            cull_factor = settings.cull_factor,
+                            smooth_factor = settings.smooth_factor,
+                            feature_factor = settings.feature_factor)
+
+            path.insert_new_cut(context, self.original_form, self.bme, self.sel_loop, search = settings.search_factor)
+            path.seg_lock = False  #not locked yet...not until a 2nd cut is added in loop mode
+            path.segments = 1
+            path.ring_segments = len(self.sel_loop.verts_simple)
+            path.connect_cuts_to_make_mesh(self.original_form)
+            path.update_visibility(context, self.original_form)
+
+            for other_path in self.cut_paths:
+                other_path.deselect(settings)
+
+            self.cut_paths.append(path)
+            self.sel_path = path
+            path.do_select(settings)
+
+            self.cut_lines.remove(self.sel_loop)
+            self.force_new = False
+
             return
-    
-        
-        if settings.debug > 1:
-            print('release_place_cut')
-            print('len(self.cut_paths) = %d' % len(self.cut_paths))
-            print('self.force_new = ' + str(self.force_new))
-        
-        if self.cut_paths != [] and not self.force_new:
-            for path in self.cut_paths:
-                if path.insert_new_cut(context, self.original_form, self.bme, self.sel_loop, search = settings.search_factor):
-                    #the cut belongs to the series now
-                    path.connect_cuts_to_make_mesh(self.original_form)
-                    path.update_visibility(context, self.original_form)
-                    path.seg_lock = True
-                    path.do_select(settings)
-                    path.unhighlight(settings)
-                    self.sel_path = path
-                    self.cut_lines.remove(self.sel_loop)
-                    for other_path in self.cut_paths:
-                        if other_path != self.sel_path:
-                            other_path.deselect(settings)
-                    # no need to search for more paths
-                    return
-        
-        #create a blank segment
-        path = ContourCutSeries(context, [],
-                        cull_factor = settings.cull_factor, 
-                        smooth_factor = settings.smooth_factor,
-                        feature_factor = settings.feature_factor)
-        
-        path.insert_new_cut(context, self.original_form, self.bme, self.sel_loop, search = settings.search_factor)
-        path.seg_lock = False  #not locked yet...not until a 2nd cut is added in loop mode
-        path.segments = 1
-        path.ring_segments = len(self.sel_loop.verts_simple)
-        path.connect_cuts_to_make_mesh(self.original_form)
-        path.update_visibility(context, self.original_form)
-        
-        for other_path in self.cut_paths:
-            other_path.deselect(settings)
-        
-        self.cut_paths.append(path)
-        self.sel_path = path
-        path.do_select(settings)
-        
-        self.cut_lines.remove(self.sel_loop)
-        self.force_new = False
-        
-        return
 
     
     ####Hover and Selection####
