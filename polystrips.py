@@ -1698,6 +1698,7 @@ class PolyStrips(object):
             for ge in gv_split.get_gedges_notnone():
                 ge.get_inner_gvert_at(gv_split).position += trans
             gv_split.position += trans
+            gv_split.radius = rm
         else:
             gv_split = self.create_gvert(cb0[3], radius=rm)
         
