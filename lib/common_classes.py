@@ -65,6 +65,36 @@ class TextBox(object):
 
     def screen_boudaries(self):
         print('to be done later')
+        
+    def discover_T_panel_width(self):
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for reg in area.regions:
+                    if reg.type == 'TOOL_PROPS':
+                        return reg.width
+                    else:
+                        print("T panel not open")
+                        
+    def discover_N_panel_width(self):
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for reg in area.regions:
+                    if reg.type == 'UI':
+                        return reg.width
+                    else:
+                        print("N panel not open")
+                        
+    def discover_panel_placement(self):
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for reg in area.regions:
+                    if reg.x == 0:
+                        if reg.type == 'TOOL_PROPS':
+                            return 'T'
+                        elif reg.type == 'UI':
+                            return 'N'
+                        else:
+                            return 'BOTH'
 
     def collapse(self):
         line_height = blf.dimensions(0, 'A')[1]
@@ -212,7 +242,17 @@ class TextBox(object):
         border_color = (bordR, bordG, bordB, bordA) 
         
         if self.regOverlap == True:
-            left = (self.x - self.width/2) - 190
+            leftPan = discover_panel_placement()
+            if leftPan == 'T':
+                panWidth = discover_T_panel_width()
+                left = (self.x - self.width/2) - panWidth
+            elif leftPan == 'N':
+                panWidth = discover_N_panel_width()
+                left = (self.x - self.width/2) - panWidth
+            else:
+                panWidthN = discover_N_panel_width
+                panWidthT = discover_T_panel_width
+                left = (self.x - self.width/2) - (panWidthN + panWidthT)
         else:
             left = self.x - self.width/2
         right = left + self.width
