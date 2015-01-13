@@ -38,14 +38,14 @@ from . import common_drawing
 
 class TextBox(object):
     
-    def __init__(self,context,x,y,width,height,border, margin, message):
+    def __init__(self,context,x,y,width,height,border, margin, regOverlap, message):
         
         self.x = x
         self.y = y
         self.def_width = width
         self.def_height = height
         self.hang_indent = '-'
-        
+        self.regOverlap = regOverlap
         
         self.width = width
         self.height = height
@@ -210,8 +210,11 @@ class TextBox(object):
         bordB = bordcol[2]
         bordA = .8
         border_color = (bordR, bordG, bordB, bordA) 
-            
-        left = self.x - self.width/2
+        
+        if self.regOverlap == True:
+            left = (self.x - self.width/2) - 190
+        else:
+            left = self.x - self.width/2
         right = left + self.width
         bottom = self.y - self.height
         top = self.y

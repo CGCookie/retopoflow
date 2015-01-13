@@ -2019,6 +2019,10 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.settings = settings
         self.keymap = key_maps.rtflow_default_keymap_generate()
         
+        regOverlap = context.user_preferences.system.use_region_overlap
+        print("RegOverlap is")
+        print(regOverlap)
+        
         my_dir = os.path.split(os.path.abspath(__file__))[0]
         filename = os.path.join(my_dir, "help/help_contours.txt")
         if os.path.isfile(filename):
@@ -2026,7 +2030,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             help_txt = "No Help File found, please reinstall!"
 
-        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box = TextBox(context,500,500,300,200,10,20,regOverlap,help_txt)
         self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         
@@ -2239,6 +2243,8 @@ class PolystripsUI:
         self.footer = ''
         self.footer_last = ''
         
+        regOverlap = bpy.context.user_preferences.system.use_region_overlap
+        
         my_dir = os.path.split(os.path.abspath(__file__))[0]
         filename = os.path.join(my_dir, "help/help_polystrips.txt")
         if os.path.isfile(filename):
@@ -2246,7 +2252,7 @@ class PolystripsUI:
         else:
             help_txt = "No Help File found, please reinstall!"
 
-        self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
+        self.help_box = TextBox(context,500,500,300,200,10,20, regOverlap, help_txt)
         self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
 
