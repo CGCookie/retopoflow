@@ -38,14 +38,13 @@ from . import common_drawing
 
 class TextBox(object):
     
-    def __init__(self,context,x,y,width,height,border, margin, regOverlap, message):
+    def __init__(self,context,x,y,width,height,border, margin, message):
         
         self.x = x
         self.y = y
         self.def_width = width
         self.def_height = height
         self.hang_indent = '-'
-        self.regOverlap = regOverlap
         
         self.width = width
         self.height = height
@@ -63,11 +62,11 @@ class TextBox(object):
         self.text_lines = []
         self.format_and_wrap_text()
 
-    def discover_T_panel_width_and_location(self):
+    def discover_panel_width_and_location(self, panelType):
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
                 for reg in area.regions:
-                    if reg.type == 'TOOL_PROPS':
+                    if reg.type == panelType:
                         if reg.width > 1:
                             if reg.x == 0:
                                 return 0
@@ -75,20 +74,7 @@ class TextBox(object):
                                 return reg.width
                         else:
                             return 0
-                            
-    def discover_N_panel_width_and_location(self):
-        for area in bpy.context.screen.areas:
-            if area.type == 'VIEW_3D':
-                for reg in area.regions:
-                    if reg.type == 'UI':
-                        if reg.width > 1:
-                            if reg.x == 0:
-                                return 0
-                            else:
-                                return reg.width
-                        else:
-                            return 0
-                            
+                        
     def screen_boudaries(self):
         print('to be done later')
 
@@ -216,6 +202,8 @@ class TextBox(object):
         return
     
     def draw(self):
+        regOverlap = bpy.context.user_preferences.system.use_region_overlap
+        
         bgcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.inner
         bgR = bgcol[0]
         bgG = bgcol[1]
@@ -237,9 +225,9 @@ class TextBox(object):
         bordA = .8
         border_color = (bordR, bordG, bordB, bordA)
         
-        if self.regOverlap == True:
-            tPan = self.discover_T_panel_width_and_location()
-            nPan = self.discover_N_panel_width_and_location()
+        if regOverlap == True:
+            tPan = self.discover_panel_width_and_location('TOOL_PROPS')
+            nPan = self.discover_panel_width_and_location('UI')
             if tPan != 0 and nPan != 0:
                 left = (self.x - self.width/2) - (nPan + tPan)
             elif tPan != 0:
