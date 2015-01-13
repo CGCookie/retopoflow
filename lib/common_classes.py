@@ -63,38 +63,34 @@ class TextBox(object):
         self.text_lines = []
         self.format_and_wrap_text()
 
-    def screen_boudaries(self):
-        print('to be done later')
-        
-    def discover_T_panel_width(self):
-        for area in context.screen.areas:
+    def discover_T_panel_width_and_location(self):
+        for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
                 for reg in area.regions:
                     if reg.type == 'TOOL_PROPS':
-                        return reg.width
-                    else:
-                        print("T panel not open")
-                        
-    def discover_N_panel_width(self):
-        for area in context.screen.areas:
+                        if reg.width > 1:
+                            if reg.x == 0:
+                                return 0
+                            else:
+                                return reg.width
+                        else:
+                            return 0
+                            
+    def discover_N_panel_width_and_location(self):
+        for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
                 for reg in area.regions:
                     if reg.type == 'UI':
-                        return reg.width
-                    else:
-                        print("N panel not open")
-                        
-    def discover_panel_placement(self):
-        for area in context.screen.areas:
-            if area.type == 'VIEW_3D':
-                for reg in area.regions:
-                    if reg.x == 0:
-                        if reg.type == 'TOOL_PROPS':
-                            return 'T'
-                        elif reg.type == 'UI':
-                            return 'N'
+                        if reg.width > 1:
+                            if reg.x == 0:
+                                return 0
+                            else:
+                                return reg.width
                         else:
-                            return 'BOTH'
+                            return 0
+                            
+    def screen_boudaries(self):
+        print('to be done later')
 
     def collapse(self):
         line_height = blf.dimensions(0, 'A')[1]
@@ -239,20 +235,19 @@ class TextBox(object):
         bordG = bordcol[1]
         bordB = bordcol[2]
         bordA = .8
-        border_color = (bordR, bordG, bordB, bordA) 
+        border_color = (bordR, bordG, bordB, bordA)
         
         if self.regOverlap == True:
-            leftPan = discover_panel_placement()
-            if leftPan == 'T':
-                panWidth = discover_T_panel_width()
-                left = (self.x - self.width/2) - panWidth
-            elif leftPan == 'N':
-                panWidth = discover_N_panel_width()
-                left = (self.x - self.width/2) - panWidth
+            tPan = self.discover_T_panel_width_and_location()
+            nPan = self.discover_N_panel_width_and_location()
+            if tPan != 0 and nPan != 0:
+                left = (self.x - self.width/2) - (nPan + tPan)
+            elif tPan != 0:
+                left = (self.x - self.width/2) - tPan
+            elif nPan != 0:
+                left = (self.x - self.width/2) - nPan
             else:
-                panWidthN = discover_N_panel_width
-                panWidthT = discover_T_panel_width
-                left = (self.x - self.width/2) - (panWidthN + panWidthT)
+                left = self.x - self.width/2
         else:
             left = self.x - self.width/2
         right = left + self.width
