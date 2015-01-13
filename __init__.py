@@ -2241,7 +2241,7 @@ class PolystripsUI:
         self.footer = ''
         self.footer_last = ''
         
-        regOverlap = bpy.context.user_preferences.system.use_region_overlap
+        regOverlap = context.user_preferences.system.use_region_overlap
         
         my_dir = os.path.split(os.path.abspath(__file__))[0]
         filename = os.path.join(my_dir, "help/help_polystrips.txt")
