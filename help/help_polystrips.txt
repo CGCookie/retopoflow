@@ -1,0 +1,31 @@
+Polystrips Help (press ? to hide help):
+
+DRAWING:
+- LMB: draw strip on surface
+- SELECTMOUSE: select strip, junction, junction handle, or patch
+- Shift + SELECTMOUSE: select multiple strips
+- F: adjust brush size
+
+TRANSFORM:
+- G: grab
+- R: rotate
+- S: scale
+- T: tweak (hold T and drag with LMB)
+
+MERGE / DELETE / CONVERT:
+- CTRL+D: dissolve junction
+- CTRL+C: convert selected junction type
+- K: cut new junction under mouse on selected strip
+- M: merge selected junction to hovered
+- X: delete
+
+FILL / SEGMENTS:
+- SHIFT+F: fill selected strips w/ patch
+- SHIFT + MouseWheel or SHIFT + +/-: adjust segments on strip
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation
+
+TIPS:
+- Using Polystrips in Object mode will create a new object. In Edit Mode it will add retopology to the current mesh object, snapping to the selected object.

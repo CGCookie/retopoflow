@@ -1,0 +1,26 @@
+Contours Help (press ? to hide help):
+
+DRAWING:
+- LMB: draw contour stroke perpindicular to form
+- SELECTMOUSE: select stroke
+
+TRANSFORM:
+- G: slide
+- R: rotate
+- Left / Right Arrow: shift loop
+
+DELETE / OTHER:
+- X: delete
+- N: force new segment
+
+GUIDE MODE:
+- TAB: toggle guide mode
+- LMB: draw stroke parallel to form to generate a series of contour cuts
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation
+
+TIPS:
+- Contouring in Object mode will create a new object. Contouring in Edit Mode will add retopology to existing mesh object.
+- Extrude contours from an existing edgeloops by selecting it in Edit Mode before starting Contours.

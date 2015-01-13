@@ -30,6 +30,7 @@ import sys
 import inspect
 import math
 import time
+import itertools
 from mathutils import Vector, Matrix, Quaternion
 
 # from lib import common_drawing
@@ -49,6 +50,18 @@ class AddonLocator(object):
         sys.path.append(self.FolderPath)
         print("Addon path has been registered into system path for this session")
 
+def selection_mouse():
+    select_type = bpy.context.user_preferences.inputs.select_mouse
+    select_mouse = []
+    if select_type == 'RIGHT':
+        select_mouse.append('RIGHTMOUSE')
+        select_mouse.append('SHIFT+RIGHTMOUSE')
+    else:
+        select_mouse.append('LEFTMOUSE')
+        select_mouse.append('SHIFT+LEFTMOUSE')
+
+    return select_mouse
+
 def get_settings():
     addons = bpy.context.user_preferences.addons
     stack = inspect.stack()
@@ -66,6 +79,24 @@ def dprint(s, l=2):
     if settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
 
+def showErrorMessage(message, wrap=80):
+    lines = []
+    if wrap > 0:
+        while len(message) > wrap:
+            i = message.rfind(' ',0,wrap)
+            if i == -1:
+                lines += [message[:wrap]]
+                message = message[wrap:]
+            else:
+                lines += [message[:i]]
+                message = message[i+1:]
+    if message:
+        lines += [message]
+    def draw(self,context):
+        for line in lines:
+            self.layout.label(line)
+    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
+    return
 
 def callback_register(self, context):
         #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
@@ -509,4 +540,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         print(eds)
         
     return new_verts, eds
- 
+
+def zip_pairs(l):
+    for p in zip(l, itertools.chain(l[1:],l[:1])):
+        yield p
