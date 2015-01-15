@@ -28,6 +28,8 @@ The tool works by hand-drawing strokes on to the high-resolution object. The str
    - Automatic segment updating with corresponding polystrips
 
 
-### Getting Support
+# Getting Support
 You can get support for tools by reading the [documentation](http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs) or posting on the [forums](http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=support).
 
+# Contributing
+Pull requests are welcome! If you'd like to contribute to the project then simply Fork the repo, work on your changes, and then submit a pull request. We are quite strict on what we allow in, but all suggestions are welcome. If you're unsure what to contribute, then look at the [open issues](https://github.com/CGCookie/retopoflow/issues) for the current to-dos.

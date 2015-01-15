@@ -565,6 +565,7 @@ class GEdge:
         
         self.force_count = False
         self.n_quads = None
+        self.changing_count = False
         
         self.zip_to_gedge   = None
         self.zip_side       = 1
@@ -600,14 +601,20 @@ class GEdge:
         if self.force_count and self.n_quads == c:
             return
         
+        if self.changing_count:
+            # already changing!  must be a bad loop
+            return
+        
+        self.changing_count = True
         self.force_count = True
         self.n_quads = c
-        
         if self.gpatches:
             for gpatch in self.gpatches:
                 gpatch.set_count(self)
+        self.changing_count = False
         
         self.update()
+        
         
     def unset_count(self):
         if self.fill_to0 or self.fill_to1:
@@ -981,10 +988,7 @@ class GEdge:
                     break
                 if ctest % 2 == 1:
                     c = ctest
-            if c <= 1:
-                self.cache_igverts = []
-                self.n_quads = 3
-                return
+            c = max(3,c)
             
             # compute difference for smoothly interpolating radii
             s = (r3-r0) / float(c-1)
@@ -1163,7 +1167,6 @@ class GPatch:
         self.nsides = len(gedges)
         
         self.count_error = False
-        self.setting_count = None
         
         # attach gedge to gpatch
         for ge in self.gedges: ge.attach_gpatch(self)
@@ -1243,9 +1246,6 @@ class GPatch:
     
     def set_count(self, gedge):
         n_quads = gedge.n_quads
-        if self.setting_count:
-            return
-        self.setting_count = gedge
         if self.nsides == 4:
             i_gedge = self.gedges.index(gedge)
             oge = self.gedges[(i_gedge+2)%4].set_count(n_quads)
@@ -1268,7 +1268,6 @@ class GPatch:
                 self.gedges[0].set_count((n_quads-2) * 2 + 2)
             elif i_gedge == 4:
                 self.gedges[1].set_count(n_quads)
-        self.setting_count = None
         self.update()
     
     def update(self):
@@ -1699,6 +1698,7 @@ class PolyStrips(object):
             for ge in gv_split.get_gedges_notnone():
                 ge.get_inner_gvert_at(gv_split).position += trans
             gv_split.position += trans
+            gv_split.radius = rm
         else:
             gv_split = self.create_gvert(cb0[3], radius=rm)
         
