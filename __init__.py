@@ -3744,7 +3744,7 @@ class PolystripsUI:
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
                 vertices[i_v].co = imx * nc
-                print('update_edit_mesh')
+                #print('update_edit_mesh')
                 
             
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
