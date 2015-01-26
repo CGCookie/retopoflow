@@ -3760,8 +3760,8 @@ class PolystripsUI:
                 elif ic == 3:
                     gv.corner3 = update(c,d)
                     #vertices[gv.corner3_ind].co = imx*gv.corner3
-            
-            bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            if bpy.context.mode == 'EDIT_MESH':
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
