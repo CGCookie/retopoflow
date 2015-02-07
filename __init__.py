@@ -958,7 +958,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
     
         return
     
-####User Interface and Feedback functions####
+    ####User Interface and Feedback functions####
     
     def get_event_details(self, context, event):
         event_ctrl    = 'CTRL+'  if event.ctrl  else ''
@@ -1004,7 +1004,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 context.area.header_text_set(text = self.guide_msg)
             else:
                 context.area.header_text_set(text = self.loop_msg)
-####UNDO/Operator Data management####
+    ####UNDO/Operator Data management####
         
     def create_undo_snapshot(self, action):
         '''
@@ -1045,7 +1045,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
 
-####Strokes and Cutting####
+    ####Strokes and Cutting####
     
     def new_path_from_draw(self,context,settings):
         '''
@@ -1378,7 +1378,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 self.cut_line_widget = None
     
     
-####Non Interactive/Non Data Operators###
+    ####Non Interactive/Non Data Operators###
     def mode_set_guide(self,context):
         
         self.mode = 'main guide'
