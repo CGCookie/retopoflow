@@ -46,7 +46,6 @@ class TextBox(object):
         self.def_height = height
         self.hang_indent = '-'
         
-        
         self.width = width
         self.height = height
         self.border = border
@@ -63,6 +62,19 @@ class TextBox(object):
         self.text_lines = []
         self.format_and_wrap_text()
 
+    def discover_panel_width_and_location(self, panelType):
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for reg in area.regions:
+                    if reg.type == panelType:
+                        if reg.width > 1:
+                            if reg.x == 0:
+                                return 0
+                            else:
+                                return reg.width
+                        else:
+                            return 0
+                        
     def screen_boudaries(self):
         print('to be done later')
 
@@ -190,6 +202,8 @@ class TextBox(object):
         return
     
     def draw(self):
+        regOverlap = bpy.context.user_preferences.system.use_region_overlap
+        
         bgcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.inner
         bgR = bgcol[0]
         bgG = bgcol[1]
@@ -209,9 +223,21 @@ class TextBox(object):
         bordG = bordcol[1]
         bordB = bordcol[2]
         bordA = .8
-        border_color = (bordR, bordG, bordB, bordA) 
-            
-        left = self.x - self.width/2
+        border_color = (bordR, bordG, bordB, bordA)
+        
+        if regOverlap == True:
+            tPan = self.discover_panel_width_and_location('TOOL_PROPS')
+            nPan = self.discover_panel_width_and_location('UI')
+            if tPan != 0 and nPan != 0:
+                left = (self.x - self.width/2) - (nPan + tPan)
+            elif tPan != 0:
+                left = (self.x - self.width/2) - tPan
+            elif nPan != 0:
+                left = (self.x - self.width/2) - nPan
+            else:
+                left = self.x - self.width/2
+        else:
+            left = self.x - self.width/2
         right = left + self.width
         bottom = self.y - self.height
         top = self.y
