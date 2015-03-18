@@ -1,4 +1,4 @@
-Polystrips Help (press ? to hide help):
+Polystrips Help (click to hide help):
 
 DRAWING:
 - LMB: draw strip on surface

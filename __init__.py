@@ -135,6 +135,11 @@ class RetopoFlowPreferences(AddonPreferences):
         description='A help text box will float on 3d view',
         default=True
         )
+    help_def = BoolProperty(
+        name='Show Help at Start',
+        description='Check to have help expanded when starting operator',
+        default=False
+        )
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
         description='Show segment count on selection',
@@ -504,7 +509,8 @@ class RetopoFlowPreferences(AddonPreferences):
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
         row.prop(self,"show_help")
-
+        row.prop(self,"help_def")
+        
         ## Polystrips 
         row = layout.row(align=True)
         row.label("POLYSTRIPS SETTINGS:")
@@ -1231,6 +1237,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             target_at_all = False
@@ -1327,6 +1334,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         '''
         Handles mouse selection and hovering
         '''
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             new_target = False
@@ -1711,6 +1719,14 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
    
         if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
             
             if self.cut_line_widget:
                 self.prepare_widget(eventd)
@@ -1849,6 +1865,15 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 return ''
          
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                return ''
+
             self.footer = 'sketching'
             x,y = eventd['mouse']
             self.sketch = [(x,y)] 
@@ -2027,7 +2052,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         
         print(self.keymap['navigate'])
@@ -2247,7 +2273,8 @@ class PolystripsUI:
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
 
         self.last_matrix = None
@@ -2821,6 +2848,8 @@ class PolystripsUI:
     # hover functions
 
     def hover_geom(self,eventd):
+        mx,my = eventd['mouse'] 
+        self.help_box.hover(mx, my)
         
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
@@ -3120,6 +3149,16 @@ class PolystripsUI:
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
+            
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
