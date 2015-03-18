@@ -22,6 +22,7 @@ http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-
 import bpy
    
 def_rf_key_map = {}
+#SHARED KEYS
 def_rf_key_map['action'] = {'LEFTMOUSE'}
 def_rf_key_map['select'] = {'LEFTMOUSE'}  #this is only used if there is conflict with user preferences
 def_rf_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
@@ -34,20 +35,30 @@ def_rf_key_map['scale'] = {'S'}
 def_rf_key_map['translate'] = {'G'}
 def_rf_key_map['rotate'] = {'R'}
 def_rf_key_map['delete'] = {'X', 'DEL'}
+def_rf_key_map['view cursor'] = {'C'}
+def_rf_key_map['undo'] = {'CTRL+Z'}
+def_rf_key_map['help'] = {'SHIFT+SLASH'}
+def_rf_key_map['snap cursor'] = {'SHIFT+S'}
+def_rf_key_map['navigate'] = set() #To be filled in last
 def_rf_key_map['up count'] = {'SHIFT+NUMPAD_PLUS','SHIFT+WHEELUPMOUSE'}     
 def_rf_key_map['dn count'] = {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE'}
+
+#CONTOURS UNIQUE KEYS
+def_rf_key_map['smooth'] = {'CTRL+S'}
 def_rf_key_map['bridge'] = {'B'}
 def_rf_key_map['new'] = {'N'}
 def_rf_key_map['align'] = {'SHIFT+A', 'CRTL+A', 'ALT+A'}
 def_rf_key_map['up shift'] = {'LEFT_ARROW'}
 def_rf_key_map['dn shift'] = {'RIGHT_ARROW'}
-def_rf_key_map['smooth'] = {'CTRL+S'}
-def_rf_key_map['view cursor'] = {'C'}
-def_rf_key_map['undo'] = {'CTRL+Z'}
 def_rf_key_map['mode'] = {'TAB'}
-def_rf_key_map['help'] = {'SHIFT+SLASH'}
-def_rf_key_map['snap cursor'] = {'SHIFT+S'}
-def_rf_key_map['navigate'] = set() #To be filled in last
+
+#POLYSTRIPS UNIQUE KEYS
+def_rf_key_map['tweak move'] = {'T'}
+def_rf_key_map['tweak relax'] = {'SHIFT+T'}
+def_rf_key_map['update'] = {'CTRL+U'}
+def_rf_key_map['knife'] = {'K'}
+def_rf_key_map['zip'] = {'Z'}
+
 
 navigation_events = {'Rotate View', 'Move View', 'Zoom View', 
                      'View Pan', 'View Orbit', 'Rotate View', 

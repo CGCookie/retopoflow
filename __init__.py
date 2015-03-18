@@ -2215,7 +2215,7 @@ def unregister():
 
 class PolystripsUI:
     def __init__(self, context, event):
-        settings = common_utilities.get_settings()
+        settings = common_utilities.get_settings()      
         self.keymap = key_maps.rtflow_default_keymap_generate()
         self.mode = 'main'
         
@@ -3034,12 +3034,10 @@ class PolystripsUI:
         handle_nav = False
         handle_nav |= eventd['ftype'] in events_nav
 
-        if handle_nav:
-            self.post_update = True
+        if handle_nav: 
             self.is_navigating = True
-
-            return 'nav' if eventd['value']=='PRESS' else 'main'
-
+            self.post_update = True
+            return 'nav'
         self.is_navigating = False
         return ''
 
@@ -3058,18 +3056,18 @@ class PolystripsUI:
 
         ########################################
         # accept / cancel
-        if eventd['press'] == 'SHIFT+SLASH':
+        if eventd['press'] in self.keymap['help']:
             if  self.help_box.is_collapsed:
                 self.help_box.uncollapse()
             else:
                 self.help_box.collapse()
             self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-        if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
+        if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
             return 'finish'
 
-        if eventd['press'] in {'ESC'}:
+        if eventd['press'] in self.keymap['cancel']:
             eventd['context'].area.header_text_set()
             return 'cancel'
 
@@ -3089,7 +3087,7 @@ class PolystripsUI:
 
             self.hover_geom(eventd)
 
-        if eventd['press'] == 'CTRL+Z':
+        if eventd['press'] == self.keymap['undo']:
             self.undo_action()
             return ''
 
