@@ -650,7 +650,6 @@ def is_object_valid(ob):
 def write_mesh_cache(orig_ob,tmp_ob, bme):
     print('writing mesh cache')
     global contour_mesh_cache
-    clear_mesh_cache()
     contour_mesh_cache['valid'] = object_validation(orig_ob)
     contour_mesh_cache['bme'] = bme
     contour_mesh_cache['tmp'] = tmp_ob
@@ -821,7 +820,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         is_valid = is_object_valid(context.object)
         has_tmp = 'ContourTMP' in bpy.data.objects and bpy.data.objects['ContourTMP'].data
         
-        
         if is_valid and has_tmp:
             self.bme = contour_mesh_cache['bme']            
             tmp_ob = contour_mesh_cache['tmp']
@@ -843,7 +841,17 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             self.original_form = ob
         
-    
+        if self.settings.recover and is_valid:
+            print('loading cache!')
+            self.undo_action()
+            return
+        else:
+            print('no recover or not valid or something')
+            global contour_undo_cache
+            contour_undo_cache = []
+            
+        write_mesh_cache(ob,tmp_ob, self.bme)
+        
     def mesh_data_gather_edit_mode(self,context):
         '''
         get references to object and object data
@@ -856,6 +864,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         ob = [obj for obj in context.selected_objects if obj.name != context.object.name][0]
         is_valid = is_object_valid(ob)
         tmp_ob = None
+        
         
         if is_valid:
             self.bme = contour_mesh_cache['bme']            
@@ -880,6 +889,16 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         self.tmp_ob = tmp_ob
         
+        if self.settings.recover and is_valid:
+            print('loading cache!')
+            self.undo_action()
+            return
+        
+        else:
+            global contour_undo_cache
+            contour_undo_cache = []
+            
+            
         #count and collect the selected edges if any
         ed_inds = [ed.index for ed in self.dest_bme.edges if ed.select and len(ed.link_faces) < 2]
         
@@ -924,7 +943,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 
                 self.cut_paths.append(path)
                 self.existing_loops.append(existing_loop)
-                    
+        
+        write_mesh_cache(ob,tmp_ob, self.bme)        
+            
     def finish_mesh(self, context):
         back_to_edit = (context.mode == 'EDIT_MESH')
                     
@@ -2056,8 +2077,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         
-        print(self.keymap['navigate'])
-        
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
             return {'CANCELLED'}
@@ -2106,6 +2125,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.cut_paths = []
         self.draw_cache = []
 
+        #what is the mouse over top of currently
+        self.hover_target = None
+        #keep track of selected cut_line and path
+        self.sel_loop = None   #TODO: Change this to selected_loop
+        
         if context.mode == 'OBJECT':
             #self.bme, self.dest_bme, self.dest_ob, self.original_form etc are all defined inside
             self.mesh_data_gather_object_mode(context)
@@ -2119,11 +2143,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.snap = []
         self.snap_circle = []
         self.snap_color = (1,0,0,1)
-        
-        #what is the mouse over top of currently
-        self.hover_target = None
-        #keep track of selected cut_line and path
-        self.sel_loop = None   #TODO: Change this to selected_loop
+
         if len(self.cut_paths) == 0:
             self.sel_path = None   #TODO: change this to selected_segment
         else:
@@ -2138,14 +2158,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, SHIFT+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHIFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
         self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, SHIFT+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
         context.area.header_text_set(self.loop_msg)
-        
-        is_valid = is_object_valid(self.original_form)
-        if settings.recover and is_valid:
-            print('loading cache!')
-            self.undo_action()
-            
-        else:
-            contour_undo_cache = []
             
         #timer for temporary messages
         self._timer = None
