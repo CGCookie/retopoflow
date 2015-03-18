@@ -135,6 +135,11 @@ class RetopoFlowPreferences(AddonPreferences):
         description='A help text box will float on 3d view',
         default=True
         )
+    help_def = BoolProperty(
+        name='Help Default State',
+        description='Check to have help expanded when starting operator',
+        default=False
+        )
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
         description='Show segment count on selection',
@@ -504,7 +509,8 @@ class RetopoFlowPreferences(AddonPreferences):
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
         row.prop(self,"show_help")
-
+        row.prop(self,"help_def")
+        
         ## Polystrips 
         row = layout.row(align=True)
         row.label("POLYSTRIPS SETTINGS:")
@@ -2046,7 +2052,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         
         print(self.keymap['navigate'])
@@ -2266,7 +2273,8 @@ class PolystripsUI:
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
 
         self.last_matrix = None
