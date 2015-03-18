@@ -247,12 +247,13 @@ class TextBox(object):
         txt_color = (txR, txG, txB, txA)
         
         bordcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.outline
+        hover_color = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.inner_sel
         bordR = bordcol[0]
         bordG = bordcol[1]
         bordB = bordcol[2]
         bordA = .8
         if self.is_hovered:
-             border_color = (.2, .2, .8, bordA)
+             border_color = (hover_color[0], hover_color[1], hover_color[2], bordA)
         else:
             border_color = (bordR, bordG, bordB, bordA)
         
