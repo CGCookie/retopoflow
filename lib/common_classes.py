@@ -40,8 +40,8 @@ class TextBox(object):
     
     def __init__(self,context,x,y,width,height,border, margin, message):
         
-        self.x = x
-        self.y = y
+        self.x = x #middle of text box
+        self.y = y #top of text box
         self.def_width = width
         self.def_height = height
         self.hang_indent = '-'
@@ -52,6 +52,7 @@ class TextBox(object):
         self.margin = margin
         self.spacer = 7  # pixels between text lines
         self.is_collapsed = False
+        self.is_hovered = False
         self.collapsed_msg = "Press '?' for Help"
 
         self.text_size = 12
@@ -61,7 +62,34 @@ class TextBox(object):
         self.raw_text = message
         self.text_lines = []
         self.format_and_wrap_text()
-
+        
+    def hover(self,mouse_x, mouse_y):
+        regOverlap = bpy.context.user_preferences.system.use_region_overlap
+        if regOverlap == True:
+            tPan = self.discover_panel_width_and_location('TOOL_PROPS')
+            nPan = self.discover_panel_width_and_location('UI')
+            if tPan != 0 and nPan != 0:
+                left = (self.x - self.width/2) - (nPan + tPan)
+            elif tPan != 0:
+                left = (self.x - self.width/2) - tPan
+            elif nPan != 0:
+                left = (self.x - self.width/2) - nPan
+            else:
+                left = self.x - self.width/2
+        else:
+            left = self.x - self.width/2
+        right = left + self.width
+        bottom = self.y - self.height
+        top = self.y
+        
+        if mouse_x > left and mouse_x < right and mouse_y < top and mouse_y > bottom:
+            self.is_hovered = True
+            return True
+        else:
+            self.is_hovered = False
+            return False
+        
+        
     def discover_panel_width_and_location(self, panelType):
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
@@ -223,7 +251,10 @@ class TextBox(object):
         bordG = bordcol[1]
         bordB = bordcol[2]
         bordA = .8
-        border_color = (bordR, bordG, bordB, bordA)
+        if self.is_hovered:
+             border_color = (.2, .2, .8, bordA)
+        else:
+            border_color = (bordR, bordG, bordB, bordA)
         
         if regOverlap == True:
             tPan = self.discover_panel_width_and_location('TOOL_PROPS')

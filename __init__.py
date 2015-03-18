@@ -1231,6 +1231,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             target_at_all = False
@@ -1327,6 +1328,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         '''
         Handles mouse selection and hovering
         '''
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             new_target = False
@@ -1711,6 +1713,14 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
    
         if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
             
             if self.cut_line_widget:
                 self.prepare_widget(eventd)
@@ -1849,6 +1859,15 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 return ''
          
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                return ''
+
             self.footer = 'sketching'
             x,y = eventd['mouse']
             self.sketch = [(x,y)] 
@@ -2821,6 +2840,8 @@ class PolystripsUI:
     # hover functions
 
     def hover_geom(self,eventd):
+        mx,my = eventd['mouse'] 
+        self.help_box.hover(mx, my)
         
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
@@ -3140,6 +3161,16 @@ class PolystripsUI:
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
+            
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
