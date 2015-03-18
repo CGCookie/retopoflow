@@ -112,48 +112,6 @@ def callback_cleanup(self, context):
         #context.region.callback_remove(self._handle)
     #return None
 
-def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
-    '''
-    performs ray casting on object given region, rv3d, and coords wrt region.
-    returns tuple of ray vector (from coords of region) and hit info
-    '''
-    mx = ob.matrix_world
-    imx = mx.inverted()
-    
-    ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
-    ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
-    
-    if rv3d.is_perspective:
-        #ray_target = ray_origin + ray_vector * 100
-        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
-        ray_target = r1
-    else:
-        # need to back up the ray's origin, because ortho projection has front and back
-        # projection planes at inf
-        r0 = get_ray_origin(ray_origin,  ray_vector, ob)
-        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
-        dprint(str(r0) + '->' + str(r1), l=4)
-        ray_origin = r0
-        ray_target = r1
-    
-    #TODO: make a max ray depth or pull this depth from clip depth
-    
-    ray_start_local  = imx * ray_origin
-    ray_target_local = imx * ray_target
-    
-    if settings.debug > 3:
-        print('ray_persp  = ' + str(rv3d.is_perspective))
-        print('ray_origin = ' + str(ray_origin))
-        print('ray_target = ' + str(ray_target))
-        print('ray_vector = ' + str(ray_vector))
-        print('ray_diff   = ' + str((ray_target - ray_origin).normalized()))
-        print('start:  ' + str(ray_start_local))
-        print('target: ' + str(ray_target_local))
-    
-    hit = ob.ray_cast(ray_start_local, ray_target_local)
-    
-    return (ray_vector, hit)
-
 
 
 class Profiler(object):
@@ -225,6 +183,51 @@ def iter_running_sum(lw):
         s += w
         yield (w,s)
 
+
+
+def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
+    '''
+    performs ray casting on object given region, rv3d, and coords wrt region.
+    returns tuple of ray vector (from coords of region) and hit info
+    '''
+    mx = ob.matrix_world
+    imx = mx.inverted()
+    
+    ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
+    ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
+    
+    if rv3d.is_perspective:
+        #ray_target = ray_origin + ray_vector * 100
+        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
+        ray_target = r1
+    else:
+        # need to back up the ray's origin, because ortho projection has front and back
+        # projection planes at inf
+        r0 = get_ray_origin(ray_origin,  ray_vector, ob)
+        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
+        dprint(str(r0) + '->' + str(r1), l=4)
+        ray_origin = r0
+        ray_target = r1
+    
+    #TODO: make a max ray depth or pull this depth from clip depth
+    
+    ray_start_local  = imx * ray_origin
+    ray_target_local = imx * ray_target
+    
+    if settings.debug > 3:
+        print('ray_persp  = ' + str(rv3d.is_perspective))
+        print('ray_origin = ' + str(ray_origin))
+        print('ray_target = ' + str(ray_target))
+        print('ray_vector = ' + str(ray_vector))
+        print('ray_diff   = ' + str((ray_target - ray_origin).normalized()))
+        print('start:  ' + str(ray_start_local))
+        print('target: ' + str(ray_target_local))
+    
+    hit = ob.ray_cast(ray_start_local, ray_target_local)
+    
+    return (ray_vector, hit)
+
+
 def ray_cast_path(context, ob, screen_coords):
     rgn  = context.region
     rv3d = context.space_data.region_3d
@@ -237,6 +240,7 @@ def ray_cast_path(context, ob, screen_coords):
     rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co in screen_coords]
     back = 0 if rv3d.is_perspective else 1
     mult = 100 #* (1 if rv3d.is_perspective else -1)
+    
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if bver < '002.072.000' and not rv3d.is_perspective: mult *= -1
     
@@ -250,7 +254,7 @@ def ray_cast_stroke(context, ob, stroke):
     strokes have form [((x,y),p)] with a pressure or radius value
     
     returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
-    does drop any values that do not successrfully ray_cast
+    does drop any values that do not successfully ray_cast
     '''
     rgn  = context.region
     rv3d = context.space_data.region_3d
@@ -260,15 +264,16 @@ def ray_cast_stroke(context, ob, stroke):
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
     
-    rays = [(r2d_origin(rgn, rv3d, co[0]),r2d_vector(rgn, rv3d, co[0]).normalized()) for co in stroke]
+    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
     
     back = 0 if rv3d.is_perspective else 1
     mult = 100 #* (1 if rv3d.is_perspective else -1)
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    if bver < '002.072.000' and not rv3d.is_perspective: mult *= -1
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    hits = [ob.ray_cast(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
-    world_stroke = [(mx*hit[0],stroke[i][1])  for i, hit in enumerate(hits) if hit[2] != -1]
+    sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
+    hits = [ob.ray_cast(st,st+(en-st)*1000) for st,en in sten]
+    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
     
     return world_stroke
 
@@ -335,9 +340,12 @@ def get_ray_origin_target(region, rv3d, screen_coord, ob):
     if not rv3d.is_perspective:
         # need to back up the ray's origin, because ortho projection has front and back
         # projection planes at inf
-        if abs(ray_vector.y)<1: ray_vector = -ray_vector
-            # why does this need to be negated?
-            # but not when ortho front/back view??
+        
+        bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+        # why does this need to be negated?
+        # but not when ortho front/back view??
+        if bver < '002.073.000' and abs(ray_vector.y)<1: ray_vector = -ray_vector
+        
         r0 = get_ray_origin(ray_origin, ray_vector, ob)
         r1 = get_ray_origin(ray_origin, -ray_vector, ob)
         ray_origin = r0
