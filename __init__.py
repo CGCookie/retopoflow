@@ -136,7 +136,7 @@ class RetopoFlowPreferences(AddonPreferences):
         default=True
         )
     help_def = BoolProperty(
-        name='Help Default State',
+        name='Show Help at Start',
         description='Check to have help expanded when starting operator',
         default=False
         )
