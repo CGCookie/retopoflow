@@ -53,7 +53,7 @@ class TextBox(object):
         self.spacer = 7  # pixels between text lines
         self.is_collapsed = False
         self.is_hovered = False
-        self.collapsed_msg = "Press '?' for Help"
+        self.collapsed_msg = "Click for Help"
 
         self.text_size = 12
         self.text_dpi = context.user_preferences.system.dpi

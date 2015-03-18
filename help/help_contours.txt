@@ -1,4 +1,4 @@
-Contours Help (press ? to hide help):
+Contours Help (click to hide help):
 
 DRAWING:
 - LMB: draw contour stroke perpindicular to form
