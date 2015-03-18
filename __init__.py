@@ -2216,7 +2216,7 @@ def unregister():
 class PolystripsUI:
     def __init__(self, context, event):
         settings = common_utilities.get_settings()
-
+        self.keymap = key_maps.rtflow_default_keymap_generate()
         self.mode = 'main'
         
         self.is_fullscreen = False
@@ -3030,27 +3030,9 @@ class PolystripsUI:
     # modal state functions
 
     def modal_nav(self, eventd):
-        events_numpad = {
-            'NUMPAD_1',       'NUMPAD_2',       'NUMPAD_3',
-            'NUMPAD_4',       'NUMPAD_5',       'NUMPAD_6',
-            'NUMPAD_7',       'NUMPAD_8',       'NUMPAD_9',
-            'CTRL+NUMPAD_1',  'CTRL+NUMPAD_2',  'CTRL+NUMPAD_3',
-            'CTRL+NUMPAD_4',  'CTRL+NUMPAD_5',  'CTRL+NUMPAD_6',
-            'CTRL+NUMPAD_7',  'CTRL+NUMPAD_8',  'CTRL+NUMPAD_9',
-            'SHIFT+NUMPAD_1', 'SHIFT+NUMPAD_2', 'SHIFT+NUMPAD_3',
-            'SHIFT+NUMPAD_4', 'SHIFT+NUMPAD_5', 'SHIFT+NUMPAD_6',
-            'SHIFT+NUMPAD_7', 'SHIFT+NUMPAD_8', 'SHIFT+NUMPAD_9',
-            'NUMPAD_PLUS', 'NUMPAD_MINUS', # CTRL+NUMPAD_PLUS and CTRL+NUMPAD_MINUS are used elsewhere
-            'NUMPAD_PERIOD',
-        }
-
+        events_nav = self.keymap['navigate']
         handle_nav = False
-        handle_nav |= eventd['type'] == 'MIDDLEMOUSE'
-        handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
-        handle_nav |= eventd['type'].startswith('NDOF_')
-        handle_nav |= eventd['type'].startswith('TRACKPAD')
-        handle_nav |= eventd['ftype'] in events_numpad
-        handle_nav |= eventd['ftype'] in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}
+        handle_nav |= eventd['ftype'] in events_nav
 
         if handle_nav:
             self.post_update = True
