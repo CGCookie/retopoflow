@@ -3128,7 +3128,7 @@ class PolystripsUI:
 
             self.hover_geom(eventd)
 
-        if eventd['press'] == self.keymap['undo']:
+        if eventd['press'] in self.keymap['undo']:
             self.undo_action()
             return ''
 
