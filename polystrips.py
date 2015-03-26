@@ -2556,6 +2556,8 @@ class PolyStrips(object):
                 gv1 = gvert_in_common(sge0,sge1)
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = sge1.get_other_end(gv1)
+                if gv0 == gv2:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge2 = self.insert_gedge_between_gverts(gv0,gv2)
                 lgp += [self.create_gpatch(sge0,sge1,sge2)]
             elif l == 3:
@@ -2564,6 +2566,8 @@ class PolyStrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = gvert_in_common(sge1,sge2)
                 gv3 = sge2.get_other_end(gv2)
+                if gv0 == gv3:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge3 = self.insert_gedge_between_gverts(gv0, gv3)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3)]
             elif l == 4:
@@ -2572,6 +2576,8 @@ class PolyStrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv3 = gvert_in_common(sge2,sge3)
                 gv4 = sge3.get_other_end(gv3)
+                if gv0 == gv4:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge4 = self.insert_gedge_between_gverts(gv0,gv4)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3,sge4)]
         
