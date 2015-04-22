@@ -26,7 +26,7 @@ bl_info = {
     "version":     (1, 0, 0),
     "blender":     (2, 7, 2),
     "location":    "View 3D > Tool Shelf",
-    "warning":     "beta",  # used for warning icon and text in addons panel
+    "warning":     "",  # used for warning icon and text in addons panel
     "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
@@ -134,6 +134,11 @@ class RetopoFlowPreferences(AddonPreferences):
         name='Show Help Box',
         description='A help text box will float on 3d view',
         default=True
+        )
+    help_def = BoolProperty(
+        name='Show Help at Start',
+        description='Check to have help expanded when starting operator',
+        default=False
         )
     show_segment_count = BoolProperty(
         name='Show Selected Segment Count',
@@ -504,7 +509,8 @@ class RetopoFlowPreferences(AddonPreferences):
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
         row.prop(self,"show_help")
-
+        row.prop(self,"help_def")
+        
         ## Polystrips 
         row = layout.row(align=True)
         row.label("POLYSTRIPS SETTINGS:")
@@ -644,7 +650,6 @@ def is_object_valid(ob):
 def write_mesh_cache(orig_ob,tmp_ob, bme):
     print('writing mesh cache')
     global contour_mesh_cache
-    clear_mesh_cache()
     contour_mesh_cache['valid'] = object_validation(orig_ob)
     contour_mesh_cache['bme'] = bme
     contour_mesh_cache['tmp'] = tmp_ob
@@ -815,7 +820,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         is_valid = is_object_valid(context.object)
         has_tmp = 'ContourTMP' in bpy.data.objects and bpy.data.objects['ContourTMP'].data
         
-        
         if is_valid and has_tmp:
             self.bme = contour_mesh_cache['bme']            
             tmp_ob = contour_mesh_cache['tmp']
@@ -837,7 +841,17 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         else:
             self.original_form = ob
         
-    
+        if self.settings.recover and is_valid:
+            print('loading cache!')
+            self.undo_action()
+            return
+        else:
+            print('no recover or not valid or something')
+            global contour_undo_cache
+            contour_undo_cache = []
+            
+        write_mesh_cache(ob,tmp_ob, self.bme)
+        
     def mesh_data_gather_edit_mode(self,context):
         '''
         get references to object and object data
@@ -850,6 +864,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         ob = [obj for obj in context.selected_objects if obj.name != context.object.name][0]
         is_valid = is_object_valid(ob)
         tmp_ob = None
+        
         
         if is_valid:
             self.bme = contour_mesh_cache['bme']            
@@ -874,6 +889,16 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         self.tmp_ob = tmp_ob
         
+        if self.settings.recover and is_valid:
+            print('loading cache!')
+            self.undo_action()
+            return
+        
+        else:
+            global contour_undo_cache
+            contour_undo_cache = []
+            
+            
         #count and collect the selected edges if any
         ed_inds = [ed.index for ed in self.dest_bme.edges if ed.select and len(ed.link_faces) < 2]
         
@@ -918,7 +943,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 
                 self.cut_paths.append(path)
                 self.existing_loops.append(existing_loop)
-                    
+        
+        write_mesh_cache(ob,tmp_ob, self.bme)        
+            
     def finish_mesh(self, context):
         back_to_edit = (context.mode == 'EDIT_MESH')
                     
@@ -1231,6 +1258,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             target_at_all = False
@@ -1327,6 +1355,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         '''
         Handles mouse selection and hovering
         '''
+        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             new_target = False
@@ -1711,6 +1740,14 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
    
         if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
             
             if self.cut_line_widget:
                 self.prepare_widget(eventd)
@@ -1849,6 +1886,15 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                 return ''
          
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                return ''
+
             self.footer = 'sketching'
             x,y = eventd['mouse']
             self.sketch = [(x,y)] 
@@ -2027,10 +2073,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20,help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
-        
-        print(self.keymap['navigate'])
         
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
@@ -2080,6 +2125,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.cut_paths = []
         self.draw_cache = []
 
+        #what is the mouse over top of currently
+        self.hover_target = None
+        #keep track of selected cut_line and path
+        self.sel_loop = None   #TODO: Change this to selected_loop
+        
         if context.mode == 'OBJECT':
             #self.bme, self.dest_bme, self.dest_ob, self.original_form etc are all defined inside
             self.mesh_data_gather_object_mode(context)
@@ -2093,11 +2143,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.snap = []
         self.snap_circle = []
         self.snap_color = (1,0,0,1)
-        
-        #what is the mouse over top of currently
-        self.hover_target = None
-        #keep track of selected cut_line and path
-        self.sel_loop = None   #TODO: Change this to selected_loop
+
         if len(self.cut_paths) == 0:
             self.sel_path = None   #TODO: change this to selected_segment
         else:
@@ -2112,14 +2158,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.loop_msg = 'LOOP MODE:  Sel, Trans, Rotate follow Blender, LMB: Cut, SHIFT+WHEEL, +/-:increase/decrease segments, CTRL/SHIFT+A: Align, X: Delete, SHIFT+S: Cursor to Stroke, C: View to Cursor, N: Force New Segment, TAB: toggle Guide mode'
         self.guide_msg = 'GUIDE MODE: Sel follows Blender, LMB to Sketch, CTRL+S: smooth, SHIFT+WHEEL, +/-: increase/decrease segments, <-,-> to Shift,TAB: toggle Loop mode'
         context.area.header_text_set(self.loop_msg)
-        
-        is_valid = is_object_valid(self.original_form)
-        if settings.recover and is_valid:
-            print('loading cache!')
-            self.undo_action()
-            
-        else:
-            contour_undo_cache = []
             
         #timer for temporary messages
         self._timer = None
@@ -2215,8 +2253,8 @@ def unregister():
 
 class PolystripsUI:
     def __init__(self, context, event):
-        settings = common_utilities.get_settings()
-
+        settings = common_utilities.get_settings()      
+        self.keymap = key_maps.rtflow_default_keymap_generate()
         self.mode = 'main'
         
         self.is_fullscreen = False
@@ -2247,7 +2285,8 @@ class PolystripsUI:
             help_txt = "No Help File found, please reinstall!"
 
         self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        self.help_box.collapse()
+        if not settings.help_def:
+            self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
 
         self.last_matrix = None
@@ -2821,6 +2860,8 @@ class PolystripsUI:
     # hover functions
 
     def hover_geom(self,eventd):
+        mx,my = eventd['mouse'] 
+        self.help_box.hover(mx, my)
         
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
@@ -3030,34 +3071,14 @@ class PolystripsUI:
     # modal state functions
 
     def modal_nav(self, eventd):
-        events_numpad = {
-            'NUMPAD_1',       'NUMPAD_2',       'NUMPAD_3',
-            'NUMPAD_4',       'NUMPAD_5',       'NUMPAD_6',
-            'NUMPAD_7',       'NUMPAD_8',       'NUMPAD_9',
-            'CTRL+NUMPAD_1',  'CTRL+NUMPAD_2',  'CTRL+NUMPAD_3',
-            'CTRL+NUMPAD_4',  'CTRL+NUMPAD_5',  'CTRL+NUMPAD_6',
-            'CTRL+NUMPAD_7',  'CTRL+NUMPAD_8',  'CTRL+NUMPAD_9',
-            'SHIFT+NUMPAD_1', 'SHIFT+NUMPAD_2', 'SHIFT+NUMPAD_3',
-            'SHIFT+NUMPAD_4', 'SHIFT+NUMPAD_5', 'SHIFT+NUMPAD_6',
-            'SHIFT+NUMPAD_7', 'SHIFT+NUMPAD_8', 'SHIFT+NUMPAD_9',
-            'NUMPAD_PLUS', 'NUMPAD_MINUS', # CTRL+NUMPAD_PLUS and CTRL+NUMPAD_MINUS are used elsewhere
-            'NUMPAD_PERIOD',
-        }
-
+        events_nav = self.keymap['navigate']
         handle_nav = False
-        handle_nav |= eventd['type'] == 'MIDDLEMOUSE'
-        handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
-        handle_nav |= eventd['type'].startswith('NDOF_')
-        handle_nav |= eventd['type'].startswith('TRACKPAD')
-        handle_nav |= eventd['ftype'] in events_numpad
-        handle_nav |= eventd['ftype'] in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}
+        handle_nav |= eventd['ftype'] in events_nav
 
-        if handle_nav:
-            self.post_update = True
+        if handle_nav: 
             self.is_navigating = True
-
-            return 'nav' if eventd['value']=='PRESS' else 'main'
-
+            self.post_update = True
+            return 'nav'
         self.is_navigating = False
         return ''
 
@@ -3076,18 +3097,18 @@ class PolystripsUI:
 
         ########################################
         # accept / cancel
-        if eventd['press'] == 'SHIFT+SLASH':
+        if eventd['press'] in self.keymap['help']:
             if  self.help_box.is_collapsed:
                 self.help_box.uncollapse()
             else:
                 self.help_box.collapse()
             self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-        if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
+        if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
             return 'finish'
 
-        if eventd['press'] in {'ESC'}:
+        if eventd['press'] in self.keymap['cancel']:
             eventd['context'].area.header_text_set()
             return 'cancel'
 
@@ -3107,7 +3128,7 @@ class PolystripsUI:
 
             self.hover_geom(eventd)
 
-        if eventd['press'] == 'CTRL+Z':
+        if eventd['press'] in self.keymap['undo']:
             self.undo_action()
             return ''
 
@@ -3140,6 +3161,16 @@ class PolystripsUI:
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+            
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            
+                return ''
+            
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'
