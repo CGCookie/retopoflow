@@ -3132,7 +3132,7 @@ class PolystripsUI:
             self.undo_action()
             return ''
 
-        if eventd['press'] == 'F':
+        if eventd['press'] in self.keymap['brush size']:
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
 
@@ -3201,7 +3201,7 @@ class PolystripsUI:
                 self.pick(eventd)
             return ''
 
-        if eventd['press'] == 'CTRL+U':
+        if eventd['press'] in self.keymap['update']:
             self.create_undo_snapshot('update')
             for gv in self.polystrips.gverts:
                 gv.update_gedges()
@@ -3210,12 +3210,12 @@ class PolystripsUI:
         # Selected gpatch commands
         
         if self.act_gpatch:
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
-            if eventd['press'] in {'R','SHIFT+R'}:
+            if eventd['press'] in self.keymap['rotate pole']:
                 reverse = eventd['press']=='SHIFT+R'
                 self.act_gpatch.rotate_pole(reverse=reverse)
                 self.polystrips.update_visibility(eventd['r3d'])
@@ -3225,7 +3225,7 @@ class PolystripsUI:
         # Selected gedge commands
      
         if self.act_gedge:
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gedge(self.act_gedge)
                 self.act_gedge = None
@@ -3233,7 +3233,7 @@ class PolystripsUI:
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
-            if eventd['press'] == 'K' and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
+            if eventd['press'] in self.keymap['knife'] and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])

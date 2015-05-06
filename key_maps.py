@@ -54,7 +54,9 @@ def_rf_key_map['mode'] = {'TAB'}
 
 #POLYSTRIPS UNIQUE KEYS
 def_rf_key_map['tweak move'] = {'T'}
+def_rf_key_map['brush size'] = {'F'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
+def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
 def_rf_key_map['update'] = {'CTRL+U'}
 def_rf_key_map['knife'] = {'K'}
 def_rf_key_map['zip'] = {'Z'}
