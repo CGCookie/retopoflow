@@ -3305,11 +3305,6 @@ class PolystripsUI:
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 return ''
-            if eventd['press'] == 'B':
-                self.act_gvert = self.act_gedge.gvert3
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                return ''
 
             if eventd['press'] in self.keymap['rip'] and not self.act_gedge.is_zippered():
                 self.create_undo_snapshot('rip')
