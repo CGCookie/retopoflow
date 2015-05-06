@@ -44,6 +44,7 @@ import time
 from math import sqrt
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_line_plane, intersect_point_line
+import itertools
 
 # Blender imports
 import bgl
@@ -63,8 +64,8 @@ from . import key_maps
 
 # Polystrip imports
 from . import polystrips_utilities
-from .polystrips import *
-from .polystrips_draw import *
+from .polystrips import PolyStrips
+from .polystrips_draw import draw_gedge_info
 
 # Contour imports
 from . import contour_utilities

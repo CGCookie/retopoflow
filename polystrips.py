@@ -37,9 +37,9 @@ from .lib import common_utilities
 from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
 from .lib.common_utilities import zip_pairs
 
-from .polystrips_utilities import *
-from .polystrips_draw import *
 from . import polystrips_utilities
+from .polystrips_utilities import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, sort_objects_by_angles, vector_angle_between
+
 
 #Make the addon name and location accessible
 AL = AddonLocator()
