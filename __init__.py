@@ -3253,13 +3253,13 @@ class PolystripsUI:
                 self.act_gedge.gvert3.update_gedges()
                 return ''
 
-            if eventd['press']in {'SHIFT+WHEELUPMOUSE', 'SHIFT+NUMPAD_PLUS'}:
+            if eventd['press'] in self.keymap['up count']:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] in {'SHIFT+WHEELDOWNMOUSE', 'SHIFT+NUMPAD_MINUS'}:
+            if eventd['press'] in self.keymap['dn count']:
 
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
@@ -3267,7 +3267,7 @@ class PolystripsUI:
                     self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] == 'Z' and not self.act_gedge.is_gpatched():
+            if eventd['press'] in self.keymap['zip'] and not self.act_gedge.is_gpatched():
 
                 if self.act_gedge.zip_to_gedge:
                     self.create_undo_snapshot('unzip')
@@ -3300,7 +3300,7 @@ class PolystripsUI:
                     return 'grab tool'
                 return ''
 
-            if eventd['press'] == 'A':
+            if eventd['press'] in self.keymap['select all']:
                 self.act_gvert = self.act_gedge.gvert0
                 self.act_gedge = None
                 self.sel_gedges.clear()
@@ -3311,14 +3311,14 @@ class PolystripsUI:
                 self.sel_gedges.clear()
                 return ''
 
-            if eventd['press'] == 'CTRL+R' and not self.act_gedge.is_zippered():
+            if eventd['press'] in self.keymap['rip'] and not self.act_gedge.is_zippered():
                 self.create_undo_snapshot('rip')
                 self.act_gedge = self.polystrips.rip_gedge(self.act_gedge)
                 self.sel_gedges = [self.act_gedge]
                 self.ready_tool(eventd, self.grab_tool_gedge)
                 return 'grab tool'
 
-            if eventd['press'] == 'SHIFT+F':
+            if eventd['press'] in self.keymap['fill']:
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''
@@ -3328,7 +3328,7 @@ class PolystripsUI:
 
         if self.act_gvert:
 
-            if eventd['press'] == 'K':
+            if eventd['press'] in self.keymap['knife']:
                 if not self.act_gvert.is_endpoint():
                     showErrorMessage('Selected GVert must be endpoint (exactly one GEdge)')
                     return ''
@@ -3348,7 +3348,7 @@ class PolystripsUI:
                     return ''
                 return ''
 
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 if self.act_gvert.is_inner():
                     return ''
                 self.create_undo_snapshot('delete')
@@ -3357,7 +3357,7 @@ class PolystripsUI:
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
-            if eventd['press'] == 'CTRL+D':
+            if eventd['press'] in self.keymap['dissolve']:
                 if any(ge.is_zippered() or ge.is_gpatched() for ge in self.act_gvert.get_gedges_notnone()):
                     showErrorMessage('Cannot dissolve GVert with GEdge that is zippered or patched')
                     return ''
@@ -3383,7 +3383,7 @@ class PolystripsUI:
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                 return 'grab tool'
 
-            if eventd['press'] == 'CTRL+C':
+            if eventd['press'] in self.keymap['change junction']:
                 if any(ge.is_zippered() or ge.is_gpatched() for ge in self.act_gvert.get_gedges_notnone()):
                     showErrorMessage('Cannot change corner type of GVert with GEdge that is zippered or patched')
                     return ''
@@ -3392,12 +3392,12 @@ class PolystripsUI:
                 self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
-            if eventd['press'] == 'CTRL+S' and not self.act_gvert.is_unconnected():
+            if eventd['press'] in self.keymap['scale handles'] and not self.act_gvert.is_unconnected():
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_gvert)
                 return 'scale tool'
 
-            if eventd['press'] == 'C':
+            if eventd['press'] in self.keymap['smooth']:
                 self.create_undo_snapshot('smooth')
                 self.act_gvert.smooth()
                 self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
@@ -3412,7 +3412,7 @@ class PolystripsUI:
                 self.act_gvert.update_gedges()
                 return ''
 
-            if eventd['press'] == 'CTRL+R':
+            if eventd['press'] in self.keymap['rip']:
                 # self.polystrips.rip_gvert(self.act_gvert)
                 # self.act_gvert = None
                 # return ''
@@ -3433,7 +3433,7 @@ class PolystripsUI:
                 showErrorMessage('Must hover over GEdge you wish to rip')
                 return ''
   
-            if eventd['press'] == 'M':
+            if eventd['press'] in self.keymap['merge']:
                 if self.act_gvert.is_inner():
                     showErrorMessage('Cannot merge inner GVert')
                     return ''
@@ -3483,7 +3483,7 @@ class PolystripsUI:
                     dprint('- %f %f' % (min(gvthis.zip_t, gvthat.zip_t),max(gvthis.zip_t, gvthat.zip_t)), l=4)
                     return ''
 
-            if eventd['press'] == 'SHIFT+F':
+            if eventd['press'] in self.keymap['fill']:
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''

@@ -25,6 +25,7 @@ def_rf_key_map = {}
 #SHARED KEYS
 def_rf_key_map['action'] = {'LEFTMOUSE'}
 def_rf_key_map['select'] = {'LEFTMOUSE'}  #this is only used if there is conflict with user preferences
+def_rf_key_map['select all'] = {'A'}
 def_rf_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
 def_rf_key_map['confirm'] = {'RET', 'NUMPAD_ENTER'}
 def_rf_key_map['modal confirm'] = {'SPACE', 'RET', 'NUMPAD_ENTER'}
@@ -55,10 +56,17 @@ def_rf_key_map['mode'] = {'TAB'}
 #POLYSTRIPS UNIQUE KEYS
 def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['brush size'] = {'F'}
-def_rf_key_map['tweak relax'] = {'SHIFT+T'}
-def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
-def_rf_key_map['update'] = {'CTRL+U'}
+def_rf_key_map['change junction'] = {'CTRL+C'}
+def_rf_key_map['dissolve'] = {'CTRL+D'}
+def_rf_key_map['fill'] = {'SHIFT+F'}
 def_rf_key_map['knife'] = {'K'}
+def_rf_key_map['merge'] = {'M'}
+def_rf_key_map['rip'] = {'CTRL+R'}
+def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
+def_rf_key_map['scale handles'] = {'CTRL+S'}
+def_rf_key_map['smooth'] = {'C'}
+def_rf_key_map['tweak relax'] = {'SHIFT+T'}
+def_rf_key_map['update'] = {'CTRL+U'}
 def_rf_key_map['zip'] = {'Z'}
 
 
