@@ -69,6 +69,8 @@ def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
 def_rf_key_map['update'] = {'CTRL+U'}
 def_rf_key_map['zip'] = {'Z'}
+def_rf_key_map['zip down'] = {'CTRL+NUMPAD_PLUS'}
+def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 
 
 navigation_events = {'Rotate View', 'Move View', 'Zoom View', 

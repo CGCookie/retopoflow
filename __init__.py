@@ -3457,7 +3457,7 @@ class PolystripsUI:
                 gvthis = self.act_gvert
                 gvthat = self.act_gvert.get_zip_pair()
 
-                if eventd['press'] == 'CTRL+NUMPAD_PLUS':
+                if eventd['press'] in self.keymap['zip down']:
                     self.create_undo_snapshot('zip count')
                     max_t = 1 if gvthis.zip_t>gvthat.zip_t else gvthat.zip_t-0.05
                     gvthis.zip_t = min(gvthis.zip_t+0.05, max_t)
@@ -3465,7 +3465,7 @@ class PolystripsUI:
                     dprint('+ %f %f' % (min(gvthis.zip_t, gvthat.zip_t),max(gvthis.zip_t, gvthat.zip_t)), l=4)
                     return ''
 
-                if eventd['press'] == 'CTRL+NUMPAD_MINUS':
+                if eventd['press'] in self.keymap['zip up']:
                     self.create_undo_snapshot('zip count')
                     min_t = 0 if gvthis.zip_t<gvthat.zip_t else gvthat.zip_t+0.05
                     gvthis.zip_t = max(gvthis.zip_t-0.05, min_t)
