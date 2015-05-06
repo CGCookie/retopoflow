@@ -3149,7 +3149,7 @@ class PolystripsUI:
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
         
-        if eventd['press'] in {'T','SHIFT+T'}:
+        if eventd['press'] in self.keymap['tweak move']:
             self.create_undo_snapshot('tweak')
             self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
             self.act_gvert = None
