@@ -760,7 +760,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             
         if len(self.cut_paths):
             for path in self.cut_paths:
-                path.draw(context, path = True, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
+                path.draw(context, path = False, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
                 
         if len(self.snap_circle):
             common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
