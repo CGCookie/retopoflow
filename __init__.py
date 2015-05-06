@@ -123,6 +123,11 @@ class RetopoFlowPreferences(AddonPreferences):
         'green': rgba_to_float(78, 207, 81, 255),
         'orange': rgba_to_float(26, 111, 255, 255)
     }
+    theme_colors_frozen = {
+        'blue': rgba_to_float(255, 255, 255, 255),
+        'green': rgba_to_float(255, 255, 255, 255),
+        'orange': rgba_to_float(255, 255, 255, 255)
+    }
     theme_colors_warning = {
         'blue': rgba_to_float(182, 31, 0, 125),
         'green': rgba_to_float(182, 31, 0, 125),
@@ -2537,6 +2542,7 @@ class PolystripsUI:
         color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
         color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
 
+        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
         color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
@@ -2555,8 +2561,8 @@ class PolystripsUI:
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
             
             if gpatch.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
             if gpatch.count_error:
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
@@ -2584,8 +2590,8 @@ class PolystripsUI:
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
             if gedge.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
@@ -2641,8 +2647,8 @@ class PolystripsUI:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
             if gv.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
