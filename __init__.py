@@ -3403,7 +3403,7 @@ class PolystripsUI:
                 self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
-            if eventd['press'] == 'R':
+            if eventd['press'] in self.keymap['rotate']:
                 self.create_undo_snapshot('rotate')
                 self.ready_tool(eventd, self.rotate_tool_gvert_neighbors)
                 return 'rotate tool'
