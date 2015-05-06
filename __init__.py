@@ -3293,7 +3293,7 @@ class PolystripsUI:
                     return ''
                 return ''
 
-            if eventd['press'] == 'G':
+            if eventd['press'] in self.keymap['translate']:
                 if not self.act_gedge.is_zippered():
                     self.create_undo_snapshot('grab')
                     self.ready_tool(eventd, self.grab_tool_gedge)
@@ -3378,7 +3378,7 @@ class PolystripsUI:
                 self.ready_tool(eventd, self.grab_tool_gvert)
                 return 'grab tool'
 
-            if eventd['press'] == 'G':
+            if eventd['press'] in self.keymap['translate']:
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                 return 'grab tool'
