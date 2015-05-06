@@ -1264,6 +1264,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
+        handle_color = settings.theme_colors_active[settings.theme]
+
         self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
@@ -1342,11 +1344,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                                 breakout = True
                                 if best < settings.extend_radius:
                                     snapped = True
-                                    self.snap_color = (1,0,0,1)
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
                                     
                                 else:
                                     alpha = 1 - best/(2*settings.extend_radius)
-                                    self.snap_color = (1,0,0,alpha)
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 0.50)
                                     
                                 break
                         
