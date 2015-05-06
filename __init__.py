@@ -756,7 +756,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.cut_line_widget.draw(context)
             
         if len(self.sketch):
-            common_drawing.draw_polyline_from_points(context, self.sketch, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
+            common_drawing.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_SMOOTH")
             
         if len(self.cut_paths):
             for path in self.cut_paths:
@@ -2150,7 +2150,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         #potential item for snapping in 
         self.snap = []
         self.snap_circle = []
-        self.snap_color = (1,0,0,1)
+
+        handle_color = settings.theme_colors_active[settings.theme]
+        self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
 
         if len(self.cut_paths) == 0:
             self.sel_path = None   #TODO: change this to selected_segment
