@@ -3373,11 +3373,6 @@ class PolystripsUI:
                 self.ready_tool(eventd, self.scale_tool_gvert_radius)
                 return 'scale tool'
 
-            if eventd['press'] == 'CTRL+G':
-                self.create_undo_snapshot('grab')
-                self.ready_tool(eventd, self.grab_tool_gvert)
-                return 'grab tool'
-
             if eventd['press'] in self.keymap['translate']:
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
