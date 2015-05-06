@@ -3247,7 +3247,7 @@ class PolystripsUI:
                 self.act_gvert = gv
                 return ''
 
-            if eventd['press'] == 'U':
+            if eventd['press'] in self.keymap['update']:
                 self.create_undo_snapshot('update')
                 self.act_gedge.gvert0.update_gedges()
                 self.act_gedge.gvert3.update_gedges()
@@ -3403,7 +3403,7 @@ class PolystripsUI:
                 self.ready_tool(eventd, self.rotate_tool_gvert_neighbors)
                 return 'rotate tool'
 
-            if eventd['press'] == 'U':
+            if eventd['press'] in self.keymap['update']:
                 self.act_gvert.update_gedges()
                 return ''
 
