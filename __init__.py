@@ -51,10 +51,14 @@ import bgl
 import blf
 import bmesh
 import bpy
-import bpy.utils.previews
 from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, FloatVectorProperty, FloatProperty
 from bpy.types import Operator, AddonPreferences
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
+
+global bversion
+bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+if bversion > '002.074.004':
+    import bpy.utils.previews
 
 # Common imports
 from .lib import common_utilities
@@ -585,11 +589,15 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
-        icons = icon_collections["main"]
-
         col = layout.column(align=True)
-        contours_icon = icons.get("rf_contours_icon")
-        col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+
+        if bversion > '002.074.004':
+            icons = icon_collections["main"]
+
+            contours_icon = icons.get("rf_contours_icon")
+            col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+        else:
+            col.operator("cgcookie.contours", icon='IPO_LINEAR')
 
         box = layout.box()
         row = box.row()
@@ -612,8 +620,13 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
         col = layout.column(align=True)
-        polystrips_icon = icons.get("rf_polystrips_icon")
-        col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        if bversion > '002.074.004':
+            polystrips_icon = icons.get("rf_polystrips_icon")
+            col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        else:
+            col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+
+
 
         box = layout.box()
         row = box.row()
@@ -2234,20 +2247,21 @@ icon_collections = {}
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
 
-    rf_icons = bpy.utils.previews.new()
+    if bversion > '002.074.004':
+        rf_icons = bpy.utils.previews.new()
 
-    icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+        icons_dir = os.path.join(os.path.dirname(__file__), "icons")
 
-    rf_icons.load(
-        "rf_contours_icon",
-        os.path.join(icons_dir, "contours_32.png"),
-        'IMAGE')
-    rf_icons.load(
-        "rf_polystrips_icon",
-        os.path.join(icons_dir, "polystrips_32.png"),
-        'IMAGE')
+        rf_icons.load(
+            "rf_contours_icon",
+            os.path.join(icons_dir, "contours_32.png"),
+            'IMAGE')
+        rf_icons.load(
+            "rf_polystrips_icon",
+            os.path.join(icons_dir, "polystrips_32.png"),
+            'IMAGE')
 
-    icon_collections["main"] = rf_icons
+        icon_collections["main"] = rf_icons
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
@@ -2276,9 +2290,10 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    for icon in icon_collections.values():
-        bpy.utils.previews.remove(icon)
-    icon_collections.clear()
+    if bversion > '002.074.004':
+        for icon in icon_collections.values():
+            bpy.utils.previews.remove(icon)
+        icon_collections.clear()
 
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:
