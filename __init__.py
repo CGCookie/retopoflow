@@ -1651,13 +1651,13 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
 addon_keymaps = []
 
 def register():
-    bpy.utils.register_class(CGC_Polystrips)
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
+    bpy.utils.register_class(CGC_Polystrips)
 
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
