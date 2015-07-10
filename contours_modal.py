@@ -101,7 +101,7 @@ class  CGC_Contours(ModalOperator):
         return ''
         
     def modal_sketching(self, context, eventd):
-        if self.footer != 'Sketchign': self.footer = 'Sketching'
+        if self.footer != 'Sketching': self.footer = 'Sketching'
         return ''
     
     def modal_widget(self,context,eventd):
