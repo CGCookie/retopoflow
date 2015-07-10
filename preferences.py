@@ -1,9 +1,11 @@
+import os
 import bpy
 from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, FloatVectorProperty, FloatProperty
 from bpy.types import AddonPreferences
 
 class RetopoFlowPreferences(AddonPreferences):
-    bl_idname = "retopoFlow"
+    #bl_idname = 'retopoFlow'
+    bl_idname = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
     
     def update_theme(self, context):
         print('theme updated to ' + str(theme))
