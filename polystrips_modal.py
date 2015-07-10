@@ -40,36 +40,55 @@ class CGC_Polystrips(ModalOperator):
     def __init__(self):
         FSM = {}    # <-- custom states go here
         self.initialize(FSM)
-
-    @classmethod
-    def poll(cls, context):
-        if context.mode not in {'EDIT_MESH', 'OBJECT'}:
-            return False
-
-        return context.object.type == 'MESH'
-
-    def draw_callback(self, context):
-        return self.ui.draw_callback(context)
-
-    def modal(self, context, event):
-        ret = self.ui.modal(context, event)
-        if 'FINISHED' in ret or 'CANCELLED' in ret:
-            self.ui.cleanup(context)
-            common_utilities.callback_cleanup(self, context)
-        return ret
-
-    def invoke(self, context, event):
-
+    
+    def start_poll(self, context):
         if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
             showErrorMessage('Must select exactly two objects')
-            return {'CANCELLED'}
-        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
+            return False
+        
+        if context.mode == 'OBJECT' and len(context.selected_objects) != 1:
             showErrorMessage('Must select only one object')
-            return {'CANCELLED'}
-
+            return False
+        
+        if context.object.type != 'MESH':
+            showErrorMessage('Must select a mesh object')
+            return False
+        
+        return True
+    
+    def start(self, context):
+        ''' Called when tool is invoked to determine if tool can start '''
         self.ui = PolystripsUI(context, event)
+    
+    def end(self, context):
+        ''' Called when tool is ending modal '''
+        self.ui.cleanup(context)
+        pass
+    
+    def end_commit(self, context):
+        ''' Called when tool is committing '''
+        pass
+    
+    def end_cancel(self, context):
+        ''' Called when tool is canceled '''
+        pass
+    
+    def draw_postview(self, context):
+        ''' Place post view drawing code in here '''
+        pass
+    
+    def draw_postpixel(self, context):
+        ''' Place post pixel drawing code in here '''
+        return self.ui.draw_callback(context)
+    
+    def modal_wait(self, context, eventd):
+        '''
+        Place code here to handle commands issued by user
+        Return string that corresponds to FSM key, used to change states.  For example:
+        - '':     do not change state
+        - 'main': transition to main state
+        - 'nav':  transition to a navigation state (passing events through to 3D view)
+        '''
+        ret = self.ui.modal(context, event)
+        return ret
 
-        # Switch to modal
-        self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback, (context, ), 'WINDOW', 'POST_PIXEL')
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
