@@ -56,13 +56,14 @@ class ModalOperator(Operator):
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
         dfns = {
-            'draw_postview':    'draw_postview(self,context, mesh, isBaseMesh)',
-            'modal_wait':       'modal_wait(self,eventd)',
             'start':            'start(self,context)',
             'end':              'end(self,context)',
             'end_commit':       'end_commit(self,context)',
             'end_cancel':       'end_cancel(self,context)',
             'update':           'update(self,context)',
+            'draw_postview':    'draw_postview(self,context)',
+            'draw_postpixel':   'draw_postpixel(self,context)',
+            'modal_wait':       'modal_wait(self,eventd)',
         }
         for fnname,fndef in dfns.items():
             assert fnname in dir(self), 'Must define %s function' % fndef
@@ -70,21 +71,7 @@ class ModalOperator(Operator):
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
-        self.FSM['translate'] = self.modal_translate
-        self.FSM['scale'] = self.modal_scale
-        self.FSM['rotate'] = self.modal_rotate
         self.FSM['wait'] = self.modal_wait
-
-        self.mesh = ''
-        self.submesh = ''
-        self.diffmesh = ''
-        self.points = []
-        self.selPts = []
-        self.selected = set()
-        self.adjSelected = set()
-        self.selectThreshold = 10
-        self.selecting = 'points'
-        self.sublvl = 0
 
         self.initialized = True
 
@@ -127,13 +114,12 @@ class ModalOperator(Operator):
 
     def draw_callback_postview(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
+        self.draw_postview(context)
+        bgl.glPopAttrib()                           # restore OpenGL attributes
 
-        if self.sublvl > 0:
-            self.draw_postview(context, self.submesh, False)
-        if self.diffmesh:
-            self.draw_postview(context, self.diffmesh, True)
-        self.draw_postview(context, self.mesh, True)
-
+    def draw_callback_postpixel(self, context):
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
+        self.draw_postpxel(context)
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
 
@@ -183,46 +169,6 @@ class ModalOperator(Operator):
             # cancel the operator
             return 'cancel'
 
-        if self.selected and eventd['press'] == 'G':
-            ''' handle translating '''
-            self.selPts = {g for g in self.selected if type(g) is Vertex}
-            self.grabstart = Vector(eventd['mouse'])
-            self.constraint = Vector((1,1,1))
-            self.planeConstraint = 'XYZ'
-            for point in self.selPts:
-                point.orig = Vector(point.co)
-            return 'translate'
-
-        if self.selected and eventd['press'] == 'S':
-            ''' handle scaling '''
-            self.selPts = {g for g in self.selected if type(g) is Vertex}
-            self.scalestart = Vector(eventd['mouse'])
-            self.sconstraint = Vector((1,1,1))
-            self.splaneConstraint = 'XYZ'
-            tempx, tempy, tempz = 0,0,0
-            for point in self.selPts:
-                point.orig = Vector(point.co)
-                tempx += point.co.x
-                tempy += point.co.y
-                tempz += point.co.z
-            self.center = Vector((tempx/len(self.selPts),tempy/len(self.selPts),tempz/len(self.selPts)))
-            return 'scale'
-
-        if self.selected and eventd['press'] == 'R':
-            ''' handle rotating '''
-            self.selPts = {g for g in self.selected if type(g) is Vertex}
-            self.rotatestart = Vector(eventd['mouse'])
-            self.rconstraint = Vector((1,1,1))
-            self.rplaneConstraint = 'XYZ'
-            tempx, tempy, tempz = 0,0,0
-            for point in self.selPts:
-                point.orig = Vector(point.co)
-                tempx += point.co.x
-                tempy += point.co.y
-                tempz += point.co.z
-            self.center = Vector((tempx/len(self.selPts),tempy/len(self.selPts),tempz/len(self.selPts)))
-            return 'rotate'
-
         # handle general waiting
         nmode = self.FSM['wait'](eventd)
         if nmode:
@@ -230,222 +176,6 @@ class ModalOperator(Operator):
 
         return ''
 
-    def modal_translate(self, eventd):
-        # current mouse position in region space (2D)
-        m2d = Vector(eventd['mouse'])
-        delta = m2d - self.grabstart
-        vrot = eventd['context'].space_data.region_3d.view_rotation
-        dx = (vrot * Vector((1,0,0))).normalized()
-        dy = (vrot * Vector((0,1,0))).normalized()
-        dg = (dx*delta.x+dy*delta.y)*.01
-        if eventd['press']  == 'X':
-            if self.planeConstraint != 'X':
-                self.constraint = Vector((1,0,0))
-                self.planeConstraint = 'X'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-        if eventd['press']  == 'Y':
-            if self.planeConstraint != 'Y':
-                self.constraint = Vector((0,1,0))
-                self.planeConstraint = 'Y'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-        if eventd['press']  == 'Z':
-            if self.planeConstraint != 'Z':
-                self.constraint = Vector((0,0,1))
-                self.planeConstraint = 'Z'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+X':
-            if self.planeConstraint != 'YZ':
-                self.constraint = Vector((0,1,1))
-                self.planeConstraint = 'YZ'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Y':
-            if self.planeConstraint != 'XZ':
-                self.constraint = Vector((1,0,1))
-                self.planeConstraint = 'XZ'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Z':
-            if self.planeConstraint != 'XY':
-                self.constraint = Vector((1,1,0))
-                self.planeConstraint = 'XY'
-            else:
-                self.constraint = Vector((1,1,1))
-                self.planeConstraint ='XYZ'
-
-        for point in self.selPts:
-            point.co.x = point.orig.x + dg.x*self.constraint.x
-            point.co.y = point.orig.y + dg.y*self.constraint.y
-            point.co.z = point.orig.z + dg.z*self.constraint.z
-
-        # tell editor to update any auxiliary info (subdiv surf, bool op, etc.)
-        self.custom_update(eventd)
-
-        if eventd['press'] == 'LEFTMOUSE':
-            # accept changes
-            return 'wait'
-
-        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
-            # undo changes
-            for point in self.selPts:
-                point.co.x = point.orig.x
-                point.co.y = point.orig.y
-                point.co.z = point.orig.z
-            self.custom_update(eventd)
-            return 'wait'
-        return ''
-
-    def modal_scale(self, eventd):
-        # current mouse position in region space (2D)
-        m2d = Vector(eventd['mouse'])
-        scaverage = location_3d_to_region_2d(eventd['region'],eventd['r3d'],self.center)
-        self.cdelta = (self.scalestart - scaverage).length
-        delta = (m2d - scaverage).length
-        scaleFactor = delta/self.cdelta
-        if eventd['press']  == 'X':
-            if self.splaneConstraint != 'X':
-                self.sconstraint = Vector((1,0,0))
-                self.splaneConstraint = 'X'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        if eventd['press']  == 'Y':
-            if self.splaneConstraint != 'Y':
-                self.sconstraint = Vector((0,1,0))
-                self.splaneConstraint = 'Y'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        if eventd['press']  == 'Z':
-            if self.splaneConstraint != 'Z':
-                self.sconstraint = Vector((0,0,1))
-                self.splaneConstraint = 'Z'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+X':
-            if self.splaneConstraint != 'YZ':
-                self.sconstraint = Vector((0,1,1))
-                self.splaneConstraint = 'YZ'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Y':
-            if self.splaneConstraint != 'XZ':
-                self.sconstraint = Vector((1,0,1))
-                self.splaneConstraint = 'XZ'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Z':
-            if self.splaneConstraint != 'XY':
-                self.sconstraint = Vector((1,1,0))
-                self.splaneConstraint = 'XY'
-            else:
-                self.sconstraint = Vector((1,1,1))
-                self.splaneConstraint ='XYZ'
-        
-        for point in self.selPts:
-            point.co.x = (point.orig.x - self.center.x)*scaleFactor**self.sconstraint.x + self.center.x
-            point.co.y = (point.orig.y - self.center.y)*scaleFactor**self.sconstraint.y + self.center.y
-            point.co.z = (point.orig.z - self.center.z)*scaleFactor**self.sconstraint.z + self.center.z
-
-        # tell editor to update any auxiliary info (sudbiv surf, bool op, etc.)
-        self.custom_update(eventd)
-
-        if eventd['press'] == 'LEFTMOUSE':
-            # accept changes
-            return 'wait'
-
-        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
-            # undo changes
-            for point in self.selPts:
-                point.co.x = point.orig.x
-                point.co.y = point.orig.y
-                point.co.z = point.orig.z
-            self.custom_update(eventd)
-            return 'wait'
-        return ''
-
-    def modal_rotate(self, eventd):
-        # current mouse position in region space (2D)
-        m2d = Vector(eventd['mouse'])
-        roaverage = location_3d_to_region_2d(eventd['region'],eventd['r3d'],self.center)
-        self.cdelta = (self.rotatestart - roaverage).length
-        delta = (m2d - roaverage).length
-        rotateFactor = delta/self.cdelta
-
-        if eventd['press']  == 'X':
-            if self.rplaneConstraint != 'X':
-                self.rconstraint = Vector((1,0,0))
-                self.rplaneConstraint = 'X'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-        if eventd['press']  == 'Y':
-            if self.rplaneConstraint != 'Y':
-                self.rconstraint = Vector((0,1,0))
-                self.rplaneConstraint = 'Y'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-        if eventd['press']  == 'Z':
-            if self.rplaneConstraint != 'Z':
-                self.rconstraint = Vector((0,0,1))
-                self.rplaneConstraint = 'Z'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+X':
-            if self.rplaneConstraint != 'YZ':
-                self.rconstraint = Vector((0,1,1))
-                self.rplaneConstraint = 'YZ'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Y':
-            if self.rplaneConstraint != 'XZ':
-                self.rconstraint = Vector((1,0,1))
-                self.rplaneConstraint = 'XZ'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-        if eventd['press']  == 'SHIFT+Z':
-            if self.rplaneConstraint != 'XY':
-                self.rconstraint = Vector((1,1,0))
-                self.rplaneConstraint = 'XY'
-            else:
-                self.rconstraint = Vector((1,1,1))
-                self.rplaneConstraint ='XYZ'
-
-        for point in self.selPts:
-            eul = Euler((0.0, math.radians(45.0), 0.0), self.rplaneConstraint)
-            point.co.rotate(eul)
-
-            #point.co.x = (point.orig.x - self.center.x)*rotateFactor**self.rconstraint.x + self.center.x
-            #point.co.y = (point.orig.y - self.center.y)*rotateFactor**self.rconstraint.y + self.center.y
-            #point.co.z = (point.orig.z - self.center.z)*rotateFactor**self.rconstraint.z + self.center.z
-
-        # tell editor to update any auxiliary info (sudbiv surf, bool op, etc.)
-        self.custom_update(eventd)
-
-        if eventd['press'] == 'LEFTMOUSE':
-            # accept changes
-            return 'wait'
-
-        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
-            # undo changes
-            self.custom_update(eventd)
-            return 'wait'
-        return ''
 
     def modal_start(self, context):
         '''
@@ -456,8 +186,9 @@ class ModalOperator(Operator):
         self.cur_pos       = (0, 0)
         self.is_navigating = False
         self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_VIEW')
+        self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
-        context.area.header_text_set(self.bl_label)
+        #context.area.header_text_set(self.bl_label)
 
         self.start(context)
 
@@ -467,7 +198,8 @@ class ModalOperator(Operator):
         '''
         self.end(context)
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
-        context.area.header_text_set()
+        SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
+        #context.area.header_text_set()
 
     def modal(self, context, event):
         '''

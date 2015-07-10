@@ -30,22 +30,22 @@ import math
 
 from .modaloperator import ModalOperator
 
-from .common import bezier_cubic_eval as curve_eval
-from .common import bezier_cubic_eval_derivative as curve_der
-
 
 class OP_BaseEditor(ModalOperator):
-    ''' Modal Base Editor '''
-    bl_idname  = "cos424.baseeditor"       # unique identifier for buttons and menu items to reference.
-    bl_label   = "COS424: Base Editor"     # display name in the interface.
-    bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
+    ''' ModalOperator Prototype '''
+    bl_category = "Retopology"
+    bl_idname = "retopoflow.prototype"      # unique identifier for buttons and menu items to reference
+    bl_label = "RetopoFlow Prototype"       # display name in the interface
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
     
     def __init__(self):
         FSM = {}
         
         '''
         fill FSM with 'state':function(self, eventd) to add states to modal finite state machine
-        FSM['example state'] = example_fn, where `def example_fn(self, context)`
+        FSM['example state'] = example_fn, where `def example_fn(self, context)`.
         each state function returns a string to tell FSM into which state to transition.
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
@@ -69,9 +69,12 @@ class OP_BaseEditor(ModalOperator):
         pass
     
     def draw_postview(self, context):
-        ''' Place drawing code in here '''
+        ''' Place post view drawing code in here '''
         pass
-        
+    
+    def draw_postpixel(self, context):
+        ''' Place post pixel drawing code in here '''
+        pass
     
     def modal_wait(self, eventd):
         '''
@@ -81,5 +84,4 @@ class OP_BaseEditor(ModalOperator):
         - 'main': transition to main state
         - 'nav':  transition to a navigation state (passing events through to 3D view)
         '''
-
         return ''
