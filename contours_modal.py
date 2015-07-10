@@ -46,7 +46,7 @@ class  CGC_Contours(ModalOperator):
         FSM['main guide']   = self.modal_guide
         FSM['cutting']      = self.modal_cut
         FSM['sketch']       = self.modal_sketching
-        FSM['widget']       = self.modal_widget_tool
+        FSM['widget']       = self.modal_widget
         '''
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
@@ -55,9 +55,21 @@ class  CGC_Contours(ModalOperator):
     def start(self, context):
         ''' Called when tool has been invoked '''
         self.contours_mode = 'loop'
+        #do contours data stuff
         pass
     
     def modal_wait(self, context, eventd):
+        '''
+        Place code here to handle commands issued by user
+        Return string that corresponds to FSM key, used to change states.  For example:
+        - '':     do not change state
+        - 'main': transition to main state
+        - 'nav':  transition to a navigation state (passing events through to 3D view)
+        '''
+        #simple messaging
+        if self.footer_last != self.footer:
+            context.area.header_text_set('Contours: %s' % self.footer)
+            self.footer_last = self.footer
         
         #contours mode toggle
         if eventd['PRESS'] == 'TAB':
@@ -72,15 +84,28 @@ class  CGC_Contours(ModalOperator):
         else:
             return self.modal_guide(self,context,eventd)
          
+    
     def modal_loop(self, context, eventd): 
-        self.footer = 'Loop Mode'
+        if self.footer != 'Loop Mode': self.footer = 'Loop Mode'
         return ''
 
-    def modal_guide(self, eventd):
-        self.footer = 'Guide Mode'
+    def modal_guide(self, context, eventd):
+        if self.footer != 'Guide Mode': self.footer = 'Guide Mode'
         return ''
     
+    def modal_cut(self, context, eventd):
+        if self.footer != 'Cutting': self.footer = 'Cutting'
+        return ''
         
+    def modal_sketching(self, context, eventd):
+        if self.footer != 'Sketchign': self.footer = 'Sketching'
+        return ''
+    
+    def modal_widget(self,context,eventd):
+        if self.footer != 'Widget': self.footer = 'Widget'
+        return ''
+    
+    
     def end(self, context):
         ''' Called when tool is ending modal '''
         pass
@@ -101,12 +126,4 @@ class  CGC_Contours(ModalOperator):
         ''' Place post pixel drawing code in here '''
         pass
     
-    def modal_wait(self, eventd):
-        '''
-        Place code here to handle commands issued by user
-        Return string that corresponds to FSM key, used to change states.  For example:
-        - '':     do not change state
-        - 'main': transition to main state
-        - 'nav':  transition to a navigation state (passing events through to 3D view)
-        '''
-        return ''
+

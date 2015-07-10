@@ -191,6 +191,9 @@ class ModalOperator(Operator):
         context.window_manager.modal_handler_add(self)
         #context.area.header_text_set(self.bl_label)
 
+        self.footer = ''
+        self.footer_last = ''
+        
         self.start(context)
 
     def modal_end(self, context):
