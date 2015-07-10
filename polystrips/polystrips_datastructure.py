@@ -19,8 +19,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-####class definitions####
-
 import bpy
 import math
 from math import sin, cos
@@ -41,8 +39,6 @@ from . import polystrips_utilities
 from .polystrips_utilities import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, sort_objects_by_angles, vector_angle_between
 
 
-#Make the addon name and location accessible
-AL = AddonLocator()
 
 
 

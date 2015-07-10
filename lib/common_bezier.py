@@ -40,6 +40,7 @@ from .lib import common_utilities
 from .lib.common_utilities import dprint
 
 
+
 def blender_bezier_to_even_points(b_ob, dist):
     
     mx = b_ob.matrix_world
@@ -230,27 +231,6 @@ def cubic_bezier_t_of_s_dynamic(p0,p1,p2,p3, initial_step = 50):
     return s_t_map
 
 
-def closest_t_of_s(s_t_map, s):
-    '''
-    '''
-    d0 = 0
-    t = 1  #in case we don't find a d > s
-    for i,d in enumerate(s_t_map):
-        if d >= s:
-            if i == 0:
-                return 0
-            t1 = s_t_map[d]
-            t0 = s_t_map[d0]
-            t = t0 + (t1-t0) * (s - d0)/(d-d0)
-            return t
-        else:
-            d0 = d
-        
-    return t
-         
-        
-    
-
 
 def cubic_bezier_fit_value(l_v, l_t):
     def compute_error(v0,v1,v2,v3,l_v,l_t):
@@ -380,15 +360,11 @@ def cubic_bezier_split(p0, p1, p2, p3, t_split, error_scale, tessellate=10):
     cb1 = cubic_bezier_fit_points(pts1, error_scale, allow_split=False)
     return [cb[0][2:] for cb in [cb0,cb1] if cb]
 
-def vector_angle_between(v0, v1, vcross):
-    a = v0.angle(v1)
-    d = v0.cross(v1).dot(vcross)
-    return a if d<0 else 2*math.pi - a
-
-def sort_objects_by_angles(vec_about, l_objs, l_vecs):
-    if len(l_objs) <= 1:  return l_objs
-    o0,v0 = l_objs[0],l_vecs[0]
-    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
-    l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
-    return [l_objs[i] for i in l_inds]
-
+def cubic_bezier_surface_t(v00,v01,v02,v03, v10,v11,v12,v13, v20,v21,v22,v23, v30,v31,v32,v33, t02,t13):
+    b00,b01,b02,b03 = cubic_bezier_weights(t02)
+    b10,b11,b12,b13 = cubic_bezier_weights(t13)
+    v0 = v00*b00*b10 + v01*b01*b10 + v02*b02*b10 + v03*b03*b10
+    v1 = v10*b00*b11 + v11*b01*b11 + v12*b02*b11 + v13*b03*b11
+    v2 = v20*b00*b12 + v21*b01*b12 + v22*b02*b12 + v23*b03*b12
+    v3 = v30*b00*b13 + v31*b01*b13 + v32*b02*b13 + v33*b03*b13
+    return v0+v1+v2+v3

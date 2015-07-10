@@ -32,12 +32,15 @@ import math
 import time
 import itertools
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.geometry import intersect_point_line, intersect_line_plane
 
-# from lib import common_drawing
 
 # Blender imports
+import blf
+import bmesh
 import bpy
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 
 class AddonLocator(object):
@@ -551,3 +554,36 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
 def zip_pairs(l):
     for p in zip(l, itertools.chain(l[1:],l[:1])):
         yield p
+
+
+
+def closest_t_of_s(s_t_map, s):
+    '''
+    '''
+    d0 = 0
+    t = 1  #in case we don't find a d > s
+    for i,d in enumerate(s_t_map):
+        if d >= s:
+            if i == 0:
+                return 0
+            t1 = s_t_map[d]
+            t0 = s_t_map[d0]
+            t = t0 + (t1-t0) * (s - d0)/(d-d0)
+            return t
+        else:
+            d0 = d
+        
+    return t
+
+def vector_angle_between(v0, v1, vcross):
+    a = v0.angle(v1)
+    d = v0.cross(v1).dot(vcross)
+    return a if d<0 else 2*math.pi - a
+
+def sort_objects_by_angles(vec_about, l_objs, l_vecs):
+    if len(l_objs) <= 1:  return l_objs
+    o0,v0 = l_objs[0],l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+    l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
+    return [l_objs[i] for i in l_inds]
+

@@ -23,14 +23,23 @@ import bpy
 import bgl
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 import math
 
-from .modaloperator import ModalOperator
+from ..modaloperator import ModalOperator
+from .polystrips_ui            import Polystrips_UI
+from .polystrips_ui_modalwait  import Polystrips_UI_ModalWait
+from .polystrips_ui_tools      import Polystrips_UI_Tools
+from .polystrips_ui_draw       import Polystrips_UI_Draw
+
+from .polystrips_datastructure import Polystrips
 
 
-class CGC_Polystrips(ModalOperator):
-    ''' CG Cookie Polystrips Editor '''
+
+class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Polystrips_UI_Tools, Polystrips_UI_Draw):
+    ''' CG Cookie Polystrips Modal Editor '''
+    ''' Note: the functionality of this operator is split up over multiple base classes '''
+    
     bl_category = "Retopology"
     bl_idname = "cgcookie.polystrips"
     bl_label = "Retopoflow.Polystrips"
@@ -38,16 +47,26 @@ class CGC_Polystrips(ModalOperator):
     bl_region_type = 'TOOLS'
     
     def __init__(self):
-        FSM = {}    # <-- custom states go here
-        self.initialize(FSM)
+        FSM = {}
+        FSM['sketch']           = self.modal_sketching
+        FSM['scale tool']       = self.modal_scale_tool
+        FSM['grab tool']        = self.modal_grab_tool
+        FSM['rotate tool']      = self.modal_rotate_tool
+        FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
+        FSM['tweak move tool']  = self.modal_tweak_move_tool
+        FSM['tweak relax tool'] = self.modal_tweak_relax_tool
+        ModalOperator.initialize(self, FSM)
+        self.initialize_ui()
     
     def start_poll(self, context):
+        ''' Called when tool is invoked to determine if tool can start '''
+        
         if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
-            showErrorMessage('Must select exactly two objects')
+            showErrorMessage('Must select exactly two objects when in Edit Mode')
             return False
         
         if context.mode == 'OBJECT' and len(context.selected_objects) != 1:
-            showErrorMessage('Must select only one object')
+            showErrorMessage('Must select only one object when in Object Mode')
             return False
         
         if context.object.type != 'MESH':
@@ -57,13 +76,16 @@ class CGC_Polystrips(ModalOperator):
         return True
     
     def start(self, context):
-        ''' Called when tool is invoked to determine if tool can start '''
-        self.ui = PolystripsUI(context, event)
+        ''' Called when tool is invoked '''
+        self.start_ui(context)
+        
     
     def end(self, context):
         ''' Called when tool is ending modal '''
-        self.ui.cleanup(context)
-        pass
+        self.end_ui(context)
+        self.cleanup(context)
+        
+        
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
@@ -73,22 +95,4 @@ class CGC_Polystrips(ModalOperator):
         ''' Called when tool is canceled '''
         pass
     
-    def draw_postview(self, context):
-        ''' Place post view drawing code in here '''
-        pass
-    
-    def draw_postpixel(self, context):
-        ''' Place post pixel drawing code in here '''
-        return self.ui.draw_callback(context)
-    
-    def modal_wait(self, context, eventd):
-        '''
-        Place code here to handle commands issued by user
-        Return string that corresponds to FSM key, used to change states.  For example:
-        - '':     do not change state
-        - 'main': transition to main state
-        - 'nav':  transition to a navigation state (passing events through to 3D view)
-        '''
-        ret = self.ui.modal(context, event)
-        return ret
 
