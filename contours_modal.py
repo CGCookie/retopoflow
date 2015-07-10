@@ -29,12 +29,12 @@ import math
 
 
 from .modaloperator import ModalOperator
-from . import keymaps
+from . import key_maps
 
 class  CGC_Contours(ModalOperator):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
     bl_category = "Retopology"
-    bl_idname = "retopoflow.contours"      # unique identifier for buttons and menu items to reference
+    bl_idname = "cgcookie.contours"      # unique identifier for buttons and menu items to reference
     bl_label = "Contours"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
@@ -55,7 +55,7 @@ class  CGC_Contours(ModalOperator):
     def start_poll(self,context):
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
-            retur False
+            return False
         elif context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
             showErrorMessage('Must select exactly two objects')
             return False
