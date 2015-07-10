@@ -52,147 +52,35 @@ class  CGC_Contours(ModalOperator):
         '''
         self.initialize(FSM)
     
-    
-    def modal_wait(self, eventd):
-        
-        
-        
-    def modal_loop(self, eventd): 
-        self.footer = 'Loop Mode'
-        
-        #############################################
-        # general navigation
-        nmode = self.modal_nav(eventd)
-        if nmode:
-            return nmode  #stop here and tell parent modal to 'PASS_THROUGH'
-        
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-        
-        if eventd['press'] in self.keymap['confirm']:
-            self.finish_mesh(eventd['context'])
-            eventd['context'].area.header_text_set()
-            return 'finish'
-        
-        if eventd['press'] in self.keymap['cancel']:
-            eventd['context'].area.header_text_set()
-            return 'cancel'
-        
-        #####################################
-        # general, non modal commands
-        if eventd['press'] in self.keymap['undo']:
-            print('undo it!')
-            self.undo_action()
-            self.temporary_message_start(eventd['context'], "UNDO: %i steps in undo_cache" % len(contour_undo_cache))
-            return ''
-        
-        if eventd['press'] in self.keymap['mode']:
-            self.footer = 'Guide Mode'
-            self.mode_set_guide(eventd['context'])
-            return 'main guide'
-     
-        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
-            x,y = eventd['mouse']
-            self.hover_loop_mode(eventd['context'], self.settings, x,y)
-            return ''
-        
-        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
-            ret = self.loop_select(eventd['context'], eventd)
-            if ret:
-                return ''
-        
-   
-        if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-            
-                return ''
-            
-            if self.cut_line_widget:
-                self.prepare_widget(eventd)
-                
-                return 'widget'
-            
-            else:
-                self.footer = 'Cutting'
-                x,y = eventd['mouse']
-                self.sel_loop = self.click_new_cut(eventd['context'], self.settings, x,y)    
-                return 'cutting'
-        
-        if eventd['press'] in self.keymap['new']:
-            self.force_new = self.force_new != True
-            return ''
-        ###################################
-        # selected contour loop commands
-        
-        if self.sel_loop:
-            if eventd['press'] in self.keymap['delete']:
-                
-                self.loops_delete(eventd['context'], [self.sel_loop])
-                self.temporary_message_start(eventd['context'], 'DELETE')
-                return ''
-            
-
-            if eventd['press'] in self.keymap['rotate']:
-                self.prepare_rotate(eventd['context'],eventd)
-                #header text handled during rotation
-                return 'widget'
-            
-            if eventd['press'] in self.keymap['translate']:
-                self.prepare_translate(eventd['context'], eventd)
-                #header text handled during translation
-                return 'widget'
-            
-            if eventd['press'] in self.keymap['align']:
-                self.loop_align(eventd['context'], eventd)
-                self.temporary_message_start(eventd['context'], 'ALIGN LOOP')
-                return ''
-            
-            if eventd['press'] in self.keymap['up shift']:
-                self.loop_shift(eventd['context'], eventd, up = True)
-                self.temporary_message_start(eventd['context'], 'SHIFT: ' + str(self.sel_loop.shift))
-                return ''
-            
-            if eventd['press'] in self.keymap['dn shift']:
-                self.loop_shift(eventd['context'], eventd, up = False)
-                self.temporary_message_start(eventd['context'], 'SHIFT: ' + str(self.sel_loop.shift))
-                return ''
-            
-            if eventd['press'] in self.keymap['up count']:
-                n = len(self.sel_loop.verts_simple)
-                self.loop_nverts_change(eventd['context'], eventd, n+1)
-                #message handled within op
-                return ''
-            
-            if eventd['press'] in self.keymap['dn count']:
-                n = len(self.sel_loop.verts_simple)
-                self.loop_nverts_change(eventd['context'], eventd, n-1)
-                #message handled within op
-                return ''
-            
-            if eventd['press'] in self.keymap['snap cursor']:
-                eventd['context'].scene.cursor_location = self.sel_loop.plane_com
-                self.temporary_message_start(eventd['context'], "Cursor to loop")
-                return ''
-            
-            if eventd['press'] in self.keymap['view cursor']:
-                bpy.ops.view3d.view_center_cursor()
-                self.temporary_message_start(eventd['context'], "View to cursor")
-                return ''
-                
-        return ''
     def start(self, context):
         ''' Called when tool has been invoked '''
+        self.contours_mode = 'loop'
         pass
     
+    def modal_wait(self, context, eventd):
+        
+        #contours mode toggle
+        if eventd['PRESS'] == 'TAB':
+            if self.contours_mode == 'loop':
+                self.contours_mode = 'guide'
+            else:
+                self.contours_mode = 'loop'
+            return ''
+        
+        if self.contours_mode == 'loop':
+            return self.modal_loop(self,context,eventd)
+        else:
+            return self.modal_guide(self,context,eventd)
+         
+    def modal_loop(self, context, eventd): 
+        self.footer = 'Loop Mode'
+        return ''
+
+    def modal_guide(self, eventd):
+        self.footer = 'Guide Mode'
+        return ''
+    
+        
     def end(self, context):
         ''' Called when tool is ending modal '''
         pass
