@@ -75,6 +75,7 @@ from .polystrips_draw import draw_gedge_info
 # Contour imports
 from . import contour_utilities
 from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
+from .contours_modal import CGC_Contours
 
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()
@@ -595,9 +596,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             icons = icon_collections["main"]
 
             contours_icon = icons.get("rf_contours_icon")
-            col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+            col.operator("retopoflow.contours", icon_value=contours_icon.icon_id)
         else:
-            col.operator("cgcookie.contours", icon='IPO_LINEAR')
+            col.operator("retopoflow.contours", icon='IPO_LINEAR')
 
         box = layout.box()
         row = box.row()
@@ -2246,6 +2247,7 @@ icon_collections = {}
 
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
+    bpy.utils.register_class(CGC_Contours)
 
     if bversion > '002.074.004':
         rf_icons = bpy.utils.previews.new()
@@ -2266,7 +2268,6 @@ def register():
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
-    bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     # Create the addon hotkeys
@@ -2282,6 +2283,7 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_polystrips)
+    bpy.utils.unregister_class(CGC_contours)
 
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)

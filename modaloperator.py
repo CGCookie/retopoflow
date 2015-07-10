@@ -29,8 +29,6 @@ import math
 from bpy.types import Operator
 from bpy.types import SpaceView3D
 
-from .mesh import Vertex, Edge, Face
-
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 

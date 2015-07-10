@@ -52,6 +52,9 @@ class  CGC_Contours(ModalOperator):
         '''
         self.initialize(FSM)
     
+    def start_poll(self,context):
+        return True
+    
     def start(self, context):
         ''' Called when tool has been invoked '''
         self.contours_mode = 'loop'
@@ -72,7 +75,7 @@ class  CGC_Contours(ModalOperator):
             self.footer_last = self.footer
         
         #contours mode toggle
-        if eventd['PRESS'] == 'TAB':
+        if eventd['press'] == 'TAB':
             if self.contours_mode == 'loop':
                 self.contours_mode = 'guide'
             else:
@@ -80,9 +83,9 @@ class  CGC_Contours(ModalOperator):
             return ''
         
         if self.contours_mode == 'loop':
-            return self.modal_loop(self,context,eventd)
+            return self.modal_loop(context,eventd)
         else:
-            return self.modal_guide(self,context,eventd)
+            return self.modal_guide(context,eventd)
          
     
     def modal_loop(self, context, eventd): 
@@ -105,6 +108,8 @@ class  CGC_Contours(ModalOperator):
         if self.footer != 'Widget': self.footer = 'Widget'
         return ''
     
+    def update(self,context):
+        pass
     
     def end(self, context):
         ''' Called when tool is ending modal '''
