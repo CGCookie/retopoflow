@@ -64,6 +64,7 @@ from . import key_maps
 
 if bversion() > '002.074.004':
     import bpy.utils.previews
+from .icons import clear_icons
 
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
@@ -1686,26 +1687,9 @@ class CGCOOKIE_OT_polystrips(bpy.types.Operator):
 
 # Used to store keymaps for addon
 addon_keymaps = []
-icon_collections = {}
 
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
-
-    if bversion() > '002.074.004':
-        rf_icons = bpy.utils.previews.new()
-
-        icons_dir = os.path.join(os.path.dirname(__file__), "icons")
-
-        rf_icons.load(
-            "rf_contours_icon",
-            os.path.join(icons_dir, "contours_32.png"),
-            'IMAGE')
-        rf_icons.load(
-            "rf_polystrips_icon",
-            os.path.join(icons_dir, "polystrips_32.png"),
-            'IMAGE')
-
-        icon_collections["main"] = rf_icons
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
@@ -1735,9 +1719,7 @@ def unregister():
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     if bversion() > '002.074.004':
-        for icon in icon_collections.values():
-            bpy.utils.previews.remove(icon)
-        icon_collections.clear()
+        clear_icons()
 
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:
