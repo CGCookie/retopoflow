@@ -79,7 +79,7 @@ from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulato
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()
 
-#a place to store stokes for later
+#a place to store strokes for later
 global contour_cache 
 contour_cache = {}
 contour_undo_cache = []
