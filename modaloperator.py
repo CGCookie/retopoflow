@@ -29,11 +29,10 @@ import math
 from bpy.types import Operator
 from bpy.types import SpaceView3D
 
-from .mesh import Vertex, Edge, Face
-
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
+from .lib.common_classes import TextBox
 
 class ModalOperator(Operator):
     events_numpad = {
@@ -64,7 +63,7 @@ class ModalOperator(Operator):
             'update':           'update(self,context)',
             'draw_postview':    'draw_postview(self,context)',
             'draw_postpixel':   'draw_postpixel(self,context)',
-            'modal_wait':       'modal_wait(self,eventd)',
+            'modal_wait':       'modal_wait(self,context,eventd)',
         }
         for fnname,fndef in dfns.items():
             assert fnname in dir(self), 'Must define %s function' % fndef
@@ -127,7 +126,7 @@ class ModalOperator(Operator):
     ####################################################################
     # FSM modal functions
 
-    def modal_nav(self, eventd):
+    def modal_nav(self, context, eventd):
         '''
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
@@ -149,7 +148,7 @@ class ModalOperator(Operator):
         self.is_navigating = False
         return ''
 
-    def modal_main(self, eventd):
+    def modal_main(self, context, eventd):
         '''
         Main state of FSM.
         This state checks if navigation is occurring.
@@ -157,7 +156,7 @@ class ModalOperator(Operator):
         '''
 
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
-        nmode = self.FSM['nav'](eventd)
+        nmode = self.FSM['nav'](context, eventd)
         if nmode:
             return nmode
 
@@ -171,7 +170,7 @@ class ModalOperator(Operator):
             return 'cancel'
 
         # handle general waiting
-        nmode = self.FSM['wait'](eventd)
+        nmode = self.FSM['wait'](context, eventd)
         if nmode:
             return nmode
 
@@ -200,7 +199,7 @@ class ModalOperator(Operator):
         self.end(context)
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
-        #context.area.header_text_set()
+        context.area.header_text_set()
 
     def modal(self, context, event):
         '''
@@ -214,7 +213,7 @@ class ModalOperator(Operator):
         eventd = self.get_event_details(context, event)
 
         self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.fsm_mode](eventd)
+        nmode = self.FSM[self.fsm_mode](context, eventd)
         self.mode_pos = eventd['mouse']
 
         if nmode == 'wait': nmode = 'main'
@@ -244,13 +243,8 @@ class ModalOperator(Operator):
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
         
+        self.help_box = TextBox(context,500,500,300,200,10,20,'No Help!')
+        self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])
         self.modal_start(context)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
-
-    def custom_update(self, eventd):
-        for face in self.selected:
-            if type(face) is Face:
-                self.mesh.flip_face_normal(face)
-                self.mesh.flip_face_normal(face)
-        self.mesh_update()
-        self.update(eventd['context'])

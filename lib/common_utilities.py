@@ -53,6 +53,10 @@ class AddonLocator(object):
         sys.path.append(self.FolderPath)
         print("Addon path has been registered into system path for this session")
 
+def bversion():
+    bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    return bversion
+
 def selection_mouse():
     select_type = bpy.context.user_preferences.inputs.select_mouse
     select_mouse = []
