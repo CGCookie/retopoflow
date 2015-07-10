@@ -23,8 +23,8 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 0, 0),
-    "blender":     (2, 7, 2),
+    "version":     (1, 0, 1),
+    "blender":     (2, 7, 5),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
     "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
@@ -44,6 +44,7 @@ import time
 from math import sqrt
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_line_plane, intersect_point_line
+import itertools
 
 # Blender imports
 import bgl
@@ -54,6 +55,11 @@ from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, F
 from bpy.types import Operator, AddonPreferences
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
 
+global bversion
+bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+if bversion > '002.074.004':
+    import bpy.utils.previews
+
 # Common imports
 from .lib import common_utilities
 from .lib import common_drawing
@@ -63,8 +69,8 @@ from . import key_maps
 
 # Polystrip imports
 from . import polystrips_utilities
-from .polystrips import *
-from .polystrips_draw import *
+from .polystrips import PolyStrips
+from .polystrips_draw import draw_gedge_info
 
 # Contour imports
 from . import contour_utilities
@@ -122,6 +128,11 @@ class RetopoFlowPreferences(AddonPreferences):
         'blue': rgba_to_float(26, 111, 255, 255),
         'green': rgba_to_float(78, 207, 81, 255),
         'orange': rgba_to_float(26, 111, 255, 255)
+    }
+    theme_colors_frozen = {
+        'blue': rgba_to_float(255, 255, 255, 255),
+        'green': rgba_to_float(255, 255, 255, 255),
+        'orange': rgba_to_float(255, 255, 255, 255)
     }
     theme_colors_warning = {
         'blue': rgba_to_float(182, 31, 0, 125),
@@ -579,7 +590,14 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
 
         col = layout.column(align=True)
-        col.operator("cgcookie.contours", icon='IPO_LINEAR')
+
+        if bversion > '002.074.004':
+            icons = icon_collections["main"]
+
+            contours_icon = icons.get("rf_contours_icon")
+            col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+        else:
+            col.operator("cgcookie.contours", icon='IPO_LINEAR')
 
         box = layout.box()
         row = box.row()
@@ -602,7 +620,13 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
         col = layout.column(align=True)
-        col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+        if bversion > '002.074.004':
+            polystrips_icon = icons.get("rf_polystrips_icon")
+            col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        else:
+            col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+
+
 
         box = layout.box()
         row = box.row()
@@ -750,11 +774,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
             self.cut_line_widget.draw(context)
             
         if len(self.sketch):
-            common_drawing.draw_polyline_from_points(context, self.sketch, (1,.5,1,.8), 2, "GL_LINE_SMOOTH")
+            common_drawing.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_SMOOTH")
             
         if len(self.cut_paths):
             for path in self.cut_paths:
-                path.draw(context, path = True, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
+                path.draw(context, path = False, nodes = settings.show_nodes, rings = True, follows = True, backbone = settings.show_backbone    )
                 
         if len(self.snap_circle):
             common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
@@ -1258,6 +1282,8 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         mode
         '''
         
+        handle_color = settings.theme_colors_active[settings.theme]
+
         self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
@@ -1336,11 +1362,11 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
                                 breakout = True
                                 if best < settings.extend_radius:
                                     snapped = True
-                                    self.snap_color = (1,0,0,1)
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
                                     
                                 else:
                                     alpha = 1 - best/(2*settings.extend_radius)
-                                    self.snap_color = (1,0,0,alpha)
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 0.50)
                                     
                                 break
                         
@@ -2142,7 +2168,9 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         #potential item for snapping in 
         self.snap = []
         self.snap_circle = []
-        self.snap_color = (1,0,0,1)
+
+        handle_color = settings.theme_colors_active[settings.theme]
+        self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
 
         if len(self.cut_paths) == 0:
             self.sel_path = None   #TODO: change this to selected_segment
@@ -2214,9 +2242,26 @@ class CGCOOKIE_OT_polystrips(bpy.types.Operator):
 
 # Used to store keymaps for addon
 addon_keymaps = []
+icon_collections = {}
 
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
+
+    if bversion > '002.074.004':
+        rf_icons = bpy.utils.previews.new()
+
+        icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+
+        rf_icons.load(
+            "rf_contours_icon",
+            os.path.join(icons_dir, "contours_32.png"),
+            'IMAGE')
+        rf_icons.load(
+            "rf_polystrips_icon",
+            os.path.join(icons_dir, "polystrips_32.png"),
+            'IMAGE')
+
+        icon_collections["main"] = rf_icons
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
@@ -2244,6 +2289,11 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
+
+    if bversion > '002.074.004':
+        for icon in icon_collections.values():
+            bpy.utils.previews.remove(icon)
+        icon_collections.clear()
 
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:
@@ -2537,6 +2587,7 @@ class PolystripsUI:
         color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
         color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
 
+        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
         color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
@@ -2555,8 +2606,8 @@ class PolystripsUI:
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
             
             if gpatch.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
             if gpatch.count_error:
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
@@ -2584,8 +2635,8 @@ class PolystripsUI:
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
             if gedge.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
             for c0,c1,c2,c3 in gedge.iter_segments(only_visible=True):
                 common_drawing.draw_quads_from_3dpoints(context, [c0,c1,c2,c3], color_fill)
@@ -2641,8 +2692,8 @@ class PolystripsUI:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
             if gv.is_frozen():
-                color_border = (0.80,0.80,0.80,1.00)
-                color_fill   = (0.80,0.80,0.80,0.20)
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
             p3d = [p0,p1,p2,p3,p0]
             common_drawing.draw_quads_from_3dpoints(context, [p0,p1,p2,p3], color_fill)
@@ -3132,7 +3183,7 @@ class PolystripsUI:
             self.undo_action()
             return ''
 
-        if eventd['press'] == 'F':
+        if eventd['press'] in self.keymap['brush size']:
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
 
@@ -3149,7 +3200,7 @@ class PolystripsUI:
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
         
-        if eventd['press'] in {'T','SHIFT+T'}:
+        if eventd['press'] in self.keymap['tweak move']:
             self.create_undo_snapshot('tweak')
             self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
             self.act_gvert = None
@@ -3201,7 +3252,7 @@ class PolystripsUI:
                 self.pick(eventd)
             return ''
 
-        if eventd['press'] == 'CTRL+U':
+        if eventd['press'] in self.keymap['update']:
             self.create_undo_snapshot('update')
             for gv in self.polystrips.gverts:
                 gv.update_gedges()
@@ -3210,12 +3261,12 @@ class PolystripsUI:
         # Selected gpatch commands
         
         if self.act_gpatch:
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
-            if eventd['press'] in {'R','SHIFT+R'}:
+            if eventd['press'] in self.keymap['rotate pole']:
                 reverse = eventd['press']=='SHIFT+R'
                 self.act_gpatch.rotate_pole(reverse=reverse)
                 self.polystrips.update_visibility(eventd['r3d'])
@@ -3225,7 +3276,7 @@ class PolystripsUI:
         # Selected gedge commands
      
         if self.act_gedge:
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gedge(self.act_gedge)
                 self.act_gedge = None
@@ -3233,7 +3284,7 @@ class PolystripsUI:
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
-            if eventd['press'] == 'K' and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
+            if eventd['press'] in self.keymap['knife'] and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
@@ -3247,19 +3298,19 @@ class PolystripsUI:
                 self.act_gvert = gv
                 return ''
 
-            if eventd['press'] == 'U':
+            if eventd['press'] in self.keymap['update']:
                 self.create_undo_snapshot('update')
                 self.act_gedge.gvert0.update_gedges()
                 self.act_gedge.gvert3.update_gedges()
                 return ''
 
-            if eventd['press']in {'SHIFT+WHEELUPMOUSE', 'SHIFT+NUMPAD_PLUS'}:
+            if eventd['press'] in self.keymap['up count']:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] in {'SHIFT+WHEELDOWNMOUSE', 'SHIFT+NUMPAD_MINUS'}:
+            if eventd['press'] in self.keymap['dn count']:
 
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
@@ -3267,7 +3318,7 @@ class PolystripsUI:
                     self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] == 'Z' and not self.act_gedge.is_gpatched():
+            if eventd['press'] in self.keymap['zip'] and not self.act_gedge.is_gpatched():
 
                 if self.act_gedge.zip_to_gedge:
                     self.create_undo_snapshot('unzip')
@@ -3293,32 +3344,27 @@ class PolystripsUI:
                     return ''
                 return ''
 
-            if eventd['press'] == 'G':
+            if eventd['press'] in self.keymap['translate']:
                 if not self.act_gedge.is_zippered():
                     self.create_undo_snapshot('grab')
                     self.ready_tool(eventd, self.grab_tool_gedge)
                     return 'grab tool'
                 return ''
 
-            if eventd['press'] == 'A':
+            if eventd['press'] in self.keymap['select all']:
                 self.act_gvert = self.act_gedge.gvert0
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 return ''
-            if eventd['press'] == 'B':
-                self.act_gvert = self.act_gedge.gvert3
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                return ''
 
-            if eventd['press'] == 'CTRL+R' and not self.act_gedge.is_zippered():
+            if eventd['press'] in self.keymap['rip'] and not self.act_gedge.is_zippered():
                 self.create_undo_snapshot('rip')
                 self.act_gedge = self.polystrips.rip_gedge(self.act_gedge)
                 self.sel_gedges = [self.act_gedge]
                 self.ready_tool(eventd, self.grab_tool_gedge)
                 return 'grab tool'
 
-            if eventd['press'] == 'SHIFT+F':
+            if eventd['press'] in self.keymap['fill']:
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''
@@ -3328,7 +3374,7 @@ class PolystripsUI:
 
         if self.act_gvert:
 
-            if eventd['press'] == 'K':
+            if eventd['press'] in self.keymap['knife']:
                 if not self.act_gvert.is_endpoint():
                     showErrorMessage('Selected GVert must be endpoint (exactly one GEdge)')
                     return ''
@@ -3348,7 +3394,7 @@ class PolystripsUI:
                     return ''
                 return ''
 
-            if eventd['press'] == 'X':
+            if eventd['press'] in self.keymap['delete']:
                 if self.act_gvert.is_inner():
                     return ''
                 self.create_undo_snapshot('delete')
@@ -3357,7 +3403,7 @@ class PolystripsUI:
                 self.polystrips.remove_unconnected_gverts()
                 return ''
 
-            if eventd['press'] == 'CTRL+D':
+            if eventd['press'] in self.keymap['dissolve']:
                 if any(ge.is_zippered() or ge.is_gpatched() for ge in self.act_gvert.get_gedges_notnone()):
                     showErrorMessage('Cannot dissolve GVert with GEdge that is zippered or patched')
                     return ''
@@ -3368,22 +3414,17 @@ class PolystripsUI:
                 self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
-            if eventd['press'] == 'S' and not self.act_gvert.is_unconnected():
+            if eventd['press'] in self.keymap['scale'] and not self.act_gvert.is_unconnected():
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_gvert_radius)
                 return 'scale tool'
 
-            if eventd['press'] == 'CTRL+G':
-                self.create_undo_snapshot('grab')
-                self.ready_tool(eventd, self.grab_tool_gvert)
-                return 'grab tool'
-
-            if eventd['press'] == 'G':
+            if eventd['press'] in self.keymap['translate']:
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                 return 'grab tool'
 
-            if eventd['press'] == 'CTRL+C':
+            if eventd['press'] in self.keymap['change junction']:
                 if any(ge.is_zippered() or ge.is_gpatched() for ge in self.act_gvert.get_gedges_notnone()):
                     showErrorMessage('Cannot change corner type of GVert with GEdge that is zippered or patched')
                     return ''
@@ -3392,27 +3433,27 @@ class PolystripsUI:
                 self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
-            if eventd['press'] == 'CTRL+S' and not self.act_gvert.is_unconnected():
+            if eventd['press'] in self.keymap['scale handles'] and not self.act_gvert.is_unconnected():
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_gvert)
                 return 'scale tool'
 
-            if eventd['press'] == 'C':
+            if eventd['press'] in self.keymap['smooth']:
                 self.create_undo_snapshot('smooth')
                 self.act_gvert.smooth()
                 self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
-            if eventd['press'] == 'R':
+            if eventd['press'] in self.keymap['rotate']:
                 self.create_undo_snapshot('rotate')
                 self.ready_tool(eventd, self.rotate_tool_gvert_neighbors)
                 return 'rotate tool'
 
-            if eventd['press'] == 'U':
+            if eventd['press'] in self.keymap['update']:
                 self.act_gvert.update_gedges()
                 return ''
 
-            if eventd['press'] == 'CTRL+R':
+            if eventd['press'] in self.keymap['rip']:
                 # self.polystrips.rip_gvert(self.act_gvert)
                 # self.act_gvert = None
                 # return ''
@@ -3433,7 +3474,7 @@ class PolystripsUI:
                 showErrorMessage('Must hover over GEdge you wish to rip')
                 return ''
   
-            if eventd['press'] == 'M':
+            if eventd['press'] in self.keymap['merge']:
                 if self.act_gvert.is_inner():
                     showErrorMessage('Cannot merge inner GVert')
                     return ''
@@ -3467,7 +3508,7 @@ class PolystripsUI:
                 gvthis = self.act_gvert
                 gvthat = self.act_gvert.get_zip_pair()
 
-                if eventd['press'] == 'CTRL+NUMPAD_PLUS':
+                if eventd['press'] in self.keymap['zip down']:
                     self.create_undo_snapshot('zip count')
                     max_t = 1 if gvthis.zip_t>gvthat.zip_t else gvthat.zip_t-0.05
                     gvthis.zip_t = min(gvthis.zip_t+0.05, max_t)
@@ -3475,7 +3516,7 @@ class PolystripsUI:
                     dprint('+ %f %f' % (min(gvthis.zip_t, gvthat.zip_t),max(gvthis.zip_t, gvthat.zip_t)), l=4)
                     return ''
 
-                if eventd['press'] == 'CTRL+NUMPAD_MINUS':
+                if eventd['press'] in self.keymap['zip up']:
                     self.create_undo_snapshot('zip count')
                     min_t = 0 if gvthis.zip_t<gvthat.zip_t else gvthat.zip_t+0.05
                     gvthis.zip_t = max(gvthis.zip_t-0.05, min_t)
@@ -3483,7 +3524,7 @@ class PolystripsUI:
                     dprint('- %f %f' % (min(gvthis.zip_t, gvthat.zip_t),max(gvthis.zip_t, gvthat.zip_t)), l=4)
                     return ''
 
-            if eventd['press'] == 'SHIFT+F':
+            if eventd['press'] in self.keymap['fill']:
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''

@@ -37,9 +37,9 @@ from .lib import common_utilities
 from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
 from .lib.common_utilities import zip_pairs
 
-from .polystrips_utilities import *
-from .polystrips_draw import *
 from . import polystrips_utilities
+from .polystrips_utilities import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, sort_objects_by_angles, vector_angle_between
+
 
 #Make the addon name and location accessible
 AL = AddonLocator()
@@ -2556,6 +2556,8 @@ class PolyStrips(object):
                 gv1 = gvert_in_common(sge0,sge1)
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = sge1.get_other_end(gv1)
+                if gv0 == gv2:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge2 = self.insert_gedge_between_gverts(gv0,gv2)
                 lgp += [self.create_gpatch(sge0,sge1,sge2)]
             elif l == 3:
@@ -2564,6 +2566,8 @@ class PolyStrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = gvert_in_common(sge1,sge2)
                 gv3 = sge2.get_other_end(gv2)
+                if gv0 == gv3:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge3 = self.insert_gedge_between_gverts(gv0, gv3)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3)]
             elif l == 4:
@@ -2572,6 +2576,8 @@ class PolyStrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv3 = gvert_in_common(sge2,sge3)
                 gv4 = sge3.get_other_end(gv3)
+                if gv0 == gv4:
+                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
                 sge4 = self.insert_gedge_between_gverts(gv0,gv4)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3,sge4)]
         
