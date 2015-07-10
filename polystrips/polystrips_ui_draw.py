@@ -35,12 +35,12 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-from .lib import common_utilities
-from .lib import common_drawing
-from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib import common_utilities
+from ..lib import common_drawing
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
 
 
-class Polystrips_UI_Draw(Polystrips_UI):
+class Polystrips_UI_Draw():
     
     def draw_postview(self, context):
         ''' Place post view drawing code in here '''

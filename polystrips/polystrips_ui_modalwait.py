@@ -27,7 +27,7 @@ from mathutils import Vector, Matrix
 import math
 
 
-class Polystrips_UI_ModalWait(Polystrips_UI):
+class Polystrips_UI_ModalWait():
     def modal_wait(self, context, eventd):
         '''
         Place code here to handle commands issued by user

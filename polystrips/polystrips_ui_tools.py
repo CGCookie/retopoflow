@@ -27,7 +27,7 @@ from mathutils import Vector, Matrix
 import math
 
 
-class Polystrips_UI_Tools:
+class Polystrips_UI_Tools():
     
     def modal_sketching(self, context, eventd):
 

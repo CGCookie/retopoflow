@@ -31,12 +31,13 @@ import bmesh
 import blf, bgl
 import itertools
 
-from .lib import common_utilities
-from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
-from .lib.common_utilities import zip_pairs
+from ..lib import common_utilities
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from ..lib.common_utilities import zip_pairs
+from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 
-from . import polystrips_utilities
-from .polystrips_utilities import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, sort_objects_by_angles, vector_angle_between
+from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split
+
 
 
 
@@ -235,7 +236,7 @@ class GVert:
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        if PolyStrips.settings.symmetry_plane == 'x':
+        if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
             self.corner1.x = max(0.0, self.corner1.x)
             self.corner2.x = max(0.0, self.corner2.x)
@@ -246,7 +247,7 @@ class GVert:
         self.corner2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner2)[0]
         self.corner3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner3)[0]
         
-        if PolyStrips.settings.symmetry_plane == 'x':
+        if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
             self.corner1.x = max(0.0, self.corner1.x)
             self.corner2.x = max(0.0, self.corner2.x)
@@ -1040,7 +1041,7 @@ class GEdge:
             else:
                 self.update_nozip(debug=debug)
             
-            if PolyStrips.settings.symmetry_plane == 'x':
+            if Polystrips.settings.symmetry_plane == 'x':
                 # clamp to x-plane
                 for igv in self.cache_igverts:
                     p0 = igv.position + igv.tangent_y*igv.radius
@@ -1075,7 +1076,7 @@ class GEdge:
             l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * igv.position)
             igv.position = mx * l
             
-            if PolyStrips.settings.symmetry_plane == 'x':
+            if Polystrips.settings.symmetry_plane == 'x':
                 # clamp to x-plane
                 p0 = igv.position + igv.tangent_y*igv.radius
                 p1 = igv.position - igv.tangent_y*igv.radius
@@ -1585,14 +1586,14 @@ class GPatch:
 
 
 ###############################################################################################################
-# PolyStrips
+# Polystrips
 
-class PolyStrips(object):
+class Polystrips(object):
     # class/static variable (shared across all instances)
     settings = None
     
     def __init__(self, context, obj, targ_obj):
-        PolyStrips.settings = common_utilities.get_settings()
+        Polystrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
         self.targ_o_name =targ_obj.name

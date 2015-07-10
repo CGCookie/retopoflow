@@ -70,9 +70,8 @@ from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
 # Polystrip imports
-from . import polystrips_utilities
-from .polystrips import PolyStrips
-from .polystrips_draw import draw_gedge_info
+#from . import polystrips_utilities
+from .polystrips.polystrips_modal import CGC_Polystrips
 
 # Contour imports
 from . import contour_utilities
@@ -1652,7 +1651,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
 addon_keymaps = []
 
 def register():
-    bpy.utils.register_class(CGCOOKIE_OT_polystrips)
+    bpy.utils.register_class(CGC_Polystrips)
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
@@ -1672,7 +1671,7 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(CGCOOKIE_OT_polystrips)
+    bpy.utils.unregister_class(CGC_Polystrips)
 
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)

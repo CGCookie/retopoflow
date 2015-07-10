@@ -36,8 +36,8 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-from .lib import common_utilities
-from .lib.common_utilities import dprint
+from . import common_utilities
+from .common_utilities import dprint
 
 
 
