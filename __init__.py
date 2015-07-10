@@ -55,20 +55,18 @@ from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, F
 from bpy.types import Operator
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d
 
-global bversion
-bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-if bversion > '002.074.004':
-    import bpy.utils.previews
-
 # Common imports
 from .lib import common_utilities
 from .lib import common_drawing
-from . import preferences
-from .preferences import RetopoFlowPreferences
-from .lib.common_utilities import get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from .lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from .lib.common_classes import SketchBrush, TextBox
 from . import key_maps
 
+if bversion() > '002.074.004':
+    import bpy.utils.previews
+
+from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
+from .preferences import RetopoFlowPreferences
 
 # Polystrip imports
 from . import polystrips_utilities
@@ -96,86 +94,6 @@ contour_mesh_cache = {}
 # Used to store undo snapshots
 polystrips_undo_cache = []
 
-
-class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
-    '''RetopoFlow Tools'''
-    bl_category = "Retopology"
-    bl_label = "RetopoFlow"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        mode = bpy.context.mode
-        obj = context.active_object
-        return (obj and obj.type == 'MESH' and mode in ('OBJECT', 'EDIT_MESH'))
-
-    def draw(self, context):
-        layout = self.layout
-
-        settings = common_utilities.get_settings()
-
-        col = layout.column(align=True)
-
-        if bversion > '002.074.004':
-            icons = icon_collections["main"]
-
-            contours_icon = icons.get("rf_contours_icon")
-            col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
-        else:
-            col.operator("cgcookie.contours", icon='IPO_LINEAR')
-
-        box = layout.box()
-        row = box.row()
-
-        row.prop(settings, "contour_panel_settings")
-
-        if settings.contour_panel_settings:
-            col = box.column()
-            col.prop(settings, "vertex_count")
-
-            col.label("Guide Mode:")
-            col.prop(settings, "ring_count")
-
-            col.label("Cache:")
-            col.prop(settings, "recover", text="Recover")
-
-            if settings.recover:
-                col.prop(settings, "recover_clip")
-
-            col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
-
-        col = layout.column(align=True)
-        if bversion > '002.074.004':
-            polystrips_icon = icons.get("rf_polystrips_icon")
-            col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
-        else:
-            col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
-
-
-
-        box = layout.box()
-        row = box.row()
-
-        row.prop(settings, "polystrips_panel_settings")
-
-        if settings.polystrips_panel_settings:
-            col = box.column()
-            col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
-
-
-class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
-    bl_label = "Retopology"
-    bl_space_type = 'VIEW_3D'
-    bl_idname = "object.retopology_menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator_context = 'INVOKE_DEFAULT'
-
-        layout.operator("cgcookie.contours", icon="IPO_LINEAR")
-        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
 
 
 ################### Contours ###################
@@ -1773,7 +1691,7 @@ icon_collections = {}
 def register():
     bpy.utils.register_class(CGCOOKIE_OT_polystrips)
 
-    if bversion > '002.074.004':
+    if bversion() > '002.074.004':
         rf_icons = bpy.utils.previews.new()
 
         icons_dir = os.path.join(os.path.dirname(__file__), "icons")
@@ -1816,7 +1734,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    if bversion > '002.074.004':
+    if bversion() > '002.074.004':
         for icon in icon_collections.values():
             bpy.utils.previews.remove(icon)
         icon_collections.clear()
