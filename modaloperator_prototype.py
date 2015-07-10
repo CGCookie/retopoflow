@@ -80,7 +80,7 @@ class OP_BaseEditor(ModalOperator):
         ''' Place post pixel drawing code in here '''
         pass
     
-    def modal_wait(self, eventd):
+    def modal_wait(self, context, eventd):
         '''
         Place code here to handle commands issued by user
         Return string that corresponds to FSM key, used to change states.  For example:
