@@ -119,7 +119,7 @@ class ModalOperator(Operator):
 
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpxel(context)
+        self.draw_postpixel(context)
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
 

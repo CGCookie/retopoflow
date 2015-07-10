@@ -129,6 +129,7 @@ class  CGC_Contours(ModalOperator):
     
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''
+        self.help_box.draw()
         pass
     
 
