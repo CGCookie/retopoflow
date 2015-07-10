@@ -26,10 +26,13 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix
 import math
+import os
 
 
 from .modaloperator import ModalOperator
 from . import key_maps
+from .lib import common_utilities
+from .contour_classes import Contours
 
 class  CGC_Contours(ModalOperator):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
@@ -72,8 +75,8 @@ class  CGC_Contours(ModalOperator):
         self.get_help_text()
         self.contours_mode = 'loop'
         
-        self.segments = settings.vertex_count
-        self.guide_cuts = settings.ring_count
+        self.segments = self.settings.vertex_count
+        self.guide_cuts = self.settings.ring_count
         
         self.contours = Contours(context, self.settings)
          

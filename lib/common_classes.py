@@ -35,7 +35,6 @@ from mathutils.geometry import intersect_line_plane, intersect_point_line
 from . import common_utilities
 from . import common_drawing
 
-
 class TextBox(object):
     
     def __init__(self,context,x,y,width,height,border, margin, message):
