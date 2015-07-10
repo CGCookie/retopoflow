@@ -56,6 +56,7 @@ class ModalOperator(Operator):
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
         dfns = {
+            'start_poll':       'start_poll(self,context)',
             'start':            'start(self,context)',
             'end':              'end(self,context)',
             'end_commit':       'end_commit(self,context)',
@@ -239,6 +240,10 @@ class ModalOperator(Operator):
         called by Blender when the user invokes (calls/runs) our tool
         '''
         assert self.initialized, 'Must initialize operator before invoking'
+        
+        if not self.start_poll(context):    # can the tool get started?
+            return {'CANCELLED'}
+        
         self.modal_start(context)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
 
