@@ -29,11 +29,10 @@ import math
 from bpy.types import Operator
 from bpy.types import SpaceView3D
 
-from .mesh import Vertex, Edge, Face
-
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
+from .lib.common_classes import TextBox
 
 class ModalOperator(Operator):
     events_numpad = {
@@ -244,13 +243,8 @@ class ModalOperator(Operator):
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
         
+        self.help_box = TextBox(context,500,500,300,200,10,20,'No Help!')
+        self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])
         self.modal_start(context)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
-
-    def custom_update(self, eventd):
-        for face in self.selected:
-            if type(face) is Face:
-                self.mesh.flip_face_normal(face)
-                self.mesh.flip_face_normal(face)
-        self.mesh_update()
-        self.update(eventd['context'])
