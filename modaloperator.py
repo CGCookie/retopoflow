@@ -131,7 +131,6 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-
         handle_nav = False
         handle_nav |= eventd['type'] == 'MIDDLEMOUSE'
         handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating

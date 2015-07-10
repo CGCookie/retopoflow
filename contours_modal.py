@@ -29,7 +29,7 @@ import math
 
 
 from .modaloperator import ModalOperator
-
+from . import keymaps
 
 class  CGC_Contours(ModalOperator):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
@@ -53,22 +53,41 @@ class  CGC_Contours(ModalOperator):
         self.initialize(FSM)
     
     def start_poll(self,context):
+        if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
+            showErrorMessage('Viewport shading must be at least SOLID')
+            retur False
+        elif context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
+            showErrorMessage('Must select exactly two objects')
+            return False
+        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
+            showErrorMessage('Must select only one object')
+            return False
         return True
     
     def start(self, context):
         ''' Called when tool has been invoked '''
+        print('did we get started')
+        self.settings = common_utilities.get_settings()
+        self.keymap = key_maps.rtflow_default_keymap_generate()
+        self.get_help_text()
         self.contours_mode = 'loop'
-        #do contours data stuff
-        pass
+        
+        self.segments = settings.vertex_count
+        self.guide_cuts = settings.ring_count
+        
+        self.contours = Contours(context, self.settings)
+         
+        self.draw_cache = []
+
+        #what is the mouse over top of currently
+        self.hover_target = None
+        #keep track of selected cut_line and path
+        self.sel_loop = None   #TODO: Change this to selected_loop
+        
+        print('we got started!')
+        return ''
     
     def modal_wait(self, context, eventd):
-        '''
-        Place code here to handle commands issued by user
-        Return string that corresponds to FSM key, used to change states.  For example:
-        - '':     do not change state
-        - 'main': transition to main state
-        - 'nav':  transition to a navigation state (passing events through to 3D view)
-        '''
         #simple messaging
         if self.footer_last != self.footer:
             context.area.header_text_set('Contours: %s' % self.footer)
@@ -132,4 +151,16 @@ class  CGC_Contours(ModalOperator):
         self.help_box.draw()
         pass
     
-
+    def get_help_text(self):
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, "help/help_contours.txt")
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = "No Help File found, please reinstall!"
+        return help_txt
+    
+        self.help_box.raw_text = help_txt
+        if not settings.help_def:
+            self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])

@@ -2193,7 +2193,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         self.msg_start_time = time.time()
         self.msg_duration = .75
         
-        
         # switch to modal
         self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
