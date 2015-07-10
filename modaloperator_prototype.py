@@ -52,6 +52,10 @@ class OP_BaseEditor(ModalOperator):
         
         self.initialize(FSM)
     
+    def start_poll(self, context):
+        ''' Called when tool is invoked to determine if tool can start '''
+        return True
+    
     def start(self, context):
         ''' Called when tool has been invoked '''
         pass
