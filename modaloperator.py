@@ -200,7 +200,7 @@ class ModalOperator(Operator):
         self.end(context)
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
-        #context.area.header_text_set()
+        context.area.header_text_set()
 
     def modal(self, context, event):
         '''
