@@ -182,7 +182,7 @@ class ModalOperator(Operator):
         '''
         get everything ready to be run as modal tool
         '''
-        self.mode          = 'main'
+        self.fsm_mode      = 'main'
         self.mode_pos      = (0, 0)
         self.cur_pos       = (0, 0)
         self.is_navigating = False
@@ -214,7 +214,7 @@ class ModalOperator(Operator):
         eventd = self.get_event_details(context, event)
 
         self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.mode](eventd)
+        nmode = self.FSM[self.fsm_mode](eventd)
         self.mode_pos = eventd['mouse']
 
         if nmode == 'wait': nmode = 'main'
@@ -231,7 +231,7 @@ class ModalOperator(Operator):
             self.modal_end(context)
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
-        if nmode: self.mode = nmode
+        if nmode: self.fsm_mode = nmode
 
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
 
