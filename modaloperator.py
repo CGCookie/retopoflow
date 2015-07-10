@@ -186,7 +186,7 @@ class ModalOperator(Operator):
         self.cur_pos       = (0, 0)
         self.is_navigating = False
         self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_VIEW')
-        self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_PIXEL')
+        self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
         #context.area.header_text_set(self.bl_label)
 
