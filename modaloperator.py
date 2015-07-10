@@ -64,7 +64,7 @@ class ModalOperator(Operator):
             'update':           'update(self,context)',
             'draw_postview':    'draw_postview(self,context)',
             'draw_postpixel':   'draw_postpixel(self,context)',
-            'modal_wait':       'modal_wait(self,eventd)',
+            'modal_wait':       'modal_wait(self,context,eventd)',
         }
         for fnname,fndef in dfns.items():
             assert fnname in dir(self), 'Must define %s function' % fndef
@@ -127,7 +127,7 @@ class ModalOperator(Operator):
     ####################################################################
     # FSM modal functions
 
-    def modal_nav(self, eventd):
+    def modal_nav(self, context, eventd):
         '''
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
@@ -149,7 +149,7 @@ class ModalOperator(Operator):
         self.is_navigating = False
         return ''
 
-    def modal_main(self, eventd):
+    def modal_main(self, context, eventd):
         '''
         Main state of FSM.
         This state checks if navigation is occurring.
@@ -157,7 +157,7 @@ class ModalOperator(Operator):
         '''
 
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
-        nmode = self.FSM['nav'](eventd)
+        nmode = self.FSM['nav'](context, eventd)
         if nmode:
             return nmode
 
@@ -171,7 +171,7 @@ class ModalOperator(Operator):
             return 'cancel'
 
         # handle general waiting
-        nmode = self.FSM['wait'](eventd)
+        nmode = self.FSM['wait'](context, eventd)
         if nmode:
             return nmode
 
@@ -214,7 +214,7 @@ class ModalOperator(Operator):
         eventd = self.get_event_details(context, event)
 
         self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.fsm_mode](eventd)
+        nmode = self.FSM[self.fsm_mode](context, eventd)
         self.mode_pos = eventd['mouse']
 
         if nmode == 'wait': nmode = 'main'
