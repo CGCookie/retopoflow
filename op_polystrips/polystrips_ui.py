@@ -79,7 +79,10 @@ class Polystrips_UI:
 
             # Debug level 2: time start
             check_time = profiler.start()
-            self.obj_orig = bpy.data.objects[self.settings.source_object]
+            if self.settings.use_active:
+                self.obj_orig = bpy.context.active_object
+            else:
+                self.obj_orig = bpy.data.objects[self.settings.source_object]
             # duplicate selected objected to temporary object but with modifiers applied
             if self.obj_orig.modifiers:
                 # Time event
