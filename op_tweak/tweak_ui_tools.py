@@ -75,18 +75,14 @@ class Tweak_UI_Tools():
         
     
     def modal_tweak_move_tool(self, context, eventd):
-        if eventd['release'] == 'T':
+        if eventd['release'] in self.keymap['action']:
             return 'main'
         
         settings = common_utilities.get_settings()
         region = eventd['region']
         r3d = eventd['r3d']
         
-        if eventd['press'] == 'LEFTMOUSE':
-            self.modal_tweak_setup(context, eventd)
-            return ''
-        
-        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+        if eventd['type'] == 'MOUSEMOVE' and self.tweak_data:
             cx,cy = eventd['mouse']
             lx,ly = self.tweak_data['mouse']
             dx,dy = cx-lx,cy-ly
@@ -117,7 +113,7 @@ class Tweak_UI_Tools():
                 bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             
-            if eventd['release'] == 'LEFTMOUSE':
+            if eventd['release'] in self.keymap['action']:
                 for u in self.tweak_data['supdate']:
                    u.update()
                 for u in self.tweak_data['supdate']:
@@ -139,7 +135,7 @@ class Tweak_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        if eventd['press'] == 'LEFTMOUSE':
+        if eventd['press'] in self.keymap['action']:
             self.modal_tweak_setup(context, eventd, max_dist=2.0)
             return ''
         
@@ -205,7 +201,7 @@ class Tweak_UI_Tools():
                 gp.map_pts[(i0,i1)] = nc
                 
             
-            if eventd['release'] == 'LEFTMOUSE':
+            if eventd['release'] in self.keymap['action']:
                 for u in self.tweak_data['supdate']:
                    u.update()
                 for u in self.tweak_data['supdate']:
