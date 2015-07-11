@@ -88,9 +88,6 @@ contour_undo_cache = []
 global contour_mesh_cache
 contour_mesh_cache = {}
 
-# Used to store undo snapshots
-polystrips_undo_cache = []
-
 
 
 ################### Contours ###################

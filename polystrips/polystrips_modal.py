@@ -26,6 +26,8 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix, Quaternion
 import math
 
+from ..lib.common_utilities import showErrorMessage
+
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI
 from .polystrips_ui_modalwait  import Polystrips_UI_ModalWait

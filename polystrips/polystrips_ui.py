@@ -66,8 +66,8 @@ class Polystrips_UI:
         self.act_gedge  = None      # active gedge
         self.act_gpatch = None      # active gpatch
         
-        self.sel_gedges = set()     # all selected gedges
         self.sel_gverts = set()     # all selected gverts
+        self.sel_gedges = set()     # all selected gedges
         
         self.hov_gvert  = None      # gvert under mouse (hover)
         
