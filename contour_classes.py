@@ -96,6 +96,7 @@ class Contours(object):
         self.mode = 'loop'
         self.hover_target = None
         self.sel_loop = None
+        self.force_new = False
         
         self.stroke_smoothing = .5
         self.segments = settings.vertex_count

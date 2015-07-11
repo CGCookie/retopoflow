@@ -153,25 +153,25 @@ class  CGC_Contours(ModalOperator):
         
         if self.contours.sel_loop:
             if eventd['press'] in self.keymap['delete']:
-                self.contours.loops_delete(eventd['context'], [self.sel_loop])
+                self.contours.loops_delete(context, [self.contours.sel_loop])
                 return ''
         
             if eventd['press'] in self.keymap['align']:
-                self.contours.loop_align(eventd['context'], eventd)
+                self.contours.loop_align(context, eventd)
                 return ''
             elif eventd['press'] in self.keymap['up shift']:
-                self.contours.loop_shift(eventd['context'], eventd, up = True)
+                self.contours.loop_shift(context, eventd, up = True)
                 return ''        
             elif eventd['press'] in self.keymap['dn shift']:
-                self.contours.loop_shift(eventd['context'], eventd, up = False)
+                self.contours.loop_shift(context, eventd, up = False)
                 return ''
             elif eventd['press'] in self.keymap['up count']:
                 n = len(self.contours.sel_loop.verts_simple)
-                self.contours.loop_nverts_change(eventd['context'], eventd, n+1)    
+                self.contours.loop_nverts_change(context, eventd, n+1)    
                 return ''
             elif eventd['press'] in self.keymap['dn count']:
                 n = len(self.sel_loop.verts_simple)
-                self.contours.loop_nverts_change(eventd['context'], eventd, n-1)
+                self.contours.loop_nverts_change(context, eventd, n-1)
                 return ''
         
             elif eventd['press'] in self.keymap['snap cursor']:
@@ -348,6 +348,7 @@ class  CGC_Contours(ModalOperator):
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
+        self.contours.finish_mesh(context)
         pass
     
     def end_cancel(self, context):
