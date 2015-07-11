@@ -3,7 +3,7 @@ from bpy.props import EnumProperty, StringProperty, BoolProperty, IntProperty, F
 from bpy.types import AddonPreferences
 
 class RetopoFlowPreferences(AddonPreferences):
-    bl_idname = "retopoFlow"
+    bl_idname = "retopoflow"
     
     def update_theme(self, context):
         print('theme updated to ' + str(theme))

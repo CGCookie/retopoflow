@@ -82,87 +82,8 @@ from .contours_modal import CGC_Contours
 # Create a class that contains all location information for addons
 AL = common_utilities.AddonLocator()
 
-#a place to store strokes for later
-global contour_cache 
-contour_cache = {}
-contour_undo_cache = []
-
-#store any temporary triangulated objects
-#store the bmesh to prevent recalcing bmesh
-#each time :-)
-global contour_mesh_cache
-contour_mesh_cache = {}
-
 # Used to store undo snapshots
 polystrips_undo_cache = []
-
-
-
-################### Contours ###################
-
-def object_validation(ob):
-    me = ob.data
-
-    # get object data to act as a hash
-    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
-    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
-
-    return (ob.name, counts, bbox, vsum)
-
-
-def is_object_valid(ob):
-    global contour_mesh_cache
-    if 'valid' not in contour_mesh_cache: return False
-    return contour_mesh_cache['valid'] == object_validation(ob)
-
-
-def write_mesh_cache(orig_ob,tmp_ob, bme):
-    print('writing mesh cache')
-    global contour_mesh_cache
-    contour_mesh_cache['valid'] = object_validation(orig_ob)
-    contour_mesh_cache['bme'] = bme
-    contour_mesh_cache['tmp'] = tmp_ob
-
-
-def clear_mesh_cache():
-    print('clearing mesh cache')
-
-    global contour_mesh_cache
-
-    if 'valid' in contour_mesh_cache and contour_mesh_cache['valid']:
-        del contour_mesh_cache['valid']
-
-    if 'bme' in contour_mesh_cache and contour_mesh_cache['bme']:
-        bme_old = contour_mesh_cache['bme']
-        bme_old.free()
-        del contour_mesh_cache['bme']
-
-    if 'tmp' in contour_mesh_cache and contour_mesh_cache['tmp']:
-        old_obj = contour_mesh_cache['tmp']
-        #context.scene.objects.unlink(self.tmp_ob)
-        old_me = old_obj.data
-        old_obj.user_clear()
-        if old_obj and old_obj.name in bpy.data.objects:
-            bpy.data.objects.remove(old_obj)
-        if old_me and old_me.name in bpy.data.meshes:
-            bpy.data.meshes.remove(old_me)
-        del contour_mesh_cache['tmp']
-
-
-class CGCOOKIE_OT_contours_cache_clear(bpy.types.Operator):
-    '''Removes the temporary object and mesh data from the cache. Do this if you have altered your original form in any way'''
-    bl_idname = "cgcookie.contours_clear_cache"
-    bl_label = "Clear Contour Cache" 
-
-    def execute(self,context):
-
-        clear_mesh_cache()
-
-        return {'FINISHED'}
-
-
-
   
 class CGCOOKIE_OT_contours(bpy.types.Operator):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
@@ -1578,9 +1499,7 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         self.footer = ''
         self.footer_last = ''
-        
-        
-        
+
         self._timer = context.window_manager.event_timer_add(0.1, context.window)
         
         self.stroke_smoothing = 0.5          # 0: no smoothing. 1: no change
@@ -1595,7 +1514,6 @@ class CGCOOKIE_OT_contours(bpy.types.Operator):
         
         self.cut_lines = []
         self.cut_paths = []
-        self.draw_cache = []
 
         #what is the mouse over top of currently
         self.hover_target = None
@@ -1694,7 +1612,6 @@ def register():
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
-    bpy.utils.register_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     # Create the addon hotkeys
@@ -1712,7 +1629,6 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_polystrips)
     bpy.utils.unregister_class(CGC_contours)
 
-    clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)
     bpy.utils.unregister_class(CGCOOKIE_OT_contours_cache_clear)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)

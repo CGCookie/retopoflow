@@ -36,24 +36,70 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from . import contour_utilities
 from .lib import common_utilities, common_drawing
-
+from .cache import contour_mesh_cache, contour_undo_cache
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
 AL = common_utilities.AddonLocator()
 
+def object_validation(ob):
+    me = ob.data
+    # get object data to act as a hash
+    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
+    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
+    return (ob.name, counts, bbox, vsum)
+
+def is_object_valid(ob):
+    if 'valid' not in contour_mesh_cache: return False
+    return contour_mesh_cache['valid'] == object_validation(ob)
+
+def write_mesh_cache(orig_ob,tmp_ob, bme):
+    print('writing mesh cache')
+    contour_mesh_cache['valid'] = object_validation(orig_ob)
+    contour_mesh_cache['bme'] = bme
+    contour_mesh_cache['tmp'] = tmp_ob
+
+def clear_mesh_cache():
+    print('clearing mesh cache')
+    if 'valid' in contour_mesh_cache and contour_mesh_cache['valid']:
+        del contour_mesh_cache['valid']
+
+    if 'bme' in contour_mesh_cache and contour_mesh_cache['bme']:
+        bme_old = contour_mesh_cache['bme']
+        bme_old.free()
+        del contour_mesh_cache['bme']
+
+    if 'tmp' in contour_mesh_cache and contour_mesh_cache['tmp']:
+        old_obj = contour_mesh_cache['tmp']
+        #context.scene.objects.unlink(self.tmp_ob)
+        old_me = old_obj.data
+        old_obj.user_clear()
+        if old_obj and old_obj.name in bpy.data.objects:
+            bpy.data.objects.remove(old_obj)
+        if old_me and old_me.name in bpy.data.meshes:
+            bpy.data.meshes.remove(old_me)
+        del contour_mesh_cache['tmp']
 
 class Contours(object):
     def __init__(self,context, settings):
+        self.settings = settings
+        
         self.verts = []
         self.edges = []
         self.faces = []
         
         self.cut_lines = []
         self.cut_paths = []
+        self.sketch = []
         
+        self.mode = 'loop'
         self.hover_target = None
         self.sel_loop = None
+        
+        self.stroke_smoothing = .5
+        self.segments = settings.vertex_count
+        self.guide_cuts = settings.ring_count
         
         if context.mode == 'OBJECT':
             self.mesh_data_gather_object_mode(context)
@@ -76,6 +122,7 @@ class Contours(object):
         self.widget_interaction = False  #Being in the state of interacting with a widget o
         self.hot_key = None  #Keep track of which hotkey was pressed
         self.draw = False  #Being in the state of drawing a guide stroke
+        self.last_matrix = None
               
     def new_destination_obj(self,context,name, mx):
         '''
@@ -371,11 +418,9 @@ class Contours(object):
         path.update_visibility(context, self.original_form)
         if path.cuts:
             # TODO: should this ever be empty?
-            path.cuts[-1].do_select(settings)
+            path.cuts[-1].do_select(self.settings)
         
         self.cut_paths.append(path)
-        
-
         return path
 
     def sketch_confirm(self,context):
@@ -517,7 +562,6 @@ class Contours(object):
         
         handle_color = settings.theme_colors_active[settings.theme]
 
-        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             target_at_all = False
@@ -614,7 +658,6 @@ class Contours(object):
         '''
         Handles mouse selection and hovering
         '''
-        self.help_box.hover(x,y)
         #identify hover target for highlighting
         if self.cut_paths != []:
             new_target = False
@@ -667,18 +710,10 @@ class Contours(object):
 
     #### Non Interactive/Non Data Operators###
     
-    def mode_set_guide(self,context):
-        
-        self.mode = 'main guide'
+    def mode_set_guide(self):
         self.sel_loop = None  #because loop may not exist after path level operations like changing n_rings
         if self.sel_path:
-            self.sel_path.highlight(self.settings)
-                    
-        if self._timer:
-            context.window_manager.event_timer_remove(self._timer)
-            self._timer = None
-            
-        context.area.header_text_set(text = self.guide_msg)    
+            self.sel_path.highlight(self.settings)  
     
     def mode_set_loop(self):
         for path in self.cut_paths:
@@ -719,16 +754,16 @@ class Contours(object):
         if method == 'PATH_NORMAL':
             #path.smooth_normals
             self.sel_path.average_normals(context, self.original_form, self.bme)
-            self.temporary_message_start(context, 'Smooth normals based on drawn path')
+            #self.temporary_message_start(context, 'Smooth normals based on drawn path')
             
         elif method == 'CENTER_MASS':
             #smooth CoM path
-            self.temporary_message_start(context, 'Smooth normals based on CoM path')
+            #self.temporary_message_start(context, 'Smooth normals based on CoM path')
             self.sel_path.smooth_normals_com(context, self.original_form, self.bme, iterations = 2)
         
         elif method == 'ENDPOINT':
             #path.interpolate_endpoints
-            self.temporary_message_start(context, 'Smoothly interpolate normals between the endpoints')
+            #self.temporary_message_start(context, 'Smoothly interpolate normals between the endpoints')
             self.sel_path.interpolate_endpoints(context, self.original_form, self.bme)
        
         self.sel_path.connect_cuts_to_make_mesh(self.original_form)
@@ -768,7 +803,16 @@ class Contours(object):
             return True
         else:
             return False
-                                        
+    
+    def guide_mode_select(self):
+        if self.hover_target and self.hover_target.desc == 'CUT SERIES':
+            self.hover_target.do_select(self.settings)
+            self.sel_path = self.hover_target
+                
+            for path in self.cut_paths:
+                if path != self.hover_target:
+                    path.deselect(self.settings)
+                                                   
     def loop_shift(self,context,eventd, shift = 0.05, up = True, undo = True):    
         if undo:
             self.create_undo_snapshot('LOOP_SHIFT')
@@ -809,10 +853,10 @@ class Contours(object):
                     path.connect_cuts_to_make_mesh(self.original_form)
                     path.update_visibility(context, self.original_form)
                     
-                    self.temporary_message_start(context, 'RING SEGMENTS %i' %path.ring_segments)
+                    #self.temporary_message_start(context, 'RING SEGMENTS %i' %path.ring_segments)
                     self.msg_start_time = time.time()
-                else:
-                    self.temporary_message_start(context, 'RING SEGMENTS: Can not be changed.  Path Locked')
+                #else:
+                    #self.temporary_message_start(context, 'RING SEGMENTS: Can not be changed.  Path Locked')
         
     def loop_align(self,context, eventd, undo = True):
         
@@ -932,8 +976,62 @@ class Contours(object):
         self.sel_path.connect_cuts_to_make_mesh(self.original_form)
         self.sel_path.update_visibility(context, self.original_form)
         
-        self.temporary_message_start(context, 'WIDGET_TRANSFORM: ' + str(self.cut_line_widget.transform_mode))    
+        #self.temporary_message_start(context, 'WIDGET_TRANSFORM: ' + str(self.cut_line_widget.transform_mode))    
 
+    def widget_cancel(self,context):
+        self.cut_line_widget.cancel_transform()
+        self.sel_loop.cut_object(context, self.original_form, self.bme)
+        self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        self.sel_loop.update_com()  
+        self.sel_path.connect_cuts_to_make_mesh(self.original_form)
+        self.sel_path.update_visibility(context, self.original_form)
+    
+    def draw_post_pixel(self,context):
+
+        r3d = context.space_data.region_3d
+        if context.space_data.use_occlude_geometry:
+            new_matrix = [v for l in r3d.view_matrix for v in l]
+            if new_matrix != self.last_matrix:
+                for path in self.cut_paths:
+                    path.update_visibility(context, self.original_form)
+                    for cut_line in path.cuts:
+                        cut_line.update_visibility(context, self.original_form)
+                            
+            self.post_update = False
+            self.last_matrix = new_matrix
+            
+    
+        for i, c_cut in enumerate(self.cut_lines):
+            if self.widget_interaction and self.drag_target == c_cut:
+                interact = True
+            else:
+                interact = False
+            
+            c_cut.draw(context, self.settings)#,three_dimensional = self.navigating, interacting = interact)
+    
+            if c_cut.verts_simple != [] and self.settings.show_cut_indices:
+                loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, c_cut.verts_simple[0])
+                blf.position(0, loc[0], loc[1], 0)
+                blf.draw(0, str(i))
+    
+    
+        if self.cut_line_widget and self.settings.draw_widget:
+            self.cut_line_widget.draw(context)
+            
+        if len(self.sketch):
+            common_drawing.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_SMOOTH")
+            
+        if len(self.cut_paths):
+            for path in self.cut_paths:
+                path.draw(context, path = False, nodes = self.settings.show_nodes, rings = True, follows = True, backbone = self.settings.show_backbone    )
+                
+        if len(self.snap_circle):
+            common_drawing.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
+
+    def draw_post_view(self,context):
+        
+        pass
+    
 class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, SegmentCuts, SegmentCutSeries?
     def __init__(self, context, raw_points,
                  segments = 5,  #TODO:  Rename for nomenclature consistency
