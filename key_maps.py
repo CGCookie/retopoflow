@@ -105,18 +105,8 @@ def kmi_details(kmi):
         kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi.type
         
         return kmi_ftype
-    
-
-#if 'Blender User' in bpy.context.window_manager.keyconfigs:
-#    print('Blender User Key Config')
-#    def_rf_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender User'])
-#else:
-#    print('Blender Key Config')
-#    def_rf_key_map['navigate'] = get_nav_keys(bpy.context.window_manager.keyconfigs['Blender'])
 
 
-
-       
 def find_kmi_by_idname(idname, keymap = None, keycon = None):
     
     if not keycon:
@@ -137,10 +127,10 @@ def find_kmi_by_idname(idname, keymap = None, keycon = None):
         for kmi in km.keymap_items:
             if kmi.idname == idname:
                 kmis.append(kmi_details(kmi))
-                
+
     return kmis
 
-    
+
 def add_to_dict(km_dict, key,value, safety = True):   
     if safety:
         for k in km_dict.keys():
@@ -161,7 +151,7 @@ def add_to_dict(km_dict, key,value, safety = True):
     else:
         km_dict[key] = set([value])
         return True
-       
+
 def rtflow_default_keymap_generate():
     km_dict = def_rf_key_map.copy()
     
@@ -173,4 +163,3 @@ def rtflow_default_keymap_generate():
         if kmi.name in navigation_events:     
             add_to_dict(km_dict,'navigate',kmi_details(kmi))
     return km_dict
-
