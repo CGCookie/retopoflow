@@ -22,6 +22,16 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
+        row = layout.row(align=True)
+        view = context.space_data
+
+        row.label("Source Object:")
+        row = layout.row(align=True)
+        scene = context.scene
+        row.prop_search(settings, "source_object", scene, "objects", text='')
+
+
+
         col = layout.column(align=True)
 
         if bversion() > '002.074.004':

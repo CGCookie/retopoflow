@@ -15,13 +15,13 @@ class RetopoFlowPreferences(AddonPreferences):
     source_object = StringProperty(
         name='Source Object',
         description='High resolution object to retopologize',
-        default=None
+        default=''
         )
     
     target_object = StringProperty(
         name='Target Object',
         description='Low resolution object that holds the retopologized mesh',
-        default=None
+        default=''
         )
     
     # Theme definitions
