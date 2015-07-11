@@ -22,11 +22,15 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
-        col = layout.column(align=True)
+        row = layout.row(align=True)
         view = context.space_data
 
-        col.label("Source Object:")
-        col.prop(settings, 'source_object', icon_only=True)
+        row.label("Source Object:")
+        row = layout.row(align=True)
+        scene = context.scnee
+        row.prop_search(settings, "source_object", scene, "objects", text='')
+
+
 
         col = layout.column(align=True)
 
