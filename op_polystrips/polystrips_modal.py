@@ -70,7 +70,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Must specify a source object first')
             return False
         
-        if context.mode == 'OBJECT' and self.settings.source_object == '':
+        if context.mode == 'OBJECT' and self.settings.source_object == '' and not self.settings.use_active:
             showErrorMessage('Must specify a source object first or enable Use Active')
             return False
         
