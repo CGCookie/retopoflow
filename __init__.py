@@ -73,6 +73,8 @@ from .preferences import RetopoFlowPreferences
 #from . import polystrips_utilities
 from .polystrips.polystrips_modal import CGC_Polystrips
 
+from .tweak.tweak_modal import CGC_Tweak
+
 # Contour imports
 from . import contour_utilities
 from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
@@ -1652,6 +1654,7 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_contours)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.register_class(CGC_Polystrips)
+    bpy.utils.register_class(CGC_Tweak)
 
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -1666,6 +1669,7 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(CGC_Polystrips)
+    bpy.utils.unregister_class(CGC_Tweak)
 
     clear_mesh_cache()
     bpy.utils.unregister_class(CGCOOKIE_OT_contours)
