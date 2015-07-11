@@ -22,10 +22,10 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
-        row = layout.row(align=True)
+        col = layout.column(align=True)
 
-        row.label("Source Object:")
-        row = layout.row(align=True)
+        col.label("Source Object:")
+        row = col.row(align=True)
         scene = context.scene
         row.prop_search(settings, "source_object", scene, "objects", text='')
         
@@ -36,7 +36,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
 
         col.label("Target Object:")
-        row = layout.row(align=True)
+        row = col.row(align=True)
         scene = context.scene
         row.prop_search(settings, "target_object", scene, "objects", text='')
 
@@ -50,6 +50,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col = layout.column(align=True)
 
+        col.label("Tools:")
         if bversion() > '002.074.004':
             icons = load_icons()
             contours_icon = icons.get("rf_contours_icon")
