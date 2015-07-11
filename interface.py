@@ -53,7 +53,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         sub = row.row(align=True)
         sub.scale_x = 0.1
-        sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target = True
+        sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'source_object'
 
         col = layout.column(align=True)
 

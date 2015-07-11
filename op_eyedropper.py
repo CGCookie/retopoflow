@@ -8,18 +8,17 @@ from .lib import common_utilities
 from .modaloperator import ModalOperator
 from .preferences import RetopoFlowPreferences
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d, region_2d_to_vector_3d
-from bpy.props import BoolProperty
+from bpy.props import StringProperty
 
 class  CGC_EyeDropper(ModalOperator):
     '''Use Eyedropper To pick object from scene'''
-    bl_category = "Retopology"
     bl_idname = "cgcookie.eye_dropper"      # unique identifier for buttons and menu items to reference
     bl_label = "Eye Dropper"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    
-    
-    target = BoolProperty(default = False)
+
+    target_prop = StringProperty(default = '')
+
     def __init__(self):
         FSM = {}
         
@@ -30,6 +29,9 @@ class  CGC_EyeDropper(ModalOperator):
         
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
+        settings = common_utilities.get_settings()
+        if not hasattr(settings, self.target_prop):
+            return False
         return len(context.scene.objects) > 0
     
     def start(self, context):
@@ -55,12 +57,9 @@ class  CGC_EyeDropper(ModalOperator):
     def end_commit(self, context):
         ''' Called when tool is committing '''
         settings = common_utilities.get_settings()
-        if self.ob and self.ob.type == 'MESH':
-            if self.target:
-                settings.target_object = self.ob.name
-            else:  
-                settings.source_object = self.ob.name
         
+        if self.ob and self.ob.type == 'MESH':
+                settings.__setattr__(self.target_prop, self.ob.name)
         return
     
     def end_cancel(self, context):
@@ -115,3 +114,4 @@ class  CGC_EyeDropper(ModalOperator):
             self.ob = None
             self.ob_preview = 'None'
             context.area.header_text_set('None')
+
