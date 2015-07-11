@@ -1,0 +1,7 @@
+Tweak Help (click to hide help):
+
+Moving Verts:
+- LMB: click and drag on verts to tweak
+
+Brush Size:
+- F: press F to adjust tweak brush size.
