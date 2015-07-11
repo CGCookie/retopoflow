@@ -12,7 +12,7 @@ DO NOT REMOVE ANY ITEMS from the default key_maps
 If you want an item unmapped, do it as follows
 def_cs_map['example_op'] = {}
 
-Decent Resrouces:
+Decent Resources:
 #http://www.blender.org/documentation/blender_python_api_2_70a_release/bpy.types.KeyMapItem.html
 #http://www.blender.org/documentation/blender_python_api_2_70a_release/bpy.types.KeyMap.html
 #http://www.blender.org/documentation/blender_python_api_2_70a_release/bpy.types.KeyConfig.html
@@ -78,6 +78,7 @@ navigation_events = {'Rotate View', 'Move View', 'Zoom View',
                      'View Persp/Ortho', 'View Numpad', 'NDOF Orbit View', 
                      'NDOF Pan View', 'View Selected', 'Center View to Cursor'}
 
+rtflow_keymap = None
 
 def kmi_details(kmi):
         kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
@@ -124,3 +125,11 @@ def rtflow_default_keymap_generate():
         if kmi.name in navigation_events:     
             add_to_dict(km_dict,'navigate',kmi_details(kmi))
     return km_dict
+
+
+def rtflow_default_keymap_retrieve():
+    if rtflow_keymap:
+        return rtflow_keymap
+    else:
+        return rtflow_default_keymap_generate()
+ 
