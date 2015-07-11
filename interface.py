@@ -27,7 +27,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         row.label("Source Object:")
         row = layout.row(align=True)
-        scene = context.scnee
+        scene = context.scene
         row.prop_search(settings, "source_object", scene, "objects", text='')
 
 
