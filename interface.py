@@ -25,29 +25,31 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
 
         col.label("Source Object:")
-        row = col.row(align=True)
-        scene = context.scene
-        row.prop_search(settings, "source_object", scene, "objects", text='')
-        
-        sub = row.row(align=True)
-        sub.scale_x = 0.1
-        sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
+
+        col = layout.column(align=True)
+        col.prop(settings, "use_active", icon="RESTRICT_SELECT_OFF")
+
+        if not settings.use_active:
+            row = col.row(align=True)
+            scene = context.scene
+            row.prop_search(settings, "source_object", scene, "objects", text='')
+
+            sub = row.row(align=True)
+            sub.scale_x = 0.1
+            sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
 
         col = layout.column(align=True)
 
         col.label("Target Object:")
 
-        col = layout.column(align=True)
-        col.prop(settings, "use_selected", icon="RESTRICT_SELECT_OFF")
 
-        if not settings.use_selected:
-            row = col.row(align=True)
-            scene = context.scene
-            row.prop_search(settings, "target_object", scene, "objects", text='')
+        row = col.row(align=True)
+        scene = context.scene
+        row.prop_search(settings, "target_object", scene, "objects", text='')
 
-            sub = row.row(align=True)
-            sub.scale_x = 0.1
-            sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
+        sub = row.row(align=True)
+        sub.scale_x = 0.1
+        sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
 
         col = layout.column(align=True)
         col = layout.column(align=True)
