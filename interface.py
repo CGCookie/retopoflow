@@ -45,7 +45,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
 
         col = layout.column(align=True)
-        col.prop(settings, "target_object", text="", icon="RESTRICT_SELECT_OFF")
+        col.prop(settings, "use_selected", icon="RESTRICT_SELECT_OFF")
 
         col = layout.column(align=True)
         col = layout.column(align=True)
