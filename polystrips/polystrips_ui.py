@@ -457,7 +457,14 @@ class Polystrips_UI:
             self.sel_gedges.add(ge)
             self.sel_gverts.clear()
             self.act_gpatch = None
+            
+            for ge in self.sel_gedges:
+                if ge == self.act_gedge: continue
+                self.sel_gverts.add(ge.gvert0)
+                self.sel_gverts.add(ge.gvert3)
+            
             return ''
+        
         # Select patch
         for gp in self.polystrips.gpatches:
             if not gp.is_picked(pt): continue
