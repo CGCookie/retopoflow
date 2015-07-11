@@ -184,13 +184,10 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
         
-        if eventd['press'] in self.keymap['tweak move']:
+        if eventd['press'] == 'LEFTMOUSE': # in self.keymap['tweak move']:
             self.create_undo_snapshot('tweak')
             self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
-            self.act_gvert = None
-            self.act_gedge = None
-            self.sel_gedges = set()
-            self.act_gpatch = None
-            return 'tweak move tool' if eventd['press']=='T' else 'tweak relax tool'
+            self.modal_tweak_setup(context, eventd)
+            return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
         
         return ''

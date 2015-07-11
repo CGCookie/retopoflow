@@ -75,18 +75,14 @@ class Tweak_UI_Tools():
         
     
     def modal_tweak_move_tool(self, context, eventd):
-        if eventd['release'] == 'T':
+        if eventd['release'] == 'LEFTMOUSE':
             return 'main'
         
         settings = common_utilities.get_settings()
         region = eventd['region']
         r3d = eventd['r3d']
         
-        if eventd['press'] == 'LEFTMOUSE':
-            self.modal_tweak_setup(context, eventd)
-            return ''
-        
-        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
+        if eventd['type'] == 'MOUSEMOVE' and self.tweak_data:
             cx,cy = eventd['mouse']
             lx,ly = self.tweak_data['mouse']
             dx,dy = cx-lx,cy-ly
