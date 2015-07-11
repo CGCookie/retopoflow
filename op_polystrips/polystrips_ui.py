@@ -115,7 +115,7 @@ class Polystrips_UI:
             self.hover_ed = None
 
         elif context.mode == 'EDIT_MESH':
-            self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
+            self.obj_orig = bpy.data.objects[self.settings.source_object]
             if self.obj_orig.modifiers:
                 self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 self.me.update()
