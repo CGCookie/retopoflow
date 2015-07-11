@@ -23,6 +23,12 @@ class RetopoFlowPreferences(AddonPreferences):
         description='Low resolution object that holds the retopologized mesh',
         default=''
         )
+
+    use_selected = BoolProperty(
+        name='Use Selected',
+        description='Use active selected object as the target mesh object',
+        default=False
+        )
     
     # Theme definitions
     theme = EnumProperty(

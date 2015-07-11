@@ -22,18 +22,35 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
 
-        row = layout.row(align=True)
-        view = context.space_data
+        col = layout.column(align=True)
 
-        row.label("Source Object:")
-        row = layout.row(align=True)
+        col.label("Source Object:")
+        row = col.row(align=True)
         scene = context.scene
         row.prop_search(settings, "source_object", scene, "objects", text='')
-
-
+        
+        sub = row.row(align=True)
+        sub.scale_x = 0.1
+        sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
 
         col = layout.column(align=True)
 
+        col.label("Target Object:")
+        row = col.row(align=True)
+        scene = context.scene
+        row.prop_search(settings, "target_object", scene, "objects", text='')
+
+        sub = row.row(align=True)
+        sub.scale_x = 0.1
+        sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
+
+        col = layout.column(align=True)
+        col.prop(settings, "use_selected", icon="RESTRICT_SELECT_OFF")
+
+        col = layout.column(align=True)
+        col = layout.column(align=True)
+
+        col.label("Tools:")
         if bversion() > '002.074.004':
             icons = load_icons()
             contours_icon = icons.get("rf_contours_icon")
