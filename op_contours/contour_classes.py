@@ -36,6 +36,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
+from ..lib.common_utilities import get_source_object, showErrorMessage
 from ..cache import contour_mesh_cache, contour_undo_cache
 from ..preferences import RetopoFlowPreferences
 #from development.cgc-retopology import contour_utilities
@@ -173,14 +174,14 @@ class Contours(object):
         self.sel_edge = None
         self.sel_verts = None
         self.existing_cut = None
-        ob = context.object
+        ob = get_source_object()
         tmp_ob = None
         
         name = ob.name + '_recontour'
         self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, ob.matrix_world)
         
         
-        is_valid = is_object_valid(context.object)
+        is_valid = is_object_valid(ob)
         has_tmp = 'ContourTMP' in bpy.data.objects and bpy.data.objects['ContourTMP'].data
         
         if is_valid and has_tmp:
@@ -224,7 +225,7 @@ class Contours(object):
         self.dest_me = self.dest_ob.data
         self.dest_bme = bmesh.from_edit_mesh(self.dest_me)
         
-        ob = [obj for obj in context.selected_objects if obj.name != context.object.name][0]
+        ob = get_source_object()
         is_valid = is_object_valid(ob)
         tmp_ob = None
         

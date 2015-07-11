@@ -59,13 +59,16 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         self.initialize(FSM)
     
     def start_poll(self,context):
+
+        self.settings = common_utilities.get_settings()
+
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
             return False
-        elif context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
+        elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must select exactly two objects')
             return False
-        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
+        elif context.mode == 'OBJECT' and self.settings.source_object == '' and not self.settings.use_active:
             showErrorMessage('Must select only one object')
             return False
         return True
