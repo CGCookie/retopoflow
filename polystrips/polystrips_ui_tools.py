@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy
 import bgl
+import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
@@ -224,7 +225,7 @@ class Polystrips_UI_Tools():
         r3d = eventd['r3d']
         
         if eventd['press'] == 'LEFTMOUSE':
-            self.modal_tweak_setup(eventd)
+            self.modal_tweak_setup(context, eventd)
             return ''
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
@@ -313,7 +314,7 @@ class Polystrips_UI_Tools():
         r3d = eventd['r3d']
         
         if eventd['press'] == 'LEFTMOUSE':
-            modal_tweak_setup(self, eventd, max_dist=2.0)
+            self.modal_tweak_setup(context, eventd, max_dist=2.0)
             return ''
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':

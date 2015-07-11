@@ -33,6 +33,7 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import point_inside_loop2d
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
@@ -394,7 +395,7 @@ class Polystrips_UI:
             c1 = location_3d_to_region_2d(rgn, r3d, gv.corner1)
             c2 = location_3d_to_region_2d(rgn, r3d, gv.corner2)
             c3 = location_3d_to_region_2d(rgn, r3d, gv.corner3)
-            inside = contour_utilities.point_inside_loop2d([c0,c1,c2,c3],Vector((mx,my)))
+            inside = point_inside_loop2d([c0,c1,c2,c3],Vector((mx,my)))
             if inside:
                 self.hov_gvert = gv
                 break

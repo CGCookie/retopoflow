@@ -33,6 +33,7 @@ import time
 import itertools
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_point_line, intersect_line_plane
+from mathutils.geometry import distance_point_to_plane, intersect_line_line_2d, intersect_line_line
 
 
 # Blender imports
@@ -41,6 +42,7 @@ import bmesh
 import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+
 
 
 class AddonLocator(object):
@@ -592,3 +594,63 @@ def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
     return [l_objs[i] for i in l_inds]
 
+
+#adapted from opendentalcad then to pie menus now here
+
+def point_inside_loop2d(loop, point):
+    '''
+    args:
+    loop: list of vertices representing loop
+        type-tuple or type-Vector
+    point: location of point to be tested
+        type-tuple or type-Vector
+    
+    return:
+        True if point is inside loop
+    '''    
+    #test arguments type
+    if any(not v for v in loop): return False
+    
+    ptype = str(type(point))
+    ltype = str(type(loop[0]))
+    nverts = len(loop)
+    
+    if 'Vector' not in ptype:
+        point = Vector(point)
+        
+    if 'Vector' not in ltype:
+        for i in range(0,nverts):
+            loop[i] = Vector(loop[i])
+        
+    #find a point outside the loop and count intersections
+    out = Vector(outside_loop_2d(loop))
+    intersections = 0
+    for i in range(0,nverts):
+        a = Vector(loop[i-1])
+        b = Vector(loop[i])
+        if intersect_line_line_2d(point,out,a,b):
+            intersections += 1
+    
+    inside = False
+    if math.fmod(intersections,2):
+        inside = True
+    
+    return inside
+
+def outside_loop_2d(loop):
+    '''
+    args:
+    loop: list of 
+       type-Vector or type-tuple
+    returns: 
+       outside = a location outside bound of loop 
+       type-tuple
+    '''
+       
+    xs = [v[0] for v in loop]
+    ys = [v[1] for v in loop]
+    
+    maxx = max(xs)
+    maxy = max(ys)    
+    bound = (1.1*maxx, 1.1*maxy)
+    return bound
