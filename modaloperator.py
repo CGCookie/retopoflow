@@ -141,7 +141,6 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-
         handle_nav = False
         handle_nav |= eventd['type'] == 'MIDDLEMOUSE'
         handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
@@ -200,6 +199,9 @@ class ModalOperator(Operator):
         context.window_manager.modal_handler_add(self)
         #context.area.header_text_set(self.bl_label)
 
+        self.footer = ''
+        self.footer_last = ''
+        
         self.start(context)
 
     def modal_end(self, context):
