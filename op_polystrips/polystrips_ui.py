@@ -32,8 +32,8 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d
+from ..lib.common_utilities import bversion, get_source_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
@@ -79,10 +79,9 @@ class Polystrips_UI:
 
             # Debug level 2: time start
             check_time = profiler.start()
-            if self.settings.use_active:
-                self.obj_orig = bpy.context.active_object
-            else:
-                self.obj_orig = bpy.data.objects[self.settings.source_object]
+
+            self.obj_orig = get_source_object()
+
             # duplicate selected objected to temporary object but with modifiers applied
             if self.obj_orig.modifiers:
                 # Time event
@@ -118,7 +117,7 @@ class Polystrips_UI:
             self.hover_ed = None
 
         elif context.mode == 'EDIT_MESH':
-            self.obj_orig = bpy.data.objects[self.settings.source_object]
+            self.obj_orig = get_source_object()
             if self.obj_orig.modifiers:
                 self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 self.me.update()
