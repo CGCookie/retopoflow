@@ -52,6 +52,7 @@ from .preferences import RetopoFlowPreferences
 from .polystrips.polystrips_modal import CGC_Polystrips
 from .tweak.tweak_modal import CGC_Tweak
 from .contours_modal import CGC_Contours
+from .op_edgepatches.edgepatches_modal import CGC_EdgePatches
 
 # Used to store keymaps for addon
 addon_keymaps = []
@@ -65,6 +66,7 @@ def register():
     bpy.utils.register_class(CGC_Polystrips)
     bpy.utils.register_class(CGC_Tweak)
     bpy.utils.register_class(CGC_Contours)
+    bpy.utils.register_class(CGC_EdgePatches)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -80,7 +82,8 @@ def register():
 def unregister():
     bpy.utils.unregister_class(CGC_Polystrips)
     bpy.utils.unregister_class(CGC_Tweak)
-    bpy.utils.unregister_class(CGC_contours)
+    bpy.utils.unregister_class(CGC_Contours)
+    bpy.utils.unregister_class(CGC_EdgePatches)
     
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)

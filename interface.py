@@ -68,6 +68,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
 
         col.operator("cgcookie.tweak", icon='HAND')
+        col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
