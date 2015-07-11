@@ -9,7 +9,21 @@ class RetopoFlowPreferences(AddonPreferences):
     
     def update_theme(self, context):
         print('theme updated to ' + str(theme))
-
+    
+    
+    # source and target object
+    source_object = StringProperty(
+        name='Source Object',
+        description='High resolution object to retopologize',
+        default=None
+        )
+    
+    target_object = StringProperty(
+        name='Target Object',
+        description='Low resolution object that holds the retopologized mesh',
+        default=None
+        )
+    
     # Theme definitions
     theme = EnumProperty(
         items=[
