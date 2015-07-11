@@ -34,6 +34,7 @@ from . import key_maps
 from .lib import common_utilities
 from .lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from .contour_classes import Contours
+from .lib.common_utilities import showErrorMessage
 
 class  CGC_Contours(ModalOperator):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
@@ -241,10 +242,10 @@ class  CGC_Contours(ModalOperator):
             
             if eventd['press'] in self.keymap['up count']:
                 n = self.contours.sel_path.segments + 1
-                #if self.contours.sel_path.seg_lock: #TODO showError(yada yada)
-                    #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: Path is locked, cannot adjust segments')
-                #else:
-                self.contours.segment_n_loops(eventd['context'], self.contours.sel_path, n)    
+                if self.contours.sel_path.seg_lock: #TODO showError(yada yada)
+                    showErrorMessage('PATH SEGMENTS: Path is locked, cannot adjust segments')
+                else:
+                    self.contours.segment_n_loops(eventd['context'], self.contours.sel_path, n)    
                 #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: %i' % n)
                 return ''
             
@@ -252,7 +253,7 @@ class  CGC_Contours(ModalOperator):
                 n = self.sel_path.segments - 1
                 if self.sel_path.seg_lock:
                     return ''
-                    #TODOD showError
+                    showErrorMessage('PATH SEGMENTS: Path is locked, cannot adjust segments')
                     #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: Path is locked, cannot adjust segments')
                 elif n < 3:
                     #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: You want more segments than that!')
@@ -284,9 +285,7 @@ class  CGC_Contours(ModalOperator):
         
         if eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            p = eventd['pressure']
-            self.contours.sel_loop.tail.x = x
-            self.contours.sel_loop.tail.y = y      
+            self.contours.sel_loop.tail.x, self.contours.sel_loop.tail.y  = x, y    
             return ''
         
         if eventd['release'] in self.keymap['action']: #LMB hard code for cut
@@ -315,11 +314,10 @@ class  CGC_Contours(ModalOperator):
             return ''
         
         elif eventd['release'] in self.keymap['action']:
-            print('released....trying to make a new path')
             self.contours.sketch_confirm(eventd['context']) 
             return 'main'
         
-        return ''
+        
         return ''
     
     def modal_widget(self,context,eventd):
