@@ -89,7 +89,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
-        pass
+        self.create_mesh(context)
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
