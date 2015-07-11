@@ -174,14 +174,14 @@ class Contours(object):
         self.sel_edge = None
         self.sel_verts = None
         self.existing_cut = None
-        ob = context.object
+        ob = get_source_object()
         tmp_ob = None
         
         name = ob.name + '_recontour'
         self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, ob.matrix_world)
         
         
-        is_valid = is_object_valid(context.object)
+        is_valid = is_object_valid(ob)
         has_tmp = 'ContourTMP' in bpy.data.objects and bpy.data.objects['ContourTMP'].data
         
         if is_valid and has_tmp:
