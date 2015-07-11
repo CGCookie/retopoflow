@@ -45,7 +45,7 @@ def_rf_key_map['up count'] = {'SHIFT+NUMPAD_PLUS','SHIFT+WHEELUPMOUSE'}
 def_rf_key_map['dn count'] = {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE'}
 
 #CONTOURS UNIQUE KEYS
-def_rf_key_map['smooth'] = {'CTRL+S'}
+def_rf_key_map['smooth'] = {'CTRL+ALT+S'}
 def_rf_key_map['bridge'] = {'B'}
 def_rf_key_map['new'] = {'N'}
 def_rf_key_map['align'] = {'SHIFT+A', 'CRTL+A', 'ALT+A'}
@@ -63,7 +63,7 @@ def_rf_key_map['merge'] = {'M'}
 def_rf_key_map['rip'] = {'CTRL+R'}
 def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
 def_rf_key_map['scale handles'] = {'CTRL+S'}
-def_rf_key_map['smooth'] = {'C'}
+#def_rf_key_map['smooth'] = {'C'}
 def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
 def_rf_key_map['update'] = {'CTRL+U'}

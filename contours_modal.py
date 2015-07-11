@@ -99,7 +99,7 @@ class  CGC_Contours(ModalOperator):
                 self.help_box.uncollapse()
             else:
                 self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+            self.help_box.snap_to_corner(context,corner = [1,1])
         
         elif eventd['press'] in self.keymap['undo']:
             self.contours.undo_action()
@@ -117,11 +117,11 @@ class  CGC_Contours(ModalOperator):
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
             self.help_box.hover(x,y)
-            self.contours.hover_loop_mode(eventd['context'], self.settings, x,y)
+            self.contours.hover_loop_mode(context, self.settings, x,y)
             return ''
         
         if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
-            ret = self.contours.loop_select(eventd['context'], eventd)
+            ret = self.contours.loop_select(context, eventd)
             if ret:
                 return ''    
         
@@ -131,7 +131,7 @@ class  CGC_Contours(ModalOperator):
                     self.help_box.uncollapse()
                 else:
                     self.help_box.collapse()
-                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                self.help_box.snap_to_corner(context,corner = [1,1])
             
                 return ''
             
@@ -142,7 +142,7 @@ class  CGC_Contours(ModalOperator):
             else:
                 self.footer = 'Cutting'
                 x,y = eventd['mouse']
-                self.contours.sel_loop = self.contours.click_new_cut(eventd['context'], self.settings, x,y)    
+                self.contours.sel_loop = self.contours.click_new_cut(context, self.settings, x,y)    
                 return 'cutting'
         
         if eventd['press'] in self.keymap['new']:
@@ -171,7 +171,7 @@ class  CGC_Contours(ModalOperator):
                 self.contours.loop_nverts_change(context, eventd, n+1)    
                 return ''
             elif eventd['press'] in self.keymap['dn count']:
-                n = len(self.sel_loop.verts_simple)
+                n = len(self.contours.sel_loop.verts_simple)
                 self.contours.loop_nverts_change(context, eventd, n-1)
                 return ''
         
@@ -203,7 +203,7 @@ class  CGC_Contours(ModalOperator):
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
             self.help_box.hover(x,y)
-            self.contours.hover_guide_mode(eventd['context'], self.settings, x, y)
+            self.contours.hover_guide_mode(context, self.settings, x, y)
             return ''
         
         if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
@@ -217,7 +217,7 @@ class  CGC_Contours(ModalOperator):
                     self.help_box.uncollapse()
                 else:
                     self.help_box.collapse()
-                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                self.help_box.snap_to_corner(context,corner = [1,1])
                 return ''
             
             self.footer = 'sketching'
@@ -228,16 +228,16 @@ class  CGC_Contours(ModalOperator):
         if self.contours.sel_path:
             if eventd['press'] in self.keymap['delete']:
                 self.contours.create_undo_snapshot('DELETE')
-                self.contours.cut_paths.remove(self.sel_path)
+                self.contours.cut_paths.remove(self.contours.sel_path)
                 self.contours.sel_path = None
                 return ''
             
             if eventd['press'] in self.keymap['up shift']:
-                self.contours.segment_shift(eventd['context'], up = True)
+                self.contours.segment_shift(context, up = True)
                 return ''
             
             if eventd['press'] in self.keymap['dn shift']:
-                self.contours.segment_shift(eventd['context'], up = False)
+                self.contours.segment_shift(context, up = False)
                 return 
             
             if eventd['press'] in self.keymap['up count']:
@@ -245,33 +245,33 @@ class  CGC_Contours(ModalOperator):
                 if self.contours.sel_path.seg_lock: #TODO showError(yada yada)
                     showErrorMessage('PATH SEGMENTS: Path is locked, cannot adjust segments')
                 else:
-                    self.contours.segment_n_loops(eventd['context'], self.contours.sel_path, n)    
-                #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: %i' % n)
+                    self.contours.segment_n_loops(context, self.contours.sel_path, n)    
+                #self.temporary_message_start(context, 'PATH SEGMENTS: %i' % n)
                 return ''
             
             if eventd['press'] in self.keymap['dn count']:
-                n = self.sel_path.segments - 1
-                if self.sel_path.seg_lock:
+                n = self.contours.sel_path.segments - 1
+                if self.contours.sel_path.seg_lock:
                     return ''
                     showErrorMessage('PATH SEGMENTS: Path is locked, cannot adjust segments')
-                    #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: Path is locked, cannot adjust segments')
+                    #self.temporary_message_start(context, 'PATH SEGMENTS: Path is locked, cannot adjust segments')
                 elif n < 3:
-                    #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: You want more segments than that!')
+                    #self.temporary_message_start(context, 'PATH SEGMENTS: You want more segments than that!')
                     return ''
                 else:
-                    self.contours.segment_n_loops(eventd['context'], self.contours.sel_path, n)    
-                    #self.temporary_message_start(eventd['context'], 'PATH SEGMENTS: %i' % n)
+                    self.contours.segment_n_loops(context, self.contours.sel_path, n)    
+                    #self.temporary_message_start(context, 'PATH SEGMENTS: %i' % n)
                 return ''
             
             if eventd['press'] in self.keymap['smooth']:
                 
-                self.contours.segment_smooth(eventd['context'], self.settings)
+                self.contours.segment_smooth(context, self.settings)
                 #messaging handled in operator
                 return ''
             
             if eventd['press'] in self.keymap['snap cursor']:
-                self.contours.cursor_to_segment(eventd['context'])
-                #self.temporary_message_start(eventd['context'], 'Cursor to Segment')
+                self.contours.cursor_to_segment(context)
+                #self.temporary_message_start(context, 'Cursor to Segment')
                 return ''
              
              
@@ -291,7 +291,7 @@ class  CGC_Contours(ModalOperator):
         if eventd['release'] in self.keymap['action']: #LMB hard code for cut
             print('new cut made')
             x,y = eventd['mouse']
-            self.contours.release_place_cut(eventd['context'], self.settings, x, y)
+            self.contours.release_place_cut(context, self.settings, x, y)
             return 'main'
         
         return ''
@@ -314,7 +314,7 @@ class  CGC_Contours(ModalOperator):
             return ''
         
         elif eventd['release'] in self.keymap['action']:
-            self.contours.sketch_confirm(eventd['context']) 
+            self.contours.sketch_confirm(context) 
             return 'main'
         
         

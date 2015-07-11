@@ -2244,10 +2244,12 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         if self.existing_head:
             for i in self.existing_head.vert_inds_sorted:
                 v = reto_bme.verts[i]
+                v.select_set(False)
                 weld_verts[h(v.co)] = v
         if self.existing_tail:
             for i in self.existing_tail.vert_inds_sorted:
                 v = reto_bme.verts[i]
+                v.select_set(False)
                 weld_verts[h(v.co)] = v
         
         hvs = [h(vert) for vert in self.verts]
