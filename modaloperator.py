@@ -71,7 +71,7 @@ class ModalOperator(Operator):
             try:
                 fn = t.__getattribute__(self, fnname)
             except AttributeError:
-                lbad += fnname
+                lbad += [fnname]
         if lbad:
             print('Critical Error! Missing definitions for the following functions:')
             for fnname in lbad:
