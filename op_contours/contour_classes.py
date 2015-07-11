@@ -36,6 +36,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
+from ..lib.common_utilities import get_source_object, showErrorMessage
 from ..cache import contour_mesh_cache, contour_undo_cache
 from ..preferences import RetopoFlowPreferences
 #from development.cgc-retopology import contour_utilities
