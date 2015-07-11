@@ -61,15 +61,7 @@ def bversion():
 
 def selection_mouse():
     select_type = bpy.context.user_preferences.inputs.select_mouse
-    select_mouse = []
-    if select_type == 'RIGHT':
-        select_mouse.append('RIGHTMOUSE')
-        select_mouse.append('SHIFT+RIGHTMOUSE')
-    else:
-        select_mouse.append('LEFTMOUSE')
-        select_mouse.append('SHIFT+LEFTMOUSE')
-
-    return select_mouse
+    return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
     addons = bpy.context.user_preferences.addons
@@ -84,10 +76,22 @@ def get_settings():
     settings = addons[foldername].preferences
     return settings
 
+
+
+
 def dprint(s, l=2):
     settings = get_settings()
     if settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
+
+def dcallstack(l=2):
+    ''' print out the calling stack, skipping the first (call to dcallstack) '''
+    dprint('Call Stack Dump:', l=l)
+    for i,entry in enumerate(inspect.stack()):
+        if i>0: dprint('  %s' % str(entry), l=l)
+
+
+
 
 def showErrorMessage(message, wrap=80):
     lines = []
