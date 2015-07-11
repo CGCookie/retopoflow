@@ -22,6 +22,8 @@ http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-
 import bpy
 import inspect
 
+from .lib.common_utilities import dcallstack
+
 def_rf_key_map = {}
 #SHARED KEYS
 def_rf_key_map['action'] = {'LEFTMOUSE'}
@@ -88,33 +90,26 @@ def kmi_details(kmi):
         return kmi_ftype
 
 
-def add_to_dict(km_dict, key,value, safety = True):   
+def add_to_dict(km_dict, key, value, safety = True):   
     if safety:
         for k in km_dict.keys():
             if value in km_dict[k]:
-                #print('%s is already part of keymap "%s"' % (value, key))
-                #stack = inspect.stack()
-                #for entry in stack:
-                #    print(entry)
-
-                if key not in km_dict:
-                    km_dict[key] = {}
-                return False
-            
-    if key in km_dict:
-        val = km_dict[key]
-        
-        if value not in val:
-            val.add(value)
-            return True
-        else:
-            return False
-    else:
+                print('%s is already part of keymap "%s"' % (value, key))
+                dcallstack()
+    
+    if key not in km_dict:
         km_dict[key] = set([value])
         return True
+    
+    d = km_dict[key]
+    if value not in d:
+        d.add(value)
+        return True
+    else:
+        return False
 
 def rtflow_default_keymap_generate():
-    km_dict = def_rf_key_map.copy()
+    km_dict = dict(def_rf_key_map)
     
     #bug, WHEELOUTMOUSE and WHEELINMOUSE used in 3dview keymap
     add_to_dict(km_dict,'navigate', 'WHEELUPMOUSE')
