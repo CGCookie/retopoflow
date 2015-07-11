@@ -65,8 +65,18 @@ class ModalOperator(Operator):
             'draw_postpixel':   'draw_postpixel(self,context)',
             'modal_wait':       'modal_wait(self,context,eventd)',
         }
+        t = type(self)
+        lbad = []
         for fnname,fndef in dfns.items():
-            assert fnname in dir(self), 'Must define %s function' % fndef
+            try:
+                fn = t.__getattribute__(self, fnname)
+            except AttributeError:
+                lbad += fnname
+        if lbad:
+            print('Critical Error! Missing definitions for the following functions:')
+            for fnname in lbad:
+                print('  %s' % dfns[fnname])
+            assert False
 
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
@@ -248,5 +258,7 @@ class ModalOperator(Operator):
         self.help_box = TextBox(context,500,500,300,200,10,20,'No Help!')
         self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
+        
         self.modal_start(context)
+        
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal

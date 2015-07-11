@@ -34,7 +34,7 @@ from .modaloperator import ModalOperator
 class OP_BaseEditor(ModalOperator):
     ''' ModalOperator Prototype '''
     bl_category = "Retopology"
-    bl_idname = "retopoflow.prototype"      # unique identifier for buttons and menu items to reference
+    bl_idname = "cgcookie.prototype"        # unique identifier for buttons and menu items to reference
     bl_label = "RetopoFlow Prototype"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
