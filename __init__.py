@@ -77,9 +77,6 @@ from .polystrips.polystrips_modal import CGC_Polystrips
 from . import contour_utilities
 from .contour_classes import ContourCutLine, ExistingVertList, CutLineManipulatorWidget, ContourCutSeries, ContourStatePreserver
 
-# Create a class that contains all location information for addons
-AL = common_utilities.AddonLocator()
-
 #a place to store stokes for later
 global contour_cache 
 contour_cache = {}
