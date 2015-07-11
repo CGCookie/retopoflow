@@ -166,6 +166,8 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.sketch_brush.make_circles()
             self.sketch_brush.get_brush_world_size(eventd['context'])
 
+            self.help_box.hover(x,y)
+
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
                 self.stroke_radius_pressure = self.sketch_brush.world_width
@@ -179,18 +181,27 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
 
-        if eventd['press'] == 'Q':                                                  # profiler printout
+        if eventd['press'] == 'Q': # profiler printout
             profiler.printout()
             return ''
 
         if eventd['press'] in self.keymap['brush size']:
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
-        
-        if eventd['press'] == 'LEFTMOUSE': # in self.keymap['tweak move']:
-            self.create_undo_snapshot('tweak')
-            self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
-            self.modal_tweak_setup(context, eventd)
-            return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
-        
+
+        if eventd['press'] in self.keymap['action']: # in self.keymap['tweak move']:
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(context,corner = [1,1])
+                return ''
+
+            else:
+                self.create_undo_snapshot('tweak')
+                self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
+                self.modal_tweak_setup(context, eventd)
+                return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
+
         return ''
