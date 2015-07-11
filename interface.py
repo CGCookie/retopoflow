@@ -11,12 +11,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
 
-    @classmethod
-    def poll(cls, context):
-        mode = bpy.context.mode
-        obj = context.active_object
-        return (obj and obj.type == 'MESH' and mode in ('OBJECT', 'EDIT_MESH'))
-
     def draw(self, context):
         layout = self.layout
 
