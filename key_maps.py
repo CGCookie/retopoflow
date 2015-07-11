@@ -20,7 +20,7 @@ http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-
 '''
 
 import bpy
-   
+
 def_rf_key_map = {}
 #SHARED KEYS
 def_rf_key_map['action'] = {'LEFTMOUSE'}
@@ -77,26 +77,6 @@ navigation_events = {'Rotate View', 'Move View', 'Zoom View',
                      'View Persp/Ortho', 'View Numpad', 'NDOF Orbit View', 
                      'NDOF Pan View', 'View Selected', 'Center View to Cursor'}
 
-def get_nav_keys(keycon):
-    nav_keys = set()
-    if '3D View' not in keycon.keymaps:
-        print(keycon.name)
-        for km in keycon.keymaps:
-            print(km.name)
-        print('Your keyconfig has no 3D view keymap, please email developer')
-        return nav_keys
-    
-    #navigation keys last, to avoid conflicts eg, Ctl + Wheel
-    #center view on cursor is included in nav
-    for kmi in keycon.keymaps['3D View'].keymap_items:
-        if kmi.name in navigation_events:    
-            nav_keys.add(kmi_details(kmi))
-                
-    #bug, WHEELOUTMOUSE and WHEELINMOUSE used in 3dview keymaap
-    nav_keys.add('WHEELDOWNMOUSE')
-    nav_keys.add('WHEELUPMOUSE')
-    
-    return nav_keys
 
 def kmi_details(kmi):
         kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
@@ -105,30 +85,6 @@ def kmi_details(kmi):
         kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi.type
         
         return kmi_ftype
-
-
-def find_kmi_by_idname(idname, keymap = None, keycon = None):
-    
-    if not keycon:
-        C = bpy.context
-        wm = C.window_manager
-        if 'Blender User' in wm.keyconfigs:
-            keycon = wm.keyconfigs['Blender User']
-        else:
-            keycon = wm.keyconfigs.active
-    
-    kmis = []
-    
-    if keymap:
-        keymaps = [keycon.keymaps[keymap]]
-    else:
-        keymaps = keycon.keymaps
-    for km in keymaps:
-        for kmi in km.keymap_items:
-            if kmi.idname == idname:
-                kmis.append(kmi_details(kmi))
-
-    return kmis
 
 
 def add_to_dict(km_dict, key,value, safety = True):   
