@@ -23,7 +23,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
 
         row = layout.row(align=True)
-        view = context.space_data
 
         row.label("Source Object:")
         row = layout.row(align=True)
@@ -34,8 +33,21 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         sub.scale_x = 0.1
         sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
 
+        col = layout.column(align=True)
 
+        col.label("Target Object:")
+        row = layout.row(align=True)
+        scene = context.scene
+        row.prop_search(settings, "target_object", scene, "objects", text='')
 
+        sub = row.row(align=True)
+        sub.scale_x = 0.1
+        sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
+
+        col = layout.column(align=True)
+        col.prop(settings, "target_object", text="", icon="RESTRICT_SELECT_OFF")
+
+        col = layout.column(align=True)
         col = layout.column(align=True)
 
         if bversion() > '002.074.004':
