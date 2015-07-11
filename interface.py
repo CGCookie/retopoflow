@@ -114,4 +114,5 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         layout.operator("cgcookie.contours", icon="IPO_LINEAR")
         layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
         layout.operator("cgcookie.tweak", icon="HAND")
+        layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
 
