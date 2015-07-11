@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2014 CG Cookie
+Copyright (C) 2015 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -18,23 +18,41 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
-
 # System imports
-import os
-import sys
-import copy
-import itertools
 import math
+import itertools
 import time
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 
 # Blender imports
+import bgl
 import blf
 import bmesh
 import bpy
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-from .lib import common_utilities
-from .lib.common_utilities import dprint
+from ..lib import common_utilities
+from ..lib import common_drawing_px
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+
+from ..preferences import RetopoFlowPreferences
+
+
+class Contours_UI_Draw():
+    
+    def draw_postpixel(self, context):
+        ''' Place post pixel drawing code in here '''
+        #self.contours.draw_post_pixel(context)
+        self.help_box.draw()
+        self.contours.draw_post_pixel(context)
+        pass
+    
+    def draw_postview(self, context):
+        ''' Place post view drawing code in here '''
+        self.contours.draw_post_view(context)
+
+
+        

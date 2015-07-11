@@ -49,9 +49,9 @@ from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
 #Tools
-from .polystrips.polystrips_modal import CGC_Polystrips
-from .tweak.tweak_modal import CGC_Tweak
-from .contours_modal import CGC_Contours
+from .op_polystrips.polystrips_modal import CGC_Polystrips
+from .op_contours.contours_modal import CGC_Contours
+from .op_tweak.tweak_modal import CGC_Tweak
 from .op_edgepatches.edgepatches_modal import CGC_EdgePatches
 
 # Used to store keymaps for addon

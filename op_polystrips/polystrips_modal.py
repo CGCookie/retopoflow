@@ -26,6 +26,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix, Quaternion
 import math
 
+from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage
 
 from ..modaloperator import ModalOperator
@@ -63,12 +64,14 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
         
+        self.settings = common_utilities.get_settings()
+
         if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
             showErrorMessage('Must select exactly two objects when in Edit Mode')
             return False
         
-        if context.mode == 'OBJECT' and len(context.selected_objects) != 1:
-            showErrorMessage('Must select only one object when in Object Mode')
+        if context.mode == 'OBJECT' and self.settings.source_object == '':
+            showErrorMessage('Must specify a source object first or enable Use Active')
             return False
         
         if context.object.type != 'MESH':

@@ -36,7 +36,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 
 # Common imports
 from ..lib import common_utilities
-from ..lib import common_drawing
+from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
 
 from ..preferences import RetopoFlowPreferences
@@ -93,7 +93,7 @@ class Polystrips_UI_Draw():
         rs = (gedge.gvert0.radius+gedge.gvert3.radius) * 0.35
         rl = rs * 0.75
         p3d = [pm-px*rs,pm+px*rs,pm+px*(rs-rl)+py*rl,pm+px*rs,pm+px*(rs-rl)-py*rl]
-        common_drawing.draw_polyline_from_3dpoints(context, p3d, color, 5, "GL_LINE_SMOOTH")
+        common_drawing_px.draw_polyline_from_3dpoints(context, p3d, color, 5, "GL_LINE_SMOOTH")
 
 
     def draw_gedge_text(self, gedge,context, text):
@@ -377,10 +377,10 @@ class Polystrips_UI_Draw():
 
         if self.fsm_mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
-            common_drawing.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
 
             # Draw sketching stroke
-            common_drawing.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
+            common_drawing_px.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
 
             # Report pressure reading
             if settings.use_pressure:
@@ -392,7 +392,7 @@ class Polystrips_UI_Draw():
 
         if self.fsm_mode in {'scale tool','rotate tool'}:
             # Draw a scale/rotate line from tool origin to current mouse position
-            common_drawing.draw_polyline_from_points(context, [self.action_center, self.mode_pos], (0, 0, 0, 0.5), 1, "GL_LINE_STIPPLE")
+            common_drawing_px.draw_polyline_from_points(context, [self.action_center, self.mode_pos], (0, 0, 0, 0.5), 1, "GL_LINE_STIPPLE")
 
         bgl.glLineWidth(1)
 
@@ -409,9 +409,9 @@ class Polystrips_UI_Draw():
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
                 if settings.use_pressure:
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
             if self.fsm_mode == 'sketch':
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
                 hit_p3d,hit_norm,hit_idx = hit
@@ -421,13 +421,13 @@ class Polystrips_UI_Draw():
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
                     if settings.use_pressure:
-                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                     else:
-                        common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if self.hover_ed and False:  #EXTEND  to display hoverable edges
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
-            common_drawing.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
+            common_drawing_px.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
 
         if settings.show_help:
