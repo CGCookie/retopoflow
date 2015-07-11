@@ -120,7 +120,15 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        layout.operator("cgcookie.contours", icon="IPO_LINEAR")
-        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+        if bversion() > '002.074.004':
+            icons = load_icons()
+            contours_icon = icons.get("rf_contours_icon")
+            polystrips_icon = icons.get("rf_polystrips_icon")
+            layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+            layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        else:
+            layout.operator("cgcookie.contours", icon="IPO_LINEAR")
+            layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+
         layout.operator("cgcookie.tweak", icon="HAND")
 
