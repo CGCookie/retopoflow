@@ -50,7 +50,7 @@ from .preferences import RetopoFlowPreferences
 
 #Tools
 from .polystrips.polystrips_modal import CGC_Polystrips
-from .contours_modal import CGC_Contours
+from .contours.contours_modal import CGC_Contours
 
 # Used to store keymaps for addon
 addon_keymaps = []

@@ -35,8 +35,8 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Common imports
 from . import contour_utilities
-from .lib import common_utilities, common_drawing
-from .cache import contour_mesh_cache, contour_undo_cache
+from ..lib import common_utilities, common_drawing
+from ..cache import contour_mesh_cache, contour_undo_cache
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
