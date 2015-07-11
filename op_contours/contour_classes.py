@@ -225,7 +225,7 @@ class Contours(object):
         self.dest_me = self.dest_ob.data
         self.dest_bme = bmesh.from_edit_mesh(self.dest_me)
         
-        ob = [obj for obj in context.selected_objects if obj.name != context.object.name][0]
+        ob = get_source_object()
         is_valid = is_object_valid(ob)
         tmp_ob = None
         
