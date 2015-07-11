@@ -26,7 +26,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix, Quaternion
 import math
 
-from ..lib import common_drawing
+from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
 from ..lib.common_utilities import showErrorMessage
 from .tweak_ui import Tweak_UI

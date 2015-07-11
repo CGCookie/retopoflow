@@ -34,9 +34,10 @@ from .. import key_maps
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from .contour_classes import Contours
+from .contours_ui_draw import Contours_UI_Draw
 
 
-class  CGC_Contours(ModalOperator):
+class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
     bl_category = "Retopology"
     bl_idname = "cgcookie.contours"      # unique identifier for buttons and menu items to reference
@@ -109,8 +110,7 @@ class  CGC_Contours(ModalOperator):
             return self.modal_loop(context,eventd)
         else:
             return self.modal_guide(context,eventd)
-         
-    
+            
     def modal_loop(self, context, eventd): 
         if self.footer != 'Loop Mode': self.footer = 'Loop Mode'
         
@@ -351,17 +351,6 @@ class  CGC_Contours(ModalOperator):
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
-        pass
-    
-    def draw_postview(self, context):
-        ''' Place post view drawing code in here '''
-        pass
-    
-    def draw_postpixel(self, context):
-        ''' Place post pixel drawing code in here '''
-        
-        self.contours.draw_post_pixel(context)
-        self.help_box.draw()
         pass
     
     def get_help_text(self,context):

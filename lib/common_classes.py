@@ -33,7 +33,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_plane, intersect_point_line
 
 from . import common_utilities
-from . import common_drawing
+from . import common_drawing_px
 
 class TextBox(object):
     
@@ -275,9 +275,9 @@ class TextBox(object):
         
         #draw the whole menu bacground
         line_height = blf.dimensions(0, 'A')[1]
-        outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
-        common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
-        common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
+        outline = common_drawing_px.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
+        common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
+        common_drawing_px.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
         
         dpi = bpy.context.user_preferences.system.dpi
         blf.size(0, self.text_size, dpi)
@@ -424,15 +424,15 @@ class SketchBrush(object):
         
         #draw the circle
         if self.mouse_circle != []:
-            common_drawing.draw_polyline_from_points(context, self.mouse_circle, color, linewidth, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, self.mouse_circle, color, linewidth, "GL_LINE_SMOOTH")
         
         #draw the sample points which are raycast
         if self.world_sample_points != []:
             #TODO color and size
-            #common_drawing.draw_3d_points(context, self.world_sample_points, (1,1,1,1), 3)
+            #common_drawing_px.draw_3d_points(context, self.world_sample_points, (1,1,1,1), 3)
             pass
     
         #draw the preview circle if changing brush size
         if self.preview_circle != []:
-            common_drawing.draw_polyline_from_points(context, self.preview_circle, color_size, linewidth, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, self.preview_circle, color_size, linewidth, "GL_LINE_SMOOTH")
             
