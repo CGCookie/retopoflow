@@ -33,11 +33,10 @@ import itertools
 
 from ..lib import common_utilities
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
-from ..lib.common_utilities import zip_pairs
+from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 
-from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split
-
+from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 
 
 
@@ -950,7 +949,7 @@ class GEdge:
         else:
             step = 100
             
-        s_t_map = polystrips_utilities.cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
+        s_t_map = cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
         
         #l = self.get_length()  <-this is more accurate, but we need consistency
         l = max(s_t_map)
@@ -970,7 +969,7 @@ class GEdge:
             
             # compute interval lengths and ts
             l_widths = [0] + [r0 + s*i - d_os for i in range(c)]
-            l_ts = [polystrips_utilities.closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
+            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
         
         else:
             # find "optimal" count for subdividing spline based on radii of two endpoints
@@ -2037,7 +2036,7 @@ class Polystrips(object):
             assert len(cb_split) == 2, 'Could not split bezier (' + (','.join(str(p) for p in [p0,p1,p2,p3])) + ') at %f' % t
             cb0,cb1 = cb_split
             rm = (r0+r3)/2  #stroke radius
-            rm_prime = polystrips_utilities.cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
+            rm_prime = cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
             
             gv_split = self.create_gvert(cb0[3], radius=rm_prime)
             gv0_0    = gedge.gvert0

@@ -40,10 +40,10 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
     ''' CG Cookie Polystrips Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
-    bl_category = "Retopology"
-    bl_idname = "cgcookie.polystrips"
-    bl_label = "Retopoflow.Polystrips"
-    bl_space_type = 'VIEW_3D'
+    bl_category    = "Retopology"
+    bl_idname      = "cgcookie.polystrips"
+    bl_label       = "Polystrips"
+    bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
     def __init__(self):
@@ -95,4 +95,6 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         ''' Called when tool is canceled '''
         pass
     
+    def update(self, context):
+        pass
 

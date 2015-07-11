@@ -65,8 +65,8 @@ class ModalOperator(Operator):
             'draw_postpixel':   'draw_postpixel(self,context)',
             'modal_wait':       'modal_wait(self,context,eventd)',
         }
-        for fnname,fndef in dfns.items():
-            assert fnname in dir(self), 'Must define %s function' % fndef
+        #for fnname,fndef in dfns.items():
+        #    assert fnname in dir(self), 'Must define %s function' % fndef
 
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
@@ -119,7 +119,7 @@ class ModalOperator(Operator):
 
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpxel(context)
+        self.draw_postpixel(context)
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
 

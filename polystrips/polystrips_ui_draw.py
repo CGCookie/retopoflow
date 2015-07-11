@@ -39,6 +39,8 @@ from ..lib import common_utilities
 from ..lib import common_drawing
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
 
+from ..preferences import RetopoFlowPreferences
+
 
 class Polystrips_UI_Draw():
     
@@ -95,7 +97,7 @@ class Polystrips_UI_Draw():
         common_drawing.draw_polyline_from_3dpoints(context, p3d, color, 5, "GL_LINE_SMOOTH")
 
 
-    def draw_gedge_text(gedge,context, text):
+    def draw_gedge_text(self, gedge,context, text):
         l = len(gedge.cache_igverts)
         if l > 4:
             n_quads = math.floor(l/2) + 1
@@ -110,7 +112,7 @@ class Polystrips_UI_Draw():
         blf.position(0, position_2d[0]-(txt_width/2), position_2d[1]-(txt_height/2), 0)
         blf.draw(0, text)
 
-    def draw_gedge_info(gedge,context):
+    def draw_gedge_info(self, gedge,context):
         '''
         helper draw module to display info about the Gedge
         '''
@@ -119,7 +121,7 @@ class Polystrips_UI_Draw():
             n_quads = math.floor(l/2) + 1
         else:
             n_quads = 3
-        draw_gedge_text(gedge, context, str(n_quads))
+        self.draw_gedge_text(gedge, context, str(n_quads))
 
 
     def draw_callback_themed(self, context):
@@ -291,7 +293,7 @@ class Polystrips_UI_Draw():
                 common_drawing.draw_polyline_from_3dpoints(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
 
             if settings.show_segment_count:
-                draw_gedge_info(self.act_gedge, context)
+                self.draw_gedge_info(self.act_gedge, context)
                 
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -304,7 +306,7 @@ class Polystrips_UI_Draw():
             common_drawing.draw_polyline_from_3dpoints(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
             
 
-        if self.mode == 'sketch':
+        if self.fsm_mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
 
@@ -319,16 +321,16 @@ class Polystrips_UI_Draw():
                 blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
                 blf.draw(0, info)
 
-        if self.mode in {'scale tool','rotate tool'}:
+        if self.fsm_mode in {'scale tool','rotate tool'}:
             # Draw a scale/rotate line from tool origin to current mouse position
             common_drawing.draw_polyline_from_points(context, [self.action_center, self.mode_pos], (0, 0, 0, 0.5), 1, "GL_LINE_STIPPLE")
 
         bgl.glLineWidth(1)
 
-        if self.mode == 'brush scale tool':
+        if self.fsm_mode == 'brush scale tool':
             # scaling brush size
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
-        elif self.mode not in {'grab tool','scale tool','rotate tool'} and not self.is_navigating:
+        elif self.fsm_mode not in {'grab tool','scale tool','rotate tool'} and not self.is_navigating:
             # draw the brush oriented to surface
             ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
             hit_p3d,hit_norm,hit_idx = hit
@@ -341,7 +343,7 @@ class Polystrips_UI_Draw():
                     common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
                     common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
-            if self.mode == 'sketch':
+            if self.fsm_mode == 'sketch':
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != -1:

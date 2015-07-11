@@ -21,31 +21,32 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy
 import bgl
+import blf
+import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
+
 import math
+import os
+import copy
+
+from ..lib import common_utilities
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_classes import SketchBrush, TextBox
+from .. import key_maps
+
+from .polystrips_datastructure import Polystrips
+
 
 class Polystrips_UI:
     def initialize_ui(self):
         self.is_fullscreen  = False
         self.was_fullscreen = False
-        
-        # help file stuff
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, "help", "help_polystrips.txt")
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        if not settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
     
     
     def start_ui(self, context):
-        settings = common_utilities.get_settings()
+        self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_default_keymap_generate()
         
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
@@ -151,16 +152,31 @@ class Polystrips_UI:
         self.screen_stroke_radius = 20  # TODO, hood to settings
 
         self.sketch_brush = SketchBrush(context,
-                                        settings,
+                                        self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
                                         15,  # settings.quad_prev_radius,
                                         self.obj)
 
-        self.polystrips = PolyStrips(context, self.obj, self.dest_obj)
+        self.polystrips = Polystrips(context, self.obj, self.dest_obj)
         
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
         
-        polystrips_undo_cache = []  # Clear the cache in case any is left over
+        self.polystrips_undo_cache = []  # Clear the cache in case any is left over
+        
+        
+        # help file stuff
+        my_dir = os.path.split(os.path.abspath(__file__))[0]
+        filename = os.path.join(my_dir, '..', 'help', 'help_polystrips.txt')
+        if os.path.isfile(filename):
+            help_txt = open(filename, mode='r').read()
+        else:
+            help_txt = "No Help File found, please reinstall!"
+        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
+        if not self.settings.help_def:
+            self.help_box.collapse()
+        self.help_box.snap_to_corner(context, corner = [1,1])
+        
+        
         
         if self.obj.grease_pencil:
             self.create_polystrips_from_greasepencil()
@@ -169,14 +185,14 @@ class Polystrips_UI:
 
         if not self.is_fullscreen:
             was_fullscreen = len(context.screen.areas)==1
-            if not was_fullscreen and settings.distraction_free:
+            if not was_fullscreen and self.settings.distraction_free:
                 bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = True
         
-        context.area.header_text_set('PolyStrips')
+        context.area.header_text_set('Polystrips')
     
     def end_ui(self, context):
-        if not self.was_fullscreen and settings.distraction_free:
+        if not self.was_fullscreen and self.settings.distraction_free:
             bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = False
         
@@ -210,11 +226,10 @@ class Polystrips_UI:
         or also duplicated, making them no longer valid.
         '''
 
-        settings = common_utilities.get_settings()
         repeated_actions = {'count', 'zip count'}
 
-        if action in repeated_actions and len(polystrips_undo_cache):
-            if action == polystrips_undo_cache[-1][1]:
+        if action in repeated_actions and len(self.polystrips_undo_cache):
+            if action == self.polystrips_undo_cache[-1][1]:
                 dprint('repeatable...dont take snapshot')
                 return
 
@@ -235,16 +250,16 @@ class Polystrips_UI:
         else:
             act_gvert = None
 
-        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
+        self.polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
 
-        if len(polystrips_undo_cache) > settings.undo_depth:
-            polystrips_undo_cache.pop(0)
+        if len(self.polystrips_undo_cache) > self.settings.undo_depth:
+            self.polystrips_undo_cache.pop(0)
 
     def undo_action(self):
         '''
         '''
-        if len(polystrips_undo_cache) > 0:
-            data, action = polystrips_undo_cache.pop()
+        if len(self.polystrips_undo_cache) > 0:
+            data, action = self.polystrips_undo_cache.pop()
 
             self.polystrips = data[0]
 

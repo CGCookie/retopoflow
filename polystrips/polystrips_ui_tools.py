@@ -23,8 +23,11 @@ import bpy
 import bgl
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 import math
+
+from ..lib import common_utilities
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 
 
 class Polystrips_UI_Tools():
