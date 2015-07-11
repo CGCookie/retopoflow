@@ -20,7 +20,8 @@ http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-
 '''
 
 import bpy
-   
+import inspect
+
 def_rf_key_map = {}
 #SHARED KEYS
 def_rf_key_map['action'] = {'LEFTMOUSE'}
@@ -145,7 +146,11 @@ def add_to_dict(km_dict, key,value, safety = True):
     if safety:
         for k in km_dict.keys():
             if value in km_dict[k]:
-                print('%s is already part of keymap "%s"' % (value, key))
+                #print('%s is already part of keymap "%s"' % (value, key))
+                #stack = inspect.stack()
+                #for entry in stack:
+                #    print(entry)
+
                 if key not in km_dict:
                     km_dict[key] = {}
                 return False
@@ -161,7 +166,8 @@ def add_to_dict(km_dict, key,value, safety = True):
     else:
         km_dict[key] = set([value])
         return True
-       
+
+
 def rtflow_default_keymap_generate():
     km_dict = def_rf_key_map.copy()
     

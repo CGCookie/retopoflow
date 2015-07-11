@@ -32,12 +32,17 @@ import math
 import time
 import itertools
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.geometry import intersect_point_line, intersect_line_plane
+from mathutils.geometry import distance_point_to_plane, intersect_line_line_2d, intersect_line_line
 
-# from lib import common_drawing
 
 # Blender imports
+import blf
+import bmesh
 import bpy
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+
 
 
 class AddonLocator(object):
@@ -556,3 +561,96 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
 def zip_pairs(l):
     for p in zip(l, itertools.chain(l[1:],l[:1])):
         yield p
+
+
+
+def closest_t_of_s(s_t_map, s):
+    '''
+    '''
+    d0 = 0
+    t = 1  #in case we don't find a d > s
+    for i,d in enumerate(s_t_map):
+        if d >= s:
+            if i == 0:
+                return 0
+            t1 = s_t_map[d]
+            t0 = s_t_map[d0]
+            t = t0 + (t1-t0) * (s - d0)/(d-d0)
+            return t
+        else:
+            d0 = d
+        
+    return t
+
+def vector_angle_between(v0, v1, vcross):
+    a = v0.angle(v1)
+    d = v0.cross(v1).dot(vcross)
+    return a if d<0 else 2*math.pi - a
+
+def sort_objects_by_angles(vec_about, l_objs, l_vecs):
+    if len(l_objs) <= 1:  return l_objs
+    o0,v0 = l_objs[0],l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+    l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
+    return [l_objs[i] for i in l_inds]
+
+
+#adapted from opendentalcad then to pie menus now here
+
+def point_inside_loop2d(loop, point):
+    '''
+    args:
+    loop: list of vertices representing loop
+        type-tuple or type-Vector
+    point: location of point to be tested
+        type-tuple or type-Vector
+    
+    return:
+        True if point is inside loop
+    '''    
+    #test arguments type
+    if any(not v for v in loop): return False
+    
+    ptype = str(type(point))
+    ltype = str(type(loop[0]))
+    nverts = len(loop)
+    
+    if 'Vector' not in ptype:
+        point = Vector(point)
+        
+    if 'Vector' not in ltype:
+        for i in range(0,nverts):
+            loop[i] = Vector(loop[i])
+        
+    #find a point outside the loop and count intersections
+    out = Vector(outside_loop_2d(loop))
+    intersections = 0
+    for i in range(0,nverts):
+        a = Vector(loop[i-1])
+        b = Vector(loop[i])
+        if intersect_line_line_2d(point,out,a,b):
+            intersections += 1
+    
+    inside = False
+    if math.fmod(intersections,2):
+        inside = True
+    
+    return inside
+
+def outside_loop_2d(loop):
+    '''
+    args:
+    loop: list of 
+       type-Vector or type-tuple
+    returns: 
+       outside = a location outside bound of loop 
+       type-tuple
+    '''
+       
+    xs = [v[0] for v in loop]
+    ys = [v[1] for v in loop]
+    
+    maxx = max(xs)
+    maxy = max(ys)    
+    bound = (1.1*maxx, 1.1*maxy)
+    return bound
