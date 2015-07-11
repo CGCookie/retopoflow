@@ -23,6 +23,12 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
 
         col = layout.column(align=True)
+        view = context.space_data
+
+        col.label("Source Object:")
+        col.prop(settings, 'source_object', icon_only=True)
+
+        col = layout.column(align=True)
 
         if bversion() > '002.074.004':
             icons = load_icons()
