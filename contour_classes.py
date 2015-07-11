@@ -269,42 +269,40 @@ class Contours(object):
             vert_loops = contour_utilities.edge_loops_from_bmedges(self.dest_bme, ed_inds)
 
             if len(vert_loops) > 1:
-                self.report({'WARNING'}, 'Only one edge loop will be used for extension')
-            print('there are %i edge loops selected' % len(vert_loops))
+                print('there are %i edge loops selected' % len(vert_loops))
             
-            #for loop in vert_loops:
-            #until multi loops are supported, do this    
-            loop = vert_loops[0]
-            if loop[-1] != loop[0] and len(list(set(loop))) != len(loop):
-                self.report({'WARNING'},'Edge loop selection has extra parts!  Excluding this loop')
+            for loop in vert_loops: #multi loop support
+            #loop = vert_loops[0] #until multi loops are supported, do this 
+                if loop[-1] != loop[0] and len(list(set(loop))) != len(loop):
+                    print('Edge loop selection has extra parts!  Excluding this loop')
+                    
+                else:
+                    lverts = [self.dest_bme.verts[i] for i in loop]
+                    
+                    existing_loop =ExistingVertList(context,
+                                                    lverts, 
+                                                    loop, 
+                                                    self.dest_ob.matrix_world,
+                                                    key_type = 'INDS')
+                    
+                    #make a blank path with just an existing head
+                    path = ContourCutSeries(context, [],
+                                    cull_factor = self.settings.cull_factor, 
+                                    smooth_factor = self.settings.smooth_factor,
+                                    feature_factor = self.settings.feature_factor)
                 
-            else:
-                lverts = [self.dest_bme.verts[i] for i in loop]
+                    
+                    path.existing_head = existing_loop
+                    path.seg_lock = False
+                    path.ring_lock = True
+                    path.ring_segments = len(existing_loop.verts_simple)
+                    path.connect_cuts_to_make_mesh(ob)
+                    path.update_visibility(context, ob)
                 
-                existing_loop =ExistingVertList(context,
-                                                lverts, 
-                                                loop, 
-                                                self.dest_ob.matrix_world,
-                                                key_type = 'INDS')
-                
-                #make a blank path with just an existing head
-                path = ContourCutSeries(context, [],
-                                cull_factor = self.settings.cull_factor, 
-                                smooth_factor = self.settings.smooth_factor,
-                                feature_factor = self.settings.feature_factor)
-            
-                
-                path.existing_head = existing_loop
-                path.seg_lock = False
-                path.ring_lock = True
-                path.ring_segments = len(existing_loop.verts_simple)
-                path.connect_cuts_to_make_mesh(ob)
-                path.update_visibility(context, ob)
-            
-                #path.update_visibility(context, self.original_form)
-                
-                self.cut_paths.append(path)
-                self.existing_loops.append(existing_loop)
+                    #path.update_visibility(context, self.original_form)
+                    
+                    self.cut_paths.append(path)
+                    self.existing_loops.append(existing_loop)
         
         write_mesh_cache(ob,tmp_ob, self.bme)        
             
@@ -2234,6 +2232,10 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         reto_mx  = reto_ob.matrix_world
         reto_imx = reto_mx.inverted()
         xform    = reto_imx * orig_mx
+        
+        reto_bme.verts.ensure_lookup_table()
+        reto_bme.edges.ensure_lookup_table()
+        reto_bme.faces.ensure_lookup_table()
         
         # a cheap hashing of vector with epsilon
         def h(v): return '%0.3f,%0.3f,%0.3f' % tuple(v)
