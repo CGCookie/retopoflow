@@ -89,8 +89,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         else:
             col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
 
-
-
         box = layout.box()
         row = box.row()
 
@@ -101,11 +99,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
         col = layout.column(align=True)
-        if bversion() > '002.074.004':
-            polystrips_icon = icons.get("rf_polystrips_icon")
-            col.operator("cgcookie.tweak", icon_value=polystrips_icon.icon_id)
-        else:
-            col.operator("cgcookie.tweak", icon='IPO_BEZIER')
+        col.operator("cgcookie.tweak", icon='HAND')
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"
@@ -119,5 +113,5 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
 
         layout.operator("cgcookie.contours", icon="IPO_LINEAR")
         layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
-        layout.operator("cgcookie.tweak", icon="IPO_BEZIER")
+        layout.operator("cgcookie.tweak", icon="HAND")
 
