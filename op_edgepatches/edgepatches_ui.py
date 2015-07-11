@@ -37,6 +37,9 @@ from ..lib.common_utilities import point_inside_loop2d
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
+from .edgepatches_datastructure import EdgePatches
+
+
 
 class EdgePatches_UI:
     def initialize_ui(self):
@@ -55,54 +58,62 @@ class EdgePatches_UI:
         self.is_navigating   = False
 
         self.post_update = True
-
-        if False:
-            self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
-            if self.obj_orig.modifiers:
-                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-                self.me.update()
-
-                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-                bpy.context.scene.objects.link(self.obj)
-                self.obj.hide = True
-            else:
-                self.obj = self.obj_orig
-            self.obj.matrix_world = self.obj_orig.matrix_world
-
-            # Comment out for now. Appears to no longer be needed.
-            # bpy.ops.object.mode_set(mode='OBJECT')
-            # bpy.ops.object.mode_set(mode='EDIT')
-            
-            self.dest_obj = context.object
-            self.dest_bme = bmesh.from_edit_mesh(context.object.data)
-            self.snap_eds = [] #EXTEND
-                   
-            #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
-            
-            
-            region, r3d = context.region, context.space_data.region_3d
-            mx = self.dest_obj.matrix_world
-            rv3d = context.space_data.region_3d
-            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, rv3d) for ed in self.snap_eds]
-            self.hover_ed = None
-            
-            
-            self.scale = self.obj.scale[0]
-            self.length_scale = get_object_length_scale(self.obj)
-            # World stroke radius
-            self.stroke_radius = 0.01 * self.length_scale
-            self.stroke_radius_pressure = 0.01 * self.length_scale
-            # Screen_stroke_radius
-            self.screen_stroke_radius = 20  # TODO, hood to settings
-
-            self.sketch_brush = SketchBrush(context,
-                                            self.settings,
-                                            0, 0, #event.mouse_region_x, event.mouse_region_y,
-                                            15,  # settings.quad_prev_radius,
-                                            self.obj)
-
-            self.undo_cache = []            # Clear the cache in case any is left over
         
+        # Debug level 2: time start
+        check_time = profiler.start()
+        self.obj_orig = bpy.data.objects[self.settings.source_object]
+        # duplicate selected objected to temporary object but with modifiers applied
+        if self.obj_orig.modifiers:
+            # Time event
+            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+            self.me.update()
+            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+            bpy.context.scene.objects.link(self.obj)
+            self.obj.hide = True
+
+            # HACK
+            # Comment out for now. Appears to no longer be needed.
+            # bpy.ops.object.mode_set(mode='EDIT')
+            # bpy.ops.object.mode_set(mode='OBJECT')
+            self.obj.matrix_world = self.obj_orig.matrix_world
+        else:
+            self.obj = self.obj_orig
+
+        # Debug level 2: time end
+        check_time.done()
+
+
+        #Create a new empty destination object for new retopo mesh
+        nm_polystrips = self.obj_orig.name + "_edgepatches"
+        self.dest_bme = bmesh.new()
+        dest_me  = bpy.data.meshes.new(nm_polystrips)
+        self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
+        self.dest_obj.matrix_world = self.obj.matrix_world
+        context.scene.objects.link(self.dest_obj)
+        
+        self.extension_geometry = []
+        self.snap_eds = []
+        self.snap_eds_vis = []
+        self.hover_ed = None
+        
+        
+        self.scale = self.obj.scale[0]
+        self.length_scale = get_object_length_scale(self.obj)
+        # World stroke radius
+        self.stroke_radius = 0.01 * self.length_scale
+        self.stroke_radius_pressure = 0.01 * self.length_scale
+        # Screen_stroke_radius
+        self.screen_stroke_radius = 20  # TODO, hood to settings
+
+        self.sketch_brush = SketchBrush(context,
+                                        self.settings,
+                                        0, 0, #event.mouse_region_x, event.mouse_region_y,
+                                        15,  # settings.quad_prev_radius,
+                                        self.obj)
+
+        self.undo_cache = []            # Clear the cache in case any is left over
+        
+        self.edgepatches = EdgePatches(context, self.obj, self.dest_obj)
         
         # help file stuff
         my_dir = os.path.split(os.path.abspath(__file__))[0]

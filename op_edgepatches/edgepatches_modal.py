@@ -28,12 +28,13 @@ import math
 
 from ..lib.common_utilities import showErrorMessage
 
-from .edgepatches_ui import EdgePatches_UI
 from ..modaloperator import ModalOperator
+from .edgepatches_ui import EdgePatches_UI
+from .edgepatches_ui_draw import EdgePatches_UI_Draw
 
 
 
-class CGC_EdgePatches(ModalOperator, EdgePatches_UI):
+class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw):
     ''' CG Cookie Edge-Patches Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
@@ -84,12 +85,6 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI):
     
     def modal_wait(self, context, eventd):
         return ''
-    
-    def draw_postpixel(self, context):
-        pass
-    
-    def draw_postview(self, context):
-        pass
     
     def modal_sketching(self, context, eventd):
         return 'main'
