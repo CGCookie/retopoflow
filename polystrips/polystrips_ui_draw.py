@@ -81,9 +81,7 @@ class Polystrips_UI_Draw():
             self.post_update = False
             self.last_matrix = new_matrix
 
-
-        if settings.debug < 3:
-            self.draw_callback_themed(context)
+        self.draw_2D(context)
 
     def draw_gedge_direction(self, context, gedge, color):
         p0,p1,p2,p3 = gedge.gvert0.snap_pos,  gedge.gvert1.snap_pos,  gedge.gvert2.snap_pos,  gedge.gvert3.snap_pos
@@ -337,7 +335,7 @@ class Polystrips_UI_Draw():
         bgl.glDepthRange(0.0, 1.0)
     
 
-    def draw_callback_themed(self, context):
+    def draw_2D(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
