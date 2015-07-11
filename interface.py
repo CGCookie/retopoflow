@@ -29,6 +29,10 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         row = layout.row(align=True)
         scene = context.scene
         row.prop_search(settings, "source_object", scene, "objects", text='')
+        
+        sub = row.row(align=True)
+        sub.scale_x = 0.1
+        sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
 
 
 
