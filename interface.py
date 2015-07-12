@@ -23,9 +23,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
 
         if context.mode == 'OBJECT':
-            col.prop(settings, "use_active", icon="RESTRICT_SELECT_OFF")
-
-        if not settings.use_active and context.mode == 'OBJECT':
             row = col.row(align=True)
             scene = context.scene
             row.prop_search(settings, "source_object", scene, "objects", text='')

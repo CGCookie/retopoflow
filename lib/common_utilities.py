@@ -80,10 +80,10 @@ def get_source_object():
     settings = get_settings()
 
     if bpy.context.mode == 'OBJECT':
-        if settings.use_active:
-            source_object = bpy.context.active_object
-        else:
+        if settings.source_object:
             source_object = bpy.data.objects[settings.source_object]
+        else:
+            source_object = bpy.context.active_object
     elif bpy.context.mode == 'EDIT_MESH':
             source_object = bpy.data.objects[settings.source_object]
 

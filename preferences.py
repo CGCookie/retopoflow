@@ -14,7 +14,7 @@ class RetopoFlowPreferences(AddonPreferences):
     # source and target object
     source_object = StringProperty(
         name='Source Object',
-        description='High resolution object to retopologize',
+        description='High resolution object to retopologize, defaults to Active if none set',
         default=''
         )
 
@@ -22,12 +22,6 @@ class RetopoFlowPreferences(AddonPreferences):
         name='Target Object',
         description='Low resolution object that holds the retopologized mesh',
         default=''
-        )
-
-    use_active = BoolProperty(
-        name='Use Active',
-        description='Use active selected object as the target mesh object',
-        default=False
         )
     
     # Theme definitions

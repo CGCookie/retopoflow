@@ -106,10 +106,11 @@ class Polystrips_UI:
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
-            dest_me  = bpy.data.meshes.new(nm_polystrips)
             if self.settings.target_object:
+                self.dest_bme.from_mesh( get_target_object().data )
                 self.dest_obj = get_target_object()
             else:
+                dest_me  = bpy.data.meshes.new(nm_polystrips)
                 self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
                 self.dest_obj.matrix_world = self.obj.matrix_world
                 context.scene.objects.link(self.dest_obj)
