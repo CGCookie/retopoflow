@@ -129,9 +129,9 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
                 if settings.use_pressure:
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
-                    common_drawing.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if settings.show_help:
             self.help_box.draw()
