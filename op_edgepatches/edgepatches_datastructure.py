@@ -90,10 +90,16 @@ class EPVert:
     def get_epedges(self):
         return list(self.epedges)
     
+    def get_inner_epverts(self):
+        if self.isinner: return [self]
+        return [epe.get_inner_epvert_at(self) for epe in self.epedges]
+        
+    
     def disconnect_epedge(self, epedge):
         assert epedge in self.epedges, 'Attempting to disconnect unconnected EPEdge'
         pr = profiler.start()
         self.epedges = [epe for epe in self.epedges if epe != epedge]
+        self.isinner=False
         self.update_epedges()
         pr.done()
     
@@ -102,6 +108,9 @@ class EPVert:
     def is_picked(self, pt, maxdist=0.1):
         if not self.visible: return False
         return (pt-self.snap_pos).length < maxdist
+    
+    def is_unconnected(self):
+        return len(self.epedges)==0
 
 
 class EPEdge:
@@ -124,6 +133,7 @@ class EPEdge:
         self.update()
     
     def epverts(self): return (self.epvert0, self.epvert1, self.epvert2, self.epvert3)
+    def epverts_pos(self): return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
     
     def update(self):
         p0,p1,p2,p3 = self.get_positions()
@@ -133,9 +143,16 @@ class EPEdge:
     def get_positions(self):
         return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
     
+    def get_inner_epverts(self):
+        return (self.epvert1, self.epvert2)
+    
     def get_inner_epvert_at(self, epv03):
         assert self.epvert0 == epv03 or self.epvert3 == epv03, 'Attempting to get inner EPVert of EPEdge for not connected EPVert'
         return self.epvert1 if self.epvert0 == epv03 else self.epvert2
+    
+    def get_outer_epvert_at(self, epv12):
+        assert self.epvert1 == epv12 or self.epvert2 == epv12, 'Attempting to get outer EPVert of EPEdge for not connected EPVert'
+        return self.epvert0 if self.epvert1 == epv12 else self.epvert3
     
     def disconnect(self):
         self.epvert0.disconnect_epedge(self)
@@ -148,6 +165,9 @@ class EPEdge:
             t,d = closest_t_and_distance_point_to_line_segment(pt, p0, p1)
             if d < maxdist: return True
         return False
+    
+    def min_dist_to_point(self, pt):
+        return min(closest_t_and_distance_point_to_line_segment(pt,p0,p1)[1] for p0,p1 in zip_pairs(self.curve_verts))
     
     def replace_epvert(self, epvert_from, epvert_to):
         assert self.epvert0==epvert_from or self.epvert1==epvert_from or self.epvert2==epvert_from or self.epvert3==epvert_from
@@ -221,11 +241,17 @@ class EdgePatches:
     
     def disconnect_epedge(self, epedge):
         assert epedge in self.epedges
-        for gp in list(epedge.eppatches):
-            self.disconnect_eppatch(gp)
+        for epp in list(epedge.eppatches):
+            self.disconnect_eppatch(epp)
         epedge.disconnect()
-        self.epedges = [epe for epe in self.epedges if epe != epedge]
-        
+        self.epedges.remove(epedge)
+    
+    def disconnect_epvert(self, epvert):
+        assert epvert in self.epverts
+        for epe in epvert.get_epedges():
+            self.disconnect_epedge(epe)
+        #epvert.disconnect()
+        self.epverts.remove(epvert)
     
     def split_epedge_at_t(self, epedge, t, connect_epvert=None):
         p0,p1,p2,p3 = gedge.get_positions()
@@ -303,7 +329,29 @@ class EdgePatches:
         self.epverts = [epv for epv in self.epverts if epv != epvert0]
         epvert1.update_epedges()
         return epvert1
+    
+    def pick_epverts(self, pt, maxdist=0.1, sort=True):
+        lepv = []
+        for epv in self.epverts:
+            d = (epv.snap_pos-pt).length
+            if d <= maxdist: lepv += [(epv,d)]
+        if not sort: return lepv
+        return sorted(lepv, key=lambda v: v[1])
+    
+    def pick_epedges(self, pt, maxdist=0.1, sort=True):
+        lepe = []
+        for epe in self.epedges:
+            d = epe.min_dist_to_point(pt)
+            if d <= maxdist: lepe += [(epe,d)]
+        if not sort: return lepe
+        return sorted(lepe, key=lambda v: v[1])
+        
+    def pick(self, pt, maxdist=0.1,sort=True):
+        l = self.pick_epverts(pt,maxdist=maxdist,sort=False) + self.pick_epedges(pt,maxdist=maxdist,sort=False)
+        if not sort: return l
+        return sorted(l, key=lambda v:v[1])
 
-
+    def remove_unconnected_epverts(self):
+        self.epverts = [epv for epv in self.epverts if not epv.is_unconnected()]
 
 

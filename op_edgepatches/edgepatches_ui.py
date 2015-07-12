@@ -37,7 +37,7 @@ from ..lib.common_utilities import point_inside_loop2d
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
-from .edgepatches_datastructure import EdgePatches
+from .edgepatches_datastructure import EdgePatches, EPVert, EPEdge, EPPatch
 
 
 
@@ -233,39 +233,25 @@ class EdgePatches_UI:
             return ''
         pt = pts[0]
 
-        if self.act_epvert or self.act_epedge:
-            # check if user is picking an inner control point
-            if self.act_gedge and not self.act_gedge.zip_to_gedge:
-                lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
-            elif self.act_gvert:
-                sgv = self.act_gvert
-                lge = self.act_gvert.get_gedges()
-                lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
-            else:
-                lcpts = []
-
-            for cpt in lcpts:
-                if not cpt.is_picked(pt): continue
-                self.act_gedge = None
-                self.sel_gedges.clear()
-                self.act_gvert = cpt
-                self.sel_gverts = set([cpt])
-                self.act_gpatch = None
-                return ''
-        
-        # Select epvert
-        for epv in self.edgepatches.epverts:
-            if epv.is_inner(): continue
-            if not epv.is_picked(pt): continue
+        # Select EPVert
+        for epv,_ in self.edgepatches.pick_epverts(pt, maxdist=0.05):
+            if epv.is_inner():
+                if self.act_epvert:
+                    if epv != self.act_epvert and epv not in self.act_epvert.get_inner_epverts():
+                        continue
+                elif self.act_epedge:
+                    if epv not in self.act_epedge.get_inner_epverts():
+                        continue
+                else:
+                    continue
+            self.act_epvert = epv
             self.act_epedge = None
             self.sel_epedges.clear()
             self.sel_epverts.clear()
-            self.act_epvert = epv
             return ''
         
-        # Select epedge
-        for epe in self.edgepatches.epedges:
-            if not epe.is_picked(pt): continue
+        # Select EPEdge
+        for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=0.05):
             self.act_epvert = None
             self.act_epedge = epe
             self.sel_epedges.clear()

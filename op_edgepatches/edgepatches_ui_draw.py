@@ -178,7 +178,27 @@ class EdgePatches_UI_Draw():
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
             draw3d_polyline(epedge.curve_verts, color, 5, 'GL_LINE_STIPPLE')
-
+        
+        if self.act_epvert:
+            epv0 = self.act_epvert
+            color = (color_active[0], color_active[1], color_active[2], 0.50)
+            if epv0.is_inner():
+                epe = epv0.get_epedges()[0]
+                epv1 = epe.get_outer_epvert_at(epv0)
+                draw3d_points([epv0.snap_pos], color, 8)
+                draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 5, 'GL_LINE_SMOOTH')
+            else:
+                for epe in epv0.get_epedges():
+                    epv1 = epe.get_inner_epvert_at(epv0)
+                    draw3d_points([epv1.snap_pos], color, 8)
+                    draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 5, 'GL_LINE_SMOOTH')
+        
+        if self.act_epedge:
+            p0,p1,p2,p3 = self.act_epedge.epverts_pos()
+            color = (color_active[0], color_active[1], color_active[2], 0.50)
+            draw3d_points([p0,p1,p2,p3], color, 8)
+            draw3d_polyline([p0,p1], color, 5, 'GL_LINE_SMOOTH')
+            draw3d_polyline([p3,p2], color, 5, 'GL_LINE_SMOOTH')
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)

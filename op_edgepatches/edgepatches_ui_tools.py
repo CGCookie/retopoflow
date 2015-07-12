@@ -103,3 +103,213 @@ class EdgePatches_UI_Tools:
             return 'main'
 
         return ''
+    
+    def modal_grab_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        px,py = self.prev_pos #mode_pos
+        sx,sy = self.mode_start
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE','SHIFT+RET','SHIFT+NUMPAD_ENTER','SHIFT+LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn((mx-px,my-py), eventd)
+            self.prev_pos = (mx,my)
+            return ''
+
+        return ''
+    
+    ##############################
+    # tools
+    
+    def ready_tool(self, eventd, tool_fn):
+        rgn   = eventd['context'].region
+        r3d   = eventd['context'].space_data.region_3d
+        mx,my = eventd['mouse']
+        if self.act_epvert:
+            loc   = self.act_epvert.position
+            cx,cy = location_3d_to_region_2d(rgn, r3d, loc)
+        elif self.act_epedge:
+            loc   = (self.act_epedge.epvert0.position + self.act_epedge.epvert3.position) / 2.0
+            cx,cy = location_3d_to_region_2d(rgn, r3d, loc)
+        else:
+            cx,cy = mx-100,my
+        rad   = math.sqrt((mx-cx)**2 + (my-cy)**2)
+
+        self.action_center = (cx,cy)
+        self.mode_start    = (mx,my)
+        self.action_radius = rad
+        self.mode_radius   = rad
+        
+        self.prev_pos      = (mx,my)
+
+        vrot = r3d.view_rotation
+        self.tool_x = (vrot * Vector((1,0,0))).normalized()
+        self.tool_y = (vrot * Vector((0,1,0))).normalized()
+
+        self.tool_rot = 0.0
+
+        self.tool_fn = tool_fn
+        self.tool_fn('init', eventd)
+
+    def scale_tool_gvert(self, command, eventd):
+        if command == 'init':
+            self.footer = 'Scaling GVerts'
+            sgv = self.act_gvert
+            lgv = [ge.gvert1 if ge.gvert0==sgv else ge.gvert2 for ge in sgv.get_gedges() if ge]
+            self.tool_data = [(gv,Vector(gv.position)) for gv in lgv]
+        elif command == 'commit':
+            pass
+        elif command == 'undo':
+            for gv,p in self.tool_data:
+                gv.position = p
+                gv.update()
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+        else:
+            m = command
+            sgv = self.act_gvert
+            p = sgv.position
+            for ge in sgv.get_gedges():
+                if not ge: continue
+                gv = ge.gvert1 if ge.gvert0 == self.act_gvert else ge.gvert2
+                gv.position = p + (gv.position-p) * m
+                gv.update()
+            sgv.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+
+    def scale_tool_gvert_radius(self, command, eventd):
+        if command == 'init':
+            self.footer = 'Scaling GVert radius'
+            self.tool_data = self.act_gvert.radius
+        elif command == 'commit':
+            pass
+        elif command == 'undo':
+            self.act_gvert.radius = self.tool_data
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+        else:
+            m = command
+            self.act_gvert.radius *= m
+            self.act_gvert.update()
+            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+
+    def scale_tool_stroke_radius(self, command, eventd):
+        if command == 'init':
+            self.footer = 'Scaling Stroke radius'
+            self.tool_data = self.stroke_radius
+        elif command == 'commit':
+            pass
+        elif command == 'undo':
+            self.stroke_radius = self.tool_data
+        else:
+            m = command
+            self.stroke_radius *= m
+
+    def grab_tool_epvert_list(self, command, eventd, lepv):
+        '''
+        translates list of epverts
+        note: translation is relative to first epvert
+        '''
+
+        def l3dr2d(p): return location_3d_to_region_2d(eventd['region'], eventd['r3d'], p)
+
+        if command == 'init':
+            self.footer = 'Translating EPVert position(s)'
+            s2d = l3dr2d(lepv[0].position)
+            self.tool_data = [(epv, Vector(epv.position), l3dr2d(epv.position)-s2d) for epv in lepv]
+        elif command == 'commit':
+            pass
+        elif command == 'undo':
+            for epv,p,_ in self.tool_data: epv.position = p
+            for epv,_,_ in self.tool_data:
+                epv.update()
+                #epv.update_visibility(eventd['r3d'], update_epedges=True)
+        else:
+            factor_slow,factor_fast = 0.2,1.0
+            dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
+            s2d = l3dr2d(self.tool_data[0][0].position)
+            lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
+            pts = common_utilities.ray_cast_path(eventd['context'], self.obj, lgv2d)
+            if len(pts) != len(lgv2d): return ''
+            for d,p2d in zip(self.tool_data, pts):
+                d[0].position = p2d
+            for epv,_,_ in self.tool_data:
+                epv.update()
+                #epv.update_visibility(eventd['r3d'], update_gedges=True)
+
+    def grab_tool_epvert(self, command, eventd):
+        '''
+        translates selected epvert
+        '''
+        if command == 'init':
+            lepv = [self.act_epvert]
+        else:
+            lepv = None
+        self.grab_tool_gvert_list(command, eventd, lgv)
+
+    def grab_tool_epvert_neighbors(self, command, eventd):
+        '''
+        translates selected epvert and its neighbors
+        note: translation is relative to selected epvert
+        '''
+        if command == 'init':
+            sepv = self.act_epvert
+            if sepv.is_inner():
+                lepv = [sepv]
+            else:
+                lepv = [sepv] + [epe.get_inner_epvert_at(sepv) for epe in sepv.get_epedges()]
+        else:
+            lepv = None
+        self.grab_tool_epvert_list(command, eventd, lepv)
+
+    def grab_tool_gedge(self, command, eventd):
+        if command == 'init':
+            sge = self.act_gedge
+            lgv = [sge.gvert0, sge.gvert3]
+            lgv += [ge.get_inner_gvert_at(gv) for gv in lgv for ge in gv.get_gedges_notnone()]
+        else:
+            lgv = None
+        self.grab_tool_gvert_list(command, eventd, lgv)
+
+    def rotate_tool_gvert_neighbors(self, command, eventd):
+        if command == 'init':
+            self.footer = 'Rotating GVerts'
+            self.tool_data = [(gv,Vector(gv.position)) for gv in self.act_gvert.get_inner_gverts()]
+        elif command == 'commit':
+            pass
+        elif command == 'undo':
+            for gv,p in self.tool_data:
+                gv.position = p
+                gv.update()
+        else:
+            ang = command
+            q = Quaternion(self.act_gvert.snap_norm, ang)
+            p = self.act_gvert.position
+            for gv,up in self.tool_data:
+                gv.position = p+q*(up-p)
+                gv.update()
+
+    def scale_brush_pixel_radius(self,command, eventd):
+        if command == 'init':
+            self.footer = 'Scale Brush Pixel Size'
+            self.tool_data = self.stroke_radius
+            x,y = eventd['mouse']
+            self.sketch_brush.brush_pix_size_init(eventd['context'], x, y)
+        elif command == 'commit':
+            self.sketch_brush.brush_pix_size_confirm(eventd['context'])
+            if self.sketch_brush.world_width:
+                self.stroke_radius = self.sketch_brush.world_width
+        elif command == 'undo':
+            self.sketch_brush.brush_pix_size_cancel(eventd['context'])
+            self.stroke_radius = self.tool_data
+        else:
+            x,y = command
+            self.sketch_brush.brush_pix_size_interact(x, y, precise = eventd['shift'])
+
