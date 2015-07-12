@@ -68,6 +68,7 @@ def register():
     bpy.utils.register_class(CGC_Tweak)
     bpy.utils.register_class(CGC_Contours)
     bpy.utils.register_class(CGC_EyeDropper)
+    bpy.utils.register_class(CGC_EdgePatches)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -85,6 +86,7 @@ def unregister():
     bpy.utils.unregister_class(CGC_Tweak)
     bpy.utils.unregister_class(CGC_Contours)
     bpy.utils.unregister_class(CGC_EyeDropper)
+    bpy.utils.unregister_class(CGC_EdgePatches)
     
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
