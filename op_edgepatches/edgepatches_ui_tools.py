@@ -231,6 +231,8 @@ class EdgePatches_UI_Tools:
             s2d = l3dr2d(lepv[0].position)
             self.tool_data = [(epv, Vector(epv.position), l3dr2d(epv.position)-s2d) for epv in lepv]
         elif command == 'commit':
+            #for epv,_,_ in self.tool_data:
+            #    epv.update_gedges()
             pass
         elif command == 'undo':
             for epv,p,_ in self.tool_data: epv.position = p

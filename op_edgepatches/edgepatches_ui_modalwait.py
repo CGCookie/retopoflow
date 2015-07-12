@@ -126,6 +126,20 @@ class EdgePatches_UI_ModalWait():
                 self.act_epvert = None
                 self.edgepatches.remove_unconnected_epverts()
                 return ''
+            
+            if eventd['press'] in self.keymap['dissolve']:
+                if self.act_epvert.is_inner():
+                    showErrorMessage('Cannot dissolve inner EPVert')
+                    return ''
+                if len(self.act_epvert.epedges) != 2:
+                    showErrorMessage('Cannot dissolve EPVert that is not connected to exactly 2 EPEdges')
+                    return ''
+                self.create_undo_snapshot('dissolve')
+                self.edgepatches.dissolve_epvert(self.act_epvert)
+                self.act_epvert = None
+                self.edgepatches.remove_unconnected_epverts()
+                return ''
+
         
         if self.act_epedge:
             if eventd['press'] in self.keymap['delete']:
@@ -133,6 +147,19 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.disconnect_epedge(self.act_epedge)
                 self.act_epedge = None
                 self.edgepatches.remove_unconnected_epverts()
+                return ''
+            
+            if eventd['press'] in self.keymap['knife']:
+                self.create_undo_snapshot('knife')
+                x,y = eventd['mouse']
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                if not pts: return ''
+                t,_ = self.act_epedge.get_closest_point(pts[0])
+                _,_,epv = self.edgepatches.split_epedge_at_t(self.act_epedge, t)
+                self.act_epedge = None
+                self.sel_epedges.clear()
+                self.act_epvert = epv
+                self.act_epvert = epv
                 return ''
 
         if eventd['press'] in {'p','P'}:

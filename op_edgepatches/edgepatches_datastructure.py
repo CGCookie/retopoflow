@@ -65,6 +65,7 @@ class EPVert:
         self.snap()
         if do_edges:
             self.doing_update = True
+            self.update_epedges()
             for epedge in self.epedges:
                 epedge.update()
             self.doing_update = False
@@ -123,6 +124,8 @@ class EPVert:
 
 
 class EPEdge:
+    tessellation_count = 20
+    
     def __init__(self, epvert0, epvert1, epvert2, epvert3):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
@@ -146,7 +149,7 @@ class EPEdge:
     
     def update(self):
         p0,p1,p2,p3 = self.get_positions()
-        self.curve_verts = [cubic_bezier_blend_t(p0, p1, p2, p3, i / 100.0) for i in range(101)]
+        self.curve_verts = [cubic_bezier_blend_t(p0, p1, p2, p3, i / float(EPEdge.tessellation_count)) for i in range(EPEdge.tessellation_count+1)]
         self.curve_verts = [EdgePatches.getClosestPoint(p)[0] for p in self.curve_verts]
     
     def get_positions(self):
@@ -198,6 +201,20 @@ class EPEdge:
         elif self.epvert3==epvert_from: self.epvert3 = epvert_to
         epvert_from.disconnect_epedge(self)
         epvert_to.connect_epedge(self)
+    
+    def get_closest_point(self, pt):
+        p0,p1,p2,p3 = self.get_positions()
+        if len(self.curve_verts) < 3:
+            return cubic_bezier_find_closest_t_approx(p0,p1,p2,p3,pt)
+        min_t,min_d = -1,-1
+        i,l = 0,len(self.curve_verts)
+        for p0,p1 in zip(self.curve_verts[:-1], self.curve_verts[1:]):
+            t,d = common_utilities.closest_t_and_distance_point_to_line_segment(pt, p0,p1)
+            if min_t < 0 or d < min_d: min_t,min_d = (i+t)/l,d
+            i += 1
+        return min_t,min_d
+
+
 
 
 class EPPatch:
@@ -212,8 +229,9 @@ class EPPatch:
         ctr = Vector((0,0,0))
         cnt = 0
         for epe in self.lepedges:
-            ctr = ctr + epe.epvert0.snap_pos + epe.epvert3.snap_pos
-            cnt += 2
+            for p in epe.curve_verts:
+                ctr += p
+            cnt += len(epe.curve_verts)
         if cnt:
             p,n,_ = EdgePatches.getClosestPoint(ctr/float(cnt))
             self.center = p
@@ -318,6 +336,8 @@ class EdgePatches:
         return loop
     
     def update_eppatches(self):
+        for epv in self.epverts:
+            epv.update_epedges()
         loops = set()
         for epe in self.epedges:
             l0 = self.get_loop(epe, forward=True)
@@ -348,6 +368,8 @@ class EdgePatches:
     def disconnect_epedge(self, epedge):
         assert epedge in self.epedges
         epedge.disconnect()
+        self.epverts.remove(epedge.epvert1)
+        self.epverts.remove(epedge.epvert2)
         self.epedges.remove(epedge)
     
     def disconnect_epvert(self, epvert):
@@ -357,19 +379,19 @@ class EdgePatches:
         self.epverts.remove(epvert)
     
     def split_epedge_at_t(self, epedge, t, connect_epvert=None):
-        p0,p1,p2,p3 = gedge.get_positions()
+        p0,p1,p2,p3 = epedge.get_positions()
         cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
         
         if connect_epvert:
             epv_split = connect_epvert
             trans = cb0[3] - epv_split.position
-            for ge in epv_split.get_gedges_notnone():
-                ge.get_inner_epvert_at(epv_split).position += trans
+            for epe in epv_split.get_epedges():
+                epe.get_inner_epvert_at(epv_split).position += trans
             epv_split.position += trans
         else:
-            epv_split = self.create_gvert(cb0[3])
+            epv_split = self.create_epvert(cb0[3])
         
-        epv0_0 = gedge.epvert0
+        epv0_0 = epedge.epvert0
         epv0_1 = self.create_epvert(cb0[1])
         epv0_2 = self.create_epvert(cb0[2])
         epv0_3 = epv_split
@@ -377,25 +399,25 @@ class EdgePatches:
         epv1_0 = epv_split
         epv1_1 = self.create_epvert(cb1[1])
         epv1_2 = self.create_epvert(cb1[2])
-        epv1_3 = gedge.epvert3
+        epv1_3 = epedge.epvert3
         
-        # want to *replace* gedge with new gedges
+        # want to *replace* epedge with new epedges
         lepv0epe = epv0_0.get_epedges()
         lepv3epe = epv1_3.get_epedges()
         
-        self.disconnect_epedge(gedge)
+        self.disconnect_epedge(epedge)
         epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3)
         epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3)
         
-        #lgv0ge = [ge0 if ge==gedge else ge for ge in lgv0ge]
-        #lgv3ge = [ge1 if ge==gedge else ge for ge in lgv3ge]
-        #gv0_0.gedge0,gv0_0.gedge1,gv0_0.gedge2,gv0_0.gedge3 = lgv0ge
-        #gv1_3.gedge0,gv1_3.gedge1,gv1_3.gedge2,gv1_3.gedge3 = lgv3ge
+        #lgv0ge = [ge0 if ge==epedge else ge for ge in lgv0ge]
+        #lgv3ge = [ge1 if ge==epedge else ge for ge in lgv3ge]
+        #gv0_0.epedge0,gv0_0.epedge1,gv0_0.epedge2,gv0_0.epedge3 = lgv0ge
+        #gv1_3.epedge0,gv1_3.epedge1,gv1_3.epedge2,gv1_3.epedge3 = lgv3ge
         
         epv0_0.update()
         epv1_3.update()
         epv_split.update()
-        epv_split.update_gedges()
+        epv_split.update_epedges()
         
         return (epe0,epe1,epv_split)
     
@@ -412,7 +434,7 @@ class EdgePatches:
         for now, assumes 
         '''
         pts = [p for p,_ in stroke]
-        lbez = cubic_bezier_fit_points(pts, (pts[0]-pts[1]).length / 10)
+        lbez = cubic_bezier_fit_points(pts, (pts[0]-pts[-1]).length / 100)
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:
             if epv0 is None:
@@ -461,4 +483,33 @@ class EdgePatches:
     def remove_unconnected_epverts(self):
         self.epverts = [epv for epv in self.epverts if not epv.is_unconnected()]
 
+    def dissolve_epvert(self, epvert, tessellation=20):
+        assert not epvert.isinner, 'Attempting to dissolve an inner EPVert'
+        assert len(epvert.epedges) == 2, 'Attempting to dissolve an EPVert that does not have exactly 2 connected EPEdges'
+        
+        epedge0,epedge1 = epvert.epedges
+        
+        p00,p01,p02,p03 = epedge0.get_positions()
+        p10,p11,p12,p13 = epedge1.get_positions()
+        
+        pts0 = [cubic_bezier_blend_t(p00,p01,p02,p03,i/tessellation) for i in range(tessellation+1)]
+        pts1 = [cubic_bezier_blend_t(p10,p11,p12,p13,i/tessellation) for i in range(tessellation+1)]
+        if epedge0.epvert0 == epvert: pts0.reverse()
+        if epedge1.epvert3 == epvert: pts1.reverse()
+        pts = pts0 + pts1
+        
+        t0,t3,p0,p1,p2,p3 = cubic_bezier_fit_points(pts, self.length_scale, allow_split=False)[0]
+        
+        epv0 = epedge0.epvert3 if epedge0.epvert0 == epvert else epedge0.epvert0
+        epv1 = self.create_epvert(p1)
+        epv2 = self.create_epvert(p2)
+        epv3 = epedge1.epvert3 if epedge1.epvert0 == epvert else epedge1.epvert0
+        
+        self.disconnect_epedge(epedge0)
+        self.disconnect_epedge(epedge1)
+        self.create_epedge(epv0,epv1,epv2,epv3)
+        epv0.update()
+        epv0.update_epedges()
+        epv3.update()
+        epv3.update_epedges()
 

@@ -85,13 +85,13 @@ class EdgePatches_UI_Draw():
         
         bgl.glDepthRange(0.0, 0.999)
         
-        def draw3d_polyline(points, color, thickness, LINE_TYPE):
+        def draw3d_polyline(points, color, thickness, LINE_TYPE, far=0.997):
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
             bgl.glColor4f(*color)
             bgl.glLineWidth(thickness)
-            bgl.glDepthRange(0.0, 0.997)
+            bgl.glDepthRange(0.0, far)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
@@ -99,13 +99,13 @@ class EdgePatches_UI_Draw():
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
-        def draw3d_closed_polylines(lpoints, color, thickness, LINE_TYPE):
+        def draw3d_closed_polylines(lpoints, color, thickness, LINE_TYPE, far=0.997):
             lpoints = list(lpoints)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
             bgl.glLineWidth(thickness)
-            bgl.glDepthRange(0.0, 0.997)
+            bgl.glDepthRange(0.0, far)
             bgl.glColor4f(*color)
             for points in lpoints:
                 bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -126,8 +126,8 @@ class EdgePatches_UI_Draw():
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
-        def draw3d_quad(points, color):
-            bgl.glDepthRange(0.0, 0.999)
+        def draw3d_quad(points, color, far=0.999):
+            bgl.glDepthRange(0.0, far)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
             for coord in points:
@@ -137,9 +137,9 @@ class EdgePatches_UI_Draw():
                 for coord in points:
                     bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
-        def draw3d_quads(lpoints, color, color_mirror):
+        def draw3d_quads(lpoints, color, color_mirror, far=0.999):
             lpoints = list(lpoints)
-            bgl.glDepthRange(0.0, 0.999)
+            bgl.glDepthRange(0.0, far)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
             for points in lpoints:
@@ -151,17 +151,17 @@ class EdgePatches_UI_Draw():
                     for coord in points:
                         bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
-        def draw3d_points(points, color, size):
+        def draw3d_points(points, color, size, far=0.997):
             bgl.glColor4f(*color)
             bgl.glPointSize(size)
-            bgl.glDepthRange(0.0, 0.997)
+            bgl.glDepthRange(0.0, far)
             bgl.glBegin(bgl.GL_POINTS)
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
             bgl.glPointSize(1.0)
         
-        def draw3d_fan(cpt, lpts, color):
-            bgl.glDepthRange(0.0, 0.999)
+        def draw3d_fan(cpt, lpts, color, far=0.999):
+            bgl.glDepthRange(0.0, far)
             bgl.glBegin(bgl.GL_TRIANGLES)
             bgl.glColor4f(*color)
             for p0,p1 in zip(lpts[:-1],lpts[1:]):
@@ -187,33 +187,33 @@ class EdgePatches_UI_Draw():
                 color = (color_active[0], color_active[1], color_active[2], 0.50)
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
-            draw3d_polyline(epedge.curve_verts, color, 5, 'GL_LINE_STIPPLE')
+            draw3d_polyline(epedge.curve_verts, color, 4, 'GL_LINE_SMOOTH')
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
             color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
-            draw3d_fan(eppatch.center, eppatch.get_outer_points(), color)
+            draw3d_fan(eppatch.center + eppatch.normal*0.02, eppatch.get_outer_points(), color)
         
         if self.act_epvert:
             epv0 = self.act_epvert
-            color = (color_active[0], color_active[1], color_active[2], 0.50)
+            color = (color_active[0], color_active[1], color_active[2], 0.80)
             if epv0.is_inner():
                 epe = epv0.get_epedges()[0]
                 epv1 = epe.get_outer_epvert_at(epv0)
                 draw3d_points([epv0.snap_pos], color, 8)
-                draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 5, 'GL_LINE_SMOOTH')
+                draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 2, 'GL_LINE_SMOOTH', far=0.995)
             else:
                 for epe in epv0.get_epedges():
                     epv1 = epe.get_inner_epvert_at(epv0)
                     draw3d_points([epv1.snap_pos], color, 8)
-                    draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 5, 'GL_LINE_SMOOTH')
+                    draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 2, 'GL_LINE_SMOOTH', far=0.995)
         
         if self.act_epedge:
             p0,p1,p2,p3 = self.act_epedge.epverts_pos()
-            color = (color_active[0], color_active[1], color_active[2], 0.50)
+            color = (color_active[0], color_active[1], color_active[2], 0.80)
             draw3d_points([p0,p1,p2,p3], color, 8)
-            draw3d_polyline([p0,p1], color, 5, 'GL_LINE_SMOOTH')
-            draw3d_polyline([p3,p2], color, 5, 'GL_LINE_SMOOTH')
+            draw3d_polyline([p0,p1], color, 2, 'GL_LINE_SMOOTH', far=0.995)
+            draw3d_polyline([p3,p2], color, 2, 'GL_LINE_SMOOTH', far=0.995)
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
