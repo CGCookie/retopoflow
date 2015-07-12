@@ -59,8 +59,10 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
         
-        if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
-            showErrorMessage('Must select exactly two objects when in Edit Mode')
+        self.settings = common_utilities.get_settings()
+
+        if context.mode == 'EDIT_MESH' and not self.settings.source_object:
+            showErrorMessage('Must specify a Source Object')
             return False
         
         if context.object.type != 'MESH':
