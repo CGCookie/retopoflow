@@ -42,17 +42,18 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             sub.scale_x = 0.1
             sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'source_object'
 
-        col = layout.column(align=True)
+        if context.mode != 'EDIT_MESH':
 
-        col.label("Target Object:")
+            col = layout.column(align=True)
+            col.label("Target Object:")
 
-        row = col.row(align=True)
-        scene = context.scene
-        row.prop_search(settings, "target_object", scene, "objects", text='')
+            row = col.row(align=True)
+            scene = context.scene
+            row.prop_search(settings, "target_object", scene, "objects", text='')
 
-        sub = row.row(align=True)
-        sub.scale_x = 0.1
-        sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'target_object'
+            sub = row.row(align=True)
+            sub.scale_x = 0.1
+            sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'target_object'
 
         col = layout.column(align=True)
 
