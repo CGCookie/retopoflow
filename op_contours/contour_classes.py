@@ -717,6 +717,9 @@ class Contours(object):
             self.sel_path.highlight(self.settings)  
     
     def mode_set_loop(self):
+        self.snap = []
+        self.snap_circle = []
+        
         for path in self.cut_paths:
             for cut in path.cuts:
                 cut.deselect(self.settings)
