@@ -2909,7 +2909,7 @@ class ContourCutLine(object):
             common_drawing_view.draw3d_polyline(context, self.verts_simple, color, thick,'GL_LINE_STIPPLE')
         
         #draw the vertices
-        common_drawing_view.draw3d_points(context,self.verts_simple, mesh_color, settings.vert_size)
+        common_drawing_view.draw3d_points(context,self.verts_simple, color, settings.vert_size)
          
     def hit_object(self, context, ob, method = 'VIEW'):
         settings = common_utilities.get_settings()
