@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator, zip_pairs
 
 from ..preferences import RetopoFlowPreferences
 
@@ -159,7 +159,16 @@ class EdgePatches_UI_Draw():
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
             bgl.glPointSize(1.0)
-            
+        
+        def draw3d_fan(cpt, lpts, color):
+            bgl.glDepthRange(0.0, 0.999)
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            bgl.glColor4f(*color)
+            for p0,p1 in zip_pairs(lpts):
+                bgl.glVertex3f(*cpt)
+                bgl.glVertex3f(*p0)
+                bgl.glVertex3f(*p1)
+            bgl.glEnd()
 
         ### EPVerts ###
         for epvert in self.edgepatches.epverts:
@@ -172,12 +181,18 @@ class EdgePatches_UI_Draw():
             
             draw3d_points([epvert.snap_pos], color, 8)
         
+        ### EPEdges ###
         for epedge in self.edgepatches.epedges:
             if epedge == self.act_epedge:
                 color = (color_active[0], color_active[1], color_active[2], 0.50)
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
             draw3d_polyline(epedge.curve_verts, color, 5, 'GL_LINE_STIPPLE')
+        
+        ### EPPatches ###
+        for eppatch in self.edgepatches.eppatches:
+            color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            draw3d_fan(eppatch.center, eppatch.get_outer_points(), color)
         
         if self.act_epvert:
             epv0 = self.act_epvert

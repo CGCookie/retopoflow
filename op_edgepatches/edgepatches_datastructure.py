@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from ..lib import common_utilities
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, closest_t_and_distance_point_to_line_segment
-from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
+from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 
@@ -71,6 +71,10 @@ class EPVert:
         pr.done()
     
     def update_epedges(self):
+        if len(self.epedges)>2:
+            ''' sort the epedges about normal '''
+            l_vecs = [epe.get_outer_vector_at(self) for epe in self.epedges]
+            self.epedges = sort_objects_by_angles(self.snap_norm, self.epedges, l_vecs)  # positive snap_norm to sort clockwise
         for epe in self.epedges:
             epe.update()
     
@@ -111,6 +115,11 @@ class EPVert:
     
     def is_unconnected(self):
         return len(self.epedges)==0
+    
+    def get_next_epedge(self, epedge):
+        ''' returns the following (anti-clockwise) EPEdge '''
+        if len(self.epedges) == 1: return None
+        return self.epedges[(self.epedges.index(epedge)+1)%len(self.epedges)]
 
 
 class EPEdge:
@@ -154,6 +163,14 @@ class EPEdge:
         assert self.epvert1 == epv12 or self.epvert2 == epv12, 'Attempting to get outer EPVert of EPEdge for not connected EPVert'
         return self.epvert0 if self.epvert1 == epv12 else self.epvert3
     
+    def get_outer_vector_at(self, epv03):
+        epv12 = self.get_inner_epvert_at(epv03)
+        return epv12.snap_pos - epv03.snap_pos
+    
+    def get_opposite_epvert(self, epv03):
+        assert self.epvert0 == epv03 or self.epvert3 == epv03, 'Attempting to get inner EPVert of EPEdge for not connected EPVert'
+        return self.epvert3 if self.epvert0 == epv03 else self.epvert0
+    
     def disconnect(self):
         self.epvert0.disconnect_epedge(self)
         self.epvert1.disconnect_epedge(self)
@@ -181,7 +198,28 @@ class EPEdge:
 
 
 class EPPatch:
-    pass
+    def __init__(self, lepedges):
+        self.lepedges = list(lepedges)
+        self.center = Vector()
+        self.normal = Vector()
+        self.update()
+    
+    def update(self):
+        ctr = Vector((0,0,0))
+        cnt = 0
+        for epe in self.lepedges:
+            ctr = ctr + epe.epvert0.snap_pos + epe.epvert3.snap_pos
+            cnt += 2
+        if cnt:
+            p,n,_ = EdgePatches.getClosestPoint(ctr/float(cnt))
+            self.center = p
+            self.normal = n
+        else:
+            self.center = Vector()
+            self.normal = Vector()
+    
+    def get_outer_points(self):
+        return [p for epe in self.lepedges for p in epe.curve_verts]
 
 
 
@@ -200,13 +238,9 @@ class EdgePatches:
         # EdgePatch verts, edges, and patches
         self.epverts   = []
         self.epedges   = []
-        self.eppatches = []
         
-        epv0 = self.create_epvert(Vector((-1.0,-0.2,0)))
-        epv1 = self.create_epvert(Vector((-0.9,0.5,-0.2)))
-        epv2 = self.create_epvert(Vector(( 0.9,0.5,-0.2)))
-        epv3 = self.create_epvert(Vector(( 1.0,-0.2,0)))
-        epe = self.create_epedge(epv0, epv1, epv2, epv3)
+        self.eppatches      = set()
+        self.epedge_eppatch = dict()
     
     @classmethod
     def getSrcObject(cls):
@@ -226,6 +260,53 @@ class EdgePatches:
         
         return (mx*c,mxn*n,i)
     
+    def debug(self):
+        print('Debug')
+        print('-----------')
+        print('  %d EPVerts' % len(self.epverts))
+        for i,epv in enumerate(self.epverts):
+            s = ','.join('%d' % self.epedges.index(epe) for epe in epv.epedges)
+            print('    %d%c: %s' % (i,'.' if epv.is_inner() else '*',s))
+        print('  %d EPEdges' % len(self.epedges))
+        for i,epe in enumerate(self.epedges):
+            i0 = self.epverts.index(epe.epvert0)
+            i1 = self.epverts.index(epe.epvert1)
+            i2 = self.epverts.index(epe.epvert2)
+            i3 = self.epverts.index(epe.epvert3)
+            print('    %d: %d,%d -> %d,%d' % (i,i0,i1,i2,i3))
+        print('  %d EPPatches' % len(self.eppatches))
+        for i,epp in enumerate(self.eppatches):
+            s = ','.join('%d' % self.epedges.index(epe) for epe in epp.lepedges)
+            print('    %d: %s' % (i,s))
+    
+    def get_loop(self, epedge, forward=True):
+        loop = [epedge]
+        epv = epedge.epvert3 if forward else epedge.epvert0
+        while True:
+            epe = epv.get_next_epedge(loop[-1])
+            if epe is None:    return None
+            if epe == loop[0]: return loop
+            loop += [epe]
+            epv = epe.get_opposite_epvert(epv)
+    
+    def update_eppatches(self):
+        loops = set()
+        for epe in self.epedges:
+            l0 = self.get_loop(epe, forward=True)
+            if l0: loops.add(tuple(rotate_items(l0)))
+            l1 = self.get_loop(epe, forward=False)
+            if l1: loops.add(tuple(rotate_items(l1)))
+        self.eppatches = set()
+        self.epedge_eppatch = dict()
+        print('Created %d patches' % len(loops))
+        for loop in loops:
+            epp = EPPatch(loop)
+            self.eppatches.add(epp)
+            for epe in loop:
+                if epe not in self.epedge_eppatch: self.epedge_eppatch[epe] = set()
+                self.epedge_eppatch[epe].add(epp)
+        
+    
     def create_epvert(self, pos):
         epv = EPVert(pos)
         self.epverts.append(epv)
@@ -236,13 +317,8 @@ class EdgePatches:
         self.epedges.append(epe)
         return epe
     
-    def disconnect_eppatch(self, eppatch):
-        print('EdgePatches.disconnect_eppatch not implemented!')
-    
     def disconnect_epedge(self, epedge):
         assert epedge in self.epedges
-        for epp in list(epedge.eppatches):
-            self.disconnect_eppatch(epp)
         epedge.disconnect()
         self.epedges.remove(epedge)
     
@@ -250,7 +326,6 @@ class EdgePatches:
         assert epvert in self.epverts
         for epe in epvert.get_epedges():
             self.disconnect_epedge(epe)
-        #epvert.disconnect()
         self.epverts.remove(epvert)
     
     def split_epedge_at_t(self, epedge, t, connect_epvert=None):

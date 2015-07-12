@@ -598,6 +598,12 @@ def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
     return [l_objs[i] for i in l_inds]
 
+def rotate_items(loop):
+    ''' rotates items in loop such that id(loop[0]) is the min '''
+    im = loop.index(min(loop, key=lambda it:id(it)))
+    c = len(loop)
+    return [loop[(im+i)%c] for i in range(c)]
+
 
 #adapted from opendentalcad then to pie menus now here
 

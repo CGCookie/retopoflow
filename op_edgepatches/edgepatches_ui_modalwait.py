@@ -141,3 +141,9 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.remove_unconnected_epverts()
                 return ''
 
+        if eventd['press'] in {'p','P'}:
+            self.edgepatches.update_eppatches()
+            self.edgepatches.debug()
+            return ''
+        
+        return ''
