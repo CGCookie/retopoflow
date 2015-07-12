@@ -38,7 +38,7 @@ from . import key_maps
 class ModalOperator(Operator):
 
     initialized = False
-
+    
     def initialize(self, FSM=None):
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
@@ -66,6 +66,8 @@ class ModalOperator(Operator):
                 print('  %s' % dfns[fnname])
             assert False
 
+        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+        print(sorted(self.events_nav))
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
@@ -129,9 +131,14 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-        events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+        if eventd['type'] != 'MOUSEMOVE':
+            print(eventd['ftype'])
+            
+        elif eventd['type'] == 'MOUSEMOVE' and eventd['ftype'] != 'MOUSEMOVE':
+            print(eventd['ftype'])
+            
         handle_nav = False
-        handle_nav |= eventd['ftype'] in events_nav
+        handle_nav |= eventd['ftype'] in self.events_nav
         handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
         
         if handle_nav:
