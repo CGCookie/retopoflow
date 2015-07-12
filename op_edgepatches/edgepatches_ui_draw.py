@@ -76,6 +76,7 @@ class EdgePatches_UI_Draw():
         color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
+        bgl.glEnable(bgl.GL_BLEND)
 
         color_handle = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
@@ -88,7 +89,6 @@ class EdgePatches_UI_Draw():
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
-            bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*color)
             bgl.glLineWidth(thickness)
             bgl.glDepthRange(0.0, 0.997)
@@ -104,7 +104,6 @@ class EdgePatches_UI_Draw():
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
-            bgl.glEnable(bgl.GL_BLEND)
             bgl.glLineWidth(thickness)
             bgl.glDepthRange(0.0, 0.997)
             bgl.glColor4f(*color)
@@ -128,7 +127,6 @@ class EdgePatches_UI_Draw():
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
         def draw3d_quad(points, color):
-            bgl.glEnable(bgl.GL_BLEND)
             bgl.glDepthRange(0.0, 0.999)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
@@ -141,7 +139,6 @@ class EdgePatches_UI_Draw():
             bgl.glEnd()
         def draw3d_quads(lpoints, color, color_mirror):
             lpoints = list(lpoints)
-            bgl.glEnable(bgl.GL_BLEND)
             bgl.glDepthRange(0.0, 0.999)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
@@ -166,8 +163,21 @@ class EdgePatches_UI_Draw():
 
         ### EPVerts ###
         for epvert in self.edgepatches.epverts:
-            color_border = (color_active[0], color_active[1], color_active[2], 0.50)
-            draw3d_points(epvert.snap_pos, color_border, 4)
+            if epvert.is_inner(): continue
+            
+            if epvert == self.act_epvert:
+                color = (color_active[0], color_active[1], color_active[2], 0.50)
+            else:
+                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
+            
+            draw3d_points([epvert.snap_pos], color, 8)
+        
+        for epedge in self.edgepatches.epedges:
+            if epedge == self.act_epedge:
+                color = (color_active[0], color_active[1], color_active[2], 0.50)
+            else:
+                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
+            draw3d_polyline(epedge.curve_verts, color, 5, 'GL_LINE_STIPPLE')
 
 
         bgl.glLineWidth(1)

@@ -50,6 +50,8 @@ class EdgePatches_UI:
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_default_keymap_generate()
         
+        self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
+        
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)
         self.mode_radius     = 0
@@ -115,6 +117,7 @@ class EdgePatches_UI:
         
         self.edgepatches = EdgePatches(context, self.obj, self.dest_obj)
         
+        
         # help file stuff
         my_dir = os.path.split(os.path.abspath(__file__))[0]
         filename = os.path.join(my_dir, '..', 'help', 'help_edgepatches.txt')
@@ -128,6 +131,12 @@ class EdgePatches_UI:
         self.help_box.snap_to_corner(context, corner = [1,1])
         
         context.area.header_text_set('Edge-Patches')
+        
+        
+        self.act_epvert = None
+        self.act_epedge = None
+        self.sel_epverts = set()
+        self.sel_epedges = set()
     
     def end_ui(self, context):
         pass
@@ -208,3 +217,62 @@ class EdgePatches_UI:
     
 
     
+    ##############################
+    # picking function
+
+    def pick(self, eventd):
+        x,y = eventd['mouse']
+        pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+        if not pts:
+            # user did not click on the object
+            if not eventd['shift']:
+                # clear selection if shift is not held
+                self.act_epvert,self.act_epedge = None,None
+                self.sel_epedges.clear()
+                self.sel_epverts.clear()
+            return ''
+        pt = pts[0]
+
+        if self.act_epvert or self.act_epedge:
+            # check if user is picking an inner control point
+            if self.act_gedge and not self.act_gedge.zip_to_gedge:
+                lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
+            elif self.act_gvert:
+                sgv = self.act_gvert
+                lge = self.act_gvert.get_gedges()
+                lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
+            else:
+                lcpts = []
+
+            for cpt in lcpts:
+                if not cpt.is_picked(pt): continue
+                self.act_gedge = None
+                self.sel_gedges.clear()
+                self.act_gvert = cpt
+                self.sel_gverts = set([cpt])
+                self.act_gpatch = None
+                return ''
+        
+        # Select epvert
+        for epv in self.edgepatches.epverts:
+            if epv.is_inner(): continue
+            if not epv.is_picked(pt): continue
+            self.act_epedge = None
+            self.sel_epedges.clear()
+            self.sel_epverts.clear()
+            self.act_epvert = epv
+            return ''
+        
+        # Select epedge
+        for epe in self.edgepatches.epedges:
+            if not epe.is_picked(pt): continue
+            self.act_epvert = None
+            self.act_epedge = epe
+            self.sel_epedges.clear()
+            self.sel_epedges.add(epe)
+            self.sel_epverts.clear()
+            return ''
+        
+        self.act_epedge,self.act_epvert = None,None
+        self.sel_epedges.clear()
+        self.sel_epverts.clear()
