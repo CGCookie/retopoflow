@@ -39,7 +39,7 @@ class  CGC_EyeDropper(ModalOperator):
         self.ob = None
         self.ob_preview = 'None'
         
-        self.help_box.raw_text = "  Click an object"        
+        self.help_box.raw_text = "Click an object"
         self.help_box.uncollapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         pass
