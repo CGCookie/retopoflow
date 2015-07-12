@@ -36,7 +36,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
-from ..lib.common_utilities import get_source_object, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
 from ..cache import contour_mesh_cache, contour_undo_cache
 from ..preferences import RetopoFlowPreferences
 #from development.cgc-retopology import contour_utilities
@@ -171,6 +171,9 @@ class Contours(object):
         get references to object and object data
         '''
         
+        self.settings = common_utilities.get_settings()
+        target_object = get_target_object()
+
         self.sel_edge = None
         self.sel_verts = None
         self.existing_cut = None
@@ -178,8 +181,14 @@ class Contours(object):
         tmp_ob = None
         
         name = ob.name + '_recontour'
-        self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, ob.matrix_world)
         
+        if self.settings.target_object:
+            self.dest_ob = bpy.data.objects[self.settings.target_object]
+            self.dest_me = self.dest_ob.data
+            self.dest_bme = bmesh.new()
+            self.dest_bme.from_mesh(self.dest_me)
+        else:
+            self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, ob.matrix_world)
         
         is_valid = is_object_valid(ob)
         has_tmp = 'ContourTMP' in bpy.data.objects and bpy.data.objects['ContourTMP'].data
@@ -326,8 +335,9 @@ class Contours(object):
             self.dest_bme.to_mesh(self.dest_me)
         
             #remember we created a new object
-            print('link destination object')
-            context.scene.objects.link(self.dest_ob)
+            if not self.settings.target_object:
+                print('link destination object')
+                context.scene.objects.link(self.dest_ob)
             
             print('select and make active')
             self.dest_ob.select = True
