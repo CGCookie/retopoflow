@@ -18,10 +18,14 @@ Decent Resources:
 #http://www.blender.org/documentation/blender_python_api_2_70a_release/bpy.types.KeyConfig.html
 http://blender.stackexchange.com/questions/4832/how-to-find-the-right-keymap-to-change-on-addon-registration
 '''
-
-import bpy
+#Python Imports
 import inspect
+from copy import deepcopy
 
+#Blender Imports
+import bpy
+
+#CGCookie Imports
 from .lib.common_utilities import dcallstack
 
 def_rf_key_map = {}
@@ -49,7 +53,7 @@ def_rf_key_map['dn count'] = {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE'}
 
 #CONTOURS UNIQUE KEYS
 def_rf_key_map['smooth'] = {'CTRL+S'}
-def_rf_key_map['bridge'] = {'B'}
+#def_rf_key_map['bridge'] = {'B'}
 def_rf_key_map['new'] = {'N'}
 def_rf_key_map['align'] = {'SHIFT+A', 'CRTL+A', 'ALT+A'}
 def_rf_key_map['up shift'] = {'LEFT_ARROW'}
@@ -75,18 +79,29 @@ def_rf_key_map['zip down'] = {'CTRL+NUMPAD_PLUS'}
 def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 
 
-navigation_events = {'Rotate View', 'Move View', 'Zoom View', 
+navigation_events = {'Rotate View', 'Move View', 'Zoom View','Dolly View' 
                      'View Pan', 'View Orbit', 'Rotate View', 
                      'View Persp/Ortho', 'View Numpad', 'NDOF Orbit View', 
                      'NDOF Pan View', 'View Selected', 'Center View to Cursor'}
 
-rtflow_keymap = None
+
 
 def kmi_details(kmi):
         kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
         kmi_shift   = 'SHIFT+' if kmi.shift else ''
         kmi_alt     = 'ALT+'   if kmi.alt   else ''
-        kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi.type
+        
+        kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt
+        if kmi.type == 'WHEELINMOUSE':
+            print('WHEELUPMOUSE substituted for WHEELINMOUSE')
+            kmi_ftype += 'WHEELUPMOUSE'
+        
+        elif kmi.type == 'WHEELOUTMOUSE':
+            print('WHEELDOWNMOUSE substituted for WHEELOUTMOUSE')
+            kmi_ftype += 'WHEELDOWNMOUSE'
+        
+        else:
+            kmi_ftype  += kmi.type
         
         return kmi_ftype
 
@@ -110,11 +125,7 @@ def add_to_dict(km_dict, key, value, safety = True):
         return False
 
 def rtflow_default_keymap_generate():
-    km_dict = dict(def_rf_key_map)
-    
-    #bug, WHEELOUTMOUSE and WHEELINMOUSE used in 3dview keymap
-    add_to_dict(km_dict,'navigate', 'WHEELUPMOUSE')
-    add_to_dict(km_dict,'navigate', 'WHEELDOWNMOUSE')
+    km_dict = deepcopy(def_rf_key_map)
     
     for kmi in bpy.context.window_manager.keyconfigs['Blender'].keymaps['3D View'].keymap_items:
         if kmi.name in navigation_events:     
@@ -122,9 +133,25 @@ def rtflow_default_keymap_generate():
     return km_dict
 
 
-def rtflow_default_keymap_retrieve():
+def rtflow_user_keymap_generate():
+    km_dict = deepcopy(def_rf_key_map)
+    if 'Blender User' not in bpy.context.window_manager.keyconfigs:
+        print('No User Keymap, default keymap generated')
+        return rtflow_default_keymap_generate()
+    
+    for kmi in bpy.context.window_manager.keyconfigs['Blender User'].keymaps['3D View'].keymap_items:
+        if kmi.name in navigation_events:     
+            add_to_dict(km_dict,'navigate',kmi_details(kmi))
+            
+    return km_dict
+
+rtflow_keymap = None
+
+def rtflow_keymap_retrieve():
+    global rtflow_keymap  #TODO, make this classy
     if rtflow_keymap:
         return rtflow_keymap
     else:
-        return rtflow_default_keymap_generate()
+        rtflow_keymap = rtflow_user_keymap_generate()
+        return rtflow_keymap
  
