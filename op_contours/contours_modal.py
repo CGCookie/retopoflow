@@ -77,7 +77,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         ''' Called when tool has been invoked '''
         print('did we get started')
         self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_keymap_retrieve()
+        self.keymap = key_maps.rtflow_user_keymap_generate()
         self.get_help_text(context)
         self.contours = Contours(context, self.settings)
         return ''

@@ -48,7 +48,7 @@ class Polystrips_UI:
     
     def start_ui(self, context):
         self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_default_keymap_generate()
+        self.keymap = key_maps.rtflow_user_keymap_generate()
         
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         

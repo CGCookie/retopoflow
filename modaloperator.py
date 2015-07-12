@@ -129,7 +129,7 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-        events_nav = key_maps.rtflow_keymap_retrieve()['navigate']
+        events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
         handle_nav = False
         handle_nav |= eventd['ftype'] in events_nav
         handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
