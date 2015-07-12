@@ -79,7 +79,7 @@ def_rf_key_map['zip down'] = {'CTRL+NUMPAD_PLUS'}
 def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 
 
-navigation_events = {'Rotate View', 'Move View', 'Zoom View','Dolly View' 
+navigation_events = {'Rotate View', 'Move View', 'Zoom View','Dolly View',
                      'View Pan', 'View Orbit', 'Rotate View', 
                      'View Persp/Ortho', 'View Numpad', 'NDOF Orbit View', 
                      'NDOF Pan View', 'View Selected', 'Center View to Cursor'}

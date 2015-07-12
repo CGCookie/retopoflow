@@ -224,6 +224,8 @@ class ModalOperator(Operator):
 
         self.is_navigating = (nmode == 'nav')
         if nmode == 'nav':
+            if 'TRACKPAD' in event.type:
+                print('Trackpad passed through')
             return {'PASS_THROUGH'}     # pass events (mouse,keyboard,etc.) on to region
 
         if nmode in {'finish','cancel'}:
