@@ -33,7 +33,7 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d
+from ..lib.common_utilities import point_inside_loop2d, get_source_object
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
@@ -58,7 +58,7 @@ class Tweak_UI:
 
         self.post_update = True
 
-        self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
+        self.obj_orig = get_source_object()
         if self.obj_orig.modifiers:
             self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
             self.me.update()
@@ -73,11 +73,10 @@ class Tweak_UI:
         # Comment out for now. Appears to no longer be needed.
         # bpy.ops.object.mode_set(mode='OBJECT')
         # bpy.ops.object.mode_set(mode='EDIT')
-        
+
         self.dest_obj = context.object
         self.dest_bme = bmesh.from_edit_mesh(context.object.data)
         self.snap_eds = [] #EXTEND
-               
         #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
         
         
