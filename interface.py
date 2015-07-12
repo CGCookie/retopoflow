@@ -76,7 +76,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         if context.mode =='EDIT_MESH':
             col.operator("cgcookie.tweak", icon='HAND')
 
-        col.operator("cgcookie.tweak", icon='HAND')
         col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
 
         col = layout.column(align=True)
