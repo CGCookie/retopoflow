@@ -164,7 +164,7 @@ class EdgePatches_UI_Draw():
             bgl.glDepthRange(0.0, 0.999)
             bgl.glBegin(bgl.GL_TRIANGLES)
             bgl.glColor4f(*color)
-            for p0,p1 in zip_pairs(lpts):
+            for p0,p1 in zip(lpts[:-1],lpts[1:]):
                 bgl.glVertex3f(*cpt)
                 bgl.glVertex3f(*p0)
                 bgl.glVertex3f(*p1)

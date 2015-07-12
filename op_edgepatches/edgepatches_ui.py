@@ -234,7 +234,7 @@ class EdgePatches_UI:
         pt = pts[0]
 
         # Select EPVert
-        for epv,_ in self.edgepatches.pick_epverts(pt, maxdist=0.05):
+        for epv,_ in self.edgepatches.pick_epverts(pt, maxdist=self.stroke_radius):
             if epv.is_inner():
                 if self.act_epvert:
                     if epv != self.act_epvert and epv not in self.act_epvert.get_inner_epverts():
@@ -251,7 +251,7 @@ class EdgePatches_UI:
             return ''
         
         # Select EPEdge
-        for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=0.05):
+        for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=self.stroke_radius):
             self.act_epvert = None
             self.act_epedge = epe
             self.sel_epedges.clear()

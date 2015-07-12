@@ -83,13 +83,7 @@ class EdgePatches_UI_ModalWait():
                 r = self.stroke_radius
 
             self.sketch_curpos = (x,y)
-
-            if False and eventd['ctrl'] and self.act_epvert:
-                # continue sketching from selected gvert position
-                gvx,gvy = location_3d_to_region_2d(eventd['region'], eventd['r3d'], self.act_gvert.position)
-                self.sketch = [((gvx,gvy),self.act_gvert.radius), ((x,y),r)]
-            else:
-                self.sketch = [((x,y),r)]
+            self.sketch = [((x,y),r)]
             
             return 'sketch'
 

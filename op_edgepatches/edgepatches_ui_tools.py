@@ -89,7 +89,13 @@ class EdgePatches_UI_Tools:
 
             self.sketch = []
             
-            self.edgepatches.insert_gedge_from_stroke(p3d, False)
+            lepv0 = self.edgepatches.pick_epverts(p3d[0][0], maxdist=self.stroke_radius, allowInner=False)
+            lepv3 = self.edgepatches.pick_epverts(p3d[-1][0], maxdist=self.stroke_radius, allowInner=False)
+            
+            sepv0 = lepv0[0][0] if lepv0 else None
+            sepv3 = lepv3[0][0] if lepv3 else None
+            
+            self.edgepatches.insert_epedge_from_stroke(p3d, sepv0=sepv0, sepv3=sepv3)
             
             #self.polystrips.remove_unconnected_gverts()
             #self.polystrips.update_visibility(eventd['r3d'])

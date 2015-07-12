@@ -74,7 +74,7 @@ class EPVert:
         if len(self.epedges)>2:
             ''' sort the epedges about normal '''
             l_vecs = [epe.get_outer_vector_at(self) for epe in self.epedges]
-            self.epedges = sort_objects_by_angles(self.snap_norm, self.epedges, l_vecs)  # positive snap_norm to sort clockwise
+            self.epedges = sort_objects_by_angles(-self.snap_norm, self.epedges, l_vecs)  # positive snap_norm to sort clockwise
         for epe in self.epedges:
             epe.update()
     
@@ -183,6 +183,9 @@ class EPEdge:
             if d < maxdist: return True
         return False
     
+    def has_epvert(self, epvert):
+        return epvert==self.epvert0 or epvert==self.epvert1 or epvert==self.epvert2 or epvert==self.epvert3
+    
     def min_dist_to_point(self, pt):
         return min(closest_t_and_distance_point_to_line_segment(pt,p0,p1)[1] for p0,p1 in zip_pairs(self.curve_verts))
     
@@ -200,6 +203,7 @@ class EPEdge:
 class EPPatch:
     def __init__(self, lepedges):
         self.lepedges = list(lepedges)
+        self.epedge_fwd = [e1.has_epvert(e0.epvert3) for e0,e1 in zip_pairs(self.lepedges)]
         self.center = Vector()
         self.normal = Vector()
         self.update()
@@ -219,7 +223,10 @@ class EPPatch:
             self.normal = Vector()
     
     def get_outer_points(self):
-        return [p for epe in self.lepedges for p in epe.curve_verts]
+        def get_verts(epe,fwd):
+            if fwd: return epe.curve_verts
+            return reversed(epe.curve_verts)
+        return [p for epe,fwd in zip(self.lepedges,self.epedge_fwd) for p in get_verts(epe,fwd)]
 
 
 
@@ -280,14 +287,35 @@ class EdgePatches:
             print('    %d: %s' % (i,s))
     
     def get_loop(self, epedge, forward=True):
-        loop = [epedge]
         epv = epedge.epvert3 if forward else epedge.epvert0
+        loop = [epedge]
+        lepv = [epv]
+        minp,maxp = epv.snap_pos,epv.snap_pos
         while True:
             epe = epv.get_next_epedge(loop[-1])
             if epe is None:    return None
-            if epe == loop[0]: return loop
+            if epe == loop[0]: break
             loop += [epe]
             epv = epe.get_opposite_epvert(epv)
+            lepv += [epv]
+            minp = min(minp, epv.snap_pos)
+            maxp = max(maxp, epv.snap_pos)
+        
+        # make sure loop is anti-clockwise
+        r = maxp - minp
+        c = len(lepv)
+        if r.x >= r.y and r.x >= r.z:
+            ip1 = min(range(c), key=lambda i:lepv[i].snap_pos.x)
+        elif r.y >= r.x and r.y >= r.z:
+            ip1 = min(range(c), key=lambda i:lepv[i].snap_pos.y)
+        else:
+            ip1 = min(range(c), key=lambda i:lepv[i].snap_pos.z)
+        
+        epv0,epv1,epv2 = lepv[(ip1+c-1) % c], lepv[ip1], lepv[(ip1+1) % c]
+        nl = (epv0.snap_pos - epv1.snap_pos).cross(epv2.snap_pos - epv1.snap_pos)
+        if epv1.snap_norm.dot(nl) < 0: return None
+        
+        return loop
     
     def update_eppatches(self):
         loops = set()
@@ -377,7 +405,7 @@ class EdgePatches:
         return self.create_epedge(epv0,epv1,epv2,epv3)
     
     
-    def insert_gedge_from_stroke(self, stroke, only_ends, sepv0=None, sepv3=None, depth=0):
+    def insert_epedge_from_stroke(self, stroke, sepv0=None, sepv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
         yikes....pressure and radius need to be reconciled!
@@ -388,13 +416,16 @@ class EdgePatches:
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:
             if epv0 is None:
-                epv0 = self.create_epvert(p0)
+                epv0 = sepv0 if sepv0 else self.create_epvert(p0)
             else:
                 epv0 = epv3
             epv1 = self.create_epvert(p1)
             epv2 = self.create_epvert(p2)
             epv3 = self.create_epvert(p3)
             epe = self.create_epedge(epv0, epv1, epv2, epv3)
+        if sepv3:
+            epe.replace_epvert(epv3, sepv3)
+            self.remove_unconnected_epverts()
 
     def merge_epverts(self, epvert0, epvert1):
         ''' merge epvert0 into epvert1 '''
@@ -405,9 +436,10 @@ class EdgePatches:
         epvert1.update_epedges()
         return epvert1
     
-    def pick_epverts(self, pt, maxdist=0.1, sort=True):
+    def pick_epverts(self, pt, maxdist=0.1, sort=True, allowInner=True):
         lepv = []
         for epv in self.epverts:
+            if not allowInner and epv.isinner: continue
             d = (epv.snap_pos-pt).length
             if d <= maxdist: lepv += [(epv,d)]
         if not sort: return lepv
