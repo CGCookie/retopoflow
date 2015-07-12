@@ -131,20 +131,20 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-        if eventd['type'] != 'MOUSEMOVE':
-            print(eventd['ftype'])
-            
-        elif eventd['type'] == 'MOUSEMOVE' and eventd['ftype'] != 'MOUSEMOVE':
-            print(eventd['ftype'])
+
+        
+        if eventd['type'].startswith('TRACK'):
+            print('trackpad event')
+            print(eventd['value'])
             
         handle_nav = False
         handle_nav |= eventd['ftype'] in self.events_nav
-        handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
         
+        print('handle_nav')
         if handle_nav:
             self.post_update   = True
             self.is_navigating = True
-            return 'nav' if eventd['value']=='PRESS' else 'main'
+            return 'main' if eventd['value']=='RELEASE' else 'nav'
 
         self.is_navigating = False
         return ''
