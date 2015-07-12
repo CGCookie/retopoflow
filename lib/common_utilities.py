@@ -89,6 +89,16 @@ def get_source_object():
 
     return source_object
 
+def get_target_object():
+    settings = get_settings()
+
+    if settings.target_object:
+        target_object = bpy.data.objects[settings.target_object]
+    else:
+        target_object = bpy.context.active_object
+
+    return target_object
+
 def dprint(s, l=2):
     settings = get_settings()
     if settings.debug >= l:
