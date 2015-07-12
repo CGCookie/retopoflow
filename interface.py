@@ -27,29 +27,36 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col.label("Source Object:")
 
         col = layout.column(align=True)
-        col.prop(settings, "use_active", icon="RESTRICT_SELECT_OFF")
 
-        if not settings.use_active:
+        if context.mode == 'OBJECT':
             row = col.row(align=True)
             scene = context.scene
             row.prop_search(settings, "source_object", scene, "objects", text='')
 
             sub = row.row(align=True)
             sub.scale_x = 0.1
-            sub.prop_search(settings, "source_object", scene, "objects", text='', icon='EYEDROPPER')
+            sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'source_object'
+        elif context.mode == 'EDIT_MESH':
+            row = col.row(align=True)
+            scene = context.scene
+            row.prop_search(settings, "source_object", scene, "objects", text='')
 
-        col = layout.column(align=True)
+            sub = row.row(align=True)
+            sub.scale_x = 0.1
+            sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'source_object'
 
-        col.label("Target Object:")
+        if context.mode != 'EDIT_MESH':
 
+            col = layout.column(align=True)
+            col.label("Target Object:")
 
-        row = col.row(align=True)
-        scene = context.scene
-        row.prop_search(settings, "target_object", scene, "objects", text='')
+            row = col.row(align=True)
+            scene = context.scene
+            row.prop_search(settings, "target_object", scene, "objects", text='')
 
-        sub = row.row(align=True)
-        sub.scale_x = 0.1
-        sub.prop_search(settings, "target_object", scene, "objects", text='', icon='EYEDROPPER')
+            sub = row.row(align=True)
+            sub.scale_x = 0.1
+            sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'target_object'
 
         col = layout.column(align=True)
 
@@ -66,6 +73,8 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
         else:
             col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+        if context.mode =='EDIT_MESH':
+            col.operator("cgcookie.tweak", icon='HAND')
 
         col.operator("cgcookie.tweak", icon='HAND')
         col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
@@ -111,8 +120,16 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        layout.operator("cgcookie.contours", icon="IPO_LINEAR")
-        layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
-        layout.operator("cgcookie.tweak", icon="HAND")
-        layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
+        if bversion() > '002.074.004':
+            icons = load_icons()
+            contours_icon = icons.get("rf_contours_icon")
+            polystrips_icon = icons.get("rf_polystrips_icon")
+            layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+            layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        else:
+            layout.operator("cgcookie.contours", icon="IPO_LINEAR")
+            layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+
+        if context.mode =='EDIT_MESH':
+            layout.operator("cgcookie.tweak", icon="HAND")
 

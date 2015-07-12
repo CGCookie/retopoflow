@@ -33,24 +33,12 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 from .lib.common_classes import TextBox
+from . import key_maps
 
 class ModalOperator(Operator):
-    events_numpad = {
-        'NUMPAD_1',       'NUMPAD_2',       'NUMPAD_3',
-        'NUMPAD_4',       'NUMPAD_5',       'NUMPAD_6',
-        'NUMPAD_7',       'NUMPAD_8',       'NUMPAD_9',
-        'CTRL+NUMPAD_1',  'CTRL+NUMPAD_2',  'CTRL+NUMPAD_3',
-        'CTRL+NUMPAD_4',  'CTRL+NUMPAD_5',  'CTRL+NUMPAD_6',
-        'CTRL+NUMPAD_7',  'CTRL+NUMPAD_8',  'CTRL+NUMPAD_9',
-        'SHIFT+NUMPAD_1', 'SHIFT+NUMPAD_2', 'SHIFT+NUMPAD_3',
-        'SHIFT+NUMPAD_4', 'SHIFT+NUMPAD_5', 'SHIFT+NUMPAD_6',
-        'SHIFT+NUMPAD_7', 'SHIFT+NUMPAD_8', 'SHIFT+NUMPAD_9',
-        'NUMPAD_PLUS', 'NUMPAD_MINUS', # CTRL+NUMPAD_PLUS and CTRL+NUMPAD_MINUS are used elsewhere
-        'NUMPAD_PERIOD',
-    }
 
     initialized = False
-
+    
     def initialize(self, FSM=None):
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
@@ -78,6 +66,7 @@ class ModalOperator(Operator):
                 print('  %s' % dfns[fnname])
             assert False
 
+        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
@@ -141,18 +130,14 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
+ 
         handle_nav = False
-        handle_nav |= eventd['type'] == 'MIDDLEMOUSE'
-        handle_nav |= eventd['type'] == 'MOUSEMOVE' and self.is_navigating
-        handle_nav |= eventd['type'].startswith('NDOF_')
-        handle_nav |= eventd['type'].startswith('TRACKPAD')
-        handle_nav |= eventd['ftype'] in self.events_numpad
-        handle_nav |= eventd['ftype'] in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}
-
+        handle_nav |= eventd['ftype'] in self.events_nav
+        
         if handle_nav:
             self.post_update   = True
             self.is_navigating = True
-            return 'nav' if eventd['value']=='PRESS' else 'main'
+            return 'main' if eventd['value']=='RELEASE' else 'nav'
 
         self.is_navigating = False
         return ''

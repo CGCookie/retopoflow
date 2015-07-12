@@ -59,14 +59,17 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         self.initialize(FSM)
     
     def start_poll(self,context):
+
+        self.settings = common_utilities.get_settings()
+
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
             return False
-        elif context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
-            showErrorMessage('Must select exactly two objects')
+        elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
+            showErrorMessage('Must specify a Source Object')
             return False
-        elif context.mode == 'OBJECT' and len(context.selected_objects) != 1:
-            showErrorMessage('Must select only one object')
+        elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
+            showErrorMessage('Must select an object or specifiy a Source Object')
             return False
         return True
     
@@ -74,7 +77,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         ''' Called when tool has been invoked '''
         print('did we get started')
         self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_default_keymap_generate()
+        self.keymap = key_maps.rtflow_user_keymap_generate()
         self.get_help_text(context)
         self.contours = Contours(context, self.settings)
         return ''
@@ -355,7 +358,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     
     def get_help_text(self,context):
         my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, "help/help_contours.txt")
+        filename = os.path.join(my_dir,'..', 'help','help_contours.txt')
         if os.path.isfile(filename):
             help_txt = open(filename, mode='r').read()
         else:

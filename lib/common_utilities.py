@@ -76,8 +76,28 @@ def get_settings():
     settings = addons[foldername].preferences
     return settings
 
+def get_source_object():
+    settings = get_settings()
 
+    if bpy.context.mode == 'OBJECT':
+        if settings.source_object:
+            source_object = bpy.data.objects[settings.source_object]
+        else:
+            source_object = bpy.context.active_object
+    elif bpy.context.mode == 'EDIT_MESH':
+            source_object = bpy.data.objects[settings.source_object]
 
+    return source_object
+
+def get_target_object():
+    settings = get_settings()
+
+    if settings.target_object:
+        target_object = bpy.data.objects[settings.target_object]
+    else:
+        target_object = bpy.context.active_object
+
+    return target_object
 
 def dprint(s, l=2):
     settings = get_settings()

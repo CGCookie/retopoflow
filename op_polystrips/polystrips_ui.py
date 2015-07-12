@@ -32,8 +32,8 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d
+from ..lib.common_utilities import bversion, get_source_object, get_target_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
@@ -48,7 +48,7 @@ class Polystrips_UI:
     
     def start_ui(self, context):
         self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_default_keymap_generate()
+        self.keymap = key_maps.rtflow_user_keymap_generate()
         
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         
@@ -79,7 +79,9 @@ class Polystrips_UI:
 
             # Debug level 2: time start
             check_time = profiler.start()
-            self.obj_orig = bpy.data.objects[self.settings.source_object]
+
+            self.obj_orig = get_source_object()
+
             # duplicate selected objected to temporary object but with modifiers applied
             if self.obj_orig.modifiers:
                 # Time event
@@ -104,10 +106,14 @@ class Polystrips_UI:
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
-            dest_me  = bpy.data.meshes.new(nm_polystrips)
-            self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-            self.dest_obj.matrix_world = self.obj.matrix_world
-            context.scene.objects.link(self.dest_obj)
+            if self.settings.target_object:
+                self.dest_bme.from_mesh( get_target_object().data )
+                self.dest_obj = get_target_object()
+            else:
+                dest_me  = bpy.data.meshes.new(nm_polystrips)
+                self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
+                self.dest_obj.matrix_world = self.obj.matrix_world
+                context.scene.objects.link(self.dest_obj)
             
             self.extension_geometry = []
             self.snap_eds = []
@@ -115,7 +121,7 @@ class Polystrips_UI:
             self.hover_ed = None
 
         elif context.mode == 'EDIT_MESH':
-            self.obj_orig = [ob for ob in context.selected_objects if ob != context.object][0]
+            self.obj_orig = get_source_object()
             if self.obj_orig.modifiers:
                 self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 self.me.update()
@@ -131,7 +137,7 @@ class Polystrips_UI:
             # bpy.ops.object.mode_set(mode='OBJECT')
             # bpy.ops.object.mode_set(mode='EDIT')
             
-            self.dest_obj = context.object
+            self.dest_obj = get_target_object()
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
             self.snap_eds = [] #EXTEND
                    

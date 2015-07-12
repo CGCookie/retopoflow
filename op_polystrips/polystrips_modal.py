@@ -66,11 +66,11 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         
         self.settings = common_utilities.get_settings()
 
-        if context.mode == 'EDIT_MESH' and len(context.selected_objects) != 2:
-            showErrorMessage('Must select exactly two objects when in Edit Mode')
+        if context.mode == 'EDIT_MESH' and self.settings.source_object == '':
+            showErrorMessage('Must specify a source object first')
             return False
         
-        if context.mode == 'OBJECT' and self.settings.source_object == '':
+        if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must specify a source object first or enable Use Active')
             return False
         

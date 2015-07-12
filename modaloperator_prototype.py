@@ -80,6 +80,9 @@ class OP_BaseEditor(ModalOperator):
         ''' Place post pixel drawing code in here '''
         pass
     
+    def update(self,context):
+        '''Place update stuff here'''
+        pass
     def modal_wait(self, context, eventd):
         '''
         Place code here to handle commands issued by user
