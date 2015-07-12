@@ -33,7 +33,7 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d
+from ..lib.common_utilities import point_inside_loop2d, get_source_object
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
 
@@ -63,7 +63,7 @@ class EdgePatches_UI:
         
         # Debug level 2: time start
         check_time = profiler.start()
-        self.obj_orig = bpy.data.objects[self.settings.source_object]
+        self.obj_orig = get_source_object()
         # duplicate selected objected to temporary object but with modifiers applied
         if self.obj_orig.modifiers:
             # Time event
