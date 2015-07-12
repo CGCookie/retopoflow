@@ -67,7 +67,6 @@ class ModalOperator(Operator):
             assert False
 
         self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
-        print(sorted(self.events_nav))
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
@@ -131,16 +130,10 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
-
-        
-        if eventd['type'].startswith('TRACK'):
-            print('trackpad event')
-            print(eventd['value'])
-            
+ 
         handle_nav = False
         handle_nav |= eventd['ftype'] in self.events_nav
         
-        print('handle_nav')
         if handle_nav:
             self.post_update   = True
             self.is_navigating = True
@@ -224,8 +217,6 @@ class ModalOperator(Operator):
 
         self.is_navigating = (nmode == 'nav')
         if nmode == 'nav':
-            if 'TRACKPAD' in event.type:
-                print('Trackpad passed through')
             return {'PASS_THROUGH'}     # pass events (mouse,keyboard,etc.) on to region
 
         if nmode in {'finish','cancel'}:
