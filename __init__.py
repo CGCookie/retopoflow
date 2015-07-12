@@ -52,7 +52,7 @@ from .preferences import RetopoFlowPreferences
 from .op_polystrips.polystrips_modal import CGC_Polystrips
 from .op_contours.contours_modal import CGC_Contours
 from .op_tweak.tweak_modal import CGC_Tweak
-from .op_eyedropper import CGC_EyeDropper
+from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
 
 
 # Used to store keymaps for addon
