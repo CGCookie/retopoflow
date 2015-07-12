@@ -63,7 +63,7 @@ class Tweak_UI:
             self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
             self.me.update()
 
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
+            self.obj = bpy.data.objects.new('TweakTmp', self.me)
             bpy.context.scene.objects.link(self.obj)
             self.obj.hide = True
         else:
