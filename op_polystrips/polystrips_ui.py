@@ -32,7 +32,7 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_source_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_source_object, get_target_object, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
@@ -107,9 +107,12 @@ class Polystrips_UI:
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
             dest_me  = bpy.data.meshes.new(nm_polystrips)
-            self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-            self.dest_obj.matrix_world = self.obj.matrix_world
-            context.scene.objects.link(self.dest_obj)
+            if self.settings.target_object:
+                self.dest_obj = get_target_object()
+            else:
+                self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
+                self.dest_obj.matrix_world = self.obj.matrix_world
+                context.scene.objects.link(self.dest_obj)
             
             self.extension_geometry = []
             self.snap_eds = []
@@ -133,7 +136,7 @@ class Polystrips_UI:
             # bpy.ops.object.mode_set(mode='OBJECT')
             # bpy.ops.object.mode_set(mode='EDIT')
             
-            self.dest_obj = context.object
+            self.dest_obj = get_target_object()
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
             self.snap_eds = [] #EXTEND
                    
