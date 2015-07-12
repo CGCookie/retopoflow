@@ -73,11 +73,10 @@ class Tweak_UI:
         # Comment out for now. Appears to no longer be needed.
         # bpy.ops.object.mode_set(mode='OBJECT')
         # bpy.ops.object.mode_set(mode='EDIT')
-        
+
         self.dest_obj = context.object
         self.dest_bme = bmesh.from_edit_mesh(context.object.data)
         self.snap_eds = [] #EXTEND
-               
         #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
         
         

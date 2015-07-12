@@ -61,6 +61,9 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
         
         self.settings = common_utilities.get_settings()
 
+        if context.mode != 'EDIT_MESH':
+            showErrorMessage('Must be in Edit Mode')
+
         if context.mode == 'EDIT_MESH' and not self.settings.source_object:
             showErrorMessage('Must specify a Source Object')
             return False
