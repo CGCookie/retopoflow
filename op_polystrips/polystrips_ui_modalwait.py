@@ -156,6 +156,12 @@ class Polystrips_UI_ModalWait():
             for gv in self.polystrips.gverts:
                 gv.update_gedges()
 
+        if eventd['press'] in self.keymap['symmetry_x']:
+            if self.settings.symmetry_plane == 'none':
+                self.settings.symmetry_plane = 'x'
+            else:
+                self.settings.symmetry_plane = 'none'
+
         ###################################
         # Selected gpatch commands
         

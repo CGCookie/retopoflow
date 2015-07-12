@@ -71,6 +71,7 @@ def_rf_key_map['rip'] = {'CTRL+R'}
 def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
 def_rf_key_map['scale handles'] = {'CTRL+S'}
 def_rf_key_map['align handles'] = {'C'}
+def_rf_key_map['symmetry_x'] = {'SHIFT+X'}
 def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
 def_rf_key_map['update'] = {'CTRL+U'}
