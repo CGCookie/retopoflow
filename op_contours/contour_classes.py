@@ -185,7 +185,8 @@ class Contours(object):
         if self.settings.target_object:
             self.dest_ob = bpy.data.objects[self.settings.target_object]
             self.dest_me = self.dest_ob.data
-            self.dest_bme = bmesh.new().from_mesh(self.dest_me)
+            self.dest_bme = bmesh.new()
+            self.dest_bme.from_mesh(self.dest_me)
         else:
             self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, ob.matrix_world)
         
@@ -334,8 +335,9 @@ class Contours(object):
             self.dest_bme.to_mesh(self.dest_me)
         
             #remember we created a new object
-            print('link destination object')
-            context.scene.objects.link(self.dest_ob)
+            if not self.settings.target_object:
+                print('link destination object')
+                context.scene.objects.link(self.dest_ob)
             
             print('select and make active')
             self.dest_ob.select = True
