@@ -1734,6 +1734,8 @@ class Polystrips(object):
         return self.create_gedge(gv0,gv1,gv2,gv3)
     
     def extension_geometry_from_bme(self, bme):
+        bme.faces.ensure_lookup_table()
+        bme.verts.ensure_lookup_table()
         self.extension_geometry = []
         mx = bpy.data.objects[self.targ_o_name].matrix_world
         for f in bme.faces:
@@ -2360,11 +2362,13 @@ class Polystrips(object):
             for i0,i1,i2,i3 in gp.quads:
                 create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
             
-        # remove unused verts and remap quads
+        # remove unused verts and remap quads  <----#likely area of issue #116
+        #if a vert is not part of a quad in the existing mesh, it gets removed
         vind_used = [False for v in verts]
-        for q in quads:
+        for q in quads + non_quads:
             for vind in q:
                 vind_used[vind] = True
+                
         i_new = 0
         map_vinds = {}
         for i_vind,used in enumerate(vind_used):
