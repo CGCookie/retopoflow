@@ -112,7 +112,8 @@ def add_to_dict(km_dict, key, value, safety = True):
             if value in km_dict[k]:
                 print('%s is already part of keymap "%s"' % (value, key))
                 dcallstack()
-    
+                return False
+
     if key not in km_dict:
         km_dict[key] = set([value])
         return True
