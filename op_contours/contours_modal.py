@@ -66,10 +66,10 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             showErrorMessage('Viewport shading must be at least SOLID')
             return False
         elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
-            showErrorMessage('Must select exactly two objects')
+            showErrorMessage('Must specify a Source Object')
             return False
-        elif context.mode == 'OBJECT' and self.settings.source_object == '' and not self.settings.use_active:
-            showErrorMessage('Must select only one object')
+        elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
+            showErrorMessage('Must select an object or specifiy a Source Object')
             return False
         return True
     
