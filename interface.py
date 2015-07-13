@@ -71,6 +71,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         if context.mode =='EDIT_MESH':
             col.operator("cgcookie.tweak", icon='HAND')
             col.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
+            col.operator("cgcookie.edge_slide", text='Edge Slide', icon='SNAP_EDGE')
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
