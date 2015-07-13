@@ -69,15 +69,19 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     
     def start(self, context):
         ''' Called when tool has been invoked '''
-        
+        self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
         self.trg_obj = get_target_object()
         self.src_obj = get_source_object()
         bpy.context.scene.update()
         self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
         self.loopcut = LoopCut(context, self.trg_obj, self.src_obj)
-    
+        self.loopcut.slide = self.settings.use_pressure
+        
+        
         context.area.header_text_set('LOOP CUT')
+        
+        
     def end(self, context):
         ''' Called when tool is ending modal '''
         bpy.ops.object.editmode_toggle()
@@ -129,11 +133,16 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
                 p1 = ed.verts[1].co
                 pmin, pct = intersect_point_line(pt, p0, p1)   
                 dist = pmin - pt
-                return dist.length
+                return dist.length, pct
             
             f = self.bme.faces[hit[2]]
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
+            d, pct = ed_dist(test_edge)
+            
+            if self.loopcut.slide:
+                self.loopcut.pct = pct
+                
             self.loopcut.find_face_loop(self.bme,test_edge)
             self.loopcut.calc_snaps(self.bme)
         else:

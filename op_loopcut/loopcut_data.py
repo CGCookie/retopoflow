@@ -18,14 +18,17 @@ class LoopCut(object):
         self.face_loop_fs = []
         self.vert_snaps_local = []
         self.vert_snaps_world = []
-    
+        self.slide = False
+        self.pct = .5
+        
     def clear(self):
         self.face_loop_eds = []
         self.face_loop_fs = []
         self.vert_snaps_local = []
         self.vert_snaps_world = []
         self.cyclic = False
-         
+        self.slide = False
+        self.pct = .5 
     def find_face_loop(self,bme, ed, select = False):
         '''takes a bmface and bmedgse'''
         #reality check
@@ -114,7 +117,7 @@ class LoopCut(object):
         imx_trg = mx_trg.inverted()
         for i in self.face_loop_eds:
             ed = bme.edges[i]
-            v = .5 * ed.verts[1].co + .5 * ed.verts[0].co
+            v = (self.pct) * ed.verts[1].co + (1-self.pct) * ed.verts[0].co
             if not self.source_name:
                 self.vert_snaps_local += [v]
                 self.vert_snaps_world += [mx_trg * v]
@@ -135,8 +138,6 @@ class LoopCut(object):
 
         geom =  bmesh.ops.bisect_edges(bme, edges = eds,cuts = 1,edge_percents = ed_pcts)
         new_verts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-
-        print([len(new_verts),len(self.vert_snaps_local)])
         for i,v in enumerate(new_verts):
             v.co = self.vert_snaps_local[i]
             
@@ -148,6 +149,9 @@ class LoopCut(object):
             new_edges += [ele for ele in geom['edges'] if isinstance(ele, bmesh.types.BMEdge)]
         
         if select:
+            for ed in bme.edges:
+                ed.select_set(False)
+            bme.select_flush(False)
             for ed in new_edges:
                 ed.select_set(True)
         return
