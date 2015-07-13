@@ -245,6 +245,9 @@ class EPPatch:
             if fwd: return epe.curve_verts
             return reversed(epe.curve_verts)
         return [p for epe,fwd in zip(self.lepedges,self.epedge_fwd) for p in get_verts(epe,fwd)]
+    
+    def get_epverts(self):
+        return [epe.epvert0 if fwd else epe.epvert3 for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
 
 
 
@@ -298,7 +301,7 @@ class EdgePatches:
             i1 = self.epverts.index(epe.epvert1)
             i2 = self.epverts.index(epe.epvert2)
             i3 = self.epverts.index(epe.epvert3)
-            print('    %d: %d,%d -> %d,%d' % (i,i0,i1,i2,i3))
+            print('    %d: %d--%d (%d,%d,%d,%d)' % (i, i0,i3, i0,i1,i2,i3))
         print('  %d EPPatches' % len(self.eppatches))
         for i,epp in enumerate(self.eppatches):
             s = ','.join('%d' % self.epedges.index(epe) for epe in epp.lepedges)
@@ -512,4 +515,39 @@ class EdgePatches:
         epv0.update_epedges()
         epv3.update()
         epv3.update_epedges()
+    
+    def create_mesh(self, bme):
+        mx = bpy.data.objects[EdgePatches.src_name].matrix_world
+        imx = mx.inverted()
+        
+        verts = []
+        ngons = []
+        d_epv_v = {}
+        d_epp_n = {}
+        
+        def insert_vert(p):
+            verts.append(imx*p)
+            return len(verts)-1
+        def insert_epvert(epv):
+            if epv not in d_epv_v: d_epv_v[epv] = insert_vert(epv.snap_pos)
+            return d_epv_v[epv]
+        
+        def insert_ngon(lip):
+            ngons.append(tuple(reversed(tuple(lip))))
+            return len(ngons)-1
+        def insert_eppatches(epp):
+            if epp not in d_epp_n:
+                d_epp_n[epp] = insert_ngon(insert_epvert(epv) for epv in epp.get_epverts())
+            return d_epp_n[epp]
+        
+        for epv in self.epverts:
+            if not epv.isinner: insert_epvert(epv)
+        for epp in self.eppatches:
+            insert_eppatches(epp)
+        
+        return (verts,ngons)
+
+
+
+
 

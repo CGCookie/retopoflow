@@ -76,7 +76,7 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
-        #self.create_mesh(context)
+        self.create_mesh(context)
         pass
     
     def end_cancel(self, context):

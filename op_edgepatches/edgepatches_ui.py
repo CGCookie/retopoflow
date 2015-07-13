@@ -262,3 +262,37 @@ class EdgePatches_UI:
         self.act_epedge,self.act_epvert = None,None
         self.sel_epedges.clear()
         self.sel_epverts.clear()
+    
+    
+    ###########################
+    # mesh creation
+    
+    def create_mesh(self, context):
+        verts,ngons = self.edgepatches.create_mesh(self.dest_bme)
+
+        #bm = bmesh.new()  #now new bmesh is created at the start
+        mx2 = Matrix.Identity(4)
+        imx = Matrix.Identity(4)
+
+        self.dest_obj.update_tag()
+        self.dest_obj.show_all_edges = True
+        self.dest_obj.show_wire      = True
+        self.dest_obj.show_x_ray     = True
+     
+        self.dest_obj.select = True
+        context.scene.objects.active = self.dest_obj
+    
+        container_bme = bmesh.new()
+        
+        bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
+        container_bme.verts.index_update()
+        for ngon in ngons:
+            container_bme.faces.new([bmverts[i] for i in ngon])
+        
+        container_bme.faces.index_update()
+
+        container_bme.to_mesh(self.dest_obj.data)
+        
+        self.dest_bme.free()
+        container_bme.free()
+    
