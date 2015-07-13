@@ -71,6 +71,7 @@ def_rf_key_map['rip'] = {'CTRL+R'}
 def_rf_key_map['rotate pole'] = {'R', 'SHIFT+R'}
 def_rf_key_map['scale handles'] = {'CTRL+S'}
 def_rf_key_map['align handles'] = {'C'}
+def_rf_key_map['symmetry_x'] = {'SHIFT+X'}
 def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
 def_rf_key_map['update'] = {'CTRL+U'}
@@ -112,7 +113,8 @@ def add_to_dict(km_dict, key, value, safety = True):
             if value in km_dict[k]:
                 print('%s is already part of keymap "%s"' % (value, key))
                 dcallstack()
-    
+                return False
+
     if key not in km_dict:
         km_dict[key] = set([value])
         return True

@@ -4,9 +4,9 @@ Created on Jul 11, 2015
 @author: Patrick
 '''
 
-from .lib import common_utilities
-from .modaloperator import ModalOperator
-from .preferences import RetopoFlowPreferences
+from ..lib import common_utilities
+from ..modaloperator import ModalOperator
+from ..preferences import RetopoFlowPreferences
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d, region_2d_to_vector_3d
 from bpy.props import StringProperty
 
@@ -41,6 +41,7 @@ class  CGC_EyeDropper(ModalOperator):
         
         self.help_box.raw_text = "Click an object"
         self.help_box.uncollapse()
+        self.help_box.fit_box_width_to_text_lines()
         self.help_box.snap_to_corner(context, corner = [1,1])
         pass
     
