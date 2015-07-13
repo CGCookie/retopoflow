@@ -268,7 +268,7 @@ class EdgePatches_UI:
     # mesh creation
     
     def create_mesh(self, context):
-        verts,ngons = self.edgepatches.create_mesh(self.dest_bme)
+        verts,edges,ngons = self.edgepatches.create_mesh(self.dest_bme)
 
         #bm = bmesh.new()  #now new bmesh is created at the start
         mx2 = Matrix.Identity(4)
@@ -286,6 +286,8 @@ class EdgePatches_UI:
         
         bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
         container_bme.verts.index_update()
+        for edge in edges:
+            container_bme.edges.new([bmverts[i] for i in edge])
         for ngon in ngons:
             container_bme.faces.new([bmverts[i] for i in ngon])
         

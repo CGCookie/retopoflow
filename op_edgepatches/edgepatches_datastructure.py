@@ -521,8 +521,10 @@ class EdgePatches:
         imx = mx.inverted()
         
         verts = []
+        edges = []
         ngons = []
         d_epv_v = {}
+        d_epe_e = {}
         d_epp_n = {}
         
         def insert_vert(p):
@@ -532,20 +534,29 @@ class EdgePatches:
             if epv not in d_epv_v: d_epv_v[epv] = insert_vert(epv.snap_pos)
             return d_epv_v[epv]
         
+        def insert_edge(ip0,ip1):
+            edges.append((ip0,ip1))
+            return len(edges)-1
+        def insert_epedge(epe):
+            if epe not in d_epe_e: d_epe_e[epe] = insert_edge(insert_epvert(epe.epvert0), insert_epvert(epe.epvert3))
+            return d_epe_e[epe]
+        
         def insert_ngon(lip):
             ngons.append(tuple(reversed(tuple(lip))))
             return len(ngons)-1
-        def insert_eppatches(epp):
+        def insert_eppatch(epp):
             if epp not in d_epp_n:
                 d_epp_n[epp] = insert_ngon(insert_epvert(epv) for epv in epp.get_epverts())
             return d_epp_n[epp]
         
         for epv in self.epverts:
             if not epv.isinner: insert_epvert(epv)
+        for epe in self.epedges:
+            insert_epedge(epe)
         for epp in self.eppatches:
-            insert_eppatches(epp)
+            insert_eppatch(epp)
         
-        return (verts,ngons)
+        return (verts,edges,ngons)
 
 
 
