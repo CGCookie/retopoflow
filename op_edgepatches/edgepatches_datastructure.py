@@ -480,7 +480,8 @@ class EdgePatches:
                     break
             if i0==-1: continue
             
-            _,_,epv = self.split_epedge_at_t(epe, (t0+t1)/2.0)
+            t = (t0+t1)/2.0 if i1!=-1 else t0
+            _,_,epv = self.split_epedge_at_t(epe, t)
             if i0==0:
                 if i1!=-1:
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
