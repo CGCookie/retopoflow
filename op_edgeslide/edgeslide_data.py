@@ -21,6 +21,7 @@ class EdgeSlide(object):
         
         self.vert_snaps_local = []
         self.vert_snaps_world = []
+        self.world_right = []
         
         self.pct = 0
         self.cyclic = False
@@ -30,6 +31,7 @@ class EdgeSlide(object):
         self.edge_loop_vs = []
         self.edge_loop_right = []
         self.edge_loop_left = []
+        self.world_right = []
         
         self.vert_snaps_local = []
         self.vert_snaps_world = []
@@ -48,19 +50,28 @@ class EdgeSlide(object):
             return vect
             
         def next_edge(cur_ed, cur_vert):
-            ledges = [ed.index for ed in cur_vert.link_edges]
-            print((ledges,cur_ed.index))
-            n = ledges.index(cur_ed.index)
-            j = (n+2) % 4
-            right = (n+1) % 4
-            left = (n+3) % 4
+            ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
             
-            e_right = cur_vert.link_edges[right]
-            e_left = cur_vert.link_edges[left]
+            fset = set([f.index for f in cur_ed.link_faces])
             
-            v_right = e_right.other_vert(cur_vert).co - cur_vert.co
-            v_left = e_left.other_vert(cur_vert).co - cur_vert.co
-            return cur_vert.link_edges[j], v_right, v_left
+            next_edge = [ed for ed in ledges if not fset & set([f.index for f in ed.link_faces])][0]
+            
+            forward = cur_vert.co - cur_ed.other_vert(cur_vert).co
+            forward.normalize()
+            
+            sides = set(ledges)
+            sides.remove(next_edge)
+            esides = list(sides)
+            side0 = esides[0].other_vert(cur_vert).co - cur_vert.co
+            side1 = esides[1].other_vert(cur_vert).co - cur_vert.co
+            
+            
+            if cur_vert.normal.dot(side0.cross(forward)) > 0:
+                v_right, v_left = side0, side1
+            else:
+                v_left, v_right = side0, side1
+
+            return next_edge, v_right, v_left
         
         def next_vert(cur_ed, cur_vert):
             next_vert = cur_ed.other_vert(cur_vert)
@@ -109,7 +120,7 @@ class EdgeSlide(object):
             
             if v_next == v: #we looped
                 self.cyclic = True
-                self.face_loop_vs = vs
+                self.face_loop_vs = vs[:len(vs)-1]
                 self.face_loop_eds = eds[:len(eds)-1] #<--- discard the edge we walked across to get back to start vert
                 self.edge_loop_right = rights
                 self.edge_loop_lefts = lefts
@@ -143,10 +154,10 @@ class EdgeSlide(object):
         return
     
     def calc_snaps(self,bme):
-
         if not len(self.face_loop_eds): return
         self.vert_snaps_local = []
         self.vert_snaps_world = []
+        self.world_right = []
         
         if self.source_name:
             ob = bpy.data.objects[self.source_name]
@@ -171,6 +182,8 @@ class EdgeSlide(object):
                 loc, no, indx = ob.closest_point_on_mesh(imx_src * mx_trg * v)
                 self.vert_snaps_local += [imx_trg * mx_src * loc]
                 self.vert_snaps_world += [mx_src * loc]
+                self.world_right += [mx_trg * (v + self.edge_loop_right[i])]
+                
        
     def move_loop(self, bme):
 
