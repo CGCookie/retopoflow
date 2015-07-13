@@ -67,8 +67,10 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
         else:
             col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
+        
         if context.mode =='EDIT_MESH':
             col.operator("cgcookie.tweak", icon='HAND')
+            col.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
@@ -123,4 +125,5 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
 
         if context.mode =='EDIT_MESH':
             layout.operator("cgcookie.tweak", icon="HAND")
+            layout.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
 
