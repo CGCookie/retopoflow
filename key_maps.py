@@ -1,6 +1,6 @@
 '''
 Patrick Moore
-Modify this file to change you default keymap for contours
+Modify this file to change your default keymap for Retopoflow Tools
 
 Events reported at 'CTRL+SHIFT+ALT+TYPE'
 eg.   'CTRL+SHIFT+A' is a valid event but 'SHIFT+CTRL+A' is not
