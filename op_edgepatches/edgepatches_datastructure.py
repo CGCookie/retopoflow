@@ -308,6 +308,7 @@ class EdgePatches:
             print('    %d: %s' % (i,s))
     
     def get_loop(self, epedge, forward=True):
+        if len(epedge.epvert0.epedges)==1 or len(epedge.epvert3.epedges)==1: return None
         epv = epedge.epvert3 if forward else epedge.epvert0
         loop = [epedge]
         lepv = [epv]
@@ -430,14 +431,37 @@ class EdgePatches:
         return self.create_epedge(epv0,epv1,epv2,epv3)
     
     
-    def insert_epedge_from_stroke(self, stroke, error_scale=0.01, sepv0=None, sepv3=None, depth=0):
-        '''
-        stroke: list of tuples (3d location, radius)
-        yikes....pressure and radius need to be reconciled!
-        for now, assumes 
-        '''
+    def insert_epedge_from_stroke(self, stroke, error_scale=0.01, maxdist=0.05, sepv0=None, sepv3=None, depth=0):
         pts = [p for p,_ in stroke]
-        lbez = cubic_bezier_fit_points(pts, error_scale) #(pts[0]-pts[-1]).length / 100)
+        
+        # check if stroke swings by any epverts
+        for epv in self.epverts:
+            if epv.isinner: continue
+            i0,i1 = -1,-1
+            for i,pt in enumerate(pts):
+                dist = (pt-epv.snap_pos).length
+                if i0==-1:
+                    if dist > maxdist: continue
+                    i0 = i
+                else:
+                    if dist < maxdist: continue
+                    i1 = i
+                    break
+            if i0==-1: continue
+            
+            if i0==0:
+                if i1!=-1:
+                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+                return
+            else:
+                self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
+                if i1!=-1:
+                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+                return
+        
+        # check if stroke crosses any epedges
+        
+        lbez = cubic_bezier_fit_points(pts, error_scale)
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:
             if epv0 is None:
@@ -451,7 +475,9 @@ class EdgePatches:
         if sepv3:
             epe.replace_epvert(epv3, sepv3)
             self.remove_unconnected_epverts()
-
+    
+    
+    
     def merge_epverts(self, epvert0, epvert1):
         ''' merge epvert0 into epvert1 '''
         l_epe = list(epvert0.epedges)
@@ -515,6 +541,7 @@ class EdgePatches:
         epv0.update_epedges()
         epv3.update()
         epv3.update_epedges()
+    
     
     def create_mesh(self, bme):
         mx = bpy.data.objects[EdgePatches.src_name].matrix_world
