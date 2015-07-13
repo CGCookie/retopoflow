@@ -39,6 +39,8 @@ from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_s
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, closest_t_and_distance_point_to_line_segment
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items
 
+from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
+
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 
 
@@ -136,6 +138,7 @@ class EPEdge:
         self.eppatches = []
         
         self.curve_verts = []
+        self.curve_norms = []
         
         epvert0.connect_epedge(self)
         epvert1.connect_epedge_inner(self)
@@ -149,8 +152,10 @@ class EPEdge:
     
     def update(self):
         p0,p1,p2,p3 = self.get_positions()
-        self.curve_verts = [cubic_bezier_blend_t(p0, p1, p2, p3, i / float(EPEdge.tessellation_count)) for i in range(EPEdge.tessellation_count+1)]
-        self.curve_verts = [EdgePatches.getClosestPoint(p)[0] for p in self.curve_verts]
+        lpos = [cubic_bezier_blend_t(p0, p1, p2, p3, i / float(EPEdge.tessellation_count)) for i in range(EPEdge.tessellation_count+1)]
+        lsnap = [EdgePatches.getClosestPoint(p) for p in lpos]
+        self.curve_verts = [p for p,n,i in lsnap]
+        self.curve_norms = [n for p,n,i in lsnap]
     
     def get_positions(self):
         return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
@@ -204,7 +209,7 @@ class EPEdge:
     
     def get_closest_point(self, pt):
         p0,p1,p2,p3 = self.get_positions()
-        if len(self.curve_verts) < 3:
+        if True or len(self.curve_verts) < 3:
             return cubic_bezier_find_closest_t_approx(p0,p1,p2,p3,pt)
         min_t,min_d = -1,-1
         i,l = 0,len(self.curve_verts)
@@ -465,31 +470,27 @@ class EdgePatches:
         
         # check if stroke crosses any epedges
         for epe in self.epedges:
-            i0,i1 = -1,-1
-            t0,t1 = 0,0
-            for i,pt in enumerate(pts):
-                t,dist = epe.get_closest_point(pt)
-                if i0==-1:
-                    if dist > maxdist: continue
-                    i0 = i
-                    t0 = t
-                else:
-                    if dist < maxdist: continue
-                    i1 = i
-                    t1 = t
-                    break
-            if i0==-1: continue
-            
-            t = (t0+t1)/2.0 if i1!=-1 else t0
-            _,_,epv = self.split_epedge_at_t(epe, t)
-            if i0==0:
-                if i1!=-1:
-                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
-            else:
-                self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
-                if i1!=-1:
-                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
-            return
+            c = len(epe.curve_verts)
+            cp_first = epe.curve_verts[0]
+            cp_last = epe.curve_verts[-1]
+            for p0,p1 in zip(pts[:-1],pts[1:]):
+                for i0 in range(c-1):
+                    cp0,z =  epe.curve_verts[i0],epe.curve_norms[i0]
+                    cp1 = epe.curve_verts[i0+1]
+                    if (cp0-cp_first).length < maxdist: continue
+                    if (cp1-cp_last).length < maxdist: continue
+                    x = (cp1-cp0).normalized()
+                    y = z.cross(x).normalized()
+                    a = (p0-cp0).dot(y)
+                    b = (p1-cp0).dot(y)
+                    if a*b >= 0: continue                           # p0-p1 segment does not cross cp0,cp1 line
+                    v = (p1-p0).normalized()
+                    d = p0 + v * abs(a) / v.dot(y)                  # d is crossing position
+                    if (cp0-d).length > (cp1-cp0).length: continue  # p0-p1 segment does not cross cp0,cp1 segment
+                    
+                    _,_,epv = self.split_epedge_at_pt(epe, d)
+                    self.insert_epedge_from_stroke(stroke, error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=sepv3, depth=depth+1)
+                    return
             
         lbez = cubic_bezier_fit_points(pts, error_scale)
         epv0 = None

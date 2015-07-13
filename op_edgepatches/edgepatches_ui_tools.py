@@ -35,15 +35,15 @@ class EdgePatches_UI_Tools:
     def modal_sketching(self, context, eventd):
         settings = common_utilities.get_settings()
 
+        x,y = eventd['mouse']
+        if settings.use_pressure:
+            p = eventd['pressure']
+            r = eventd['mradius']
+        else:
+            p = 1
+            r = self.stroke_radius
+        
         if eventd['type'] == 'MOUSEMOVE':
-            x,y = eventd['mouse']
-            if settings.use_pressure:
-                p = eventd['pressure']
-                r = eventd['mradius']
-            else:
-                p = 1
-                r = self.stroke_radius
-
             stroke_point = self.sketch[-1]
 
             (lx, ly) = stroke_point[0]
@@ -59,13 +59,18 @@ class EdgePatches_UI_Tools:
             else:
                 self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
 
-            return ''
+            #return ''
 
         if eventd['release'] in {'LEFTMOUSE','SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
 
+            if settings.use_pressure:
+                self.sketch += [((x,y), self.stroke_radius_pressure)]
+            else:
+                self.sketch += [((x,y), self.stroke_radius)]
+            
             # if is selection mouse, check distance
             if 'LEFTMOUSE' in selection_mouse():
                 dist_traveled = 0.0
@@ -77,7 +82,24 @@ class EdgePatches_UI_Tools:
                     self.pick(eventd)
                     self.sketch = []
                     return 'main'
-
+            
+            sketch = []
+            def addsketch(sk):
+                if not sketch:
+                    sketch.append(sk)
+                    return
+                lp,lr = sketch[-1]
+                lx,ly = lp
+                cp,cr = sk
+                cx,cy = cp
+                if (lx-cx)*(lx-cx)+(ly-cy)*(ly-cy) > 0.1:
+                    addsketch( (((lx+cx)/2.0,(ly+cy)/2.0), (lr+cr)/2.0) )
+                    addsketch(sk)
+                else:
+                    sketch.append(sk)
+            for sk in self.sketch: addsketch(sk)
+            self.sketch=sketch
+            
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
