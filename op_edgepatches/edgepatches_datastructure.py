@@ -382,6 +382,11 @@ class EdgePatches:
             self.disconnect_epedge(epe)
         self.epverts.remove(epvert)
     
+    def split_epedge_at_pt(self, epedge, pt, connect_epvert=None):
+        t,_ = epedge.get_closest_point(pt)
+        return self.split_epedge_at_t(epedge, t)
+        
+    
     def split_epedge_at_t(self, epedge, t, connect_epvert=None):
         p0,p1,p2,p3 = epedge.get_positions()
         cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
@@ -452,15 +457,39 @@ class EdgePatches:
             if i0==0:
                 if i1!=-1:
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
-                return
             else:
                 self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
                 if i1!=-1:
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
-                return
+            return
         
         # check if stroke crosses any epedges
-        
+        for epe in self.epedges:
+            i0,i1 = -1,-1
+            t0,t1 = 0,0
+            for i,pt in enumerate(pts):
+                t,dist = epe.get_closest_point(pt)
+                if i0==-1:
+                    if dist > maxdist: continue
+                    i0 = i
+                    t0 = t
+                else:
+                    if dist < maxdist: continue
+                    i1 = i
+                    t1 = t
+                    break
+            if i0==-1: continue
+            
+            _,_,epv = self.split_epedge_at_t(epe, (t0+t1)/2.0)
+            if i0==0:
+                if i1!=-1:
+                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+            else:
+                self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
+                if i1!=-1:
+                    self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+            return
+            
         lbez = cubic_bezier_fit_points(pts, error_scale)
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:

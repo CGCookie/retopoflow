@@ -81,30 +81,14 @@ class EdgePatches_UI_Tools:
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
-            # tessellate stroke (if needed) so we have good stroke sampling
-            # TODO, tesselate pressure/radius values?
-            # length_tess = self.length_scale / 700
-            # p3d = [(p0+(p1-p0).normalized()*x) for p0,p1 in zip(p3d[:-1],p3d[1:]) for x in frange(0,(p0-p1).length,length_tess)] + [p3d[-1]]
-            # stroke = [(p,self.stroke_radius) for i,p in enumerate(p3d)]
-
             self.sketch = []
-            
-            #lepv0 = self.edgepatches.pick_epverts(p3d[0][0], maxdist=self.stroke_radius, allowInner=False)
-            #lepv3 = self.edgepatches.pick_epverts(p3d[-1][0], maxdist=self.stroke_radius, allowInner=False)
-            
-            #sepv0 = lepv0[0][0] if lepv0 else None
-            #sepv3 = lepv3[0][0] if lepv3 else None
             
             self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/5.0, maxdist=self.stroke_radius) #, sepv0=sepv0, sepv3=sepv3)
             
-            #self.polystrips.remove_unconnected_gverts()
-            #self.polystrips.update_visibility(eventd['r3d'])
-
-            self.act_gvert = None
-            self.act_gedge = None
-            self.act_gpatch = None
-            self.sel_gedges = set()
-            self.sel_gverts = set()
+            self.act_epvert = None
+            self.act_epedge = None
+            self.sel_epedges = set()
+            self.sel_epverts = set()
 
             return 'main'
 
