@@ -24,6 +24,7 @@ class LoopCut(object):
         self.face_loop_fs = []
         self.vert_snaps_local = []
         self.vert_snaps_world = []
+        self.cyclic = False
          
     def find_face_loop(self,bme, ed, select = False):
         '''takes a bmface and bmedgse'''
