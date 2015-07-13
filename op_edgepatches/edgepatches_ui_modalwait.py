@@ -25,6 +25,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix
 import math
+import time
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
@@ -57,6 +58,10 @@ class EdgePatches_UI_ModalWait():
         if eventd['press'] in self.keymap['undo']:
             print('CGC_EdgePatches.undo_action not implemented')
             #self.undo_action()
+            return ''
+
+        if eventd['press'] == 'Q':                                                  # profiler printout
+            profiler.printout()
             return ''
 
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering

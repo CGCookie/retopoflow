@@ -83,6 +83,7 @@ class EdgePatches_UI_Tools:
                     self.sketch = []
                     return 'main'
             
+            pr = profiler.start()
             sketch = []
             def addsketch(sk):
                 if not sketch:
@@ -99,13 +100,18 @@ class EdgePatches_UI_Tools:
                     sketch.append(sk)
             for sk in self.sketch: addsketch(sk)
             self.sketch=sketch
+            pr.done()
             
+            pr = profiler.start()
             p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
+            pr.done()
             if len(p3d) <= 1: return 'main'
 
             self.sketch = []
             
-            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/5.0, maxdist=self.stroke_radius) #, sepv0=sepv0, sepv3=sepv3)
+            pr = profiler.start()
+            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/5.0, maxdist=self.stroke_radius)
+            pr.done()
             
             self.act_epvert = None
             self.act_epedge = None

@@ -204,6 +204,7 @@ class Profiler(object):
                 t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
             dprint('  %6.2f / %3d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
         dprint('')
+        dprint('Stack: %d' % len(self.stack))
 
 profiler = Profiler()
 

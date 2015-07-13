@@ -63,7 +63,7 @@ class EPVert:
     def update(self, do_edges=True):
         if self.doing_update: return
         
-        pr = profiler.start()
+        #pr = profiler.start()
         self.snap()
         if do_edges:
             self.doing_update = True
@@ -71,7 +71,7 @@ class EPVert:
             for epedge in self.epedges:
                 epedge.update()
             self.doing_update = False
-        pr.done()
+        #pr.done()
     
     def update_epedges(self):
         if len(self.epedges)>2:
@@ -104,11 +104,11 @@ class EPVert:
     
     def disconnect_epedge(self, epedge):
         assert epedge in self.epedges, 'Attempting to disconnect unconnected EPEdge'
-        pr = profiler.start()
+        #pr = profiler.start()
         self.epedges = [epe for epe in self.epedges if epe != epedge]
         self.isinner=False
         self.update_epedges()
-        pr.done()
+        #pr.done()
     
     def is_inner(self): return self.isinner
     
@@ -151,11 +151,27 @@ class EPEdge:
     def epverts_pos(self): return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
     
     def update(self):
+        #pr = profiler.start()
+        getClosestPoint = EdgePatches.getClosestPoint
+        tessellation_count = EPEdge.tessellation_count
         p0,p1,p2,p3 = self.get_positions()
-        lpos = [cubic_bezier_blend_t(p0, p1, p2, p3, i / float(EPEdge.tessellation_count)) for i in range(EPEdge.tessellation_count+1)]
-        lsnap = [EdgePatches.getClosestPoint(p) for p in lpos]
-        self.curve_verts = [p for p,n,i in lsnap]
-        self.curve_norms = [n for p,n,i in lsnap]
+        
+        #pr2 = profiler.start()
+        lpos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(tessellation_count)) for i in range(tessellation_count+1)]
+        #pr2.done()
+
+        self.curve_verts = []
+        self.curve_norms = []
+        #pr2 = profiler.start()
+        for pos in lpos:
+            #pr3 = profiler.start()
+            p,n,i = getClosestPoint(pos)
+            self.curve_verts.append(p)
+            self.curve_norms.append(n)
+            #pr3.done()
+        #pr2.done()
+
+        #pr.done()
     
     def get_positions(self):
         return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
@@ -282,16 +298,16 @@ class EdgePatches:
     @classmethod
     def getClosestPoint(cls, p):
         ''' returns (p,n,i) '''
+        #pr = profiler.start()
         mx  = EdgePatches.matrix
         imx = EdgePatches.matrixinv
         mxn = EdgePatches.matrixnorm
         obj = EdgePatches.getSrcObject()
-        
-        pr = profiler.start()
         c,n,i = obj.closest_point_on_mesh(imx * p)
-        pr.done()
+        ret = (mx*c,mxn*n,i)
+        #pr.done()
         
-        return (mx*c,mxn*n,i)
+        return ret
     
     def debug(self):
         print('Debug')
@@ -445,6 +461,7 @@ class EdgePatches:
         pts = [p for p,_ in stroke]
         
         # check if stroke swings by any epverts
+        #pr = profiler.start()
         for epv in self.epverts:
             if epv.isinner: continue
             i0,i1 = -1,-1
@@ -466,19 +483,23 @@ class EdgePatches:
                 self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
                 if i1!=-1:
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+            #pr.done()
             return
+        #pr.done()
         
         # check if stroke crosses any epedges
+        #pr = profiler.start()
         for epe in self.epedges:
             c = len(epe.curve_verts)
             cp_first = epe.curve_verts[0]
             cp_last = epe.curve_verts[-1]
             for p0,p1 in zip(pts[:-1],pts[1:]):
                 for i0 in range(c-1):
-                    cp0,z =  epe.curve_verts[i0],epe.curve_norms[i0]
+                    cp0,z = epe.curve_verts[i0],epe.curve_norms[i0]
                     cp1 = epe.curve_verts[i0+1]
-                    if (cp0-cp_first).length < maxdist: continue
-                    if (cp1-cp_last).length < maxdist: continue
+                    #if (cp0-cp_first).length < maxdist: continue
+                    #if (cp1-cp_last).length < maxdist: continue
+                    if (cp0-p0).length > maxdist: continue
                     x = (cp1-cp0).normalized()
                     y = z.cross(x).normalized()
                     a = (p0-cp0).dot(y)
@@ -490,9 +511,15 @@ class EdgePatches:
                     
                     _,_,epv = self.split_epedge_at_pt(epe, d)
                     self.insert_epedge_from_stroke(stroke, error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=sepv3, depth=depth+1)
+                    #pr.done()
                     return
-            
+        #pr.done()
+        
+        #pr = profiler.start()
         lbez = cubic_bezier_fit_points(pts, error_scale)
+        #pr.done()
+        
+        #pr = profiler.start()
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:
             if epv0 is None:
@@ -506,6 +533,7 @@ class EdgePatches:
         if sepv3:
             epe.replace_epvert(epv3, sepv3)
             self.remove_unconnected_epverts()
+        #pr.done()
     
     
     
