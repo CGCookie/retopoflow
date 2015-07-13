@@ -38,7 +38,7 @@ from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
 from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
 from ..cache import contour_mesh_cache, contour_undo_cache
-from ..preferences import RetopoFlowPreferences
+
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
@@ -2435,9 +2435,9 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
-        color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
-        color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
         color_handle = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
