@@ -70,10 +70,10 @@ class EdgePatches_UI_ModalWait():
             self.sketch_brush.update_mouse_move_hover(eventd['context'], x,y)
             self.sketch_brush.make_circles()
             self.sketch_brush.get_brush_world_size(eventd['context'])
-
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
                 self.stroke_radius_pressure = self.sketch_brush.world_width
+            self.help_box.hover(x, y)
 
         if eventd['press'] in self.keymap['brush size']:
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
@@ -122,16 +122,16 @@ class EdgePatches_UI_ModalWait():
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
                 if not pts: return ''
                 pt = pts[0]
+                
                 sel_epe = set(self.act_epvert.epedges)
-                for epv in self.edgepatches.epverts:
-                    if epv.is_inner() or not epv.is_picked(pt) or epv == self.act_epvert: continue
-                    if any(epe in sel_epe for epe in epv.epedges):
-                        showErrorMessage('Cannot merge EPVerts that share an EPEdge')
-                        continue
+                for epv,_ in self.edgepatches.pick_epverts(pt, maxdist=self.stroke_radius):
+                    if epv.is_inner(): continue
+                    if epv == self.act_epvert: continue
+                    if any(epe in sel_epe for epe in epv.epedges): continue
                     self.create_undo_snapshot('merge')
                     self.edgepatches.merge_epverts(self.act_epvert, epv)
                     self.act_epvert = epv
-                    return ''
+                    break
                 return ''
 
             if eventd['press'] in self.keymap['translate']:
