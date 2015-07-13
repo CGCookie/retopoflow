@@ -139,6 +139,16 @@ class EdgePatches_UI_ModalWait():
                 self.ready_tool(eventd, self.grab_tool_epvert_neighbors)
                 return 'grab tool'
 
+            if eventd['press'] in self.keymap['rotate'] and not self.act_epvert.is_inner():
+                self.create_undo_snapshot('rotate')
+                self.ready_tool(eventd, self.rotate_tool_epvert_neighbors)
+                return 'rotate tool'
+
+            if eventd['press'] in self.keymap['scale handles'] and not self.act_epvert.is_inner():
+                self.create_undo_snapshot('scale')
+                self.ready_tool(eventd, self.scale_tool_epvert)
+                return 'scale tool'
+
             if eventd['press'] in self.keymap['delete']:
                 if self.act_epvert.is_inner(): return ''
                 self.create_undo_snapshot('delete')

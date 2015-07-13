@@ -122,76 +122,6 @@ class EdgePatches_UI_Tools:
 
         return ''
     
-    def modal_scale_tool(self, context, eventd):
-        cx,cy = self.action_center
-        mx,my = eventd['mouse']
-        ar = self.action_radius
-        pr = self.mode_radius
-        cr = math.sqrt((mx-cx)**2 + (my-cy)**2)
-
-        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
-            self.tool_fn('commit', eventd)
-            return 'main'
-
-        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
-            self.tool_fn('undo', eventd)
-            return 'main'
-
-        if eventd['type'] == 'MOUSEMOVE':
-            self.tool_fn(cr / pr, eventd)
-            self.mode_radius = cr
-            return ''
-
-        return ''
-
-    def modal_grab_tool(self, context, eventd):
-        cx,cy = self.action_center
-        mx,my = eventd['mouse']
-        px,py = self.prev_pos #mode_pos
-        sx,sy = self.mode_start
-
-        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE','SHIFT+RET','SHIFT+NUMPAD_ENTER','SHIFT+LEFTMOUSE'}:
-            self.tool_fn('commit', eventd)
-            return 'main'
-
-        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
-            self.tool_fn('undo', eventd)
-            return 'main'
-
-        if eventd['type'] == 'MOUSEMOVE':
-            self.tool_fn((mx-px,my-py), eventd)
-            self.prev_pos = (mx,my)
-            return ''
-
-        return ''
-    
-
-
-    def modal_scale_brush_pixel_tool(self, context, eventd):
-        '''
-        This is the pixel brush radius
-        self.tool_fn is expected to be self.
-        '''
-        mx,my = eventd['mouse']
-
-        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
-            self.tool_fn('commit', eventd)
-            return 'main'
-
-        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
-            self.tool_fn('undo', eventd)
-
-            return 'main'
-
-        if eventd['type'] == 'MOUSEMOVE':
-            '''
-            '''
-            self.tool_fn((mx,my), eventd)
-
-            return ''
-
-        return ''
-    
 
 
     ##############################
@@ -227,59 +157,28 @@ class EdgePatches_UI_Tools:
         self.tool_fn = tool_fn
         self.tool_fn('init', eventd)
 
-    def scale_tool_gvert(self, command, eventd):
+    def scale_tool_epvert(self, command, eventd):
         if command == 'init':
-            self.footer = 'Scaling GVerts'
-            sgv = self.act_gvert
-            lgv = [ge.gvert1 if ge.gvert0==sgv else ge.gvert2 for ge in sgv.get_gedges() if ge]
-            self.tool_data = [(gv,Vector(gv.position)) for gv in lgv]
+            self.footer = 'Scaling EPVerts'
+            sepv = self.act_epvert
+            lepv = [epe.get_inner_epvert_at(sepv) for epe in sepv.get_epedges()]
+            self.tool_data = [(epv,Vector(epv.position)) for epv in lepv]
         elif command == 'commit':
             pass
         elif command == 'undo':
-            for gv,p in self.tool_data:
-                gv.position = p
-                gv.update()
-            self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            for epv,p in self.tool_data:
+                epv.position = p
+                epv.update()
+            self.act_epvert.update()
         else:
             m = command
-            sgv = self.act_gvert
-            p = sgv.position
-            for ge in sgv.get_gedges():
-                if not ge: continue
-                gv = ge.gvert1 if ge.gvert0 == self.act_gvert else ge.gvert2
-                gv.position = p + (gv.position-p) * m
-                gv.update()
-            sgv.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
-
-    def scale_tool_gvert_radius(self, command, eventd):
-        if command == 'init':
-            self.footer = 'Scaling GVert radius'
-            self.tool_data = self.act_gvert.radius
-        elif command == 'commit':
-            pass
-        elif command == 'undo':
-            self.act_gvert.radius = self.tool_data
-            self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
-        else:
-            m = command
-            self.act_gvert.radius *= m
-            self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
-
-    def scale_tool_stroke_radius(self, command, eventd):
-        if command == 'init':
-            self.footer = 'Scaling Stroke radius'
-            self.tool_data = self.stroke_radius
-        elif command == 'commit':
-            pass
-        elif command == 'undo':
-            self.stroke_radius = self.tool_data
-        else:
-            m = command
-            self.stroke_radius *= m
+            sepv = self.act_epvert
+            p = sepv.position
+            for epe in sepv.get_epedges():
+                epv = epe.get_inner_epvert_at(sepv)
+                epv.position = p + (epv.position-p) * m
+                epv.update()
+            sepv.update()
 
     def grab_tool_epvert_list(self, command, eventd, lepv):
         '''
@@ -349,23 +248,23 @@ class EdgePatches_UI_Tools:
             lgv = None
         self.grab_tool_gvert_list(command, eventd, lgv)
 
-    def rotate_tool_gvert_neighbors(self, command, eventd):
+    def rotate_tool_epvert_neighbors(self, command, eventd):
         if command == 'init':
-            self.footer = 'Rotating GVerts'
-            self.tool_data = [(gv,Vector(gv.position)) for gv in self.act_gvert.get_inner_gverts()]
+            self.footer = 'Rotating EPVerts'
+            self.tool_data = [(epv,Vector(epv.position)) for epv in self.act_epvert.get_inner_epverts()]
         elif command == 'commit':
             pass
         elif command == 'undo':
-            for gv,p in self.tool_data:
-                gv.position = p
-                gv.update()
+            for epv,p in self.tool_data:
+                epv.position = p
+                epv.update()
         else:
             ang = command
-            q = Quaternion(self.act_gvert.snap_norm, ang)
-            p = self.act_gvert.position
-            for gv,up in self.tool_data:
-                gv.position = p+q*(up-p)
-                gv.update()
+            q = Quaternion(self.act_epvert.snap_norm, ang)
+            p = self.act_epvert.position
+            for epv,up in self.tool_data:
+                epv.position = p+q*(up-p)
+                epv.update()
 
     def scale_brush_pixel_radius(self,command, eventd):
         if command == 'init':

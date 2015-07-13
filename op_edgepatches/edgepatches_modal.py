@@ -50,6 +50,8 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
         FSM = {}
         FSM['sketch']    = self.modal_sketching
         FSM['grab tool'] = self.modal_grab_tool
+        FSM['rotate tool']      = self.modal_rotate_tool
+        FSM['scale tool']       = self.modal_scale_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
         ModalOperator.initialize(self, FSM)
         self.initialize_ui()
