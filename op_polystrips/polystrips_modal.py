@@ -27,7 +27,7 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import showErrorMessage
+from ..lib.common_utilities import showErrorMessage, get_source_object
 
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI
@@ -74,7 +74,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Must specify a source object first or enable Use Active')
             return False
         
-        if context.object.type != 'MESH':
+        if get_source_object().type != 'MESH':
             showErrorMessage('Must select a mesh object')
             return False
         
@@ -87,14 +87,15 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
     def end(self, context):
         ''' Called when tool is ending modal '''
         self.end_ui(context)
-        self.cleanup(context)
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
+        self.cleanup(context, 'commit')
         self.create_mesh(context)
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
+        self.cleanup(context, 'cancel')
         pass
     
     def update(self, context):

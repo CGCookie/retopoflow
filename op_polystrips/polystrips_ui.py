@@ -203,26 +203,32 @@ class Polystrips_UI:
             bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = False
         
-    def cleanup(self, context):
+    def cleanup(self, context, cleantype=''):
         '''
         remove temporary object
         '''
         dprint('cleaning up!')
 
-        if self.obj_orig.modifiers:
-            tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-            meobj  = tmpobj.data
+        if cleantype == 'commit':
+            if self.obj_orig.modifiers:
+                tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
+                meobj  = tmpobj.data
 
-            # Delete object
-            context.scene.objects.unlink(tmpobj)
-            tmpobj.user_clear()
-            if tmpobj.name in bpy.data.objects:
-                bpy.data.objects.remove(tmpobj)
+                # Delete object
+                context.scene.objects.unlink(tmpobj)
+                tmpobj.user_clear()
+                if tmpobj.name in bpy.data.objects:
+                    bpy.data.objects.remove(tmpobj)
 
-            bpy.context.scene.update()
-            bpy.data.meshes.remove(meobj)
-    
-    
+                bpy.data.meshes.remove(meobj)
+
+        elif cleantype == 'cancel':
+            if context.mode == 'OBJECT' and not self.settings.target_object:
+                context.scene.objects.unlink(self.dest_obj)
+                self.dest_obj.data.user_clear()
+                bpy.data.meshes.remove(self.dest_obj.data)
+                bpy.data.objects.remove(self.dest_obj)
+
     ###############################
     # undo functions
     
