@@ -110,7 +110,7 @@ class EdgePatches_UI_Tools:
             self.sketch = []
             
             pr = profiler.start()
-            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/5.0, maxdist=self.stroke_radius)
+            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/100.0, maxdist=self.stroke_radius)
             pr.done()
             
             self.act_epvert = None
