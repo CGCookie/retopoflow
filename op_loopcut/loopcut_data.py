@@ -83,11 +83,11 @@ class LoopCut(object):
                     loop_eds.append(eds)
         
         if len(loop_faces) == 2:    
-            loop_faces[1].reverse()    
+            loop_faces[0].reverse()    
             self.face_loop_fs = loop_faces[0] +  loop_faces[1]
-            tail = loop_eds[1][1:]
-            tail.reverse()
-            self.face_loop_eds = loop_eds[0] + tail
+            tip = loop_eds[0][1:]
+            tip.reverse()
+            self.face_loop_eds = tip + loop_eds[1]
         else:
             self.face_loop_fs = loop_faces[0]
             self.face_loop_eds = loop_eds[0]

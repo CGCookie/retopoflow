@@ -52,6 +52,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     
     def __init__(self):
         FSM = {}
+        FSM['update'] = self.update
         
         '''
         fill FSM with 'state':function(self, eventd) to add states to modal finite state machine
@@ -98,9 +99,12 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         ''' Place post pixel drawing code in here '''
         pass
     
-    def update(self,context):
+    def update(self,context, eventd):
         '''Place update stuff here'''
-        pass
+        self.loopcut.cut_loop(self.bme, select=True)
+        self.loopcut.push_to_edit_mesh(self.bme)
+        self.loopcut.clear()
+        return 'main'
 
     
     def hover_target(self,context,eventd,settings):
@@ -119,7 +123,6 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         self.bme.verts.ensure_lookup_table()
         
         if hit[2] != -1: #TODO store the ed in loopcut class and only recalc if it's different
-            print('we hit something')
             pt = hit[0]
             def ed_dist(ed):
                 p0 = ed.verts[0].co
@@ -131,7 +134,6 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
             f = self.bme.faces[hit[2]]
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
-            print(['test edge',test_edge])
             self.loopcut.find_face_loop(self.bme,test_edge)
             self.loopcut.calc_snaps(self.bme)
         else:

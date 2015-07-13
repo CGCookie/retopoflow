@@ -44,11 +44,11 @@ class LoopCut_UI_ModalWait():
         settings = common_utilities.get_settings()
         if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
-            eventd['context'].area.header_text_set()
+            
             return 'finish'
 
         if eventd['press'] in self.keymap['cancel']:
-            eventd['context'].area.header_text_set()
+            
             return 'cancel'
 
         #####################################
@@ -62,5 +62,5 @@ class LoopCut_UI_ModalWait():
         
         if eventd['press'] in self.keymap['action']:
             
-            return 'finish'
+            return 'update'
         
