@@ -150,7 +150,7 @@ class TextBox(object):
         spc_width = spc_size[0]
         
         dim_raw = blf.dimensions(0,self.raw_text)
-        if dim_raw[0] < useful_width:
+        if dim_raw[0] < useful_width and '\n' not in self.raw_text:
             self.text_lines = [self.raw_text]
             return
         

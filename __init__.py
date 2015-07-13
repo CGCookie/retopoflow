@@ -54,6 +54,7 @@ from .op_contours.contours_modal import CGC_Contours
 from .op_tweak.tweak_modal import CGC_Tweak
 from .op_edgepatches.edgepatches_modal import CGC_EdgePatches
 from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
+from .op_loopcut.loopcut_modal import CGC_LoopCut
 
 # Used to store keymaps for addon
 addon_keymaps = []
@@ -69,6 +70,7 @@ def register():
     bpy.utils.register_class(CGC_Contours)
     bpy.utils.register_class(CGC_EyeDropper)
     bpy.utils.register_class(CGC_EdgePatches)
+    bpy.utils.register_class(CGC_LoopCut)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -87,6 +89,7 @@ def unregister():
     bpy.utils.unregister_class(CGC_Contours)
     bpy.utils.unregister_class(CGC_EyeDropper)
     bpy.utils.unregister_class(CGC_EdgePatches)
+    bpy.utils.unregister_class(CGC_LoopCut)
     
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
