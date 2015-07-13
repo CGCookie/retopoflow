@@ -169,7 +169,24 @@ class EdgePatches_UI_ModalWait():
                 self.act_epvert = None
                 self.edgepatches.remove_unconnected_epverts()
                 return ''
-
+            
+            if eventd['press'] in self.keymap['knife'] and not self.act_epvert.is_inner():
+                x,y = eventd['mouse']
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                if not pts: return ''
+                pt = pts[0]
+                
+                for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=self.stroke_radius):
+                    if epe.has_epvert(self.act_epvert): continue
+                    self.create_undo_snapshot('knife')
+                    t,_ = epe.get_closest_point(pts[0])
+                    _,_,epv = self.edgepatches.split_epedge_at_t(epe, t, connect_epvert=self.act_epvert)
+                    self.act_epedge = None
+                    self.sel_epedges.clear()
+                    self.act_epvert = epv
+                    self.act_epvert = epv
+                    return ''
+                return ''
         
         if self.act_epedge:
             if eventd['press'] in self.keymap['delete']:
