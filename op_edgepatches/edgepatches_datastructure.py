@@ -430,14 +430,14 @@ class EdgePatches:
         return self.create_epedge(epv0,epv1,epv2,epv3)
     
     
-    def insert_epedge_from_stroke(self, stroke, sepv0=None, sepv3=None, depth=0):
+    def insert_epedge_from_stroke(self, stroke, error_scale=0.01, sepv0=None, sepv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
         yikes....pressure and radius need to be reconciled!
         for now, assumes 
         '''
         pts = [p for p,_ in stroke]
-        lbez = cubic_bezier_fit_points(pts, (pts[0]-pts[-1]).length / 100)
+        lbez = cubic_bezier_fit_points(pts, error_scale) #(pts[0]-pts[-1]).length / 100)
         epv0 = None
         for t0,t3,p0,p1,p2,p3 in lbez:
             if epv0 is None:

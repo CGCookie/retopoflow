@@ -59,6 +59,21 @@ class EdgePatches_UI_ModalWait():
             #self.undo_action()
             return ''
 
+        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
+            #update brush and brush size
+            x,y = eventd['mouse']
+            self.sketch_brush.update_mouse_move_hover(eventd['context'], x,y)
+            self.sketch_brush.make_circles()
+            self.sketch_brush.get_brush_world_size(eventd['context'])
+
+            if self.sketch_brush.world_width:
+                self.stroke_radius = self.sketch_brush.world_width
+                self.stroke_radius_pressure = self.sketch_brush.world_width
+
+        if eventd['press'] in self.keymap['brush size']:
+            self.ready_tool(eventd, self.scale_brush_pixel_radius)
+            return 'brush scale tool'
+
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:

@@ -255,7 +255,10 @@ class EdgePatches_UI_Draw():
 
         bgl.glLineWidth(1)
 
-        if not self.is_navigating:
+        if self.fsm_mode == 'brush scale tool':
+            # scaling brush size
+            self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
+        elif not self.is_navigating:
             # draw the brush oriented to surface
             ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
             hit_p3d,hit_norm,hit_idx = hit

@@ -95,7 +95,7 @@ class EdgePatches_UI_Tools:
             sepv0 = lepv0[0][0] if lepv0 else None
             sepv3 = lepv3[0][0] if lepv3 else None
             
-            self.edgepatches.insert_epedge_from_stroke(p3d, sepv0=sepv0, sepv3=sepv3)
+            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/5.0, sepv0=sepv0, sepv3=sepv3)
             
             #self.polystrips.remove_unconnected_gverts()
             #self.polystrips.update_visibility(eventd['r3d'])
@@ -110,6 +110,28 @@ class EdgePatches_UI_Tools:
 
         return ''
     
+    def modal_scale_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        ar = self.action_radius
+        pr = self.mode_radius
+        cr = math.sqrt((mx-cx)**2 + (my-cy)**2)
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn(cr / pr, eventd)
+            self.mode_radius = cr
+            return ''
+
+        return ''
+
     def modal_grab_tool(self, context, eventd):
         cx,cy = self.action_center
         mx,my = eventd['mouse']
@@ -131,6 +153,35 @@ class EdgePatches_UI_Tools:
 
         return ''
     
+
+
+    def modal_scale_brush_pixel_tool(self, context, eventd):
+        '''
+        This is the pixel brush radius
+        self.tool_fn is expected to be self.
+        '''
+        mx,my = eventd['mouse']
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            '''
+            '''
+            self.tool_fn((mx,my), eventd)
+
+            return ''
+
+        return ''
+    
+
+
     ##############################
     # tools
     
@@ -319,5 +370,5 @@ class EdgePatches_UI_Tools:
             self.stroke_radius = self.tool_data
         else:
             x,y = command
-            self.sketch_brush.brush_pix_size_interact(x, y, precise = eventd['shift'])
+            self.sketch_brush.brush_pix_size_interact(x, y, precise=eventd['shift'])
 
