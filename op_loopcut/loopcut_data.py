@@ -18,6 +18,7 @@ class LoopCut(object):
         self.face_loop_fs = []
         self.vert_snaps_local = []
         self.vert_snaps_world = []
+        self.slide_reverse = []
         self.slide = False
         self.pct = .5
         
@@ -26,14 +27,22 @@ class LoopCut(object):
         self.face_loop_fs = []
         self.vert_snaps_local = []
         self.vert_snaps_world = []
+        self.slide_reverse = []
+        
         self.cyclic = False
         self.slide = False
         self.pct = .5 
+    
     def find_face_loop(self,bme, ed, select = False):
         '''takes a bmface and bmedgse'''
         #reality check
         if not len(ed.link_faces): return
         
+        def ed_to_vect(ed):
+            vect = ed.verts[1].co - ed.verts[0].co
+            vect.normalize()
+            return vect
+            
         def next_edge(cur_face, cur_ed):
             ledges = [ed for ed in cur_face.edges]
             n = ledges.index(cur_ed)
@@ -47,12 +56,14 @@ class LoopCut(object):
         
         loop_eds = []
         loop_faces = []
+        loop_revs = []
         self.cyclic = False
         
         for f in ed.link_faces:
             if len(f.edges) != 4: continue            
             eds = [ed.index]
-            fs = [f.index]    
+            fs = [f.index]
+            revs = [False]   
             
             f_next = True
             f_cur = f
@@ -64,6 +75,12 @@ class LoopCut(object):
                 
                 ed_next = next_edge(f_cur, ed_cur)
                 eds += [ed_next.index]
+                
+                parallel = ed_to_vect(ed_next).dot(ed_to_vect(ed_cur)) > 0
+                prev_rev = revs[-1]
+                rever = parallel == prev_rev                
+                revs += [rever]
+                
                 f_next = next_face(f_cur, ed_next)
                 if not f_next: break
                 
@@ -79,11 +96,13 @@ class LoopCut(object):
                 self.cyclic = True
                 self.face_loop_fs = fs
                 self.face_loop_eds = eds[:len(eds)-1]
+                self.slide_reverse = revs[:len(eds)-1]
                 return
             else:
                 if len(fs):
                     loop_faces.append(fs)
                     loop_eds.append(eds)
+                    loop_revs.append(revs)
         
         if len(loop_faces) == 2:    
             loop_faces[0].reverse()    
@@ -91,9 +110,14 @@ class LoopCut(object):
             tip = loop_eds[0][1:]
             tip.reverse()
             self.face_loop_eds = tip + loop_eds[1]
+            rev_tip = loop_revs[0][1:]
+            rev_tip.reverse()
+            self.slide_reverse = rev_tip + loop_revs[1]
+            
         else:
             self.face_loop_fs = loop_faces[0]
             self.face_loop_eds = loop_eds[0]
+            self.slide_reverse = loop_revs[0]
             
         return
     
@@ -115,9 +139,15 @@ class LoopCut(object):
         
         mx_trg = bpy.data.objects[self.target_name].matrix_world
         imx_trg = mx_trg.inverted()
-        for i in self.face_loop_eds:
-            ed = bme.edges[i]
-            v = (self.pct) * ed.verts[1].co + (1-self.pct) * ed.verts[0].co
+
+        for i, n in enumerate(self.face_loop_eds):
+            ed = bme.edges[n]
+            
+            if self.slide_reverse[i]:
+                v = (1- self.pct) * ed.verts[1].co + (self.pct) * ed.verts[0].co
+            else:
+                v = (1 - self.pct) * ed.verts[0].co + (self.pct) * ed.verts[1].co
+            
             if not self.source_name:
                 self.vert_snaps_local += [v]
                 self.vert_snaps_world += [mx_trg * v]
@@ -125,8 +155,7 @@ class LoopCut(object):
                 loc, no, indx = ob.closest_point_on_mesh(imx_src * mx_trg * v)
                 self.vert_snaps_local += [imx_trg * mx_src * loc]
                 self.vert_snaps_world += [mx_src * loc]
-            
-                 
+       
     def cut_loop(self, bme, select = True):
 
         eds = [bme.edges[i] for i in self.face_loop_eds]

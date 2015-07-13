@@ -83,8 +83,6 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         bpy.context.scene.update()
         self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
         self.loopcut = LoopCut(context, self.trg_obj, self.src_obj)
-        self.loopcut.slide = self.settings.use_pressure
-        
         
         context.area.header_text_set('LOOP CUT')
         
@@ -142,13 +140,26 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
                 dist = pmin - pt
                 return dist.length, pct
             
+            
             f = self.bme.faces[hit[2]]
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
-            d, pct = ed_dist(test_edge)
+            d, best_pct = ed_dist(test_edge)
             
-            if self.loopcut.slide:
-                self.loopcut.pct = pct
+            def abs_diff(a):
+                diff = abs(best_pct - a)
+                return diff
+            
+            if eventd['shift']:
+                self.loopcut.pct = best_pct
+                self.loopcut.slide = True
+            elif eventd['ctrl']:
+                blocks = [.25, .333, .5, .667, .75]
+                self.loopcut.pct = min(blocks, key = abs_diff)
+                self.loopcut.slide = True
+            else:
+                self.loopcut.pct = .5
+                self.loopcut.slide = False
                 
             self.loopcut.find_face_loop(self.bme,test_edge)
             self.loopcut.calc_snaps(self.bme)

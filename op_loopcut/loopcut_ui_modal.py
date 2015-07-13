@@ -60,7 +60,7 @@ class LoopCut_UI_ModalWait():
             return ''
 
         
-        if eventd['press'] in self.keymap['action']:
+        if eventd['type'] in self.keymap['action']:
             
             return 'update'
         
