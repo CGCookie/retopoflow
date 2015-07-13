@@ -125,9 +125,11 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
             polystrips_icon = icons.get("rf_polystrips_icon")
             layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
             layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+            layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
         else:
             layout.operator("cgcookie.contours", icon="IPO_LINEAR")
             layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+            layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
 
         if context.mode =='EDIT_MESH':
             layout.operator("cgcookie.tweak", icon="HAND")
