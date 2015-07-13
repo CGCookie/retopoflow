@@ -5,7 +5,7 @@ DRAWING:
 - SELECTMOUSE: select strip, junction, junction handle, or patch
 - Shift + SELECTMOUSE: select multiple strips
 - F: adjust brush size
-- SHIF+X: toggle X symmetry
+- SHIFT+X: toggle X symmetry
 
 TRANSFORM:
 - G: grab
