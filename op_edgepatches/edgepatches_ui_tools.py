@@ -92,7 +92,7 @@ class EdgePatches_UI_Tools:
                 lx,ly = lp
                 cp,cr = sk
                 cx,cy = cp
-                if (lx-cx)*(lx-cx)+(ly-cy)*(ly-cy) > 0.1:
+                if (lx-cx)*(lx-cx)+(ly-cy)*(ly-cy) > 0.01:
                     addsketch( (((lx+cx)/2.0,(ly+cy)/2.0), (lr+cr)/2.0) )
                     addsketch(sk)
                 else:
