@@ -32,7 +32,7 @@ import math
 
 from ..modaloperator import ModalOperator
 from ..lib import common_utilities
-from ..lib.common_utilities import get_source_object, get_target_object
+from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
 from .. import key_maps
 
 from .loopcut_data import LoopCut
@@ -65,6 +65,13 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
+
+        self.settings = common_utilities.get_settings()
+
+        if context.mode == 'EDIT_MESH' and self.settings.source_object == '':
+            showErrorMessage('Must specify a source object first')
+            return False
+
         return True
     
     def start(self, context):
