@@ -478,7 +478,15 @@ class EdgePatches:
             
             if i0==0:
                 if i1!=-1:
+                    if sepv0:
+                        epv1 = self.create_epvert(sepv0.position * 0.75 + epv.position * 0.25)
+                        epv2 = self.create_epvert(sepv0.position * 0.25 + epv.position * 0.75)
+                        self.create_epedge(sepv0, epv1, epv2, epv)
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+                elif sepv0 and sepv3:
+                    epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
+                    epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
+                    self.create_epedge(sepv0, epv1, epv2, sepv3)
             else:
                 self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
                 if i1!=-1:
@@ -514,6 +522,13 @@ class EdgePatches:
                     #pr.done()
                     return
         #pr.done()
+        
+        if len(pts) < 6:
+            if not sepv0 or not sepv3: return
+            epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
+            epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
+            self.create_epedge(sepv0, epv1, epv2, sepv3)
+            return
         
         #pr = profiler.start()
         lbez = cubic_bezier_fit_points(pts, error_scale)
@@ -600,6 +615,9 @@ class EdgePatches:
         epv0.update_epedges()
         epv3.update()
         epv3.update_epedges()
+    
+    def subdivide_eppatch(self, eppatch, epedge0, epedg1, t):
+        pass
     
     
     def create_mesh(self, bme):
