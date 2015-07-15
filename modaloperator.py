@@ -53,18 +53,11 @@ class ModalOperator(Operator):
             'draw_postpixel':   'draw_postpixel(self,context)',
             'modal_wait':       'modal_wait(self,context,eventd)',
         }
-        t = type(self)
-        lbad = []
-        for fnname,fndef in dfns.items():
-            try:
-                fn = t.__getattribute__(self, fnname)
-            except AttributeError:
-                lbad += [fnname]
+        lbad = [fnname for fnname in dfns.keys() if not hasattr(self, fnname)]
         if lbad:
             print('Critical Error! Missing definitions for the following functions:')
-            for fnname in lbad:
-                print('  %s' % dfns[fnname])
-            assert False
+            for fnname in lbad: print('  %s' % dfns[fnname])
+            assert False, 'Modal operator missing definitions: %s' % ','.join(dfns[fnname] for fnname in lbad)
 
         self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
         self.FSM = {} if not FSM else dict(FSM)
