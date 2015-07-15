@@ -58,11 +58,12 @@ class EdgeSlide_UI_Modal():
     def modal_slide(self,context,eventd):
         settings = common_utilities.get_settings()
         if eventd['press'] in self.keymap['action'] or eventd['press'] in self.keymap['confirm']:
+            self.edgeslide.calc_snaps(self.bme, snap = True)
             self.edgeslide.move_loop(self.bme)
             self.edgeslide.clear()
             return 'main'
         
-        elif eventd['type'] in self.keymap['cancel']:
+        elif eventd['type'] in self.keymap['cancel'] | self.keymap['modal_cancel']:
             self.edgeslide.clear()
             return 'main'
         

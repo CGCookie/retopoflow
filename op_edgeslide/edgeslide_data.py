@@ -191,7 +191,7 @@ class EdgeSlide(object):
             
         return
     
-    def calc_snaps(self,bme):
+    def calc_snaps(self,bme, snap = False):
         if not len(self.edge_loop_eds): return
         self.vert_snaps_local = []
         self.vert_snaps_world = []
@@ -213,7 +213,7 @@ class EdgeSlide(object):
             else:
                 v = vert.co + self.pct * self.edge_loop_left[i]
                 
-            if not self.source_name:
+            if not self.source_name or not snap:
                 self.vert_snaps_local += [v]
                 self.vert_snaps_world += [mx_trg * v]
             else:

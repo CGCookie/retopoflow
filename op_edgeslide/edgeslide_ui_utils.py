@@ -46,7 +46,7 @@ class EdgeSlide_UI_fns():
             self.edgeslide.find_edge_loop(self.bme,test_edge)
             self.edgeslide.pct = 0
             self.edgeslide.right = True
-            self.edgeslide.calc_snaps(self.bme)
+            self.edgeslide.calc_snaps(self.bme, snap = False)
         else:
             self.edgeslide.clear()
             
@@ -85,6 +85,6 @@ class EdgeSlide_UI_fns():
                 self.edgeslide.pct = min(1, pct_left)
                 
                 
-            self.edgeslide.calc_snaps(self.bme)
+            self.edgeslide.calc_snaps(self.bme, snap = False)
             
         return            
