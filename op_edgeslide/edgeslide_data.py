@@ -149,7 +149,9 @@ class EdgeSlide(object):
                         break
                     
                     else: break  #should never get here
-                         
+                
+                elif len(v_next.link_edges) == 4 and not all(ed.is_manifold for ed in v_next.link_edges):  break  #corner!
+                 
                 vs += [v_next.index]
                 ed_cur = ed_next
                 v_cur = v_next

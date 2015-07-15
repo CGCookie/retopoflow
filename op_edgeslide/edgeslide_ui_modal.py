@@ -63,7 +63,7 @@ class EdgeSlide_UI_Modal():
             self.edgeslide.clear()
             return 'main'
         
-        elif eventd['type'] in self.keymap['cancel'] | self.keymap['modal_cancel']:
+        elif eventd['type'] in self.keymap['cancel'] | self.keymap['modal cancel']:
             self.edgeslide.clear()
             return 'main'
         
