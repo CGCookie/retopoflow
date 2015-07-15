@@ -15,7 +15,7 @@ class EdgeSlide(object):
             self.source_name = source_obj.name
             
         self.edge_loop_eds = []
-        self.edge_loop_vs = []
+        self.vert_loop_vs = []
         self.edge_loop_right = []
         self.edge_loop_left = []
         
@@ -28,7 +28,7 @@ class EdgeSlide(object):
         
     def clear(self):
         self.edge_loop_eds = []
-        self.edge_loop_vs = []
+        self.vert_loop_vs = []
         self.edge_loop_right = []
         self.edge_loop_left = []
         self.world_right = []
@@ -120,10 +120,11 @@ class EdgeSlide(object):
             
             if v_next == v: #we looped
                 self.cyclic = True
-                self.face_loop_vs = vs[:len(vs)-1]
-                self.face_loop_eds = eds[:len(eds)-1] #<--- discard the edge we walked across to get back to start vert
+                self.vert_loop_vs = vs[:len(vs)-1]
+                self.edge_loop_eds = eds[:len(eds)-1] #<--- discard the edge we walked across to get back to start vert
                 self.edge_loop_right = rights
-                self.edge_loop_lefts = lefts
+                self.edge_loop_left = lefts
+
                 return
             else:
                 if len(vs):
@@ -134,10 +135,10 @@ class EdgeSlide(object):
         
         if len(loop_verts) == 2:    
             loop_verts[0].reverse()    
-            self.face_loop_vs = loop_verts[0] +  loop_verts[1]
+            self.vert_loop_vs = loop_verts[0] +  loop_verts[1]
             tip = loop_eds[0][1:]
             tip.reverse()
-            self.face_loop_eds = tip + loop_eds[1]
+            self.edge_loop_eds = tip + loop_eds[1]
             
             loop_rights[0].reverse()
             loop_lefts[0].reverse()
@@ -146,15 +147,15 @@ class EdgeSlide(object):
             self.edge_loop_left = loop_rights[0] + loop_lefts[1]
             
         else:
-            self.face_loop_vs = loop_verts[0]
-            self.face_loop_eds = loop_eds[0]
+            self.vert_loop_vs = loop_verts[0]
+            self.edge_loop_eds = loop_eds[0]
             self.edge_loop_right = loop_rights[0]
             self.edge_loop_left = loop_lefts[0]
             
         return
     
     def calc_snaps(self,bme):
-        if not len(self.face_loop_eds): return
+        if not len(self.edge_loop_eds): return
         self.vert_snaps_local = []
         self.vert_snaps_world = []
         self.world_right = []
@@ -167,13 +168,13 @@ class EdgeSlide(object):
         mx_trg = bpy.data.objects[self.target_name].matrix_world
         imx_trg = mx_trg.inverted()
 
-        for i, n in enumerate(self.face_loop_vs):
+        for i, n in enumerate(self.vert_loop_vs):
             vert = bme.verts[n]
             
             if self.right:
                 v = vert.co + self.pct * self.edge_loop_right[i]    
             else:
-                v = vert.cop + self.pct * self.edge_loop_left[i]
+                v = vert.co + self.pct * self.edge_loop_left[i]
                 
             if not self.source_name:
                 self.vert_snaps_local += [v]
@@ -187,7 +188,7 @@ class EdgeSlide(object):
        
     def move_loop(self, bme):
 
-        vs = [bme.verts[i] for i in self.edge_loop_vs]
+        vs = [bme.verts[i] for i in self.vert_loop_vs]
         
         for i, v in enumerate(vs):
             v.co = self.vert_snaps_local[i]

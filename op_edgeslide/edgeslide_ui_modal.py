@@ -31,17 +31,8 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, pr
 
 
 class EdgeSlide_UI_Modal():
-    
-    def modal_wait(self, context, eventd):
-        '''
-        Place code here to handle commands issued by user
-        Return string that corresponds to FSM key, used to change states.  For example:
-        - '':     do not change state
-        - 'main': transition to main state
-        - 'nav':  transition to a navigation state (passing events through to 3D view)
-        '''
-        
 
+    def modal_wait(self, context, eventd):
         settings = common_utilities.get_settings()
         if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
@@ -53,23 +44,23 @@ class EdgeSlide_UI_Modal():
         #####################################
         # General
 
-        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
+        if eventd['press'] == 'LEFTMOUSE':
+            if len(self.edgeslide.vert_loop_vs) > 0:
+                print('SLIDE')
+                return 'slide'
+            
+        elif eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
             #update brush and brush size
             self.hover_edge_pick(context,eventd,settings)
             return ''
-
-        
-        if eventd['type'] in self.keymap['action']:
-            
-            if len(self.edgeslide.edge_loop_eds):
-                return 'slide'
-            
-            return ''
+        return ''
         
     def modal_slide(self,context,eventd):
-        
-        if eventd['type'] in self.keymap['action'] or eventd['type'] in self.keymap['confirm']:
-            return 'update'
+        settings = common_utilities.get_settings()
+        if eventd['press'] in self.keymap['action'] or eventd['press'] in self.keymap['confirm']:
+            self.edgeslide.move_loop(self.bme)
+            self.edgeslide.clear()
+            return 'main'
         
         elif eventd['type'] in self.keymap['cancel']:
             self.edgeslide.clear()
@@ -77,5 +68,6 @@ class EdgeSlide_UI_Modal():
         
         elif eventd['type'] == 'MOUSEMOVE':
             
+            self.slide_update(context,eventd, settings)
             return ''
         
