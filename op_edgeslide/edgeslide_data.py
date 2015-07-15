@@ -86,7 +86,25 @@ class EdgeSlide(object):
         
         for v in ed.verts:
             
-            if len(v.link_edges) != 4: continue            
+            if len(v.link_edges) != 4:
+                if all(l_ed.is_manifold for l_ed in v.link_edges) or len(v.link_edges) > 3:  continue #this is a pole for sure
+                    
+                elif len([l_ed for l_ed in v.link_edges if l_ed.is_manifold]) == 1 and len(v.link_edges) == 3:
+                    forward = v.co - ed.other_vert(v).co
+                    esides = [l_ed for l_ed in v.link_edges if l_ed != ed]
+                    side0 = esides[0].other_vert(v).co - v.co
+                    side1 = esides[1].other_vert(v).co - v.co
+                         
+                    if v.normal.dot(side0.cross(forward)) > 0:
+                        v_right, v_left = side0, side1
+                    else:
+                        v_left, v_right = side0, side1
+                    loop_eds.append([ed.index])        
+                    loop_verts.append([v.index])
+                    loop_rights.append([v_right])
+                    loop_lefts.append([v_left])
+                    continue
+                         
             eds = [ed.index]
             vs = [v.index]
             
@@ -129,6 +147,8 @@ class EdgeSlide(object):
                         rights += [v_right]
                         lefts += [v_left]
                         break
+                    
+                    else: break  #should never get here
                          
                 vs += [v_next.index]
                 ed_cur = ed_next
