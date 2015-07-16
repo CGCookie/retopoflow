@@ -25,6 +25,10 @@ class EdgeSlide(object):
         
         self.pct = 0
         self.cyclic = False
+        self.pole0 = -1
+        self.pole1 = -1
+        self.pole0world = None
+        self.pole1world = None
         
     def clear(self):
         self.edge_loop_eds = []
@@ -37,6 +41,10 @@ class EdgeSlide(object):
         self.vert_snaps_world = []
         self.pct = 0
         self.cyclcic = False
+        self.pole0 = -1
+        self.pole1 = -1
+        self.pole0world = None
+        self.pole1world = None
         
     def find_edge_loop(self,bme, ed, select = False):
         '''takes a bmedgse and walks parallel to it'''
@@ -48,7 +56,9 @@ class EdgeSlide(object):
             vect = ed.verts[1].co - ed.verts[0].co
             vect.normalize()
             return vect
-            
+        
+        self.pole0 = -1
+        self.pole1 = -1    
         def next_edge(cur_ed, cur_vert):
             ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
             
@@ -84,12 +94,15 @@ class EdgeSlide(object):
         
         self.cyclic = False
         
-        for v in ed.verts:
+        for i, v in enumerate(ed.verts):
             
             if len(v.link_edges) != 4:
-                if all(l_ed.is_manifold for l_ed in v.link_edges) or len(v.link_edges) > 3:  continue #this is a pole for sure
+                if all(l_ed.is_manifold for l_ed in v.link_edges) or len(v.link_edges) > 3:  #Pole within mesh
+                    if i == 0: self.pole0 = v.index
+                    else: self.pole1 = v.index
+                    continue #this is a pole for sure
                     
-                elif len([l_ed for l_ed in v.link_edges if l_ed.is_manifold]) == 1 and len(v.link_edges) == 3:
+                elif len([l_ed for l_ed in v.link_edges if l_ed.is_manifold]) == 1 and len(v.link_edges) == 3: #End of mesh
                     forward = v.co - ed.other_vert(v).co
                     esides = [l_ed for l_ed in v.link_edges if l_ed != ed]
                     side0 = esides[0].other_vert(v).co - v.co
@@ -104,7 +117,10 @@ class EdgeSlide(object):
                     loop_rights.append([v_right])
                     loop_lefts.append([v_left])
                     continue
-                         
+            elif len(v.link_edges) == 4 and not all(ed.is_manifold for ed in v.link_edges):  #corner vert
+                if i == 0: self.pole0 = v.index
+                else: self.pole1 = v.index
+                continue  #corner!             
             eds = [ed.index]
             vs = [v.index]
             
@@ -130,7 +146,10 @@ class EdgeSlide(object):
                 
                 if len(v_next.link_edges) != 4:
                     
-                    if all(ed.is_manifold for ed in v_next.link_edges):  break #this is a pole for sure
+                    if all(ed.is_manifold for ed in v_next.link_edges):
+                        if i == 0: self.pole0 = v_next.index
+                        else: self.pole1 = v_next.index
+                        break #this is a pole for sure
                     
                     elif len([ed for ed in v_next.link_edges if ed.is_manifold]) == 1 and len(v_next.link_edges) == 3:
                         forward = v_next.co - ed_next.other_vert(v_next).co
@@ -150,7 +169,10 @@ class EdgeSlide(object):
                     
                     else: break  #should never get here
                 
-                elif len(v_next.link_edges) == 4 and not all(ed.is_manifold for ed in v_next.link_edges):  break  #corner!
+                elif len(v_next.link_edges) == 4 and not all(ed.is_manifold for ed in v_next.link_edges):  
+                    if i == 0: self.pole0 = v_next.index
+                    else: self.pole1 = v_next.index
+                    break  #corner!
                  
                 vs += [v_next.index]
                 ed_cur = ed_next
@@ -224,7 +246,16 @@ class EdgeSlide(object):
                 self.vert_snaps_world += [mx_src * loc]
                 self.world_right += [mx_trg * (v + self.edge_loop_right[i])]
                 
-       
+        if self.pole0 != -1:
+            self.pole0world = mx_trg * bme.verts[self.pole0].co
+        else:
+            self.pole0world = None
+            
+        if self.pole1 != -1:
+            self.pole1world = mx_trg * bme.verts[self.pole1].co
+        else:
+            self.pole1world = None
+            
     def move_loop(self, bme):
 
         vs = [bme.verts[i] for i in self.vert_loop_vs]

@@ -31,16 +31,25 @@ class EdgeSlide_UI_Draw():
         settings = common_utilities.get_settings()
         color_active = settings.theme_colors_active[settings.theme]
         lpoints = self.edgeslide.vert_snaps_world
-        rpoints = self.edgeslide.world_right
+            
         color_border = (color_active[0], color_active[1], color_active[2], 1.00)
         color_right = (color_active[2], color_active[1], color_active[0], .75)
         
         if len(lpoints) == 0: return
+
         if self.edgeslide.cyclic:
             common_drawing_view.draw3d_closed_polylines(context, [lpoints], color_border, 2, 'GL_LINES')
             #common_drawing_view.draw3d_closed_polylines(context, [rpoints], color_right, 2, 'GL_LINES')
         else:
             common_drawing_view.draw3d_polyline(context, lpoints, color_border, 2, 'GL_LINES')
+            
+            if self.edgeslide.pole0 != -1:
+                common_drawing_view.draw3d_polyline(context, [self.edgeslide.pole0world, lpoints[0]], (1,0,0,1), 2, 'GL_LINES')
+                common_drawing_view.draw3d_points(context, [self.edgeslide.pole0world], (1,0,0,1), 2)
+            if self.edgeslide.pole1 != -1:
+                common_drawing_view.draw3d_polyline(context,[lpoints[-1], self.edgeslide.pole1world],(1,0,0,1), 2, 'GL_LINES')
+                common_drawing_view.draw3d_points(context, [self.edgeslide.pole1world], (1,0,0,1), 2)
+                
             #common_drawing_view.draw3d_polyline(context, rpoints, color_right, 2, 'GL_LINES')
         return
     
