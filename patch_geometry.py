@@ -3,6 +3,7 @@ Created on Jul 18, 2015
 
 @author: Patrick
 '''
+from itertools import chain
 
 def tri_prim_0(v0, v1, v2):
     
@@ -185,8 +186,7 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
     
         verts += [(B*v1 + A*c02)]
         
-        #now add in blue region
-        
+    #now add in blue region    
     for j in range(1, y + 2): #<---starts at 1 the, the top prev vert already added, however the middle vert has not
         C = (j)/(y+1)  #small to big - top vert component
         D =  (y-j+1)/(y+1)  #big to small - bottom vert component
@@ -260,23 +260,112 @@ def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
             faces += [(A, B, B+1, A+1)]
     
     return verts, faces
+
+
+
+def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
     
-def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q4 = 0):
+    verts = []
+    
+    for i in range(x_off,y+2):
+        A= i/(y+1)
+        B = 1- A
+        
+        for j in range(y_off,x+2):
+            C = j/(x+1)
+            D = 1-C
+            v = B*D*c0 + A*D*c1 + A*C*c2 + B*C*c3
+            verts += [v]
+            print((A,B,C,D))
+    return verts
+        
+def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
     
     c00 = .75*v0 + .25*v1
-    pole0 = .5*v0 + .5*v1
+    p0 = .5*v0 + .5*v1
     c01 = .25*v0 + .75*v1
-    pole1 = .75*pole0 + .25*v3
-    cp0 = .5*pole1 + .5*v3
+    p1 = .75*p0 + .25*v3
+    cp0 = .5*p1 + .5*v3
     
-    verts = [v0, c00, pole0, c01, v1, v2, v3, v4, cp0, pole1]
-    faces = [(0,1,9,8),
-             (1,2,3,9),
-             (3,4,8,9),
-             (4,5,6,8),
-             (6,7,0,8)]
+    V00 = quadrangulate_verts(v4, v0, cp0, v3, q4, q0)
+    V01 = quadrangulate_verts(v3, cp0, v1, v2, q1, q0, y_off = 1)
+    V10 = quadrangulate_verts(v0, c00, p1, cp0, q4, x, x_off = 1)
+    V11 = quadrangulate_verts(cp0, p1, c01, v1, q1, x, x_off =1, y_off =1)
+    
+    verts= []
+    #slice these lists together so the verts are coherent for making faces
+    for i in range(0,q0+2):
+        verts += chain(V00[i*(q4+2):i*(q4+2)+q4+2],V01[i*(q1+1):i*(q1+1)+q1+1])
+        
+    for i in range(0,x+1):
+        verts += chain(V10[i*(q4+2):i*(q4+2)+q4+2], V11[i*(q1+1):i*(q1+1)+q1+1])
     
     
+    #add in the bottom verts
+    vs = quadrangulate_verts(p1, c00, p0, c01,q1,q4, x_off=1, y_off=1)
+    verts += vs
+    
+    faces = []
+    for i in range(0,x+q0+2):
+        for j in range(0, q1+q4+2):
+            A =i*(q1+q4+3) + j
+            B =(i+1)*(q1+q4+3) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    #make the bottom faces
+    alpha = (q0+x+2)*(q1+q4+3)
+    n_p1 = alpha + q4 + 1 #index of the pole
+    n_beta = n_p1 + q1+1
+    N = (10 + 
+         3*x   + 3*q0  + 4*q1  + 4*q4  + 
+         q0*q1 + q1*x  + q1*q4 + q4*q0 + x*q4)
+    print('Total verts %i' % N)
+    print(alpha)
+    for i in range(0,q4+1):
+        for j in range(0,q1):
+            A = n_p1 + j + 1 + i*(q1 + 1)
+            B = A + 1
+            C = A + (q1 +1)
+            D = C + 1
+            faces += [(C, D, B, A)]
+    
+        a = alpha + i
+        b = N-(i+1)*(q1+1)
+        c = b - q1-1
+        d = a + 1
+        print((a,b,c,d))
+        faces += [(a,b,c,d)]
+              
+    
+    '''
+    for i in range(0, x+q0+3):
+        
+        if i <= q0 + 1:
+            A = (i)/(q0+1)
+            B =  (q0-i+1)/(q0+1) 
+            vlow = A*v0 + B*v4
+            vmid = A*cp0 + B*v3
+            vhigh = A*v1 + B*v2
+        else:
+            A = (i-q0- 1)/(x+1)
+            B = (x-(i-q0-2))/(x+1)
+            vlow = A*c00 + B*v0
+            vmid = A*cp0 + B*pole1
+            vhigh = A*v1 + B*c01
+
+        for j in range(0, q1+q4+3):
+            if j <= q4 + 1:
+                C = (j)/(q4+1)
+                D =  (q4+1 -j)/(q4+1) 
+                verts += [C*vmid + D*vlow]
+            else:
+                C = (j-q4- 1)/(q1+1)
+                D = (q1 + 1 - (j-(q4+1)))/(q1+1)
+                verts += [C*vhigh + D*vmid]
+                
+            print((A,B,C,D))
+    '''
+   
     return verts, faces
 
 def pent_prim_3(v0, v1, v2, v3, v4):
