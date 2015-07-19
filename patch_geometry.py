@@ -229,15 +229,39 @@ def pent_prim_0(v0, v1, v2, v3, v4):
     
     return verts, faces
     
-def pent_prim_1(v0, v1, v2, v3, v4):
-    c0 = .5*v0 + .5*v1
+def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
+    pole0 = .5*v0 + .5*v1
     
-    verts = [v0,c0,v1,v2,v3,v4]
-    faces = [(0,1,2,3),(0,3,4,5)]
+    #verts = [v0,pole0,v1,v2,v3,v4]
+    #faces = [(0,1,2,3),(0,3,4,5)]
+    
+    verts = []
+    for i in range(0,q4+2):
+        A = (i)/(q4+1)
+        B =  (q4-i+1)/(q4+1) 
+    
+        verts += [B*v3 + A*v4]
+        
+        vlow  = B*v2 + A*v0
+        vhigh = B*v1 + A*pole0
+        
+        for j in range(0,x+2):
+            C = (j)/(x+1)
+            D =  (x-j+1)/(x+1)
+            
+            verts+= [D*vlow + C*vhigh]
+            
+    faces = []
+    N = 6 + 2*x + 3*q4 + x*q4
+    for i in range(0, q4+1):
+        for j in range(0,x+2):
+            A =i*(x+3) + j
+            B =(i + 1) * (x+3) + j
+            faces += [(A, B, B+1, A+1)]
     
     return verts, faces
     
-def pent_prim_2(v0, v1, v2, v3, v4):
+def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q4 = 0):
     
     c00 = .75*v0 + .25*v1
     pole0 = .5*v0 + .5*v1
@@ -245,12 +269,14 @@ def pent_prim_2(v0, v1, v2, v3, v4):
     pole1 = .75*pole0 + .25*v3
     cp0 = .5*pole1 + .5*v3
     
-    verts = [v0, c00, pole0, c01, v1, v2, v3, v4, cp0, pole1]
-    faces = [(0,1,9,8),
-             (1,2,3,9),
-             (3,4,8,9),
-             (4,5,6,8),
-             (6,7,0,8)]
+    #verts = [v0, c00, pole0, c01, v1, v2, v3, v4, cp0, pole1]
+    #faces = [(0,1,9,8),
+    #         (1,2,3,9),
+    #         (3,4,8,9),
+    #         (4,5,6,8),
+    #         (6,7,0,8)]
+    
+    
     return verts, faces
 
 def pent_prim_3(v0, v1, v2, v3, v4):
