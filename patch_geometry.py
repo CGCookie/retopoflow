@@ -86,7 +86,7 @@ def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
     return verts, faces
 
 
-def quad_prim_3(v0, v1, v2, v3):
+def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
     
     c00 = .67 * v0 + .33 * v1
     c01 = .33 * v0 + .67 * v1
@@ -94,12 +94,48 @@ def quad_prim_3(v0, v1, v2, v3):
     pole0 = .67 * (.5*v0 + .5*v3) + .33 * (.5*v1 + .5*v2) 
     pole1 = .33 * (.5*v0 + .5*v3) + .67 * (.5*v1 + .5*v2)
     
-    verts = [v0, c00, c01, v1, v2, v3, pole0, pole1]
-    faces  = [(0,1,6,5),
-            (1,2,7,6),
-            (2,3,4,7),
-            (7,4,5,6)]
+    verts = []
     
+    for i in range(0, x+2):
+        A = (i)/(x+1)
+        B =  (x-i+1)/(x+1)  
+        verts += [A*c00 + B*v0]
+        
+        vlow  = A*pole0 + B*v3
+        vhigh = A*pole1 + B*v2
+        
+        for j in range(0, q + 2):
+           
+            C = (j)/(q+1)
+            D =  (q-j+1)/(q+1)
+            print((A,B,C,D))
+            verts += [D*vlow + C*vhigh]
+            print((A,B,C,D))
+        verts += [A*c01 + B*v1]
+    
+            
+    for m in range(0,q):
+        E = (m+1)/(q+1)
+        F =  (q-m)/(q+1)
+        verts += [F*c01 + E*c00] 
+        
+        
+    faces = []
+    for i in range(0, x+1):
+        for j in range(0,q+3):
+            A =i*(q+4) + j
+            B =(i+1)*(q+4) + j  #x + 3 to q+4
+            faces += [(A, B, B+1, A+1)]
+    N = 8 + 4*x + 3*q + x*q
+    beta = (4+q)*(x+1)  #This is the corner of the last face
+    sigma = (4+q)*(x+2)-1
+    for c in range(0, q):
+        a = sigma + c
+        b = sigma - 2 - c
+        faces += [(a, b+1, b, a+1)]
+            
+    faces += [(beta+2, beta +1, beta, N-1)]        
+     
     return verts, faces
 
 def quad_prim_4(v0, v1, v2, v3):
