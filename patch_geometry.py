@@ -269,12 +269,12 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q4 = 0):
     pole1 = .75*pole0 + .25*v3
     cp0 = .5*pole1 + .5*v3
     
-    #verts = [v0, c00, pole0, c01, v1, v2, v3, v4, cp0, pole1]
-    #faces = [(0,1,9,8),
-    #         (1,2,3,9),
-    #         (3,4,8,9),
-    #         (4,5,6,8),
-    #         (6,7,0,8)]
+    verts = [v0, c00, pole0, c01, v1, v2, v3, v4, cp0, pole1]
+    faces = [(0,1,9,8),
+             (1,2,3,9),
+             (3,4,8,9),
+             (4,5,6,8),
+             (6,7,0,8)]
     
     
     return verts, faces
