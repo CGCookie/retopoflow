@@ -138,7 +138,7 @@ def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
      
     return verts, faces
 
-def quad_prim_4(v0, v1, v2, v3):
+def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
     
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
@@ -149,7 +149,7 @@ def quad_prim_4(v0, v1, v2, v3):
     pole1 = .6 * c02 + .4*(.75*v2 + .25*v3)
     cp01 = .5*pole0 + .5*pole1
     
-    
+    '''
     verts = [v0, c00, c01, c02, v1, c10, v2, v3, pole0, cp01, pole1]
     faces  = [(0,1,8,7),
               (1,2,9,8),
@@ -157,7 +157,67 @@ def quad_prim_4(v0, v1, v2, v3):
               (3,4,5,10),
               (5,6,9,10),
               (8,9,6,7)]
+    '''
+    verts = []
+    for i in range(0, x+2):
+        A = (i)/(x+1)  #small to big  -> right side on my paper
+        B =  (x-i+1)/(x+1)  #big to small  -> left side on my paper
+        verts += [A*c00 + B*v0]
+        
+        vlow  = A*pole0 + B*v3
+        vhigh = A*cp01 + B*v2
+        
+        for j in range(0, q + 2):
+           
+            C = (j)/(q+1)  #small to big - top vert component
+            D =  (q-j+1)/(q+1)  #big to small - bottom vert component
+            verts += [D*vlow + C*vhigh]
+            print((A,B,C,D))
+            
+        vlow = vhigh
+        vhigh = A*pole1 + B*c10
+        
+        for j in range(1, y + 2): #<---starts at 1 the, the top edge of last segment is the bottom edge here
+            C = (j)/(y+1)  #small to big - top vert component
+            D =  (y-j+1)/(y+1)  #big to small - bottom vert component
+            verts += [D*vlow + C*vhigh]
+            print((A,B,C,D))
+    
+        verts += [(B*v1 + A*c02)]
+        
+        #now add in blue region
+        
+    for j in range(1, y + 2): #<---starts at 1 the, the top prev vert already added, however the middle vert has not
+        C = (j)/(y+1)  #small to big - top vert component
+        D =  (y-j+1)/(y+1)  #big to small - bottom vert component
+        verts += [D*c02 + C*c01]
 
+    for j in range(1, q + 1):  #don't need to add in bordres so these start at 1 and end at N-1
+        C = (j)/(q+1)  #small to big - top vert component
+        D =  (q-j+1)/(q+1)  #big to small - bottom vert component
+        verts += [D*c01 + C*c00]
+        print((A,B,C,D))
+        
+        
+    faces = []
+    for i in range(0, x+1):
+        for j in range(0,q+y+5 -1):
+            A =i*(q+ y + 5) + j
+            B =(i+1)*(q+y+5) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    N = 11 + 5*x + 3*q + 3*y + q*x + x*y
+    beta = (5+q+y)*(x+1)  #This is the corner of the last face to be added
+    sigma = (5+q+y)*(x+2)-1  #this is the corner of the first face in the leftover segment
+    for c in range(0, y+q+1):
+        a = sigma + c
+        b = sigma - 2 - c
+        faces += [(a, b+1, b, a+1)]
+            
+    faces += [(beta+2, beta +1, beta, N-1)]
+    
+    
+        
     return verts, faces
 
 
