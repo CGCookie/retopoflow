@@ -55,14 +55,34 @@ def quad_prim_1(v0, v1, v2, v3, x = 0):
     return verts, faces
 
 
-def quad_prim_2(v0, v1, v2, v3):
+def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
     
     c0 = .67 * v0 + .33 * v1
     pole0 = .67 * v1 + .33 * v0
-    verts = [v0,c0,pole0,v1,v2, v3]
-    faces  = [(0,1,4,5),
-              (1,2,3,4)]
     
+    verts = []
+    for i in range(0,y+2):
+        A = (i)/(y+1)
+        B =  (y-i+1)/(y+1) 
+    
+        verts += [B*v3 + A*v0]
+        
+        vlow  = B*v2 + A*c0
+        vhigh = B*v1 + A*pole0
+        
+        for j in range(0,x+2):
+            C = (j)/(x+1)
+            D =  (x-j+1)/(x+1)
+            
+            verts+= [D*vlow + C*vhigh]
+            
+    faces = []
+    N = 6 + 2*x + 3*y + x*y
+    for i in range(0, y+1):
+        for j in range(0,x+2):
+            A =i*(x+3) + j
+            B =(i + 1) * (x+3) + j
+            faces += [(A, B, B+1, A+1)] 
     return verts, faces
 
 
