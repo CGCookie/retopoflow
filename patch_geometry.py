@@ -337,38 +337,10 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
         faces += [(a,b,c,d)]
               
     
-    '''
-    for i in range(0, x+q0+3):
-        
-        if i <= q0 + 1:
-            A = (i)/(q0+1)
-            B =  (q0-i+1)/(q0+1) 
-            vlow = A*v0 + B*v4
-            vmid = A*cp0 + B*v3
-            vhigh = A*v1 + B*v2
-        else:
-            A = (i-q0- 1)/(x+1)
-            B = (x-(i-q0-2))/(x+1)
-            vlow = A*c00 + B*v0
-            vmid = A*cp0 + B*pole1
-            vhigh = A*v1 + B*c01
 
-        for j in range(0, q1+q4+3):
-            if j <= q4 + 1:
-                C = (j)/(q4+1)
-                D =  (q4+1 -j)/(q4+1) 
-                verts += [C*vmid + D*vlow]
-            else:
-                C = (j-q4- 1)/(q1+1)
-                D = (q1 + 1 - (j-(q4+1)))/(q1+1)
-                verts += [C*vhigh + D*vmid]
-                
-            print((A,B,C,D))
-    '''
-   
     return verts, faces
 
-def pent_prim_3(v0, v1, v2, v3, v4):
+def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     
     c00 = .8*v0 + .2*v1
     c01 = .6*v0 + .4*v1
@@ -377,22 +349,57 @@ def pent_prim_3(v0, v1, v2, v3, v4):
     
     c10 = .5*v1 + .5*v2
     
-    pole0 = .5*c00 + .5*(.5*v3 + .5*v4)
-    cp0 = .25 * c01 + .75*v3
-    cp1 = .75 * (.33*v2 + .67*v3) + .25*c02
-    pole1 = .5 * c03 + .5*(.67*v2 + .33*v3)
+    p0 = .6*c00 + .4*(.5*v3 + .5*v4)
+    cp0 = .35 * c01 + .65*v3
+    cp1 = .65 * (.33*v2 + .67*v3) + .35*c02
+    p1 = .7 * c03 + .3*(.67*v2 + .33*v3)
     
-    verts = [v0,c00,c01,c02,c03,v1,c10,v2,v3,v4, pole0, cp0, cp1, pole1]
     
-    faces = [(0,1,10,9),
-             (1,2,11,10),
-             (2,3,12,11),
-             (3,4,13,12),
-             (4,5,6,13),
-             (6,7,12,13),
-             (7,8,11,12),
-             (8,9,10,11)]
+    V00 = quadrangulate_verts(v0, c00, p0, v4, 0,  x,y_off = 0)
+    V01 = quadrangulate_verts(v4, p0, cp0, v3, q4, x,y_off = 1)
+    V02 = quadrangulate_verts(v3, cp0,cp1, v2, q1, x,y_off = 1)
+    V03 = quadrangulate_verts(v2, cp1, p1, c10, y,  x, y_off = 1)
+    V04 = quadrangulate_verts(c10, p1, c03, v1, 0,  x, y_off = 1)
     
+    verts = []
+    for i in range(0,x+2):
+        verts += chain(V00[i*2:i*2 + 2],
+                       V01[i*(q4+1):i*(q4+1)+q4+1],
+                       V02[i*(q1+1):i*(q1+1)+q1+1],
+                       V03[i*(y+1):i*(y+1)+y+1],
+                       V04[i:i+1])
+
+    V10 = quadrangulate_verts(p1, cp1, c02, c03, 0, y, x_off=1, y_off=1)
+    V11 = quadrangulate_verts(cp1, cp0, c01, c02, 0, q1, x_off=1, y_off=1)
+    V12 = quadrangulate_verts(cp0, p0, c00, c01, 0, q4, x_off=1, y_off=1)
+    V12.pop()  #duplicate of the corner where it meets.
+    
+    verts += V10 + V11 + V12
+    faces = []
+    for i in range(0,x+1):
+        for j in range(0, 5+q4+q1+y):
+            A =i*(6+q4+q1+y) + j
+            B =(i+1)*(6+q4+q1+y) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    alpha = (x+2)*(6+q4+q1+y)-1
+    sigma = (x+1)*(6+q4+q1+y)
+    print((alpha, sigma))
+    
+    N = 14 + 6*x + 3*q4 + 3*q1 + 3*y + x*(q4 + q1+y)
+    print(N)
+    for i in range(0,2+q4+q1+y):
+        a = alpha - i- 2
+        b = alpha +1 + i
+        c = b-1
+        d = a + 1
+        print((a,b,c,d))
+        faces += [(a,b,c,d)]
+    
+    faces += [(sigma + 2, sigma + 1, sigma, N-1)]  
+    #verts = [v0,c00,c01,c02,c03,v1,c10,v2,v3,v4, pole0, cp0, cp1, pole1]
+    #faces = [(0,1,10,9), (1,2,11,10),(2,3,12,11),(3,4,13,12),
+    #         (4,5,6,13),(6,7,12,13),(7,8,11,12),(8,9,10,11)]
     return verts, faces
     
     
