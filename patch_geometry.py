@@ -410,18 +410,68 @@ def hex_prim_0(v0, v1, v2, v3, v4,v5):
     
     return verts, faces
 
-def hex_prim_1(v0, v1, v2, v3, v4,v5):
+def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
 
     c0 = .5*v0  +.5*v1
     c1 = .5*v1 + .5*v2
     cp0 = .18*(v3 + v4 + v5) + .1533*(v0 + v1 + v2)
-    pole1 = .33*c0 + .33 * c1 + .34 * cp0
-    verts = [v0, c0, v1, c1, v2, v3, v4, v5, cp0, pole1]
-    faces = [(0,1,9,8),
-             (1,2,3,9),
-             (3,4,8,9),
-             (4,5,6,8),
-             (6,7,0,8)]
+    p0 = .33*c0 + .33 * c1 + .34 * cp0
+    #verts = [v0, c0, v1, c1, v2, v3, v4, v5, cp0, pole1]
+    #faces = [(0,1,9,8),
+    #         (1,2,3,9),
+    #         (3,4,8,9),
+    #         (4,5,6,8),
+    #         (6,7,0,8)]
+    
+    V00 = quadrangulate_verts(v5, v0, cp0, v4, z, w)
+    V01 = quadrangulate_verts(v4, cp0, v2, v3, y, w, y_off = 1)
+    V10 = quadrangulate_verts(v0, c0, p0, cp0, z, x, x_off = 1)
+    V11 = quadrangulate_verts(cp0, p0, c1, v2, y, x, x_off =1, y_off =1)
+    
+    verts= []
+    #slice these lists together so the verts are coherent for making faces
+    for i in range(0,w+2):
+        verts += chain(V00[i*(z+2):i*(z+2)+z+2],V01[i*(y+1):i*(y+1)+y+1])
+        
+    for i in range(0,x+1):
+        verts += chain(V10[i*(z+2):i*(z+2)+z+2], V11[i*(y+1):i*(y+1)+y+1])
+    
+    
+    #add in the bottom verts
+    vs = quadrangulate_verts(p0, c0, v1, c1,y,z, x_off=1, y_off=1)
+    verts += vs
+    
+    faces = []
+    for i in range(0,x+w+2):
+        for j in range(0, y+z+2):
+            A =i*(y+z+3) + j
+            B =(i+1)*(y+z+3) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    #make the bottom faces
+    alpha = (w+x+2)*(y+z+3)
+    n_p1 = alpha + z + 1 #index of the pole
+    n_beta = n_p1 + y+1
+    N = (10 + 
+         3*x   + 3*w  + 4*y  + 4*z  + 
+         w*y + y*x  + y*z + z*w + x*z)
+    print('Total verts %i' % N)
+    print(alpha)
+    for i in range(0,z+1):
+        for j in range(0,y):
+            A = n_p1 + j + 1 + i*(y + 1)
+            B = A + 1
+            C = A + (y +1)
+            D = C + 1
+            faces += [(C, D, B, A)]
+    
+        a = alpha + i
+        b = N-(i+1)*(y+1)
+        c = b - y-1
+        d = a + 1
+        print((a,b,c,d))
+        faces += [(a,b,c,d)]
+    
     
     return verts, faces
 
