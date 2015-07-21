@@ -13,17 +13,59 @@ def tri_prim_0(v0, v1, v2):
     
     return verts, faces
 
-def tri_prim_1(v0,v1,v2):
-    pole0 = .5*v0 + .5*v1 
-    pole1 = .5*v2 + .5*pole0
-    c00 = .5*v0 + .5*pole0
-    c01 = .5*pole0 + .5*v1
+def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
+    p0 = .5*v0 + .5*v1 
+    p1 = .5*v2 + .5*p0
+    c00 = .5*v0 + .5*p0
+    c01 = .5*p0 + .5*v1
 
-    verts = [v0, c00, pole0, c01, v1, v2, pole1]
-    faces= [(0,1,6,5),
-            (1,2,3,6),
-            (3,4,5,6)]
+    #verts = [v0, c00, pole0, c01, v1, v2, pole1]
+    #faces= [(0,1,6,5),
+    #        (1,2,3,6),
+    #        (3,4,5,6)]
     
+    V00 = quadrangulate_verts(v0, c00, p1, v2, q1, x)
+    V01 = quadrangulate_verts(v2, p1, c01, v1, q2, x, y_off =1)
+    
+    verts= []
+
+        
+    for i in range(0,x+2):
+        verts += chain(V00[i*(q1+2):i*(q1+2)+q1+2], V01[i*(q2+1):i*(q2+1)+q2+1])
+    
+    
+    #add in the bottom verts
+    vs = quadrangulate_verts(p1, c00, p0, c01,q2,q1, x_off=1, y_off=1)
+    verts += vs
+    
+    faces = []
+    for i in range(0,x+1):
+        for j in range(0, q2+q1+2):
+            A =i*(q1+q2+3) + j
+            B =(i+1)*(q1+q2+3) + j
+            faces += [(A, B, B+1, A+1)]
+            print((i,j,A,B, B+1, A+1))
+    
+    #make the bottom faces
+    alpha = (x+1)*(q1+q2+3)
+    n_p1 = alpha + q1 + 1 #index of the pole
+    n_beta = n_p1 + q2+1
+    N = (7 +3*q1 + 3*q2 + 3*x + q1*x + q2*x + q1*q2)
+
+    for i in range(0,q1+1):
+        for j in range(0, q2):
+            A = n_p1 + j + 1 + i*(q2 + 1)
+            B = A + 1
+            C = A + (q2 +1)
+            D = C + 1
+            faces += [(C,D,B,A)]
+        
+        a = alpha + i
+        b = N-(i+1)*(q2+1)
+        c = b - q2-1
+        d = a + 1           
+        faces += [(a,b,c,d)]
+        
     return verts, faces
 
 def quad_prim_1(v0, v1, v2, v3, x = 0):
