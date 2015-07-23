@@ -91,7 +91,6 @@ def quad_prim_1(v0, v1, v2, v3, x = 0):
     for i in range(0,x+1):
         for j in range(0,2):
             f = (3*i+j, 3*i+j+3, 3*i+j+4, 3*i+j+1)
-            print((i,j,f))
             faces += [f]
         
     faces += [(N-4, N-1, N-2, N-3)]
@@ -151,9 +150,8 @@ def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
            
             C = (j)/(q+1)
             D =  (q-j+1)/(q+1)
-            print((A,B,C,D))
             verts += [D*vlow + C*vhigh]
-            print((A,B,C,D))
+
         verts += [A*c01 + B*v1]
     
             
@@ -215,7 +213,6 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
             C = (j)/(q+1)  #small to big - top vert component
             D =  (q-j+1)/(q+1)  #big to small - bottom vert component
             verts += [D*vlow + C*vhigh]
-            print((A,B,C,D))
             
         vlow = vhigh
         vhigh = A*pole1 + B*c10
@@ -224,7 +221,6 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
             C = (j)/(y+1)  #small to big - top vert component
             D =  (y-j+1)/(y+1)  #big to small - bottom vert component
             verts += [D*vlow + C*vhigh]
-            print((A,B,C,D))
     
         verts += [(B*v1 + A*c02)]
         
@@ -238,7 +234,7 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
         C = (j)/(q+1)  #small to big - top vert component
         D =  (q-j+1)/(q+1)  #big to small - bottom vert component
         verts += [D*c01 + C*c00]
-        print((A,B,C,D))
+
         
         
     faces = []
@@ -263,7 +259,7 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
     return verts, faces
 
 
-def pent_prim_0(v0, v1, v2, v3, v4):
+def pent_prim_0(v0, v1, v2, v3, v4):  #TODO!!!
     
     c0 = .5*v0 + .5*v1
     verts = [v0,c0,v1,v2,v3,v4]
@@ -318,7 +314,7 @@ def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
             D = 1-C
             v = B*D*c0 + A*D*c1 + A*C*c2 + B*C*c3
             verts += [v]
-            print((A,B,C,D))
+
     return verts
         
 def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
@@ -375,7 +371,6 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
         b = N-(i+1)*(q1+1)
         c = b - q1-1
         d = a + 1
-        print((a,b,c,d))
         faces += [(a,b,c,d)]
               
     
@@ -435,7 +430,6 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
         b = alpha +1 + i
         c = b-1
         d = a + 1
-        print((a,b,c,d))
         faces += [(a,b,c,d)]
     
     faces += [(sigma + 2, sigma + 1, sigma, N-1)]  
@@ -445,7 +439,7 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     return verts, faces
     
     
-def hex_prim_0(v0, v1, v2, v3, v4,v5):
+def hex_prim_0(v0, v1, v2, v3, v4,v5):  #TDOD!!
     
     verts = [v0,v1,v2,v3,v4,v5]
     faces = [(0,1,2,5), (2,3,4,5)]
@@ -479,7 +473,7 @@ def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
         verts += chain(V10[i*(z+2):i*(z+2)+z+2], V11[i*(y+1):i*(y+1)+y+1])
     
     
-    #add in the bottom verts
+    #add in the bottom verts 
     vs = quadrangulate_verts(p0, c0, v1, c1,y,z, x_off=1, y_off=1)
     verts += vs
     
@@ -511,13 +505,12 @@ def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
         b = N-(i+1)*(y+1)
         c = b - y-1
         d = a + 1
-        print((a,b,c,d))
         faces += [(a,b,c,d)]
     
     
     return verts, faces
 
-def hex_prim_2(v0, v1, v2, v3, v4,v5):
+def hex_prim_2(v0, v1, v2, v3, v4, v5, x=0, y=0, q3=0, q0=0):
 
     c00 = .67*v0 + .33 * v1
     c01 = .33*v0 + .67*v1
@@ -525,17 +518,77 @@ def hex_prim_2(v0, v1, v2, v3, v4,v5):
     cp0 = .8 * (.65 * v5 + .35*v2) + .2 * (.8*v4 + .2*v3)
     cp1 = .8 * (.35 * v5 + .65*v2) + .2 * (.2*v4 + .8*v3)
     
-    pole0 = .5 * (.5*c00 + .5*c01) + .5*cp0
-    pole1 = .5 * (.5*c00 + .5*c01) + .5*cp1
+    p0 = .5 * (.5*c00 + .5*c01) + .5*cp0
+    p1 = .5 * (.5*c00 + .5*c01) + .5*cp1
     
-    verts = [v0, c00, c01, v1, v2, v3, v4, v5, cp0, cp1, pole0, pole1]
-    faces = [(0,1,10,8),
-             (1,2,11,10),
-             (2,3,9,11),
-             (3,4,5,9),
-             (5,6,8,9),
-             (6,7,0,8),
-             (8,10,11,9)]
+    #verts = [v0, c00, c01, v1, v2, v3, v4, v5, cp0, cp1, p0, p1]
+    #faces = [(0,1,10,8),
+    #         (1,2,11,10),
+    #         (2,3,9,11),
+    #         (3,4,5,9),
+    #         (5,6,8,9),
+    #         (6,7,0,8),
+    #         (8,10,11,9)]
+    
+    
+    verts = []
+    V00 = quadrangulate_verts(v5, v0, cp0, v4, q3, q0, x_off = 0, y_off = 0)
+    V01 = quadrangulate_verts(v4, cp0, cp1, v3, y, q0, x_off = 0, y_off = 1)
+    V02 = quadrangulate_verts(v3, cp1, v1, v2, q3, q0, x_off = 0, y_off = 1)
+    V10 = quadrangulate_verts(v0, c00, p0, cp0, q3, x, x_off = 1, y_off = 0)
+    V11 = quadrangulate_verts(cp0, p0, p1, cp1, y, x, x_off = 1, y_off = 1)
+    V12 = quadrangulate_verts(cp1, p1, c01, v1, q3, x, x_off = 1, y_off = 1)
+    
+    for i in range(0,q0+2):
+        verts += chain(V00[i*(q3+2):i*(q3+2)+q3+2],V01[i*(y+1):i*(y+1)+y+1], V02[i*(q3+1):i*(q3+1)+q3+1])
+        
+    for i in range(0,x+1):
+        verts += chain(V10[i*(q3+2):i*(q3+2)+q3+2],V11[i*(y+1):i*(y+1)+y+1], V12[i*(q3+1):i*(q3+1)+q3+1])
+    
+    #fill in q3/y patch
+    V20 = quadrangulate_verts(p1, p0, c00, c01, q3, y, x_off = 1, y_off = 1)
+
+    verts += V20[0:len(V20) - (q3 +1)]
+    faces = []
+    for i in range(0,x+q0+2):
+        for j in range(0, 2*q3+y+3):
+            A =i*(2*q3+y+4) + j
+            B =(i+1)*(2*q3+y+4) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    n_p1 = (q0 + x + 3) * (2*q3 + y + 4) - (q3 + 1)        
+    for i in range(0, y):
+        for j in range(0, q3):
+            A = n_p1  + i*(q3+1) + j
+            B = n_p1  + (i+1)*(q3+1) + j
+            faces += [(A, B, B+1, A+1)]
+    
+    #strip  c00 to p0
+    n_c00 = (q0 + x + 2) * (2*q3 + y + 4)
+    N = (q0 + x + 3) * (2*q3 + y + 4) + (q3 + 1)*(y)
+    for i in range(0, q3):
+        a = n_c00 + i
+        b = N - i-1
+        c = N - 1 - (i+1)
+        d = a + 1
+        faces += [(a,b,c,d)]
+    
+    #strip p1 to p0    
+    for i in range(0, y):
+        a = n_p1 -1 - i
+        b = n_p1 + i*(q3+1)
+        c = n_p1 + (i+1)*(q3+1)
+        d = a -1
+        faces += [(a,d,c,b)]
+            
+    #final quad at p0
+    n_p0 = n_c00 + q3 + 1
+    a = n_p0
+    b = n_p0-1
+    c = N - 1 - q3
+    d = n_p0 + 1
+
+    faces += [(a,b,c,d)]
     
     return verts, faces
     
