@@ -593,7 +593,7 @@ def hex_prim_2(v0, v1, v2, v3, v4, v5, x=0, y=0, q3=0, q0=0):
     return verts, faces
     
     
-def hex_prim_3(v0, v1, v2, v3, v4,v5):    
+def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):    
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
     c02 = .25 * v0 + .75 * v1
@@ -602,24 +602,158 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5):
     
     
     cp0 = .4*v2 + .6*v5
-    pole0 = .6*v2 + .4*v5
+    p2 = .6*v2 + .4*v5
     
-    pole1 = .5*(.75*v4 + .25*v3) + .5*cp0
-    pole2 = .5*(.25*v4 + .75*v3) + .5*pole0
+    p0 = .5*(.75*v4 + .25*v3) + .5*cp0
+    p1 = .5*(.25*v4 + .75*v3) + .5*p2
+    p3 = .334*p0 + .333*c02 + .333*c10
     
-    pole3 = .334*pole0 + .333*c02 + .333*c10
+    #verts = [v0, c00, c01, c02, v1, c10, v2, v3, v4, v5, p1, p2, cp0, p0, p3]
+    #faces = [(0,1,12,9),
+    #         (1,2,13,12),
+    #         (2,3,14,13),
+    #         (3,4,5,14),
+    #         (5,6,13,14),
+    #         (6,7,11,13),
+    #         (7,8,10,11),
+    #         (8,9,12,10),
+    #         (10,12,13,11)]
     
-    verts = [v0, c00, c01, c02, v1, c10, v2, v3, v4, v5, pole1, pole2, cp0, pole0, pole3]
-    faces = [(0,1,12,9),
-             (1,2,13,12),
-             (2,3,14,13),
-             (3,4,5,14),
-             (5,6,13,14),
-             (6,7,11,13),
-             (7,8,10,11),
-             (8,9,12,10),
-             (10,12,13,11)]
+    verts = []
+    faces = []
     
+    V00 = quadrangulate_verts(v0, c00, cp0, v5, 0, x, x_off=0, y_off=0)
+    V01 = quadrangulate_verts(v5, cp0, p0,  v4, q3, x, x_off=0, y_off=1)
+    V02 = quadrangulate_verts(v4, p0,  p1,  v3, z, x, x_off=0, y_off=1)
+    V03 = quadrangulate_verts(v3, p1,  p2,  v2, q3, x, x_off=0, y_off=1)
+    V04 = quadrangulate_verts(v2, p2,  p3, c10, y, x, x_off=0, y_off=1)
+    V05 = quadrangulate_verts(c10, p3,  c02, v1, 0, x, x_off=0, y_off=1)
+    
+    V10 = quadrangulate_verts(p1, p0,  cp0, p2, q3, z, x_off=1, y_off=1)
+    V11 = quadrangulate_verts(p2, cp0,  c00, c01, 0, z, x_off=1, y_off=1)
+    
+    V21 = quadrangulate_verts(p3, p2, c01, c02, 0, y, x_off =1, y_off =1 )
+    
+    #verts = V00 + V01 + V02 + V03 + V04 + V05 + V10 + V11 + V21
+    
+    for i in range(0,x+2):
+        verts += chain(V00[i*(2):i*(2)+2],
+                       V01[i*(q3+1):i*(q3+1)+q3+1],
+                       V02[i*(z+1):i*(z+1)+z+1],
+                       V03[i*(q3+1):i*(q3+1)+q3+1],
+                       V04[i*(y+1):i*(y+1)+y+1],
+                       V05[i:i+1])
+    
+    for i in range(0,z): #trims off extra verst and stacks them
+        verts += chain(V10[i*(q3+1):(i+1)*(q3+1)],
+                       V11[i:i+1])
+    verts += V21
+           
+    for i in range(0,x+1):
+        for j in range(0, 6 + 2*q3+z+y):
+            A =i*(7 + 2*q3+z+y) + j
+            B =(i+1)*(7 + 2*q3+z+y) + j
+            faces += [(A, B, B+1, A+1)]
+            print((A, B, B+1, A+1))
+    
+    
+    N = x*(7+2*q3+z+y) + q3*(4+z) + z*4 + y*3 + 15
+    alpha = (7+2*q3+z+y)*(x+1)
+    beta = (7+2*q3+z+y)*(x+2) + q3 + 1
+    n_p0 = alpha + q3 + 2
+    n_p1 = n_p0 + z + 1
+    n_p2 = n_p1 + q3 + 1
+    n_p3 = n_p1 + q3 + y + 2
+    print('Alpha, Beta, np0, np1, np2, np3')
+    print((alpha,beta, n_p0,n_p1,n_p2,n_p3))
+    
+    print('right Z Strip')
+    if z > 0:
+        for i in range(0, q3+1):
+            if i == 0:
+                A=N-1
+                B=n_p2
+                C=beta - 1
+                D=beta
+            else:
+                A = n_p2 - i + 1
+                B = A - 1
+                C = beta - i - 1
+                D = beta - i 
+            print((A,B,C,D))
+            faces += [(A,B,C,D)]
+        #the face on pole 1
+        print('The face on pole 1')
+        print((n_p1 + 1, n_p1, n_p1-1, n_p3+2))
+        faces += [(n_p1 + 1, n_p1, n_p1-1, n_p3+2)]
+           
+        print('Left Z Strip')
+        for i in range(0, q3+1):
+            A = alpha + i
+            B = N-2-y-i
+            C = B-1
+            D = A + 1
+            print((A,B,C,D))
+            faces += [(A,B,C,D)]
+    
+        #the face on pole 0
+        print('The face on pole 0')
+        print((n_p0 -1, N-y-3-q3, n_p0+1, n_p0))
+        faces += [(n_p0 -1, N-y-3-q3, n_p0+1, n_p0)]
+    
+        #Z strip
+        print('Middle Z Strip')
+        if z >= 2:  #because z strip is bounded on both sides by weirdness
+            for i in range(0, z-1):
+                #down the q3 cuts
+                for j in range(0,q3+1):
+                    A = n_p3 + 2 + i*(q3 + 2) + j
+                    D = n_p3 + 2 + (i+1)*(q3+2) + j
+                    B = A + 1
+                    C = D + 1
+                    print((A,D,C,B))
+                    faces += [(A,D,C,B)]
+    
+    
+                #top cap
+                a = n_p3 + 2 + i*(q3 + 2)
+                b = n_p1 - i - 1
+                c = n_p1 - i - 2
+                d = n_p3 + 2 + (i+1)*(q3 + 2)
+                print((a,b,c,d))
+                faces += [(a,b,c,d)]
+    else: #Z = 0
+        for i in range(0,q3+1):
+            A = alpha + i
+            D = alpha + 1 + i
+            
+            if i == 0:
+                B = N - 1
+                C = n_p2
+            else:
+                B = n_p2 + 1 - i
+                C = n_p2 - i
+            
+            faces += [(A,B,C,D)]
+            
+        faces += [(n_p0, n_p0-1, n_p1 + 1, n_p1)]
+          
+    print('y patch')
+    for i in range(0,y):
+        A = n_p2 + i
+        B = N - 1 - i
+        C = B - 1
+        D = A + 1
+        faces += [(A,B,C,D)]
+    
+    d = n_p3
+    c = n_p3 + 1
+    b = N -1 - y
+    a = n_p3 - 1
+    faces += [(a,b,c,d)]
+    
+    print('Expected len verts %i: ' % N)
+    print('Actual len verts %i: '% len(verts))
     return verts, faces
        
 def tri_geom_0(verts, L, p0, p1, p2):
