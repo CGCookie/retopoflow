@@ -259,7 +259,7 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
     return verts, faces
 
 
-def pent_prim_0(v0, v1, v2, v3, v4):  #TODO!!!
+def pent_prim_0(v0, v1, v2, v3, v4):  #Done, any cuts can be represented as padding
     
     c0 = .5*v0 + .5*v1
     verts = [v0,c0,v1,v2,v3,v4]
@@ -439,11 +439,28 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     return verts, faces
     
     
-def hex_prim_0(v0, v1, v2, v3, v4,v5):  #TDOD!!
+def hex_prim_0(v0, v1, v2, v3, v4,v5, x = 0):  #TODO!!
     
-    verts = [v0,v1,v2,v3,v4,v5]
-    faces = [(0,1,2,5), (2,3,4,5)]
+    #verts = [v0,v1,v2,v3,v4,v5]
+    #faces = [(0,1,2,5), (2,3,4,5)]
+    verts = []
+    faces = []
     
+    V00 = quadrangulate_verts(v0, v1, v2, v5, 0, x, x_off = 0, y_off = 0)
+    V01 = quadrangulate_verts(v5, v2, v3, v4, 0, x, x_off = 0, y_off = 1)
+    
+    #verts = V00 + V01
+    for i in range(0,x+2): #TODO, better to slice other direction fewer iterations of loop
+        verts += chain(V00[2*i:2*i+2],V01[i:i+1])
+    
+    print(len(verts))    
+    for i in range(0, x+1):
+        for j in range(0,2):
+            A =i*(3) + j
+            B =(i + 1) * 3 + j
+            print((A,B,B+1,A+1))
+            faces += [(A, B, B+1, A+1)]
+                
     return verts, faces
 
 def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
