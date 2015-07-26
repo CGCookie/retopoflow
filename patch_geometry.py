@@ -5,6 +5,22 @@ Created on Jul 18, 2015
 '''
 from itertools import chain
 
+def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
+    
+    verts = []
+    
+    for i in range(x_off,y+2):
+        A= i/(y+1)
+        B = 1- A
+        
+        for j in range(y_off,x+2):
+            C = j/(x+1)
+            D = 1-C
+            v = B*D*c0 + A*D*c1 + A*C*c2 + B*C*c3
+            verts += [v]
+
+    return verts
+
 def tri_prim_0(v0, v1, v2):
     
     pole0 = .5*v0 + .5*v1
@@ -68,6 +84,7 @@ def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
         
     return verts, faces
 
+#TODO quad_prim_0(v0, v1,v2,v3, x= 0, y = 0)
 def quad_prim_1(v0, v1, v2, v3, x = 0):
     
     N = 3*x + 7
@@ -299,23 +316,6 @@ def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
     
     return verts, faces
 
-
-
-def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
-    
-    verts = []
-    
-    for i in range(x_off,y+2):
-        A= i/(y+1)
-        B = 1- A
-        
-        for j in range(y_off,x+2):
-            C = j/(x+1)
-            D = 1-C
-            v = B*D*c0 + A*D*c1 + A*C*c2 + B*C*c3
-            verts += [v]
-
-    return verts
         
 def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
     
