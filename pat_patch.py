@@ -5,16 +5,19 @@ Created on Jul 15, 2015
 '''
 from pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
 
-def permute_subdivs(L):
+def permute_subdivs(L, reverse = True):
     '''
     returns a list of permutations that preserves the original
     list order of the sides going CW and CCW around the loop
     
+    args:
+        L = list of integers representing subdivisions on side of polygon
+        reverse = Bool, whether to permute reverse direction around the poly
     return:
-       permutations - lsit of lists
-       shift_rev - list of tupple (k, rev) k represents the index
-       in the orignial list which is now the 0th element in the
-       permutation.
+        permutations - lsit of lists
+        shift_rev - list of tupple (k, rev) k represents the index
+        in the orignial list which is now the 0th element in the
+        permutation.
     '''
     perms = []
     shift_dir = []
@@ -23,10 +26,12 @@ def permute_subdivs(L):
         p = L[i:] + L[:i]
         perms += [p]
         shift_dir += [(i, 1)]
-        pr = p.copy()
-        pr.reverse()
-        perms += [pr]
-        shift_dir += [((i+N-1) % N, -1)]
+        
+        if reverse:
+            pr = p.copy()
+            pr.reverse()
+            perms += [pr]
+            shift_dir += [((i+N-1) % N, -1)]
     
     return perms, shift_dir
     
@@ -55,8 +60,7 @@ def reducible(edge_subdivs):
 
         
     return reducible_ks, reduction_ds, reduction_potientials
-    
-    
+        
 def reduce_edges(edge_subdivs, k, d):
     '''
     list of edge subdivisions
@@ -88,6 +92,12 @@ class Patch():
         self.reductions = {}
         self.edges_reduced = []
         
+        self.active_solution_index = -1
+        self.valid_perms = []
+        self.valid_rot_dirs = []
+        self.valid_patterns = []
+        self.valid_solutions = []
+        
     def validate(self):
         self.valid = False
         self.valid |= len(self.corner) == len(self.sides)
@@ -103,12 +113,13 @@ class Patch():
         pat_dict[5] = 4
         pat_dict[6] = 4
         
+        #SPEED UP only test reasonable permutatins
         perms, rot_dirs = permute_subdivs(self.edge_subdivision)
         
-        valid_perms = []
-        valid_rot_dirs = []
-        valid_patterns = []
-        valid_solutions = []
+        self.valid_perms = []
+        self.valid_rot_dirs = []
+        self.valid_patterns = []
+        self.valid_solutions = []
         N = len(self.edge_subdivision)
         
         for i, perm in enumerate(perms):
@@ -122,8 +133,29 @@ class Patch():
                 elif N == 3:    
                     sol = PatchSolver3(perm, pat)
                     
-                sol.solve()
-              
+                sol.solve(report = False)
+                
+                if sol.prob.status == 1:
+                    self.valid_perms += [perm]
+                    self.valid_rot_dirs += [rot_dirs[i]]
+                    self.valid_patterns += [pat]
+                    self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
+        if len(self.valid_patterns):
+            self.active_solution_index = 0
+        else:
+            self.active_solution_index = -1          
+    
+    def get_active_solution(self):
+        
+        n = self.active_solution_index
+        if n == -1:
+            print('no valid solutions')
+            return
+        
+        L, rot_dir, pat, sol = self.valid_perms[n], self.valid_rot_dirs[n], self.valid_patterns[n], self.valid_solutions[n]
+        
+        return L, rot_dir, pat, sol
+        
     def reduce_input_cornered(self):
         '''
         slices off the biggest quad patches it can at a time
@@ -317,81 +349,96 @@ class Patch():
         print('l_0  side is side #%i, value %i' % (k0, self.edges[k0]))
 
 
-def add_constraints_3p0(prob, L, p0, p1, p2):  #DONE
+def add_constraints_3p0(prob, L, p0, p1, p2):
     prob +=  p2 + p1            == L[0] - 2, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p0            == L[2] - 1, "Side 2"
     
-def add_constraints_3p1(prob, L, p0, p1, p2, x):     #DONE
-    prob +=  p2 + p1 +2*x       == L[0] - 4, "Side 0"
-    prob +=  p0 + p2            == L[1] - 1, "Side 1"
-    prob +=  p1 + p0            == L[2] - 1, "Side 2"
-
-def add_constraints_4p0(prob, L, p0, p1, p2, p3):     #DONE
+def add_constraints_3p1(prob, L, p0, p1, p2, x):
+    '''
+    p1 + q1 = constant
+    p2 + q2 = constant
+    '''
+    prob +=  p2 + p1 +2*x     == L[0] - 4, "Side 0"
+    prob +=  p0 + p2          == L[1] - 1, "Side 1"
+    prob +=  p1 + p0          == L[2] - 1, "Side 2"
+    
+def add_constraints_4p0(prob, L, p0, p1, p2, p3):
     prob +=  p3 + p1            == L[0] - 1, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p0            == L[3] - 1, "Side 3"
 
-def add_constraints_4p1(prob, L, p0, p1, p2, p3, x):   #DONE
+def add_constraints_4p1(prob, L, p0, p1, p2, p3, x):
     prob +=  p3 + p1 + x        == L[0] - 2, "Side 0"
     prob +=  p0 + p2 + x        == L[1] - 2, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p0            == L[3] - 1, "Side 3"
     
-def add_constraints_4p2(prob, L, p0, p1, p2, p3, x, y):   #DONE
+def add_constraints_4p2(prob, L, p0, p1, p2, p3, x, y):
     prob +=  p3 + p1 + x + y    == L[0] - 3, "Side 0"
     prob +=  p0 + p2 + x        == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p3 + y        == L[3] - 1, "Side 3"
 
-
-def add_constraints_4p3(prob, L, p0, p1, p2, p3, x):   #DONE
+def add_constraints_4p3(prob, L, p0, p1, p2, p3, x):
+    '''
+    p1 + q1 = constant
+    '''
     prob +=  p3 + p1 + 2*x      == L[0] - 3, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p0            == L[3] - 1, "Side 3"
+   
+def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y):
+    '''
+    p0 + q0 = constant
+    '''
+    prob +=  p1 + p1 + 2*x + y   == L[0] - 4, "Side 0"
+    prob +=  p0 + p2 + y         == L[1] - 2, "Side 1"
+    prob +=  p1 + p3             == L[2] - 1, "Side 2"
+    prob +=  p2 + p0             == L[3] - 1, "Side 3"
 
-    
-def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y):   #DONE
-    prob +=  p1 + p1 + 2*x + y  == L[0] - 4, "Side 0"
-    prob +=  p0 + p2 + y        == L[1] - 2, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p0            == L[3] - 1, "Side 3"
-
-def add_constraints_5p0(prob, L, p0, p1, p2, p3, p4):   #DONE
+def add_constraints_5p0(prob, L, p0, p1, p2, p3, p4):
     prob +=  p4 + p1            == L[0] - 2, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p4            == L[3] - 1, "Side 3"
     prob +=  p3 + p0            == L[4] - 1, "Side 4"
-
-    
-def add_constraints_5p1(prob, L, p0, p1, p2, p3, p4, x): #DONE
+   
+def add_constraints_5p1(prob, L, p0, p1, p2, p3, p4, x): 
+    '''
+    q4 + p4 = constant
+    '''
     prob +=  p4 + p1 + x        == L[0] - 2, "Side 0"
     prob +=  p0 + p2 + x        == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p4            == L[3] - 1, "Side 3"
     prob +=  p3 + p0            == L[4] - 1, "Side 4"
-
     
-def add_constraints_5p2(prob, L, p0, p1, p2, p3, p4, x): #DONE
+def add_constraints_5p2(prob, L, p0, p1, p2, p3, p4, x):
+    '''
+    p0 + q0 = constant
+    p1 + q1 = constant
+    '''
     prob +=  p4 + p1 + 2*x      == L[0] - 4, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p4            == L[3] - 1, "Side 3"
     prob +=  p3 + p0            == L[4] - 1, "Side 4"
-
-    
-def add_constraints_5p3(prob, L, p0, p1, p2, p3, p4, x, y): #DONE
+  
+def add_constraints_5p3(prob, L, p0, p1, p2, p3, p4, x, y):
+    '''
+    p0 + q1 = constant
+    p4 + q4 = constant
+    '''
     prob +=  p4 + p1 + 2*x + y  == L[0] - 5, "Side 0"
     prob +=  p0 + p2 + y        == L[1] - 2, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p4            == L[3] - 1, "Side 3"
     prob +=  p3 + p0            == L[4] - 1, "Side 4"
-
                 
-def add_constraints_6p0(prob, L, p0, p1, p2, p3, p4, p5, x): #Done
+def add_constraints_6p0(prob, L, p0, p1, p2, p3, p4, p5, x): 
     prob +=  p5 + p1 + x        == L[0] - 1, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
@@ -399,15 +446,18 @@ def add_constraints_6p0(prob, L, p0, p1, p2, p3, p4, p5, x): #Done
     prob +=  p3 + p5            == L[4] - 1, "Side 4"
     prob +=  p4 + p0            == L[5] - 1, "Side 5"
     
-def add_constraints_6p1(prob, L, p0, p1, p2, p3, p4, p5, x): #DONE
-    prob +=  p5 + p1 + x       == L[0] - 2, "Side 0"
-    prob +=  p0 + p2 + x        == L[1] - 2, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p4            == L[3] - 1, "Side 3"
-    prob +=  p3 + p5            == L[4] - 1, "Side 4"
-    prob +=  p4 + p0            == L[5] - 1, "Side 5"
+def add_constraints_6p1(prob, L, p0, p1, p2, p3, p4, p5, x, y, z, w): 
+    prob +=  p5 + p1 + x + y       == L[0] - 2, "Side 0"
+    prob +=  p0 + p2 + x + z       == L[1] - 2, "Side 1"
+    prob +=  p1 + p3 + w           == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + y           == L[3] - 1, "Side 3"
+    prob +=  p3 + p5 + z           == L[4] - 1, "Side 4"
+    prob +=  p4 + p0 + w           == L[5] - 1, "Side 5"
     
-def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y):  #DONE
+def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y):  
+    '''
+    q3 + p3 = constant, q0 + p0 = constant
+    '''
     prob +=  p5 + p1 + 2*x + y  == L[0] - 3, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
@@ -415,16 +465,18 @@ def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y):  #DONE
     prob +=  p3 + p5            == L[4] - 1, "Side 4"
     prob +=  p4 + p0            == L[5] - 1, "Side 5"
     
-def add_constraints_6p3(prob, L, p0, p1, p2, p3, p4, p5, x, y): #DONE
-    prob +=  p5 + p1 + 2*x + y  == L[0] - 4, "Side 0"
-    prob +=  p0 + p2 + y        == L[1] - 2, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p4            == L[3] - 1, "Side 3"
-    prob +=  p3 + p5            == L[4] - 1, "Side 4"
-    prob +=  p4 + p0            == L[5] - 1, "Side 5"
+def add_constraints_6p3(prob, L, p0, p1, p2, p3, p4, p5, x, y, z):
+    '''
+    q3 + p3 = constant
+    '''
+    prob +=  p5 + p1 + 2*x + y + z == L[0] - 4, "Side 0"
+    prob +=  p0 + p2 + y           == L[1] - 2, "Side 1"
+    prob +=  p1 + p3               == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + z           == L[3] - 1, "Side 3"
+    prob +=  p3 + p5               == L[4] - 1, "Side 4"
+    prob +=  p4 + p0               == L[5] - 1, "Side 5"
     
-    
-                
+                  
 class PatchSolver6(object):
     def __init__(self, L, pattern):
         self.pattern = pattern
@@ -446,33 +498,35 @@ class PatchSolver6(object):
         p5 = LpVariable("p5",0,max_p5,LpInteger)
         
         x = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
+        z = LpVariable("z",0,None,LpInteger)
+        w = LpVariable("w",0,None,LpInteger)
         
-        if pattern in {2,3}:
-            y = LpVariable("y",0,None,LpInteger)
-
         #first objective, maximize padding  
         self.prob += p0 + p1 + p2 + p3 + p4 + p5
         
         if self.pattern == 0:
-            add_constraints_6p0(self.prob, L, p0, p1, p2, p3, p4, p5, x)
+            add_constraints_6p0(self.prob, L,p0,p1,p2,p3,p4,p5,x)
         elif self.pattern == 1:
-            add_constraints_6p1(self.prob, L, p0, p1, p2, p3, p4, p5, x)
+            add_constraints_6p1(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z,w)
         elif self.pattern == 2:
-            add_constraints_6p2(self.prob, L, p0, p1, p2, p3, p4, p5, x, y)
+            add_constraints_6p2(self.prob, L,p0,p1,p2,p3,p4,p5,x,y)
         elif self.pattern == 3:
-            add_constraints_6p3(self.prob, L, p0, p1, p2, p3, p4, p5, x, y)
+            add_constraints_6p3(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z)
     
-    def solve(self):
+    def solve(self, report = True):
         self.prob.solve()
         
-        if self.prob.status == 1:
-            print(self.L)
-            print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
-            print('Status: ' + LpStatus[self.prob.status])
-            for v in self.prob.variables():
-                print(v.name + ' = ' + str(v.varValue))
+        if self.prob.status == 1 and report:
+            self.report()
         
-
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+                
 class PatchSolver5():
     def __init__(self, L, pattern):
         '''
@@ -509,14 +563,19 @@ class PatchSolver5():
         elif self.pattern == 3:
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y)
             
-    def solve(self):
+    def solve(self, report = True):
         self.prob.solve()
-        if self.prob.status == 1:
-            print(self.L)
-            print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
-            print('Status: ' + LpStatus[self.prob.status])
-            for v in self.prob.variables():
-                print(v.name + ' = ' + str(v.varValue))
+        
+        if self.prob.status == 1 and report:
+            self.report()
+        
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+
 class PatchSolver4():
     def __init__(self, L, pattern):
         '''
@@ -536,11 +595,8 @@ class PatchSolver4():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
         p3 = LpVariable("p3",0,max_p3,LpInteger)
 
-        if self.pattern != 0:
-            x = LpVariable("x",0,None,LpInteger)
-        
-        if self.pattern in {2,4}:
-            y = LpVariable("y",0,None,LpInteger)
+        x = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
 
         #first objective, maximize padding 
         self.prob += p0 + p1 + p2 + p3
@@ -556,14 +612,139 @@ class PatchSolver4():
         elif self.pattern == 4:
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y)
 
-    def solve(self):
+    def solve(self, report = True):
         self.prob.solve()
-        if self.prob.status == 1:
-            print(self.L)
-            print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
-            print('Status: ' + LpStatus[self.prob.status])
-            for v in self.prob.variables():
-                print(v.name + ' = ' + str(v.varValue))
+        
+        if self.prob.status == 1 and report:
+            self.report()
+        
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+
+class PatchAdjuster4():
+    def __init__(self, L, pattern, existing_vars, target_vars):
+        '''
+        L needs to be a list of edge subdivisions with Alpha being L[0]
+        you may need to rotate or reverse L to adequately represent the patch
+        '''
+        self.prob = LpProblem("N4 Patch Adjust", LpMinimize)
+        self.pattern = pattern
+        self.L = L
+        
+        max_p0 = float(min(L[3], L[1]) - 1)
+        max_p1 = float(min(L[0], L[2]) - 1)
+        max_p2 = float(min(L[1], L[3]) - 1)
+        max_p3 = float(min(L[2], L[0]) - 1)
+        p0 = LpVariable("p0",0,max_p0,LpInteger)
+        p1 = LpVariable("p1",0,max_p1,LpInteger)
+        p2 = LpVariable("p2",0,max_p2,LpInteger)
+        p3 = LpVariable("p3",0,max_p3,LpInteger)
+
+        x = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
+
+        changes = []
+        for i, (tv, ev) in enumerate(zip(target_vars,existing_vars)):
+            if ev != tv:
+                changes += [i]
+        
+        if self.pattern == 0:
+            PULP_vars = [p0,p1,p2,p3]
+            
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
+            
+            #add the normal patch topology constraint    
+            add_constraints_4p0(self.prob, L, p0, p1, p2, p3)
+            
+            
+        elif self.pattern == 1:
+            PULP_vars = [p0,p1,p2,p3,x]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+                
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_4p1(self.prob, L, p0, p1, p2, p3, x)
+        elif self.pattern == 2:
+            PULP_vars = [p0,p1,p2,p3,x,y]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_4p2(self.prob, L, p0, p1, p2, p3, x, y)
+        
+        elif self.pattern == 3:
+            PULP_vars = [p0,p1,p2,p3,x]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x)
+        elif self.pattern == 4:
+            PULP_vars = [p0,p1,p2,p3,x,y]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y)
+
+    def solve(self, report = True):
+        self.prob.solve()
+        
+        if self.prob.status == 1 and report:
+            self.report()
+        
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+                
+                
 class PatchSolver3():
     def __init__(self, L, pattern):
         '''
@@ -572,6 +753,8 @@ class PatchSolver3():
         '''
         
         self.prob = LpProblem("N6 Patch", LpMaximize)
+        self.adjust_prob = None
+        
         self.pattern = pattern
         self.L = L
         
@@ -583,8 +766,8 @@ class PatchSolver3():
         p1 = LpVariable("p1",0,max_p1,LpInteger)
         p2 = LpVariable("p2",0,max_p2,LpInteger)
        
-        if self.pattern == 1:
-            x = LpVariable("x",0,None,LpInteger)
+
+        x = LpVariable("x",0,None,LpInteger)
 
         #first objective, maximize padding
         self.prob += p0 + p1 + p2    
@@ -594,12 +777,16 @@ class PatchSolver3():
         elif self.pattern == 1:
             add_constraints_3p1(self.prob, L, p0, p1, p2, x)
     
-    def solve(self):
+    def solve(self, report = True):
         self.prob.solve()
-        if self.prob.status == 1:
-            print(self.L)
-            print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
-            print('Status: ' + LpStatus[self.prob.status])
-            for v in self.prob.variables():
-                print(v.name + ' = ' + str(v.varValue))
         
+        if self.prob.status == 1 and report:
+            self.report()
+        
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+     
