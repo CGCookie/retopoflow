@@ -8,7 +8,6 @@ from itertools import chain
 def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
     
     verts = []
-    
     for i in range(x_off,y+2):
         A= i/(y+1)
         B = 1- A

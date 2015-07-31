@@ -411,8 +411,6 @@ def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
     
     return (pt-pt_offset).length
 
-
-
 def get_ray_plane_intersection(ray_origin, ray_direction, plane_point, plane_normal):
     d = ray_direction.dot(plane_normal)
     if abs(ray_direction.dot(plane_normal)) <= 0.00000001: return float('inf')

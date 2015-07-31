@@ -526,7 +526,121 @@ class PatchSolver6(object):
         print('Status: ' + LpStatus[self.prob.status])
         for v in self.prob.variables():
             print(v.name + ' = ' + str(v.varValue))
+
+class PatchAdjuster6():
+    def __init__(self, L, pattern, existing_vars, target_vars):
+        '''
+        L needs to be a list of edge subdivisions with Alpha being L[0]
+        you may need to rotate or reverse L to adequately represent the patch
+        '''
+        self.prob = LpProblem("N6 Patch Adjust", LpMinimize)
+        self.pattern = pattern
+        self.L = L
+        
+        max_p0 = float(min(L[1], L[5]) - 1)
+        max_p1 = float(min(L[0], L[2]) - 1)
+        max_p2 = float(min(L[1], L[3]) - 1)
+        max_p3 = float(min(L[2], L[4]) - 1)
+        max_p4 = float(min(L[3], L[5]) - 1)
+        max_p5 = float(min(L[4], L[0]) - 1)
+
+        p0 = LpVariable("p0",0,max_p0,LpInteger)
+        p1 = LpVariable("p1",0,max_p1,LpInteger)
+        p2 = LpVariable("p2",0,max_p2,LpInteger)
+        p3 = LpVariable("p3",0,max_p3,LpInteger)
+        p4 = LpVariable("p4",0,max_p4,LpInteger)
+        p5 = LpVariable("p5",0,max_p5,LpInteger)
+        
+        x = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
+        z = LpVariable("z",0,None,LpInteger)
+        w = LpVariable("w",0,None,LpInteger)
+
+        changes = []
+        for i, (tv, ev) in enumerate(zip(target_vars,existing_vars)):
+            if ev != tv:
+                changes += [i]
+        
+        if self.pattern == 0:
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x]
+            
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
+            
+            #add the normal patch topology constraint    
+            add_constraints_6p0(self.prob,L, p0, p1, p2, p3,p4,p5,x)
+            
+            
+        elif self.pattern == 1:
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,z,w]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_6p1(self.prob, L, p0, p1, p2, p3, p4,p5,x,y,z,w)
+        
+        elif self.pattern == 2:
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_6p2(self.prob, L, p0,p1,p2,p3,p4,p5,x,y)
+        
+        elif self.pattern == 3:
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,z]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            #set the target constraints rigidly
+            for i in changes:
+                self.prob += PULP_vars[i] == target_vars[i]
+            add_constraints_6p3(self.prob, L, p0,p1,p2,p3,p4,p5,x,y,z)
+        
+    def solve(self, report = True):
+        self.prob.solve()
+        
+        if self.prob.status == 1 and report:
+            self.report()
+            
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+                            
 class PatchSolver5():
     def __init__(self, L, pattern):
         '''
