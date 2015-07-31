@@ -84,7 +84,19 @@ def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
         
     return verts, faces
 
-#TODO quad_prim_0(v0, v1,v2,v3, x= 0, y = 0)
+def quad_prim_0(v0, v1,v2,v3, x= 0, y = 0):
+    
+    verts = quadrangulate_verts(v0, v1, v2, v3, x, y, x_off = 0, y_off = 0)
+    faces = []
+    for i in range(0, y+1):
+        for j in range(0,x+1):
+            A =i*(x+2) + j
+            B =(i + 1) * (x+2) + j
+            print((A,B,B+1,A+1))
+            faces += [(A, B, B+1, A+1)]
+            
+    return verts, faces
+
 def quad_prim_1(v0, v1, v2, v3, x = 0):
     
     N = 3*x + 7
@@ -112,7 +124,6 @@ def quad_prim_1(v0, v1, v2, v3, x = 0):
         
     faces += [(N-4, N-1, N-2, N-3)]
     return verts, faces
-
 
 def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
     
@@ -144,8 +155,7 @@ def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
             faces += [(A, B, B+1, A+1)] 
     return verts, faces
 
-
-def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
+def quad_prim_3(v0, v1, v2, v3, x = 0, q1 = 0):
     
     c00 = .67 * v0 + .33 * v1
     c01 = .33 * v0 + .67 * v1
@@ -163,31 +173,31 @@ def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
         vlow  = A*pole0 + B*v3
         vhigh = A*pole1 + B*v2
         
-        for j in range(0, q + 2):
+        for j in range(0, q1 + 2):
            
-            C = (j)/(q+1)
-            D =  (q-j+1)/(q+1)
+            C = (j)/(q1+1)
+            D =  (q1-j+1)/(q1+1)
             verts += [D*vlow + C*vhigh]
 
         verts += [A*c01 + B*v1]
     
             
-    for m in range(0,q):
-        E = (m+1)/(q+1)
-        F =  (q-m)/(q+1)
+    for m in range(0,q1):
+        E = (m+1)/(q1+1)
+        F =  (q1-m)/(q1+1)
         verts += [F*c01 + E*c00] 
         
         
     faces = []
     for i in range(0, x+1):
-        for j in range(0,q+3):
-            A =i*(q+4) + j
-            B =(i+1)*(q+4) + j  #x + 3 to q+4
+        for j in range(0,q1+3):
+            A =i*(q1+4) + j
+            B =(i+1)*(q1+4) + j  #x + 3 to q+4
             faces += [(A, B, B+1, A+1)]
-    N = 8 + 4*x + 3*q + x*q
-    beta = (4+q)*(x+1)  #This is the corner of the last face
-    sigma = (4+q)*(x+2)-1
-    for c in range(0, q):
+    N = 8 + 4*x + 3*q1 + x*q1
+    beta = (4+q1)*(x+1)  #This is the corner of the last face
+    sigma = (4+q1)*(x+2)-1
+    for c in range(0, q1):
         a = sigma + c
         b = sigma - 2 - c
         faces += [(a, b+1, b, a+1)]
@@ -196,7 +206,7 @@ def quad_prim_3(v0, v1, v2, v3, x = 0, q = 0):
      
     return verts, faces
 
-def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
+def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q1=0):
     
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
@@ -225,10 +235,10 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
         vlow  = A*pole0 + B*v3
         vhigh = A*cp01 + B*v2
         
-        for j in range(0, q + 2):
+        for j in range(0, q1 + 2):
            
-            C = (j)/(q+1)  #small to big - top vert component
-            D =  (q-j+1)/(q+1)  #big to small - bottom vert component
+            C = (j)/(q1+1)  #small to big - top vert component
+            D =  (q1-j+1)/(q1+1)  #big to small - bottom vert component
             verts += [D*vlow + C*vhigh]
             
         vlow = vhigh
@@ -247,24 +257,24 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
         D =  (y-j+1)/(y+1)  #big to small - bottom vert component
         verts += [D*c02 + C*c01]
 
-    for j in range(1, q + 1):  #don't need to add in bordres so these start at 1 and end at N-1
-        C = (j)/(q+1)  #small to big - top vert component
-        D =  (q-j+1)/(q+1)  #big to small - bottom vert component
+    for j in range(1, q1 + 1):  #don't need to add in bordres so these start at 1 and end at N-1
+        C = (j)/(q1+1)  #small to big - top vert component
+        D =  (q1-j+1)/(q1+1)  #big to small - bottom vert component
         verts += [D*c01 + C*c00]
 
         
         
     faces = []
     for i in range(0, x+1):
-        for j in range(0,q+y+5 -1):
-            A =i*(q+ y + 5) + j
-            B =(i+1)*(q+y+5) + j
+        for j in range(0,q1+y+5 -1):
+            A =i*(q1+ y + 5) + j
+            B =(i+1)*(q1+y+5) + j
             faces += [(A, B, B+1, A+1)]
     
-    N = 11 + 5*x + 3*q + 3*y + q*x + x*y
-    beta = (5+q+y)*(x+1)  #This is the corner of the last face to be added
-    sigma = (5+q+y)*(x+2)-1  #this is the corner of the first face in the leftover segment
-    for c in range(0, y+q+1):
+    N = 11 + 5*x + 3*q1 + 3*y + q1*x + x*y
+    beta = (5+q1+y)*(x+1)  #This is the corner of the last face to be added
+    sigma = (5+q1+y)*(x+2)-1  #this is the corner of the first face in the leftover segment
+    for c in range(0, y+q1+1):
         a = sigma + c
         b = sigma - 2 - c
         faces += [(a, b+1, b, a+1)]
@@ -274,7 +284,6 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q=0):
     
         
     return verts, faces
-
 
 def pent_prim_0(v0, v1, v2, v3, v4):  #Done, any cuts can be represented as padding
     
@@ -315,8 +324,7 @@ def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
             faces += [(A, B, B+1, A+1)]
     
     return verts, faces
-
-        
+       
 def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
     
     c00 = .75*v0 + .25*v1
@@ -373,8 +381,6 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
         d = a + 1
         faces += [(a,b,c,d)]
               
-    
-
     return verts, faces
 
 def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
@@ -438,8 +444,7 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     #         (4,5,6,13),(6,7,12,13),(7,8,11,12),(8,9,10,11)]
     return verts, faces
     
-    
-def hex_prim_0(v0, v1, v2, v3, v4,v5, x = 0):  #TODO!!
+def hex_prim_0(v0, v1, v2, v3, v4,v5, x = 0):
     
     #verts = [v0,v1,v2,v3,v4,v5]
     #faces = [(0,1,2,5), (2,3,4,5)]
@@ -608,8 +613,7 @@ def hex_prim_2(v0, v1, v2, v3, v4, v5, x=0, y=0, q3=0, q0=0):
     faces += [(a,b,c,d)]
     
     return verts, faces
-    
-    
+        
 def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):    
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
