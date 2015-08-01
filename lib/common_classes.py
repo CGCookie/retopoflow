@@ -301,11 +301,12 @@ class TextBox(object):
             
             
 class SketchBrush(object):
-    def __init__(self,context,settings, x,y,pixel_radius, ob, n_samples = 15):
+    def __init__(self,context,settings, x,y,pixel_radius, bvh, mx, n_samples = 15):
         
         self.settings = settings  #should be input from user prefs
         
-        self.ob = ob
+        self.mx = mx
+        self.bvh = bvh
         self.pxl_rad = pixel_radius
         self.world_width = None
         self.n_sampl = n_samples
@@ -342,16 +343,13 @@ class SketchBrush(object):
     def get_brush_world_size(self,context):
         region = context.region  
         rv3d = context.space_data.region_3d
-        center = (self.x,self.y)
-        wrld_mx = self.ob.matrix_world
-        
-        vec, center_ray = common_utilities.ray_cast_region2d(region, rv3d, center, self.ob, self.settings)
+        center = (self.x,self.y)        
+        vec, center_ray = common_utilities.ray_cast_region2d_bvh(region, rv3d, center, self.bvh, self.mx, self.settings)
         vec.normalize()
-        widths = []
         self.world_sample_points = []
         
         if center_ray[2] != -1:
-            w = common_utilities.ray_cast_world_size(region, rv3d, center, self.pxl_rad, self.ob, self.settings)
+            w = common_utilities.ray_cast_world_size_bvh(region, rv3d, center, self.pxl_rad, self.bvh, self.mx, self.settings)
             self.world_width = w if w and w < float('inf') else self.ob.dimensions.length
             #print(w)
         else:
