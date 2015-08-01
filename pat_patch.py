@@ -574,9 +574,13 @@ class PatchAdjuster6():
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
-            
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             #add the normal patch topology constraint    
             add_constraints_6p0(self.prob,L, p0, p1, p2, p3,p4,p5,x)
             
@@ -594,8 +598,13 @@ class PatchAdjuster6():
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_6p1(self.prob, L, p0, p1, p2, p3, p4,p5,x,y,z,w)
         
         elif self.pattern == 2:
@@ -610,8 +619,14 @@ class PatchAdjuster6():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
             add_constraints_6p2(self.prob, L, p0,p1,p2,p3,p4,p5,x,y)
         
         elif self.pattern == 3:
@@ -624,8 +639,13 @@ class PatchAdjuster6():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_6p3(self.prob, L, p0,p1,p2,p3,p4,p5,x,y,z)
         
     def solve(self, report = True):
@@ -732,9 +752,13 @@ class PatchAdjuster5():
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
-            
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             #add the normal patch topology constraint    
             add_constraints_5p0(self.prob, L, p0, p1, p2, p3,p4)
             
@@ -752,8 +776,13 @@ class PatchAdjuster5():
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_5p1(self.prob, L, p0, p1, p2, p3, p4,x)
         elif self.pattern == 2:
             PULP_vars = [p0,p1,p2,p3,p4,x]
@@ -767,8 +796,14 @@ class PatchAdjuster5():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
             add_constraints_5p2(self.prob, L, p0, p1, p2, p3, p4, x)
         
         elif self.pattern == 3:
@@ -781,8 +816,13 @@ class PatchAdjuster5():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x,y)
         
     def solve(self, report = True):
@@ -885,9 +925,13 @@ class PatchAdjuster4():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             
-            #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             
             #add the normal patch topology constraint    
             add_constraints_4p0(self.prob, L, p0, p1, p2, p3)
@@ -905,9 +949,13 @@ class PatchAdjuster4():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 
-            #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_4p1(self.prob, L, p0, p1, p2, p3, x)
         elif self.pattern == 2:
             PULP_vars = [p0,p1,p2,p3,x,y]
@@ -920,9 +968,14 @@ class PatchAdjuster4():
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
-            #set the target constraints rigidly
+            
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_4p2(self.prob, L, p0, p1, p2, p3, x, y)
         
         elif self.pattern == 3:
@@ -934,9 +987,14 @@ class PatchAdjuster4():
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
-            #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
             add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x)
         elif self.pattern == 4:
             PULP_vars = [p0,p1,p2,p3,x,y]
@@ -947,9 +1005,15 @@ class PatchAdjuster4():
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
-            #set the target constraints rigidly
+            
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y)
 
     def solve(self, report = True):
@@ -1048,10 +1112,13 @@ class PatchAdjuster3():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
             
-            #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i], "Rigid Constraint" + str(i)
-            
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             #add the normal patch topology constraint    
             add_constraints_3p0(self.prob, L, p0, p1, p2)
             
@@ -1068,9 +1135,14 @@ class PatchAdjuster3():
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 
-            #set the target constraints rigidly
+            #set the target constraints
             for i in changes:
-                self.prob += PULP_vars[i] == target_vars[i]
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
             add_constraints_3p1(self.prob, L, p0, p1, p2, x)
         
 
