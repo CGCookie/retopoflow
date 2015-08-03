@@ -75,6 +75,7 @@ class Polystrips_UI_Draw():
                     gv.update_visibility(r3d)
 
             if len(self.snap_eds):
+                print('snap eds are used! but probably not')
                 mx = self.mx
                 self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([mx * ed.verts[0].co, mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, r3d) for ed in self.snap_eds]
 

@@ -212,7 +212,6 @@ class Polystrips_UI:
         remove temporary object
         '''
         dprint('cleaning up!')
-
         if cleantype == 'commit':
             pass
 
@@ -414,7 +413,6 @@ class Polystrips_UI:
     def pick(self, eventd):
         x,y = eventd['mouse']
         pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
-        print(pts)
         if not pts:
             # user did not click on the object
             if not eventd['shift']:
@@ -426,7 +424,6 @@ class Polystrips_UI:
         pt = pts[0]
 
         if self.act_gvert or self.act_gedge:
-            print('active gvert or gedge, checking inner parts')
             # check if user is picking an inner control point
             if self.act_gedge and not self.act_gedge.zip_to_gedge:
                 lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
@@ -447,7 +444,6 @@ class Polystrips_UI:
                 return ''
         # Select gvert
         for gv in self.polystrips.gverts:
-            print('no active gvert or gedge, checking gverts')
             if gv.is_unconnected(): continue
             if not gv.is_picked(pt): continue
             self.act_gedge = None
@@ -458,7 +454,6 @@ class Polystrips_UI:
             return ''
 
         for ge in self.polystrips.gedges:
-            print('check gedges for something')
             if not ge.is_picked(pt): continue
             self.act_gvert = None
             self.act_gedge = ge
@@ -489,8 +484,6 @@ class Polystrips_UI:
             self.act_gedge,self.act_gvert,self.act_gpatch = None,None,None
             self.sel_gedges.clear()
             self.sel_gverts.clear()
-    
-
 
     ###########################################################
     # functions to convert beziers and gpencils to polystrips

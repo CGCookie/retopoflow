@@ -412,7 +412,9 @@ def ray_cast_visible_bvh(verts, bvh, mx, rv3d):
         source = [imx*(vert+100*view_dir) for vert in verts]
         target = [imx*(vert+0.01*view_dir) for vert in verts]
     
-    return [bvh.ray_cast(s,t-s)[2]== None for s,t in zip(source,target)]
+    #notice, the math may appear backwards here.  But we want to cast toward the "eye"
+    #and because bvh.ray_cast doesn't yet accept distance, 
+    return [bvh.ray_cast(t,s-t)[2]== None for s,t in zip(source,target)]
 
 def get_ray_origin_target(region, rv3d, screen_coord, ob):
     ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()

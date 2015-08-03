@@ -148,7 +148,6 @@ class Polystrips_UI_ModalWait():
         if eventd['press'] in {'RIGHTMOUSE', 'SHIFT+RIGHTMOUSE'}:
             if 'LEFTMOUSE' not in selection_mouse():
                 # Select element
-                print('attempt to select')
                 self.pick(eventd)
             return ''
 
