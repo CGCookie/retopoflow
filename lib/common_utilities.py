@@ -239,7 +239,6 @@ def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     
     st, en = imx*(o-d*back*mult), imx*(o+d*mult)
     hit = bvh.ray_cast(st,(en-st))
-
     return (d, hit[0:3])
 
 
@@ -279,7 +278,7 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     
     sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_coords = [mx*hit[0]  for hit in hits if hit[2] != -1]
+    world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
     return world_coords
 

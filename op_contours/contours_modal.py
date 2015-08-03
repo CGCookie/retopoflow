@@ -332,7 +332,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         elif eventd['release'] in self.keymap['action'] | self.keymap['modal confirm']:
             self.contours.cut_line_widget = None
-            self.contours.sel_path.update_backbone(context, self.contours.original_form, self.contours.bme, self.contours.sel_loop, insert = False)
+            self.contours.sel_path.update_backbone(context, self.contours.bme, self.contours.bvh, self.contours.mx, self.contours.sel_loop, insert = False)
             return 'main'
         
         elif eventd['press'] in self.keymap['modal cancel']:
