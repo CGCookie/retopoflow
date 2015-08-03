@@ -301,7 +301,7 @@ class TextBox(object):
             
             
 class SketchBrush(object):
-    def __init__(self,context,settings, x,y,pixel_radius, bvh, mx, n_samples = 15):
+    def __init__(self,context,settings, x,y,pixel_radius, bvh, mx, max_width, n_samples = 15):
         
         self.settings = settings  #should be input from user prefs
         
@@ -309,6 +309,7 @@ class SketchBrush(object):
         self.bvh = bvh
         self.pxl_rad = pixel_radius
         self.world_width = None
+        self.max_width = max_width
         self.n_sampl = n_samples
         
         self.x = x
@@ -348,15 +349,14 @@ class SketchBrush(object):
         vec.normalize()
         self.world_sample_points = []
         
-        if center_ray[2] != -1:
+        if center_ray[2] != None:
             w = common_utilities.ray_cast_world_size_bvh(region, rv3d, center, self.pxl_rad, self.bvh, self.mx, self.settings)
-            self.world_width = w if w and w < float('inf') else self.ob.dimensions.length
+            self.world_width = w if w and w < float('inf') else self.max_width
             #print(w)
         else:
             #print('no hit')
             pass
-        
-        
+           
     def brush_pix_size_init(self,context,x,y):
         
         if self.right_handed:

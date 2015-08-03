@@ -28,7 +28,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-
+from ..cache import mesh_cache
 
 class Polystrips_UI_ModalWait():
     def modal_wait(self, context, eventd):
@@ -148,6 +148,7 @@ class Polystrips_UI_ModalWait():
         if eventd['press'] in {'RIGHTMOUSE', 'SHIFT+RIGHTMOUSE'}:
             if 'LEFTMOUSE' not in selection_mouse():
                 # Select element
+                print('attempt to select')
                 self.pick(eventd)
             return ''
 
@@ -192,7 +193,7 @@ class Polystrips_UI_ModalWait():
             if eventd['press'] in self.keymap['knife'] and not self.act_gedge.is_zippered() and not self.act_gedge.has_zippered() and not self.act_gedge.is_gpatched():
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'], self.mx, [(x,y)])
                 if not pts:
                     return ''
                 t,_    = self.act_gedge.get_closest_point(pts[0])
@@ -237,7 +238,7 @@ class Polystrips_UI_ModalWait():
                     return ''
 
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'], self.mx, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]
@@ -284,7 +285,7 @@ class Polystrips_UI_ModalWait():
                     showErrorMessage('Selected GVert must be endpoint (exactly one GEdge)')
                     return ''
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'], self.mx, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]
@@ -366,7 +367,7 @@ class Polystrips_UI_ModalWait():
                     showErrorMessage('Cannot rip GVert with GEdge that is zippered or patched')
                     return ''
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'], self.mx, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]
@@ -387,7 +388,7 @@ class Polystrips_UI_ModalWait():
                     showErrorMessage('Cannot merge inner GVert with GEdge that is zippered or patched')
                     return ''
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'], self.mx, [(x,y)])
                 if not pts:
                     return ''
                 pt = pts[0]

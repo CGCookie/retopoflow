@@ -29,7 +29,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-
+from ..cache import mesh_cache
 
 class Tweak_UI_Tools():
     
@@ -45,7 +45,7 @@ class Tweak_UI_Tools():
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
+        ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],self.mx, settings)
         hit_p3d,hit_norm,hit_idx = hit
         
         hit_p3d = mx * hit_p3d
@@ -96,11 +96,9 @@ class Tweak_UI_Tools():
                 if d >= 1.0: return p3d
                 p2d = location_3d_to_region_2d(region, r3d, p3d)
                 p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
-                if hit[2] == -1: return p3d
+                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'],self.mx, settings)[1]
+                if hit[2] == None: return p3d
                 return mx * hit[0]
-                
-                return pts[0]
             
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:
@@ -115,13 +113,11 @@ class Tweak_UI_Tools():
             
             if eventd['release'] in self.keymap['action']:
                 for u in self.tweak_data['supdate']:
-                   u.update()
+                    u.update()
                 for u in self.tweak_data['supdate']:
-                   u.update_visibility(eventd['r3d'])
+                    u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
-        
-    
-                
+             
         return ''
     
     def modal_tweak_relax_tool(self, context, eventd):
@@ -141,7 +137,9 @@ class Tweak_UI_Tools():
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
             cx,cy = eventd['mouse']
-            
+            lx,ly = self.tweak_data['mouse']
+            dx,dy = cx-lx,cy-ly
+            dv = Vector((dx,dy))
             mx = self.tweak_data['mx']
             mx3x3 = self.tweak_data['mx3x3']
             imx = self.tweak_data['imx']
@@ -150,11 +148,9 @@ class Tweak_UI_Tools():
                 if d >= 1.0: return p3d
                 p2d = location_3d_to_region_2d(region, r3d, p3d)
                 p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
-                if hit[2] == -1: return p3d
+                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'], self.mx, settings)[1]
+                if hit[2] == None: return p3d
                 return mx * hit[0]
-                
-                return pts[0]
             
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:

@@ -26,6 +26,7 @@ import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.bvhtree import BVHTree
 
 import math
 import os
@@ -36,8 +37,9 @@ from ..lib.common_utilities import bversion, get_source_object, get_target_objec
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
+from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
-from .polystrips_datastructure import Polystrips
+from .polystrips_datastructure import Polystrips, GVert
 
 
 class Polystrips_UI:
@@ -81,27 +83,24 @@ class Polystrips_UI:
             check_time = profiler.start()
 
             self.obj_orig = get_source_object()
-
-            # duplicate selected objected to temporary object but with modifiers applied
-            if self.obj_orig.modifiers:
-                # Time event
-                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-                self.me.update()
-                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-                bpy.context.scene.objects.link(self.obj)
-                self.obj.hide = True
-
-                # HACK
-                # Comment out for now. Appears to no longer be needed.
-                # bpy.ops.object.mode_set(mode='EDIT')
-                # bpy.ops.object.mode_set(mode='OBJECT')
-                self.obj.matrix_world = self.obj_orig.matrix_world
+            self.mx = self.obj_orig.matrix_world
+            is_valid = is_object_valid(self.obj_orig)
+            if is_valid:
+                pass
+                #self.bme = mesh_cache['bme']            
+                #self.bvh = mesh_cache['bvh']
+                
             else:
-                self.obj = self.obj_orig
-
+                clear_mesh_cache()           
+                me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                me.update()
+                bme = bmesh.new()
+                bme.from_mesh(me)
+                bvh = BVHTree.FromBMesh(bme)
+                write_mesh_cache(self.obj_orig, bme, bvh)
+                
             # Debug level 2: time end
             check_time.done()
-
 
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
@@ -112,7 +111,7 @@ class Polystrips_UI:
             else:
                 dest_me  = bpy.data.meshes.new(nm_polystrips)
                 self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-                self.dest_obj.matrix_world = self.obj.matrix_world
+                self.dest_obj.matrix_world = self.obj_orig.matrix_world
                 context.scene.objects.link(self.dest_obj)
             
             self.extension_geometry = []
@@ -122,20 +121,23 @@ class Polystrips_UI:
 
         elif context.mode == 'EDIT_MESH':
             self.obj_orig = get_source_object()
-            if self.obj_orig.modifiers:
-                self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-                self.me.update()
-
-                self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-                bpy.context.scene.objects.link(self.obj)
-                self.obj.hide = True
+            self.mx = self.obj_orig.matrix_world
+            is_valid = is_object_valid(self.obj_orig)
+    
+            if is_valid:
+                pass
+                #self.bme = mesh_cache['bme']            
+                #self.bvh = mesh_cache['bvh']
+            
             else:
-                self.obj = self.obj_orig
-            self.obj.matrix_world = self.obj_orig.matrix_world
-
-            # Comment out for now. Appears to no longer be needed.
-            # bpy.ops.object.mode_set(mode='OBJECT')
-            # bpy.ops.object.mode_set(mode='EDIT')
+                clear_mesh_cache()
+                me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                me.update()
+            
+                bme = bmesh.new()
+                bme.from_mesh(me)
+                bvh = BVHTree.FromBMesh(self.bme)
+                write_mesh_cache(self.obj_orig, bme, bvh)
             
             self.dest_obj = get_target_object()
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
@@ -145,31 +147,33 @@ class Polystrips_UI:
             
             
             region, r3d = context.region, context.space_data.region_3d
-            mx = self.dest_obj.matrix_world
+            dest_mx = self.dest_obj.matrix_world
             rv3d = context.space_data.region_3d
-            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, rv3d) for ed in self.snap_eds]
+            
+            #TODO snap_eds_vis?  #careful with the 2 matrices. One is the source object mx, the other is the target object mx
+            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
             self.hover_ed = None
         
-        self.scale = self.obj.scale[0]
-        self.length_scale = get_object_length_scale(self.obj)
+        self.scale = self.obj_orig.scale[0]
+        self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
         self.stroke_radius_pressure = 0.01 * self.length_scale
         # Screen_stroke_radius
-        self.screen_stroke_radius = 20  # TODO, hood to settings
+        self.screen_stroke_radius = 20  # TODO, hook to settings
 
         self.sketch_brush = SketchBrush(context,
                                         self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
                                         15,  # settings.quad_prev_radius,
-                                        self.obj)
+                                        mesh_cache['bvh'], self.mx,
+                                        self.obj_orig.dimensions.length)
 
-        self.polystrips = Polystrips(context, self.obj, self.dest_obj)
+        self.polystrips = Polystrips(context, self.obj_orig, self.dest_obj)
         
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
         
         self.polystrips_undo_cache = []  # Clear the cache in case any is left over
-        
         
         # help file stuff
         my_dir = os.path.split(os.path.abspath(__file__))[0]
@@ -185,7 +189,7 @@ class Polystrips_UI:
         
         
         
-        if self.obj.grease_pencil:
+        if self.obj_orig.grease_pencil:
             self.create_polystrips_from_greasepencil()
         elif 'BezierCurve' in bpy.data.objects:
             self.create_polystrips_from_bezier(bpy.data.objects['BezierCurve'])
@@ -210,17 +214,7 @@ class Polystrips_UI:
         dprint('cleaning up!')
 
         if cleantype == 'commit':
-            if self.obj_orig.modifiers:
-                tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-                meobj  = tmpobj.data
-
-                # Delete object
-                context.scene.objects.unlink(tmpobj)
-                tmpobj.user_clear()
-                if tmpobj.name in bpy.data.objects:
-                    bpy.data.objects.remove(tmpobj)
-
-                bpy.data.meshes.remove(meobj)
+            pass
 
         elif cleantype == 'cancel':
             if context.mode == 'OBJECT' and not self.settings.target_object:
@@ -303,7 +297,7 @@ class Polystrips_UI:
             mx = self.dest_obj.matrix_world
             imx = mx.inverted()
 
-            mx2 = self.obj.matrix_world
+            mx2 = self.obj_orig.matrix_world
             imx2 = mx2.inverted()
 
         else:
@@ -419,7 +413,8 @@ class Polystrips_UI:
 
     def pick(self, eventd):
         x,y = eventd['mouse']
-        pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+        pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
+        print(pts)
         if not pts:
             # user did not click on the object
             if not eventd['shift']:
@@ -431,6 +426,7 @@ class Polystrips_UI:
         pt = pts[0]
 
         if self.act_gvert or self.act_gedge:
+            print('active gvert or gedge, checking inner parts')
             # check if user is picking an inner control point
             if self.act_gedge and not self.act_gedge.zip_to_gedge:
                 lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
@@ -451,6 +447,7 @@ class Polystrips_UI:
                 return ''
         # Select gvert
         for gv in self.polystrips.gverts:
+            print('no active gvert or gedge, checking gverts')
             if gv.is_unconnected(): continue
             if not gv.is_picked(pt): continue
             self.act_gedge = None
@@ -461,6 +458,7 @@ class Polystrips_UI:
             return ''
 
         for ge in self.polystrips.gedges:
+            print('check gedges for something')
             if not ge.is_picked(pt): continue
             self.act_gvert = None
             self.act_gedge = ge
@@ -507,7 +505,7 @@ class Polystrips_UI:
             n0  = Vector((0,0,1))
             tx0 = Vector((1,0,0))
             ty0 = Vector((0,1,0))
-            return GVert(self.obj,self.dest_obj, p0,r0,n0,tx0,ty0)
+            return GVert(self.obj_orig,self.dest_obj, p0,r0,n0,tx0,ty0)
 
         for spline in data.splines:
             pregv = None
@@ -517,7 +515,7 @@ class Polystrips_UI:
                 gv2 = self.create_gvert(mx, bp1.handle_left, 0.2)
                 gv3 = self.create_gvert(mx, bp1.co, 0.2)
 
-                ge0 = GEdge(self.obj, self.dest_obj, gv0, gv1, gv2, gv3)
+                ge0 = GEdge(self.obj_orig, self.dest_obj, gv0, gv1, gv2, gv3)
                 ge0.recalc_igverts_approx()
                 ge0.snap_igverts_to_object()
 
@@ -529,8 +527,8 @@ class Polystrips_UI:
                 pregv = gv3
 
     def create_polystrips_from_greasepencil(self):
-        Mx = self.obj.matrix_world
-        gp = self.obj.grease_pencil
+        Mx = self.obj_orig.matrix_world
+        gp = self.obj_orig.grease_pencil
         gp_layers = gp.layers
         # for gpl in gp_layers: gpl.hide = True
         strokes = [[(p.co,p.pressure) for p in stroke.points] for layer in gp_layers for frame in layer.frames for stroke in frame.strokes]

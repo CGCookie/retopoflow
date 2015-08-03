@@ -237,10 +237,9 @@ def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    st, en = imx*(o-d*back*mult), imx*(o+d*mult)
+    st, en = imx*(o-mult*back*d), imx*(o+mult*d)
     hit = bvh.ray_cast(st,(en-st))
     return (d, hit[0:3])
-
 
 def ray_cast_path(context, ob, screen_coords):
     rgn  = context.region
@@ -276,7 +275,7 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
     world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
@@ -304,7 +303,7 @@ def ray_cast_stroke(context, ob, stroke):
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
+    sten = [(imx*(o-mult*back*d), imx*(o+mult*d)) for o,d in rays]
     hits = [ob.ray_cast(st,st+(en-st)*1000) for st,en in sten]
     world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
     
@@ -331,9 +330,9 @@ def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
+    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
     
     return world_stroke
 
@@ -395,6 +394,26 @@ def ray_cast_visible(verts, ob, rv3d):
     
     return [ob.ray_cast(s,t)[2]==-1 for s,t in zip(source,target)]
 
+def ray_cast_visible_bvh(verts, bvh, mx, rv3d):
+    '''
+    returns list of Boolean values indicating whether the corresponding vert
+    is visible (not occluded by object) in region associated with rv3d
+    '''
+    view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
+    imx = mx.inverted()
+    
+    if rv3d.is_perspective:
+        eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
+        #eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
+        eyeloc_local = imx*eyeloc
+        source = [eyeloc_local for vert in verts]
+        target = [imx*(vert+0.01*view_dir) for vert in verts]
+    else:
+        source = [imx*(vert+100*view_dir) for vert in verts]
+        target = [imx*(vert+0.01*view_dir) for vert in verts]
+    
+    return [bvh.ray_cast(s,t-s)[2]== None for s,t in zip(source,target)]
+
 def get_ray_origin_target(region, rv3d, screen_coord, ob):
     ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
     ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
@@ -452,16 +471,16 @@ def ray_cast_world_size_bvh(region, rv3d, screen_coord, screen_size, bvh, mx, se
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    st, en = imx*(o-d*back*mult), imx*(o+d*mult)
-    pt_local, no, idx, d = bvh.ray_cast(st,(en-st))
+    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
+    pt_local, no, idx, _ = bvh.ray_cast(st,(en-st))
     
-    if idx == -1: return float('inf')
+    if idx == None: return float('inf')
     
     pt = mx * pt_local
     
     screen_coord_offset = (screen_coord[0]+screen_size, screen_coord[1])
     o_off, d_off = r2d_origin(rgn, rv3d, screen_coord_offset), r2d_vector(rgn, rv3d, screen_coord_offset).normalized()
-    st, en = imx*(o-d*back*mult), imx*(o+d*mult)
+    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
 
     d = get_ray_plane_intersection(o_off, d_off, pt, (rv3d.view_rotation*Vector((0,0,-1))).normalized() )
     pt_offset = o_off + d_off * d

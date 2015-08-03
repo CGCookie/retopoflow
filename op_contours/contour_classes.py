@@ -38,44 +38,12 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
 from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
-from ..cache import contour_mesh_cache, contour_undo_cache
+from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
 AL = common_utilities.AddonLocator()
-
-def object_validation(ob):
-    me = ob.data
-    # get object data to act as a hash
-    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
-    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
-    return (ob.name, counts, bbox, vsum)
-
-def is_object_valid(ob):
-    if 'valid' not in contour_mesh_cache: return False
-    return contour_mesh_cache['valid'] == object_validation(ob)
-
-def write_mesh_cache(orig_ob, bme, bvh):
-    print('writing mesh cache')
-    contour_mesh_cache['valid'] = object_validation(orig_ob)
-    contour_mesh_cache['bme'] = bme
-    contour_mesh_cache['bvh'] = bvh
-
-def clear_mesh_cache():
-    print('clearing mesh cache')
-    if 'valid' in contour_mesh_cache and contour_mesh_cache['valid']:
-        del contour_mesh_cache['valid']
-
-    if 'bme' in contour_mesh_cache and contour_mesh_cache['bme']:
-        bme_old = contour_mesh_cache['bme']
-        bme_old.free()
-        del contour_mesh_cache['bme']
-
-    if 'bvh' in contour_mesh_cache and contour_mesh_cache['bvh']:
-        bvh_old = contour_mesh_cache['bvh']
-        del bvh_old
 
 class Contours(object):
     def __init__(self,context, settings):
@@ -134,31 +102,31 @@ class Contours(object):
         
         return dest_ob, dest_me, dest_bme
     
-    def tmp_obj_and_triangulate(self,context, bme, ngons, mx):
-        '''
-        ob -  input object
-        bme - bmesh extracted from input object <- this will be modified by triangulation
-        ngons - list of bmesh faces that are ngons
-        '''
+    #def tmp_obj_and_triangulate(self,context, bme, ngons, mx):
+    #    '''
+    #    ob -  input object
+    #    bme - bmesh extracted from input object <- this will be modified by triangulation
+    #    ngons - list of bmesh faces that are ngons
+    
         
-        if len(ngons):
-            new_geom = bmesh.ops.triangulate(bme, faces = ngons, quad_method=0, ngon_method=1)
-            new_faces = new_geom['faces']
+    #    if len(ngons):
+    #        new_geom = bmesh.ops.triangulate(bme, faces = ngons, quad_method=0, ngon_method=1)
+    #        new_faces = new_geom['faces']
 
-        new_me = bpy.data.meshes.new('tmp_recontour_mesh')
-        bme.to_mesh(new_me)
-        new_me.update()
-        tmp_ob = bpy.data.objects.new('ContourTMP', new_me)
+    #    new_me = bpy.data.meshes.new('tmp_recontour_mesh')
+    #    bme.to_mesh(new_me)
+    #    new_me.update()
+    #    tmp_ob = bpy.data.objects.new('ContourTMP', new_me)
         
         #ob must be linked to scene for ray casting?
-        context.scene.objects.link(tmp_ob)
-        tmp_ob.update_tag()
-        context.scene.update()
+    #    context.scene.objects.link(tmp_ob)
+    #    tmp_ob.update_tag()
+    #    context.scene.update()
         #however it can be unlinked to prevent user from seeing it?
-        context.scene.objects.unlink(tmp_ob)
-        tmp_ob.matrix_world = mx
+    #    context.scene.objects.unlink(tmp_ob)
+    #    tmp_ob.matrix_world = mx
         
-        return tmp_ob
+    #    return tmp_ob
     
     def mesh_data_gather_object_mode(self,context):
         '''
@@ -187,18 +155,20 @@ class Contours(object):
         is_valid = is_object_valid(self.original_form)
         
         if is_valid:
-            self.bme = contour_mesh_cache['bme']            
-            self.bvh = contour_mesh_cache['bvh']
+            #don't need to do anything
+            pass
+            #self.bme = mesh_cache['bme']            
+            #self.bvh = mesh_cache['bvh']
             
         else:
             clear_mesh_cache()
             
             me = self.original_form.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
             me.update()
-            self.bme = bmesh.new()
-            self.bme.from_mesh(me)
-            self.bvh = BVHTree.FromBMesh(self.bme)
-
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.original_form,bme, bvh)
         
         if self.settings.recover and is_valid:
             print('loading cache!')
@@ -209,7 +179,7 @@ class Contours(object):
             global contour_undo_cache
             contour_undo_cache = []
             
-        write_mesh_cache(self.original_form,self.bme, self.bvh)
+        
     
     def mesh_data_gather_edit_mode(self,context):
         '''
@@ -226,16 +196,18 @@ class Contours(object):
         is_valid = is_object_valid(ob)
     
         if is_valid:
-            self.bme = contour_mesh_cache['bme']            
-            self.bvh = contour_mesh_cache['bvh']
+            pass
+            #self.bme = mesh_cache['bme']            
+            #self.bvh = mesh_cache['bvh']
         else:
             clear_mesh_cache()
             me = ob.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
             me.update()
             
-            self.bme = bmesh.new()
-            self.bme.from_mesh(me)
-            self.bvh = BVHTree.FromBMesh(self.bme)
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.original_form, bme, bvh)
         
         if self.settings.recover and is_valid:
             print('loading cache!')
@@ -286,9 +258,7 @@ class Contours(object):
                     
                     
                     self.cut_paths.append(path)
-                    self.existing_loops.append(existing_loop)
-        
-        write_mesh_cache(ob,self.bme, self.bvh)        
+                    self.existing_loops.append(existing_loop)       
             
     def finish_mesh(self, context):
         back_to_edit = (context.mode == 'EDIT_MESH')
@@ -369,6 +339,7 @@ class Contours(object):
         package all the steps needed to make a new path
         TODO: What if errors?
         '''
+
         path = ContourCutSeries(context, self.sketch,
                                     segments = settings.ring_count,
                                     ring_segments = settings.vertex_count,
@@ -377,7 +348,7 @@ class Contours(object):
                                     feature_factor = settings.feature_factor)
         
         
-        path.ray_cast_path(context, self.bvh, self.mx)
+        path.ray_cast_path(context, self.mx)
         if len(path.raw_world) == 0:
             print('NO RAW PATH')
             return None
@@ -389,16 +360,16 @@ class Contours(object):
             merge_series = self.snap[0]
             merge_ring = self.snap[1]
             
-            path.snap_merge_into_other(merge_series, merge_ring, context, self.bme, self.bvh, self.mx)
+            path.snap_merge_into_other(merge_series, merge_ring, context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
             
             return merge_series
 
         path.smooth_path(context, bvh = self.bvh, mx = self.mx)
         path.create_cut_nodes(context)
-        path.snap_to_object(self.bvh, self.mx, raw = False, world = False, cuts = True)
-        path.cuts_on_path(context, self.bme, self.bme, self.mx)
-        path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-        path.backbone_from_cuts(context,self.bme, self.bvh, self.mx)
+        path.snap_to_object(mesh_cache['bvh'], self.mx, raw = False, world = False, cuts = True)
+        path.cuts_on_path(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+        path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        path.backbone_from_cuts(context,mesh_cache['bme'], mesh_cache['bvh'], self.mx)
         if path.cuts:
             # TODO: should this ever be empty?
             path.cuts[-1].do_select(self.settings)
@@ -466,7 +437,7 @@ class Contours(object):
             return
         else: 
             #hit the mesh for the first time
-            hit = self.sel_loop.hit_object(context, self.bvh, self.mx, method = 'VIEW')
+            hit = self.sel_loop.hit_object(context, mesh_cache['bvh'], self.mx, method = 'VIEW')
 
             if not hit:
                 self.cut_lines.remove(self.sel_loop)
@@ -475,7 +446,7 @@ class Contours(object):
 
                 return
 
-            self.sel_loop.cut_object(context, self.bme, self.bvh, self.mx)
+            self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
             self.sel_loop.simplify_cross(self.segments)
             self.sel_loop.update_com()
             self.sel_loop.update_screen_coords(context)
@@ -495,9 +466,9 @@ class Contours(object):
 
             if self.cut_paths != [] and not self.force_new:
                 for path in self.cut_paths:
-                    if path.insert_new_cut(context, self.bme, self.bvh, self.mx, self.sel_loop, search = settings.search_factor):
+                    if path.insert_new_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, search = settings.search_factor):
                         #the cut belongs to the series now
-                        path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+                        path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
                         path.seg_lock = True
                         path.do_select(settings)
                         path.unhighlight(settings)
@@ -515,11 +486,11 @@ class Contours(object):
                             smooth_factor = settings.smooth_factor,
                             feature_factor = settings.feature_factor)
 
-            path.insert_new_cut(context, self.bme, self.bvh, self.mx, self.sel_loop, search = settings.search_factor)
+            path.insert_new_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, search = settings.search_factor)
             path.seg_lock = False  #not locked yet...not until a 2nd cut is added in loop mode
             path.segments = 1
             path.ring_segments = len(self.sel_loop.verts_simple)
-            path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+            path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
 
             for other_path in self.cut_paths:
                 other_path.deselect(settings)
@@ -542,7 +513,7 @@ class Contours(object):
         '''
         
         rv3d = context.space_data.region_3d
-        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), self.bvh, self.mx, settings)
+        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
             loc = self.mx * hit[0] #< it's ok if this is none
         else:
@@ -646,7 +617,7 @@ class Contours(object):
         Handles mouse selection and hovering
         '''
         rv3d = context.space_data.region_3d
-        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), self.bvh, self.mx, settings)
+        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
             loc = self.mx * hit[0] #< it's ok if this is none
         else:
@@ -680,7 +651,7 @@ class Contours(object):
                                     #spawn a new widget        
                                     self.cut_line_widget = CutLineManipulatorWidget(context, 
                                                                                     settings,
-                                                                                    self.bme, self.bvh, self.mx,
+                                                                                    mesh_cache['bme'], mesh_cache['bvh'], self.mx,
                                                                                     self.hover_target,
                                                                                     parent_path,
                                                                                     x,
@@ -727,7 +698,7 @@ class Contours(object):
             cut.shift += (-1 + 2 * up) * s
             cut.simplify_cross(self.sel_path.ring_segments)
                                 
-        self.sel_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
 
         
     def segment_n_loops(self,context, path, n):
@@ -736,10 +707,10 @@ class Contours(object):
             self.create_undo_snapshot('PATH_SEGMENTS')
             path.segments = n
             path.create_cut_nodes(context)
-            path.snap_to_object(self.bvh, self.mx, raw = False, world = False, cuts = True)
-            path.cuts_on_path(context, self.bme, self.bvh, self.mx)
-            path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-            path.backbone_from_cuts(context, self.bme, self.bvh, self.mx)
+            path.snap_to_object(mesh_cache['bvh'], self.mx, raw = False, world = False, cuts = True)
+            path.cuts_on_path(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+            path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+            path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
     
     def segment_smooth(self,context, settings):
         method = settings.smooth_method
@@ -748,21 +719,21 @@ class Contours(object):
         self.create_undo_snapshot('SMOOTH')
         if method == 'PATH_NORMAL':
             #path.smooth_normals
-            self.sel_path.average_normals(context, self.bme, self.bvh, self.mx)
+            self.sel_path.average_normals(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
             #self.temporary_message_start(context, 'Smooth normals based on drawn path')
             
         elif method == 'CENTER_MASS':
             #smooth CoM path
             #self.temporary_message_start(context, 'Smooth normals based on CoM path')
-            self.sel_path.smooth_normals_com(context, self.bme, self.bvh, self.mx, iterations = 2)
+            self.sel_path.smooth_normals_com(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, iterations = 2)
         
         elif method == 'ENDPOINT':
             #path.interpolate_endpoints
             #self.temporary_message_start(context, 'Smoothly interpolate normals between the endpoints')
-            self.sel_path.interpolate_endpoints(context, self.bme, self.bvh, self.mx)
+            self.sel_path.interpolate_endpoints(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
        
-        self.sel_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-        self.sel_path.backbone_from_cuts(context, self.bme, self.bvh, self.mx) 
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.sel_path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx) 
                    
     def cursor_to_segment(self, context):
         half = math.floor(len(self.sel_path.cuts)/2)
@@ -817,8 +788,8 @@ class Contours(object):
         
         for path in self.cut_paths:
             if self.sel_loop in path.cuts:
-                path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-                path.update_backbone(context, self.bme, self.bvh, self.mx, self.sel_loop, insert = False)
+                path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+                path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, insert = False)
                
     def loop_nverts_change(self, context, eventd, n):
         if n < 3:
@@ -843,8 +814,8 @@ class Contours(object):
                         cut.shift = new_shift
                         cut.simplify_cross(path.ring_segments)
                     
-                    path.backbone_from_cuts(context, self.bme, self.bvh, self.mx)    
-                    path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+                    path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)    
+                    path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
                     
                     #self.temporary_message_start(context, 'RING SEGMENTS %i' %path.ring_segments)
                     self.msg_start_time = time.time()
@@ -863,8 +834,8 @@ class Contours(object):
         self.sel_path.align_cut(self.sel_loop, mode = act, fine_grain = True)
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
         
-        self.sel_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-        self.sel_path.update_backbone(context, self.bme, self.bvh, self.mx, self.sel_loop, insert = False)
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.sel_path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, insert = False)
         
     def loops_delete(self,context,loops, undo = True):
         '''
@@ -882,7 +853,7 @@ class Contours(object):
             for path in self.cut_paths:
                 if loop in path.cuts:
                     if len(path.cuts) > 1 or len(path.cuts) == 1 and path.existing_head:
-                        path.remove_cut(context, self.bme, self.bvh, self.mx, loop)
+                        path.remove_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, loop)
                         if path not in update_paths:
                             update_paths.add(path)
                             
@@ -892,8 +863,8 @@ class Contours(object):
                         if path not in remove_paths:
                             remove_paths.add(path)
         for u_path in update_paths - remove_paths:
-            u_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
-            u_path.backbone_from_cuts(context, self.bme, self.bvh, self.mx)                
+            u_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+            u_path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)                
         
         
         for r_path in remove_paths:
@@ -917,7 +888,7 @@ class Contours(object):
         x,y = eventd['mouse']
         screen_pivot = location_3d_to_region_2d(context.region,context.space_data.region_3d,self.sel_loop.plane_com)
         self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
-                                                        self.bme, self.bvh, self.mx,
+                                                        mesh_cache['bme'], mesh_cache['bvh'], self.mx,
                                                         self.sel_loop,
                                                         self.sel_path,
                                                         screen_pivot[0],screen_pivot[1],
@@ -936,7 +907,7 @@ class Contours(object):
         
         x,y = eventd['mouse']
         self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
-                                                        self.bme, self.bvh, self.mx, 
+                                                        mesh_cache['bme'], mesh_cache['bvh'], self.mx, 
                                                         self.sel_loop,
                                                         self.sel_path,
                                                         x,y,
@@ -959,21 +930,21 @@ class Contours(object):
         shft = eventd['shift']
         self.cut_line_widget.user_interaction(context, x, y, shift = shft)
         
-        self.sel_loop.cut_object(context, self.bme, self.bvh, self.mx)
+        self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
         self.sel_loop.update_com()
         self.sel_path.align_cut(self.sel_loop, mode = 'BETWEEN', fine_grain = True)
         
-        self.sel_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
         
         #self.temporary_message_start(context, 'WIDGET_TRANSFORM: ' + str(self.cut_line_widget.transform_mode))    
 
     def widget_cancel(self,context):
         self.cut_line_widget.cancel_transform()
-        self.sel_loop.cut_object(context, self.bme, self.bvh, self.mx)
+        self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
         self.sel_loop.update_com()  
-        self.sel_path.connect_cuts_to_make_mesh(self.bvh, self.mx)
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
 
     
     def draw_post_pixel(self,context):
@@ -1097,7 +1068,8 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         self.is_highlighted = False
         self.line_thickness = settings.line_thick      
                
-    def ray_cast_path(self,context, bvh, mx):
+    def ray_cast_path(self,context, mx):
+        bvh = mesh_cache['bvh']
         settings = common_utilities.get_settings()
         self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen)
         if settings.debug > 1:
@@ -3392,8 +3364,7 @@ class CutLineManipulatorWidget(object):
         #this will get set later by interaction
         self.transform = False
         self.transform_mode = None
-        
-        self.bvh = bvh
+
         self.mx = mx
         
         self.color = (settings.widget_color[0], settings.widget_color[1],settings.widget_color[2],1)
@@ -3559,7 +3530,7 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = self.bvh.find(self.mx.inverted() * proposed_point)
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3574,7 +3545,7 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = self.bvh.find(self.mx.inverted() * proposed_point)
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3612,7 +3583,7 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, new_com, inter_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = self.bvh.find(self.mx.inverted() * proposed_point)
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3626,7 +3597,7 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_ahead, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = self.bvh.find(self.mx.inverted() * proposed_point)
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3644,7 +3615,7 @@ class CutLineManipulatorWidget(object):
                     
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                 if proposed_point:        
-                    snap = self.bvh.find(self.mx.inverted() * proposed_point)
+                    snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
                     self.cut_line.plane_pt = self.mx * snap[0]
                     self.cut_line.seed_face_index = snap[2]
                 else:
@@ -3720,7 +3691,7 @@ class CutLineManipulatorWidget(object):
                 new_pt = contour_utilities.intersect_path_plane(self.path_behind, self.initial_com, new_no, mode = 'FIRST')
             
             if new_pt[0]:
-                snap = self.bvh.find(self.mx.inverted() * new_pt[0])
+                snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
                 self.cut_line.plane_pt = self.mx * snap[0]
                 self.cut_line.seed_face_index = snap[2] 
             else:

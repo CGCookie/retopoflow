@@ -26,6 +26,7 @@ import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.bvhtree import BVHTree
 
 import math
 import os
@@ -36,6 +37,7 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, pr
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
+from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
 
 
 class Tweak_UI:
@@ -59,21 +61,24 @@ class Tweak_UI:
         self.post_update = True
 
         self.obj_orig = get_source_object()
-        if self.obj_orig.modifiers:
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-
-            self.obj = bpy.data.objects.new('TweakTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
+        self.mx = self.obj_orig.matrix_word
+        
+        is_valid = is_object_valid(self.obj_orig)
+        
+        if is_valid:
+                pass
+                #self.bme = mesh_cache['bme']            
+                #self.bvh = mesh_cache['bvh']
+                
         else:
-            self.obj = self.obj_orig
-        self.obj.matrix_world = self.obj_orig.matrix_world
-
-        # Comment out for now. Appears to no longer be needed.
-        # bpy.ops.object.mode_set(mode='OBJECT')
-        # bpy.ops.object.mode_set(mode='EDIT')
-
+            clear_mesh_cache()           
+            me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+            me.update()
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.obj_orig, bme, bvh)
+        
         self.dest_obj = context.object
         self.dest_bme = bmesh.from_edit_mesh(context.object.data)
         self.snap_eds = [] #EXTEND
@@ -81,14 +86,14 @@ class Tweak_UI:
         
         
         region, r3d = context.region, context.space_data.region_3d
-        mx = self.dest_obj.matrix_world
+        dest_mx = self.dest_obj.matrix_world
         rv3d = context.space_data.region_3d
-        self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, rv3d) for ed in self.snap_eds]
+        self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
         self.hover_ed = None
         
         
         self.scale = self.obj.scale[0]
-        self.length_scale = get_object_length_scale(self.obj)
+        self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
         self.stroke_radius_pressure = 0.01 * self.length_scale
@@ -99,7 +104,8 @@ class Tweak_UI:
                                         self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
                                         15,  # settings.quad_prev_radius,
-                                        self.obj)
+                                        mesh_cache['bvh'], self.mx,
+                                        self.obj_orig.dimensions.length)
 
         self.undo_cache = []            # Clear the cache in case any is left over
         
@@ -130,18 +136,7 @@ class Tweak_UI:
         dprint('cleaning up!')
 
         if self.obj_orig.modifiers:
-            tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-            meobj  = tmpobj.data
-
-            # Delete object
-            context.scene.objects.unlink(tmpobj)
-            tmpobj.user_clear()
-            if tmpobj.name in bpy.data.objects:
-                bpy.data.objects.remove(tmpobj)
-
-            bpy.context.scene.update()
-            bpy.data.meshes.remove(meobj)
-    
+            pass
     
     ###############################
     # undo functions
