@@ -57,6 +57,7 @@ class Polystrips_UI_Draw():
 
         new_matrix = [v for l in r3d.view_matrix for v in l]
         if self.post_update or self.last_matrix != new_matrix:
+            '''
             for gv in self.polystrips.gverts:
                 gv.update_visibility(r3d)
                 
@@ -80,6 +81,7 @@ class Polystrips_UI_Draw():
                 self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([mx * ed.verts[0].co, mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, r3d) for ed in self.snap_eds]
 
             self.post_update = False
+            '''
             self.last_matrix = new_matrix
 
         self.draw_2D(context)

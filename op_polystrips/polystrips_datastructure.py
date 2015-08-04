@@ -1167,6 +1167,7 @@ class GPatch:
         
         self.o_name = obj.name
         self.frozen = False
+        self.mx = obj.matrix_world
         
         self.gedges = gedges
         self.nsides = len(gedges)

@@ -254,7 +254,7 @@ class Contours(object):
                     path.seg_lock = False
                     path.ring_lock = True
                     path.ring_segments = len(existing_loop.verts_simple)
-                    path.connect_cuts_to_make_mesh(ob)
+                    path.connect_cuts_to_make_mesh(mesh_cache['bvh'],self.mx)
                     
                     
                     self.cut_paths.append(path)
@@ -364,7 +364,7 @@ class Contours(object):
             
             return merge_series
 
-        path.smooth_path(context, bvh = self.bvh, mx = self.mx)
+        path.smooth_path(context, bvh = mesh_cache['bvh'], mx = self.mx)
         path.create_cut_nodes(context)
         path.snap_to_object(mesh_cache['bvh'], self.mx, raw = False, world = False, cuts = True)
         path.cuts_on_path(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
@@ -3286,20 +3286,24 @@ class ContourCutLine(object):
                 a = self.verts_simple[ed[0]]
                 b = self.verts_simple[ed[1]]
                 intersect = intersect_point_line(loc, a,b)
+                
+                return intersect
                     
-            def dist(ed):
+            def dist_fn(ed):
                 inter = intersect(ed) 
                 if inter:
                     bound = inter[1]
                     if (bound < 1) and (bound > 0):
                         V = inter[0] - loc
                         dist = V.length
+                    else:
+                        dist = 1000000
                 else:
                     dist = 1000000
                     
                 return dist
                     
-            best_ed = min(self.eds_simple, key = dist) #closest ed in world space
+            best_ed = min(self.eds_simple, key = dist_fn) #closest ed in world space
             inter = intersect(best_ed)
             screen_pt = location_3d_to_region_2d(context.region, context.space_data.region_3d,inter[0])
             screen_dist = (screen_pt - Vector((x,y))).length
