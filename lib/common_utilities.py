@@ -219,6 +219,27 @@ def iter_running_sum(lw):
         yield (w,s)
 
 
+def ray_cast_region2d(region, rv3d, screen_coord, obj, settings):
+    '''
+    performs ray casting on object given region, rv3d, and coords wrt region.
+    returns tuple of ray vector (from coords of region) and hit info
+    '''
+    mx = obj.matrix_world
+    rgn = region
+    imx = mx.inverted()
+    
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    o, d = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn, rv3d, screen_coord).normalized()
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    st, en = imx*(o-mult*back*d), imx*(o+mult*d)
+    hit = obj.ray_cast(st,en)
+    return (d, hit)
 
 def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     '''
