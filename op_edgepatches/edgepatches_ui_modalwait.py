@@ -119,7 +119,7 @@ class EdgePatches_UI_ModalWait():
                     showErrorMessage('Cannot merge inner EPVert')
                     return ''
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
                 if not pts: return ''
                 pt = pts[0]
                 
@@ -172,7 +172,7 @@ class EdgePatches_UI_ModalWait():
             
             if eventd['press'] in self.keymap['knife'] and not self.act_epvert.is_inner():
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
                 if not pts: return ''
                 pt = pts[0]
                 
@@ -199,7 +199,7 @@ class EdgePatches_UI_ModalWait():
             if eventd['press'] in self.keymap['knife']:
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
                 if not pts: return ''
                 t,_ = self.act_epedge.get_closest_point(pts[0])
                 _,_,epv = self.edgepatches.split_epedge_at_t(self.act_epedge, t)
@@ -209,6 +209,13 @@ class EdgePatches_UI_ModalWait():
                 self.act_epvert = epv
                 return ''
 
+            if eventd['press'] in self.keymap['up count']:
+                self.act_epedge.subdivision += 1
+                return ''
+            if eventd['press'] in self.keymap['dn count']:
+                cur_sub = self.act_epedge.subdivision
+                self.act_epedge.subdivision = max(1, cur_sub-1)
+                return ''
         if eventd['press'] in {'p','P'}:
             self.edgepatches.update_eppatches()
             self.edgepatches.debug()

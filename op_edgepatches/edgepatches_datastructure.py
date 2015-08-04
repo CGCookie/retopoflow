@@ -37,12 +37,14 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from ..lib import common_utilities
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, closest_t_and_distance_point_to_line_segment
-from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items
+from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items, point_inside_loop2d
 
 from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
+from ..pat_patch import Patch
+
 
 class EPVert:
     def __init__(self, position):
@@ -127,7 +129,7 @@ class EPVert:
 
 class EPEdge:
     tessellation_count = 20
-    
+    subdivision = 8
     def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
@@ -151,6 +153,19 @@ class EPEdge:
     
     def epverts(self): return (self.epvert0, self.epvert1, self.epvert2, self.epvert3)
     def epverts_pos(self): return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
+    
+    def info_display_pt(self):
+        if len(self.curve_verts) == 0: return Vector((0,0,0))
+        if len(self.curve_verts) < 3: return self.curve_verts[0]
+        mid = math.ceil(self.tessellation_count/2)
+        pt = self.curve_verts[mid]
+        no = self.curve_norms[mid]
+        dir_off = no.cross(self.curve_verts[mid+1]-self.curve_verts[mid])
+        dir_off.normalize()
+        len_off = .1 * (self.curve_verts[-1] - self.curve_verts[0]).length
+        
+        info_pt = pt + len_off*dir_off
+        return info_pt
     
     def update(self):
         #pr = profiler.start()
@@ -247,6 +262,8 @@ class EPPatch:
         self.center = Vector()
         self.normal = Vector()
         self.update()
+        
+        self.L_sub = [ep.subdivision for ep in self.lepedges]
     
     def update(self):
         ctr = Vector((0,0,0))
@@ -273,7 +290,33 @@ class EPPatch:
         return [epe.epvert0 if fwd else epe.epvert3 for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
 
 
-
+    def info_display_pt(self):
+        pts = self.get_epverts()
+        center = Vector((0,0,0))
+        for pt in pts:
+            center += 1/len(pts) * pt.snap_pos
+        return center
+    
+    def validate_patch_for_ILP(self):
+        '''
+        just check that the perimter is even
+        '''
+        perim_sum = sum([epe.subdivision for epe in self.epedges])
+        if perim_sum % 2: return (False, 'ODD PERIMETER')
+    
+    def hovered_2d(self,context,mouse_x,mouse_y):
+        reg = context.region
+        rv3d = context.space_data.region_3d
+        loop = [epv.snap_pos for epv in self.get_epverts()]
+        loop_2d = [location_3d_to_region_2d(reg, rv3d, pt) for pt in loop if pt]
+        
+        return point_inside_loop2d(loop_2d, (mouse_x, mouse_y))
+        
+        
+    def ILP_initial_solve(self):
+        pass
+    
+       
 class EdgePatches:
     def __init__(self, context, src_obj, tar_obj):
         # class/static variables (shared across all instances)
@@ -586,7 +629,17 @@ class EdgePatches:
             if d <= maxdist: lepe += [(epe,d)]
         if not sort: return lepe
         return sorted(lepe, key=lambda v: v[1])
-        
+    
+    def pick_eppatches(self, context,x,y, pt, maxdist=0.1, sort=True):
+        lepp = []
+        for epp in self.eppatches:
+            if epp.hovered_2d(context,x,y):
+                d = (epp.info_display_pt() - pt).length
+                lepp += [(epp,d)]
+        if not sort: return lepp
+        return sorted(lepp, key=lambda v: v[1]) 
+    
+       
     def pick(self, pt, maxdist=0.1,sort=True):
         l = self.pick_epverts(pt,maxdist=maxdist,sort=False) + self.pick_epedges(pt,maxdist=maxdist,sort=False)
         if not sort: return l

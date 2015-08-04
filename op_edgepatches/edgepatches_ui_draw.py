@@ -191,7 +191,10 @@ class EdgePatches_UI_Draw():
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
-            color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+            if eppatch == self.act_eppatch:
+                color = color = (color_active[0], color_active[1], color_active[2], 0.20)
+            else:
+                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             draw3d_fan(eppatch.center + eppatch.normal*0.02, eppatch.get_outer_points(), color)
         
         if self.act_epvert:
@@ -236,7 +239,14 @@ class EdgePatches_UI_Draw():
         color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
         
-
+        #draw edge subdivisions
+        for epedge in self.edgepatches.epedges:
+            info_pt = epedge.info_display_pt()
+            screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
+            info = str(epedge.subdivision)
+            blf.position(0, screen_loc[0], screen_loc[1], 0)
+            blf.draw(0, info)
+            
         if self.fsm_mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
@@ -260,10 +270,10 @@ class EdgePatches_UI_Draw():
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif not self.is_navigating:
             # draw the brush oriented to surface
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
+            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj_orig, settings)
             hit_p3d,hit_norm,hit_idx = hit
             if hit_idx != -1: # and not self.hover_ed:
-                mx = self.obj.matrix_world
+                mx = self.obj_orig.matrix_world
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
@@ -272,10 +282,10 @@ class EdgePatches_UI_Draw():
                 else:
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
             if self.fsm_mode == 'sketch':
-                ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
+                ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj_orig, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != -1:
-                    mx = self.obj.matrix_world
+                    mx = self.obj_orig.matrix_world
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm

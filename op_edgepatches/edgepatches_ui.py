@@ -26,6 +26,7 @@ import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.bvhtree import BVHTree
 
 import math
 import os
@@ -36,6 +37,7 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, pr
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
+from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
 
 from .edgepatches_datastructure import EdgePatches, EPVert, EPEdge, EPPatch
 
@@ -64,23 +66,17 @@ class EdgePatches_UI:
         # Debug level 2: time start
         check_time = profiler.start()
         self.obj_orig = get_source_object()
-        # duplicate selected objected to temporary object but with modifiers applied
-        if self.obj_orig.modifiers:
-            # Time event
-            self.me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            self.me.update()
-            self.obj = bpy.data.objects.new('PolystripsTmp', self.me)
-            bpy.context.scene.objects.link(self.obj)
-            self.obj.hide = True
-
-            # HACK
-            # Comment out for now. Appears to no longer be needed.
-            # bpy.ops.object.mode_set(mode='EDIT')
-            # bpy.ops.object.mode_set(mode='OBJECT')
-            self.obj.matrix_world = self.obj_orig.matrix_world
-        else:
-            self.obj = self.obj_orig
-
+        self.mx = self.obj_orig.matrix_world
+       
+        is_valid = is_object_valid(self.obj_orig)
+        if not is_valid:
+            clear_mesh_cache()           
+            me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+            me.update()
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.obj_orig, bme, bvh)
         # Debug level 2: time end
         check_time.done()
 
@@ -90,7 +86,7 @@ class EdgePatches_UI:
         self.dest_bme = bmesh.new()
         dest_me  = bpy.data.meshes.new(nm_polystrips)
         self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-        self.dest_obj.matrix_world = self.obj.matrix_world
+        self.dest_obj.matrix_world = self.obj_orig.matrix_world
         context.scene.objects.link(self.dest_obj)
         
         self.extension_geometry = []
@@ -99,8 +95,8 @@ class EdgePatches_UI:
         self.hover_ed = None
         
         
-        self.scale = self.obj.scale[0]
-        self.length_scale = get_object_length_scale(self.obj)
+        self.scale = self.obj_orig.scale[0]
+        self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
         self.stroke_radius_pressure = 0.01 * self.length_scale
@@ -111,11 +107,12 @@ class EdgePatches_UI:
                                         self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
                                         15,  # settings.quad_prev_radius,
-                                        self.obj)
+                                        mesh_cache['bvh'], self.mx,
+                                        self.obj_orig.dimensions.length)
 
         self.undo_cache = []            # Clear the cache in case any is left over
         
-        self.edgepatches = EdgePatches(context, self.obj, self.dest_obj)
+        self.edgepatches = EdgePatches(context, self.obj_orig, self.dest_obj)
         
         
         # help file stuff
@@ -135,6 +132,7 @@ class EdgePatches_UI:
         
         self.act_epvert = None
         self.act_epedge = None
+        self.act_eppatch = None
         self.sel_epverts = set()
         self.sel_epedges = set()
     
@@ -148,17 +146,18 @@ class EdgePatches_UI:
         dprint('cleaning up!')
 
         if self.obj_orig.modifiers:
-            tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
-            meobj  = tmpobj.data
+            pass
+            #tmpobj = self.obj  # Not always, sometimes if duplicate remains...will be .001
+            #meobj  = tmpobj.data
 
             # Delete object
-            context.scene.objects.unlink(tmpobj)
-            tmpobj.user_clear()
-            if tmpobj.name in bpy.data.objects:
-                bpy.data.objects.remove(tmpobj)
+            #context.scene.objects.unlink(tmpobj)
+            #tmpobj.user_clear()
+            #if tmpobj.name in bpy.data.objects:
+            #    bpy.data.objects.remove(tmpobj)
 
-            bpy.context.scene.update()
-            bpy.data.meshes.remove(meobj)
+            #bpy.context.scene.update()
+            #bpy.data.meshes.remove(meobj)
     
     
     ###############################
@@ -222,7 +221,7 @@ class EdgePatches_UI:
 
     def pick(self, eventd):
         x,y = eventd['mouse']
-        pts = common_utilities.ray_cast_path(eventd['context'], self.obj, [(x,y)])
+        pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
         if not pts:
             # user did not click on the object
             if not eventd['shift']:
@@ -246,6 +245,7 @@ class EdgePatches_UI:
                     continue
             self.act_epvert = epv
             self.act_epedge = None
+            self.act_eppatch = None
             self.sel_epedges.clear()
             self.sel_epverts.clear()
             return ''
@@ -253,12 +253,24 @@ class EdgePatches_UI:
         # Select EPEdge
         for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=self.stroke_radius):
             self.act_epvert = None
+            self.act_eppatch = None
             self.act_epedge = epe
             self.sel_epedges.clear()
             self.sel_epedges.add(epe)
             self.sel_epverts.clear()
             return ''
         
+        
+        #select EPPatch
+        lsepp = self.edgepatches.pick_eppatches(eventd['context'], x,y,pt, maxdist=self.stroke_radius)
+        if len(lsepp):
+            epp, d = lsepp[0]
+            self.act_eppatch = epp
+            self.act_epvert = None
+            self.act_epedge = None
+            self.sel_epedges.clear()
+            self.sel_epverts.clear()
+            return ''
         self.act_epedge,self.act_epvert = None,None
         self.sel_epedges.clear()
         self.sel_epverts.clear()

@@ -114,6 +114,8 @@ class Patch():
         pat_dict[6] = 4
         
         #SPEED UP only test reasonable permutatins
+        #To do this...will need to iterate patterns first
+        #and only test reasonably rotations/reversals
         perms, rot_dirs = permute_subdivs(self.edge_subdivision)
         
         self.valid_perms = []
@@ -348,6 +350,9 @@ class Patch():
         k0 = self.edges_reduced.index(alpha)
         print('l_0  side is side #%i, value %i' % (k0, self.edges[k0]))
 
+#    def rotate_solution(self,direction = 1):
+
+        
 
 def add_constraints_3p0(prob, L, p0, p1, p2):
     prob +=  p2 + p1            == L[0] - 2, "Side 0"

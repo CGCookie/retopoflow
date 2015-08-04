@@ -103,7 +103,7 @@ class EdgePatches_UI_Tools:
             pr.done()
             
             pr = profiler.start()
-            p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
+            p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj_orig, self.sketch) if len(self.sketch) > 1 else []
             pr.done()
             if len(p3d) <= 1: return 'main'
 
@@ -206,7 +206,7 @@ class EdgePatches_UI_Tools:
             dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
             s2d = l3dr2d(self.tool_data[0][0].position)
             lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
-            pts = common_utilities.ray_cast_path(eventd['context'], self.obj, lgv2d)
+            pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, lgv2d)
             if len(pts) != len(lgv2d): return ''
             for d,p2d in zip(self.tool_data, pts):
                 d[0].position = p2d
