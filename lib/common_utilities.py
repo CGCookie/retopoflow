@@ -220,48 +220,27 @@ def iter_running_sum(lw):
 
 
 
-def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
+def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     '''
     performs ray casting on object given region, rv3d, and coords wrt region.
     returns tuple of ray vector (from coords of region) and hit info
     '''
-    mx = ob.matrix_world
+
+    rgn = region
     imx = mx.inverted()
     
-    ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
-    ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
     
-    if rv3d.is_perspective:
-        #ray_target = ray_origin + ray_vector * 100
-        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
-        ray_target = r1
-    else:
-        # need to back up the ray's origin, because ortho projection has front and back
-        # projection planes at inf
-        r0 = get_ray_origin(ray_origin,  ray_vector, ob)
-        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
-        dprint(str(r0) + '->' + str(r1), l=4)
-        ray_origin = r0
-        ray_target = r1
+    o, d = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn, rv3d, screen_coord).normalized()
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    #TODO: make a max ray depth or pull this depth from clip depth
-    
-    ray_start_local  = imx * ray_origin
-    ray_target_local = imx * ray_target
-    
-    if settings.debug > 3:
-        print('ray_persp  = ' + str(rv3d.is_perspective))
-        print('ray_origin = ' + str(ray_origin))
-        print('ray_target = ' + str(ray_target))
-        print('ray_vector = ' + str(ray_vector))
-        print('ray_diff   = ' + str((ray_target - ray_origin).normalized()))
-        print('start:  ' + str(ray_start_local))
-        print('target: ' + str(ray_target_local))
-    
-    hit = ob.ray_cast(ray_start_local, ray_target_local)
-    
-    return (ray_vector, hit)
-
+    st, en = imx*(o-mult*back*d), imx*(o+mult*d)
+    hit = bvh.ray_cast(st,(en-st))
+    return (d, hit[0:3])
 
 def ray_cast_path(context, ob, screen_coords):
     rgn  = context.region
@@ -281,6 +260,26 @@ def ray_cast_path(context, ob, screen_coords):
     
     hits = [ob.ray_cast(imx * ray_o, imx * ray_v) for ray_o,ray_v in rays]
     world_coords = [mx*co for co,no,face in hits if face != -1]
+    return world_coords
+
+def ray_cast_path_bvh(context, bvh, mx, screen_coords):
+    
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx  = mx.inverted()
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co in screen_coords]
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
+    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
+    world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
+    
     return world_coords
 
 def ray_cast_stroke(context, ob, stroke):
@@ -305,11 +304,39 @@ def ray_cast_stroke(context, ob, stroke):
     bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
     if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
-    sten = [(imx*(o-d*back*mult), imx*(o+d*mult)) for o,d in rays]
+    sten = [(imx*(o-mult*back*d), imx*(o+mult*d)) for o,d in rays]
     hits = [ob.ray_cast(st,st+(en-st)*1000) for st,en in sten]
     world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
     
     return world_stroke
+
+def ray_cast_stroke_bvh(context, bvh, mx, stroke):
+    '''
+    strokes have form [((x,y),p)] with a pressure or radius value
+    
+    returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
+    drops any values that do not successfully ray_cast
+    '''
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx  = mx.inverted()
+    
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
+    
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
+    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
+    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
+    
+    return world_stroke
+
 
 def frange(start, end, stepsize):
     v = start
@@ -368,6 +395,28 @@ def ray_cast_visible(verts, ob, rv3d):
     
     return [ob.ray_cast(s,t)[2]==-1 for s,t in zip(source,target)]
 
+def ray_cast_visible_bvh(verts, bvh, mx, rv3d):
+    '''
+    returns list of Boolean values indicating whether the corresponding vert
+    is visible (not occluded by object) in region associated with rv3d
+    '''
+    view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
+    imx = mx.inverted()
+    
+    if rv3d.is_perspective:
+        eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
+        #eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
+        eyeloc_local = imx*eyeloc
+        source = [eyeloc_local for vert in verts]
+        target = [imx*(vert+0.01*view_dir) for vert in verts]
+    else:
+        source = [imx*(vert+100*view_dir) for vert in verts]
+        target = [imx*(vert+0.01*view_dir) for vert in verts]
+    
+    #notice, the math may appear backwards here.  But we want to cast toward the "eye"
+    #and because bvh.ray_cast doesn't yet accept distance, 
+    return [bvh.ray_cast(t,s-t)[2]== None for s,t in zip(source,target)]
+
 def get_ray_origin_target(region, rv3d, screen_coord, ob):
     ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
     ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
@@ -410,6 +459,34 @@ def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
     d = get_ray_plane_intersection(ray_origin_offset, ray_direction_offset, pt, (rv3d.view_rotation*Vector((0,0,-1))).normalized() )
     pt_offset = ray_origin_offset + ray_direction_offset * d
     
+    return (pt-pt_offset).length
+
+def ray_cast_world_size_bvh(region, rv3d, screen_coord, screen_size, bvh, mx, settings):
+
+    imx = mx.inverted()
+    rgn = region
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    o, d = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn, rv3d, screen_coord).normalized()
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
+    pt_local, no, idx, _ = bvh.ray_cast(st,(en-st))
+    
+    if idx == None: return float('inf')
+    
+    pt = mx * pt_local
+    
+    screen_coord_offset = (screen_coord[0]+screen_size, screen_coord[1])
+    o_off, d_off = r2d_origin(rgn, rv3d, screen_coord_offset), r2d_vector(rgn, rv3d, screen_coord_offset).normalized()
+    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
+
+    d = get_ray_plane_intersection(o_off, d_off, pt, (rv3d.view_rotation*Vector((0,0,-1))).normalized() )
+    pt_offset = o_off + d_off * d
     return (pt-pt_offset).length
 
 def get_ray_plane_intersection(ray_origin, ray_direction, plane_point, plane_normal):
@@ -584,8 +661,6 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
 def zip_pairs(l):
     for p in zip(l, itertools.chain(l[1:],l[:1])):
         yield p
-
-
 
 def closest_t_of_s(s_t_map, s):
     '''

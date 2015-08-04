@@ -2293,8 +2293,8 @@ def cross_section_seed_ver1(bme, mx,
         pt += no * shift_dist
         print('>>> shifting')
         print('>>> ' + str(ld))
-        print('>>> ' + shift_dist)
-        print('>>> ' + no*shift_dist)
+        print('>>> ' + str(shift_dist))
+        print('>>> ' + str(no*shift_dist))
     
     # find intersections of edges and cutting plane
     bmface = bme.faces[seed_index]

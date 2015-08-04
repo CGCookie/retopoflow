@@ -29,7 +29,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-
+from ..cache import mesh_cache
 
 class Polystrips_UI_Tools():
     
@@ -80,7 +80,7 @@ class Polystrips_UI_Tools():
                     self.sketch = []
                     return 'main'
 
-            p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj, self.sketch) if len(self.sketch) > 1 else []
+            p3d = common_utilities.ray_cast_stroke_bvh(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
             # tessellate stroke (if needed) so we have good stroke sampling
@@ -132,11 +132,11 @@ class Polystrips_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        mx = self.obj.matrix_world
+        mx = self.obj_orig.matrix_world
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        ray,hit = common_utilities.ray_cast_region2d(region, r3d, eventd['mouse'], self.obj, settings)
+        ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],mx, settings)
         hit_p3d,hit_norm,hit_idx = hit
         
         hit_p3d = mx * hit_p3d
@@ -242,12 +242,10 @@ class Polystrips_UI_Tools():
                 if d >= 1.0: return p3d
                 p2d = location_3d_to_region_2d(region, r3d, p3d)
                 p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
-                if hit[2] == -1: return p3d
+                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'], mx, settings)[1]
+                if hit[2] == None: return p3d
                 return mx * hit[0]
-                
-                return pts[0]
-            
+
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
@@ -296,9 +294,9 @@ class Polystrips_UI_Tools():
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
-                   u.update()
+                    u.update()
                 for u in self.tweak_data['supdate']:
-                   u.update_visibility(eventd['r3d'])
+                    u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
     
@@ -319,7 +317,9 @@ class Polystrips_UI_Tools():
         
         if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
             cx,cy = eventd['mouse']
-            
+            lx,ly = self.tweak_data['mouse']
+            dx,dy = cx-lx,cy-ly #< -- is this right?
+            dv = Vector((dx,dy))  #< -- is this right!?
             mx = self.tweak_data['mx']
             mx3x3 = self.tweak_data['mx3x3']
             imx = self.tweak_data['imx']
@@ -328,11 +328,9 @@ class Polystrips_UI_Tools():
                 if d >= 1.0: return p3d
                 p2d = location_3d_to_region_2d(region, r3d, p3d)
                 p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d(region, r3d, p2d, self.obj, settings)[1]
-                if hit[2] == -1: return p3d
+                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'],mx, settings)[1]
+                if hit[2] == None: return p3d
                 return mx * hit[0]
-                
-                return pts[0]
             
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:
@@ -381,9 +379,9 @@ class Polystrips_UI_Tools():
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
-                   u.update()
+                    u.update()
                 for u in self.tweak_data['supdate']:
-                   u.update_visibility(eventd['r3d'])
+                    u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
         return ''
@@ -594,7 +592,7 @@ class Polystrips_UI_Tools():
             dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
             s2d = l3dr2d(self.tool_data[0][0].position)
             lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
-            pts = common_utilities.ray_cast_path(eventd['context'], self.obj, lgv2d)
+            pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, lgv2d)
             if len(pts) != len(lgv2d): return ''
             for d,p2d in zip(self.tool_data, pts):
                 d[0].position = p2d

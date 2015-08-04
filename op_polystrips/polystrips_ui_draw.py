@@ -40,7 +40,7 @@ from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
 
 from ..preferences import RetopoFlowPreferences
-
+from ..cache import mesh_cache
 
 class Polystrips_UI_Draw():
     
@@ -57,6 +57,7 @@ class Polystrips_UI_Draw():
 
         new_matrix = [v for l in r3d.view_matrix for v in l]
         if self.post_update or self.last_matrix != new_matrix:
+            '''
             for gv in self.polystrips.gverts:
                 gv.update_visibility(r3d)
                 
@@ -75,10 +76,12 @@ class Polystrips_UI_Draw():
                     gv.update_visibility(r3d)
 
             if len(self.snap_eds):
-                mx = self.obj.matrix_world
-                self.snap_eds_vis = [False not in common_utilities.ray_cast_visible([mx * ed.verts[0].co, mx * ed.verts[1].co], self.obj, r3d) for ed in self.snap_eds]
+                print('snap eds are used! but probably not')
+                mx = self.mx
+                self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([mx * ed.verts[0].co, mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, r3d) for ed in self.snap_eds]
 
             self.post_update = False
+            '''
             self.last_matrix = new_matrix
 
         self.draw_2D(context)
@@ -401,10 +404,10 @@ class Polystrips_UI_Draw():
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif self.fsm_mode not in {'grab tool','scale tool','rotate tool'} and not self.is_navigating:
             # draw the brush oriented to surface
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
+            ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
             hit_p3d,hit_norm,hit_idx = hit
-            if hit_idx != -1: # and not self.hover_ed:
-                mx = self.obj.matrix_world
+            if hit_idx != None: # and not self.hover_ed:
+                mx = self.mx
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
@@ -413,10 +416,10 @@ class Polystrips_UI_Draw():
                 else:
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
             if self.fsm_mode == 'sketch':
-                ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj, settings)
+                ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
-                if hit_idx != -1:
-                    mx = self.obj.matrix_world
+                if hit_idx != None:
+                    mx = self.mx
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
