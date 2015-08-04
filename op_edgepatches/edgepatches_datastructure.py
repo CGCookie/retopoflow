@@ -42,7 +42,7 @@ from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between,
 from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
-
+from ..cache import mesh_cache
 
 class EPVert:
     def __init__(self, position):
@@ -128,7 +128,7 @@ class EPVert:
 class EPEdge:
     tessellation_count = 20
     
-    def __init__(self, epvert0, epvert1, epvert2, epvert3):
+    def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
         self.epvert2 = epvert2
@@ -145,6 +145,8 @@ class EPEdge:
         epvert2.connect_epedge_inner(self)
         epvert3.connect_epedge(self)
         
+        if tess > 5:
+            self.tessellation_count = tess
         self.update()
     
     def epverts(self): return (self.epvert0, self.epvert1, self.epvert2, self.epvert3)
@@ -296,17 +298,23 @@ class EdgePatches:
         return bpy.data.objects[EdgePatches.src_name]
     
     @classmethod
-    def getClosestPoint(cls, p):
+    def getClosestPoint(cls, p, meth = 'OBJ'):
         ''' returns (p,n,i) '''
         #pr = profiler.start()
         mx  = EdgePatches.matrix
         imx = EdgePatches.matrixinv
         mxn = EdgePatches.matrixnorm
-        obj = EdgePatches.getSrcObject()
-        c,n,i = obj.closest_point_on_mesh(imx * p)
-        ret = (mx*c,mxn*n,i)
-        #pr.done()
         
+        if meth == 'OBJ':
+            obj = EdgePatches.getSrcObject()
+            c,n,i = obj.closest_point_on_mesh(imx * p)
+            
+        else:
+            bvh = mesh_cache['bvh']
+            c,n,i,d = bvh.find(imx*p)
+        
+        ret = (mx*c,mxn*n,i)    
+        #pr.done()
         return ret
     
     def debug(self):
@@ -385,8 +393,8 @@ class EdgePatches:
         self.epverts.append(epv)
         return epv
     
-    def create_epedge(self, epv0, epv1, epv2, epv3):
-        epe = EPEdge(epv0, epv1, epv2, epv3)
+    def create_epedge(self, epv0, epv1, epv2, epv3, tess = 20):
+        epe = EPEdge(epv0, epv1, epv2, epv3, tess = tess)
         self.epedges.append(epe)
         return epe
     
@@ -436,8 +444,9 @@ class EdgePatches:
         lepv3epe = epv1_3.get_epedges()
         
         self.disconnect_epedge(epedge)
-        epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3)
-        epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3)
+        new_tess = math.ceil(epedge.tessellation_count/2)
+        epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3, tess = new_tess)
+        epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3, tess = new_tess)
         
         #lgv0ge = [ge0 if ge==epedge else ge for ge in lgv0ge]
         #lgv3ge = [ge1 if ge==epedge else ge for ge in lgv3ge]
@@ -540,7 +549,7 @@ class EdgePatches:
             if epv0 is None:
                 epv0 = sepv0 if sepv0 else self.create_epvert(p0)
             else:
-                epv0 = epv3
+                epv0 = sepv3
             epv1 = self.create_epvert(p1)
             epv2 = self.create_epvert(p2)
             epv3 = self.create_epvert(p3)
