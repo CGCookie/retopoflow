@@ -3282,13 +3282,27 @@ class ContourCutLine(object):
             #Check by testing distance to all verts
             active_self = False
             
-                
-            def dist(v):
-                d = (loc - v).length
-                return d
-            best_v = min(self.verts_simple, key = dist) #closest vert in world space
-            loc_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d,best_v)
-            screen_dist = (loc_2d - Vector((x,y))).length
+            def intersect(ed):
+                a = self.verts_simple[ed[0]]
+                b = self.verts_simple[ed[1]]
+                intersect = intersect_point_line(loc, a,b)
+                    
+            def dist(ed):
+                inter = intersect(ed) 
+                if inter:
+                    bound = inter[1]
+                    if (bound < 1) and (bound > 0):
+                        V = inter[0] - loc
+                        dist = V.length
+                else:
+                    dist = 1000000
+                    
+                return dist
+                    
+            best_ed = min(self.eds_simple, key = dist) #closest ed in world space
+            inter = intersect(best_ed)
+            screen_pt = location_3d_to_region_2d(context.region, context.space_data.region_3d,inter[0])
+            screen_dist = (screen_pt - Vector((x,y))).length
             if screen_dist < 10:
                 active_self = True
                 
