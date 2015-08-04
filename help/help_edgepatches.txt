@@ -1,0 +1,24 @@
+Edge-Patches Help (click to hide help):
+
+DRAWING:
+- LMB: draw edge on surface
+- SELECTMOUSE: select edge, node, or node handle
+- F: adjust brush size
+
+TRANSFORM:
+- G: grab
+- R: rotate
+- CTRL+S: scale
+
+MERGE / DELETE / CONVERT:
+- CTRL+D: dissolve node
+- K: cut new node under mouse on selected edge
+- M: merge selected node to hovered
+- X: delete
+
+FILL / SEGMENTS:
+- P: update auto-detected patches
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation

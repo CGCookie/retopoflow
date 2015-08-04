@@ -204,6 +204,7 @@ class Profiler(object):
                 t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
             dprint('  %6.2f / %3d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
         dprint('')
+        dprint('Stack: %d' % len(self.stack))
 
 profiler = Profiler()
 
@@ -615,6 +616,12 @@ def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
     return [l_objs[i] for i in l_inds]
+
+def rotate_items(loop):
+    ''' rotates items in loop such that id(loop[0]) is the min '''
+    im = loop.index(min(loop, key=lambda it:id(it)))
+    c = len(loop)
+    return [loop[(im+i)%c] for i in range(c)]
 
 
 #adapted from opendentalcad then to pie menus now here

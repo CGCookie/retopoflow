@@ -223,7 +223,104 @@ class ModalOperator(Operator):
         if nmode: self.fsm_mode = nmode
 
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
+    
+    
+    
+    ####################################################################
+    # FSM modal helper functions
+    
+    
+    def modal_scale_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        ar = self.action_radius
+        pr = self.mode_radius
+        cr = math.sqrt((mx-cx)**2 + (my-cy)**2)
 
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn(cr / pr, eventd)
+            self.mode_radius = cr
+            return ''
+
+        return ''
+
+    def modal_grab_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        px,py = self.prev_pos #mode_pos
+        sx,sy = self.mode_start
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE','SHIFT+RET','SHIFT+NUMPAD_ENTER','SHIFT+LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn((mx-px,my-py), eventd)
+            self.prev_pos = (mx,my)
+            return ''
+
+        return ''
+    
+    def modal_rotate_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        px,py = self.prev_pos #mode_pos
+
+        if eventd['press'] in {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            vp = Vector((px-cx,py-cy,0))
+            vm = Vector((mx-cx,my-cy,0))
+            ang = vp.angle(vm) * (-1 if vp.cross(vm).z<0 else 1)
+            self.tool_rot += ang
+            self.tool_fn(self.tool_rot, eventd)
+            self.prev_pos = (mx,my)
+            return ''
+
+        return ''
+
+    def modal_scale_brush_pixel_tool(self, context, eventd):
+        '''
+        This is the pixel brush radius
+        self.tool_fn is expected to be self.
+        '''
+        mx,my = eventd['mouse']
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn((mx,my), eventd)
+            return ''
+
+        return ''
+    
+    
+    
+    
     def invoke(self, context, event):
         '''
         called by Blender when the user invokes (calls/runs) our tool
