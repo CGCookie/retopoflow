@@ -2833,7 +2833,7 @@ class ContourCutLine(object):
             
             ray_vector,hit = common_utilities.ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings)
             
-            if hit[2] != -1:
+            if hit[2] != None:
                 self.head.world_position = region_2d_to_location_3d(region, rv3d, (self.head.x, self.head.y), mx * hit[0])
                 self.tail.world_position = region_2d_to_location_3d(region, rv3d, (self.tail.x, self.tail.y), mx * hit[0])
                 
@@ -2887,7 +2887,7 @@ class ContourCutLine(object):
             dists = []
             inds = []
             for i, hit in enumerate(hits):
-                if hit[2] != -1:
+                if hit[2] != None:
                     R = pt - hit[0]
                     dists.append(R.length)
                     inds.append(i)
