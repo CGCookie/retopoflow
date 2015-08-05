@@ -80,8 +80,8 @@ def pad_patch(vs, ps, L):
         p_min_1 = ps[k_min_1]
         p_plu_1 = ps[k_plu_1]
         if L_k + 1 < p_min_1 + p_plu_1:
-            print('Invalid because of p-1: %i p+1: %1 greater than Ln: %i' % (p_min_1, p_plu_1, L-k))
-            return
+            print('Invalid because of p-1: %i p+1: %1 greater than Ln: %i' % (p_min_1, p_plu_1, L[k]))
+            return [], []
     
     verts = []
     faces = []
@@ -181,7 +181,6 @@ def pad_patch(vs, ps, L):
         N_now = len(verts)
         middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
         verts += middle_verts[0:len(middle_verts)-p]
-        print(N_now)
         for n in range(0,l-p_m1-p_p1-2):
             if p == 0: continue
             A = orig_v_index(i)+1+p_m1+n
@@ -201,8 +200,20 @@ def pad_patch(vs, ps, L):
         if p == 0: 
             print('continued, did not make strips because this side has 0 padding')
             continue
+        if l - p_m1 - p_p1 < 1:
+            print('could not zip because too much padding relative to subdivision')
+            continue
+        
         if l - p_m1 - p_p1 == 1:
-            print('special zipping 1 strip')
+            print('special zipping 1 strip')            
+            strip_0 = [inner_corners[i] - p +1 + n for n in range(0,p)]
+            alpha = orig_v_index(i) + p_m1
+            strip_0.insert(0,alpha)
+            
+            strip_1 = [inner_corners[i_p1] - p_p1*n for n in range(0,p)]
+            strip_1.reverse()
+            strip_1.insert(0,alpha+1)
+            faces += face_strip(strip_0, strip_1)
             continue
         
         if p_m1 != 0:
@@ -212,17 +223,33 @@ def pad_patch(vs, ps, L):
             strip_1.insert(0,orig_v_index(i)+p_m1+1)
             strip_faces = face_strip(strip_0, strip_1)
             faces += strip_faces
-        else:
-            print('no previous padding, special zip?')
-        
-        if p_p1 != 0:
-            strip_0 = [inner_corners[i_p1] - n*p_m1 for n in range(0,p)]
+        else: #no padding on previous adjacent side
+            strip_1 = [ind for ind in range(N_now,N_now + p)]
+            strip_1.insert(0, orig_v_index(i)+1)
+            alpha = orig_v_index(i_m1) + l_m1 - p
+            strip_0 = [alpha + n for n in range(0,p)]
             strip_0.reverse()
-            strip_0.insert(0,orig_v_index(i) + l - p_p1)
-            print(strip_0)
-        else:
-            print('no forward padding, special zip')
-        
+            strip_0.insert(0,orig_v_index(i))
+            faces += face_strip(strip_0, strip_1)
+            
+        if p_p1 != 0: #normal padding forward adjacent side
+            alpha = len(verts) - 1
+            strip_0 = [alpha - n for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i) + l -p_p1-1)
+            strip_1 = [inner_corners[i_p1] - n*p_p1 for n in range(0,p)]
+            strip_1.reverse()
+            strip_1.insert(0,orig_v_index(i) + l - p_p1)
+            faces += face_strip(strip_0, strip_1)
+            
+        else: #no padding on forward adjacent side
+            alpha = len(verts) - 1
+            strip_0 = [alpha - n for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i) + l -1)
+            strip_1 = [orig_v_index(i_p1) + n for n in range(0,p+1)]
+            faces += face_strip(strip_0, strip_1)
+
     geom_dict['inner corners'] = inner_corners
     geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
     
