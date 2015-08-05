@@ -20,6 +20,216 @@ def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
 
     return verts
 
+
+def subdivide_edge(v0,v1,N):
+    '''
+    returns line segment subdivided for N edges bewteen p0 and p1
+    '''
+    vs = []
+    for i in range(0,N+1):
+        vs += [i/N*v1 + (1-i/N)*v0]                     
+    return vs
+    
+def face_strip(vs_0, vs_1):
+    '''
+    returns indexing for 2 parallel and matched vert index strips
+    '''
+    faces = []
+    for i in range(0,len(vs_1)-1):
+        a = vs_0[i]
+        b = vs_1[i]
+        c = vs_1[i+1]
+        d = vs_0[i+1]
+        faces += [(a,b,c,d)]
+    return faces
+    
+def pad_patch(vs, ps, L):
+    '''
+    takes a list of corner verts [v0,v1,v2,v3....]  and paddings = [p0,p1,p2,p3...]
+    returns geom_dict
+    
+    args:
+        vs - list of vectors representing corners
+        ps - list of integers representing paddings
+        L - list of subdivsions
+           
+    geom_dict['verts'] = list of vectors representing all verts
+    geom_dict['faces'] = list of tupples represeting quad faces
+    geom_dict['new subdiv'] = list of remaining subdivision after padding
+    geom_dict['outer_verts'] = list of vert indices corresponding to outer verts. Starting at V0...v00,v01,v02..V1....V2.....VN..vN0, vn1..
+    geom_dict['inner_verts'] = list of vert indices corresponding to center ring of verts
+    geom_dict['inner_corners'] = list of vert indices corresponding to new V0, V1, V2, V3 after the patch has been padded/reduced
+    
+    '''
+    def orig_v_index(n):    
+        ind = sum([L[i] for i in range(0,n)])
+        return ind
+    
+    #check that pdding is valid
+    N = len(L)
+    
+    if (len(vs) != N) or (len(ps) != N):
+        print('dimension mismatch in vs, ps, L')
+        return
+    
+    for k, l in enumerate(L):
+        k_min_1 = (k - 1) % N
+        k_plu_1 = (k + 1) % N
+        
+        L_k = L[k]
+        p_min_1 = ps[k_min_1]
+        p_plu_1 = ps[k_plu_1]
+        if L_k + 1 < p_min_1 + p_plu_1:
+            print('Invalid because of p-1: %i p+1: %1 greater than Ln: %i' % (p_min_1, p_plu_1, L-k))
+            return
+    
+    verts = []
+    faces = []
+    geom_dict = {}
+    
+    new_subdivs = []
+    #make the perimeter
+    for i,v in enumerate(vs):
+        i_m1, i_p1 = (i - 1) % N, (i + 1) % N      
+        p, l = ps[i], L[i]
+        v_m1, p_m1, L_m1  = vs[i_m1], ps[i_m1], L[i_m1]
+        v_p1, p_p1, L_p1  = vs[i_p1], ps[i_p1], L[i_p1]
+
+        verts += subdivide_edge(v, v_p1, l)[0:l]
+        new_subdivs += [l - p_m1 - p_p1]
+    geom_dict['perimeter verts'] = [i for i in range(0,len(verts))]
+    geom_dict['new subdivs'] = new_subdivs
+    
+    #make the inner corner verts and fill the quad patch created by them
+    inner_corners = []
+    for i,v in enumerate(vs):
+        i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
+        p, l = ps[i], L[i]
+        v_m1, p_m1, l_m1  = vs[i_m1], ps[i_m1], L[i_m1]
+        v_p1, p_p1, l_p1  = vs[i_p1], ps[i_p1], L[i_p1]
+
+        i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
+        i_p_p1 = orig_v_index(i) + p_m1
+        
+        
+        if p_m1 == 0 and p == 0: #this might be rare
+            inner_corners += [orig_v_index(i)]
+        
+        elif p_m1 == 0 and p != 0:
+            inner_corners += [orig_v_index(i_m1) + L[i_m1] - p]  
+        
+        elif p_m1 != 0 and p == 0:
+            inner_corners += [orig_v_index(i) + p_m1]
+        else:
+            v_ed_m1 = verts[i_p_m1] 
+            v_ed_p1 = verts[i_p_p1]    
+            
+            v_ed_m11 = verts[orig_v_index(i_m11)+L[i_m11]-p_m1]
+            v_ed_p11 = verts[orig_v_index(i_p1)+p]
+            
+            v_inner_corner = .5*((1- p_m1/l)*v_ed_m1 + p_m1/l*v_ed_p11 + (1-p/l_m1)*v_ed_p1 + p/l_m1*v_ed_m11)
+            
+            corner_quad_verts = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)
+            N_now = len(verts)-1
+            verts += corner_quad_verts
+            inner_corners += [len(verts)-1]
+            
+            for n in range(0,p_m1-1):
+                A = orig_v_index(i)+1+n
+                B = A + 1
+                D = N_now + 1 +p*n
+                C = D + p
+                faces += [(A,B,C,D)]
+                
+                for j in range(0,p-1):
+                    A = N_now + 1 +(p)*n + j
+                    B = A + p
+                    C = B + 1
+                    D = A + 1
+                    faces += [(A,B,C,D)]
+            if i == 0:
+                strip_0 = [ind for ind in range(N_now-p+1,N_now+1)]
+            else:
+                strip_0 = [ind for ind in range(orig_v_index(i)-p, orig_v_index(i))]
+            strip_0.reverse()
+            strip_1 = [ind for ind in range(N_now+1,N_now+1+p)]
+            strip_0.insert(0,orig_v_index(i))
+            strip_1.insert(0,orig_v_index(i)+1)
+            strip_faces = face_strip(strip_0, strip_1)
+            faces += strip_faces
+            
+    for i,v in enumerate(vs):
+        i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
+        p, l = ps[i], L[i]
+        v_m1, p_m1, l_m1  = vs[i_m1], ps[i_m1], L[i_m1]
+        v_p1, p_p1, l_p1  = vs[i_p1], ps[i_p1], L[i_p1]
+        i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
+        i_p_p1 = orig_v_index(i) + p_m1
+        
+        a = orig_v_index(i) + p_m1
+        c = inner_corners[i_p1]
+        d = inner_corners[i]
+        if i == len(vs)-1:
+            if p_p1 == 0:
+                b = 0
+            else:
+                b = len(geom_dict['perimeter verts'])-p_p1
+        else:
+            b = orig_v_index(i_p1) - p_p1
+            
+        
+        N_now = len(verts)
+        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
+        verts += middle_verts[0:len(middle_verts)-p]
+        print(N_now)
+        for n in range(0,l-p_m1-p_p1-2):
+            if p == 0: continue
+            A = orig_v_index(i)+1+p_m1+n
+            B = A + 1   
+            D = N_now +p*n
+            C = D + p
+            #print((A,B,C,D))
+            faces += [(A,B,C,D)]
+            for j in range(0,p-1):
+                A = N_now +(p)*n + j
+                B = A + p
+                C = B + 1
+                D = A + 1
+                #print((A,B,C,D))
+                faces += [(A,B,C,D)]
+        
+        if p == 0: 
+            print('continued, did not make strips because this side has 0 padding')
+            continue
+        if l - p_m1 - p_p1 == 1:
+            print('special zipping 1 strip')
+            continue
+        
+        if p_m1 != 0:
+            strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
+            strip_1 = [ind for ind in range(N_now,N_now+p)]
+            strip_0.insert(0,orig_v_index(i)+p_m1)
+            strip_1.insert(0,orig_v_index(i)+p_m1+1)
+            strip_faces = face_strip(strip_0, strip_1)
+            faces += strip_faces
+        else:
+            print('no previous padding, special zip?')
+        
+        if p_p1 != 0:
+            strip_0 = [inner_corners[i_p1] - n*p_m1 for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i) + l - p_p1)
+            print(strip_0)
+        else:
+            print('no forward padding, special zip')
+        
+    geom_dict['inner corners'] = inner_corners
+    geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
+    
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces  
+    return geom_dict
+
 def tri_prim_0(v0, v1, v2):
     
     pole0 = .5*v0 + .5*v1
