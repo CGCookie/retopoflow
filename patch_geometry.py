@@ -4,9 +4,13 @@ Created on Jul 18, 2015
 @author: Patrick
 '''
 from itertools import chain
+from mathutils import Vector
+from mathutils.geometry import  intersect_line_line
 
 def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
-    
+    '''
+    simple grid interpolation of 4 points, no necessarily planar points
+    '''
     verts = []
     for i in range(x_off,y+2):
         A= i/(y+1)
@@ -42,7 +46,200 @@ def face_strip(vs_0, vs_1):
         d = vs_0[i+1]
         faces += [(a,b,c,d)]
     return faces
+
+
+def calc_weights_vert_path(vs, flip = False):
+    '''
+    weight is returned as list of fraction of total path length
+    '''
+    S = 0 #mathy symbol for path length
+    ws = [0]
+    for i in range(1,len(vs)):
+        S += i
+        #S += (vs[i] - vs[i-1]).length
+        ws += [S]
     
+    fw = [1/S * w for w in ws]
+    rw = [1 - 1/S * w for w in ws]
+    rw.reverse()
+    
+    print([str(w)[0:4] for w in fw])
+    print([str(w)[0:4] for w in rw])
+    if not flip:
+        return fw
+    else:
+        return rw
+
+def n_of_i_j(X, Y, i, j):
+    '''
+    given an X x Y grid of verts constructed colum by colum from x=0 to x=X
+    into a list of length = X*Y
+    
+    return the n'th index of a vert in the list given i, j
+    return -1 if i or j out of range
+    '''
+    #i = min(i,X)  #correct for
+    #j = min(j,Y)
+    if (i > X-1) or (j > Y-1): return -1
+    n = i*Y + j
+    return n
+
+
+def blend_polygon(V_edges, depth, corner = 'all'):
+    '''
+    returns list of corner patches of verts
+    '''
+    
+    N = len(V_edges)        
+    L = [len(v_edge)-1 for v_edge in V_edges] #TODO, unsure about the minus one, test with and without
+    W = [calc_weights_vert_path(v_edge) for v_edge in V_edges]  #all going same direction around polygon
+    print(L)
+    max_x, max_y = [], []
+    
+    for n in range(0,N):
+        n_p1, n_p2 = (n + 1)%N, (n+1)%N
+        n_m1, n_m2 = (n - 1)%N, (n-2)%N
+        
+        max_x += [min(L[n],L[n_m2])]
+        max_y += [min(L[n_m1], L[n_p1])]
+    
+    #first round interpolation    
+    corner_interp = []
+    for i in range(0,N):
+        corner_interp += [blend_corner_primary(V_edges, i, max_x[i],max_y[i])]        
+        
+    old_verts = corner_interp
+    for k in range(0,depth):
+        new_verts = []
+        for n in range(0,N):
+            n_p1, n_p2 = (n + 1)%N, (n+1)%N
+            n_m1, n_m2 = (n - 1)%N, (n-2)%N    
+            
+            Cnm1 =  old_verts[n_m1], max_x[n_m1], max_y[n_m1], L[n_m1], W[n_m1]
+            Cn   =     old_verts[n],    max_x[n],    max_y[n],    L[n],    W[n]
+            Cnp1 =  old_verts[n_p1], max_x[n_p1], max_y[n_p1], L[n_p1], W[n_p1]
+            
+            new_verts += [blend_corner_secondary(Cnm1, Cn, Cnp1)]
+            
+        old_verts = new_verts
+    if corner == 'all':
+        return chain(*new_verts)
+    else:
+        return new_verts[corner]
+    
+def blend_corner_secondary(Cnm1, Cn, Cnp1):
+    '''
+    corners = Tuple ([list verts], X, Y, L, W)
+    verts = list of verts
+    X = width of corner
+    Y = height of corner
+    L = subdivision along edge Vn to Vn+1
+    W = list of weights 
+    '''
+    vs_nm1, Xnm1, Ynm1, Lnm1, Wnm1  = Cnm1[0], Cnm1[1], Cnm1[2], Cnm1[3], Cnm1[4]
+    vs_n,     Xn,   Yn,   Ln,   Wn  =   Cn[0],   Cn[1],   Cn[2],   Cn[3],   Cn[4]
+    vs_np1, Xnp1, Ynp1, Lnp1, Wnp1  = Cnp1[0], Cnp1[1], Cnp1[2], Cnp1[3], Cnp1[4]
+    
+    
+    new_verts = []
+    for xi_n in range(0, Xn):
+        for yi_n in range(0, Yn):
+            
+            i = n_of_i_j(Xn, Yn, xi_n, yi_n)
+            v = vs_n[i]
+            
+            xi_np1 = yi_n
+            yi_np1 = Ln - xi_n
+            i_np1 = n_of_i_j(Xnp1, Ynp1, xi_np1, yi_np1)
+            
+            xi_nm1 = Lnm1 - yi_n
+            yi_nm1 = xi_n
+            i_nm1 = n_of_i_j(Xnm1, Ynm1, xi_nm1, yi_nm1)
+            
+            v_nm1, v_np1  = Vector((0,0,0)),  Vector((0,0,0))
+            w_nm1, w_np1 = 0, 0
+            if i_np1 != -1:
+                print('valid np1')
+                v_np1 = vs_np1[i_np1]
+                w_np1 = 1 - Wn[xi_n]
+            
+            if i_nm1 != -1:
+                print('valid nm1')
+                v_nm1 = vs_nm1[i_nm1]
+                w_nm1 = Wnm1[xi_nm1] 
+                
+            print((w_np1, w_nm1))
+            #evenly average the two blended verts from each side?
+            if i_nm1 == -1 and i_np1 == -1:
+                new_verts += [v]
+                
+            else:
+                new_verts +=  [.5*(w_np1+w_nm1)*v  +.5*(1-w_np1)*v_np1 + .5*(1-w_nm1)*v_nm1]
+            
+    print(new_verts[0:5])
+    return new_verts
+             
+def blend_corner_primary(V_edges, n_corner, nx,ny):
+    '''
+    blends a corner based on 2 adjacent sides forward and backward
+    args:
+        V_edges = list of verts along an edge loop which represents a side of the polygon
+                  V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
+                  
+        n_corner = interger index of corner to blend
+        nx = how far to blend along V_edges[n] direction
+        n = how far to blend along V_edges[n-1] direction
+    '''
+    
+    N = len(V_edges)  #number of sides of polygon
+    if N < 3: return
+    
+    #get index of n-2, n-1, n, n+1, n+2
+    n_m2, n_m1, n, n_p1 = (n_corner - 2) % N,(n_corner - 1) % N, n_corner, (n_corner + 1) % N
+    
+    print('corner indices')
+    print((n_m2, n_m1, n, n_p1))
+    vs_nm2, vs_nm1, vs_n, vs_np1 =  V_edges[n_m2][::-1], V_edges[n_m1][::-1], V_edges[n], V_edges[n_p1]
+                                               
+    ws_nm2, ws_nm1, ws_n, ws_np1 = calc_weights_vert_path(vs_nm2), calc_weights_vert_path(vs_nm1), calc_weights_vert_path(vs_n), calc_weights_vert_path(vs_np1)
+
+    print('REALITY CHECK!!')
+    print('Vn[0] = Vnm1[0] now that its flipped')
+    print((vs_n[0], vs_nm1[0]))
+    
+    print('Vnp1[0] = Vn[-1] going the same direction')
+    print((vs_np1[0], vs_n[-1]))
+    
+    #print('weights')
+    #print((ws_nm1, ws_n, ws_np1))
+    #make sure we aren't going past where we can blend
+    nx = min([nx, len(vs_nm2), len(vs_n)])
+    ny = min([ny, len(vs_nm1), len(vs_np1)])
+    blend_verts = []
+    blend_verts += vs_nm1[0:ny]        
+    for xi in range(1,nx):
+        blend_verts += [vs_n[xi]]
+        for yi in range(1,ny):
+            v_n = vs_n[xi] - vs_n[xi-1]
+            v_nm2 = vs_nm2[xi] - vs_nm2[xi-1]
+            v_nm1 = vs_nm1[yi] - vs_nm1[yi-1]
+            v_np1 = vs_np1[yi] - vs_np1[yi-1]
+            
+            coef_n   =  1-ws_nm1[yi]
+            coef_nm2 =  ws_nm1[yi]
+            coef_nm1 =  1 - ws_n[xi] #x locatin controls mixing of y vectors
+            coef_np1 =  ws_n[xi]  #x locatin controls mixing of y vectors
+            
+            vx = coef_n*v_n +coef_nm2*v_nm2
+            vy = coef_nm1*v_nm1 + coef_np1*v_np1
+            prev_vert_index = (xi-1)*ny + yi-1
+            print((xi, yi, prev_vert_index))
+            v_prev = blend_verts[prev_vert_index]
+
+            blend_verts += [v_prev + vx + vy]
+      
+    return blend_verts
+
 def pad_patch(vs, ps, L):
     '''
     takes a list of corner verts [v0,v1,v2,v3....]  and paddings = [p0,p1,p2,p3...]
