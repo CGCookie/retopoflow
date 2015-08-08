@@ -308,6 +308,7 @@ def pad_patch(vs, ps, L):
     
     #make the inner corner verts and fill the quad patch created by them
     inner_corners = []
+    inner_verts = []
     for i,v in enumerate(vs):
         i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
         p, l = ps[i], L[i]
@@ -322,10 +323,11 @@ def pad_patch(vs, ps, L):
             inner_corners += [orig_v_index(i)]
         
         elif p_m1 == 0 and p != 0:
-            inner_corners += [orig_v_index(i_m1) + L[i_m1] - p]  
+            inner_corners += [orig_v_index(i_m1) + L[i_m1] - p] 
         
         elif p_m1 != 0 and p == 0:
             inner_corners += [orig_v_index(i) + p_m1]
+
         else:
             v_ed_m1 = verts[i_p_m1] 
             v_ed_p1 = verts[i_p_p1]    
@@ -338,6 +340,7 @@ def pad_patch(vs, ps, L):
             corner_quad_verts = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)
             N_now = len(verts)-1
             verts += corner_quad_verts
+            
             inner_corners += [len(verts)-1]
             
             for n in range(0,p_m1-1):
@@ -387,6 +390,8 @@ def pad_patch(vs, ps, L):
         N_now = len(verts)
         middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
         verts += middle_verts[0:len(middle_verts)-p]
+        inner_verts += [inner_corners[i]]
+        
         for n in range(0,l-p_m1-p_p1-2):
             if p == 0: continue
             A = orig_v_index(i)+1+p_m1+n
@@ -403,7 +408,8 @@ def pad_patch(vs, ps, L):
                 #print((A,B,C,D))
                 faces += [(A,B,C,D)]
         
-        if p == 0: 
+        if p == 0:
+            inner_verts += [inner_corners[i] + n for n in range(0,l-p_m1-p_p1)]
             print('continued, did not make strips because this side has 0 padding')
             continue
         if l - p_m1 - p_p1 < 1:
@@ -422,6 +428,7 @@ def pad_patch(vs, ps, L):
             faces += face_strip(strip_0, strip_1)
             continue
         
+        inner_verts += [N_now -1 + k for k in range(p,len(middle_verts),p)]
         if p_m1 != 0:
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
             strip_1 = [ind for ind in range(N_now,N_now+p)]
@@ -458,7 +465,7 @@ def pad_patch(vs, ps, L):
 
     geom_dict['inner corners'] = inner_corners
     geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
-    
+    geom_dict['inner verts'] = inner_verts
     geom_dict['verts'] = verts
     geom_dict['faces'] = faces  
     return geom_dict
