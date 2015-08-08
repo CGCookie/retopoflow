@@ -221,4 +221,9 @@ class EdgePatches_UI_ModalWait():
             self.edgepatches.debug()
             return ''
         
+        if self.act_eppatch:
+            if eventd['press'] in {'L'}:
+                self.act_eppatch.ILP_initial_solve()
+                return ''
+        
         return ''

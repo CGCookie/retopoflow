@@ -264,7 +264,8 @@ class EPPatch:
         self.update()
         
         self.L_sub = [ep.subdivision for ep in self.lepedges]
-    
+        self.patch_solution = []
+        
     def update(self):
         ctr = Vector((0,0,0))
         cnt = 0
@@ -301,8 +302,9 @@ class EPPatch:
         '''
         just check that the perimter is even
         '''
-        perim_sum = sum([epe.subdivision for epe in self.epedges])
-        if perim_sum % 2: return (False, 'ODD PERIMETER')
+        perim_sum = sum([epe.subdivision for epe in self.lepedges])
+        if perim_sum % 2: return False
+        return True
     
     def hovered_2d(self,context,mouse_x,mouse_y):
         reg = context.region
@@ -314,9 +316,20 @@ class EPPatch:
         
         
     def ILP_initial_solve(self):
-        pass
+        if not self.validate_patch_for_ILP(): return
+        print('solving patch')
+        self.patch = Patch()
+        self.patch.edge_subdivision = self.L_sub
+        self.patch.permute_and_find_solutions()
+        self.patch.active_solution_index = 0
+        L, rot_dir, pat, sol = self.patch.get_active_solution()
+        sol.report()
+        
+        return
     
-       
+    def rotate_solution(self,step):
+        self.patch.rotate_solution(step)
+           
 class EdgePatches:
     def __init__(self, context, src_obj, tar_obj):
         # class/static variables (shared across all instances)

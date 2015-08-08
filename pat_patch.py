@@ -64,12 +64,13 @@ def permute_subdivs(L, reverse = True):
     
     args:
         L = list of integers representing subdivisions on side of polygon
-        reverse = Bool, whether to permute reverse direction around the poly
+        reverse = Bool, whether to permute reverse direction around the poly.
+                  Not necessary for rotationally symetric patterns
     return:
         permutations - lsit of lists
-        shift_rev - list of tupple (k, rev) k represents the index
-        in the orignial list which is now the 0th element in the
-        permutation.
+        shift_dir - list of tuple (k, rev) 
+                    k represents the index in the original list 
+                    which is now the 0th element in the permutation.
     '''
     perms = []
     shift_dir = []
@@ -209,14 +210,63 @@ class Patch():
         L, rot_dir, pat, sol = self.valid_perms[n], self.valid_rot_dirs[n], self.valid_patterns[n], self.valid_solutions[n]
         
         return L, rot_dir, pat, sol
+    
+    def get_active_solution_variables(self):
+        if self.active_solution_index == -1:
+            print('no solution, permute and find solutions first')
+            return
         
+        sol = self.valid_solutions[self.active_solution_index]
+        existing_vars = [v.varValue for v in sol.prob.variables()]
+        return existing_vars
+            
+    def rotate_solution(self,step):
+        #look for same pattern, with different rotation
+        if len(self.valid_patterns) == 0:
+            print('Need to permute and find solutions or perhaps...infeasible :-(')
+            return
+        
+        pat_id = self.valid_patterns[self.active_solution_index]
+        n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
+        
+        target_n = (n_orig + step) % len(self.edge_subdivision)
+        acceptable_soln_inds = []
+        
+        for i, sol in enumerate(self.valid_solutions):
+            if self.valid_patterns[i] == pat_id:
+                n, r_dir = self.valid_rot_dirs[i]
+                if r_dir == rot_dir and n == target_n:                    
+                    self.active_solution_index = i
+                    print('found a solution!')
+                    break
+                         
+    def mirror_solution(self):
+        #look for same pattern, with different rotation
+        if len(self.valid_patterns) == 0:
+            print('Need to permute and find solutions or perhaps...infeasible :-(')
+            return
+        
+        pat_id = self.valid_patterns[self.active_solution_index]
+        n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
+        
+        for i, sol in enumerate(self.valid_solutions):
+            if self.valid_patterns[i] == pat_id:
+                n, r_dir = self.valid_rot_dirs[i]
+                
+                if r_dir != rot_dir and n == n_orig:                    
+                    
+                    self.active_solution_index = i
+                    print('found a solution with same L0 but reversed')
+                    break
+        
+    ######### DEPRICATED AND ONLY USEFUL FOR DEMO/UNDERSTANDING##########
     def reduce_input_cornered(self):
         '''
         slices off the biggest quad patches it can at a time
         this is not needed for patch solving, just proves
         generality of the approach
         '''
-        
+        print('THIS METHOD IS DEPRICATED AND SHOULD NOT BE USED')
         edge_subdivs = self.edge_subdivision.copy()
         print('\n')
         print('Reduction series for edges')
@@ -713,6 +763,9 @@ class PatchAdjuster6():
             
     def report(self):
         print(self.L)
+        if self.prop.status == 0:
+            print('still solving...')
+            return
         print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
         print('Status: ' + LpStatus[self.prob.status])
         for v in self.prob.variables():
@@ -761,7 +814,10 @@ class PatchSolver5():
             self.report()
         
     def report(self):
+        
         print(self.L)
+        if self.prob.status == 0:
+            print('still soliving...ask later')
         print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
         print('Status: ' + LpStatus[self.prob.status])
         for v in self.prob.variables():
