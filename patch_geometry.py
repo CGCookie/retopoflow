@@ -409,7 +409,7 @@ def pad_patch(vs, ps, L):
                 faces += [(A,B,C,D)]
         
         if p == 0:
-            inner_verts += [inner_corners[i] + n for n in range(0,l-p_m1-p_p1)]
+            inner_verts += [inner_corners[i] + n for n in range(1,l-p_m1-p_p1)]
             print('continued, did not make strips because this side has 0 padding')
             continue
         if l - p_m1 - p_p1 < 1:
