@@ -7,6 +7,7 @@ from itertools import chain
 from mathutils import Vector
 from mathutils.geometry import  intersect_line_line
 
+
 def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
     '''
     simple grid interpolation of 4 points, no necessarily planar points
@@ -141,9 +142,11 @@ def blend_corner_secondary(Cnm1, Cn, Cnp1):
     vs_np1, Xnp1, Ynp1, Lnp1, Wnp1  = Cnp1[0], Cnp1[1], Cnp1[2], Cnp1[3], Cnp1[4]
     
     
-    new_verts = []
-    for xi_n in range(0, Xn):
-        for yi_n in range(0, Yn):
+    new_verts = vs_n[0:Yn]  #left boundary get's kept
+    for xi_n in range(1, Xn):
+        i = n_of_i_j(Xn, Yn, xi_n, 0) #bottom boundary get's passed through
+        new_verts += [vs_n[i]]
+        for yi_n in range(1, Yn):
             
             i = n_of_i_j(Xn, Yn, xi_n, yi_n)
             v = vs_n[i]
@@ -159,20 +162,26 @@ def blend_corner_secondary(Cnm1, Cn, Cnp1):
             v_nm1, v_np1  = Vector((0,0,0)),  Vector((0,0,0))
             w_nm1, w_np1 = 0, 0
             if i_np1 != -1:
-                print('valid np1')
                 v_np1 = vs_np1[i_np1]
                 w_np1 = 1 - Wn[xi_n]
             
             if i_nm1 != -1:
-                print('valid nm1')
                 v_nm1 = vs_nm1[i_nm1]
                 w_nm1 = Wnm1[xi_nm1] 
                 
             print((w_np1, w_nm1))
             #evenly average the two blended verts from each side?
             if i_nm1 == -1 and i_np1 == -1:
+                print('invalid nm1 and nm2!!')
                 new_verts += [v]
                 
+            elif i_np1 == -1 and i_nm1 != -1:
+                print('only blending n minus 1 side, no equivalent np1 side')
+                new_verts += [(1-w_nm1 )* v + w_nm1* v_nm1]
+            
+            elif i_np1 != -1 and i_nm1 == -1:
+                new_verts += [(1-w_np1 )* v + w_np1* v_np1]
+                print('only blending n minus 1 side, no equivalent np1 side')
             else:
                 new_verts +=  [.5*(w_np1+w_nm1)*v  +.5*(1-w_np1)*v_np1 + .5*(1-w_nm1)*v_nm1]
             
