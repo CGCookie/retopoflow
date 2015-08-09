@@ -191,11 +191,24 @@ class EdgePatches_UI_Draw():
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
+            
             if eppatch == self.act_eppatch:
-                color = color = (color_active[0], color_active[1], color_active[2], 0.20)
+                color = (color_active[0], color_active[1], color_active[2], 0.20)
+                color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
-            draw3d_fan(eppatch.center + eppatch.normal*0.02, eppatch.get_outer_points(), color)
+                color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
+            
+        
+            if len(eppatch.faces) and len(eppatch.verts):
+                for f in eppatch.faces:
+                    pts = [eppatch.verts[i] for i in f]
+                    draw3d_quad(pts, color)
+                    draw3d_closed_polylines([pts], color_line, 2, 'GL_LINE')
+                    
+                draw3d_points(eppatch.verts, color_line, 3)
+            else:
+                draw3d_fan(eppatch.center + eppatch.normal*0.02, eppatch.get_outer_points(), color)   
         
         if self.act_epvert:
             epv0 = self.act_epvert

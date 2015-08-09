@@ -217,14 +217,14 @@ class Patch():
             return
         
         sol = self.valid_solutions[self.active_solution_index]
-        existing_vars = [v.varValue for v in sol.prob.variables()]
+        existing_vars = [int(v.varValue) for v in sol.prob.variables()]
         return existing_vars
             
     def rotate_solution(self,step):
         #look for same pattern, with different rotation
         if len(self.valid_patterns) == 0:
             print('Need to permute and find solutions or perhaps...infeasible :-(')
-            return
+            return False
         
         pat_id = self.valid_patterns[self.active_solution_index]
         n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
@@ -238,13 +238,15 @@ class Patch():
                 if r_dir == rot_dir and n == target_n:                    
                     self.active_solution_index = i
                     print('found a solution!')
-                    break
-                         
+                    return True
+                    
+        return False
+                     
     def mirror_solution(self):
         #look for same pattern, with different rotation
         if len(self.valid_patterns) == 0:
             print('Need to permute and find solutions or perhaps...infeasible :-(')
-            return
+            return False
         
         pat_id = self.valid_patterns[self.active_solution_index]
         n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
@@ -257,7 +259,36 @@ class Patch():
                     
                     self.active_solution_index = i
                     print('found a solution with same L0 but reversed')
-                    break
+                    return True
+        return False
+    
+    def change_pattern(self,pattern):
+        '''
+        TODO, sort solutions and try to keep the rotation of current solution
+        '''
+        #look for same pattern, with different rotation
+        if len(self.valid_patterns) == 0:
+            print('Need to permute and find solutions or perhaps...infeasible :-(')
+            return False
+        
+        pat_id = pattern
+        n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
+        
+        for i, sol in enumerate(self.valid_solutions):
+            if self.valid_patterns[i] == pat_id:
+                                   
+                self.active_solution_index = i
+                print('found a solution with pattern:%i' % pat_id)
+                return True
+                    
+        return False
+    def report(self):
+        if self.active_solution_index == -1:
+            print('no active soluton')
+            return
+        
+        self.valid_solutions[self.active_solution_index].report()
+        
         
     ######### DEPRICATED AND ONLY USEFUL FOR DEMO/UNDERSTANDING##########
     def reduce_input_cornered(self):

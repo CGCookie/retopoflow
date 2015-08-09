@@ -48,7 +48,18 @@ def face_strip(vs_0, vs_1):
         faces += [(a,b,c,d)]
     return faces
 
-
+def add_offset_to_faces(faces, offset):
+    '''
+    edit's face indices in place to reflect adding a new list of verts
+    (which has existing face mapping) to an existing list of verts.
+    '''
+    new_faces = []
+    for f in faces:
+        (a,b,c,d) = f
+        new_faces += [(a+offset, b+offset, c+offset, d+offset)]
+        
+    return new_faces
+        
 def calc_weights_vert_path(vs, flip = False):
     '''
     weight is returned as list of fraction of total path length
@@ -64,8 +75,8 @@ def calc_weights_vert_path(vs, flip = False):
     rw = [1 - 1/S * w for w in ws]
     rw.reverse()
     
-    print([str(w)[0:4] for w in fw])
-    print([str(w)[0:4] for w in rw])
+    #print([str(w)[0:4] for w in fw])
+    #print([str(w)[0:4] for w in rw])
     if not flip:
         return fw
     else:
@@ -85,7 +96,6 @@ def n_of_i_j(X, Y, i, j):
     n = i*Y + j
     return n
 
-
 def blend_polygon(V_edges, depth, corner = 'all'):
     '''
     returns list of corner patches of verts
@@ -94,7 +104,7 @@ def blend_polygon(V_edges, depth, corner = 'all'):
     N = len(V_edges)        
     L = [len(v_edge)-1 for v_edge in V_edges] #TODO, unsure about the minus one, test with and without
     W = [calc_weights_vert_path(v_edge) for v_edge in V_edges]  #all going same direction around polygon
-    print(L)
+    #print(L)
     max_x, max_y = [], []
     
     for n in range(0,N):
@@ -169,7 +179,7 @@ def blend_corner_secondary(Cnm1, Cn, Cnp1):
                 v_nm1 = vs_nm1[i_nm1]
                 w_nm1 = Wnm1[xi_nm1] 
                 
-            print((w_np1, w_nm1))
+            #print((w_np1, w_nm1))
             #evenly average the two blended verts from each side?
             if i_nm1 == -1 and i_np1 == -1:
                 print('invalid nm1 and nm2!!')
@@ -463,6 +473,8 @@ def pad_patch(vs, ps, L):
             strip_1 = [orig_v_index(i_p1) + n for n in range(0,p+1)]
             faces += face_strip(strip_0, strip_1)
 
+    print('ARE THERE DOUBLES IN INNER CORNERS?')
+    print(inner_corners)
     geom_dict['inner corners'] = inner_corners
     geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
     geom_dict['inner verts'] = inner_verts
@@ -470,15 +482,48 @@ def pad_patch(vs, ps, L):
     geom_dict['faces'] = faces  
     return geom_dict
 
-def tri_prim_0(v0, v1, v2):
+def tri_prim_0(vs, L, ps):
+    '''
+    args:
+        vs - list of vectors representing locations of corner vertices
+        L  - list of integers representing subdivision on each edge
+        ps - list of integers representing padding on each edge
+    '''
     
+    #reality check
+    if not len(vs) == len(L) == len(ps) == 3:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2] = vs
+        
     pole0 = .5*v0 + .5*v1
     verts = [v0, pole0, v1, v2]
     faces = [(0,1,2,3)]
     
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
+def tri_prim_1(vs,L,ps, x, q1, q2):
+    
+    if not len(vs) == len(L) == len(ps) == 3:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2] = vs
+        
     p0 = .5*v0 + .5*v1 
     p1 = .5*v2 + .5*p0
     c00 = .5*v0 + .5*p0
@@ -493,11 +538,8 @@ def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
     V01 = quadrangulate_verts(v2, p1, c01, v1, q2, x, y_off =1)
     
     verts= []
-
-        
     for i in range(0,x+2):
         verts += chain(V00[i*(q1+2):i*(q1+2)+q1+2], V01[i*(q2+1):i*(q2+1)+q2+1])
-    
     
     #add in the bottom verts
     vs = quadrangulate_verts(p1, c00, p0, c01,q2,q1, x_off=1, y_off=1)
@@ -530,11 +572,28 @@ def tri_prim_1(v0,v1,v2, x=0, q1 = 0, q2 = 0):
         c = b - q2-1
         d = a + 1           
         faces += [(a,b,c,d)]
-        
-    return verts, faces
-
-def quad_prim_0(v0, v1,v2,v3, x= 0, y = 0):
     
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
+
+def quad_prim_0(vs, L, ps):
+    '''
+    vs - vert corners
+    L - subdivision on each edge.  Ignored [y,x,y,x]
+    ps - ignored
+    
+    '''
+    
+    
+    y = ps[1] + ps[3]
+    x = ps[0] + ps[2]
+    [v0,v1,v2,v3] = vs
     verts = quadrangulate_verts(v0, v1, v2, v3, x, y, x_off = 0, y_off = 0)
     faces = []
     for i in range(0, y+1):
@@ -546,10 +605,17 @@ def quad_prim_0(v0, v1,v2,v3, x= 0, y = 0):
             
     return verts, faces
 
-def quad_prim_1(v0, v1, v2, v3, x = 0):
-    
+def quad_prim_1(vs, L, ps, x):
+    if not len(vs) == len(L) == len(ps) == 4:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2,v3] = vs
+        
     N = 3*x + 7
-    
     pole0 = 0.25 * (v0 + v1 + v2 + v3)
     c0 = .5*v0 + .5*v1
     c1 = .5*v1 + .5*v2
@@ -572,10 +638,27 @@ def quad_prim_1(v0, v1, v2, v3, x = 0):
             faces += [f]
         
     faces += [(N-4, N-1, N-2, N-3)]
-    return verts, faces
-
-def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
     
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
+
+def quad_prim_2(vs,L,ps, x, y):
+    if not len(vs) == len(L) == len(ps) == 4:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2,v3] = vs
+        
+        
     c0 = .67 * v0 + .33 * v1
     pole0 = .67 * v1 + .33 * v0
     
@@ -602,10 +685,27 @@ def quad_prim_2(v0, v1, v2, v3, x = 0, y = 0):
             A =i*(x+3) + j
             B =(i + 1) * (x+3) + j
             faces += [(A, B, B+1, A+1)] 
-    return verts, faces
-
-def quad_prim_3(v0, v1, v2, v3, x = 0, q1 = 0):
     
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
+
+def quad_prim_3(vs,L,ps, x, q1):
+    if not len(vs) == len(L) == len(ps) == 4:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2,v3] = vs
+        
+        
     c00 = .67 * v0 + .33 * v1
     c01 = .33 * v0 + .67 * v1
     
@@ -653,10 +753,25 @@ def quad_prim_3(v0, v1, v2, v3, x = 0, q1 = 0):
             
     faces += [(beta+2, beta +1, beta, N-1)]        
      
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q1=0):
-    
+def quad_prim_4(vs,L,ps, x, y, q1):
+    if not len(vs) == len(L) == len(ps) == 4:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0, v1, v2,v3] = vs
+        
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
     c02 = .25 * v0 + .75 * v1
@@ -729,20 +844,50 @@ def quad_prim_4(v0, v1, v2, v3, x=0, y=0, q1=0):
         faces += [(a, b+1, b, a+1)]
             
     faces += [(beta+2, beta +1, beta, N-1)]
-    
-    
-        
-    return verts, faces
+      
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def pent_prim_0(v0, v1, v2, v3, v4):  #Done, any cuts can be represented as padding
-    
+def pent_prim_0(vs,L,ps):  #Done, any cuts can be represented as padding
+    if not len(vs) == len(L) == len(ps) == 5:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4] = vs
+        
     c0 = .5*v0 + .5*v1
     verts = [v0,c0,v1,v2,v3,v4]
     faces = [(0,1,4,5),(1,2,3,4)]
     
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
     
-def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
+def pent_prim_1(vs,L,ps, x, q4):
+    
+    if not len(vs) == len(L) == len(ps) == 5:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4] = vs
+        
     pole0 = .5*v0 + .5*v1
     
     #verts = [v0,pole0,v1,v2,v3,v4]
@@ -772,10 +917,25 @@ def pent_prim_1(v0, v1, v2, v3, v4, x=0, q4=0):
             B =(i + 1) * (x+3) + j
             faces += [(A, B, B+1, A+1)]
     
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
        
-def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
-    
+def pent_prim_2(vs, L,ps, x, q0, q1, q4):
+    if not len(vs) == len(L) == len(ps) == 5:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4] = vs
+        
     c00 = .75*v0 + .25*v1
     p0 = .5*v0 + .5*v1
     c01 = .25*v0 + .75*v1
@@ -814,8 +974,8 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
     N = (10 + 
          3*x   + 3*q0  + 4*q1  + 4*q4  + 
          q0*q1 + q1*x  + q1*q4 + q4*q0 + x*q4)
-    print('Total verts %i' % N)
-    print(alpha)
+    #print('Total verts %i' % N)
+    #print(alpha)
     for i in range(0,q4+1):
         for j in range(0,q1):
             A = n_p1 + j + 1 + i*(q1 + 1)
@@ -830,9 +990,24 @@ def pent_prim_2(v0, v1, v2, v3, v4, x = 0, q0=0, q1 =0, q4 = 0):
         d = a + 1
         faces += [(a,b,c,d)]
               
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
+def pent_prim_3(vs,L,ps, x,y,q1,q4):
+    if not len(vs) == len(L) == len(ps) == 5:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4] = vs
     
     c00 = .8*v0 + .2*v1
     c01 = .6*v0 + .4*v1
@@ -876,10 +1051,10 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     
     alpha = (x+2)*(6+q4+q1+y)-1
     sigma = (x+1)*(6+q4+q1+y)
-    print((alpha, sigma))
+    #print((alpha, sigma))
     
     N = 14 + 6*x + 3*q4 + 3*q1 + 3*y + x*(q4 + q1+y)
-    print(N)
+    #print(N)
     for i in range(0,2+q4+q1+y):
         a = alpha - i- 2
         b = alpha +1 + i
@@ -891,10 +1066,24 @@ def pent_prim_3(v0, v1, v2, v3, v4,x=4,y=0,q1=0,q4=0):
     #verts = [v0,c00,c01,c02,c03,v1,c10,v2,v3,v4, pole0, cp0, cp1, pole1]
     #faces = [(0,1,10,9), (1,2,11,10),(2,3,12,11),(3,4,13,12),
     #         (4,5,6,13),(6,7,12,13),(7,8,11,12),(8,9,10,11)]
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
     
-def hex_prim_0(v0, v1, v2, v3, v4,v5, x = 0):
-    
+def hex_prim_0(vs,L,ps, x):
+    if not len(vs) == len(L) == len(ps) == 6:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4,v5] = vs
     #verts = [v0,v1,v2,v3,v4,v5]
     #faces = [(0,1,2,5), (2,3,4,5)]
     verts = []
@@ -907,18 +1096,34 @@ def hex_prim_0(v0, v1, v2, v3, v4,v5, x = 0):
     for i in range(0,x+2): #TODO, better to slice other direction fewer iterations of loop
         verts += chain(V00[2*i:2*i+2],V01[i:i+1])
     
-    print(len(verts))    
+    #print(len(verts))    
     for i in range(0, x+1):
         for j in range(0,2):
             A =i*(3) + j
             B =(i + 1) * 3 + j
-            print((A,B,B+1,A+1))
+            #print((A,B,B+1,A+1))
             faces += [(A, B, B+1, A+1)]
                 
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
-
+def hex_prim_1(vs,L,ps, x, y, z, w):
+    
+    if not len(vs) == len(L) == len(ps) == 6:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4,v5] = vs
+        
     c0 = .5*v0  +.5*v1
     c1 = .5*v1 + .5*v2
     cp0 = .18*(v3 + v4 + v5) + .1533*(v0 + v1 + v2)
@@ -962,8 +1167,8 @@ def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
     N = (10 + 
          3*x   + 3*w  + 4*y  + 4*z  + 
          w*y + y*x  + y*z + z*w + x*z)
-    print('Total verts %i' % N)
-    print(alpha)
+    #print('Total verts %i' % N)
+    #print(alpha)
     for i in range(0,z+1):
         for j in range(0,y):
             A = n_p1 + j + 1 + i*(y + 1)
@@ -978,11 +1183,25 @@ def hex_prim_1(v0, v1, v2, v3, v4,v5, x=0, y=0, z=0, w=0):
         d = a + 1
         faces += [(a,b,c,d)]
     
-    
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
 
-def hex_prim_2(v0, v1, v2, v3, v4, v5, x=0, y=0, q3=0, q0=0):
-
+def hex_prim_2(vs,L,ps, x, y, q3, q0):
+    if not len(vs) == len(L) == len(ps) == 6:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4,v5] = vs
+        
     c00 = .67*v0 + .33 * v1
     c01 = .33*v0 + .67*v1
     
@@ -1061,9 +1280,26 @@ def hex_prim_2(v0, v1, v2, v3, v4, v5, x=0, y=0, q3=0, q0=0):
 
     faces += [(a,b,c,d)]
     
-    return verts, faces
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces
         
-def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):    
+def hex_prim_3(vs,L,ps,x,y,z,q3):    
+    
+    if not len(vs) == len(L) == len(ps) == 6:
+        print('dimensions mismatch!!')
+        return 
+    if any(ps):
+        geom_dict = pad_patch(vs, ps, L)
+        [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    else:
+        [v0,v1,v2,v3,v4,v5] = vs
+        
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
     c02 = .25 * v0 + .75 * v1
@@ -1124,7 +1360,7 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
             A =i*(7 + 2*q3+z+y) + j
             B =(i+1)*(7 + 2*q3+z+y) + j
             faces += [(A, B, B+1, A+1)]
-            print((A, B, B+1, A+1))
+            #print((A, B, B+1, A+1))
     
     
     N = x*(7+2*q3+z+y) + q3*(4+z) + z*4 + y*3 + 15
@@ -1134,10 +1370,10 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
     n_p1 = n_p0 + z + 1
     n_p2 = n_p1 + q3 + 1
     n_p3 = n_p1 + q3 + y + 2
-    print('Alpha, Beta, np0, np1, np2, np3')
-    print((alpha,beta, n_p0,n_p1,n_p2,n_p3))
+    #print('Alpha, Beta, np0, np1, np2, np3')
+    #print((alpha,beta, n_p0,n_p1,n_p2,n_p3))
     
-    print('right Z Strip')
+    #print('right Z Strip')
     if z > 0:
         for i in range(0, q3+1):
             if i == 0:
@@ -1150,29 +1386,29 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
                 B = A - 1
                 C = beta - i - 1
                 D = beta - i 
-            print((A,B,C,D))
+            #print((A,B,C,D))
             faces += [(A,B,C,D)]
         #the face on pole 1
-        print('The face on pole 1')
-        print((n_p1 + 1, n_p1, n_p1-1, n_p3+2))
+        #print('The face on pole 1')
+        #print((n_p1 + 1, n_p1, n_p1-1, n_p3+2))
         faces += [(n_p1 + 1, n_p1, n_p1-1, n_p3+2)]
            
-        print('Left Z Strip')
+        #print('Left Z Strip')
         for i in range(0, q3+1):
             A = alpha + i
             B = N-2-y-i
             C = B-1
             D = A + 1
-            print((A,B,C,D))
+            #print((A,B,C,D))
             faces += [(A,B,C,D)]
     
         #the face on pole 0
-        print('The face on pole 0')
-        print((n_p0 -1, N-y-3-q3, n_p0+1, n_p0))
+        #print('The face on pole 0')
+        #print((n_p0 -1, N-y-3-q3, n_p0+1, n_p0))
         faces += [(n_p0 -1, N-y-3-q3, n_p0+1, n_p0)]
     
         #Z strip
-        print('Middle Z Strip')
+        #print('Middle Z Strip')
         if z >= 2:  #because z strip is bounded on both sides by weirdness
             for i in range(0, z-1):
                 #down the q3 cuts
@@ -1181,7 +1417,7 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
                     D = n_p3 + 2 + (i+1)*(q3+2) + j
                     B = A + 1
                     C = D + 1
-                    print((A,D,C,B))
+                    #print((A,D,C,B))
                     faces += [(A,D,C,B)]
     
     
@@ -1190,7 +1426,7 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
                 b = n_p1 - i - 1
                 c = n_p1 - i - 2
                 d = n_p3 + 2 + (i+1)*(q3 + 2)
-                print((a,b,c,d))
+                #print((a,b,c,d))
                 faces += [(a,b,c,d)]
     else: #Z = 0
         for i in range(0,q3+1):
@@ -1208,7 +1444,7 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
             
         faces += [(n_p0, n_p0-1, n_p1 + 1, n_p1)]
           
-    print('y patch')
+    #print('y patch')
     for i in range(0,y):
         A = n_p2 + i
         B = N - 1 - i
@@ -1222,37 +1458,13 @@ def hex_prim_3(v0, v1, v2, v3, v4,v5,x=0,y=0,z=0,q3=0):
     a = n_p3 - 1
     faces += [(a,b,c,d)]
     
-    print('Expected len verts %i: ' % N)
-    print('Actual len verts %i: '% len(verts))
-    return verts, faces
-       
-def tri_geom_0(verts, L, p0, p1, p2):
-    pass   
-def tri_geom_1(verts, L, p0, p1, p2, x):
-    pass    
-def quad_geom_0(verts, L, p0, p1, p2):
-    pass
-def quad_geom_1(verts, L, p0, p1, p2):
-    pass
-def quad_geom_2(verts, L, p0, p1, p2):
-    pass
-def quad_geom_3(verts, L, p0, p1, p2):
-    pass
-def quad_geom_4(verts, L, p0, p1, p2):
-    pass  
-def pent_geom_0(verts, L, p0, p1, p2):
-    pass
-def pent_geom_1(verts, L, p0, p1, p2):
-    pass
-def pent_geom_2(verts, L, p0, p1, p2):
-    pass    
-def pent_geom_3(verts, L, p0, p1, p2):
-    pass
-def hex_geom_0(verts, L, p0, p1, p2):
-    pass
-def hex_geom_1(verts, L, p0, p1, p2):
-    pass
-def hex_geom_2(verts, L, p0, p1, p2):
-    pass    
-def hex_geom_3(verts, L, p0, p1, p2):
-    pass
+    #print('Expected len verts %i: ' % N)
+    #print('Actual len verts %i: '% len(verts))
+    if any(ps):
+        off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
+        faces_off = add_offset_to_faces(faces, off)
+        complete_verts = geom_dict['verts'] + verts
+        complete_faces = geom_dict['faces'] + faces_off
+        return complete_verts, complete_faces
+    else:
+        return verts, faces

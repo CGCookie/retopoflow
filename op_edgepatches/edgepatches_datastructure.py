@@ -44,6 +44,7 @@ from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
 from ..pat_patch import Patch
+from ..patch_geometry import *
 
 
 class EPVert:
@@ -266,6 +267,9 @@ class EPPatch:
         self.L_sub = [ep.subdivision for ep in self.lepedges]
         self.patch_solution = []
         
+        self.verts = []
+        self.faces = []
+        
     def update(self):
         ctr = Vector((0,0,0))
         cnt = 0
@@ -280,7 +284,10 @@ class EPPatch:
         else:
             self.center = Vector()
             self.normal = Vector()
-    
+        self.L_sub = [ep.subdivision for ep in self.lepedges]
+        self.verts = []
+        self.faces = []
+        
     def get_outer_points(self):
         def get_verts(epe,fwd):
             if fwd: return epe.curve_verts
@@ -290,7 +297,10 @@ class EPPatch:
     def get_epverts(self):
         return [epe.epvert0 if fwd else epe.epvert3 for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
 
-
+    def get_corner_locations(self):
+        epvs = self.get_epverts()
+        return [epv.snap_pos for epv in epvs]
+    
     def info_display_pt(self):
         pts = self.get_epverts()
         center = Vector((0,0,0))
@@ -313,8 +323,7 @@ class EPPatch:
         loop_2d = [location_3d_to_region_2d(reg, rv3d, pt) for pt in loop if pt]
         
         return point_inside_loop2d(loop_2d, (mouse_x, mouse_y))
-        
-        
+
     def ILP_initial_solve(self):
         if not self.validate_patch_for_ILP(): return
         print('solving patch')
@@ -323,13 +332,88 @@ class EPPatch:
         self.patch.permute_and_find_solutions()
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
+        time.sleep(.3)
         sol.report()
         
         return
-    
+    def generate_geometry(self):
+        N = len(self.get_corner_locations())
+        L, (n, fwd), pat, sol = self.patch.get_active_solution()
+        c_vs = self.get_corner_locations()
+        if fwd == -1:
+            a = (n + 1) % N
+            vs = c_vs[a:] + c_vs[:a]
+            vs.reverse()
+        else:
+            vs = c_vs[n:] + c_vs[:n]
+
+        vrts, fcs = [], []
+        vars = self.patch.get_active_solution_variables()
+        print(vars)
+        if N == 6:
+            ps = vars[:6]
+            if pat == 0:
+                vrts, fcs = hex_prim_0(vs, L, ps, *vars[6:])
+            elif pat == 1:
+                vrts, fcs = hex_prim_1(vs, L, ps, *vars[6:])
+            elif pat == 2:
+                vars += [0,0]
+                vrts, fcs = hex_prim_2(vs, L, ps, *vars[6:])
+            elif pat == 3:
+                vars += [0]
+                vrts, fcs = hex_prim_3(vs, L, ps, *vars[6:])
+        elif N == 5:
+            ps = vars[:5]
+            if pat == 0:
+                vrts, fcs = pent_prim_0(vs, L, ps)
+            elif pat == 1:
+                print(vars[5:])
+                vars += [0]
+                vrts, fcs = pent_prim_1(vs, L, ps, *vars[5:])
+            elif pat == 2:
+                vars += [0,0,0]
+                vrts, fcs = pent_prim_2(vs, L, ps, *vars[5:])
+            elif pat == 3:
+                vars += [0,0]
+                vrts, fcs = pent_prim_3(vs, L, ps, *vars[5:])
+        elif N == 4:
+            ps = vars[:5]
+            if pat == 0:
+                vrts, fcs = quad_prim_0(vs, L, ps)
+            elif pat == 1:
+                vrts, fcs = quad_prim_1(vs, L, ps, *vars[4:])
+            elif pat == 2:
+                vrts, fcs = quad_prim_2(vs, L, ps, *vars[4:])
+            elif pat == 3:
+                vars += [0]
+                vrts, fcs = quad_prim_3(vs, L, ps, *vars[4:])
+            elif pat == 4:
+                vars += [0]
+                vrts, fcs = quad_prim_4(vs, L, ps, *vars[4:])
+        elif N == 3:
+            ps = vars[:3]
+            if pat == 0:
+                vrts, fcs = tri_prim_0(vs, L, ps)
+            elif pat == 1:
+                vars += [0,0]
+                vrts, fcs = tri_prim_1(vs,L,ps,*vars[3:])
+
+        self.verts, self.faces = vrts, fcs
+            
     def rotate_solution(self,step):
-        self.patch.rotate_solution(step)
-           
+        if self.patch.rotate_solution(step):
+            self.generate_geometry()
+            
+    def mirror_solution(self):
+        if self.patch.mirror_solution():
+            self.generate_geometry()
+   
+    def change_pattern(self, n):
+        if self.patch.change_pattern(n):
+            self.generate_geometry()
+        else:
+            print('Pattern %i does not solve patch' % n)
+                                         
 class EdgePatches:
     def __init__(self, context, src_obj, tar_obj):
         # class/static variables (shared across all instances)

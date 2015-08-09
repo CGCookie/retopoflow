@@ -26,6 +26,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix
 import math
 import time
+from random import randint
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
@@ -225,5 +226,26 @@ class EdgePatches_UI_ModalWait():
             if eventd['press'] in {'L'}:
                 self.act_eppatch.ILP_initial_solve()
                 return ''
-        
+    
+            elif eventd['press'] in {'G'}:
+                self.act_eppatch.generate_geometry()
+                return ''
+
+            elif eventd['press'] in {'M'}:
+                self.act_eppatch.mirror_solution()
+                return ''
+            elif eventd['press'] in {'RIGHT_ARROW'}:
+                self.act_eppatch.rotate_solution(1)
+                return ''
+            elif eventd['press'] in {'LEFT_ARROW'}:
+                self.act_eppatch.rotate_solution(-1)
+                return ''
+            elif eventd['press'] in {'Z'}:
+                n = randint(0,5)
+                self.act_eppatch.change_pattern(n)
+                return ''
+            elif eventd['press'] in {'R'}:
+                self.act_eppatch.patch.report()
+                return ''
+            
         return ''
