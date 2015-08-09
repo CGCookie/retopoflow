@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2014 CG Cookie
+Copyright (C) 2015 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,5 +19,23 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["common_bezier", "common_classes", "common_drawing", "common_utilities"]
+# Common imports
+from ..lib import common_utilities
+from ..lib import common_drawing_view
 
+
+class LoopCut_UI_Draw():
+    
+    def draw_postview(self, context):
+        ''' Place post view drawing code in here '''
+        settings = common_utilities.get_settings()
+        color_active = settings.theme_colors_active[settings.theme]
+        lpoints = self.loopcut.vert_snaps_world
+        color_border = (color_active[0], color_active[1], color_active[2], 1.00)
+        if self.loopcut.cyclic:
+            common_drawing_view.draw3d_closed_polylines(context, [lpoints], color_border, 1, 'GL_LINES')
+        else:
+            common_drawing_view.draw3d_polyline(context, lpoints, color_border, 1, 'GL_LINES')
+        return
+    
+    

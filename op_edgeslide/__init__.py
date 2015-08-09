@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2014 CG Cookie
+Copyright (C) 2015 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,5 +19,4 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["common_bezier", "common_classes", "common_drawing", "common_utilities"]
-
+__all__ = ["edgeslide_modal"]

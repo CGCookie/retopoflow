@@ -19,30 +19,26 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-####class definitions####
-
 import bpy
 import math
 from math import sin, cos
 import time
 import copy
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, kdtree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 import bmesh
 import blf, bgl
 import itertools
 
-from .lib import common_utilities
-from .lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
-from .lib.common_utilities import zip_pairs
+from ..lib import common_utilities
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from ..lib.common_utilities import zip_pairs, closest_t_of_s
+from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 
-from . import polystrips_utilities
-from .polystrips_utilities import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, sort_objects_by_angles, vector_angle_between
+from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 
 
-#Make the addon name and location accessible
-AL = AddonLocator()
 
 
 
@@ -239,7 +235,7 @@ class GVert:
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
-        if PolyStrips.settings.symmetry_plane == 'x':
+        if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
             self.corner1.x = max(0.0, self.corner1.x)
             self.corner2.x = max(0.0, self.corner2.x)
@@ -250,7 +246,7 @@ class GVert:
         self.corner2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner2)[0]
         self.corner3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner3)[0]
         
-        if PolyStrips.settings.symmetry_plane == 'x':
+        if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
             self.corner1.x = max(0.0, self.corner1.x)
             self.corner2.x = max(0.0, self.corner2.x)
@@ -953,7 +949,7 @@ class GEdge:
         else:
             step = 100
             
-        s_t_map = polystrips_utilities.cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
+        s_t_map = cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
         
         #l = self.get_length()  <-this is more accurate, but we need consistency
         l = max(s_t_map)
@@ -973,7 +969,7 @@ class GEdge:
             
             # compute interval lengths and ts
             l_widths = [0] + [r0 + s*i - d_os for i in range(c)]
-            l_ts = [polystrips_utilities.closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
+            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
         
         else:
             # find "optimal" count for subdividing spline based on radii of two endpoints
@@ -1044,7 +1040,7 @@ class GEdge:
             else:
                 self.update_nozip(debug=debug)
             
-            if PolyStrips.settings.symmetry_plane == 'x':
+            if Polystrips.settings.symmetry_plane == 'x':
                 # clamp to x-plane
                 for igv in self.cache_igverts:
                     p0 = igv.position + igv.tangent_y*igv.radius
@@ -1079,7 +1075,7 @@ class GEdge:
             l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * igv.position)
             igv.position = mx * l
             
-            if PolyStrips.settings.symmetry_plane == 'x':
+            if Polystrips.settings.symmetry_plane == 'x':
                 # clamp to x-plane
                 p0 = igv.position + igv.tangent_y*igv.radius
                 p1 = igv.position - igv.tangent_y*igv.radius
@@ -1589,14 +1585,14 @@ class GPatch:
 
 
 ###############################################################################################################
-# PolyStrips
+# Polystrips
 
-class PolyStrips(object):
+class Polystrips(object):
     # class/static variable (shared across all instances)
     settings = None
     
     def __init__(self, context, obj, targ_obj):
-        PolyStrips.settings = common_utilities.get_settings()
+        Polystrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
         self.targ_o_name =targ_obj.name
@@ -1738,6 +1734,8 @@ class PolyStrips(object):
         return self.create_gedge(gv0,gv1,gv2,gv3)
     
     def extension_geometry_from_bme(self, bme):
+        bme.faces.ensure_lookup_table()
+        bme.verts.ensure_lookup_table()
         self.extension_geometry = []
         mx = bpy.data.objects[self.targ_o_name].matrix_world
         for f in bme.faces:
@@ -1837,23 +1835,55 @@ class PolyStrips(object):
         
         
         # self intersection test
+
+        # ignore_lists is the set of neighboring points each point on the list has.
+        # These points are 'near' but are not 'intersecting'
+        ignore_lists = [set() for _ in range( len( stroke ) )]
+
+        # Initialize the kd-tree that will be used to find intersecting points
+        kd = kdtree.KDTree( len(stroke) )
+
+        # fill in the ignore lists and kd-tree
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+
+            # insert into kdtree
+            kd.insert( pt0, i )
+
+            # Add this point to its own ignore list
+            ignore_lists[i].add(i)
+
+            # add neighboring points to the ignore list
+            for j in range( i + 1, len( stroke ) ):
+                pt1,pr1 = stroke[j]
+
+                # If the points are 'near' then add them to eachothers ignore list
+                if (pt0-pt1).length <= min( pr0, pr1 ):
+                    ignore_lists[i].add(j)
+                    ignore_lists[j].add(i)
+                else:
+                    break
+
+        # finalize the kd-tree
+        kd.balance()
+
+        # find intersections
         min_i0,min_i1,min_dist = -1,-1,float('inf')
-        for i0,info0 in enumerate(stroke):
-            pt0,pr0 = info0
-            # find where we start to be far enough away
-            i1 = i0+1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                if (pt0-pt1).length > (pr0+pr1): break
-                i1 += 1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                d = (pt0-pt1).length - min(pr0,pr1)
-                if d < min_dist:
-                    min_i0 = i0
-                    min_i1 = i1
-                    min_dist = d
-                i1 += 1
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+            # find all points touching the given point that are not in the ignore list
+            nearby_results = kd.find_range( pt0, pr0 )
+            _, nearby_indexes, _ = zip(*nearby_results)
+            # XOR the nearby list and the ignore list to get non-ignored intersecting points
+            intersecting_indexes = set(nearby_indexes)^ignore_lists[i]
+            # track the closest two points
+            for j in intersecting_indexes:
+                pt1,pr1 = stroke[j]
+                dist = (pt0-pt1).length - min(pr0,pr1)
+                if dist < min_dist:
+                    min_i0 = i
+                    min_i1 = j
+                    min_dist = dist
         
         if min_dist < 0:
             i0 = min_i0
@@ -2040,7 +2070,7 @@ class PolyStrips(object):
             assert len(cb_split) == 2, 'Could not split bezier (' + (','.join(str(p) for p in [p0,p1,p2,p3])) + ') at %f' % t
             cb0,cb1 = cb_split
             rm = (r0+r3)/2  #stroke radius
-            rm_prime = polystrips_utilities.cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
+            rm_prime = cubic_bezier_blend_t(gedge.gvert0.radius, gedge.gvert1.radius, gedge.gvert2.radius, gedge.gvert3.radius, t)
             
             gv_split = self.create_gvert(cb0[3], radius=rm_prime)
             gv0_0    = gedge.gvert0
@@ -2364,11 +2394,13 @@ class PolyStrips(object):
             for i0,i1,i2,i3 in gp.quads:
                 create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
             
-        # remove unused verts and remap quads
+        # remove unused verts and remap quads  <----#likely area of issue #116
+        #if a vert is not part of a quad in the existing mesh, it gets removed
         vind_used = [False for v in verts]
-        for q in quads:
+        for q in quads + non_quads:
             for vind in q:
                 vind_used[vind] = True
+                
         i_new = 0
         map_vinds = {}
         for i_vind,used in enumerate(vind_used):

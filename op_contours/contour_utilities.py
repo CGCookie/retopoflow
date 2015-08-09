@@ -719,6 +719,8 @@ def point_inside_loop2d(loop, point):
     ptype = str(type(point))
     ltype = str(type(loop[0]))
     nverts = len(loop)
+    
+    if any(not v for v in loop): return False
            
     if 'Vector' not in ptype:
         point = Vector(point)
