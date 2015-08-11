@@ -260,6 +260,15 @@ class EdgePatches_UI_Draw():
             blf.position(0, screen_loc[0], screen_loc[1], 0)
             blf.draw(0, info)
             
+        #draw eppatch vertex indices
+        for epatch in self.edgepatches.eppatches:
+            for i, epv in enumerate(epatch.get_epverts()):
+                info_pt = epv.snap_pos
+                screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
+                info = str(i)
+                blf.position(0, screen_loc[0]+5, screen_loc[1]+5, 0)
+                blf.draw(0, info) 
+                   
         if self.fsm_mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")

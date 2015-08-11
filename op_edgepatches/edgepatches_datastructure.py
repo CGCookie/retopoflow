@@ -54,6 +54,7 @@ class EPVert:
         self.snap_norm = Vector()
         self.visible = True
         self.epedges = []
+        self.eppatches = []  # <--- like Bmesh, would be nice to keep up with this
         self.isinner = False
         self.doing_update = False
         self.update()
@@ -63,7 +64,7 @@ class EPVert:
         self.snap_pos  = p
         self.snap_norm = n
     
-    def update(self, do_edges=True):
+    def update(self, do_edges=True, do_faces = True):
         if self.doing_update: return
         
         #pr = profiler.start()
@@ -73,6 +74,11 @@ class EPVert:
             self.update_epedges()
             for epedge in self.epedges:
                 epedge.update()
+            self.doing_update = False
+        
+        if do_faces:
+            self.doing_update = True
+            self.update_eppatches()
             self.doing_update = False
         #pr.done()
     
@@ -84,6 +90,14 @@ class EPVert:
         for epe in self.epedges:
             epe.update()
     
+    def update_eppatches(self):
+        if len(self.eppatches)>2:
+            ''' sort the eppatches about normal '''
+            l_vecs = [epp.info_display_pt()-self.snap_pos for epp in self.eppatches]
+            self.epedges = sort_objects_by_angles(-self.snap_norm, self.eppatches, l_vecs)  # positive snap_norm to sort clockwise
+        for epp in self.eppatches:
+            epp.update()
+            
     def connect_epedge(self, epedge):
         assert not self.isinner, 'Attempting to connect inner EPVert to EPEdge'
         assert epedge not in self.epedges, 'Attempting to reconnect EPVert to EPEdge'
@@ -253,22 +267,23 @@ class EPEdge:
             i += 1
         return min_t,min_d
 
-
-
-
 class EPPatch:
     def __init__(self, lepedges):
         self.lepedges = list(lepedges)
         self.epedge_fwd = [e1.has_epvert(e0.epvert3) for e0,e1 in zip_pairs(self.lepedges)]
+        for epv in self.get_epverts():
+            epv.eppatches += [self]
+        
         self.center = Vector()
         self.normal = Vector()
-        self.update()
-        
+
         self.L_sub = [ep.subdivision for ep in self.lepedges]
         self.patch_solution = []
-        
         self.verts = []
         self.faces = []
+        self.patch = None
+        
+        self.update()
         
     def update(self):
         ctr = Vector((0,0,0))
@@ -284,10 +299,15 @@ class EPPatch:
         else:
             self.center = Vector()
             self.normal = Vector()
-        self.L_sub = [ep.subdivision for ep in self.lepedges]
-        self.verts = []
-        self.faces = []
         
+        
+        self.L_sub = [ep.subdivision for ep in self.lepedges]
+        if self.patch and self.patch.active_solution_index != -1:
+            self.generate_geometry()
+        else:
+            self.faces, self.verts = [], []
+            
+            
     def get_outer_points(self):
         def get_verts(epe,fwd):
             if fwd: return epe.curve_verts
@@ -330,16 +350,25 @@ class EPPatch:
         self.patch = Patch()
         self.patch.edge_subdivision = self.L_sub
         self.patch.permute_and_find_solutions()
+        time.sleep(2)
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
-        time.sleep(.3)
         sol.report()
         
         return
     def generate_geometry(self):
+        if self.patch == None: return
+        
         N = len(self.get_corner_locations())
         L, (n, fwd), pat, sol = self.patch.get_active_solution()
         c_vs = self.get_corner_locations()
+        
+        print('%i Sided Patch' % N)
+        print('Solved by pattern # %i' % pat)
+        print('%i side is now the 0 side' % n)
+        print('%i direction around path' % fwd)
+        
+        
         if fwd == -1:
             a = (n + 1) % N
             vs = c_vs[a:] + c_vs[:a]
@@ -401,14 +430,17 @@ class EPPatch:
         self.verts, self.faces = vrts, fcs
             
     def rotate_solution(self,step):
+        if not self.patch: return
         if self.patch.rotate_solution(step):
             self.generate_geometry()
             
     def mirror_solution(self):
+        if not self.patch: return
         if self.patch.mirror_solution():
             self.generate_geometry()
    
     def change_pattern(self, n):
+        if not self.patch: return
         if self.patch.change_pattern(n):
             self.generate_geometry()
         else:
