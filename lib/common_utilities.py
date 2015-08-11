@@ -181,10 +181,10 @@ class Profiler(object):
     
     def start(self, text=None):
         if not text:
-            st = inspect.stack()
-            filename = os.path.split(st[1][1])[1]
-            linenum  = st[1][2]
-            fnname   = st[1][3]
+            frame = inspect.currentframe().f_back
+            filename = os.path.basename( frame.f_code.co_filename )
+            linenum = frame.f_lineno
+            fnname = frame.f_code.co_name
             text = '%s (%s:%d)' % (fnname, filename, linenum)
         return self.ProfilerHelper(self, text)
     
