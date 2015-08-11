@@ -406,7 +406,7 @@ class EPPatch:
                 vars += [0,0]
                 vrts, fcs = pent_prim_3(vs, L, ps, *vars[5:])
         elif N == 4:
-            ps = vars[:5]
+            ps = vars[:4]
             if pat == 0:
                 vrts, fcs = quad_prim_0(vs, L, ps)
             elif pat == 1:
