@@ -25,7 +25,6 @@ def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
 
     return verts
 
-
 def subdivide_edge(v0,v1,N):
     '''
     returns line segment subdivided for N edges bewteen p0 and p1
@@ -328,7 +327,6 @@ def pad_patch(vs, ps, L):
         i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
         i_p_p1 = orig_v_index(i) + p_m1
         
-        
         if p_m1 == 0 and p == 0: #this might be rare
             inner_corners += [orig_v_index(i)]
         
@@ -376,7 +374,7 @@ def pad_patch(vs, ps, L):
             strip_1.insert(0,orig_v_index(i)+1)
             strip_faces = face_strip(strip_0, strip_1)
             faces += strip_faces
-            
+        
     for i,v in enumerate(vs):
         i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
         p, l = ps[i], L[i]
@@ -384,6 +382,8 @@ def pad_patch(vs, ps, L):
         v_p1, p_p1, l_p1  = vs[i_p1], ps[i_p1], L[i_p1]
         i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
         i_p_p1 = orig_v_index(i) + p_m1
+        
+        p_m11 = ps[i_m11]
         
         a = orig_v_index(i) + p_m1
         c = inner_corners[i_p1]
@@ -420,14 +420,15 @@ def pad_patch(vs, ps, L):
         
         if p == 0:
             inner_verts += [inner_corners[i] + n for n in range(1,l-p_m1-p_p1)]
-            print('continued, did not make strips because this side has 0 padding')
+            #print(continued, did not make strips because this side has 0 padding')
             continue
         if l - p_m1 - p_p1 < 1:
             print('could not zip because too much padding relative to subdivision')
             continue
         
-        if l - p_m1 - p_p1 == 1:
-            print('special zipping 1 strip')            
+        if l - p_m1 - p_p1 == 1 and p_m1 != 0 and p_p1 != 0:
+            print('Side %i' % i)
+            print('special zipping 1 strip up middle')            
             strip_0 = [inner_corners[i] - p +1 + n for n in range(0,p)]
             alpha = orig_v_index(i) + p_m1
             strip_0.insert(0,alpha)
@@ -436,26 +437,44 @@ def pad_patch(vs, ps, L):
             strip_1.reverse()
             strip_1.insert(0,alpha+1)
             faces += face_strip(strip_0, strip_1)
+            print(strip_0)
+            print(strip_1)
             continue
+
         
         inner_verts += [N_now -1 + k for k in range(p,len(middle_verts),p)]
-        if p_m1 != 0:
+        
+        if (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0):
+            print('Last side was special 1 strip')
+        if p_m1 != 0 and not (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0) :#normal padding previous adjacent side
+            print('Side %i' % i)
+            print('normal padding on previous side')
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
             strip_1 = [ind for ind in range(N_now,N_now+p)]
             strip_0.insert(0,orig_v_index(i)+p_m1)
             strip_1.insert(0,orig_v_index(i)+p_m1+1)
             strip_faces = face_strip(strip_0, strip_1)
             faces += strip_faces
-        else: #no padding on previous adjacent side
-            strip_1 = [ind for ind in range(N_now,N_now + p)]
+            print(strip_0)
+            print(strip_1)
+                
+        elif p_m1 == 0: #no padding on previous adjacent side
+            print('Side %i' % i)
+            print('no padding on previous side')
+            alpha = inner_corners[i_p1]
+            strip_1 = [alpha - n*p_p1 for n in range(0,p)]
+            strip_1.reverse()
             strip_1.insert(0, orig_v_index(i)+1)
             alpha = orig_v_index(i_m1) + l_m1 - p
             strip_0 = [alpha + n for n in range(0,p)]
             strip_0.reverse()
             strip_0.insert(0,orig_v_index(i))
             faces += face_strip(strip_0, strip_1)
-            
-        if p_p1 != 0: #normal padding forward adjacent side
+            print(strip_0)
+            print(strip_1)
+        if p_p1 != 0 and p_p1 != (l - 1): #normal padding forward adjacent side
+            print('Side %i' % i)
+            print('normal padding forward adjacent side, compare strips')
             alpha = len(verts) - 1
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
@@ -464,18 +483,25 @@ def pad_patch(vs, ps, L):
             strip_1.reverse()
             strip_1.insert(0,orig_v_index(i) + l - p_p1)
             faces += face_strip(strip_0, strip_1)
-            
-        else: #no padding on forward adjacent side
-            alpha = len(verts) - 1
+            print(strip_0)
+            print(strip_1)
+        elif p_p1 == 0: #no padding on forward adjacent side
+            print('Side %i' % i)
+            print('no padding forward adjacent side, compare strips')
+            alpha = inner_corners[i]
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
             strip_0.insert(0,orig_v_index(i) + l -1)
             strip_1 = [orig_v_index(i_p1) + n for n in range(0,p+1)]
             faces += face_strip(strip_0, strip_1)
+            print(strip_0)
+            print(strip_1)
 
-    print('ARE THERE DOUBLES IN INNER CORNERS?')
-    print(inner_corners)
+    #print(ARE THERE DOUBLES IN INNER CORNERS?')
     geom_dict['inner corners'] = inner_corners
+    print('INNER CORNERS:')
+    print('\n')
+    print(inner_corners)
     geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
     geom_dict['inner verts'] = inner_verts
     geom_dict['verts'] = verts
@@ -869,6 +895,7 @@ def pent_prim_0(vs,L,ps):  #Done, any cuts can be represented as padding
     faces = [(0,1,4,5),(1,2,3,4)]
     
     if any(ps):
+        print(geom_dict['inner corners'])
         off = len(geom_dict['verts'])  #< how many padding verts were added before calcing the template
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
@@ -922,6 +949,10 @@ def pent_prim_1(vs,L,ps, x, q4):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        
+        
+        print(geom_dict['inner corners'])
+        
         return complete_verts, complete_faces
     else:
         return verts, faces
