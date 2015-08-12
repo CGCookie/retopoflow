@@ -532,7 +532,7 @@ def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y):
     '''
     p0 + q0 = constant
     '''
-    prob +=  p1 + p1 + 2*x + y   == L[0] - 4, "Side 0"
+    prob +=  p1 + p3 + 2*x + y   == L[0] - 4, "Side 0"
     prob +=  p0 + p2 + y         == L[1] - 2, "Side 1"
     prob +=  p1 + p3             == L[2] - 1, "Side 2"
     prob +=  p2 + p0             == L[3] - 1, "Side 3"

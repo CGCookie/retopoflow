@@ -461,9 +461,15 @@ def pad_patch(vs, ps, L):
         elif p_m1 == 0: #no padding on previous adjacent side
             print('Side %i' % i)
             print('no padding on previous side')
-            alpha = inner_corners[i_p1]
-            strip_1 = [alpha - n*p_p1 for n in range(0,p)]
-            strip_1.reverse()
+            
+            if p_p1 == l -1:
+                alpha = inner_corners[i_p1]
+                strip_1 = [alpha - n*p_p1 for n in range(0,p)]
+                strip_1.reverse()
+            else:
+                alpha = len(verts)
+                strip_1 = [ind for ind in range(N_now,N_now + p)]
+            
             strip_1.insert(0, orig_v_index(i)+1)
             alpha = orig_v_index(i_m1) + l_m1 - p
             strip_0 = [alpha + n for n in range(0,p)]
@@ -488,7 +494,11 @@ def pad_patch(vs, ps, L):
         elif p_p1 == 0: #no padding on forward adjacent side
             print('Side %i' % i)
             print('no padding forward adjacent side, compare strips')
-            alpha = inner_corners[i]
+            
+            if p_m1 == l -1: #we didn't add verts, so we need to hook to previous corner
+                alpha = inner_corners[i]
+            if True: #we added middle vertices
+                alpha = len(verts) - 1    
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
             strip_0.insert(0,orig_v_index(i) + l -1)
