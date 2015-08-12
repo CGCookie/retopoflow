@@ -64,7 +64,7 @@ class EdgePatches_UI:
         self.post_update = True
         
         # Debug level 2: time start
-        check_time = profiler.start()
+        #check_time = profiler.start()
         self.obj_orig = get_source_object()
         self.mx = self.obj_orig.matrix_world
        
@@ -78,7 +78,7 @@ class EdgePatches_UI:
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig, bme, bvh)
         # Debug level 2: time end
-        check_time.done()
+        #check_time.done()
 
 
         #Create a new empty destination object for new retopo mesh
@@ -222,6 +222,7 @@ class EdgePatches_UI:
     def pick(self, eventd):
         x,y = eventd['mouse']
         pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+        #pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
         if not pts:
             # user did not click on the object
             if not eventd['shift']:

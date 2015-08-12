@@ -26,10 +26,11 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
 import math
+import time
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-
+from ..cache import mesh_cache
 
 class EdgePatches_UI_Tools:
     def modal_sketching(self, context, eventd):
@@ -62,6 +63,7 @@ class EdgePatches_UI_Tools:
             #return ''
 
         if eventd['release'] in {'LEFTMOUSE','SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+            start = time.time()
             # correct for 0 pressure on release
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
@@ -83,7 +85,7 @@ class EdgePatches_UI_Tools:
                     self.sketch = []
                     return 'main'
             
-            pr = profiler.start()
+            #pr = profiler.start()
             sketch = []
             def addsketch(sk):
                 if not sketch:
@@ -100,18 +102,32 @@ class EdgePatches_UI_Tools:
                     sketch.append(sk)
             for sk in self.sketch: addsketch(sk)
             self.sketch=sketch
-            pr.done()
+            #pr.done()
             
-            pr = profiler.start()
-            p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj_orig, self.sketch) if len(self.sketch) > 1 else []
-            pr.done()
+            finish = time.time()
+            print('Took %f seconds from release event to start ray cast the stroke' % (finish - start))
+            
+            #start = time.time()
+            #p3d = common_utilities.ray_cast_stroke(eventd['context'], self.obj_orig, self.sketch) if len(self.sketch) > 1 else []
+            #finish = time.time()
+            #print('Took %f seconds to ray cast the stroke Object method' % (finish - start))
+            
+            
+            start = time.time()
+            p3d = common_utilities.ray_cast_stroke_bvh(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
+            finish = time.time()
+            print('Took %f seconds to ray cast the stroke BVH method' % (finish - start))
+            
             if len(p3d) <= 1: return 'main'
 
             self.sketch = []
             
-            pr = profiler.start()
-            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/100.0, maxdist=self.stroke_radius)
-            pr.done()
+            start = time.time()
+            #pr = profiler.start()
+            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/3.0, maxdist=self.stroke_radius)
+            #pr.done()
+            finish = time.time()
+            print('Took %f seconds to insert the whole new stroke' % (finish - start))
             
             self.act_epvert = None
             self.act_epedge = None
@@ -207,6 +223,7 @@ class EdgePatches_UI_Tools:
             s2d = l3dr2d(self.tool_data[0][0].position)
             lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
             pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, lgv2d)
+            #pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, lgv2d)
             if len(pts) != len(lgv2d): return ''
             for d,p2d in zip(self.tool_data, pts):
                 d[0].position = p2d
