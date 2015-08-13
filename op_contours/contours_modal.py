@@ -35,6 +35,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
+from ..cache import mesh_cache
 
 
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
@@ -332,7 +333,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         elif eventd['release'] in self.keymap['action'] | self.keymap['modal confirm']:
             self.contours.cut_line_widget = None
-            self.contours.sel_path.update_backbone(context, self.contours.original_form, self.contours.bme, self.contours.sel_loop, insert = False)
+            self.contours.sel_path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.contours.mx, self.contours.sel_loop, insert = False)
             return 'main'
         
         elif eventd['press'] in self.keymap['modal cancel']:

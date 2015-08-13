@@ -37,7 +37,7 @@ from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
-
+from ..cache import mesh_cache
 
 
 
@@ -52,6 +52,7 @@ class GVert:
         self.o_name       = obj.name
         self.targ_o_name  = targ_obj.name
         self.length_scale = length_scale
+        self.mx = obj.matrix_world
         
         self.position  = position
         self.radius    = radius
@@ -231,9 +232,10 @@ class GVert:
         if self.frozen: return
         pr = profiler.start()
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
+        bvh = mesh_cache['bvh']  #any reason not to grab this from our cache, which should always be current.
         
         if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
@@ -241,10 +243,10 @@ class GVert:
             self.corner2.x = max(0.0, self.corner2.x)
             self.corner3.x = max(0.0, self.corner3.x)
         
-        self.corner0 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner0)[0]
-        self.corner1 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner1)[0]
-        self.corner2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner2)[0]
-        self.corner3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.corner3)[0]
+        self.corner0 = mx * bvh.find(imx*self.corner0)[0]  #todo...error?
+        self.corner1 = mx * bvh.find(imx*self.corner1)[0]
+        self.corner2 = mx * bvh.find(imx*self.corner2)[0]
+        self.corner3 = mx * bvh.find(imx*self.corner3)[0]
         
         if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
@@ -264,13 +266,14 @@ class GVert:
         
         pr = profiler.start()
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        bvh = mesh_cache['bvh']
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
         if not self.frozen:
-            l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx*self.position)
+            l,n,i, d = bvh.find(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
             self.position = self.snap_pos
@@ -288,25 +291,25 @@ class GVert:
         self.snap_tanx = (Vector((0.2,0.1,0.5)) if not self.gedge0 else self.gedge0.get_derivative_at(self)).normalized()
         self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
         if self.frozen and self.gedge0:
-             vy = self.corner0 - self.corner1
-             vy.normalize()
+            vy = self.corner0 - self.corner1
+            vy.normalize()
              
-             vx = self.corner1 - self.corner2
-             vx.normalize()
+            vx = self.corner1 - self.corner2
+            vx.normalize()
              
-             test1 = vx.dot(self.snap_tanx)
-             test2 = vy.dot(self.snap_tany)
+            test1 = vx.dot(self.snap_tanx)
+            test2 = vy.dot(self.snap_tany)
             
-             if test1 < -.7:
-                 self.corner0, self.corner1, self.corner2, self.corner3 = self.corner2, self.corner3, self.corner0, self.corner1
-                 self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner2_ind, self.corner3_ind, self.corner0_ind, self.corner1_ind
-             if test1  > -.7 and test1 < .7:
-                 if test2 > .7:
-                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner3, self.corner0, self.corner1, self.corner2
-                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner3_ind, self.corner0_ind, self.corner1_ind, self.corner2_ind
-                 else:
-                     self.corner0, self.corner1, self.corner2, self.corner3 = self.corner1, self.corner2, self.corner3, self.corner0  
-                     self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner1_ind, self.corner2_ind, self.corner3_ind, self.corner0_ind
+            if test1 < -.7:
+                self.corner0, self.corner1, self.corner2, self.corner3 = self.corner2, self.corner3, self.corner0, self.corner1
+                self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner2_ind, self.corner3_ind, self.corner0_ind, self.corner1_ind
+            if test1  > -.7 and test1 < .7:
+                if test2 > .7:
+                    self.corner0, self.corner1, self.corner2, self.corner3 = self.corner3, self.corner0, self.corner1, self.corner2
+                    self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner3_ind, self.corner0_ind, self.corner1_ind, self.corner2_ind
+                else:
+                    self.corner0, self.corner1, self.corner2, self.corner3 = self.corner1, self.corner2, self.corner3, self.corner0  
+                    self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind = self.corner1_ind, self.corner2_ind, self.corner3_ind, self.corner0_ind
         
         if not self.zip_over_gedge:
             # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
@@ -379,9 +382,10 @@ class GVert:
     
     def update_visibility(self, r3d, update_gedges=False, hq = True):
         if hq:
-            self.visible = False not in common_utilities.ray_cast_visible(self.get_corners(), bpy.data.objects[self.o_name], r3d)
+            bvh_meth = common_utilities.ray_cast_visible_bvh(self.get_corners(), mesh_cache['bvh'], self.mx, r3d)    
+            self.visible = False not in bvh_meth
         else:
-            self.visible = common_utilities.ray_cast_visible([self.snap_pos], bpy.data.objects[self.o_name], r3d)[0]
+            self.visible = common_utilities.ray_cast_visible_bvh([self.snap_pos], mesh_cache['bvh'],self.mx, r3d)[0]
         
         if not update_gedges: return
         for ge in self.get_gedges_notnone():
@@ -552,6 +556,8 @@ class GEdge:
     def __init__(self, obj, targ_obj, length_scale, gvert0, gvert1, gvert2, gvert3):
         # store end gvertices
         self.o_name = obj.name
+        self.mx = obj.matrix_world
+        
         self.targ_o_name = targ_obj.name
         self.length_scale = length_scale
         self.gvert0 = gvert0
@@ -710,7 +716,7 @@ class GEdge:
     
     def update_visibility(self, rv3d):
         lp = [gv.snap_pos for gv in self.cache_igverts]
-        lv = common_utilities.ray_cast_visible(lp, bpy.data.objects[self.o_name], rv3d)
+        lv = common_utilities.ray_cast_visible_bvh(lp, mesh_cache['bvh'],self.mx, rv3d)
         for gv,v in zip(self.cache_igverts,lv): gv.visible = v
     
     def gverts(self):
@@ -792,10 +798,11 @@ class GEdge:
     
     def get_length(self, precision = 64):
         p0,p1,p2,p3 = self.get_positions()
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
+        bvh = mesh_cache['bvh']
         imx = mx.inverted()
         p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/precision) for t in range(precision+1)]
-        p3d = [mx*bpy.data.objects[self.o_name].closest_point_on_mesh(imx * p)[0] for p in p3d]
+        p3d = [mx*bvh.find(imx * p)[0] for p in p3d]
         return sum((p1-p0).length for p0,p1 in zip(p3d[:-1],p3d[1:]))
         #return cubic_bezier_length(p0,p1,p2,p3)
     
@@ -928,18 +935,19 @@ class GEdge:
         
         if False:
             # attempting to smooth snapped igverts
-            mx     = self.obj.matrix_world
+            bvh = mesh_cache['bvh']
+            mx     = self.mx
             mxnorm = mx.transposed().inverted().to_3x3()
             mx3x3  = mx.to_3x3()
             imx    = mx.inverted()
             p3d      = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
-            snap     = [self.obj.closest_point_on_mesh(imx*p) for p in p3d]
-            snap_pos = [mx*pos for pos,norm,idx in snap]
+            snap     = [bvh.find(imx*p) for p in p3d]
+            snap_pos = [mx*pos for pos,norm,idx,d in snap]
             bez = cubic_bezier_fit_points(snap_pos, min(r0,r3)/20, allow_split=False)
             if bez:
                 _,_,p0,p1,p2,p3 = bez[0]
-                _,n1,_ = self.obj.closest_point_on_mesh(imx*p1)
-                _,n2,_ = self.obj.closest_point_on_mesh(imx*p2)
+                _,n1,_,_ = bvh.find(imx*p1)
+                _,n2,_,_ = bvh.find(imx*p2)
                 n1 = mxnorm*n1
                 n2 = mxnorm*n2
         
@@ -1066,13 +1074,14 @@ class GEdge:
         '''
         snaps already computed igverts to surface of object ob
         '''
-        mx = bpy.data.objects[self.o_name].matrix_world
+        bvh = mesh_cache['bvh']
+        mx = self.mx
         mxnorm = mx.transposed().inverted().to_3x3()
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
         for igv in self.cache_igverts:
-            l,n,i = bpy.data.objects[self.o_name].closest_point_on_mesh(imx * igv.position)
+            l,n,i,d = bvh.find(imx * igv.position)
             igv.position = mx * l
             
             if Polystrips.settings.symmetry_plane == 'x':
@@ -1095,7 +1104,7 @@ class GEdge:
     
     def is_picked(self, pt):
         for p0,p1,p2,p3 in self.iter_segments(only_visible=True):
-            
+        #for p0,p1,p2,p3 in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
             if c1.cross(c0).dot(n)>0 and c2.cross(c1).dot(n)>0 and c3.cross(c2).dot(n)>0 and c0.cross(c3).dot(n)>0:
@@ -1158,6 +1167,7 @@ class GPatch:
         
         self.o_name = obj.name
         self.frozen = False
+        self.mx = obj.matrix_world
         
         self.gedges = gedges
         self.nsides = len(gedges)
@@ -1279,7 +1289,8 @@ class GPatch:
     def _update_tri(self):
         ge0,ge1,ge2 = self.gedges
         rev0,rev1,rev2 = self.rev
-        closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        bvh = mesh_cache['bvh']
+        closest_point_on_mesh = bvh.find
         sz0,sz1,sz2 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -1377,9 +1388,10 @@ class GPatch:
             self.quads += [(i0,i3,i2,i1)]
     
     def _update_quad(self):
+        bvh = mesh_cache['bvh']
         ge0,ge1,ge2,ge3 = self.gedges
         rev0,rev1,rev2,rev3 = self.rev
-        closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        closest_point_on_mesh = bvh.find
         sz0,sz1,sz2,sz3 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -1389,7 +1401,7 @@ class GPatch:
         
         self.count_error = False
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
@@ -1462,9 +1474,10 @@ class GPatch:
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
     
     def _update_pent(self):
+        bvh = mesh_cache['bvh']
         ge0,ge1,ge2,ge3,ge4 = self.gedges
         rev0,rev1,rev2,rev3,rev4 = self.rev
-        closest_point_on_mesh = bpy.data.objects[self.o_name].closest_point_on_mesh
+        closest_point_on_mesh = bvh.find
         sz0,sz1,sz2,sz3,sz4 = [(len(ge.cache_igverts)-1)//2 -1 for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -1556,6 +1569,7 @@ class GPatch:
         
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
+        #for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
             d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
@@ -2184,7 +2198,8 @@ class Polystrips(object):
         gv3.update_gedges()
     
     def create_mesh(self, bme):
-        mx = bpy.data.objects[self.o_name].matrix_world
+        bvh = mesh_cache['bvh']
+        mx = self.mx
         imx = mx.inverted()
         
         verts = []
@@ -2307,8 +2322,8 @@ class Polystrips(object):
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-                                p2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*p2)[0]
-                                p3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*p3)[0]
+                                p2 = mx * bvh.find(imx*p2)[0]
+                                p3 = mx * bvh.find(imx*p3)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = insert_vert(p3)
                             
@@ -2352,12 +2367,12 @@ class Polystrips(object):
                         else:
                             if ge.zip_side*ge.zip_dir == 1:
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-                                p3 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*p3)[0]
+                                p3 = mx * bvh.find(imx*p3)[0]
                                 cc3 = insert_vert(p3)
                                 cc2 = lzvind[i_z]
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
-                                p2 = mx * bpy.data.objects[self.o_name].closest_point_on_mesh(imx*p2)[0]
+                                p2 = mx * bvh.find(imx*p2)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = lzvind[i_z]
                         
