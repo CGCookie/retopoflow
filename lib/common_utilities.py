@@ -64,17 +64,20 @@ def selection_mouse():
     return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
-    addons = bpy.context.user_preferences.addons
-    stack = inspect.stack()
-    for entry in stack:
-        folderpath = os.path.dirname(entry[1])
-        foldername = os.path.basename(folderpath)
-        if foldername in {'lib','addons'}: continue
-        if foldername in addons: break
-    else:
-        assert False, 'could not find non-"lib" folder'
-    settings = addons[foldername].preferences
-    return settings
+    if not get_settings.cached_settings:
+        addons = bpy.context.user_preferences.addons
+        frame = inspect.currentframe()
+        while frame:
+            folderpath = os.path.dirname(frame.f_code.co_filename)
+            foldername = os.path.basename(folderpath)
+            frame = frame.f_back
+            if foldername in {'lib','addons'}: continue
+            if foldername in addons: break
+        else:
+            assert False, 'could not find non-"lib" folder'
+        get_settings.cached_settings = addons[foldername].preferences
+    return get_settings.cached_settings
+get_settings.cached_settings = None
 
 def get_source_object():
     settings = get_settings()
@@ -181,10 +184,10 @@ class Profiler(object):
     
     def start(self, text=None):
         if not text:
-            st = inspect.stack()
-            filename = os.path.split(st[1][1])[1]
-            linenum  = st[1][2]
-            fnname   = st[1][3]
+            frame = inspect.currentframe().f_back
+            filename = os.path.basename( frame.f_code.co_filename )
+            linenum = frame.f_lineno
+            fnname = frame.f_code.co_name
             text = '%s (%s:%d)' % (fnname, filename, linenum)
         return self.ProfilerHelper(self, text)
     
