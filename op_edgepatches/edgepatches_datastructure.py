@@ -640,7 +640,6 @@ class EdgePatches:
     
     def insert_epedge_from_stroke(self, stroke, error_scale=0.01, maxdist=0.05, sepv0=None, sepv3=None, depth=0):
         pts = [p for p,_ in stroke]
-        pts = [pts[0]] + pts[1:len(pts)-1:5] + [pts[-1]]  #toss a bunch of data for speed
         # check if stroke swings by any corner/end epverts
         #pr = profiler.start()
         

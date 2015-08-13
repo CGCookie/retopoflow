@@ -446,7 +446,9 @@ def pad_patch(vs, ps, L):
         
         if (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0):
             print('Last side was special 1 strip')
-        if p_m1 != 0 and not (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0) :#normal padding previous adjacent side
+        #if p_m1 != 0 and not (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0) :#normal padding previous adjacent side
+        if p_m1 != 0 and not ((l_m1 - p == 1 and p != 0) or (l_m1 - p_m11 == 1 and p_m11 != 0)):#normal padding previous adjacent side
+        
             print('Side %i' % i)
             print('normal padding on previous side')
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
