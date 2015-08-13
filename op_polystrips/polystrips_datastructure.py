@@ -24,7 +24,7 @@ import math
 from math import sin, cos
 import time
 import copy
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, kdtree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 import bmesh
@@ -1835,23 +1835,55 @@ class Polystrips(object):
         
         
         # self intersection test
+
+        # ignore_lists is the set of neighboring points each point on the list has.
+        # These points are 'near' but are not 'intersecting'
+        ignore_lists = [set() for _ in range( len( stroke ) )]
+
+        # Initialize the kd-tree that will be used to find intersecting points
+        kd = kdtree.KDTree( len(stroke) )
+
+        # fill in the ignore lists and kd-tree
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+
+            # insert into kdtree
+            kd.insert( pt0, i )
+
+            # Add this point to its own ignore list
+            ignore_lists[i].add(i)
+
+            # add neighboring points to the ignore list
+            for j in range( i + 1, len( stroke ) ):
+                pt1,pr1 = stroke[j]
+
+                # If the points are 'near' then add them to eachothers ignore list
+                if (pt0-pt1).length <= min( pr0, pr1 ):
+                    ignore_lists[i].add(j)
+                    ignore_lists[j].add(i)
+                else:
+                    break
+
+        # finalize the kd-tree
+        kd.balance()
+
+        # find intersections
         min_i0,min_i1,min_dist = -1,-1,float('inf')
-        for i0,info0 in enumerate(stroke):
-            pt0,pr0 = info0
-            # find where we start to be far enough away
-            i1 = i0+1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                if (pt0-pt1).length > (pr0+pr1): break
-                i1 += 1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                d = (pt0-pt1).length - min(pr0,pr1)
-                if d < min_dist:
-                    min_i0 = i0
-                    min_i1 = i1
-                    min_dist = d
-                i1 += 1
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+            # find all points touching the given point that are not in the ignore list
+            nearby_results = kd.find_range( pt0, pr0 )
+            _, nearby_indexes, _ = zip(*nearby_results)
+            # XOR the nearby list and the ignore list to get non-ignored intersecting points
+            intersecting_indexes = set(nearby_indexes)^ignore_lists[i]
+            # track the closest two points
+            for j in intersecting_indexes:
+                pt1,pr1 = stroke[j]
+                dist = (pt0-pt1).length - min(pr0,pr1)
+                if dist < min_dist:
+                    min_i0 = i
+                    min_i1 = j
+                    min_dist = dist
         
         if min_dist < 0:
             i0 = min_i0
