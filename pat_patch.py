@@ -5,6 +5,180 @@ Created on Jul 15, 2015
 '''
 from pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
 
+def identify_patch_pattern(edges_reduced, check_pattern = -1):
+    '''
+    takes reduced edges, identifies pattern, identifies rotation/order
+    
+    returns -
+        pattern
+        nl0
+        direction  - 1 or -1
+    '''  
+    n_sides = len(edges_reduced)
+    unique = set(edges_reduced)
+    alpha = max(unique)
+    beta = None
+    
+    nl0 = 0
+    direction = 1
+    
+    if len(edges_reduced) == 3:
+        if alpha == 2:
+            pattern = 0
+            nl0 = edges_reduced.index(alpha)
+            direction = 1
+        else:
+            pattern = 1
+            nl0 = edges_reduced.index(alpha)
+            direction = 1
+      
+    elif len(edges_reduced) == 4:
+        if alpha == 1:
+            pattern = 0
+            
+        elif len(unique) == 2 and edges_reduced.count(alpha) == 1:
+            #there is only one alpha
+            x = (alpha - 3) / 2
+            if x == 0:
+                pattern = 2
+                nl0 = edges_reduced.index(alpha)
+                direction = 1
+                print('[A,1,1,1] and x = 0, need to parameterize y?')
+            else:
+                print('[A,1,1,1] and A = 3 + 2x   Really unsure on these!')
+                nl0 = edges_reduced.index(alpha)
+                direction = 1
+                pattern = 3
+                
+        elif len(unique) == 2 and edges_reduced.count(alpha) == 2:
+            pattern = 1
+            print('[A,B,1,1] and A = B -> [A,A,1,1]')
+            nl0 = edges_reduced.index(alpha)
+            if edges_reduced[-1] == alpha:
+                nl0 = 3
+            else:
+                nl0 = edges_reduced.index(alpha)
+            
+            direction = 1
+           
+        elif len(unique) == 3:
+            pattern = 4
+            print('[A,B,1,1]  A = B + 2 + 2x')
+            beta = (unique - set([1,alpha])).pop()
+            nl0 = edges_reduced.index(alpha)
+            d_beta = (edges_reduced.index(alpha) - nl0) % n_sides
+            if d_beta != 1:
+                print('%i : dbeta should be 3')
+                direction = -1
+            else:
+                direction = 1
+                      
+    elif len(edges_reduced) == 5:
+        if len(unique) == 2 and alpha ==2:
+            pattern = 0
+            print('[A,1,1,1,1] and A = 2')
+            nl0 = edges_reduced.index(alpha)
+            direction = 1    
+        elif len(unique) == 2 and alpha > 2:
+            pattern = 2
+            print('[A,1,1,1,1] and A = 4 + 2x')
+            nl0 = edges_reduced.index(alpha)
+            direction = 1    
+        elif len(unique) == 3:
+            beta = (unique - set([1,alpha])).pop()
+            if beta == alpha -1:
+                pattern = 1
+                print('[A,B,1,1,1] and A = B + 1')
+                nl0 = edges_reduced.index(alpha)
+                d_beta = (edges_reduced.index(beta) - nl0) % n_sides
+                if d_beta != 1:
+                    print('%i : dbeta should be 3' % d_beta)
+                    direction = -1
+                else:
+                    direction = 1
+                
+                
+            else:
+                pattern = 3
+                print('[A,B,1,1,1] and A = B + 3 + 2x')
+                nl0 = edges_reduced.index(alpha)
+                d_beta = (edges_reduced.index(beta) - nl0) % n_sides
+                if d_beta != 1:
+                    print('%i : dbeta should be 3' % d_beta)
+                    direction = -1
+                else:
+                    direction = 1
+                               
+    elif len(edges_reduced) == 6:
+        
+        if len(unique) == 1:
+            pattern = 0
+            print('[1,1,1,1,1,1] parameter x = 0')
+            
+        elif len(unique) == 2 and edges_reduced.count(alpha) == 1:
+            pattern = 2
+            print('[A,1,1,1,1,1] parameter y = 0')
+            nl0 = edges_reduced.index(alpha)        
+            direction = 1
+            
+        elif len(unique) == 2 and edges_reduced.count(alpha) == 2:
+            k = edges_reduced.index(alpha)
+            k_plu1 = (k + 1) % n_sides
+            k_min1 = (k - 1) % n_sides
+            
+            if edges_reduced[k_plu1] == alpha or edges_reduced[k_min1] == alpha:
+                pattern = 1
+                print('[A,B,1,1,1,1] and A = B -> [A,A,1,1,1,1]')
+                nl0 = edges_reduced.index(alpha)
+                d_beta = (edges_reduced.index(alpha, nl0 + 1) - nl0) % n_sides
+                if d_beta != 1:
+                    print('%i : dbeta should be 5' % d_beta)
+                    direction = -1
+                else:
+                    direction = 1
+            else:
+                pattern = 0
+                print('[A,1,1,B,1,1] and A = B ->  [A,1,1,A,1,1]')
+                nl0 = edges_reduced.index(alpha)
+                direction = 1
+            
+        elif len(unique) == 3:
+            k = edges_reduced.index(alpha)
+            k_plu1 = (k + 1) % 6
+            k_min1 = (k - 1) % 6
+            beta = (unique - set([1,alpha])).pop()
+            if edges_reduced[k_plu1] == beta or edges_reduced[k_min1] == beta:
+                pattern = 3
+                print('[A,B,1,1,1,1] and A = B + 2 + 2x')
+                nl0 = edges_reduced.index(alpha)
+                d_beta = (edges_reduced.index(beta) - nl0) % n_sides
+                if d_beta != 1:
+                    print('%i : dbeta should be 5' % d_beta)
+                    direction = -1
+                else:
+                    direction = 1
+            else:
+                pattern = 2
+                print('[A,1,1,B,1,1] and A = B + 2 + 2x')
+                nl0 = edges_reduced.index(alpha)
+                direction = 1
+                
+    else:
+        print('bad patch!')
+        
+    if check_pattern != -1:
+        if pattern == check_pattern:
+            print('everything matches!  great')
+            return pattern, nl0, direction
+        else:
+            print('%i sided patch with pattern #%i' % (n_sides, pattern))
+            print('UH OH!!  this pattern doesnt match ilp provided')
+            return check_pattern, nl0, direction
+
+    print('Alpha = %i' % alpha)
+    print('Beta = %s' % str(beta))
+    print('%i sided patch with pattern #%i' % (n_sides, pattern))
+    return pattern, nl0, direction
 
 def find_edge_loops(bme, sel_vert_corners, select = False):
     '''takes N verts which define the corners of a
@@ -55,7 +229,6 @@ def find_edge_loops(bme, sel_vert_corners, select = False):
                 marching = False
     
     return vert_chains_co, vert_chains_ind
-
 
 def permute_subdivs(L, reverse = True):
     '''
@@ -491,12 +664,8 @@ def add_constraints_3p0(prob, L, p0, p1, p2):
     prob +=  p2 + p1            == L[0] - 2, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p0            == L[2] - 1, "Side 2"
-    
+
 def add_constraints_3p1(prob, L, p0, p1, p2, x):
-    '''
-    p1 + q1 = constant
-    p2 + q2 = constant
-    '''
     prob +=  p2 + p1 +2*x     == L[0] - 4, "Side 0"
     prob +=  p0 + p2          == L[1] - 1, "Side 1"
     prob +=  p1 + p0          == L[2] - 1, "Side 2"

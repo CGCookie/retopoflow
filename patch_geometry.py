@@ -6,6 +6,7 @@ Created on Jul 18, 2015
 from itertools import chain
 from mathutils import Vector
 from mathutils.geometry import  intersect_line_line
+from .pat_patch import identify_patch_pattern
 
 
 def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
@@ -228,7 +229,7 @@ def blend_corner_primary(V_edges, n_corner, nx,ny):
     print('Vnp1[0] = Vn[-1] going the same direction')
     print((vs_np1[0], vs_n[-1]))
     
-    #print('weights')
+    ##print('weights')
     #print((ws_nm1, ws_n, ws_np1))
     #make sure we aren't going past where we can blend
     nx = min([nx, len(vs_nm2), len(vs_n)])
@@ -258,7 +259,7 @@ def blend_corner_primary(V_edges, n_corner, nx,ny):
       
     return blend_verts
 
-def pad_patch(vs, ps, L):
+def pad_patch(vs, ps, L, pattern):
     '''
     takes a list of corner verts [v0,v1,v2,v3....]  and paddings = [p0,p1,p2,p3...]
     returns geom_dict
@@ -267,6 +268,7 @@ def pad_patch(vs, ps, L):
         vs - list of vectors representing corners
         ps - list of integers representing paddings
         L - list of subdivsions
+        pattern - integer paddern identifier
            
     geom_dict['verts'] = list of vectors representing all verts
     geom_dict['faces'] = list of tupples represeting quad faces
@@ -427,8 +429,8 @@ def pad_patch(vs, ps, L):
             continue
         
         if l - p_m1 - p_p1 == 1 and p_m1 != 0 and p_p1 != 0:
-            print('Side %i' % i)
-            print('special zipping 1 strip up middle')            
+            #print('Side %i' % i)
+            #print('special zipping 1 strip up middle')            
             strip_0 = [inner_corners[i] - p +1 + n for n in range(0,p)]
             alpha = orig_v_index(i) + p_m1
             strip_0.insert(0,alpha)
@@ -437,32 +439,32 @@ def pad_patch(vs, ps, L):
             strip_1.reverse()
             strip_1.insert(0,alpha+1)
             faces += face_strip(strip_0, strip_1)
-            print(strip_0)
-            print(strip_1)
+            #print(strip_0)
+            #print(strip_1)
             continue
 
         
         inner_verts += [N_now -1 + k for k in range(p,len(middle_verts),p)]
         
-        if (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0):
-            print('Last side was special 1 strip')
+        #if (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0):
+            #print('Last side was special 1 strip')
         #if p_m1 != 0 and not (l_m1 - p_m11 - p == 1 and p_m11 != 0 and p != 0) :#normal padding previous adjacent side
         if p_m1 != 0 and not ((l_m1 - p == 1 and p != 0) or (l_m1 - p_m11 == 1 and p_m11 != 0)):#normal padding previous adjacent side
         
-            print('Side %i' % i)
-            print('normal padding on previous side')
+            #print('Side %i' % i)
+            #print('normal padding on previous side')
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
             strip_1 = [ind for ind in range(N_now,N_now+p)]
             strip_0.insert(0,orig_v_index(i)+p_m1)
             strip_1.insert(0,orig_v_index(i)+p_m1+1)
             strip_faces = face_strip(strip_0, strip_1)
             faces += strip_faces
-            print(strip_0)
-            print(strip_1)
+            #print(strip_0)
+            #print(strip_1)
                 
         elif p_m1 == 0: #no padding on previous adjacent side
-            print('Side %i' % i)
-            print('no padding on previous side')
+            #print('Side %i' % i)
+            #print('no padding on previous side')
             
             if p_p1 == l -1:
                 alpha = inner_corners[i_p1]
@@ -478,11 +480,11 @@ def pad_patch(vs, ps, L):
             strip_0.reverse()
             strip_0.insert(0,orig_v_index(i))
             faces += face_strip(strip_0, strip_1)
-            print(strip_0)
-            print(strip_1)
+            #print(strip_0)
+            #print(strip_1)
         if p_p1 != 0 and p_p1 != (l - 1): #normal padding forward adjacent side
-            print('Side %i' % i)
-            print('normal padding forward adjacent side, compare strips')
+            #print('Side %i' % i)
+            #print('normal padding forward adjacent side, compare strips')
             alpha = len(verts) - 1
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
@@ -491,11 +493,11 @@ def pad_patch(vs, ps, L):
             strip_1.reverse()
             strip_1.insert(0,orig_v_index(i) + l - p_p1)
             faces += face_strip(strip_0, strip_1)
-            print(strip_0)
-            print(strip_1)
+            #print(strip_0)
+            #print(strip_1)
         elif p_p1 == 0: #no padding on forward adjacent side
-            print('Side %i' % i)
-            print('no padding forward adjacent side, compare strips')
+            #print('Side %i' % i)
+            #print('no padding forward adjacent side, compare strips')
             
             if p_m1 == l -1: #we didn't add verts, so we need to hook to previous corner
                 alpha = inner_corners[i]
@@ -506,14 +508,21 @@ def pad_patch(vs, ps, L):
             strip_0.insert(0,orig_v_index(i) + l -1)
             strip_1 = [orig_v_index(i_p1) + n for n in range(0,p+1)]
             faces += face_strip(strip_0, strip_1)
-            print(strip_0)
-            print(strip_1)
+            #print(strip_0)
+            #print(strip_1)
 
     #print(ARE THERE DOUBLES IN INNER CORNERS?')
+    pat, nl0, direction = identify_patch_pattern(new_subdivs, check_pattern = pattern)
+    
+    if direction == -1:
+        nl0_p1 = (nl0 + 1) % N
+        inner_corners = inner_corners[nl0_p1:] + inner_corners[:nl0_p1]
+        inner_corners.reverse()
+       
+    else:
+        inner_corners = inner_corners[nl0:] + inner_corners[:nl0]
+
     geom_dict['inner corners'] = inner_corners
-    print('INNER CORNERS:')
-    print('\n')
-    print(inner_corners)
     geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(vs))]
     geom_dict['inner verts'] = inner_verts
     geom_dict['verts'] = verts
@@ -533,7 +542,7 @@ def tri_prim_0(vs, L, ps):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 3)
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2] = vs
@@ -557,7 +566,7 @@ def tri_prim_1(vs,L,ps, x, q1, q2):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 1)
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2] = vs
@@ -589,8 +598,7 @@ def tri_prim_1(vs,L,ps, x, q1, q2):
             A =i*(q1+q2+3) + j
             B =(i+1)*(q1+q2+3) + j
             faces += [(A, B, B+1, A+1)]
-            print((i,j,A,B, B+1, A+1))
-    
+
     #make the bottom faces
     alpha = (x+1)*(q1+q2+3)
     n_p1 = alpha + q1 + 1 #index of the pole
@@ -638,7 +646,6 @@ def quad_prim_0(vs, L, ps):
         for j in range(0,x+1):
             A =i*(x+2) + j
             B =(i + 1) * (x+2) + j
-            print((A,B,B+1,A+1))
             faces += [(A, B, B+1, A+1)]
             
     return verts, faces
@@ -648,7 +655,7 @@ def quad_prim_1(vs, L, ps, x):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 1)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2,v3] = vs
@@ -691,7 +698,7 @@ def quad_prim_2(vs,L,ps, x, y):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 2)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2,v3] = vs
@@ -738,7 +745,7 @@ def quad_prim_3(vs,L,ps, x, q1):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 3)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2,v3] = vs
@@ -805,7 +812,7 @@ def quad_prim_4(vs,L,ps, x, y, q1):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 4)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2,v3] = vs
@@ -897,7 +904,7 @@ def pent_prim_0(vs,L,ps):  #Done, any cuts can be represented as padding
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 0)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4] = vs
@@ -922,7 +929,7 @@ def pent_prim_1(vs,L,ps, x, q4):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 1)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4] = vs
@@ -962,9 +969,6 @@ def pent_prim_1(vs,L,ps, x, q4):
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
         
-        
-        print(geom_dict['inner corners'])
-        
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -974,7 +978,7 @@ def pent_prim_2(vs, L,ps, x, q0, q1, q4):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 2)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4] = vs
@@ -1047,7 +1051,7 @@ def pent_prim_3(vs,L,ps, x,y,q1,q4):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 3)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4] = vs
@@ -1123,7 +1127,7 @@ def hex_prim_0(vs,L,ps, x):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 0)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4,v5] = vs
@@ -1162,7 +1166,7 @@ def hex_prim_1(vs,L,ps, x, y, z, w):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 1)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4,v5] = vs
@@ -1240,7 +1244,7 @@ def hex_prim_2(vs,L,ps, x, y, q3, q0):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 2)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4,v5] = vs
@@ -1338,7 +1342,7 @@ def hex_prim_3(vs,L,ps,x,y,z,q3):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L)
+        geom_dict = pad_patch(vs, ps, L, 3)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0,v1,v2,v3,v4,v5] = vs
