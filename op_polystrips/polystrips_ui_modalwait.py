@@ -92,7 +92,7 @@ class Polystrips_UI_ModalWait():
 
         if eventd['press'] == 'P':                                                  # grease pencil => strokes
             # TODO: only convert gpencil strokes that are visible and prevent duplicate conversion
-            for gpl in self.obj.grease_pencil.layers: gpl.hide = True
+            for gpl in self.obj_orig.grease_pencil.layers: gpl.hide = True
             for stroke in self.strokes_original:
                 self.polystrips.insert_gedge_from_stroke(stroke, True)
             self.polystrips.remove_unconnected_gverts()

@@ -1298,7 +1298,7 @@ class GPatch:
             self.count_error = True
             return
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
@@ -1486,7 +1486,7 @@ class GPatch:
             return
         self.count_error = False
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
@@ -1609,6 +1609,7 @@ class Polystrips(object):
         Polystrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
+        self.mx = obj.matrix_world
         self.targ_o_name =targ_obj.name
         self.length_scale = get_object_length_scale(bpy.data.objects[self.o_name])
         
