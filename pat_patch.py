@@ -21,6 +21,7 @@ def identify_patch_pattern(edges_reduced, check_pattern = -1):
     
     nl0 = 0
     direction = 1
+    pattern = 10
     
     if len(edges_reduced) == 3:
         if alpha == 2:
@@ -68,7 +69,7 @@ def identify_patch_pattern(edges_reduced, check_pattern = -1):
             nl0 = edges_reduced.index(alpha)
             d_beta = (edges_reduced.index(alpha) - nl0) % n_sides
             if d_beta != 1:
-                print('%i : dbeta should be 3')
+                print('%i : dbeta should be 3' % d_beta)
                 direction = -1
             else:
                 direction = 1

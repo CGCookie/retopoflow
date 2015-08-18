@@ -346,7 +346,6 @@ class EPPatch:
 
     def ILP_initial_solve(self):
         if not self.validate_patch_for_ILP(): return
-        print('solving patch')
         self.patch = Patch()
         self.patch.edge_subdivision = self.L_sub
         self.patch.permute_and_find_solutions()
@@ -367,12 +366,14 @@ class EPPatch:
         print('Solved by pattern # %i' % pat)
         print('%i side is now the 0 side' % n)
         print('%i direction around path' % fwd)
-        
+        print('Subdivisions')
+        print(L)
         
         if fwd == -1:
-            a = (n + 1) % N
-            vs = c_vs[a:] + c_vs[:a]
+            #a = (n + 1) % N
+            vs = c_vs[n:] + c_vs[:n]
             vs.reverse()
+            vs = [vs[-1]] + vs[0:len(vs)-1]
         else:
             vs = c_vs[n:] + c_vs[:n]
 
