@@ -11,7 +11,7 @@ from mathutils.bvhtree import BVHTree
 class LoopCut(object):
     def __init__(self, context, targ_obj, trg_bvh, source_obj = None, source_bvh = None):
         self.target_name = targ_obj.name
-        self.trg_bvg = trg_bvh
+        self.trg_bvh = trg_bvh
         self.source_name = None
         self.source_mx = Matrix.Identity(4)
         

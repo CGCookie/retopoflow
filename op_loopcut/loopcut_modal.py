@@ -49,7 +49,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     bl_label = "RetopoFlow Loop Cut"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
+    bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
     
     def __init__(self):
         FSM = {}
@@ -109,6 +109,8 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         bpy.ops.object.editmode_toggle()
         self.trg_bme.free()
         self.src_bme.free()
+        del self.src_bvh
+        del self.trg_bvh
         context.area.header_text_set()
         pass
     

@@ -5,15 +5,20 @@ Created on Jul 12, 2015
 '''
 import bpy
 import bmesh
+from mathutils import Matrix
+from mathutils.bvhtree import BVHTree
 
 class EdgeSlide(object):
     
-    def __init__(self, context, targ_obj, source_obj = None):
+    def __init__(self, context, targ_obj, trg_bvh, source_obj = None, source_bvh = None):
         self.target_name =targ_obj.name
+        self.trg_bvh = trg_bvh
         self.source_name = None
+        self.source_mx = Matrix.Identity(4)
         if source_obj:
             self.source_name = source_obj.name
-            
+            self.src_bvh = source_bvh
+            self.source_mx = source_obj.matrix_world
         self.edge_loop_eds = []
         self.vert_loop_vs = []
         self.edge_loop_right = []
@@ -222,8 +227,7 @@ class EdgeSlide(object):
         self.world_right = []
         
         if self.source_name:
-            ob = bpy.data.objects[self.source_name]
-            mx_src = ob.matrix_world
+            mx_src = self.source_mx
             imx_src = mx_src.inverted()
             
         mx_trg = bpy.data.objects[self.target_name].matrix_world
@@ -241,7 +245,7 @@ class EdgeSlide(object):
                 self.vert_snaps_local += [v]
                 self.vert_snaps_world += [mx_trg * v]
             else:
-                loc, no, indx = ob.closest_point_on_mesh(imx_src * mx_trg * v)
+                loc, no, indx, d = self.src_bvh.find(imx_src * mx_trg * v)
                 self.vert_snaps_local += [imx_trg * mx_src * loc]
                 self.vert_snaps_world += [mx_src * loc]
                 self.world_right += [mx_trg * (v + self.edge_loop_right[i])]
@@ -264,6 +268,13 @@ class EdgeSlide(object):
             v.co = self.vert_snaps_local[i]
             
         return
+    
+    def update_trg_bvh(self, bme):
+        bme.faces.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.verts.ensure_lookup_table()
+        self.trg_bvh = BVHTree.FromBMesh(bme)
+        return self.trg_bvh
     
     def push_to_edit_mesh(self,bme):
         target_ob = bpy.data.objects[self.target_name]

@@ -27,6 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
+from mathutils.bvhtree import BVHTree
 import math
 
 
@@ -80,11 +81,24 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         ''' Called when tool has been invoked '''
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
-        self.trg_obj = get_target_object()
+        
         self.src_obj = get_source_object()
-        bpy.context.scene.update()
-        self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
-        self.edgeslide = EdgeSlide(context, self.trg_obj, self.src_obj)
+        self.src_mx = self.src_obj.matrix_world
+        self.src_bme = bmesh.new()
+        self.src_bme.from_object(self.src_obj, context.scene)
+        self.src_bvh = BVHTree.FromBMesh(self.src_bme)
+    
+        #bpy.context.scene.update() #why?
+        self.trg_obj = get_target_object()
+        self.trg_mx = self.trg_obj.matrix_world
+        self.trg_bme = bmesh.from_edit_mesh(self.trg_obj.data)
+        self.trg_bme.faces.ensure_lookup_table()
+        self.trg_bme.edges.ensure_lookup_table()
+        self.trg_bme.verts.ensure_lookup_table()
+        self.trg_bvh = BVHTree.FromBMesh(self.trg_bme)
+        
+        
+        self.edgeslide = EdgeSlide(context, self.trg_obj, self.trg_bvh, source_obj = self.src_obj, source_bvh = self.src_bvh)
         
         context.area.header_text_set('EDGE SLIDE')
         
@@ -93,7 +107,10 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         ''' Called when tool is ending modal '''
         bpy.ops.object.editmode_toggle()
         bpy.ops.object.editmode_toggle()
-        self.bme.free()
+        self.trg_bme.free()
+        self.src_bme.free
+        del self.src_bvh
+        del self.trg_bvh
         context.area.header_text_set()
         pass
     
@@ -113,6 +130,7 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
     def update(self,context, eventd):
         '''Place update stuff here'''
         self.edgeslide.move_loop(self.bme, select=True)
+        self.trg_bvh = self.edge_slide.update_trg_bvh(self.trg_bme)
         self.loopcut.push_to_edit_mesh(self.bme)
         self.loopcut.clear()
         return ''
