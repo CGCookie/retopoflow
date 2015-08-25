@@ -61,7 +61,7 @@ class Tweak_UI:
         self.post_update = True
 
         self.obj_orig = get_source_object()
-        self.mx = self.obj_orig.matrix_word
+        self.mx = self.obj_orig.matrix_world
         
         is_valid = is_object_valid(self.obj_orig)
         
@@ -92,7 +92,7 @@ class Tweak_UI:
         self.hover_ed = None
         
         
-        self.scale = self.obj.scale[0]
+        self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale

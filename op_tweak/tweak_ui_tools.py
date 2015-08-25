@@ -41,7 +41,7 @@ class Tweak_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        mx = self.obj.matrix_world
+        mx = self.obj_orig.matrix_world
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
