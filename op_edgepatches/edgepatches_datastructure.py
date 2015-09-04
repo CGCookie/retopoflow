@@ -144,7 +144,7 @@ class EPVert:
 
 class EPEdge:
     tessellation_count = 20
-    subdivision = 8
+    #subdivision = 8 #@JonDenning  Why are some things defined up here for the class vs the instance?
     def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
@@ -154,9 +154,11 @@ class EPEdge:
         self.l_ts = []
         self.eppatches = []
         
-        self.curve_verts = []
+        self.curve_verts = []  #these are mainly used for drawing at this point
         self.curve_norms = []
-        
+        self.edge_verts = [] #these are for patch making
+        self.edge_vert_norms = []
+        self.subdivision = 8
         epvert0.connect_epedge(self)
         epvert1.connect_epedge_inner(self)
         epvert2.connect_epedge_inner(self)
@@ -190,10 +192,13 @@ class EPEdge:
         
         #pr2 = profiler.start()
         lpos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(tessellation_count)) for i in range(tessellation_count+1)]
+        e_v_pos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(self.subdivision)) for i in range(self.subdivision+1)]
         #pr2.done()
 
         self.curve_verts = []
         self.curve_norms = []
+        self.edge_verts = []  #comment me out for cool looking stuff
+        self.edge_vert_norms = []  
         #pr2 = profiler.start()
         for pos in lpos:
             #pr3 = profiler.start()
@@ -201,6 +206,12 @@ class EPEdge:
             self.curve_verts.append(p)
             self.curve_norms.append(n)
             #pr3.done()
+        
+        for pos in e_v_pos:
+            #pr3 = profiler.start()
+            p,n,i = getClosestPoint(pos)
+            self.edge_verts.append(p)
+            self.edge_vert_norms.append(n)
         #pr2.done()
 
         #pr.done()
@@ -317,6 +328,14 @@ class EPPatch:
     def get_epverts(self):
         return [epe.epvert0 if fwd else epe.epvert3 for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
 
+    def get_edge_loops(self):
+        def get_verts(epe,fwd):
+            if fwd: return epe.edge_verts
+            ed_verts = epe.edge_verts.copy()
+            ed_verts.reverse()
+            return ed_verts
+        return [get_verts(epe,fwd) for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
+        
     def get_corner_locations(self):
         epvs = self.get_epverts()
         return [epv.snap_pos for epv in epvs]
@@ -361,6 +380,7 @@ class EPPatch:
         N = len(self.get_corner_locations())
         L, (n, fwd), pat, sol = self.patch.get_active_solution()
         c_vs = self.get_corner_locations()
+        ed_loops = self.get_edge_loops()
         
         print('%i Sided Patch' % N)
         print('Solved by pattern # %i' % pat)
@@ -374,12 +394,23 @@ class EPPatch:
             vs = c_vs[n:] + c_vs[:n]
             vs.reverse()
             vs = [vs[-1]] + vs[0:len(vs)-1]
+            ed_loops.reverse()
+            ed_loops = [ed_loops[-1]] + ed_loops[0:len(ed_loops)-1]
+            
+            new_loops = [ed_l.copy() for ed_l in ed_loops]
+            for ed_l in new_loops:
+                ed_l.reverse()
+                
+            ed_loops = new_loops
+            #ed_loops = [reversed(ed_l) for ed_l in ed_loops]
+            #who knows  
         else:
             vs = c_vs[n:] + c_vs[:n]
 
         vrts, fcs = [], []
         vars = self.patch.get_active_solution_variables()
         print(vars)
+        vs = ed_loops
         if N == 6:
             ps = vars[:6]
             if pat == 0:

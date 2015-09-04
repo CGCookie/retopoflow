@@ -188,6 +188,7 @@ class EdgePatches_UI_Draw():
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
             draw3d_polyline(epedge.curve_verts, color, 4, 'GL_LINE_SMOOTH')
+            draw3d_points(epedge.edge_verts, color, 8)
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
@@ -266,9 +267,19 @@ class EdgePatches_UI_Draw():
                 info_pt = epv.snap_pos
                 screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
                 info = str(i)
-                blf.position(0, screen_loc[0]+5, screen_loc[1]+5, 0)
-                blf.draw(0, info) 
-                   
+                blf.size(0,20,72)
+                blf.position(0, screen_loc[0]+10, screen_loc[1]+10, 0)
+                blf.draw(0,info) 
+                
+        #visualize the edge vertex indices
+        for epatch in self.edgepatches.eppatches:
+            for n, edge in enumerate(epatch.get_edge_loops()):
+                for i, v in enumerate(edge):
+                    screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, v)
+                    info = str(n) + ': ' + str(i)
+                    blf.size(0,12,72)
+                    blf.position(0, screen_loc[0]+5, screen_loc[1]+5, 0)
+                    blf.draw(0, info)           
         if self.fsm_mode == 'sketch':
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
