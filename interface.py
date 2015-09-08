@@ -69,9 +69,14 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
         
         if context.mode =='EDIT_MESH':
-            col.operator("cgcookie.tweak", icon='HAND')
-            col.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
-            col.operator("cgcookie.edge_slide", text='Edge Slide', icon='SNAP_EDGE')
+            if bversion() > '00.2.074.004':
+                tweaK_icon = icons.get("rf_tweak_icon")
+                loop_cut_icon = icons.get("rf_loopcut_icon")
+                edgeslide_icon = icons.get("rf_edgeslide_icon")
+
+                col.operator("cgcookie.tweak", icon_value=tweaK_icon.icon_id)
+                col.operator("cgcookie.loop_cut", text='Loop Cut', icon_value=loop_cut_icon.icon_id)
+                col.operator("cgcookie.edge_slide", text='Edge Slide', icon_value=edgeslide_icon.icon_id)
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
@@ -118,13 +123,25 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
             icons = load_icons()
             contours_icon = icons.get("rf_contours_icon")
             polystrips_icon = icons.get("rf_polystrips_icon")
+
             layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
             layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+
         else:
             layout.operator("cgcookie.contours", icon="IPO_LINEAR")
             layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
 
         if context.mode =='EDIT_MESH':
-            layout.operator("cgcookie.tweak", icon="HAND")
-            layout.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
+            if bversion() > '002.074.004':
+                icons = load_icons()
+                loopcut_icon = icons.get("rf_loopcut_icon")
+                edgeslide_icon = icons.get("rf_edgeslide_icon")
+                tweak_icon = icons.get("rf_tweak_icon")
+
+                layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
+                layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
+                layout.operator("cgcookie.edge_slide", text="Edge Slide", icon_value=edgeslide_icon.icon_id)
+            else:
+                layout.operator("cgcookie.tweak", icon="HAND")
+                layout.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
 
