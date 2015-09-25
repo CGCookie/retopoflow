@@ -36,6 +36,8 @@ from ..modaloperator import ModalOperator
 
 from ..lib import common_utilities
 
+from ..cache import mesh_cache
+
 from ..preferences import RetopoFlowPreferences
 
 
@@ -124,10 +126,11 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif not self.is_navigating:
             # draw the brush oriented to surface
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj, settings)
+            d, hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
+            
             hit_p3d,hit_norm,hit_idx = hit
-            if hit_idx != -1: # and not self.hover_ed:
-                mx = self.obj.matrix_world
+            if hit_p3d != None:
+                mx = self.mx
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
