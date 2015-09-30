@@ -162,25 +162,14 @@ class Contours(object):
             
         else:
             clear_mesh_cache()
-            
+            contour_undo_cache = []
             me = self.original_form.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
             me.update()
             bme = bmesh.new()
             bme.from_mesh(me)
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.original_form,bme, bvh)
-        
-        if self.settings.recover and is_valid:
-            print('loading cache!')
-            self.undo_action()
-            return
-        else:
-            print('no recover or not valid or something')
-            global contour_undo_cache
-            contour_undo_cache = []
-            
-        
-    
+         
     def mesh_data_gather_edit_mode(self,context):
         '''
         get references to object and object data
