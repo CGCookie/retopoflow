@@ -136,7 +136,7 @@ class Polystrips_UI:
             
                 bme = bmesh.new()
                 bme.from_mesh(me)
-                bvh = BVHTree.FromBMesh(self.bme)
+                bvh = BVHTree.FromBMesh(bme)
                 write_mesh_cache(self.obj_orig, bme, bvh)
             
             self.dest_obj = get_target_object()
@@ -144,8 +144,6 @@ class Polystrips_UI:
             self.snap_eds = [] #EXTEND
                    
             #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
-            
-            
             region, r3d = context.region, context.space_data.region_3d
             dest_mx = self.dest_obj.matrix_world
             rv3d = context.space_data.region_3d
