@@ -37,7 +37,7 @@ from ..lib.common_utilities import bversion, get_source_object, get_target_objec
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.common_classes import SketchBrush, TextBox
 from .. import key_maps
-from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
+from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 from .polystrips_datastructure import Polystrips, GVert
 
@@ -91,7 +91,8 @@ class Polystrips_UI:
                 #self.bvh = mesh_cache['bvh']
                 
             else:
-                clear_mesh_cache()           
+                clear_mesh_cache()
+                polystrips_undo_cache = []         
                 me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 me.update()
                 bme = bmesh.new()
@@ -131,6 +132,7 @@ class Polystrips_UI:
             
             else:
                 clear_mesh_cache()
+                polystrips_undo_cahce = []
                 me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 me.update()
             
@@ -168,10 +170,8 @@ class Polystrips_UI:
                                         self.obj_orig.dimensions.length)
 
         self.polystrips = Polystrips(context, self.obj_orig, self.dest_obj)
-        
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
         
-        self.polystrips_undo_cache = []  # Clear the cache in case any is left over
         
         # help file stuff
         my_dir = os.path.split(os.path.abspath(__file__))[0]
@@ -232,8 +232,8 @@ class Polystrips_UI:
 
         repeated_actions = {'count', 'zip count'}
 
-        if action in repeated_actions and len(self.polystrips_undo_cache):
-            if action == self.polystrips_undo_cache[-1][1]:
+        if action in repeated_actions and len(polystrips_undo_cache):
+            if action == polystrips_undo_cache[-1][1]:
                 dprint('repeatable...dont take snapshot')
                 return
 
@@ -254,16 +254,16 @@ class Polystrips_UI:
         else:
             act_gvert = None
 
-        self.polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
+        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
 
-        if len(self.polystrips_undo_cache) > self.settings.undo_depth:
-            self.polystrips_undo_cache.pop(0)
+        if len(polystrips_undo_cache) > self.settings.undo_depth:
+            polystrips_undo_cache.pop(0)
 
     def undo_action(self):
         '''
         '''
-        if len(self.polystrips_undo_cache) > 0:
-            data, action = self.polystrips_undo_cache.pop()
+        if len(polystrips_undo_cache) > 0:
+            data, action = polystrips_undo_cache.pop()
 
             self.polystrips = data[0]
 
