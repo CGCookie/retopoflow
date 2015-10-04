@@ -102,8 +102,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    if bversion() > '002.074.004':
-        clear_icons()
+    clear_icons()
 
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:
