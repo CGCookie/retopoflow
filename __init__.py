@@ -51,6 +51,7 @@ if bversion() >= '002.076.000':
     from .icons import clear_icons
     import bpy.utils.previews
 
+    from .icons import clear_icons
     #Tools
     from .op_polystrips.polystrips_modal import CGC_Polystrips
     from .op_contours.contours_modal import CGC_Contours
