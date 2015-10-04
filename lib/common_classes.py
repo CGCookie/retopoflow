@@ -150,6 +150,7 @@ class TextBox(object):
         
         #TODO text size settings?
         useful_width = self.width - 2 * self.border
+        print('>>> useful width = % 8.1f' % useful_width)
         
         # special case: no newlines and we fit already!
         if '\n' not in self.raw_text and self.txt_width(self.raw_text) < useful_width:
@@ -193,6 +194,9 @@ class TextBox(object):
                     lines += [working]
                     working = '  ' + word.strip() # lead with exactly two spaces
             lines += [working]
+            
+            for line in lines:
+                print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
             
             return lines
         
