@@ -63,6 +63,7 @@ class TextBox(object):
         self.format_and_wrap_text()
         
         #print('>>> dpi: %f' % self.text_dpi)
+        self.window_dims = (context.window.width, context.window.height)
         
     def hover(self,mouse_x, mouse_y):
         regOverlap = bpy.context.user_preferences.system.use_region_overlap
@@ -229,6 +230,9 @@ class TextBox(object):
     def draw(self):
         regOverlap = bpy.context.user_preferences.system.use_region_overlap
         
+        if (bpy.context.window.width, bpy.context.window.height) != self.window_dims:
+            self.snap_to_corner(bpy.context, corner = [1,1])
+            self.window_dims = (bpy.context.window.width, bpy.context.window.height)
         bgcol = bpy.context.user_preferences.themes[0].user_interface.wcol_menu_item.inner
         bgR = bgcol[0]
         bgG = bgcol[1]
