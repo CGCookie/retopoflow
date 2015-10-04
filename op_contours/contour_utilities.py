@@ -719,6 +719,8 @@ def point_inside_loop2d(loop, point):
     ptype = str(type(point))
     ltype = str(type(loop[0]))
     nverts = len(loop)
+    
+    if any(not v for v in loop): return False
            
     if 'Vector' not in ptype:
         point = Vector(point)
@@ -2291,8 +2293,8 @@ def cross_section_seed_ver1(bme, mx,
         pt += no * shift_dist
         print('>>> shifting')
         print('>>> ' + str(ld))
-        print('>>> ' + shift_dist)
-        print('>>> ' + no*shift_dist)
+        print('>>> ' + str(shift_dist))
+        print('>>> ' + str(no*shift_dist))
     
     # find intersections of edges and cutting plane
     bmface = bme.faces[seed_index]

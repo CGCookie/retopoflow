@@ -25,6 +25,7 @@ import math
 import time
 from mathutils import Vector, Quaternion
 from mathutils.geometry import intersect_point_line, intersect_line_plane
+from mathutils.bvhtree import BVHTree
 
 # Blender imports
 import bgl
@@ -35,13 +36,955 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Common imports
 from . import contour_utilities
-from .lib import common_utilities, common_drawing
+from ..lib import common_utilities, common_drawing_px, common_drawing_view
+from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
+from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 #from development.cgc-retopology import contour_utilities
 
 #Make the addon name and location accessible
 AL = common_utilities.AddonLocator()
 
+class Contours(object):
+    def __init__(self,context, settings):
+        self.settings = settings
+        
+        self.verts = []
+        self.edges = []
+        self.faces = []
+        
+        self.cut_lines = []
+        self.cut_paths = []
+        self.sketch = []
+        
+        self.mode = 'loop'
+        self.hover_target = None
+        self.sel_loop = None
+        self.force_new = False
+        
+        self.stroke_smoothing = .5
+        self.segments = settings.vertex_count
+        self.guide_cuts = settings.ring_count
+        
+        if context.mode == 'OBJECT':
+            self.mesh_data_gather_object_mode(context)
+        elif 'EDIT' in context.mode:
+            self.mesh_data_gather_edit_mode(context) 
+            
+        #potential item for snapping in 
+        self.snap = []
+        self.snap_circle = []
+        
+        handle_color = settings.theme_colors_active[settings.theme]
+        self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
+   
+        if len(self.cut_paths) == 0:
+            self.sel_path = None   #TODO: change this to selected_segment
+        else:
+            self.sel_path = self.cut_paths[-1] #this would be an existing path from selected geom in editmode
+        
+        self.cut_line_widget = None  #An object of Class "CutLineManipulator" or None
+        self.widget_interaction = False  #Being in the state of interacting with a widget o
+        self.hot_key = None  #Keep track of which hotkey was pressed
+        self.draw = False  #Being in the state of drawing a guide stroke
+        self.last_matrix = None
+              
+    def new_destination_obj(self,context,name, mx):
+        '''
+        creates new object for mesh data to enter
+        '''
+        dest_me = bpy.data.meshes.new(name)
+        dest_ob = bpy.data.objects.new(name,dest_me) #this is an empty currently
+        dest_ob.matrix_world = mx
+        dest_ob.update_tag()
+        dest_bme = bmesh.new()
+        dest_bme.from_mesh(dest_me)
+        
+        return dest_ob, dest_me, dest_bme
+    
+    #def tmp_obj_and_triangulate(self,context, bme, ngons, mx):
+    #    '''
+    #    ob -  input object
+    #    bme - bmesh extracted from input object <- this will be modified by triangulation
+    #    ngons - list of bmesh faces that are ngons
+    
+        
+    #    if len(ngons):
+    #        new_geom = bmesh.ops.triangulate(bme, faces = ngons, quad_method=0, ngon_method=1)
+    #        new_faces = new_geom['faces']
+
+    #    new_me = bpy.data.meshes.new('tmp_recontour_mesh')
+    #    bme.to_mesh(new_me)
+    #    new_me.update()
+    #    tmp_ob = bpy.data.objects.new('ContourTMP', new_me)
+        
+        #ob must be linked to scene for ray casting?
+    #    context.scene.objects.link(tmp_ob)
+    #    tmp_ob.update_tag()
+    #    context.scene.update()
+        #however it can be unlinked to prevent user from seeing it?
+    #    context.scene.objects.unlink(tmp_ob)
+    #    tmp_ob.matrix_world = mx
+        
+    #    return tmp_ob
+    
+    def mesh_data_gather_object_mode(self,context):
+        '''
+        get references to object and object data
+        '''
+        
+        self.settings = common_utilities.get_settings()
+        target_object = get_target_object()
+
+        self.sel_edge = None
+        self.sel_verts = None
+        self.existing_cut = None
+        self.original_form = get_source_object()
+        self.mx = self.original_form.matrix_world
+        
+        name = self.original_form.name + '_recontour'
+        
+        if self.settings.target_object:
+            self.dest_ob = bpy.data.objects[self.settings.target_object]
+            self.dest_me = self.dest_ob.data
+            self.dest_bme = bmesh.new()
+            self.dest_bme.from_mesh(self.dest_me)
+        else:
+            self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, self.original_form.matrix_world)
+        
+        is_valid = is_object_valid(self.original_form)
+        
+        if is_valid:
+            #don't need to do anything
+            pass
+            #self.bme = mesh_cache['bme']            
+            #self.bvh = mesh_cache['bvh']
+            
+        else:
+            clear_mesh_cache()
+            contour_undo_cache = []
+            me = self.original_form.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
+            me.update()
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.original_form,bme, bvh)
+         
+    def mesh_data_gather_edit_mode(self,context):
+        '''
+        get references to object and object data
+        '''
+        
+        self.dest_ob = context.object        
+        self.dest_me = self.dest_ob.data
+        self.dest_bme = bmesh.from_edit_mesh(self.dest_me)
+        
+        ob = get_source_object()
+        self.original_form = ob
+        self.mx = self.original_form.matrix_world
+        is_valid = is_object_valid(ob)
+    
+        if is_valid:
+            pass
+            #self.bme = mesh_cache['bme']            
+            #self.bvh = mesh_cache['bvh']
+        else:
+            clear_mesh_cache()
+            me = ob.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+            me.update()
+            
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.original_form, bme, bvh)
+        
+        if self.settings.recover and is_valid:
+            print('loading cache!')
+            self.undo_action()
+            return
+        
+        else:
+            global contour_undo_cache
+            contour_undo_cache = []
+            
+            
+        #count and collect the selected edges if any
+        ed_inds = [ed.index for ed in self.dest_bme.edges if ed.select and len(ed.link_faces) < 2]
+        
+        self.existing_loops = []
+        if len(ed_inds):
+            vert_loops = contour_utilities.edge_loops_from_bmedges(self.dest_bme, ed_inds)
+
+            if len(vert_loops) > 1:
+                print('there are %i edge loops selected' % len(vert_loops))
+            
+            for loop in vert_loops: #multi loop support
+            #loop = vert_loops[0] #until multi loops are supported, do this 
+                if loop[-1] != loop[0] and len(list(set(loop))) != len(loop):
+                    print('Edge loop selection has extra parts!  Excluding this loop')
+                    
+                else:
+                    lverts = [self.dest_bme.verts[i] for i in loop]
+                    
+                    existing_loop =ExistingVertList(context,
+                                                    lverts, 
+                                                    loop, 
+                                                    self.dest_ob.matrix_world,
+                                                    key_type = 'INDS')
+                    
+                    #make a blank path with just an existing head
+                    path = ContourCutSeries(context, [],
+                                    cull_factor = self.settings.cull_factor, 
+                                    smooth_factor = self.settings.smooth_factor,
+                                    feature_factor = self.settings.feature_factor)
+                
+                    
+                    path.existing_head = existing_loop
+                    path.seg_lock = False
+                    path.ring_lock = True
+                    path.ring_segments = len(existing_loop.verts_simple)
+                    path.connect_cuts_to_make_mesh(mesh_cache['bvh'],self.mx)
+                    
+                    
+                    self.cut_paths.append(path)
+                    self.existing_loops.append(existing_loop)       
+            
+    def finish_mesh(self, context):
+        back_to_edit = (context.mode == 'EDIT_MESH')
+                    
+        #This is where all the magic happens
+        print('pushing data into bmesh')
+        for path in self.cut_paths:
+            path.push_data_into_bmesh(context, self.dest_ob, self.dest_bme, self.original_form, self.dest_me)
+        
+        if back_to_edit:
+            print('updating edit mesh')
+            bmesh.update_edit_mesh(self.dest_me, tessface=False, destructive=True)
+        
+        else:
+            #write the data into the object
+            print('write data into the object')
+            self.dest_bme.to_mesh(self.dest_me)
+        
+            #remember we created a new object
+            if not self.settings.target_object:
+                print('link destination object')
+                context.scene.objects.link(self.dest_ob)
+            
+            print('select and make active')
+            self.dest_ob.select = True
+            context.scene.objects.active = self.dest_ob
+            
+            if context.space_data.local_view:
+                view_loc = context.space_data.region_3d.view_location.copy()
+                view_rot = context.space_data.region_3d.view_rotation.copy()
+                view_dist = context.space_data.region_3d.view_distance
+                bpy.ops.view3d.localview()
+                bpy.ops.view3d.localview()
+                #context.space_data.region_3d.view_matrix = mx_copy
+                context.space_data.region_3d.view_location = view_loc
+                context.space_data.region_3d.view_rotation = view_rot
+                context.space_data.region_3d.view_distance = view_dist
+                context.space_data.region_3d.update()
+    
+        return
+    
+    def create_undo_snapshot(self, action):
+        '''
+        saves data and operator state snapshot
+        for undoing
+        
+        TODO:  perhaps pop/append are not fastest way
+        deque?
+        prepare a list and keep track of which entity to
+        replace?
+        '''
+        
+        repeated_actions = {'LOOP_SHIFT', 'PATH_SHIFT', 'PATH_SEGMENTS', 'LOOP_SEGMENTS'}
+        
+        if action in repeated_actions:
+            if action == contour_undo_cache[-1][2]:
+                print('repeatable...dont take snapshot')
+                return
+        
+        print('undo: ' + action)    
+        cut_data = copy.deepcopy(self.cut_paths)
+        #perhaps I don't even need to copy this?
+        state = copy.deepcopy(ContourStatePreserver(self))
+        contour_undo_cache.append((cut_data, state, action))
+            
+        if len(contour_undo_cache) > self.settings.undo_depth:
+            contour_undo_cache.pop(0)
+            
+    def undo_action(self):
+        if len(contour_undo_cache) > 0:
+            cut_data, op_state, action = contour_undo_cache.pop()
+            
+            self.cut_paths = cut_data
+            op_state.push_state(self)
+        
+    def new_path_from_draw(self,context,settings):
+        '''
+        package all the steps needed to make a new path
+        TODO: What if errors?
+        '''
+
+        path = ContourCutSeries(context, self.sketch,
+                                    segments = settings.ring_count,
+                                    ring_segments = settings.vertex_count,
+                                    cull_factor = settings.cull_factor, 
+                                    smooth_factor = settings.smooth_factor,
+                                    feature_factor = settings.feature_factor)
+        
+        
+        path.ray_cast_path(context, self.mx)
+        if len(path.raw_world) == 0:
+            print('NO RAW PATH')
+            return None
+        
+        self.create_undo_snapshot('NEW_PATH')
+        path.find_knots()
+        
+        if self.snap != [] and not self.force_new:
+            merge_series = self.snap[0]
+            merge_ring = self.snap[1]
+            
+            path.snap_merge_into_other(merge_series, merge_ring, context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+            
+            return merge_series
+
+        path.smooth_path(context, bvh = mesh_cache['bvh'], mx = self.mx)
+        path.create_cut_nodes(context)
+        path.snap_to_object(mesh_cache['bvh'], self.mx, raw = False, world = False, cuts = True)
+        path.cuts_on_path(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+        path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        path.backbone_from_cuts(context,mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+        if path.cuts:
+            # TODO: should this ever be empty?
+            path.cuts[-1].do_select(self.settings)
+        
+        self.cut_paths.append(path)
+        return path
+
+    def sketch_confirm(self,context):
+        #make sure we meant it
+        if len(self.sketch) < 10:
+            print('too short!')
+            return
+        
+        for path in self.cut_paths:
+            path.deselect(self.settings)
+        
+        print('attempt a new path')                    
+        self.sel_path  = self.new_path_from_draw(context, self.settings)
+        if self.sel_path:
+            print('a new path was made')
+            self.sel_path.do_select(self.settings)
+            if self.sel_path.cuts:
+                self.sel_cut = self.sel_path.cuts[-1]
+            else:
+                self.sel_cut = None
+            if self.sel_cut:
+                self.sel_cut.do_select(self.settings)
+        self.force_new = False
+        print('we deselected everyting')
+        self.sketch = []
+ 
+    def click_new_cut(self,context, settings, x,y):
+        self.create_undo_snapshot('NEW')
+        stroke_color = settings.theme_colors_active[settings.theme]
+        mesh_color = settings.theme_colors_mesh[settings.theme]
+
+        new_cut = ContourCutLine(x, y)
+        
+        for path in self.cut_paths:
+            for cut in path.cuts:
+                cut.deselect(settings)
+                
+        new_cut.do_select(settings)
+        self.cut_lines.append(new_cut)
+        
+        return new_cut
+           
+    def release_place_cut(self,context,settings, x, y):
+
+        self.sel_loop.tail.x = x
+        self.sel_loop.tail.y = y
+
+        width = Vector((self.sel_loop.head.x, self.sel_loop.head.y)) - Vector((x,y))
+
+        #prevent small errant strokes
+        if width.length in range(5, 20): #TODO: Setting for minimum pixel width
+            self.cut_lines.remove(self.sel_loop)
+            self.sel_loop = None
+            showErrorMessage('The drawn cut must be more than 20 pixels')
+            return
+
+        elif width.length < 5:
+            self.cut_lines.remove(self.sel_loop)
+            # self.sel_loop = None
+            return
+        else: 
+            #hit the mesh for the first time
+            hit = self.sel_loop.hit_object(context, mesh_cache['bvh'], self.mx, method = 'VIEW')
+
+            if not hit:
+                self.cut_lines.remove(self.sel_loop)
+                self.sel_loop = None
+                showErrorMessage('The middle of the cut must be over the object!')
+
+                return
+
+            self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+            self.sel_loop.simplify_cross(self.segments)
+            self.sel_loop.update_com()
+            self.sel_loop.update_screen_coords(context)
+            self.sel_loop.head = None
+            self.sel_loop.tail = None
+
+            if not len(self.sel_loop.verts) or not len(self.sel_loop.verts_simple):
+                self.sel_loop = None
+                showErrorMessage('The cut failed for some reason, most likely topology, try again and report bug')
+                return
+
+
+            if settings.debug > 1:
+                print('release_place_cut')
+                print('len(self.cut_paths) = %d' % len(self.cut_paths))
+                print('self.force_new = ' + str(self.force_new))
+
+            if self.cut_paths != [] and not self.force_new:
+                for path in self.cut_paths:
+                    if path.insert_new_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, search = settings.search_factor):
+                        #the cut belongs to the series now
+                        path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+                        path.seg_lock = True
+                        path.do_select(settings)
+                        path.unhighlight(settings)
+                        self.sel_path = path
+                        self.cut_lines.remove(self.sel_loop)
+                        for other_path in self.cut_paths:
+                            if other_path != self.sel_path:
+                                other_path.deselect(settings)
+                        # no need to search for more paths
+                        return
+
+            #create a blank segment
+            path = ContourCutSeries(context, [],
+                            cull_factor = settings.cull_factor,
+                            smooth_factor = settings.smooth_factor,
+                            feature_factor = settings.feature_factor)
+
+            path.insert_new_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, search = settings.search_factor)
+            path.seg_lock = False  #not locked yet...not until a 2nd cut is added in loop mode
+            path.segments = 1
+            path.ring_segments = len(self.sel_loop.verts_simple)
+            path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+
+            for other_path in self.cut_paths:
+                other_path.deselect(settings)
+
+            self.cut_paths.append(path)
+            self.sel_path = path
+            path.do_select(settings)
+
+            self.cut_lines.remove(self.sel_loop)
+            self.force_new = False
+
+            return
+
+    #### Hover and Selection####
+    def hover_guide_mode(self,context, settings, x, y):
+        '''
+        handles mouse selection, hovering, highlighting
+        and snapping when the mouse moves in guide
+        mode
+        '''
+        
+        rv3d = context.space_data.region_3d
+        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
+        if hit[0]:
+            loc = self.mx * hit[0] #< it's ok if this is none
+        else:
+            loc = None
+            
+        handle_color = settings.theme_colors_active[settings.theme]
+
+        #identify hover target for highlighting
+        if self.cut_paths != []:
+            target_at_all = False
+            breakout = False
+            for path in self.cut_paths:
+                if not path.select:
+                    path.unhighlight(settings)
+                for c_cut in path.cuts:                    
+                    h_target = c_cut.active_element(context,x,y,loc)
+                    if h_target:
+                        path.highlight(settings)
+                        target_at_all = True
+                        self.hover_target = path
+                        breakout = True
+                        break
+                
+                if breakout:
+                    break
+                                  
+            if not target_at_all:
+                self.hover_target = None
+        
+        #assess snap points
+        if self.cut_paths != [] and not self.force_new:
+            rv3d = context.space_data.region_3d
+            breakout = False
+            snapped = False
+            for path in self.cut_paths:
+                
+                end_cuts = []
+                if not path.existing_head and len(path.cuts):
+                    end_cuts.append(path.cuts[0])
+                if not path.existing_tail and len(path.cuts):
+                    end_cuts.append(path.cuts[-1])
+                    
+                if path.existing_head and not len(path.cuts):
+                    end_cuts.append(path.existing_head)
+                    
+                for n, end_cut in enumerate(end_cuts):
+                    #potential verts to snap to
+                    snaps = [v for i, v in enumerate(end_cut.verts_simple)] #if end_cut.verts_simple_visible[i]]
+                    #the screen versions os those
+                    screen_snaps = [location_3d_to_region_2d(context.region,rv3d,snap) for snap in snaps]
+                    
+                    mouse = Vector((x,y))
+                    dists = [(mouse - snap).length for snap in screen_snaps]
+                    
+                    if len(dists):
+                        best = min(dists)
+                        if best < 2 * settings.extend_radius and best > 4: #TODO unify selection mouse pixel radius.
+
+                            best_vert = screen_snaps[dists.index(best)]
+                            view_z = rv3d.view_rotation * Vector((0,0,1))
+                            if view_z.dot(end_cut.plane_no) > -.75 and view_z.dot(end_cut.plane_no) < .75:
+
+                                imx = rv3d.view_matrix.inverted()
+                                normal_3d = imx.transposed() * end_cut.plane_no
+                                if n == 1 or len(end_cuts) == 1:
+                                    normal_3d = -1 * normal_3d
+                                screen_no = Vector((normal_3d[0],normal_3d[1]))
+                                angle = math.atan2(screen_no[1],screen_no[0]) - 1/2 * math.pi
+                                left = angle + math.pi
+                                right =  angle
+                                self.snap = [path, end_cut]
+                                
+                                if end_cut.desc == 'CUT_LINE' and len(path.cuts) > 1:
+    
+                                    self.snap_circle = contour_utilities.pi_slice(best_vert[0],best_vert[1],settings.extend_radius,.1 * settings.extend_radius, left,right, 20,t_fan = True)
+                                    self.snap_circle.append(self.snap_circle[0])
+                                else:
+                                    self.snap_circle = contour_utilities.simple_circle(best_vert[0], best_vert[1], settings.extend_radius, 20)
+                                    self.snap_circle.append(self.snap_circle[0])
+                                    
+                                breakout = True
+                                if best < settings.extend_radius:
+                                    snapped = True
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 1.00)
+                                    
+                                else:
+                                    alpha = 1 - best/(2*settings.extend_radius)
+                                    self.snap_color = (handle_color[0], handle_color[1], handle_color[2], 0.50)
+                                    
+                                break
+                        
+                    if breakout:
+                        break
+                    
+            if not breakout:
+                self.snap = []
+                self.snap_circle = []
+                
+    def hover_loop_mode(self,context, settings, x,y):
+        '''
+        Handles mouse selection and hovering
+        '''
+        rv3d = context.space_data.region_3d
+        d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
+        if hit[0]:
+            loc = self.mx * hit[0] #< it's ok if this is none
+        else:
+            loc = None
+        #identify hover target for highlighting
+        if self.cut_paths != []:
+            new_target = False
+            target_at_all = False
+            
+            for path in self.cut_paths:
+                for c_cut in path.cuts:
+                    if not c_cut.select:
+                        c_cut.unhighlight(settings) 
+                    
+                    h_target = c_cut.active_element(context,x,y,loc)
+                    if h_target:
+                        c_cut.highlight(settings)
+                        target_at_all = True
+                         
+                        if (h_target != self.hover_target) or (h_target.select and not self.cut_line_widget):
+                            
+                            self.hover_target = h_target
+                            if self.hover_target.desc == 'CUT_LINE':
+
+                                if self.hover_target.select:
+                                    for possible_parent in self.cut_paths:
+                                        if self.hover_target in possible_parent.cuts:
+                                            parent_path = possible_parent
+                                            break
+                                    
+                                    #spawn a new widget        
+                                    self.cut_line_widget = CutLineManipulatorWidget(context, 
+                                                                                    settings,
+                                                                                    mesh_cache['bme'], mesh_cache['bvh'], self.mx,
+                                                                                    self.hover_target,
+                                                                                    parent_path,
+                                                                                    x,
+                                                                                    y)
+                                    self.cut_line_widget.derive_screen(context)
+                                
+                                else:
+                                    self.cut_line_widget = None
+                            
+                        else:
+                            if self.cut_line_widget:
+                                self.cut_line_widget.x = x
+                                self.cut_line_widget.y = y
+                                self.cut_line_widget.derive_screen(context)
+                    #elif not c_cut.select:
+                        #c_cut.geom_color = (settings.geom_rgb[0],settings.geom_rgb[1],settings.geom_rgb[2],1)          
+            if not target_at_all:
+                self.hover_target = None
+                self.cut_line_widget = None    
+
+    #### Non Interactive/Non Data Operators###
+    
+    def mode_set_guide(self):
+        self.sel_loop = None  #because loop may not exist after path level operations like changing n_rings
+        if self.sel_path:
+            self.sel_path.highlight(self.settings)  
+    
+    def mode_set_loop(self):
+        self.snap = []
+        self.snap_circle = []
+        
+        for path in self.cut_paths:
+            for cut in path.cuts:
+                cut.deselect(self.settings)
+        if self.sel_path and len(self.sel_path.cuts):
+            self.sel_loop = self.sel_path.cuts[-1]
+            self.sel_path.cuts[-1].do_select(self.settings)
+        
+    #### Segment Operators####
+    
+    def segment_shift(self,context, up = True, s = 0.05):
+        self.create_undo_snapshot('PATH_SHIFT')     
+        for cut in self.sel_path.cuts:
+            cut.shift += (-1 + 2 * up) * s
+            cut.simplify_cross(self.sel_path.ring_segments)
+                                
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+
+        
+    def segment_n_loops(self,context, path, n):
+        if n < 3: return
+        if not path.seg_lock:
+            self.create_undo_snapshot('PATH_SEGMENTS')
+            path.segments = n
+            path.create_cut_nodes(context)
+            path.snap_to_object(mesh_cache['bvh'], self.mx, raw = False, world = False, cuts = True)
+            path.cuts_on_path(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+            path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+            path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+    
+    def segment_smooth(self,context, settings):
+        method = settings.smooth_method
+        if method not in {'PATH_NORMAL','CENTER_MASS','ENDPOINT'}: return
+        
+        self.create_undo_snapshot('SMOOTH')
+        if method == 'PATH_NORMAL':
+            #path.smooth_normals
+            self.sel_path.average_normals(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+            #self.temporary_message_start(context, 'Smooth normals based on drawn path')
+            
+        elif method == 'CENTER_MASS':
+            #smooth CoM path
+            #self.temporary_message_start(context, 'Smooth normals based on CoM path')
+            self.sel_path.smooth_normals_com(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, iterations = 2)
+        
+        elif method == 'ENDPOINT':
+            #path.interpolate_endpoints
+            #self.temporary_message_start(context, 'Smoothly interpolate normals between the endpoints')
+            self.sel_path.interpolate_endpoints(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+       
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.sel_path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx) 
+                   
+    def cursor_to_segment(self, context):
+        half = math.floor(len(self.sel_path.cuts)/2)
+                            
+        if math.fmod(len(self.sel_path.cuts), 2):  #5 segments is 6 rings
+            loc = 0.5 * (self.sel_path.cuts[half].plane_com + self.sel_path.cuts[half+1].plane_com)
+        else:
+            loc = self.sel_path.cuts[half].plane_com
+                            
+        context.scene.cursor_location = loc
+    
+    #### Loop/Cut  Operators####
+    
+    def loop_select(self,context,eventd):
+        
+        if self.hover_target and self.hover_target != self.sel_loop:
+                        
+            self.sel_loop = self.hover_target    
+            if not eventd['shift']:
+                for path in self.cut_paths:
+                    for cut in path.cuts:
+                        cut.deselect(self.settings)  
+                    if self.sel_loop in path.cuts and path != self.sel_path:
+                            path.do_select(self.settings)
+                            path.unhighlight(self.settings) #TODO, don't highlight in loop mode
+                            self.sel_path = path
+                    else:
+                        path.deselect(self.settings)
+                          
+            #select the ring
+            self.hover_target.do_select(self.settings)
+            
+            return True
+        else:
+            return False
+    
+    def guide_mode_select(self):
+        if self.hover_target and self.hover_target.desc == 'CUT SERIES':
+            self.hover_target.do_select(self.settings)
+            self.sel_path = self.hover_target
+                
+            for path in self.cut_paths:
+                if path != self.hover_target:
+                    path.deselect(self.settings)
+                                                   
+    def loop_shift(self,context,eventd, shift = 0.05, up = True, undo = True):    
+        if undo:
+            self.create_undo_snapshot('LOOP_SHIFT')
+            
+        self.sel_loop.shift += shift * (-1 + 2 * up)
+        self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        
+        for path in self.cut_paths:
+            if self.sel_loop in path.cuts:
+                path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+                path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, insert = False)
+               
+    def loop_nverts_change(self, context, eventd, n):
+        if n < 3:
+            n = 3
+            
+        self.create_undo_snapshot('RING_SEGMENTS')  
+        
+        for path in self.cut_paths:
+            if self.sel_loop in path.cuts:
+                if not path.ring_lock:
+                    old_segments = path.ring_segments
+                    path.ring_segments = n
+                        
+                    for cut in path.cuts:
+                        new_bulk_shift = round(cut.shift * old_segments/path.ring_segments)
+                        new_fine_shift = old_segments/path.ring_segments * cut.shift - new_bulk_shift
+                        
+                        
+                        new_shift =  path.ring_segments/old_segments * cut.shift
+                        
+                        print(new_shift - new_bulk_shift - new_fine_shift)
+                        cut.shift = new_shift
+                        cut.simplify_cross(path.ring_segments)
+                    
+                    path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)    
+                    path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+                    
+                    #self.temporary_message_start(context, 'RING SEGMENTS %i' %path.ring_segments)
+                    self.msg_start_time = time.time()
+                #else:
+                    #self.temporary_message_start(context, 'RING SEGMENTS: Can not be changed.  Path Locked')
+        
+    def loop_align(self,context, eventd, undo = True):
+        
+        if undo:
+            self.create_undo_snapshot('ALIGN')
+        #if not event.ctrl and not event.shift:
+        act = 'BETWEEN'
+        #act = 'FORWARD'
+        #act = 'BACKWARD'
+            
+        self.sel_path.align_cut(self.sel_loop, mode = act, fine_grain = True)
+        self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.sel_path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, insert = False)
+        
+    def loops_delete(self,context,loops, undo = True):
+        '''
+        removes a cut from a path
+        if it's the only cut, removes the whole path
+        ready for multipl selected cuts: TODO test
+        '''
+        if undo:
+            self.create_undo_snapshot('DELETE')
+        
+        #Identify the paths
+        update_paths = set()
+        remove_paths = set()
+        for loop in loops:
+            for path in self.cut_paths:
+                if loop in path.cuts:
+                    if len(path.cuts) > 1 or len(path.cuts) == 1 and path.existing_head:
+                        path.remove_cut(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, loop)
+                        if path not in update_paths:
+                            update_paths.add(path)
+                            
+                        
+                        
+                    else:
+                        if path not in remove_paths:
+                            remove_paths.add(path)
+        for u_path in update_paths - remove_paths:
+            u_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+            u_path.backbone_from_cuts(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)                
+        
+        
+        for r_path in remove_paths:
+            
+            self.cut_paths.remove(r_path)
+            
+        self.sel_path = None
+        self.sel_loop = None
+    
+    
+    ####Interactive/Modal Operators
+    
+    def prepare_rotate(self,context, eventd, undo = True):
+        '''
+        TODO path from selected loop
+        '''
+        if undo:
+            self.create_undo_snapshot('ROTATE')
+        
+        #TODO...if CoM is off screen, then what?
+        x,y = eventd['mouse']
+        screen_pivot = location_3d_to_region_2d(context.region,context.space_data.region_3d,self.sel_loop.plane_com)
+        self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
+                                                        mesh_cache['bme'], mesh_cache['bvh'], self.mx,
+                                                        self.sel_loop,
+                                                        self.sel_path,
+                                                        screen_pivot[0],screen_pivot[1],
+                                                        hotkey = True)
+        self.cut_line_widget.transform_mode = 'ROTATE_VIEW'
+        self.cut_line_widget.initial_x = x
+        self.cut_line_widget.initial_y = y
+        self.cut_line_widget.derive_screen(context)
+        
+    def prepare_translate(self,context, eventd, undo = True):
+        '''
+        TODO path from selected loop
+        '''
+        if undo:
+            self.create_undo_snapshot('EDGE_SLIDE')
+        
+        x,y = eventd['mouse']
+        self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
+                                                        mesh_cache['bme'], mesh_cache['bvh'], self.mx, 
+                                                        self.sel_loop,
+                                                        self.sel_path,
+                                                        x,y,
+                                                        hotkey = True)
+        self.cut_line_widget.transform_mode = 'EDGE_SLIDE'    
+        self.cut_line_widget.initial_x = x
+        self.cut_line_widget.initial_y = y
+        self.cut_line_widget.derive_screen(context)
+    
+    def prepare_widget(self, eventd):
+        '''
+        widget already exists
+        '''
+        self.create_undo_snapshot('WIDGET_TRANSFORM')
+        self.cut_line_widget.derive_screen(eventd['context'])
+        
+    def widget_transform(self,context,settings, eventd):
+        
+        x,y = eventd['mouse']
+        shft = eventd['shift']
+        self.cut_line_widget.user_interaction(context, x, y, shift = shft)
+        
+        self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+        self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        self.sel_loop.update_com()
+        self.sel_path.align_cut(self.sel_loop, mode = 'BETWEEN', fine_grain = True)
+        
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        
+        #self.temporary_message_start(context, 'WIDGET_TRANSFORM: ' + str(self.cut_line_widget.transform_mode))    
+
+    def widget_cancel(self,context):
+        self.cut_line_widget.cancel_transform()
+        self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
+        self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        self.sel_loop.update_com()  
+        self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+
+    
+    def draw_post_pixel(self,context):
+
+        r3d = context.space_data.region_3d
+        if context.space_data.use_occlude_geometry:
+            new_matrix = [v for l in r3d.view_matrix for v in l]
+            #if new_matrix != self.last_matrix:
+                #for path in self.cut_paths:
+                    #path.update_visibility(context, self.original_form)
+                    #for cut_line in path.cuts:
+                        #cut_line.update_visibility(context, self.original_form)
+                            
+            self.post_update = False
+            self.last_matrix = new_matrix
+            
+    
+        for i, c_cut in enumerate(self.cut_lines):
+            if self.widget_interaction and self.drag_target == c_cut:
+                interact = True
+            else:
+                interact = False
+            
+            c_cut.draw2d(context, self.settings)#,three_dimensional = self.navigating, interacting = interact)
+    
+            if c_cut.verts_simple != [] and self.settings.show_cut_indices:
+                loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, c_cut.verts_simple[0])
+                blf.position(0, loc[0], loc[1], 0)
+                blf.draw(0, str(i))
+    
+    
+        if self.cut_line_widget and self.settings.draw_widget:
+            self.cut_line_widget.draw(context)
+            
+        if len(self.sketch):
+            common_drawing_px.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_SMOOTH")
+            
+        if len(self.cut_paths):
+            for path in self.cut_paths:
+                path.draw2d(context, path = False, nodes = self.settings.show_nodes, rings = True, follows = True, backbone = self.settings.show_backbone    )
+                
+        if len(self.snap_circle):
+            common_drawing_px.draw_polyline_from_points(context, self.snap_circle, self.snap_color, 2, "GL_LINE_SMOOTH")
+
+    def draw_post_view(self,context):
+        if len(self.cut_paths):
+            for path in self.cut_paths:
+                path.draw3d(context, self.original_form.matrix_world)
+        
+        return
+    
 class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, SegmentCuts, SegmentCutSeries?
     def __init__(self, context, raw_points,
                  segments = 5,  #TODO:  Rename for nomenclature consistency
@@ -114,27 +1057,18 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         self.is_highlighted = False
         self.line_thickness = settings.line_thick      
                
-    def ray_cast_path(self,context, ob):
-        region = context.region
-        rv3d = context.space_data.region_3d
-        mx = ob.matrix_world
+    def ray_cast_path(self,context, mx):
+        bvh = mesh_cache['bvh']
         settings = common_utilities.get_settings()
-        rc = common_utilities.ray_cast_region2d
-        hits = [rc(region,rv3d,v,ob,settings)[1] for v in self.raw_screen]
-        self.raw_world = [mx*hit[0] for hit in hits if hit[2] != -1]
-        
+        self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen)
         if settings.debug > 1:
             print('ray_cast_path missed %d/%d points' % (len(self.raw_screen) - len(self.raw_world), len(self.raw_screen)))
         
-    def smooth_path(self,context, ob = None):
+    def smooth_path(self,context, bvh = None, mx = None):
         
         #clear the world path if need be
         self.world_path = []
-        
-        if ob:
-            mx = ob.matrix_world
-            imx = mx.inverted()
-            
+                    
         if len(self.knots) > 2:
             
             #split the raw
@@ -150,32 +1084,32 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 contour_utilities.relax(segment)
                 
                 #resnap so we don't loose the surface
-                if ob:
+                if bvh:
+                    imx = mx.inverted()
                     for i, vert in enumerate(segment):
-                        snap = ob.closest_point_on_mesh(imx * vert)
+                        snap = bvh.find(imx * vert)
                         segment[i] = mx * snap[0]
             
             self.world_path.extend(segment)
 
         #resnap everthing we can to get normals an stuff
         #TODO do this the last time on the smooth factor duh
-        self.snap_to_object(ob)
+        if bvh:
+            self.snap_to_object(bvh, mx)
         
-    def snap_to_object(self,ob, raw = True, world = True, cuts = True):
+    def snap_to_object(self,bvh, mx, raw = True, world = True, cuts = True):
         
-        mx = ob.matrix_world
         imx = mx.inverted()
         if raw and len(self.raw_world):
             for i, vert in enumerate(self.raw_world):
-                snap = ob.closest_point_on_mesh(imx * vert)
+                snap = bvh.find(imx * vert)
                 self.raw_world[i] = mx * snap[0]
-                
-                
+                   
         if world and len(self.world_path):
             #self.path_normals = []
             #self.path_seeds = []
             for i, vert in enumerate(self.world_path):
-                snap = ob.closest_point_on_mesh(imx * vert)
+                snap = bvh.find(imx * vert)
                 self.world_path[i] = mx * snap[0]
                 #self.path_normals.append(mx.to_3x3() * snap[1])
                 #self.path_seeds.append(snap[2])
@@ -184,7 +1118,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             self.cut_point_normals = []
             self.cut_point_seeds = []
             for i, vert in enumerate(self.cut_points):
-                snap = ob.closest_point_on_mesh(imx * vert)
+                snap = bvh.find(imx * vert)
                 self.cut_points[i] = mx * snap[0]
                 self.cut_point_normals.append(mx.to_3x3() * snap[1])
                 self.cut_point_seeds.append(snap[2])
@@ -274,7 +1208,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             else:
                 self.cut_points.extend(vs[:len(vs)])
             
-    def cuts_on_path(self,context,ob,bme):
+    def cuts_on_path(self,context,bme,bvh,mx):
         
         settings = common_utilities.get_settings()
         
@@ -327,7 +1261,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             final_no.normalize()
                        
             cut.plane_no = final_no
-            cut.cut_object(context, ob, bme)
+            cut.cut_object(context, bme,bvh,mx)
             cut.simplify_cross(self.ring_segments)
             
             if (i == 0 and not self.existing_head) or (i == 1 and self.existing_head):
@@ -355,12 +1289,12 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         if self.existing_tail:
             self.existing_tail.align_to_other(self.cuts[-1])
     
-    def backbone_from_cuts(self,context,ob,bme):
+    def backbone_from_cuts(self,context,bme, bvh, mx):
         
         #TODO: be able to change just one ring
         #TODO: cyclic series
         #TODO: redistribute backbone when number of cut segments is increased/decreased
-        
+        imx = mx.inverted()
         #TEMPORARY FIX TO REMOVE BAD CUTS
         self.clean_cuts()
         self.backbone = []
@@ -371,9 +1305,9 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         for i, cut in enumerate(self.cuts):
             
             pt = cut.verts_simple[0]
-            snap = ob.closest_point_on_mesh(ob.matrix_world.inverted() * pt)
+            snap = bvh.find(imx * pt)
             seed = snap[2]
-            surface_no = ob.matrix_world.inverted().transposed() * snap[1]
+            surface_no = imx.transposed() * snap[1]
             
             
             if i == 0:
@@ -385,18 +1319,18 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 else:
                     stop_plane = [cut.plane_com, cut.plane_no]
                 
-                vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+                vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed, 
                                                                       -cut.plane_no,
                                                                       stop_plane=stop_plane,
                                                                       max_tests=1000)[0]
                 
                 if vertebra:
-                    vertebra3d = [ob.matrix_world * v for v in vertebra]
+                    vertebra3d = [mx * v for v in vertebra]
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = ob.closest_point_on_mesh(ob.matrix_world.inverted() * cast_point)[0]
+                    cast_sfc = bvh.find(imx * cast_point)[0]
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -406,22 +1340,22 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 cut_no = surface_no.cross(cut.plane_no)
                 
                 if self.existing_tail:
-                    stop_plane = [self.existing_tail.plane_com, sef.existing_tail.plane_no]
+                    stop_plane = [self.existing_tail.plane_com, self.existing_tail.plane_no]
                 else:
                     stop_plane = [cut.plane_com, cut.plane_no]
                 
-                vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+                vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed, 
                                                                       -cut.plane_no,
                                                                       stop_plane=stop_plane,
                                                                       max_tests=1000)[0]
                 
                 if vertebra:
-                    vertebra3d = [ob.matrix_world * v for v in vertebra]
+                    vertebra3d = [mx * v for v in vertebra]
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = ob.closest_point_on_mesh(ob.matrix_world.inverted() * cast_point)[0]
+                    cast_sfc = bvh.find(imx * cast_point)[0]
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -432,13 +1366,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 cut_no = surface_no.cross(v1)
                 #alternatively....just use cut.verts_simple[1] - cut.verts_simple[0]
     
-                vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+                vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                           pt,cut_no, seed, 
                                                                           -1 * v1,
                                                                           stop_plane = [self.cuts[i-1].plane_com, self.cuts[i-1].plane_no],
                                                                           max_tests=1000)[0]
                 if vertebra:
-                    vertebra3d = [ob.matrix_world * v for v in vertebra]
+                    vertebra3d = [mx * v for v in vertebra]
                 else:
                     cut1 = self.cuts[i+1]
                     v0 = cut.verts_simple[0]
@@ -450,7 +1384,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         
         cut_no = surface_no.cross(cut.plane_no)
-        vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+        vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                   pt,cut_no, seed,
                                                                   cut.plane_no,
                                                                   stop_plane = [cut.plane_com, cut.plane_no],
@@ -458,18 +1392,18 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
 
 
         if vertebra:
-            vertebra3d = [ob.matrix_world * v for v in vertebra]
+            vertebra3d = [mx * v for v in vertebra]
             vertebra3d.reverse()
         else:
             diag = contour_utilities.diagonal_verts(cut.verts_simple)
     
             cast_point = cut.verts_simple[0] + diag * cut.plane_no
-            cast_sfc = ob.closest_point_on_mesh(ob.matrix_world.inverted() * cast_point)[0]
+            cast_sfc = bvh.find(imx * cast_point)[0]
             vertebra3d = [cast_sfc, cut.verts_simple[0]]
         
         self.backbone.append(vertebra3d)
     
-    def update_backbone(self,context,ob,bme,cut, insert = False):
+    def update_backbone(self,context,bme,bvh,mx,cut, insert = False):
         '''
         update just the segments of the backbone affected by a cut
         do this after it has been inserted and aligned or after
@@ -477,30 +1411,30 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         DO NOT USE FOR CUT REMOVAL, remove_cut takes care of it on it's own.
         '''
-        
+        imx = mx.inverted()
         ind = self.cuts.index(cut)
         pt = cut.verts_simple[0]
-        snap = ob.closest_point_on_mesh(ob.matrix_world.inverted() * pt)
+        snap = bvh.find(imx * pt)
         seed = snap[2]
-        surface_no = ob.matrix_world.inverted().transposed() * snap[1]
+        surface_no = imx.transposed() * snap[1]
         
         if ind == 0:
             #shoot a cut out the back
             cut_no = surface_no.cross(cut.plane_no)
-            vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+            vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed, 
                                                                       -1 * cut.plane_no,
                                                                       stop_plane = [cut.plane_com, cut.plane_no],
                                                                       max_tests=1000)[0]
             
             if vertebra:
-                vertebra3d = [ob.matrix_world * v for v in vertebra]
+                vertebra3d = [mx * v for v in vertebra]
             
             else:
                 diag = contour_utilities.diagonal_verts(self.cuts[0].verts_simple)
         
                 cast_point = self.cuts[0].verts_simple[0] - diag * self.cuts[0].plane_no
-                cast_sfc = ob.closest_point_on_mesh(ob.matrix_world.inverted() * cast_point)[0]
+                cast_sfc = bvh.find(imx * cast_point)[0]
                 vertebra3d = [cast_sfc, self.cuts[0].verts_simple[0]]
             
             self.backbone.pop(0)
@@ -512,13 +1446,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             cut_no = surface_no.cross(v1)
             #alternatively....just use cut.verts_simple[1] - cut.verts_simple[0]
 
-            vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+            vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed, 
                                                                       -1 * v1,
                                                                       stop_plane = [self.cuts[ind-1].plane_com, self.cuts[ind-1].plane_no],
                                                                       max_tests=1000)[0]
             if vertebra:
-                vertebra3d = [ob.matrix_world * v for v in vertebra]
+                vertebra3d = [mx * v for v in vertebra]
             else:
                 vertebra3d = [cut.verts_simple[0], self.cuts[ind-1].verts_simple[0]]
         
@@ -531,13 +1465,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         if ind < len(self.cuts) -1:
             v1 = self.cuts[ind+1].verts_simple[0] - cut.verts_simple[0]
             cut_no = surface_no.cross(v1)
-            vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+            vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed, 
                                                                       v1,
                                                                       stop_plane = [self.cuts[ind+1].plane_com, self.cuts[ind+1].plane_no],
                                                                       max_tests=1000)[0]
             if vertebra:
-                vertebra3d = [ob.matrix_world * v for v in vertebra]
+                vertebra3d = [mx * v for v in vertebra]
             else:
                 vertebra3d = [cut.verts_simple[0], self.cuts[ind-1].verts_simple[0]]
         
@@ -550,7 +1484,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         if ind == len(self.cuts) - 1:
             cut_no = surface_no.cross(cut.plane_no)
-            vertebra = contour_utilities.cross_section_seed_direction(bme, ob.matrix_world, 
+            vertebra = contour_utilities.cross_section_seed_direction(bme, mx, 
                                                                       pt,cut_no, seed,
                                                                       cut.plane_no,
                                                                       stop_plane = [cut.plane_com, cut.plane_no],
@@ -558,20 +1492,20 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     
     
             if vertebra:
-                vertebra3d = [ob.matrix_world * v for v in vertebra]
+                vertebra3d = [mx * v for v in vertebra]
                 vertebra3d.reverse()
             else:
                 diag = contour_utilities.diagonal_verts(cut.verts_simple)
                 cast_point = cut.verts_simple[0] + diag * cut.plane_no
-                cast_sfc = ob.closest_point_on_mesh(ob.matrix_world.inverted() * cast_point)[0]
+                cast_sfc = bvh.find(imx * cast_point)[0]
                 vertebra3d = [cast_sfc, cut.verts_simple[0]]
             
             if not insert:
                 self.backbone.pop()
             self.backbone.append(vertebra3d)
            
-    def smooth_normals_com(self,context,ob,bme,iterations = 5):
-        
+    def smooth_normals_com(self,context,bme,bvh,mx,iterations = 5):
+        imx = mx.inverted()
         com_path = []
         normals = []
         
@@ -610,7 +1544,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         for i, cut in enumerate(self.cuts):
             cut.plane_no = normals[i]
-            cut.cut_object(context, ob,  bme)
+            cut.cut_object(context, bme,bvh,mx)
             cut.simplify_cross(self.ring_segments)
             if i == 0 and self.existing_head:
                 self.cuts[0].align_to_other(self.existing_head)
@@ -619,7 +1553,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             cut.update_com()
             cut.generic_3_axis_from_normal()
                
-    def average_normals(self,context,ob,bme):
+    def average_normals(self,context,bme,bvh,mx):
         
         if self.seg_lock:
             self.cut_points = [cut.verts_simple[0] for cut in self.cuts]
@@ -640,11 +1574,10 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             avg_normal = avg_normal + (no1 + no2).normalized()
         
         avg_normal.normalize()
-        
-        
+
         for i, cut in enumerate(self.cuts):
             cut.plane_no = avg_normal
-            cut.cut_object(context, ob,  bme)
+            cut.cut_object(context, bme,bvh,mx)
             cut.simplify_cross(self.ring_segments)
             if i == 0 and self.existing_head:
                 self.cuts[0].align_to_other(self.existing_head)
@@ -653,7 +1586,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             cut.update_com()
             cut.generic_3_axis_from_normal()
          
-    def interpolate_endpoints(self,context,ob,bme,cut1 = None, cut2 = None):
+    def interpolate_endpoints(self,context,bme,bvh,mx,cut1 = None, cut2 = None):
         '''
         will interpolate normals between the endpoints of the CutSeries
         or between two selected cuts
@@ -691,16 +1624,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         for i in range(0,interps):
             print((i+1)/(end-start))
             self.cuts[start + i+1].plane_no = no_initial.lerp(no_final, (i+1)/(end-start))
-            self.cuts[start + i+1].cut_object(context, ob,  bme)
+            self.cuts[start + i+1].cut_object(context, bme,bvh,mx)
             self.cuts[start + i+1].simplify_cross(self.ring_segments)
             
-
-                    
             if start + i+1 > 0:
                 self.align_cut(self.cuts[start + i+1], mode='BEHIND', fine_grain='TRUE')
             self.cuts[start + i+1].update_com()
             
-        
         self.align_cut(self.cuts[end-1], mode='BEHIND', fine_grain='TRUE')
         self.align_cut(self.cuts[end], mode='BEHIND', fine_grain='TRUE')
     
@@ -713,7 +1643,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 print('tossed a failed cut!')
                 #TODO, implement some kind of warning or visual reference
                  
-    def connect_cuts_to_make_mesh(self, ob):
+    def connect_cuts_to_make_mesh(self, bvh, mx):
         '''
         This also takes care of bridging to existing vert loops
         At the end..a simple doubles removal solidifies the bridge
@@ -737,20 +1667,17 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             self.follow_lines = []
             return
         
-        imx = ob.matrix_world.inverted()
+        imx = mx.inverted()
         n_rings = len(self.cuts)
         
         if self.existing_head != None:
             n_rings += 1
         if self.existing_tail != None:
             n_rings += 1
-            
-        
         if len(self.cuts):
             n_lines = len(self.cuts[0].verts_simple)
         elif self.existing_head:
             n_lines = len(self.existing_head.verts_simple)
-        
         if self.existing_head != None:
             for v in self.existing_head.verts_simple:
                 total_verts.append(imx * v)
@@ -770,8 +1697,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         if self.existing_tail != None:
             for v in self.existing_tail.verts_simple:
                 total_verts.append(imx * v)
-                
-        
+
         if len(self.cuts):        
             cyclic = 0 in self.cuts[0].eds_simple[-1]
         elif self.existing_head:
@@ -817,29 +1743,8 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         self.verts = total_verts
         self.faces = total_faces
         self.edges = total_edges
-        
-    def update_visibility(self, context, ob):    
-        region = context.region  
-        rv3d = context.space_data.region_3d
-        
-        #update the individual rings
-        for cut in self.cuts:
-            cut.update_visibility(context, ob)
             
-        if self.existing_head:
-            self.existing_head.update_visibility(context, ob)
-        if self.existing_tail:
-            self.existing_tail.update_visibility(context, ob)
-        
-        #update connecting edges between ring
-        if context.space_data.use_occlude_geometry:
-            rv3d = context.space_data.region_3d
-            is_vis = common_utilities.ray_cast_visible
-            self.follow_vis = [is_vis(vert_list, ob, rv3d) for vert_list in self.follow_lines]
-        else:
-            self.follow_vis = [[True]*len(vert_list) for vert_list in self.follow_lines]
-            
-    def insert_new_cut(self,context, ob, bme, new_cut, search = 5):
+    def insert_new_cut(self,context,bme,bvh,mx,new_cut, search = 5):
         '''
         attempts to find the best placement for a new cut
         the cut should have already calced verts_simple, 
@@ -871,7 +1776,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 
             self.segments = 1
             
-            self.backbone_from_cuts(context, ob, bme)
+            self.backbone_from_cuts(context, bme, bvh, mx)
             return True
         
         
@@ -892,7 +1797,6 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 
             diag = diag ** .5 
             thresh = search * diag  #TODO: Come to a decision on how to determine distance
-            
             vec_between = new_cut.plane_com - cut.plane_com
             vec_dist = vec_between.length
             is_dist_large = vec_dist > thresh
@@ -941,8 +1845,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 #neither does the new cut.
                 if new_cut.plane_no.dot(direction) < 0:
                     new_cut.plane_no = -1 * new_cut.plane_no
-                
-                        
+                      
                 spin = contour_utilities.discrete_curl(new_cut.verts_simple, new_cut.plane_no)
                 if spin < 0:
                     new_cut.verts.reverse()
@@ -954,8 +1857,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
 
                 #align the cut, update the backbone etc
                 self.align_cut(new_cut, mode = 'BEHIND', fine_grain = True)
-                self.backbone_from_cuts(context, ob, bme)
-                #self.update_backbone(context, ob, bme, new_cut, insert = True)
+                self.backbone_from_cuts(context, bme,bvh,mx)
                 return True
             
             else:
@@ -995,7 +1897,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                     
                     new_cut.simplify_cross(self.ring_segments)
                     self.align_cut(new_cut, mode = 'BETWEEN', fine_grain = True)
-                    self.backbone_from_cuts(context, ob, bme)
+                    self.backbone_from_cuts(context, bme, bvh, mx)
                     #self.update_backbone(context, ob, bme, new_cut, insert = True)
                     return True
             if settings.debug > 1: print('falling through')
@@ -1036,7 +1938,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                     
                     new_cut.simplify_cross(self.ring_segments)
                     self.align_cut(new_cut, mode = 'BETWEEN', fine_grain = True)
-                    self.update_backbone(context, ob, bme, new_cut, insert = True)
+                    self.update_backbone(context, bme, bvh, mx, new_cut, insert = True)
                     return True
                 
             #Check the enpoints
@@ -1089,7 +1991,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                     self.segments += 1
                     new_cut.simplify_cross(self.ring_segments)
                     self.align_cut(new_cut, mode = 'AHEAD', fine_grain = True)
-                    self.update_backbone(context, ob, bme, new_cut, insert = True)
+                    self.update_backbone(context, bme, bvh, mx, new_cut, insert = True)
                     return True
         
         if settings.debug > 1: print('still not inserted')
@@ -1128,13 +2030,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 self.segments += 1
                 new_cut.simplify_cross(self.ring_segments)
                 self.align_cut(new_cut, mode = 'BEHIND', fine_grain = True)
-                self.update_backbone(context, ob, bme, new_cut, insert = True)
+                self.update_backbone(context, bme,bvh,mx, new_cut, insert = True)
                 return True
         
         if settings.debug > 1: print('did not insert')
         return False
     
-    def remove_cut(self,context,ob, bme, cut):
+    def remove_cut(self,context,bme,bvh,mx, cut):
         '''
         removes a cut from the sequence
         '''
@@ -1143,9 +2045,9 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             self.cuts.remove(cut)
             self.backbone.pop(ind)
             if ind < len(self.cuts) - 1:
-                self.update_backbone(context, ob, bme, self.cuts[ind], insert = False)
+                self.update_backbone(context, bme, bvh,mx,self.cuts[ind], insert = False)
             elif ind == 1 and len(self.cuts) == 1:
-                self.backbone_from_cuts(context, ob, bme)
+                self.backbone_from_cuts(context, bme,bvh,mx)
             
         else:
             self.cuts = []
@@ -1164,13 +2066,10 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print('this cut is not connected to anything yet')
             return
         
-        
         ind = self.cuts.index(cut)
         ahead = ind + 1
         behind = ind - 1
         
-        
-                
         if ahead != len(self.cuts):
             cut.align_to_other(self.cuts[ahead], auto_align = fine_grain)
             shift_a = cut.shift
@@ -1244,6 +2143,10 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         reto_imx = reto_mx.inverted()
         xform    = reto_imx * orig_mx
         
+        reto_bme.verts.ensure_lookup_table()
+        reto_bme.edges.ensure_lookup_table()
+        reto_bme.faces.ensure_lookup_table()
+        
         # a cheap hashing of vector with epsilon
         def h(v): return '%0.3f,%0.3f,%0.3f' % tuple(v)
         
@@ -1251,10 +2154,12 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         if self.existing_head:
             for i in self.existing_head.vert_inds_sorted:
                 v = reto_bme.verts[i]
+                v.select_set(False)
                 weld_verts[h(v.co)] = v
         if self.existing_tail:
             for i in self.existing_tail.vert_inds_sorted:
                 v = reto_bme.verts[i]
+                v.select_set(False)
                 weld_verts[h(v.co)] = v
         
         hvs = [h(vert) for vert in self.verts]
@@ -1268,7 +2173,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
         print('data pushed into bmesh')
     
-    def snap_merge_into_other(self, merge_series, merge_ring, context, ob, bme):
+    def snap_merge_into_other(self, merge_series, merge_ring, context, bme, bvh, mx):
         '''
         Will assess other path, modify self and then place self data into the
         merge_series
@@ -1288,7 +2193,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     
         #snap the world path to that vert
         self.raw_world = contour_utilities.fit_path_to_endpoints(self.raw_world, merge_ring.verts_simple[best_index], self.raw_world[-1])
-        self.smooth_path(context, ob = ob)
+        self.smooth_path(context, bvh = bvh, mx = mx)
         self.ring_segments = merge_series.ring_segments
         
         if merge_ring.desc == 'EXISTING_VERT_LIST':
@@ -1321,8 +2226,8 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         
                 
         
-        self.snap_to_object(ob, raw = False, world = False, cuts = True)
-        self.cuts_on_path(context,ob,bme)
+        self.snap_to_object(bvh,mx, raw = False, world = False, cuts = True)
+        self.cuts_on_path(context,bme,bvh,mx)
         self.cuts.pop(0)
         
         #if one existing cut....can go either way
@@ -1334,8 +2239,8 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             if merge_ring.plane_no.dot(p_dir) < 0:
                 merge_ring.verts_simple.reverse()
                 merge_ring.verts.reverse()
-                merge_ring.verts_simple_visible.reverse()
-                merge_ring.verts_simple_visible = contour_utilities.list_shift(merge_ring.verts_simple_visible,-1)
+                #merge_ring.verts_simple_visible.reverse()
+                #merge_ring.verts_simple_visible = contour_utilities.list_shift(merge_ring.verts_simple_visible,-1)
                 
                 merge_ring.verts = contour_utilities.list_shift(merge_ring.verts,-1)
                 merge_ring.verts_simple = contour_utilities.list_shift(merge_ring.verts_simple,-1)
@@ -1381,11 +2286,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print(str([len(cut.verts_simple) for cut in merge_series.cuts]))
         merge_series.world_path = [cut.verts_simple[0] for cut in merge_series.cuts]
         merge_series.segments = len(merge_series.cuts) - 1
-        merge_series.backbone_from_cuts(context,ob,bme)
-        merge_series.connect_cuts_to_make_mesh(ob)
-        merge_series.update_visibility(context,ob)
+        merge_series.backbone_from_cuts(context,bme,bvh,mx)
+        merge_series.connect_cuts_to_make_mesh(bvh, mx)
+        #merge_series.update_visibility(context,ob)
         
-    def draw(self,context, path = True, nodes = True, rings = True, follows = True, backbone = True):
+    def draw2d(self,context, path = True, nodes = True, rings = True, follows = True, backbone = True):
         
         settings = common_utilities.get_settings()
 
@@ -1396,58 +2301,58 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
 
         #TODO:  Debug if None in self.world path.  How could this happen?       
         if path and self.world_path != [] and None not in self.world_path:
-            
-            common_drawing.draw_3d_points(context, self.world_path, (1,.5,0,1), 3)
+            common_drawing_px.draw_3d_points(context, self.world_path, (1,.5,0,1), 3)
        
         if nodes and len(self.cut_points):
-            common_drawing.draw_3d_points(context, self.cut_points, (0,1,.5,1), 2)
+            common_drawing_px.draw_3d_points(context, self.cut_points, (0,1,.5,1), 2)
          
         if rings:
             if len(self.cuts):
                 for cut in self.cuts:
-                    cut.draw(context, settings, three_dimensional = True, interacting = False)
+                    cut.draw2d(context, settings, three_dimensional = True, interacting = False)
                     
             if self.existing_head:
-                self.existing_head.draw(context, settings, three_dimensional = True, interacting = False)
+                self.existing_head.draw2d(context, settings, three_dimensional = True, interacting = False)
                 
             if self.existing_tail:
-                self.existing_tail.draw(context, settings, three_dimensional = True, interacting = False)
+                self.existing_tail.draw2d(context, settings, three_dimensional = True, interacting = False)
         
         if backbone and len(self.backbone):
             for vertebra3d in self.backbone:
-                common_drawing.draw_3d_points(context, vertebra3d, 
+                common_drawing_px.draw_3d_points(context, vertebra3d, 
                                                           (.2,.2,1, 1), 
-                                                          3)   
-        if self.follow_lines != [] and settings.show_edges:
-            if not context.space_data.use_occlude_geometry:
-                
-                for follow in self.follow_lines:
-                    common_drawing.draw_polyline_from_3dpoints(context, follow, 
-                                                          mesh_color, 
-                                                          self.line_thickness,"GL_LINE_STIPPLE")
+                                                          3)
 
-            else:
-                
-                for i, line in enumerate(self.follow_lines):
-                    for n in range(0,len(line)-1):
-                        if self.follow_vis[i][n] and self.follow_vis[i][n+1]:
-                            common_drawing.draw_polyline_from_3dpoints(context, [line[n],line[n+1]], 
-                                                          mesh_color, 
-                                                          self.line_thickness,"GL_LINE_STIPPLE")
+    def draw3d(self,context, mx):
+        settings = common_utilities.get_settings()
+        region,r3d = context.region,context.space_data.region_3d
+        
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
-            # Do the fill for vis-faces
-            fl,fv = self.follow_lines, self.follow_vis
-            leni,lenj = len(fl),len(fl[0])
-            quad_pts = []
-            i1 = leni-1
-            for i0 in range(leni):
-                for j0 in range(lenj-1):
-                    j1 = j0 + 1
-                    if fv[i0][j0] and fv[i1][j0] and fv[i1][j1] and fv[i0][j1]:
-                        quad_pts += [fl[i0][j0], fl[i1][j0], fl[i1][j1], fl[i0][j1]]
-                i1 = i0
-            common_drawing.draw_quads_from_3dpoints(context, quad_pts, (mesh_color[0],mesh_color[1],mesh_color[2],mesh_color[3]*0.2))
+        color_handle = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
+        color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+        
+        #faces
+        for f in self.faces:
+            pts = [mx * self.verts[i] for i in f]    
+            common_drawing_view.draw3d_quad(context,pts, color_fill)
+        
+        #edges    
+        for follow in self.follow_lines:
+            common_drawing_view.draw3d_polyline(context, follow, color_border, self.line_thickness,"GL_LINE_STIPPLE" )
+        
+        for cut in self.cuts:
+            cut.draw3d(context,settings)
+
+        if self.existing_head:
+            self.existing_head.draw3d(context, settings)
                 
+        if self.existing_tail:
+            self.existing_tail.draw3d(context, settings)
+        
 class ContourControlPoint(object):
     
     def __init__(self, parent, x, y, color = (1,0,0,1), size = 2, mouse_radius=10):
@@ -1539,7 +2444,7 @@ class ExistingVertList(object):
             v = verts[self.vert_inds_unsorted.index(i)]
             self.verts_simple.append(mx * v.co)
         
-        self.verts_simple_visible = [True] * len(self.verts_simple)
+        #self.verts_simple_visible = [True] * len(self.verts_simple)
          
         self.plane_no = None  #TODO best fit plane?
         self.vert_inds_sorted = vert_inds_sorted
@@ -1656,18 +2561,7 @@ class ExistingVertList(object):
                 self.verts_simple.reverse()
                 self.vert_inds_unsorted.reverse()
                 
-    def update_visibility(self,context,ob):
-        if context.space_data.use_occlude_geometry:
-            #TODO: should the following be uncommented?
-            #self.visible_poly = []
-            #self.visible_u = []
-            #self.visible_d = []
-            rv3d = context.space_data.region_3d
-            self.verts_simple_visible = common_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
-        else:
-            self.verts_simple_visible = [True] * len(self.verts_simple)
-    
-    def draw(self,context, settings, three_dimensional = True, interacting = False):
+    def draw2d(self,context, settings, three_dimensional = True, interacting = False):
             '''
             setings are the addon preferences for contour tools
             '''
@@ -1682,7 +2576,7 @@ class ExistingVertList(object):
                 if self.plane_com:
                     com_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_com)
                     
-                    common_drawing.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
+                    common_drawing_px.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
                     
                     rv3d = context.space_data.region_3d
                     imx = rv3d.view_matrix.inverted()
@@ -1692,48 +2586,22 @@ class ExistingVertList(object):
                         
                         factor = (1 - abs(self.vec_x.dot(screen_z)))
                         screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,0,1), 2, 'GL_LINE_STRIP')
+                        common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,0,1), 2, 'GL_LINE_STRIP')
 
                     if self.vec_y and debug > 2:
                         
                         vec_screen = imx.transposed() * self.vec_y
                         factor = (1 - abs(self.vec_y.dot(screen_z)))
                         screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,0,1), 2, 'GL_LINE_STRIP')
+                        common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,0,1), 2, 'GL_LINE_STRIP')
     
                     if self.plane_no:
                         vec_screen = imx.transposed() * self.plane_no
                         factor = (1 - abs(self.plane_no.dot(screen_z)))
                         screen_pt_x = com_2d + factor* 40 * vec_screen.to_2d().normalized()
-                        common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,0,1,1), 2, 'GL_LINE_STRIP')
+                        common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,0,1,1), 2, 'GL_LINE_STRIP')
                         
-            if False not in self.verts_simple_visible:
-                    common_drawing.draw_3d_points(context, self.verts_simple, self.vert_color, 3)
-                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
-                    
-                    if 0 in self.eds_simple[-1]:
-                        common_drawing.draw_polyline_from_3dpoints(context, 
-                                                                      [self.verts_simple[-1],self.verts_simple[0]], 
-                                                                      mesh_color,  
-                                                                      settings.line_thick, 
-                                                                      'GL_LINE_STIPPLE')
-     
-            else:
-                for i, v in enumerate(self.verts_simple):
-                    if self.verts_simple_visible[i]:
-                        common_drawing.draw_3d_points(context, [v], mesh_color, settings.vert_size)
-                            
-                        if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
-                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
-            
-                if 0 in self.eds_simple[-1] and self.verts_simple_visible[0] and self.verts_simple_visible[-1]:
-                        common_drawing.draw_polyline_from_3dpoints(context, 
-                                                                      [self.verts_simple[-1],self.verts_simple[0]], 
-                                                                      mesh_color,  
-                                                                      settings.line_thick, 
-                                                                      'GL_LINE_STIPPLE')
-            
-                    
+              
             if debug:
                     
                 if settings.simple_vert_inds:    
@@ -1742,7 +2610,23 @@ class ExistingVertList(object):
                         blf.position(0, loc[0], loc[1], 0)
                         blf.draw(0, str(i))    
                       
-
+    def draw3d(self,context,settings):
+        stroke_color = settings.theme_colors_active[settings.theme]
+        mesh_color = settings.theme_colors_mesh[settings.theme]
+        
+        if not len(self.verts_simple): return
+        thick = settings.line_thick
+        
+        if 0 in self.eds_simple[-1]:
+            common_drawing_view.draw3d_closed_polylines(context, [self.verts_simple], mesh_color, thick,'GL_LINE_STIPPLE')
+        else:
+            common_drawing_view.draw3d_polyline(context, self.verts_simple, mesh_color, thick,'GL_LINE_STIPPLE')
+        
+        #draw the vertices
+        common_drawing_view.draw3d_points(context,self.verts_simple, mesh_color, settings.vert_size)
+         
+        
+        
 class ContourCutLine(object): 
     
     def __init__(self, x, y, line_width = 3):
@@ -1781,7 +2665,7 @@ class ContourCutLine(object):
         self.edges = []
         #low res derived contour
         self.verts_simple = []
-        self.verts_simple_visible = []
+        #self.verts_simple_visible = []
         self.eds_simple = []
         
         #screen cache for fast selection
@@ -1811,20 +2695,7 @@ class ContourCutLine(object):
         self.select = False
         self.unhighlight(settings)
         
-        
-    def update_visibility(self,context,ob):
-        if context.space_data.use_occlude_geometry:
-            rv3d = context.space_data.region_3d
-            self.verts_simple_visible  = common_utilities.ray_cast_visible(self.verts_simple, ob, rv3d)
-            #TODO: should the following be uncommented?
-            #self.visible_poly = []
-            #self.visible_u = []
-            #self.visible_d = []
-            ##self.visible_world = []
-        else:
-            self.verts_simple_visible = [True] * len(self.verts_simple)
-    
-    def draw(self,context, settings, three_dimensional = True, interacting = False):
+    def draw2d(self,context, settings, three_dimensional = True, interacting = False):
         '''
         setings are the addon preferences for contour tools
         '''
@@ -1849,96 +2720,43 @@ class ContourCutLine(object):
             if self.plane_com:
                 com_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_com)
                 
-                common_drawing.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
-                
+                common_drawing_px.draw_3d_points(context, [self.plane_com], (0,1,0,1), 4)
                 
                 rv3d = context.space_data.region_3d
                 imx = rv3d.view_matrix.inverted()
                 screen_z = rv3d.view_matrix.to_3x3() * Vector((0,0,1))
                 if self.vec_x and debug > 2:
                     vec_screen = imx.transposed() * self.vec_x
-                    
                     factor = (1 - abs(self.vec_x.dot(screen_z)))
                     screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,1,0,1), 2, 'GL_LINE_STRIP')
+                    common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,1,0,1), 2, 'GL_LINE_STRIP')
 
                 if self.vec_y and debug > 2:
-                    
                     vec_screen = imx.transposed() * self.vec_y
                     factor = (1 - abs(self.vec_y.dot(screen_z)))
                     screen_pt_x = com_2d + factor * 40 * vec_screen.to_2d().normalized()
-                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,1,1), 2, 'GL_LINE_STRIP')
+                    common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(0,1,1,1), 2, 'GL_LINE_STRIP')
 
                 if self.plane_no:
                     vec_screen = imx.transposed() * self.plane_no
                     factor = (1 - abs(self.plane_no.dot(screen_z)))
                     screen_pt_x = com_2d + factor* 40 * vec_screen.to_2d().normalized()
-                    common_drawing.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,1,1), 2, 'GL_LINE_STRIP')
+                    common_drawing_px.draw_polyline_from_points(context, [com_2d, screen_pt_x],(1,0,1,1), 2, 'GL_LINE_STRIP')
 
-                    
-        
         #draw connecting line
         if self.head:
             points = [(self.head.x,self.head.y),(self.tail.x,self.tail.y)]
-            
-            common_drawing.draw_polyline_from_points(context, points, stroke_color, settings.stroke_thick, "GL_LINE_STIPPLE")
-        
+            common_drawing_px.draw_polyline_from_points(context, points, stroke_color, settings.stroke_thick, "GL_LINE_STIPPLE")
             #draw the two handles
-            common_drawing.draw_points(context, points, stroke_color, settings.handle_size)
-        
-        #draw the current plane point and the handle to change plane orientation
-        #if self.plane_pt and settings.draw_widget:
-            #point1 = location_3d_to_region_2d(context.region, context.space_data.region_3d, self.plane_pt)
-            #point2 = (self.plane_tan.x, self.plane_tan.y)
+            common_drawing_px.draw_points(context, points, stroke_color, settings.handle_size)
 
-            #common_drawing.draw_polyline_from_points(context, [point1,point2], (0,.2,1,1), settings.stroke_thick, "GL_LINE_STIPPLE")
-            #common_drawing.draw_points(context, [point2], self.plane_tan.color, settings.handle_size)
-            #common_drawing.draw_points(context, [point1], self.head.color, settings.handle_size)
         
         #draw the raw contour vertices
         if (self.verts and self.verts_simple == []) or (debug > 0 and settings.show_verts):
             
             if three_dimensional:
-                
-                common_drawing.draw_3d_points(context, self.verts, mesh_color, settings.raw_vert_size)
-
+                common_drawing_px.draw_3d_points(context, self.verts, mesh_color, settings.raw_vert_size)
         
-        
-        
-        
-        if False not in self.verts_simple_visible:
-                common_drawing.draw_3d_points(context, self.verts_simple, mesh_color, 3)
-                if self.is_highlighted:
-                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, stroke_color,  settings.line_thick*2, 'GL_LINE_STIPPLE')
-                else: 
-                    common_drawing.draw_polyline_from_3dpoints(context, self.verts_simple, mesh_color,  settings.line_thick, 'GL_LINE_STIPPLE')
-
-
-                if self.edges != [] and 0 in self.edges[-1]:
-                    common_drawing.draw_polyline_from_3dpoints(context, 
-                                                                  [self.verts_simple[-1],self.verts_simple[0]], 
-                                                                  mesh_color,  
-                                                                  settings.line_thick, 
-                                                                  'GL_LINE_STIPPLE')
-            
-        else:
-            for i, v in enumerate(self.verts_simple):
-                if self.verts_simple_visible[i]:
-                    common_drawing.draw_3d_points(context, [v], mesh_color, settings.vert_size)
-                        
-                    if i < len(self.verts_simple) - 1 and self.verts_simple_visible[i+1]:
-                        if self.is_highlighted:
-                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], stroke_color, settings.line_thick*2, 'GL_LINE_STIPPLE')
-                        else:
-                            common_drawing.draw_polyline_from_3dpoints(context, [v, self.verts_simple[i+1]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
-
-            if self.edges != [] and 0 in self.edges[-1] and self.verts_simple_visible[0] and self.verts_simple_visible[-1]:
-                    if self.is_highlighted:
-                        common_drawing.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], stroke_color, settings.line_thick, 'GL_LINE_STIPPLE')
-                    else:
-                        common_drawing.draw_polyline_from_3dpoints(context, [self.verts_simple[-1],self.verts_simple[0]], mesh_color, settings.line_thick, 'GL_LINE_STIPPLE')
-
-
         if debug:
             if settings.vert_inds:
                 for i, point in enumerate(self.verts):
@@ -1952,8 +2770,29 @@ class ContourCutLine(object):
                     blf.position(0, loc[0], loc[1], 0)
                     blf.draw(0, str(i))
     
-    #draw contour points? later    
-    def hit_object(self, context, ob, method = 'VIEW'):
+    def draw3d(self,context,settings):
+        stroke_color = settings.theme_colors_active[settings.theme]
+        mesh_color = settings.theme_colors_mesh[settings.theme]
+        
+        if not len(self.verts_simple): return
+        
+        #draw the ring edge        
+        if self.is_highlighted:
+            color = settings.theme_colors_active[settings.theme]
+            thick = settings.line_thick * 1.5
+        else:
+            color = settings.theme_colors_mesh[settings.theme]
+            thick = settings.line_thick
+        
+        if 0 in self.eds_simple[-1]:
+            common_drawing_view.draw3d_closed_polylines(context, [self.verts_simple], color, thick,'GL_LINE_STIPPLE')
+        else:
+            common_drawing_view.draw3d_polyline(context, self.verts_simple, color, thick,'GL_LINE_STIPPLE')
+        
+        #draw the vertices
+        common_drawing_view.draw3d_points(context,self.verts_simple, color, settings.vert_size)
+         
+    def hit_object(self, context, bvh, mx, method = 'VIEW'):
         settings = common_utilities.get_settings()
         region = context.region  
         rv3d = context.space_data.region_3d
@@ -1981,10 +2820,9 @@ class ContourCutLine(object):
             self.vec_x = -1 * cut_vec.normalized()
             self.vec_y = self.plane_no.cross(self.vec_x)
             
-            ray_vector,hit = common_utilities.ray_cast_region2d(region, rv3d, screen_coord, ob, settings)
+            ray_vector,hit = common_utilities.ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings)
             
-            if hit[2] != -1:
-                mx = ob.matrix_world
+            if hit[2] != None:
                 self.head.world_position = region_2d_to_location_3d(region, rv3d, (self.head.x, self.head.y), mx * hit[0])
                 self.tail.world_position = region_2d_to_location_3d(region, rv3d, (self.tail.x, self.tail.y), mx * hit[0])
                 
@@ -2013,7 +2851,6 @@ class ContourCutLine(object):
             return self.plane_pt
         
         elif method in {'3_AXIS_COM','3_AXIS_POINT'}:
-            mx = ob.matrix_world
             imx = mx.inverted()
             y = self.vec_y
             x = self.vec_x
@@ -2025,24 +2862,21 @@ class ContourCutLine(object):
                     return
                 pt = self.plane_com
 
-
-                
             else:
                 if not self.plane_pt:
                     print('failed no COM')
                     return
                 pt = self.plane_pt
                 
-            hits = [ob.ray_cast(imx * pt, imx * (pt + 5 * y)),
-                    ob.ray_cast(imx * pt, imx * (pt + 5 * x)),
-                    ob.ray_cast(imx * pt, imx * (pt - 5 * y)),
-                    ob.ray_cast(imx * pt, imx * (pt - 5 * x))]
+            hits = [bvh.ray_cast(imx * pt, imx * (pt + 5 * y)-imx * pt),
+                    bvh.ray_cast(imx * pt, imx * (pt + 5 * x)-imx * pt),
+                    bvh.ray_cast(imx * pt, imx * (pt - 5 * y)-imx * pt),
+                    bvh.ray_cast(imx * pt, imx * (pt - 5 * x)-imx * pt)]
             
-
             dists = []
             inds = []
             for i, hit in enumerate(hits):
-                if hit[2] != -1:
+                if hit[2] != None:
                     R = pt - hit[0]
                     dists.append(R.length)
                     inds.append(i)
@@ -2053,8 +2887,7 @@ class ContourCutLine(object):
                 best_hit = hits[inds[dists.index(min(dists))]]       
                 self.plane_pt = mx * best_hit[0]
                 self.seed_face_index = best_hit[2]
-                
-                
+                  
             else:
                 self.plane_pt = None
                 self.seed_face_index = None
@@ -2072,11 +2905,9 @@ class ContourCutLine(object):
         
         self.head.world_position = region_2d_to_location_3d(region, rv3d, (self.head.x, self.head.y),self.plane_pt)
         self.tail.world_position = region_2d_to_location_3d(region, rv3d, (self.tail.x, self.tail.y),self.plane_pt)
+                  
+    def cut_object(self,context, bme, bvh, mx):
         
-          
-    def cut_object(self,context, ob, bme):
-        
-        mx = ob.matrix_world
         pt = self.plane_pt
         pno = self.plane_no
         indx = self.seed_face_index
@@ -2127,10 +2958,6 @@ class ContourCutLine(object):
         
         self.plane_no = rot * no
         
-        
-        
-        
-    
     def generic_3_axis_from_normal(self):
         if self.plane_com:
             (self.vec_x, self.vec_y) = contour_utilities.generic_axes_from_plane_normal(self.plane_com, self.plane_no)
@@ -2164,10 +2991,7 @@ class ContourCutLine(object):
             self.plane_x = self.plane_com + x_vector
             self.plane_y = self.plane_com + y_vector
             self.plane_z = self.plane_com + self.plane_no
-            
-            
-            
-        
+                 
     def analyze_relationship(self, other,debug = False):
         '''
         runs a series of quantitative assemsents of the spatial relationship
@@ -2267,8 +3091,7 @@ class ContourCutLine(object):
         ideal_to_com = 1/len(self.verts_simple) * ideal_to_com
         
         return ideal_to_com
-        
-        
+              
     def align_to_other(self,other, auto_align = True, direction_only = False):
         
         '''
@@ -2431,7 +3254,7 @@ class ContourCutLine(object):
                 self.shift += self.int_shift
                 self.int_shift = 0
                 
-    def active_element(self,context,x,y):
+    def active_element(self,context,x,y, loc):
         settings = common_utilities.get_settings()
         
         if self.head: #this makes sure the head and tail haven't been removed
@@ -2444,27 +3267,38 @@ class ContourCutLine(object):
         
         
 
-        if self.verts_simple and len(self.verts_simple):
-            mouse_loc = Vector((x,y))
-            #Check by testing distance to all edges
+        if self.verts_simple and len(self.verts_simple) and loc:
+            #Check by testing distance to all verts
             active_self = False
-            for ed in self.eds_simple:
-                
-                if self.verts_simple_visible[ed[0]] and self.verts_simple_visible[ed[1]]:
-                    a  = location_3d_to_region_2d(context.region, context.space_data.region_3d,self.verts_simple[ed[0]])
-                    b = location_3d_to_region_2d(context.region, context.space_data.region_3d,self.verts_simple[ed[1]])
-                
-                    if a and b:
-                
-                        intersect = intersect_point_line(mouse_loc.to_3d(), a.to_3d(),b.to_3d())
-                    
-                        if intersect:
-                            dist = (intersect[0].to_2d() - mouse_loc).length_squared
-                            bound = intersect[1]
-                            if (dist < 100) and (bound < 1) and (bound > 0):
-                                active_self = True
-                                break
             
+            def intersect(ed):
+                a = self.verts_simple[ed[0]]
+                b = self.verts_simple[ed[1]]
+                intersect = intersect_point_line(loc, a,b)
+                
+                return intersect
+                    
+            def dist_fn(ed):
+                inter = intersect(ed) 
+                if inter:
+                    bound = inter[1]
+                    if (bound < 1) and (bound > 0):
+                        V = inter[0] - loc
+                        dist = V.length
+                    else:
+                        dist = 1000000
+                else:
+                    dist = 1000000
+                    
+                return dist
+                    
+            best_ed = min(self.eds_simple, key = dist_fn) #closest ed in world space
+            inter = intersect(best_ed)
+            screen_pt = location_3d_to_region_2d(context.region, context.space_data.region_3d,inter[0])
+            screen_dist = (screen_pt - Vector((x,y))).length
+            if screen_dist < 10:
+                active_self = True
+                
         else:
             active_self = False
             '''
@@ -2521,7 +3355,7 @@ class ContourCutLine(object):
             return None
 
 class CutLineManipulatorWidget(object):
-    def __init__(self,context, settings, ob, bme, 
+    def __init__(self,context, settings, bme, bvh, mx,
                  cut_line,cut_path,
                  x,y,
                  hotkey = False):
@@ -2537,10 +3371,9 @@ class CutLineManipulatorWidget(object):
         #this will get set later by interaction
         self.transform = False
         self.transform_mode = None
+
+        self.mx = mx
         
-        self.ob = ob
-        
-            
         self.color = (settings.widget_color[0], settings.widget_color[1],settings.widget_color[2],1)
         self.color2 = (settings.widget_color2[0], settings.widget_color2[1],settings.widget_color2[2],1)
         self.color3 = (settings.widget_color3[0], settings.widget_color3[1],settings.widget_color3[2],1)
@@ -2704,8 +3537,8 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * proposed_point)
-                        self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
                         self.cancel_transform()
@@ -2719,8 +3552,8 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * proposed_point)
-                        self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
                         self.cancel_transform()
@@ -2757,8 +3590,8 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, new_com, inter_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * proposed_point)
-                        self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
                         self.cancel_transform()
@@ -2771,8 +3604,8 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_ahead, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * proposed_point)
-                        self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
                         self.cancel_transform()
@@ -2789,8 +3622,8 @@ class CutLineManipulatorWidget(object):
                     
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                 if proposed_point:        
-                    snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * proposed_point)
-                    self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                    snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    self.cut_line.plane_pt = self.mx * snap[0]
                     self.cut_line.seed_face_index = snap[2]
                 else:
                     self.cancel_transform()
@@ -2865,8 +3698,8 @@ class CutLineManipulatorWidget(object):
                 new_pt = contour_utilities.intersect_path_plane(self.path_behind, self.initial_com, new_no, mode = 'FIRST')
             
             if new_pt[0]:
-                snap = self.ob.closest_point_on_mesh(self.ob.matrix_world.inverted() * new_pt[0])
-                self.cut_line.plane_pt = self.ob.matrix_world * snap[0]
+                snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                self.cut_line.plane_pt = self.mx * snap[0]
                 self.cut_line.seed_face_index = snap[2] 
             else:
                 self.cancel_transform()
@@ -2945,80 +3778,80 @@ class CutLineManipulatorWidget(object):
         settings = common_utilities.get_settings()
         
         if self.a:
-            common_drawing.draw_3d_points(context, [self.a], self.color3, 5)
+            common_drawing_px.draw_3d_points(context, [self.a], self.color3, 5)
         if self.path_ahead and self.path_ahead != [] and settings.debug > 1:
-            common_drawing.draw_3d_points(context, self.path_ahead, self.color5, 6)
+            common_drawing_px.draw_3d_points(context, self.path_ahead, self.color5, 6)
         if self.b:
-            common_drawing.draw_3d_points(context, [self.b], self.color3, 5)
+            common_drawing_px.draw_3d_points(context, [self.b], self.color3, 5)
         if self.path_behind and self.path_behind != [] and settings.debug > 1:
-            common_drawing.draw_3d_points(context, self.path_behind, self.color3, 6)
+            common_drawing_px.draw_3d_points(context, self.path_behind, self.color3, 6)
             
         if not self.transform and not self.hotkey:
             
             l = len(self.arc_arrow_1)
             
             #draw outer circle half
-            common_drawing.draw_polyline_from_points(context, self.outer_circle_1[0:l-2], self.color4, self.line_width, "GL_LINES")
-            common_drawing.draw_polyline_from_points(context, self.outer_circle_2[0:l-2], self.color4, self.line_width, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, self.outer_circle_1[0:l-2], self.color4, self.line_width, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, self.outer_circle_2[0:l-2], self.color4, self.line_width, "GL_LINES")
             
             #draw outer translation arrows
-            #common_drawing.draw_polyline_from_points(context, self.trans_arrow_up, self.color3, self.line_width, "GL_LINES")
-            #common_drawing.draw_polyline_from_points(context, self.trans_arrow_down, self.color3, self.line_width, "GL_LINES")            
+            #common_drawing_px.draw_polyline_from_points(context, self.trans_arrow_up, self.color3, self.line_width, "GL_LINES")
+            #common_drawing_px.draw_polyline_from_points(context, self.trans_arrow_down, self.color3, self.line_width, "GL_LINES")            
             
             
-            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[:4], self.color3)
-            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[:4], self.color3)
-            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[4:], self.color3)
-            common_drawing.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[4:], self.color3)
+            common_drawing_px.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[:4], self.color3)
+            common_drawing_px.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[:4], self.color3)
+            common_drawing_px.draw_outline_or_region("GL_POLYGON", self.trans_arrow_down[4:], self.color3)
+            common_drawing_px.draw_outline_or_region("GL_POLYGON", self.trans_arrow_up[4:], self.color3)
             
             #draw a line perpendicular to arc
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle), math.sin(self.angle)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle), math.sin(self.angle)))
-            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color3, self.line_width, "GL_LINES")
+            #common_drawing_px.draw_polyline_from_points(context, [point_1, point_2], self.color3, self.line_width, "GL_LINES")
             
             
             #try the straight red line
             point_1 = Vector((self.x,self.y)) #+ self.inner_radius * Vector((math.cos(self.angle), math.sin(self.angle)))
             point_2 = Vector((self.x,self.y)) +  self.radius * Vector((math.cos(self.angle), math.sin(self.angle)))
-            common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width2 , "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width2 , "GL_LINES")
             
             point_1 = Vector((self.x,self.y))# + -self.inner_radius * Vector((math.cos(self.angle), math.sin(self.angle)))
             point_2 = Vector((self.x,self.y)) +  -self.radius * Vector((math.cos(self.angle), math.sin(self.angle)))
-            common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, [point_1, point_2], self.color2, self.line_width, "GL_LINES")
             
             #drawa arc 2
-            #common_drawing.draw_polyline_from_points(context, self.arc_arrow_2[:l-1], self.color2, self.line_width, "GL_LINES")
+            #common_drawing_px.draw_polyline_from_points(context, self.arc_arrow_2[:l-1], self.color2, self.line_width, "GL_LINES")
             
             #new rotation thingy
-            common_drawing.draw_polyline_from_points(context, self.arc_arrow_rotate_ccw[:l-1], self.color, self.line_width2, "GL_LINES")
-            common_drawing.draw_polyline_from_points(context, self.arc_arrow_rotate_cw[:l-1], self.color, self.line_width2, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, self.arc_arrow_rotate_ccw[:l-1], self.color, self.line_width2, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, self.arc_arrow_rotate_cw[:l-1], self.color, self.line_width2, "GL_LINES")
             
             #other half the tips
-            common_drawing.draw_polyline_from_points(context, [self.arc_arrow_rotate_ccw[l-1],self.arc_arrow_rotate_ccw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
-            common_drawing.draw_polyline_from_points(context, [self.arc_arrow_rotate_cw[l-1],self.arc_arrow_rotate_cw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, [self.arc_arrow_rotate_ccw[l-1],self.arc_arrow_rotate_ccw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, [self.arc_arrow_rotate_cw[l-1],self.arc_arrow_rotate_cw[l-3]], (0,0,1,1), self.line_width2, "GL_LINES")
             
             #draw an up and down arrow
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle + .5*math.pi), math.sin(self.angle + .5*math.pi)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle + .5*math.pi), math.sin(self.angle + .5*math.pi)))
-            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
+            #common_drawing_px.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
             
             #draw little hash
             #point_1 = Vector((self.x,self.y)) + 2/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle +  3/2 * math.pi), math.sin(self.angle +  3/2 * math.pi)))
             #point_2 = Vector((self.x,self.y)) + 1/3 * (self.inner_radius + self.radius) * Vector((math.cos(self.angle +  3/2 * math.pi), math.sin(self.angle +  3/2 * math.pi)))
-            #common_drawing.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
+            #common_drawing_px.draw_polyline_from_points(context, [point_1, point_2], self.color, self.line_width, "GL_LINES")
         
         elif self.transform_mode:
 
             #draw a small inner circle
-            common_drawing.draw_polyline_from_points(context, self.inner_circle, self.color, self.line_width, "GL_LINES")
+            common_drawing_px.draw_polyline_from_points(context, self.inner_circle, self.color, self.line_width, "GL_LINES")
             
             
             if not settings.live_update:
                 if self.transform_mode in {"NORMAL_TRANSLATE", "EDGE_SLIDE"}:
                     #draw a line representing the COM translation
                     points = [self.initial_com, self.cut_line.plane_com]
-                    common_drawing.draw_3d_points(context, points, self.color3, 4)
-                    common_drawing.draw_polyline_from_3dpoints(context, points, self.color ,2 , "GL_STIPPLE")
+                    common_drawing_px.draw_3d_points(context, points, self.color3, 4)
+                    common_drawing_px.draw_polyline_from_3dpoints(context, points, self.color ,2 , "GL_STIPPLE")
                     
                 else:
                     rv3d = context.space_data.region_3d
@@ -3036,8 +3869,8 @@ class CutLineManipulatorWidget(object):
                     p4_2d = p1_2d + self.radius * vec_2d
                     p6_2d = p1_2d - self.radius * vec_2d
                     
-                    common_drawing.draw_points(context, [p1_2d, p4_2d, p6_2d], self.color3, 5)
-                    common_drawing.draw_polyline_from_points(context, [p6_2d, p4_2d], self.color ,2 , "GL_STIPPLE")
+                    common_drawing_px.draw_points(context, [p1_2d, p4_2d, p6_2d], self.color3, 5)
+                    common_drawing_px.draw_polyline_from_points(context, [p6_2d, p4_2d], self.color ,2 , "GL_STIPPLE")
             
 class ContourStatePreserver(object):
     def __init__(self, operator):

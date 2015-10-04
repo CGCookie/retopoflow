@@ -33,8 +33,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_plane, intersect_point_line
 
 from . import common_utilities
-from . import common_drawing
-
+from . import common_drawing_px
 
 class TextBox(object):
     
@@ -151,7 +150,7 @@ class TextBox(object):
         spc_width = spc_size[0]
         
         dim_raw = blf.dimensions(0,self.raw_text)
-        if dim_raw[0] < useful_width:
+        if dim_raw[0] < useful_width and '\n' not in self.raw_text:
             self.text_lines = [self.raw_text]
             return
         
@@ -276,9 +275,9 @@ class TextBox(object):
         
         #draw the whole menu bacground
         line_height = blf.dimensions(0, 'A')[1]
-        outline = common_drawing.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
-        common_drawing.draw_outline_or_region('GL_POLYGON', outline, bg_color)
-        common_drawing.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
+        outline = common_drawing_px.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
+        common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
+        common_drawing_px.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
         
         dpi = bpy.context.user_preferences.system.dpi
         blf.size(0, self.text_size, dpi)
@@ -302,13 +301,15 @@ class TextBox(object):
             
             
 class SketchBrush(object):
-    def __init__(self,context,settings, x,y,pixel_radius, ob, n_samples = 15):
+    def __init__(self,context,settings, x,y,pixel_radius, bvh, mx, max_width, n_samples = 15):
         
         self.settings = settings  #should be input from user prefs
         
-        self.ob = ob
+        self.mx = mx
+        self.bvh = bvh
         self.pxl_rad = pixel_radius
         self.world_width = None
+        self.max_width = max_width
         self.n_sampl = n_samples
         
         self.x = x
@@ -343,23 +344,19 @@ class SketchBrush(object):
     def get_brush_world_size(self,context):
         region = context.region  
         rv3d = context.space_data.region_3d
-        center = (self.x,self.y)
-        wrld_mx = self.ob.matrix_world
-        
-        vec, center_ray = common_utilities.ray_cast_region2d(region, rv3d, center, self.ob, self.settings)
+        center = (self.x,self.y)        
+        vec, center_ray = common_utilities.ray_cast_region2d_bvh(region, rv3d, center, self.bvh, self.mx, self.settings)
         vec.normalize()
-        widths = []
         self.world_sample_points = []
         
-        if center_ray[2] != -1:
-            w = common_utilities.ray_cast_world_size(region, rv3d, center, self.pxl_rad, self.ob, self.settings)
-            self.world_width = w if w and w < float('inf') else self.ob.dimensions.length
+        if center_ray[2] != None:
+            w = common_utilities.ray_cast_world_size_bvh(region, rv3d, center, self.pxl_rad, self.bvh, self.mx, self.settings)
+            self.world_width = w if w and w < float('inf') else self.max_width
             #print(w)
         else:
             #print('no hit')
             pass
-        
-        
+           
     def brush_pix_size_init(self,context,x,y):
         
         if self.right_handed:
@@ -425,15 +422,15 @@ class SketchBrush(object):
         
         #draw the circle
         if self.mouse_circle != []:
-            common_drawing.draw_polyline_from_points(context, self.mouse_circle, color, linewidth, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, self.mouse_circle, color, linewidth, "GL_LINE_SMOOTH")
         
         #draw the sample points which are raycast
         if self.world_sample_points != []:
             #TODO color and size
-            #common_drawing.draw_3d_points(context, self.world_sample_points, (1,1,1,1), 3)
+            #common_drawing_px.draw_3d_points(context, self.world_sample_points, (1,1,1,1), 3)
             pass
     
         #draw the preview circle if changing brush size
         if self.preview_circle != []:
-            common_drawing.draw_polyline_from_points(context, self.preview_circle, color_size, linewidth, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, self.preview_circle, color_size, linewidth, "GL_LINE_SMOOTH")
             
