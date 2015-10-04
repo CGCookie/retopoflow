@@ -124,8 +124,16 @@ class TextBox(object):
         self.y = self.margin + self.height + corner[1]*(context.region.height - 2*self.margin - self.height)
              
     
-    def txt_height(self, text): return blf.dimensions(0,text)[1]
-    def txt_width(self, text):  return blf.dimensions(0,text)[0]
+    def txt_height(self, text):
+        # the following line is a hack to work around a
+        # strange issue/bug with blf.dimensions on OSX
+        m = 1.2 if 'Darwin' in str(bpy.app.build_platform) else 1.0
+        return blf.dimensions(0,text)[1] * m
+    def txt_width(self, text):
+        # the following line is a hack to work around a
+        # strange issue/bug with blf.dimensions on OSX
+        m = 1.2 if 'Darwin' in str(bpy.app.build_platform) else 1.0
+        return blf.dimensions(0,text)[0] * m
     
     def fit_box_width_to_text_lines(self):
         '''
