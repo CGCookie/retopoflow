@@ -62,7 +62,7 @@ class TextBox(object):
         self.text_lines = []
         self.format_and_wrap_text()
         
-        print('>>> dpi: %f' % self.text_dpi)
+        #print('>>> dpi: %f' % self.text_dpi)
         
     def hover(self,mouse_x, mouse_y):
         regOverlap = bpy.context.user_preferences.system.use_region_overlap
