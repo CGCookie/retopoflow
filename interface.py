@@ -21,10 +21,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         
         if bversion() < '002.076.00':
             col = layout.column(align=True)
-            col.label('Error: Retopoflow requires')
-            col.label('Blender 2.76+')
+            col.label('ERROR: upgrade needed', icon='ERROR')
+            col.label('RetopoFlow requires Blender 2.76+')
             return
-        
 
         col = layout.column(align=True)
 
