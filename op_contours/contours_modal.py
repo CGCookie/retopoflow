@@ -36,6 +36,7 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, pr
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
 from ..cache import mesh_cache
+from ..lib.common_utilities import get_settings
 
 
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
@@ -210,10 +211,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             self.contours.hover_guide_mode(context, self.settings, x, y)
             return ''
         
-        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
-            self.contours.guide_mode_select()   
-            return ''
-        
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
             
             if self.help_box.is_hovered:
@@ -228,6 +225,10 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             x,y = eventd['mouse']
             self.contours.sketch = [(x,y)] 
             return 'sketch'
+        
+        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
+            self.contours.guide_mode_select()   
+            return ''
         
         if self.contours.sel_path:
             if eventd['press'] in self.keymap['delete']:
@@ -318,10 +319,26 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             return ''
         
         elif eventd['release'] in self.keymap['action']:
+            
+            if eventd['release'] in selection_mouse(): #selection and action overlap
+                print('selection action overlap')
+                dist_traveled = 0.0
+                for s0,s1 in zip(self.contours.sketch[:-1],self.contours.sketch[1:]):
+                    dist_traveled += (Vector(s0) - Vector(s1)).length
+                    
+                if dist_traveled < 5:
+                    settings = get_settings()
+                    x,y = eventd['mouse']
+                    self.contours.hover_guide_mode(context, settings, x, y)
+                    self.contours.guide_mode_select()  
+                    self.contours.skecth = [] 
+                    return 'main' #''
+                else:
+                    print('dist traveled was real sketch')
+                    print(dist_traveled)
+            
             self.contours.sketch_confirm(context) 
             return 'main'
-        
-        
         return ''
     
     def modal_widget(self,context,eventd):
