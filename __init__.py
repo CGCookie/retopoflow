@@ -44,11 +44,11 @@ from .lib.common_utilities import bversion
 
 
 #Menus, Panels, Interface and Icon 
-from .icons import clear_icons
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
 if bversion() >= '002.076.000':
+    from .icons import clear_icons
     import bpy.utils.previews
 
     #Tools

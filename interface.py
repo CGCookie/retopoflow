@@ -2,7 +2,9 @@ import bpy
 
 from .lib import common_utilities
 from .lib.common_utilities import bversion
-from .icons import load_icons
+
+if bversion() >= '002.076.000':
+    from .icons import load_icons
 
 class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
