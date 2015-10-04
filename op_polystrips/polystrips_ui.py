@@ -46,6 +46,9 @@ class Polystrips_UI:
     def initialize_ui(self):
         self.is_fullscreen  = False
         self.was_fullscreen = False
+        
+        if 'brush_radius' not in dir(Polystrips_UI):
+            Polystrips_UI.brush_radius = 15
     
     
     def start_ui(self, context):
@@ -165,7 +168,7 @@ class Polystrips_UI:
         self.sketch_brush = SketchBrush(context,
                                         self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
-                                        15,  # settings.quad_prev_radius,
+                                        Polystrips_UI.brush_radius,  # settings.quad_prev_radius,
                                         mesh_cache['bvh'], self.mx,
                                         self.obj_orig.dimensions.length)
 
@@ -204,6 +207,8 @@ class Polystrips_UI:
         if not self.was_fullscreen and self.settings.distraction_free:
             bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = False
+        
+        Polystrips_UI.brush_radius = self.sketch_brush.pxl_rad
         
     def cleanup(self, context, cleantype=''):
         '''
