@@ -145,10 +145,15 @@ class TextBox(object):
         
     def fit_box_height_to_text_lines(self):
         '''
-        will make box width match longest line
+        fit height of box to match text
         '''
         line_height = self.txt_height('A')
-        self.height = len(self.text_lines)*(line_height+self.spacer)+2*self.border
+        line_count  = len(self.text_lines)
+        # the following line is a hack to work around a
+        # strange issue/bug with blf.dimensions on OSX
+        padding = 1 if 'Darwin' in str(bpy.app.build_platform) else 0.0
+        self.height = line_count*(line_height + self.spacer + padding) + 2*self.border
+        
     
     def format_and_wrap_text(self):
         '''
@@ -158,7 +163,7 @@ class TextBox(object):
         
         #TODO text size settings?
         useful_width = self.width - 2 * self.border
-        print('>>> useful width = % 8.1f' % useful_width)
+        #print('>>> useful width = % 8.1f' % useful_width)
         
         # special case: no newlines and we fit already!
         if '\n' not in self.raw_text and self.txt_width(self.raw_text) < useful_width:
@@ -189,8 +194,8 @@ class TextBox(object):
             if self.txt_width(line) < useful_width:
                 # no need to wrap!
                 lines = [line]
-                for line in lines:
-                    print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
+                #for line in lines:
+                #    print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
                 return lines
             
             lines = []
@@ -206,8 +211,8 @@ class TextBox(object):
                     working = '  ' + word.strip() # lead with exactly two spaces
             lines += [working]
             
-            for line in lines:
-                print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
+            #for line in lines:
+            #    print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
             
             return lines
         
@@ -218,93 +223,6 @@ class TextBox(object):
         self.fit_box_height_to_text_lines()
         self.fit_box_width_to_text_lines()
     
-    def format_and_wrap_text_old(self):
-        '''
-        '''
-        self.text_lines = []
-        #TODO text size settings?
-        useful_width = self.width - 2 * self.border
-        spc_size = blf.dimensions(0,' ')
-        spc_width = spc_size[0]
-        
-        dim_raw = blf.dimensions(0,self.raw_text)
-        if dim_raw[0] < useful_width and '\n' not in self.raw_text:
-            self.text_lines = [self.raw_text]
-            return
-        
-        #clean up line seps, double spaces
-        self.raw_text = self.raw_text.replace('\r','')
-        #self.raw_text.replace('  ',' ')
-        
-        def crop_word(word, width):
-            '''
-            word will be cropped to less than width
-            '''
-            ltr_indx = 0
-            wrd_width = 0
-            while ltr_indx < len(word) and wrd_width < width:
-                wrd_width += blf.dimensions(0,word[ltr_indx])[0]
-                ltr_indx += 1
-                
-            return word[0:ltr_indx - 1]  #TODO, check indexing for slice op
-        
-        def wrap_line(txt_line,width):
-            '''
-            takes a string, returns a list of strings, corresponding to wrapped
-            text of the specified pixel width, given current BLF settings
-            '''
-            if blf.dimensions(0,txt_line)[0] < useful_width:
-                #TODO fil
-                return [txt_line]
-            
-            txt = txt_line  #TODO Clean this
-            words = txt.split(' ')
-            new_lines = []
-            current_line = []
-            cur_line_len = 0
-            for i,wrd in enumerate(words):
-                
-                word_width = blf.dimensions(0, wrd)[0]
-                if word_width >= useful_width:
-                    crp_wrd = crop_word(wrd, useful_width)
-                        
-                    if len(current_line):
-                        new_lines.append(' '.join(current_line))
-                    new_lines.append(crp_wrd)
-                    current_line = []
-                    cur_line_len = 0
-                    continue
-                
-                if cur_line_len + word_width <= useful_width:
-                    current_line.append(wrd)
-                    cur_line_len += word_width
-                    if i < len(words)-1:
-                        cur_line_len += spc_size[0]
-                else:
-                    new_lines.append(' '.join(current_line))
-                    if new_lines[0].startswith(self.hang_indent):
-                        current_line = ['  ' + wrd]
-                        cur_line_len = word_width + 2 * spc_width
-                    else:
-                        current_line = [wrd]
-                        cur_line_len = word_width
-                    if i < len(words)-1:
-                        cur_line_len += spc_size[0]
-
-                if i == len(words) - 1 and len(current_line):
-                    new_lines.append(' '.join(current_line))
-                                     
-            return new_lines          
-        
-        lines = self.raw_text.split('\n')
-        for ln in lines:
-            self.text_lines.extend(wrap_line(ln, useful_width))
-        
-
-        self.fit_box_height_to_text_lines()
-        if len(self.text_lines) == 1 or len(lines) == len(self.text_lines):
-            self.fit_box_width_to_text_lines()
-        return
     
     def draw(self):
         regOverlap = bpy.context.user_preferences.system.use_region_overlap
@@ -351,7 +269,7 @@ class TextBox(object):
         bottom = self.y - self.height
         top = self.y
         
-        #draw the whole menu bacground
+        #draw the whole menu background
         line_height = self.txt_height('A')
         outline = common_drawing_px.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
         common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
