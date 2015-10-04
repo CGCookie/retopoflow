@@ -180,7 +180,10 @@ class TextBox(object):
             
             if self.txt_width(line) < useful_width:
                 # no need to wrap!
-                return [line]
+                lines = [line]
+                for line in lines:
+                    print('>>> line width = % 8.1f: %s' % (self.txt_width(line), line))
+                return lines
             
             lines = []
             working = ""
