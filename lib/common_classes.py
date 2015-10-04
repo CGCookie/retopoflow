@@ -57,7 +57,7 @@ class TextBox(object):
         self.text_size = 12
         self.text_dpi = context.user_preferences.system.dpi
         blf.size(0, self.text_size, self.text_dpi)
-        self.line_height = blf.dimensions(0, 'A')[1]
+        self.line_height = self.txt_height('A')
         self.raw_text = message
         self.text_lines = []
         self.format_and_wrap_text()
@@ -106,9 +106,9 @@ class TextBox(object):
         print('to be done later')
 
     def collapse(self):
-        line_height = blf.dimensions(0, 'A')[1]
+        line_height = self.txt_height('A')
         self.is_collapsed = True
-        self.width = blf.dimensions(0,self.collapsed_msg)[0] + 2 * self.border
+        self.width = self.txt_width(self.collapsed_msg) + 2 * self.border
         self.height = line_height + 2*self.border
         
     def uncollapse(self):
@@ -124,23 +124,86 @@ class TextBox(object):
         self.y = self.margin + self.height + corner[1]*(context.region.height - 2*self.margin - self.height)
              
     
+    def txt_height(self, text): return blf.dimensions(0,text)[1]
+    def txt_width(self, text):  return blf.dimensions(0,text)[0]
+    
     def fit_box_width_to_text_lines(self):
         '''
+        shrink width of box to fit width of text
         '''
-        
-        max_width = max([blf.dimensions(0,line)[0] for line in self.text_lines]) 
-        if max_width < self.width - 2*self.border:
-            self.width = max_width + 2*self.border
+        max_width = max(self.txt_width(line) for line in self.text_lines)
+        self.width = min(max_width + 2*self.border, self.width)
         
         
     def fit_box_height_to_text_lines(self):
         '''
         will make box width match longest line
         '''
-        line_height = blf.dimensions(0, 'A')[1]
+        line_height = self.txt_height('A')
         self.height = len(self.text_lines)*(line_height+self.spacer)+2*self.border
-        
+    
     def format_and_wrap_text(self):
+        '''
+        '''
+        # remove \r characters (silly windows machines!)
+        self.raw_text = self.raw_text.replace('\r','')
+        
+        #TODO text size settings?
+        useful_width = self.width - 2 * self.border
+        
+        # special case: no newlines and we fit already!
+        if '\n' not in self.raw_text and self.txt_width(self.raw_text) < useful_width:
+            self.text_lines = [self.raw_text]
+            return
+        
+        def split_word(line):
+            '''
+            splits off first word, including any leading spaces
+            '''
+            if not line: return (None,None)
+            sp = (line[0] == ' ')
+            for i,c in enumerate(line):
+                if c == ' ':
+                    if not sp: return (line[:i], line[i:])
+                    continue
+                sp = False
+            return (line,'')
+        
+        def wrap_line(line):
+            '''
+            takes a string, returns a list of strings, corresponding to wrapped
+            text of the specified pixel width, given current BLF settings
+            '''
+            
+            line = line.rstrip() # ignore right whitespace
+            
+            if self.txt_width(line) < useful_width:
+                # no need to wrap!
+                return [line]
+            
+            lines = []
+            working = ""
+            while line:
+                word,line = split_word(line)
+                if self.txt_width(working + word) < useful_width:
+                    working += word
+                else:
+                    # adding word is too wide!
+                    # start new row
+                    lines += [working]
+                    working = '  ' + word.strip() # lead with exactly two spaces
+            lines += [working]
+            
+            return lines
+        
+        self.text_lines = []
+        for line in self.raw_text.split('\n'):
+            self.text_lines += wrap_line(line)
+        
+        self.fit_box_height_to_text_lines()
+        self.fit_box_width_to_text_lines()
+    
+    def format_and_wrap_text_old(self):
         '''
         '''
         self.text_lines = []
@@ -274,7 +337,7 @@ class TextBox(object):
         top = self.y
         
         #draw the whole menu bacground
-        line_height = blf.dimensions(0, 'A')[1]
+        line_height = self.txt_height('A')
         outline = common_drawing_px.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
         common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
         common_drawing_px.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
