@@ -41,21 +41,23 @@ import bpy
 
 #CGCookie imports
 from .lib.common_utilities import bversion
-if bversion() > '002.074.004':
-    import bpy.utils.previews
+
 
 #Menus, Panels, Interface and Icon 
 from .icons import clear_icons
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
-#Tools
-from .op_polystrips.polystrips_modal import CGC_Polystrips
-from .op_contours.contours_modal import CGC_Contours
-from .op_tweak.tweak_modal import CGC_Tweak
-from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
-from .op_loopcut.loopcut_modal import CGC_LoopCut
-from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
+if bversion() >= '002.076.000':
+    import bpy.utils.previews
+
+    #Tools
+    from .op_polystrips.polystrips_modal import CGC_Polystrips
+    from .op_contours.contours_modal import CGC_Contours
+    from .op_tweak.tweak_modal import CGC_Tweak
+    from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
+    from .op_loopcut.loopcut_modal import CGC_LoopCut
+    from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
 
 
 # Used to store keymaps for addon
@@ -67,12 +69,13 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
-    bpy.utils.register_class(CGC_Polystrips)
-    bpy.utils.register_class(CGC_Tweak)
-    bpy.utils.register_class(CGC_Contours)
-    bpy.utils.register_class(CGC_EyeDropper)
-    bpy.utils.register_class(CGC_LoopCut)
-    bpy.utils.register_class(CGC_EdgeSlide)
+    if bversion() >= '002.076.000':
+        bpy.utils.register_class(CGC_Polystrips)
+        bpy.utils.register_class(CGC_Tweak)
+        bpy.utils.register_class(CGC_Contours)
+        bpy.utils.register_class(CGC_EyeDropper)
+        bpy.utils.register_class(CGC_LoopCut)
+        bpy.utils.register_class(CGC_EdgeSlide)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -86,12 +89,13 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(CGC_Polystrips)
-    bpy.utils.unregister_class(CGC_Tweak)
-    bpy.utils.unregister_class(CGC_Contours)
-    bpy.utils.unregister_class(CGC_EyeDropper)
-    bpy.utils.unregister_class(CGC_LoopCut)
-    bpy.utils.unregister_class(CGC_EdgeSlide)
+    if bversion() >= '002.076.000':
+        bpy.utils.unregister_class(CGC_Polystrips)
+        bpy.utils.unregister_class(CGC_Tweak)
+        bpy.utils.unregister_class(CGC_Contours)
+        bpy.utils.unregister_class(CGC_EyeDropper)
+        bpy.utils.unregister_class(CGC_LoopCut)
+        bpy.utils.unregister_class(CGC_EdgeSlide)
     
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
