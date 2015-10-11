@@ -1,1 +1,12 @@
 Loop Slide (click to hide help):
+
+SLIDING LOOPS:
+- LMB: select and slide loop
+
+
+TIPS:
+- Closed loops slide best.
+- Use loop slide to snap rings to source object
+
+FINSIH:
+- ENTER / RETURN / ESC: exit modal
