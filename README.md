@@ -33,7 +33,7 @@ The Tweak tool enables easy, brush-based geometry tweaking; enabling the artist 
 ## Loop Cut ![Loop Cut Icon](/icons/loop_cut_32.png)
 The Loop Cut tool acts like Blender's default Loop Cut and Slide, except that it allows multiple cut within a single modal session and all added loops are automatically snapped to the Source Object's surface.
 
-## Loop Slide ![Loop Slide Icon](/icons/loop_slide_32.png)
+## Loop Slide ![Loop Slide Icon](/icons/edge_slide_32.png)
 As with the Loop Cut tool, the Loop Slide is surface aware, enabling the artist to slide loops along a surface, while staying snapped. In particular this enables sliding of edgeloops that're opposite the current view, while still snapping.
 
 # Getting Support
