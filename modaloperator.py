@@ -32,7 +32,7 @@ from bpy.types import SpaceView3D
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .lib.common_classes import TextBox
+from .lib.class_textbox import TextBox
 from . import key_maps
 
 class ModalOperator(Operator):

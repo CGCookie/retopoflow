@@ -24,10 +24,12 @@ import bgl
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+
 import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage, get_source_object
+from ..lib.common_classes import SketchBrush
 
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI
@@ -60,7 +62,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         FSM['tweak relax tool'] = self.modal_tweak_relax_tool
         ModalOperator.initialize(self, FSM)
         self.initialize_ui()
-    
+
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
         

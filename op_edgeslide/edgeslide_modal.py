@@ -28,12 +28,11 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
-import math
-
 
 from ..modaloperator import ModalOperator
 from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
+from ..lib.class_textbox import TextBox
 from .. import key_maps
 
 from .edgeslide_data import EdgeSlide
@@ -99,7 +98,8 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         
         
         self.edgeslide = EdgeSlide(context, self.trg_obj, self.trg_bvh, source_obj = self.src_obj, source_bvh = self.src_bvh)
-        
+
+
         context.area.header_text_set('EDGE SLIDE')
         
         
