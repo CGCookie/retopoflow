@@ -128,15 +128,9 @@ class TextBox(object):
              
     
     def txt_height(self, text):
-        # the following line is a hack to work around a
-        # strange issue/bug with blf.dimensions on OSX
-        m = 1.2 if 'Darwin' in str(bpy.app.build_platform) else 1.0
-        return blf.dimensions(0,text)[1] * m
+        return blf.dimensions(0,text)[1]
     def txt_width(self, text):
-        # the following line is a hack to work around a
-        # strange issue/bug with blf.dimensions on OSX
-        m = 1.2 if 'Darwin' in str(bpy.app.build_platform) else 1.0
-        return blf.dimensions(0,text)[0] * m
+        return blf.dimensions(0,text)[0]
     
     def fit_box_width_to_text_lines(self):
         '''
@@ -152,10 +146,7 @@ class TextBox(object):
         '''
         line_height = self.txt_height('A')
         line_count  = len(self.text_lines)
-        # the following line is a hack to work around a
-        # strange issue/bug with blf.dimensions on OSX
-        padding = 1 if 'Darwin' in str(bpy.app.build_platform) else 0.0
-        self.height = line_count*(line_height + self.spacer + padding) + 2*self.border
+        self.height = line_count*(line_height + self.spacer) + 2*self.border
         
     
     def format_and_wrap_text(self):
