@@ -88,14 +88,9 @@ class RetopoFlowPreferences(AddonPreferences):
         )
 
     # Tool settings
-    contour_panel_settings = BoolProperty(
-        name="Show Contour Settings",
-        description = "Show the Contour settings",
-        default=False,
-        )
-    polystrips_panel_settings = BoolProperty(
-        name="Show Polystrips Settings",
-        description = "Show the Polystrips settings",
+    retopoflow_panel_settings = BoolProperty(
+        name="Show Settings",
+        description = "Show the RetopoFlow settings",
         default=False,
         )
 

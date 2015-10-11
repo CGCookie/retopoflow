@@ -87,10 +87,12 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         box = layout.box()
         row = box.row()
 
-        row.prop(settings, "contour_panel_settings")
+        row.prop(settings, "retopoflow_panel_settings")
 
-        if settings.contour_panel_settings:
+        if settings.retopoflow_panel_settings:
             col = box.column()
+            col.label("CONTOURS:")
+
             col.prop(settings, "vertex_count")
 
             col.label("Guide Mode:")
@@ -104,12 +106,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
             col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
-        row = box.row()
 
-        row.prop(settings, "polystrips_panel_settings")
-
-        if settings.polystrips_panel_settings:
             col = box.column()
+            col.label("POLYSTRIPS:")
             col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
