@@ -32,7 +32,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane, intersect_point_line
 
-from . import common_utilities
+from .common_utilities import simple_circle, ray_cast_region2d_bvh, ray_cast_world_size_bvh
 from . import common_drawing_px
 
 
@@ -73,20 +73,20 @@ class SketchBrush(object):
         self.init_y = self.y
         
     def make_circles(self):
-        self.mouse_circle = common_utilities.simple_circle(self.x, self.y, self.pxl_rad, 20)
+        self.mouse_circle = simple_circle(self.x, self.y, self.pxl_rad, 20)
         self.mouse_circle.append(self.mouse_circle[0])
-        self.sample_points = common_utilities.simple_circle(self.x, self.y, self.pxl_rad, self.n_sampl)
+        self.sample_points = simple_circle(self.x, self.y, self.pxl_rad, self.n_sampl)
         
     def get_brush_world_size(self,context):
         region = context.region  
         rv3d = context.space_data.region_3d
         center = (self.x,self.y)        
-        vec, center_ray = common_utilities.ray_cast_region2d_bvh(region, rv3d, center, self.bvh, self.mx, self.settings)
+        vec, center_ray = ray_cast_region2d_bvh(region, rv3d, center, self.bvh, self.mx, self.settings)
         vec.normalize()
         self.world_sample_points = []
         
         if center_ray[2] != None:
-            w = common_utilities.ray_cast_world_size_bvh(region, rv3d, center, self.pxl_rad, self.bvh, self.mx, self.settings)
+            w = ray_cast_world_size_bvh(region, rv3d, center, self.pxl_rad, self.bvh, self.mx, self.settings)
             self.world_width = w if w and w < float('inf') else self.max_width
             #print(w)
         else:
@@ -125,7 +125,7 @@ class SketchBrush(object):
             rad_diff =  self.pxl_rad*(math.exp(rad_diff/self.pxl_rad) - 1)
 
         self.new_rad = self.pxl_rad + rad_diff    
-        self.preview_circle = common_utilities.simple_circle(self.x, self.y, self.new_rad, 20)
+        self.preview_circle = simple_circle(self.x, self.y, self.new_rad, 20)
         self.preview_circle.append(self.preview_circle[0])
         
         
