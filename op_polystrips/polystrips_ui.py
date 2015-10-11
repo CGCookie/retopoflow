@@ -314,6 +314,7 @@ class Polystrips_UI:
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
+            common_utilities.default_target_object_to_active()
         
         container_bme = bmesh.new()
         

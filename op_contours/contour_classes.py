@@ -286,6 +286,8 @@ class Contours(object):
                 context.space_data.region_3d.view_rotation = view_rot
                 context.space_data.region_3d.view_distance = view_dist
                 context.space_data.region_3d.update()
+            
+            common_utilities.default_target_object_to_active()
     
         return
     

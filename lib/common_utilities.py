@@ -83,6 +83,7 @@ def get_source_object():
     settings = get_settings()
 
     if bpy.context.mode == 'OBJECT':
+        default_source_object_to_active()
         if settings.source_object:
             source_object = bpy.data.objects[settings.source_object]
         else:
@@ -91,6 +92,18 @@ def get_source_object():
             source_object = bpy.data.objects[settings.source_object]
 
     return source_object
+
+def default_source_object_to_active():
+    if not bpy.context.active_object: return
+    settings = get_settings()
+    if settings.source_object: return
+    settings.source_object = bpy.context.active_object.name
+
+def default_target_object_to_active():
+    if not bpy.context.active_object: return
+    settings = get_settings()
+    if settings.target_object: return
+    settings.target_object = bpy.context.active_object.name
 
 def get_target_object():
     settings = get_settings()
