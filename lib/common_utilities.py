@@ -79,6 +79,21 @@ def get_settings():
     return get_settings.cached_settings
 get_settings.cached_settings = None
 
+def get_help(toolname):
+    # help file stuff
+    my_dir = os.path.split(os.path.abspath(__file__))[0]
+    filename = os.path.join(my_dir, '..', 'help', 'help_' + toolname + '.txt')
+    if os.path.isfile(filename):
+        help_txt = open(filename, mode='r').read()
+    else:
+        help_txt = "No Help File found, please reinstall!"
+    self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
+    if not self.settings.help_def:
+        self.help_box.collapse()
+    self.help_box.snap_to_corner(context, corner = [1,1])
+
+    return self.help_box
+
 def get_source_object():
     settings = get_settings()
 

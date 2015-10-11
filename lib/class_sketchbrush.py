@@ -169,4 +169,4 @@ class SketchBrush(object):
         #draw the preview circle if changing brush size
         if self.preview_circle != []:
             common_drawing_px.draw_polyline_from_points(context, self.preview_circle, color_size, linewidth, "GL_LINE_SMOOTH")
-            
+

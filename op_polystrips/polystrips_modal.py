@@ -29,7 +29,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage, get_source_object
-from ..lib.common_classes import SketchBrush
+from ..lib.class_sketchbrush import SketchBrush
 
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI

@@ -35,7 +35,7 @@ import copy
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
-from ..lib.common_classes import SketchBrush
+from ..lib.class_sketchbrush import SketchBrush
 from ..lib.class_textbox import TextBox
 from .. import key_maps
 from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
