@@ -32,8 +32,8 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane, intersect_point_line
 
-from .common_utilities import simple_circle, ray_cast_region2d_bvh, ray_cast_world_size_bvh
-from . import common_drawing_px
+from ...common_utilities import simple_circle, ray_cast_region2d_bvh, ray_cast_world_size_bvh
+from ... import common_drawing_px
 
 
 class SketchBrush(object):

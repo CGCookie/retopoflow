@@ -58,7 +58,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         '''
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
-        self.initialize(FSM)
+        self.initialize('help_contours.txt', FSM)
     
     def start_poll(self,context):
 
@@ -80,7 +80,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         print('did we get started')
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
-        self.get_help_text(context)
         self.contours = Contours(context, self.settings)
         return ''
     
@@ -100,13 +99,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
                 self.contours.mode = 'loop'
             return ''
         
-        elif eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(context,corner = [1,1])
-        
         elif eventd['press'] in self.keymap['undo']:
             self.contours.undo_action()
             return ''
@@ -121,7 +113,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
-            self.help_box.hover(x,y)
             self.contours.hover_loop_mode(context, self.settings, x,y)
             return ''
         
@@ -131,15 +122,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
                 return ''    
         
         if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(context,corner = [1,1])
-            
-                return ''
-            
             if self.contours.cut_line_widget:
                 self.contours.prepare_widget(eventd)
                 return 'widget'
@@ -207,19 +189,10 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
-            self.help_box.hover(x,y)
             self.contours.hover_guide_mode(context, self.settings, x, y)
             return ''
         
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
-            
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(context,corner = [1,1])
-                return ''
             
             self.footer = 'sketching'
             x,y = eventd['mouse']
@@ -374,15 +347,3 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         ''' Called when tool is canceled '''
         pass
     
-    def get_help_text(self,context):
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir,'..', 'help','help_contours.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-    
-        self.help_box.raw_text = help_txt
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])

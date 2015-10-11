@@ -35,8 +35,7 @@ import copy
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
-from ..lib.class_sketchbrush import SketchBrush
-from ..lib.class_textbox import TextBox
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
 from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
 
@@ -109,20 +108,6 @@ class Tweak_UI:
                                         self.obj_orig.dimensions.length)
 
         self.undo_cache = []            # Clear the cache in case any is left over
-        
-        
-        # help file stuff
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, '..', 'help', 'help_tweak.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
-        
         
         
         context.area.header_text_set('Tweak')

@@ -32,7 +32,6 @@ from mathutils.bvhtree import BVHTree
 from ..modaloperator import ModalOperator
 from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
-from ..lib.class_textbox import TextBox
 from .. import key_maps
 
 from .edgeslide_data import EdgeSlide
@@ -63,7 +62,7 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
         
-        self.initialize(FSM)
+        self.initialize('help_loopslide.txt', FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''

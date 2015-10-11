@@ -56,7 +56,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
         FSM['tweak move tool']  = self.modal_tweak_move_tool
         FSM['tweak relax tool'] = self.modal_tweak_relax_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
-        ModalOperator.initialize(self, FSM)
+        self.initialize('help_tweak.txt', FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
@@ -138,9 +138,6 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
-
-        if settings.show_help:
-            self.help_box.draw()
     
     def modal_wait(self, context, eventd):
         settings = common_utilities.get_settings()
@@ -149,12 +146,6 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
 
         ########################################
         # accept / cancel
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in self.keymap['confirm']:
             #self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
@@ -173,8 +164,6 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.sketch_brush.update_mouse_move_hover(eventd['context'], x,y)
             self.sketch_brush.make_circles()
             self.sketch_brush.get_brush_world_size(eventd['context'])
-
-            self.help_box.hover(x,y)
 
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
@@ -198,18 +187,9 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             return 'brush scale tool'
 
         if eventd['press'] in self.keymap['action']: # in self.keymap['tweak move']:
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(context,corner = [1,1])
-                return ''
-
-            else:
-                self.create_undo_snapshot('tweak')
-                self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
-                self.modal_tweak_setup(context, eventd)
-                return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
+            self.create_undo_snapshot('tweak')
+            self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
+            self.modal_tweak_setup(context, eventd)
+            return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
 
         return ''

@@ -20,12 +20,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import bpy, blf, bgl
-from . import common_drawing_px
-           
+from ... import common_drawing_px
+
 
 class TextBox(object):
     
-    def __init__(self,context,x,y,width,height,border, margin, message):
+    def __init__(self,x,y,width,height,border, margin, message):
+        context = bpy.context
         
         self.x = x #middle of text box
         self.y = y #top of text box
@@ -125,7 +126,7 @@ class TextBox(object):
         shrink width of box to fit width of text
         '''
         max_width = max(self.txt_width(line) for line in self.text_lines)
-        self.width = min(max_width + 2*self.border, self.width)
+        self.width = min(max_width + 2*self.border, self.def_width)
         
         
     def fit_box_height_to_text_lines(self):

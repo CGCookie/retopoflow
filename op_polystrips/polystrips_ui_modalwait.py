@@ -47,12 +47,6 @@ class Polystrips_UI_ModalWait():
 
         ########################################
         # accept / cancel
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
@@ -111,16 +105,6 @@ class Polystrips_UI_ModalWait():
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
-            
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-            
-                return ''
-            
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'

@@ -62,7 +62,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
         
-        self.initialize(FSM)
+        self.initialize('help_loopcut.txt', FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''

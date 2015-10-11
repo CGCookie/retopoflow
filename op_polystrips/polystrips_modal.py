@@ -29,14 +29,13 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage, get_source_object
-from ..lib.class_sketchbrush import SketchBrush
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI
 from .polystrips_ui_modalwait  import Polystrips_UI_ModalWait
 from .polystrips_ui_tools      import Polystrips_UI_Tools
 from .polystrips_ui_draw       import Polystrips_UI_Draw
-
 from .polystrips_datastructure import Polystrips
 
 
@@ -60,7 +59,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
         FSM['tweak move tool']  = self.modal_tweak_move_tool
         FSM['tweak relax tool'] = self.modal_tweak_relax_tool
-        ModalOperator.initialize(self, FSM)
+        self.initialize('help_polystrips.txt', FSM)
         self.initialize_ui()
 
     def start_poll(self, context):

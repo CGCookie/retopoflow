@@ -22,24 +22,27 @@ https://github.com/CGCookie/retopoflow
 
 import bpy
 import bgl
-
-from mathutils import Vector, Matrix, Euler
-import math
-
 from bpy.types import Operator
 from bpy.types import SpaceView3D
-
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+from mathutils import Vector, Matrix, Euler
 
-from .lib.class_textbox import TextBox
+import math
+import os
+
+from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
+from .lib import common_utilities
 
 class ModalOperator(Operator):
 
     initialized = False
     
-    def initialize(self, FSM=None):
+    def initialize(self, helpText=None, FSM=None):
+        self.settings = common_utilities.get_settings()
+        self.keymap = key_maps.rtflow_default_keymap_generate()
+        
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
         dfns = {
@@ -65,6 +68,18 @@ class ModalOperator(Operator):
         self.FSM['nav']  = self.modal_nav
         self.FSM['wait'] = self.modal_wait
 
+        # help file stuff
+        if helpText:
+            helpTextFilename = os.path.join('help', helpText)
+            if os.path.isfile(helpTextFilename):
+                helpText = open(helpTextFilename, mode='r').read()
+            self.help_box = TextBox(500,500,300,200,10,20, helpText)
+            if not self.settings.help_def:
+                self.help_box.collapse()
+            #self.help_box.snap_to_corner(context, corner = [1,1])
+        else:
+            self.help_box = None
+        
         self.initialized = True
 
 
@@ -112,6 +127,8 @@ class ModalOperator(Operator):
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         self.draw_postpixel(context)
+        if self.settings.show_help:
+            self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
 
@@ -148,13 +165,33 @@ class ModalOperator(Operator):
             return nmode
 
         # accept / cancel
-        if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
+        if eventd['press'] in self.keymap['confirm']: # {'RET', 'NUMPAD_ENTER'}:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
             return 'finish'
-        if eventd['press'] in {'ESC'}:
+        if eventd['press'] in self.keymap['cancel']: # {'ESC'}:
             # cancel the operator
             return 'cancel'
+        
+        # help textbox
+        if eventd['press'] in self.keymap['help']:
+            if  self.help_box.is_collapsed:
+                self.help_box.uncollapse()
+            else:
+                self.help_box.collapse()
+            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+        if eventd['press'] in self.keymap['action']: # {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+            if self.help_box.is_hovered:
+                if  self.help_box.is_collapsed:
+                    self.help_box.uncollapse()
+                else:
+                    self.help_box.collapse()
+                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                return ''
+        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
+            #update brush and brush size
+            x,y = eventd['mouse']
+            self.help_box.hover(x,y)
 
         # handle general waiting
         nmode = self.FSM['wait'](context, eventd)
@@ -233,7 +270,6 @@ class ModalOperator(Operator):
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
         
-        self.help_box = TextBox(context,500,500,300,200,10,20,'No Help!')
         self.help_box.collapse()
         self.help_box.snap_to_corner(context, corner = [1,1])
         

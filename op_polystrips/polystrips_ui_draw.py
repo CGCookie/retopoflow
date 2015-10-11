@@ -432,7 +432,3 @@ class Polystrips_UI_Draw():
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             common_drawing_px.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
-
-        if settings.show_help:
-            self.help_box.draw()
-    
