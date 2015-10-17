@@ -83,7 +83,7 @@ class GVert:
         #data used when extending or emulating data
         #already within a BMesh
         self.from_mesh = from_mesh
-        self.from_mesh_ind = -1 #needs to be set explicitly
+        self.from_mesh_ind = -1 # index of face, needs to be set explicitly
         self.corner0_ind = -1
         self.corner1_ind = -1
         self.corner2_ind = -1
@@ -108,7 +108,9 @@ class GVert:
     def has_1(self): return not (self.gedge1 is None)
     def has_2(self): return not (self.gedge2 is None)
     def has_3(self): return not (self.gedge3 is None)
-    def is_inner(self): return not (self.gedge_inner is None)
+    def is_inner(self): return (self.gedge_inner is not None)
+    
+    def is_fromMesh(self):    return (self.from_mesh_ind != -1)
     
     def count_gedges(self):   return len(self.get_gedges_notnone())
     
@@ -272,7 +274,7 @@ class GVert:
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        if not self.frozen:
+        if not self.frozen and not self.is_inner():
             l,n,i, d = bvh.find(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
@@ -589,7 +591,73 @@ class GEdge:
         gvert1.connect_gedge_inner(self)
         gvert2.connect_gedge_inner(self)
         gvert3.connect_gedge(self)
-
+        
+        self.from_edges = None
+        if gvert0.is_fromMesh() and gvert3.is_fromMesh():
+            self.check_fromMesh();
+        else:
+            self.from_mesh = True
+    
+    def is_fromMesh(self): return self.from_mesh
+    
+    def check_fromMesh(self):
+        # can we walk from gvert0 to gvert3?
+        
+        def quad_oppositeEdges(q):
+            yield (q.edges[0],q.edges[2])
+            yield (q.edges[1],q.edges[3])
+            yield (q.edges[2],q.edges[0])
+            yield (q.edges[3],q.edges[1])
+        def edge_direction(q,e):
+            em = (e.verts[0].co + e.verts[1].co) / 2.0
+            qm = q.calc_center_median()
+            d  = em - qm        # quad center to edge center
+            ed = e.verts[1].co - e.verts[0].co
+            if d.cross(ed).dot(q.normal) < 0: return -1
+            return 1
+        
+        # build walking data struct
+        bm = bmesh.new()
+        bm.from_mesh(bpy.data.meshes[self.targ_o_name])
+        bm.faces.ensure_lookup_table()
+        q0,q1 = bm.faces[self.gvert0.from_mesh_ind],bm.faces[self.gvert3.from_mesh_ind]
+        
+        bseq = None     # the "best" sequence of edges
+        for e0,e1 in quad_oppositeEdges(q0):
+            lseq = [(q0,e1)]
+            while True:
+                q,e0 = lseq[-1]
+                if q == q1: break               # reached q1
+                if e0.is_boundary: break        # no more polygons at boundary
+                nq = [oq for oq in e0.link_faces if oq != q][0]
+                if nq == q0: break              # wrapped back around
+                if len(nq.edges) != 4: break    # hit non-quad
+                # find opposite edge
+                e1 = None
+                for _e0,_e1 in quad_oppositeEdges(nq):
+                    if e0 == _e0: e1 = _e1
+                if not e1: break                # huh?
+                lseq += [(nq,e1)]
+            
+            if lseq[-1][0] == q1:
+                # we reached q1 by walking the loop!
+                if bseq == None or len(lseq) < len(bseq):
+                    bseq = lseq
+        if bseq == None:
+            self.from_mesh = False
+            return
+        
+        def vinds(q,e):
+            li = [v.index for v in e.verts]
+            if edge_direction(q,e) < 0: li.reverse()
+            return li
+        
+        self.from_mesh   = True
+        self.force_count = True
+        self.frozen      = True
+        self.n_quads     = len(bseq)
+        self.from_edges  = [vinds(q,e) for q,e in bseq]
+    
     def get_count(self):
         l = len(self.cache_igverts)
         if l > 4:
@@ -622,7 +690,7 @@ class GEdge:
         if self.fill_to0 or self.fill_to1:
             print('Cannot unset force count when filling')
             return
-        self.force_count = None
+        self.force_count = False
         self.n_quads = None
         self.update()
     
@@ -1062,8 +1130,22 @@ class GEdge:
                     igv.snap_pos = igv.position
                     igv.snap_radius = igv.radius
                     igv.snap_tany = igv.tangent_y
-                
-                
+        
+        elif self.from_mesh:
+            if self.from_edges:
+                m = bpy.data.meshes[self.targ_o_name]
+                for i,igv in enumerate(self.cache_igverts):
+                    if i % 2 == 0: continue
+                    liv = self.from_edges[int((i-1)/2)]
+                    p0,p1 = m.vertices[liv[0]].co,m.vertices[liv[1]].co
+                    igv.position = (p0+p1) / 2.0
+                    igv.radius = (p0-p1).length / 2.0
+                    igv.tangent_y = (p1-p0).normalized()
+                    igv.snap_pos = igv.position
+                    igv.snap_radius = igv.radius
+                    igv.snap_tany = igv.tangent_y
+                self.from_edges = None
+        
         for zgedge in self.zip_attached:
             zgedge.update(debug=debug)
 
@@ -1081,6 +1163,7 @@ class GEdge:
         imx = mx.inverted()
         
         for igv in self.cache_igverts:
+            if igv.is_inner(): continue
             l,n,i,d = bvh.find(imx * igv.position)
             igv.position = mx * l
             
@@ -2004,6 +2087,7 @@ class Polystrips(object):
                 
                 va1a0 = a1 - a0
                 da1a0 = va1a0.normalized()
+                if da1a0.y == 0: return None
                 
                 dist = a0.y / -da1a0.y
                 if dist < 0 or dist > la1a0: return None

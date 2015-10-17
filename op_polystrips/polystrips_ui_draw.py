@@ -322,14 +322,14 @@ class Polystrips_UI_Draw():
                 draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
             else:
                 # Draw both handles when gvert is selected
-                p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered()]
+                p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered() and not ge.is_frozen()]
                 draw3d_points(context, p3d, color_handle, 8)
                 # Draw connecting line between handles
                 for p1 in p3d:
                     draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
 
         # Draw gvert handles on active gedge
-        if self.act_gedge:
+        if self.act_gedge and not self.act_gedge.is_frozen():
             color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
