@@ -141,16 +141,22 @@ class Tweak_UI_Tools():
         avgDist = 0.0
         avgCount = 0
         
-        div = dict()
+        divco = dict()
+        dibmf = dict()
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
             lbme = bmv0.link_edges
             avgDist += sum(bme.calc_length() for bme in lbme)
             avgCount += len(lbme)
-            div[i] = bmv0.co
+            divco[i] = bmv0.co
             for bme in lbme:
                 bmv1 = bme.other_vert(bmv0)
-                div[bmv1.index] = bmv1.co
+                divco[bmv1.index] = bmv1.co
+            for bmf in bmv0.link_faces:
+                if len(bmf.verts) != 4: continue
+                dibmf[bmf.index] = bmf
+                for bmv in bmf.verts:
+                    divco[bmv.index] = bmv.co
         
         if avgCount == 0: return ''
         
@@ -164,10 +170,17 @@ class Tweak_UI_Tools():
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
-                div[bmv1.index] += diff * m
+                divco[bmv1.index] += diff * m
+            for bmf in bmv0.link_faces:
+                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
+                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
+                for bmv in bmf.verts:
+                    diff = (bmv.co - ctr)
+                    m = (fd - diff.length)* (1.0- d) * 0.1
+                    divco[bmv.index] += diff * m
         
-        for i in div:
-            bmverts[i].co = mx * bvh.find(imx*div[i])[0]
+        for i in divco:
+            bmverts[i].co = mx * bvh.find(imx*divco[i])[0]
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         
