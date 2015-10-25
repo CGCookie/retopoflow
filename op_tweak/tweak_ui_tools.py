@@ -141,31 +141,33 @@ class Tweak_UI_Tools():
         avgDist = 0.0
         avgCount = 0
         
+        div = dict()
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
             lbme = bmv0.link_edges
             avgDist += sum(bme.calc_length() for bme in lbme)
             avgCount += len(lbme)
+            div[i] = bmv0.co
+            for bme in lbme:
+                bmv1 = bme.other_vert(bmv0)
+                div[bmv1.index] = bmv1.co
         
         if avgCount == 0: return ''
         
         avgDist /= avgCount
         
-        siv = set()
         for i,v,d in lmverts:
-            siv.add(i)
             bmv0 = bmverts[i]
             lbme = bmv0.link_edges
             if not lbme: continue
             for bme in bmv0.link_edges:
                 bmv1 = bme.other_vert(bmv0)
-                siv.add(bmv1.index)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
-                bmv1.co += diff * m
+                div[bmv1.index] += diff * m
         
-        for i in siv:
-            bmverts[i].co = mx * bvh.find(imx*bmverts[i].co)[0]
+        for i in div:
+            bmverts[i].co = mx * bvh.find(imx*div[i])[0]
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         
