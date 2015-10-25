@@ -154,7 +154,7 @@ class Tweak_UI_Tools():
             for bme in bmv0.link_edges:
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
-                m = (avgDist - diff.length) * d * 0.1
+                m = (avgDist - diff.length) * (1.0 - d) * 0.1
                 bmv1.co += diff * m
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
