@@ -223,6 +223,13 @@ class Polystrips_UI_Draw():
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
             bgl.glPointSize(1.0)
+        
+        def freeze_color(c):
+            return (
+                c[0] * 0.5 + color_frozen[0] * 0.5,
+                c[1] * 0.5 + color_frozen[1] * 0.5,
+                c[2] * 0.5 + color_frozen[2] * 0.5,
+                c[3])
             
 
         ### Patches ###
@@ -233,9 +240,11 @@ class Polystrips_UI_Draw():
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
+            
             if gpatch.is_frozen():
-                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
-                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
+                color_border = freeze_color(color_border)
+                color_fill   = freeze_color(color_fill)
+            
             if gpatch.count_error:
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
                 color_fill   = (color_warning[0], color_warning[1], color_warning[2], 0.10)
@@ -250,19 +259,19 @@ class Polystrips_UI_Draw():
             # Color active strip
             if gedge == self.act_gedge:
                 color_border = (color_active[0], color_active[1], color_active[2], 1.00)
-                color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             # Color selected strips
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
-                color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+                color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
             # Color unselected strips
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+                color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
             if gedge.is_frozen():
-                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
-                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
+                color_border = freeze_color(color_border)
+                color_fill   = freeze_color(color_fill)
             
             draw3d_quads(context, gedge.iter_segments(), color_fill, color_mirror)
             draw3d_closed_polylines(context, gedge.iter_segments(), color_border, 1, "GL_LINE_STIPPLE")
@@ -296,9 +305,10 @@ class Polystrips_UI_Draw():
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+            
             if gv.is_frozen():
-                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
-                color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
+                color_border = freeze_color(color_border)
+                color_fill   = freeze_color(color_fill)
 
             p3d = [p0,p1,p2,p3,p0]
             draw3d_quads(context, [[p0,p1,p2,p3]], color_fill, color_mirror)

@@ -593,10 +593,10 @@ class GEdge:
         gvert3.connect_gedge(self)
         
         self.from_edges = None
+        self.from_build = False
+        self.from_mesh  = False
         if gvert0.is_fromMesh() and gvert3.is_fromMesh():
             self.check_fromMesh();
-        else:
-            self.from_mesh = True
     
     def is_fromMesh(self): return self.from_mesh
     
@@ -624,27 +624,48 @@ class GEdge:
         
         bseq = None     # the "best" sequence of edges
         for e0,e1 in quad_oppositeEdges(q0):
+            #         | quad | quad | quad | ... | quad |
+            #         ^  ^^  ^                      q1
+            # search: e0 q0 e1 ->
+            # if we find a path from q0 to q1, then bseq will look like
+            #               q0 |   q  |   q  |  ...    q1 |
+            #     bseq = [ (q0,e) (q, e) (q, e) ...   (q1,e) ]
             lseq = [(q0,e1)]
             while True:
-                q,e0 = lseq[-1]
-                if q == q1: break               # reached q1
-                if e0.is_boundary: break        # no more polygons at boundary
-                nq = [oq for oq in e0.link_faces if oq != q][0]
-                if nq == q0: break              # wrapped back around
-                if len(nq.edges) != 4: break    # hit non-quad
+                # | q0 | ... | quad | quad | ... | q1 |
+                #               ^^  ^  ^^  ^
+                #               qp e0  qn  e1
+                qp,e0 = lseq[-1]
+                if qp == q1:
+                    # (e0 is far side of q1)
+                    dprint('found q1!')
+                    break
+                if e0.is_boundary:
+                    dprint('hit boundary; no more polygons to search')
+                    break
+                # test that e0 has only two link_faces?
+                qn = [qo for qo in e0.link_faces if qo != qp][0]
+                if qn == q0:
+                    dprint('wrapped back around')
+                    break
+                if len(qn.edges) != 4:
+                    dprint('hit non-quad polygon')
+                    break
                 # find opposite edge
                 e1 = None
-                for _e0,_e1 in quad_oppositeEdges(nq):
+                for _e0,_e1 in quad_oppositeEdges(qn):
                     if e0 == _e0: e1 = _e1
-                if not e1: break                # huh?
-                lseq += [(nq,e1)]
+                assert e1, 'could not find opposite edge' # something unexpected happened
+                lseq += [(qn,e1)]
             
             if lseq[-1][0] == q1:
                 # we reached q1 by walking the loop!
                 if bseq == None or len(lseq) < len(bseq):
                     bseq = lseq
+        
         if bseq == None:
-            self.from_mesh = False
+            dprint('gedge not from mesh')
+            # not from mesh!
             return
         
         def vinds(q,e):
@@ -655,8 +676,11 @@ class GEdge:
         self.from_mesh   = True
         self.force_count = True
         self.frozen      = True
-        self.n_quads     = len(bseq)
+        self.n_quads     = len(bseq)                    # including q0 and q1
         self.from_edges  = [vinds(q,e) for q,e in bseq]
+        self.from_build  = True
+        
+        dprint('gedge from mesh, len = %d' % (len(bseq)))
     
     def get_count(self):
         l = len(self.cache_igverts)
@@ -1045,7 +1069,7 @@ class GEdge:
             
             # compute interval lengths and ts
             l_widths = [0] + [r0 + s*i - d_os for i in range(c)]
-            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
+            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure length distribution
         
         else:
             # find "optimal" count for subdividing spline based on radii of two endpoints
@@ -1132,8 +1156,9 @@ class GEdge:
                     igv.snap_tany = igv.tangent_y
         
         elif self.from_mesh:
-            if self.from_edges:
+            if self.from_build:
                 m = bpy.data.meshes[self.targ_o_name]
+                self.update_nozip(debug=debug)
                 for i,igv in enumerate(self.cache_igverts):
                     if i % 2 == 0: continue
                     liv = self.from_edges[int((i-1)/2)]
@@ -1144,7 +1169,7 @@ class GEdge:
                     igv.snap_pos = igv.position
                     igv.snap_radius = igv.radius
                     igv.snap_tany = igv.tangent_y
-                self.from_edges = None
+                self.from_build = False
         
         for zgedge in self.zip_attached:
             zgedge.update(debug=debug)
@@ -2312,7 +2337,9 @@ class Polystrips(object):
         
         def create_Gvert(gv):
             i_gv = gv_idx[gv]
-            if (i_gv,0) in igv_corner_vind: return
+            if (i_gv,0) in igv_corner_vind:
+                # already created this gvert, so return
+                return
             
             
             liv = [insert_vert(p) if i == -1 else i for i,p in zip(gv.get_corner_inds(),gv.get_corners())] #List of Indices(bmesh) for Vertices acronym = liv
@@ -2346,7 +2373,11 @@ class Polystrips(object):
             igv_corner_vind[(i_gv,3)] = liv[3]
             
             if -1 in gv.get_corner_inds():
+                # at least one corner (vertex) of gvert has not been created
                 create_quad(liv[3],liv[2],liv[1],liv[0])
+            else:
+                # this gvert existed before
+                pass
         
         
         #copy all existing mesh data into our format
@@ -2395,6 +2426,18 @@ class Polystrips(object):
                     if l == 0:
                         # no segments
                         create_quad(c0,c1,c2,c3)
+                    elif ge.is_fromMesh():
+                        #ige_side_lvind[(i_ge, 1)] += [c0]
+                        #ige_side_lvind[(i_ge,-1)] += [c1]
+                        l = len(ge.from_edges)
+                        for i,ivs in enumerate(ge.from_edges):
+                            if i == 0: continue
+                            if i == l-2: continue
+                            if i == l-1: continue
+                            ige_side_lvind[(i_ge,-1)] += [ivs[0]]
+                            ige_side_lvind[(i_ge, 1)] += [ivs[1]]
+                        #ige_side_lvind[(i_ge,-1)] += [c2]
+                        #ige_side_lvind[(i_ge, 1)] += [c3]
                     else:
                         cc0,cc1 = c0,c1
                         for i,gvert in enumerate(ge.cache_igverts):
