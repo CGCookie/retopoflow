@@ -47,15 +47,13 @@ class Tweak_UI_Tools():
         
         ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],self.mx, settings)
         hit_p3d,hit_norm,hit_idx = hit
+        if not hit_p3d:
+            self.tweak_data = None
+            return
         
         hit_p3d = mx * hit_p3d
         
-        lgvmove = []  #GVert
-        lgvextmove = []  #GVerts  and BMVert 
-        lgemove = []  #Gedges
-        lgpmove = [] #Patch
         lmverts = []  #BMVert
-        supdate = set()
         
         for i_mv,mv in enumerate(self.dest_bme.verts):
             d = (mx*mv.co-hit_p3d).length / self.stroke_radius
@@ -63,11 +61,9 @@ class Tweak_UI_Tools():
                 continue
             lmverts.append((i_mv,mx *mv.co,d))
         
-        
         self.tweak_data = {
             'mouse': eventd['mouse'],
             'lmverts': lmverts,
-            'supdate': supdate,
             'mx': mx,
             'mx3x3': mx3x3,
             'imx': imx,
@@ -120,86 +116,117 @@ class Tweak_UI_Tools():
         return ''
     
     def modal_tweak_relax_tool(self, context, eventd):
-        print('modal_tweak_relax_tool not implemented')
-        return 'main'
-        
-        if eventd['release'] == 'SHIFT+T':
+        if eventd['release'] in self.keymap['tweak tool relax']:
+            self.undo_stopRepeated('relax')
             return 'main'
+        
+        self.create_undo_snapshot('relax')
         
         settings = common_utilities.get_settings()
         region = eventd['region']
         r3d = eventd['r3d']
         
-        if eventd['press'] in self.keymap['action']:
-            self.modal_tweak_setup(context, eventd, max_dist=2.0)
-            return ''
+        self.modal_tweak_setup(context, eventd, max_dist=1.0)
+        if not self.tweak_data: return ''
         
-        if (eventd['type'] == 'MOUSEMOVE' and self.tweak_data) or eventd['release'] == 'LEFTMOUSE':
-            cx,cy = eventd['mouse']
-            lx,ly = self.tweak_data['mouse']
-            dx,dy = cx-lx,cy-ly
-            dv = Vector((dx,dy))
-            mx = self.tweak_data['mx']
-            mx3x3 = self.tweak_data['mx3x3']
-            imx = self.tweak_data['imx']
-            
-            def update(p3d, d):
-                if d >= 1.0: return p3d
-                p2d = location_3d_to_region_2d(region, r3d, p3d)
-                p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'], self.mx, settings)[1]
-                if hit[2] == None: return p3d
-                return mx * hit[0]
-            
-            vertices = self.dest_bme.verts
-            for i_v,c,d in self.tweak_data['lmverts']:
-                nc = update(c,d)
-                vertices[i_v].co = imx * nc
-                print('update_edit_mesh')
-            
-            for gv,ic,c,d in self.tweak_data['lgvextmove']:
-                if ic == 0:
-                    gv.corner0 = update(c,d)
-                elif ic == 1:
-                    gv.corner1 = update(c,d)
-                elif ic == 2:
-                    gv.corner2 = update(c,d)
-                elif ic == 3:
-                    gv.corner3 = update(c,d)
-            
-            bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
-            
-            for gv,ic,c,d in self.tweak_data['lgvmove']:
-                if ic == 0:
-                    gv.corner0 = update(c,d)
-                elif ic == 1:
-                    gv.corner1 = update(c,d)
-                elif ic == 2:
-                    gv.corner2 = update(c,d)
-                elif ic == 3:
-                    gv.corner3 = update(c,d)
-            
-            for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
-                nc0 = update(c0,d0)
-                nc1 = update(c1,d1)
-                gv.position = (nc0+nc1)/2.0
-                gv.tangent_y = (nc0-nc1).normalized()
-                gv.radius = (nc0-nc1).length / 2.0
-            
-            for gp,i0,i1,c,d in self.tweak_data['lgpmove']:
-                nc = update(c,d)
-                gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
-                gp.map_pts[(i0,i1)] = nc
-                
-            
-            if eventd['release'] in self.keymap['action']:
-                for u in self.tweak_data['supdate']:
-                   u.update()
-                for u in self.tweak_data['supdate']:
-                   u.update_visibility(eventd['r3d'])
-                self.tweak_data = None
+        lmverts = self.tweak_data['lmverts']
+        if not lmverts: return
         
+        bmverts = self.dest_bme.verts
+        
+        avgDist = 0.0
+        avgCount = 0
+        
+        for i,v,d in lmverts:
+            bmv0 = bmverts[i]
+            lbme = bmv0.link_edges
+            avgDist += sum(bme.calc_length() for bme in lbme)
+            avgCount += len(lbme)
+        
+        if avgCount == 0: return ''
+        
+        avgDist /= avgCount
+        
+        for i,v,d in lmverts:
+            bmv0 = bmverts[i]
+            lbme = bmv0.link_edges
+            if not lbme: continue
+            for bme in bmv0.link_edges:
+                bmv1 = bme.other_vert(bmv0)
+                diff = (bmv1.co - bmv0.co)
+                m = (avgDist - diff.length) * d * 0.1
+                bmv1.co += diff * m
+        
+        bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         return ''
+        
+        
+        
+        avgDist = 0.0
+        for i0,v0,d0 in lmverts:
+            for i1,v1,d1 in lmverts:
+                if i1 <= i0: continue
+                avgDist += (v0-v1).length
+        avgDist /= len(lmverts)
+        print(str(avgDist))
+        return ''
+        
+        cx,cy = eventd['mouse']
+        lx,ly = self.tweak_data['mouse']
+        dx,dy = cx-lx,cy-ly
+        dv = Vector((dx,dy))
+        mx = self.tweak_data['mx']
+        mx3x3 = self.tweak_data['mx3x3']
+        imx = self.tweak_data['imx']
+        
+        def update(p3d, d):
+            if d >= 1.0: return p3d
+            p2d = location_3d_to_region_2d(region, r3d, p3d)
+            p2d += dv * (1.0-d)
+            hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'], self.mx, settings)[1]
+            if hit[2] == None: return p3d
+            return mx * hit[0]
+        
+        vertices = self.dest_bme.verts
+        for i_v,c,d in self.tweak_data['lmverts']:
+            nc = update(c,d)
+            vertices[i_v].co = imx * nc
+            print('update_edit_mesh')
+        
+        for gv,ic,c,d in self.tweak_data['lgvextmove']:
+            if ic == 0:
+                gv.corner0 = update(c,d)
+            elif ic == 1:
+                gv.corner1 = update(c,d)
+            elif ic == 2:
+                gv.corner2 = update(c,d)
+            elif ic == 3:
+                gv.corner3 = update(c,d)
+        
+        bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+        
+        for gv,ic,c,d in self.tweak_data['lgvmove']:
+            if ic == 0:
+                gv.corner0 = update(c,d)
+            elif ic == 1:
+                gv.corner1 = update(c,d)
+            elif ic == 2:
+                gv.corner2 = update(c,d)
+            elif ic == 3:
+                gv.corner3 = update(c,d)
+        
+        for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
+            nc0 = update(c0,d0)
+            nc1 = update(c1,d1)
+            gv.position = (nc0+nc1)/2.0
+            gv.tangent_y = (nc0-nc1).normalized()
+            gv.radius = (nc0-nc1).length / 2.0
+        
+        for gp,i0,i1,c,d in self.tweak_data['lgpmove']:
+            nc = update(c,d)
+            gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
+            gp.map_pts[(i0,i1)] = nc
+            
     
     ##############################
     # tools

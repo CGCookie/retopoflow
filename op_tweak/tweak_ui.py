@@ -131,7 +131,7 @@ class Tweak_UI:
         '''
         '''
 
-        repeated_actions = {}
+        repeated_actions = {'relax'}
 
         if action in repeated_actions and len(tweak_undo_cache):
             if action == tweak_undo_cache[-1][1]:
@@ -144,6 +144,11 @@ class Tweak_UI:
 
         if len(tweak_undo_cache) > self.settings.undo_depth:
             tweak_undo_cache.pop(0)
+    
+    def undo_stopRepeated(self, action):
+        if not tweak_undo_cache: return
+        if tweak_undo_cache[-1][1] == action:
+            tweak_undo_cache[-1] = (tweak_undo_cache[-1][0], action + '.')
 
     def undo_action(self):
         '''
