@@ -1156,15 +1156,39 @@ class GEdge:
         '''
         snaps already computed igverts to surface of object ob
         '''
+        
+        thinSurface_maxDist = 0.05
+        thinSurface_offset = 0.005
+        thinSurface_opposite = -0.4
+        
         bvh = mesh_cache['bvh']
         mx = self.mx
         mxnorm = mx.transposed().inverted().to_3x3()
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
+        
+        dprint('\nsnapping igverts')
         for igv in self.cache_igverts:
             if igv.is_inner(): continue
-            l,n,i,d = bvh.find(imx * igv.position)
+            l,n,_,_ = bvh.find(imx * igv.position)
+            
+            # assume that if the snapped norm is pointing opposite to the norms
+            # of outer control points of gedge then we've likely snapped to the
+            # wrong side of a thin surface.
+            d0,d3 = n.dot(self.gvert0.snap_norm),n.dot(self.gvert3.snap_norm)
+            dprint('n.dot(gv0.n) = %f, n.dot(gv3.n) = %f' % (d0, d3))
+            if d0 < thinSurface_opposite or d3 < thinSurface_opposite:
+                dprint('possible thin surface detected. casting ray backwards')
+                hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
+                if hit:
+                    lr,nr,_,dr = hit
+                    d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
+                    dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
+                    if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
+                        # seems reasonable enough
+                        l,n = lr,nr
+            
             igv.position = mx * l
             
             if Polystrips.settings.symmetry_plane == 'x':

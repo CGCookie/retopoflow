@@ -165,6 +165,13 @@ class Polystrips_UI_ModalWait():
         # Selected gedge commands
      
         if self.act_gedge:
+            if eventd['press'] in {'ONE','TWO','THREE','FOUR'}:
+                d = {'ONE':0, 'TWO':1, 'THREE':2, 'FOUR':3}
+                self.act_gvert = self.act_gedge.gverts()[d[eventd['press']]]
+                self.act_gedge = None
+                self.sel_gedges.clear()
+                return ''
+            
             if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gedge(self.act_gedge)

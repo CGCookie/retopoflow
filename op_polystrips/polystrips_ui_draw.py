@@ -38,6 +38,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from ..lib import common_utilities
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 
 from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
@@ -341,6 +342,10 @@ class Polystrips_UI_Draw():
                 draw3d_points(context, p3d, color_handle, 8)
                 draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
                 draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
+                if False:
+                    # draw each normal of each gvert
+                    for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
+                        draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH")
 
             if settings.show_segment_count:
                 self.draw_gedge_info(self.act_gedge, context)
