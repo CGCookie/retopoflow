@@ -120,7 +120,11 @@ class GVert:
     def is_cross(self):       return self.has_0() and self.has_1() and self.has_2() and self.has_3()
     
     def freeze(self): self.frozen = True
-    def thaw(self): self.frozen = False
+    def thaw(self):
+        self.frozen = False
+        for ge in self.get_gedges_notnone():
+            ge.thaw()
+        self.update()
     def is_frozen(self): return self.frozen
     
     def get_gedges(self): return [self.gedge0,self.gedge1,self.gedge2,self.gedge3]
@@ -640,6 +644,7 @@ class GEdge:
         self.frozen = False
         for gp in self.gpatches:
             gp.thaw()
+        self.update()
     def is_frozen(self): return self.frozen
     
     def zip_to(self, gedge):
@@ -1240,6 +1245,7 @@ class GPatch:
             ge.freeze()
     def thaw(self):
         self.frozen = False
+        self.update()
     def is_frozen(self): return self.frozen
     
     def disconnect(self):

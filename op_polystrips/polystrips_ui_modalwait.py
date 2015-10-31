@@ -155,10 +155,15 @@ class Polystrips_UI_ModalWait():
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
+            
             if eventd['press'] in self.keymap['rotate pole']:
                 reverse = eventd['press']=='SHIFT+R'
                 self.act_gpatch.rotate_pole(reverse=reverse)
                 self.polystrips.update_visibility(eventd['r3d'])
+                return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gpatch.thaw()
                 return ''
 
         ###################################
@@ -257,6 +262,10 @@ class Polystrips_UI_ModalWait():
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gedge.thaw()
+                return ''
 
         ###################################
         # selected gvert commands
@@ -340,6 +349,10 @@ class Polystrips_UI_ModalWait():
 
             if eventd['press'] in self.keymap['update']:
                 self.act_gvert.update_gedges()
+                return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gvert.thaw()
                 return ''
 
             if eventd['press'] in self.keymap['rip']:
