@@ -2168,7 +2168,7 @@ class Polystrips(object):
         
     def dissolve_gvert(self, gvert, tessellation=20):
         if not (gvert.is_endtoend() or gvert.is_ljunction()):
-            print('Cannot dissolve GVert with %i connections' % gvert.count_gedges())
+            print('Cannot dissolve junction with %i connections' % gvert.count_gedges())
             return
         
         gedge0 = gvert.gedge0
@@ -2479,12 +2479,12 @@ class Polystrips(object):
         return gvert1
     
     def attempt_gpatch(self, gedges):
-        if len(gedges) == 0: return 'No GEdges specified'
+        if len(gedges) == 0: return 'No strips specified'
         
         gedges = list(gedges)
         
         if any(ge.is_zippered() for ge in gedges):
-            return 'Cannot create GPatches with zippered GEdges'
+            return 'Cannot create patches with zippered strips'
         
         def walkabout(gedge, gvfrom):
             gefrom = gedge
@@ -2558,7 +2558,7 @@ class Polystrips(object):
             return [self.create_gpatch(*[self.gedges[kv] for kv in k]) for k in fill_cycles]
         
         if len(gedges) < 2:
-            return 'Must select at least two GEdges to create GPatch from non-cycle'
+            return 'Must select at least two strips to fill a patch'
         
         if not fill_noncycles:
             if len(gedges) == 2 and not any(gedges[0].has_endpoint(gv) for gv in [gedges[1].gvert0,gedges[1].gvert3]):
@@ -2593,7 +2593,7 @@ class Polystrips(object):
                 
                 return [self.create_gpatch(lgedge, bgedge, rgedge, tgedge)]
             
-            return 'Could not determine type of GPatch.  Try selecting more or different GEdges'
+            return 'Could not determine type of patch. Try selecting different strips'
         
         lgp = []
         for k in fill_noncycles:
@@ -2605,7 +2605,7 @@ class Polystrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = sge1.get_other_end(gv1)
                 if gv0 == gv2:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge2 = self.insert_gedge_between_gverts(gv0,gv2)
                 lgp += [self.create_gpatch(sge0,sge1,sge2)]
             elif l == 3:
@@ -2615,7 +2615,7 @@ class Polystrips(object):
                 gv2 = gvert_in_common(sge1,sge2)
                 gv3 = sge2.get_other_end(gv2)
                 if gv0 == gv3:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge3 = self.insert_gedge_between_gverts(gv0, gv3)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3)]
             elif l == 4:
@@ -2625,7 +2625,7 @@ class Polystrips(object):
                 gv3 = gvert_in_common(sge2,sge3)
                 gv4 = sge3.get_other_end(gv3)
                 if gv0 == gv4:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge4 = self.insert_gedge_between_gverts(gv0,gv4)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3,sge4)]
         
