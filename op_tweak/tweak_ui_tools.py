@@ -176,7 +176,7 @@ class Tweak_UI_Tools():
                 fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0- d) * 0.1
+                    m = (fd - diff.length)* (1.0- d) * 0.25
                     divco[bmv.index] += diff * m
         
         for i in divco:
