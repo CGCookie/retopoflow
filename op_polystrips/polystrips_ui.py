@@ -278,6 +278,7 @@ class Polystrips_UI:
     # mesh creation
     
     def create_mesh(self, context):
+        self.settings = common_utilities.get_settings()
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
@@ -295,7 +296,7 @@ class Polystrips_UI:
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
             self.dest_obj.show_wire      = True
-            self.dest_obj.show_x_ray     = True
+            self.dest_obj.show_x_ray     = self.settings.use_x_ray
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
