@@ -300,6 +300,12 @@ class Polystrips_UI:
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
+
+            # check for symmetry and then add a mirror if needed
+            if self.settings.symmetry_plane == 'x':
+                self.dest_obj.modifiers.new(type='MIRROR', name='Polystrips-Symmetry')
+                self.dest_obj.modifiers['Polystrips-Symmetry'].use_clip = True
+
             common_utilities.default_target_object_to_active()
         
         container_bme = bmesh.new()
