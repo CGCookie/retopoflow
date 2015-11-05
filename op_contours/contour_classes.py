@@ -250,6 +250,7 @@ class Contours(object):
                     self.existing_loops.append(existing_loop)       
             
     def finish_mesh(self, context):
+        self.settings = common_utilities.get_settings()
         back_to_edit = (context.mode == 'EDIT_MESH')
                     
         #This is where all the magic happens
@@ -274,7 +275,9 @@ class Contours(object):
             print('select and make active')
             self.dest_ob.select = True
             context.scene.objects.active = self.dest_ob
-            
+
+            self.dest_ob.show_x_ray = self.settings.use_x_ray
+
             if context.space_data.local_view:
                 view_loc = context.space_data.region_3d.view_location.copy()
                 view_rot = context.space_data.region_3d.view_rotation.copy()
