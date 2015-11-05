@@ -27,3 +27,6 @@ FILL / SEGMENTS:
 GENERATE MESH:
 - ENTER / RETURN: confirm retopology and generate mesh
 - ESC: cancel operation
+
+TIPs:
+- In the case of a crash simply restart Polystrips and press UNDO once to recover
