@@ -91,6 +91,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
+        self.undo_all_actions()
         pass
     
     def update(self, context):
@@ -186,10 +187,14 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.ready_tool(eventd, self.scale_brush_pixel_radius)
             return 'brush scale tool'
 
-        if eventd['press'] in self.keymap['action']: # in self.keymap['tweak move']:
-            self.create_undo_snapshot('tweak')
-            self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
+        if eventd['press'] in self.keymap['tweak tool move']:
+            self.create_undo_snapshot('move')
             self.modal_tweak_setup(context, eventd)
-            return 'tweak move tool' # if eventd['press']=='T' else 'tweak relax tool'
+            return 'tweak move tool'
+        
+        if eventd['press'] in self.keymap['tweak tool relax']:
+            self.create_undo_snapshot('relax')
+            self.modal_tweak_setup(context, eventd)
+            return 'tweak relax tool'
 
         return ''
