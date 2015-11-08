@@ -386,6 +386,7 @@ class GVert:
             self.visible = False not in bvh_meth
         else:
             self.visible = common_utilities.ray_cast_visible_bvh([self.snap_pos], mesh_cache['bvh'],self.mx, r3d)[0]
+        self.visible = True
         
         if not update_gedges: return
         for ge in self.get_gedges_notnone():
@@ -1103,7 +1104,7 @@ class GEdge:
         
     
     def is_picked(self, pt):
-        for p0,p1,p2,p3 in self.iter_segments(only_visible=True):
+        for p0,p1,p2,p3 in self.iter_segments():
         #for p0,p1,p2,p3 in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
@@ -1568,7 +1569,7 @@ class GPatch:
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
         
     def is_picked(self, pt):
-        for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
+        for (p0,p1,p2,p3) in self.iter_segments():
         #for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)

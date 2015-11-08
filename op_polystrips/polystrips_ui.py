@@ -438,7 +438,8 @@ class Polystrips_UI:
                 self.sel_gverts = set([cpt])
                 self.act_gpatch = None
                 return ''
-        # Select gvert
+        
+        # select gvert?
         for gv in self.polystrips.gverts:
             if gv.is_unconnected(): continue
             if not gv.is_picked(pt): continue
@@ -449,6 +450,7 @@ class Polystrips_UI:
             self.act_gpatch = None
             return ''
 
+        # select gedge?
         for ge in self.polystrips.gedges:
             if not ge.is_picked(pt): continue
             self.act_gvert = None
