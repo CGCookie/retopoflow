@@ -99,8 +99,13 @@ def n_of_i_j(X, Y, i, j):
 def blend_side_primary(V_edges, n_side, pad = 'max'):
     '''
     args:
-        V_edges = list of [list of verts] along an edge loop which represents a side of the polygon
+        V_edges = list of [list of verts]: represents vert loop sides of the polygon
                   V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
+                  
+        n_side - integer:  The side to be blended with adjacent sides
+        
+        pad - integer or string 'max':  How far along the adjacent sides to extrude
+                                        the padding side
     
     '''
     N = len(V_edges)  #number of sides of polygon
@@ -141,6 +146,8 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
     X = width of side verts = subvidivion of that side + 1
     Y = pading depth
     W = list of weights
+    
+    returns new side data, does not modifiy
     '''
     
     def n_w_of_i_j_prev(i,j,X,Y,X_prev, Y_prev, ws_nm1):
@@ -154,11 +161,11 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
         i_nm1 = X_prev - j
         j_nm1 = i
         
-        if i > Y_prev:#todo, possible Y_prev -1 or >=
+        if i > Y_prev-1:#todo, possible Y_prev -1 or >=
             return -1, -1
         if i_nm1 < 0:
             print('we have a problem!, bad indexing somehow')
-        n_nm1 = (i_nm1)*Y_prev- + j_nm1
+        n_nm1 = (i_nm1 -1)*Y_prev + j_nm1
         w_nm1 = ws_nm1[i_nm1]
         
         return n_nm1, w_nm1
@@ -166,10 +173,12 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
     def n_w_of_i_j_next(i,j,X,Y,X_next, Y_next, ws_np1):
         '''
         takes i,j index in current side
-        X, Y dimensions of current padding
+        X, Y dimensions of current padding. X is the subdivision of this side, Y is padding depth
         X_prev, Y_prev dimensions of previous padding
         
-        returns n index in previous verts        
+        returns n index in previous verts
+        
+        link to image showing indexing schema #TODO#        
         '''
         i_np1 = j
         j_np1 = X - i
@@ -178,7 +187,7 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
             return -1, -1
         if j_np1 < 0:
             print('we have a problem!, bad indexing somehow')
-        n_np1 = (i_np1)*Y_next + j_np1
+        n_np1 = (i_np1)*Y_next + j_np1 - 1
         w_np1 = ws_np1[i_np1]
         
         return n_np1, w_np1    
@@ -188,8 +197,8 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
     vs_np1, Xnp1, Ynp1,  Wnp1  = SD_np1[0], SD_np1[1], SD_np1[2], SD_np1[3]
     
     new_verts = vs_n[0:Yn]  #left boundary get's kept, but, it could technically get kept by proper weighting?
-    for xi_n in range(1, Xn):
-        i = n_of_i_j(Xn, Yn, xi_n, 0) #bottom boundary get's passed through.  Ditto above with proper weighting
+    for xi_n in range(1, Xn-1):
+        i = n_of_i_j(Xn, Yn, xi_n, 0) #bottom boundary single vert get's passed through.  Ditto above with proper weighting
         new_verts += [vs_n[i]]
         for yi_n in range(1, Yn):
             i = n_of_i_j(Xn, Yn, xi_n, yi_n)
@@ -200,6 +209,9 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
             i_nm1, w_nm1 = n_w_of_i_j_prev(xi_n, yi_n, Xn, Yn, Xnm1, Ynm1, Wnm1)
             
             if i_np1 != -1 and i_nm1 != -1:
+                #print('blend 3 verts together')
+                #print('index in this side, index in next side, index in prev side')
+                #print((i, i_np1, i_nm1))
                 v_np1 = vs_np1[i_np1]
                 v_nm1 = vs_nm1[i_nm1]
                 
@@ -208,60 +220,76 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
                 #coef_vnm1 =  (1-wn)*(w_nm1)
                 #v_new = (1-wn)*((1-w_nm1)*vn + w_nm1*v_nm1) + wn*((1-w_np1)*v_np1 + w_np1*vn)
                 
-                coef_vn = w_nm1 + (1-w_np1)
-                coef_vnp1 =  wn
-                coef_vnm1 = 1- wn
-                coef_sum = coef_vn + coef_vnp1 + coef_vnm1
+                #coef_vn = w_nm1 + (1-w_np1)
+                #coef_vnp1 =  wn
+                #coef_vnm1 = 1- wn
+                #coef_sum = coef_vn + coef_vnp1 + coef_vnm1
                 
                 #coef_vnm1 =  (1-wn)*(w_nm1)
-                v_new = 1/coef_sum * (coef_vn*vn + coef_vnm1*v_nm1 + coef_vnp1*v_np1)
-                print('Coef Vn %f' % coef_vn)
-                print('Coef V n-1 %f' % coef_vnm1)
-                print('Coef V n+1 %f' % coef_vnp1)
+                #v_new = 1/coef_sum * (coef_vn*vn + coef_vnm1*v_nm1 + coef_vnp1*v_np1)
+                #print('Coef Vn %f' % coef_vn)
+                #print('Coef V n-1 %f' % coef_vnm1)
+                #print('Coef V n+1 %f' % coef_vnp1)
                 
                 
-                
-                new_verts += [v_new]
+                v_new = 1/3*vn + 1/3*v_nm1 + 1/3*v_np1
+                #new_verts += [v_new]
+                new_verts += [vn]
                 
             elif i_np1 != -1 and i_nm1 == -1:
-                print('only N+1 side to blend with')
+               
                 v_np1 = vs_np1[i_np1]
+                
                 #coef_vn = w_np1*(1-wn)
                 #coef_vnp1 =  (1-w_np1) * wn
                 #v_new = (1-w_np1) * wn * v_np1 + w_np1 * (1-wn) * vn
                 
-                coef_vn = (1-w_np1)
-                coef_vnp1 =  wn
-                coef_sum = coef_vn + coef_vnp1
+                #coef_vn = (1-w_np1)
+                #coef_vnp1 =  wn
+                #coef_sum = coef_vn + coef_vnp1
                 
-                print('Coef total %f' % coef_sum)
-                print('Coef Vn %f' % coef_vn)
-                print('Coef V n+1 %f' % coef_vnp1)
-                
-                v_new = 1/coef_sum * (coef_vn*vn + coef_vnp1*v_np1)
+                #print('Coef total %f' % coef_sum)
+                #print('Coef Vn %f' % coef_vn)
+                #print('Coef V n+1 %f' % coef_vnp1)
+                #
+                #v_new = 1/coef_sum * (coef_vn*vn + coef_vnp1*v_np1)
+                v_new = 1/2*vn +  1/2*v_np1
                 new_verts += [v_new]
+                #new_verts += [vn]
             
             elif i_np1 == -1 and i_nm1 != -1:
                 print('only N-1 side to blend with')
+                #print('index in this side, index in prev side')
+                print((i,i_nm1))
                 v_nm1 = vs_nm1[i_nm1]
-                
-                coef_vn = w_nm1
-                coef_vnm1 =  1 - wn
-                coef_sum = coef_vn + coef_vnm1
-                
-                print('Coef total %f' % coef_sum)
-                print('Coef Vn %f' % coef_vn)
-                print('Coef V n-1 %f' % coef_vnm1)
+                #coef_vn = w_nm1
+                #coef_vnm1 =  1 - wn
+                #coef_sum = coef_vn + coef_vnm1
+                #print('Coef total %f' % coef_sum)
+                #print('Coef Vn %f' % coef_vn)
+                #print('Coef V n-1 %f' % coef_vnm1)
 
-                v_new = 1/coef_sum * (coef_vn*vn + coef_vnm1*v_nm1)
-                new_verts += [v_new]    
+                #v_new = 1/coef_sum * (coef_vn*vn + coef_vnm1*v_nm1)
+                v_new = 1/2*vn + 1/2*v_nm1
+                new_verts += [v_new]
+                #new_verts += [vn]
+                
+            else:
+                print('no verts to blend')
+                new_verts += [vn]
+                    
+    #right boundary gets passed through #it could technically get kept by proper weighting?
+    new_verts += vs_n[len(vs_n) - Yn:len(vs_n)]  
     
     return new_verts
-def blend_polygon_sides(V_edges, depth, side = 'all'):
+
+def blend_polygon_sides(V_edges, ps = [], side = 'all'):
     '''
     args:
         V_edges = list of [list of verts] along an edge loop which represents a side of the polygon
                   V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
+                  
+        ps = padding
 
     returns dictionary with keys
       'verts'   list of corner patches of verts.  If a single corner
@@ -274,44 +302,49 @@ def blend_polygon_sides(V_edges, depth, side = 'all'):
     L = [len(v_edge)-1 for v_edge in V_edges]
     W = [calc_weights_vert_path(v_edge) for v_edge in V_edges]  #all going same direction around polygon
 
-    max_pad = []
-    for n in range(0,N):
-        n_p1 = (n + 1)%N
-        n_m1 = (n - 1)%N
-        max_pad += [min(L[n_m1]-1,L[n_p1]-1)]
-    
+    if ps == []:
+        pads = []
+        for n in range(0,N):
+            n_p1 = (n + 1)%N
+            n_m1 = (n - 1)%N
+            pads += [min(L[n_m1]-1,L[n_p1]-1)]
+    else:
+        pads = ps
+        
     geom_dict = {}
     
     #first round interpolation    
     sides_interp = []
     for i in range(0,N):
-        sides_interp += [blend_side_primary(V_edges, i, pad = max_pad[i])]        
-        
+        print('add side to sides interp %i' % i)
+        sides_interp += [blend_side_primary(V_edges, i, pad = pads[i])]        
+        print(len(sides_interp))
+    
     old_verts = sides_interp
-    for k in range(0,depth):
-        new_verts = []
-        for n in range(0,N):
-            n_p1 = (n + 1)%N
-            n_m1 = (n - 1)%N    
-            '''
-            SD = side_data = Tuple ([list verts], X, Y, W)
-            verts = list of verts
-            X = width of side verts = subvidivion of that side + 1
-            Y = pading depth
-            W = list of weights
-            '''
-            SD_nm1 =  old_verts[n_m1], L[n_m1]+1, max_pad[n_m1], W[n_m1]
-            SD_n   =     old_verts[n], L[n]+1,    max_pad[n],    W[n]
-            SD_np1 =  old_verts[n_p1], L[n_p1]+1, max_pad[n_p1], W[n_p1]
+    new_verts = []
+    for n in range(0,N):
+        n_p1 = (n + 1)%N
+        n_m1 = (n - 1)%N    
+        '''
+        SD = side_data = Tuple ([list verts], X, Y, W)
+        verts = list of verts
+        X = width of side verts = subvidivion of that side + 1
+        Y = pading depth
+        W = list of weights
+        '''
+        
+
+        SD_nm1 =  old_verts[n_m1], L[n_m1]+1, pads[n_m1], W[n_m1]
+        SD_n   =     old_verts[n], L[n]+1,    pads[n],    W[n]
+        SD_np1 =  old_verts[n_p1], L[n_p1]+1, pads[n_p1], W[n_p1]
+        
+        new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
             
-            new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
-            
-        old_verts = new_verts
     if side == 'all':
-        geom_dict['verts'] = old_verts
+        geom_dict['verts'] = new_verts
         return geom_dict
     else:
-        geom_dict['verts'] = [old_verts[side]]
+        geom_dict['verts'] = [new_verts[side]]
         return geom_dict
     
 def blend_polygon(V_edges, depth, corner = 'all'):
@@ -479,8 +512,8 @@ def blend_corner_primary(V_edges, n_corner, nx,ny):
             
             coef_n   =  1-ws_nm1[yi]
             coef_nm2 =  ws_nm1[yi]
-            coef_nm1 =  1 - ws_n[xi] #x locatin controls mixing of y vectors
-            coef_np1 =  ws_n[xi]  #x locatin controls mixing of y vectors
+            coef_nm1 =  1 - ws_n[xi] #x location controls mixing of y vectors
+            coef_np1 =  ws_n[xi]  #x location controls mixing of y vectors
             
             vx = coef_n*v_n +coef_nm2*v_nm2
             vy = coef_nm1*v_nm1 + coef_np1*v_np1
@@ -577,6 +610,331 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
             new_subdivs += [l - p_m1 - p_p1]
     
     
+    ###
+    #We blend each side, to maximum depth based on adjacent sides
+    #collect the "blended" side geometry into a dictionary
+    ###
+    c_blend_geom = blend_polygon(v_edges, depth=1, corner = 'all')
+    c_blend_verts = c_blend_geom['verts']
+    c_blend_dims = c_blend_geom['dimensions']
+        
+    geom_dict['perimeter verts'] = [i for i in range(0,len(verts))]
+    geom_dict['new subdivs'] = new_subdivs
+    
+    #make the inner corner verts and fill the quad patch created by them
+    inner_corners = []
+    inner_verts = []
+    for i,v in enumerate(v_corners):
+        i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
+        p, l = ps[i], L[i]
+        v_m1, p_m1, l_m1  = v_corners[i_m1], ps[i_m1], L[i_m1]
+        v_p1, p_p1, l_p1  = v_corners[i_p1], ps[i_p1], L[i_p1]
+
+        i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
+        i_p_p1 = orig_v_index(i) + p_m1
+        
+        if p_m1 == 0 and p == 0: #this might be rare
+            inner_corners += [orig_v_index(i)]
+        
+        elif p_m1 == 0 and p != 0:
+            inner_corners += [orig_v_index(i_m1) + L[i_m1] - p] 
+        
+        elif p_m1 != 0 and p == 0:
+            inner_corners += [orig_v_index(i) + p_m1]
+
+        else:
+            v_ed_m1 = verts[i_p_m1] 
+            v_ed_p1 = verts[i_p_p1]    
+            
+            v_ed_m11 = verts[orig_v_index(i_m11)+L[i_m11]-p_m1]
+            v_ed_p11 = verts[orig_v_index(i_p1)+p]
+            
+            v_inner_corner = .5*((1- p_m1/l)*v_ed_m1 + p_m1/l*v_ed_p11 + (1-p/l_m1)*v_ed_p1 + p/l_m1*v_ed_m11)
+            
+            corner_quad_verts2 = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)
+            x_dim, y_dim = c_blend_dims[i]
+            corner_quad_verts = slice_corner(c_blend_verts[i], x_dim, y_dim, p_m1+1, p+1)
+            print('ready for new corner blending')
+            print('original method has %i verts: ' % len(corner_quad_verts))
+            print('new method has  %i verts: ' % len(corner_quad_verts2))
+            
+            N_now = len(verts)-1
+            verts += corner_quad_verts
+            
+            inner_corners += [len(verts)-1]
+            
+            for n in range(0,p_m1-1):
+                A = orig_v_index(i)+1+n
+                B = A + 1
+                D = N_now + 1 +p*n
+                C = D + p
+                faces += [(A,B,C,D)]
+                
+                for j in range(0,p-1):
+                    A = N_now + 1 +(p)*n + j
+                    B = A + p
+                    C = B + 1
+                    D = A + 1
+                    faces += [(A,B,C,D)]
+            if i == 0:
+                strip_0 = [ind for ind in range(N_now-p+1,N_now+1)]
+            else:
+                strip_0 = [ind for ind in range(orig_v_index(i)-p, orig_v_index(i))]
+            strip_0.reverse()
+            strip_1 = [ind for ind in range(N_now+1,N_now+1+p)]
+            strip_0.insert(0,orig_v_index(i))
+            strip_1.insert(0,orig_v_index(i)+1)
+            strip_faces = face_strip(strip_0, strip_1)
+            faces += strip_faces
+        
+    for i,v in enumerate(v_corners):
+        #INDEXING FOR THIS PASS
+        i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  
+        p, l = ps[i], L[i]
+        v_m1, p_m1, l_m1  = v_corners[i_m1], ps[i_m1], L[i_m1]
+        v_p1, p_p1, l_p1  = v_corners[i_p1], ps[i_p1], L[i_p1]
+        i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
+        i_p_p1 = orig_v_index(i) + p_m1
+        p_m11 = ps[i_m11]
+        
+        #Fill in middle patches of padding along each side
+        a = orig_v_index(i) + p_m1
+        c = inner_corners[i_p1]
+        d = inner_corners[i]
+        if i == len(v_corners)-1:
+            if p_p1 == 0:
+                b = 0
+            else:
+                b = len(geom_dict['perimeter verts'])-p_p1
+        else:
+            b = orig_v_index(i_p1) - p_p1
+            
+        
+        N_now = len(verts)
+        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
+        verts += middle_verts[0:len(middle_verts)-p]
+        inner_verts += [inner_corners[i]]
+        
+        for n in range(0,l-p_m1-p_p1-2):
+            if p == 0: continue
+            A = orig_v_index(i)+1+p_m1+n
+            B = A + 1   
+            D = N_now +p*n
+            C = D + p
+            #print((A,B,C,D))
+            faces += [(A,B,C,D)]
+            for j in range(0,p-1):
+                A = N_now +(p)*n + j
+                B = A + p
+                C = B + 1
+                D = A + 1
+                #print((A,B,C,D))
+                faces += [(A,B,C,D)]
+        
+        #Zip the middle segment to the corner segments
+        if p == 0:
+            inner_verts += [inner_corners[i] + n for n in range(1,l-p_m1-p_p1)]
+            #print(continued, did not make strips because this side has 0 padding')
+            continue
+        if l - p_m1 - p_p1 < 1:
+            print('could not zip because too much padding relative to subdivision')
+            continue
+        
+        if l - p_m1 - p_p1 == 1 and p_m1 != 0 and p_p1 != 0:
+            #print('Side %i' % i)
+            #print('special zipping 1 strip up middle')            
+            strip_0 = [inner_corners[i] - p +1 + n for n in range(0,p)]
+            alpha = orig_v_index(i) + p_m1
+            strip_0.insert(0,alpha)
+            
+            strip_1 = [inner_corners[i_p1] - p_p1*n for n in range(0,p)]
+            strip_1.reverse()
+            strip_1.insert(0,alpha+1)
+            faces += face_strip(strip_0, strip_1)
+            #print(strip_0)
+            #print(strip_1)
+            continue
+
+        
+        inner_verts += [N_now -1 + k for k in range(p,len(middle_verts),p)]
+        
+        if l - p_m1 == 1: print('Side %i: prev adjacent padding 1 less than this subdiv' % i)
+        if l - p_p1 == 1: print('Side %i: next adjacent padding 1 less than this subdiv'% i)
+        if l_m1 - p == 1 and p != 0: print('Side %i: padding on this side, no corner verts on previous side'% i)
+        if l_m1 - p_m11 == 1 and p_m11 != 0 and p != 0: print('Side %i: no corner verts on previous side because m11 side padding'% i)
+        if p_m1 != 0 and not ((l_m1 - p == 1 and p != 0) or 
+                              (l_m1 - p_m11 == 1 and p_m11 != 0) or
+                              (l - p_m1 == 1) or
+                              (l - p_p1 == 1)):#normal padding previous adjacent side
+        
+            #print('Side %i' % i)
+            #print('normal padding on previous side')
+            strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
+            strip_1 = [ind for ind in range(N_now,N_now+p)]
+            strip_0.insert(0,orig_v_index(i)+p_m1)
+            strip_1.insert(0,orig_v_index(i)+p_m1+1)
+            strip_faces = face_strip(strip_0, strip_1)
+            faces += strip_faces
+            #print(strip_0)
+            #print(strip_1)
+                
+        elif p_m1 == 0: #no padding on previous adjacent side
+            print('Side %i' % i)
+            print('no padding on previous side')
+            
+            if p_p1 == l -1:
+                alpha = inner_corners[i_p1]
+                strip_1 = [alpha - n*p_p1 for n in range(0,p)]
+                strip_1.reverse()
+            else:
+                alpha = len(verts)
+                strip_1 = [ind for ind in range(N_now,N_now + p)]
+            
+            strip_1.insert(0, orig_v_index(i)+1)
+            alpha = orig_v_index(i_m1) + l_m1 - p
+            strip_0 = [alpha + n for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i))
+            faces += face_strip(strip_0, strip_1)
+            #print(strip_0)
+            #print(strip_1)
+        if p_p1 != 0 and p_p1 != (l - 1): #normal padding forward adjacent side
+            #print('Side %i' % i)
+            #print('normal padding forward adjacent side, compare strips')
+            alpha = len(verts) - 1
+            strip_0 = [alpha - n for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i) + l -p_p1-1)
+            strip_1 = [inner_corners[i_p1] - n*p_p1 for n in range(0,p)]
+            strip_1.reverse()
+            strip_1.insert(0,orig_v_index(i) + l - p_p1)
+            faces += face_strip(strip_0, strip_1)
+            print(strip_0)
+            print(strip_1)
+        elif p_p1 == 0: #no padding on forward adjacent side
+            print('Side %i' % i)
+            print('no padding forward adjacent side, compare strips')
+            
+            if p_m1 == l -1: #we didn't add verts, so we need to hook to previous corner
+                alpha = inner_corners[i]
+            else: #we added middle vertices
+                alpha = len(verts) - 1    
+            strip_0 = [alpha - n for n in range(0,p)]
+            strip_0.reverse()
+            strip_0.insert(0,orig_v_index(i) + l -1)
+            strip_1 = [orig_v_index(i_p1) + n for n in range(0,p+1)]
+            faces += face_strip(strip_0, strip_1)
+            print(strip_0)
+            print(strip_1)
+
+    #print(ARE THERE DOUBLES IN INNER CORNERS?')
+    #pat, nl0, direction = identify_patch_pattern(new_subdivs, check_pattern = pattern)
+    
+    #if direction == -1:
+    #    nl0_p1 = (nl0 + 1) % N
+    #    inner_corners = inner_corners[nl0_p1:] + inner_corners[:nl0_p1]
+    #    inner_corners.reverse()
+       
+    #else:
+    #inner_corners = inner_corners[nl0:] + inner_corners[:nl0]
+
+    geom_dict['inner corners'] = inner_corners
+    geom_dict['original corners'] = [orig_v_index(n) for n in range(0,len(v_corners))]
+    geom_dict['inner verts'] = inner_verts
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces  
+    return geom_dict
+
+
+def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
+    '''
+    takes a list of corner verts [v0,v1,v2,v3....]  and paddings = [p0,p1,p2,p3...]
+    returns geom_dict
+    
+    args:
+        vs - list of vectors representing corners OR edge loops of polygon
+        ps - list of integers representing paddings
+        L - list of subdivsions
+        pattern - integer paddern identifier
+        mode - determines wether vs is a list of corners or edge loops
+               'corners' or 'edges'
+           
+    geom_dict['verts'] = list of vectors representing all verts
+    geom_dict['faces'] = list of tupples represeting quad faces
+    geom_dict['new subdiv'] = list of remaining subdivision after padding
+    geom_dict['outer_verts'] = list of vert indices corresponding to outer verts. Starting at V0...v00,v01,v02..V1....V2.....VN..vN0, vn1..
+    geom_dict['inner_verts'] = list of vert indices corresponding to center ring of verts
+    geom_dict['inner_corners'] = list of vert indices corresponding to new V0, V1, V2, V3 after the patch has been padded/reduced
+    
+    '''
+    def orig_v_index(n):    
+        ind = sum([L[i] for i in range(0,n)])
+        return ind
+    def slice_corner(c_verts, x_dim, y_dim, x, y):
+        cvs = []
+        for i in range(1,x):
+            for j in range(1, y):
+                n = n_of_i_j(x_dim, y_dim, i, j)
+                cvs += [c_verts[n]]
+                
+        return cvs
+        
+        
+    #check that pdding is valid
+    N = len(L)
+    
+    if (len(vs) != N) or (len(ps) != N):
+        print('dimension mismatch in vs, ps, L')
+        return
+    
+    for k, l in enumerate(L):
+        k_min_1 = (k - 1) % N
+        k_plu_1 = (k + 1) % N
+        
+        L_k = L[k]
+        p_min_1 = ps[k_min_1]
+        p_plu_1 = ps[k_plu_1]
+        if L_k + 1 < p_min_1 + p_plu_1:
+            print('Invalid because of p-1: %i p+1: %1 greater than Ln: %i' % (p_min_1, p_plu_1, L[k]))
+            return [], []
+    
+    geom_dict = {}
+    verts = []
+    faces = []
+    new_subdivs = []
+    
+    #make the perimeter
+    if mode == 'corners':
+        v_edges = []
+        v_corners = vs
+        for i,v in enumerate(vs):
+            i_m1, i_p1 = (i - 1) % N, (i + 1) % N      
+            p, l = ps[i], L[i]
+            v_m1, p_m1, L_m1  = vs[i_m1], ps[i_m1], L[i_m1]
+            v_p1, p_p1, L_p1  = vs[i_p1], ps[i_p1], L[i_p1]
+
+            v_ed = subdivide_edge(v, v_p1, l)
+            verts += v_ed[0:l]
+            v_edges += [v_ed]
+            new_subdivs += [l - p_m1 - p_p1]
+    elif mode == 'edges':
+        v_edges = vs
+        v_corners = [v_ed[0] for v_ed in vs]
+        
+        for i,v in enumerate(vs):
+            i_m1, i_p1 = (i - 1) % N, (i + 1) % N      
+            p, l = ps[i], L[i]
+            v_m1, p_m1, L_m1  = vs[i_m1], ps[i_m1], L[i_m1]
+            v_p1, p_p1, L_p1  = vs[i_p1], ps[i_p1], L[i_p1]
+
+            verts += vs[i][0:len(vs[i])-1]
+            new_subdivs += [l - p_m1 - p_p1]
+    
+    
+    ###
+    #We blend each side, to maximum depth based on adjacent sides
+    #collect the "blended" side geometry into a dictionary
+    ###
     c_blend_geom = blend_polygon(v_edges, depth=1, corner = 'all')
     c_blend_verts = c_blend_geom['verts']
     c_blend_dims = c_blend_geom['dimensions']

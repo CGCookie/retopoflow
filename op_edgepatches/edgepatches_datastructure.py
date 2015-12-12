@@ -368,7 +368,7 @@ class EPPatch:
         self.patch = Patch()
         self.patch.edge_subdivision = self.L_sub
         self.patch.permute_and_find_solutions()
-        time.sleep(2)
+        time.sleep(2) #needed to prevent error on some patches.
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
         sol.report()
