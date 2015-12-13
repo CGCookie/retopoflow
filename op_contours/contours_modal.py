@@ -70,9 +70,15 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must specify a Source Object')
             return False
+
         elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must select an object or specifiy a Source Object')
             return False
+
+        elif context.mode == 'OBJECT' and self.settings.source_object not in context.scene.objects and not context.active_object:
+            showErrorMessage('Source object no longer exists, specify new source or select an object')
+            return False
+
         return True
     
     def start(self, context):
