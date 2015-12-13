@@ -83,7 +83,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Source must be a mesh object')
             return False
 
-        if self.settings.source_object == self.settings.target_object:
+        if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
             showErrorMessage('Source and Target cannot be same object')
             return False
 

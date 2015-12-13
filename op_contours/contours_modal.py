@@ -79,7 +79,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             showErrorMessage('Source object no longer exists, specify new source or select an object')
             return False
 
-        if self.settings.source_object == self.settings.target_object:
+        if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
             showErrorMessage('Source and Target cannot be same object')
             return False
 
