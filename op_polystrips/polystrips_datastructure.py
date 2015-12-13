@@ -2278,13 +2278,15 @@ class Polystrips(object):
             else:
                 gv3 = self.create_gvert(bpt3, radius=r3)
             
-            if (gv1.position-gv0.position).length == 0: dprint('gv01.der = 0')
-            if (gv2.position-gv3.position).length == 0: dprint('gv32.der = 0')
             if (gv0.position-gv3.position).length == 0:
                 dprint(spc+'gv03.der = 0')
                 dprint(spc+str(l_bpts))
                 dprint(spc+(str(sgv0.position) if sgv0 else 'None'))
                 dprint(spc+(str(sgv3.position) if sgv3 else 'None'))
+            elif (gv1.position-gv0.position).length == 0:
+                dprint('gv01.der = 0')
+            elif (gv2.position-gv3.position).length == 0:
+                dprint('gv32.der = 0')
             else:
                 self.create_gedge(gv0,gv1,gv2,gv3)
             pregv = gv3
