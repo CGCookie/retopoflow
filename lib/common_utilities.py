@@ -122,6 +122,10 @@ def get_target_object():
 
     return target_object
 
+def update_target_object(dest_obj):
+    settings = get_settings()
+    settings.target_object = dest_obj.name
+
 def setup_target_object( new_object, original_object, bmesh ):
     settings = get_settings()
     obj_orig = original_object
@@ -136,11 +140,13 @@ def setup_target_object( new_object, original_object, bmesh ):
             dest_obj = bpy.data.objects.new(new_object, dest_me)
             dest_obj.matrix_world = obj_orig.matrix_world
             bpy.context.scene.objects.link(dest_obj)
+            update_target_object(dest_obj)
     else:
         dest_me  = bpy.data.meshes.new(new_object)
         dest_obj = bpy.data.objects.new(new_object, dest_me)
         dest_obj.matrix_world = obj_orig.matrix_world
         bpy.context.scene.objects.link(dest_obj)
+        update_target_object(dest_obj)
 
     return dest_obj
 
