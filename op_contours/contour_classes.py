@@ -139,10 +139,10 @@ class Contours(object):
         self.sel_edge = None
         self.sel_verts = None
         self.existing_cut = None
-        self.original_form = get_source_object()
-        self.mx = self.original_form.matrix_world
+        self.obj_orig = get_source_object()
+        self.mx = self.obj_orig.matrix_world
         
-        name = self.original_form.name + '_recontour'
+        nm_contours = self.obj_orig.name + '_contours'
         
         if self.settings.target_object:
             self.dest_ob = bpy.data.objects[self.settings.target_object]
@@ -150,9 +150,9 @@ class Contours(object):
             self.dest_bme = bmesh.new()
             self.dest_bme.from_mesh(self.dest_me)
         else:
-            self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, self.original_form.matrix_world)
+            self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, nm_contours, self.obj_orig.matrix_world)
         
-        is_valid = is_object_valid(self.original_form)
+        is_valid = is_object_valid(self.obj_orig)
         
         if is_valid:
             #don't need to do anything
@@ -163,12 +163,12 @@ class Contours(object):
         else:
             clear_mesh_cache()
             contour_undo_cache = []
-            me = self.original_form.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
+            me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
             me.update()
             bme = bmesh.new()
             bme.from_mesh(me)
             bvh = BVHTree.FromBMesh(bme)
-            write_mesh_cache(self.original_form,bme, bvh)
+            write_mesh_cache(self.obj_orig,bme, bvh)
          
     def mesh_data_gather_edit_mode(self,context):
         '''
@@ -180,8 +180,8 @@ class Contours(object):
         self.dest_bme = bmesh.from_edit_mesh(self.dest_me)
         
         ob = get_source_object()
-        self.original_form = ob
-        self.mx = self.original_form.matrix_world
+        self.obj_orig = ob
+        self.mx = self.obj_orig.matrix_world
         is_valid = is_object_valid(ob)
     
         if is_valid:
@@ -196,7 +196,7 @@ class Contours(object):
             bme = bmesh.new()
             bme.from_mesh(me)
             bvh = BVHTree.FromBMesh(bme)
-            write_mesh_cache(self.original_form, bme, bvh)
+            write_mesh_cache(self.obj_orig, bme, bvh)
         
         if self.settings.recover and is_valid:
             print('loading cache!')
@@ -256,7 +256,7 @@ class Contours(object):
         #This is where all the magic happens
         print('pushing data into bmesh')
         for path in self.cut_paths:
-            path.push_data_into_bmesh(context, self.dest_ob, self.dest_bme, self.original_form, self.dest_me)
+            path.push_data_into_bmesh(context, self.dest_ob, self.dest_bme, self.obj_orig, self.dest_me)
         
         if back_to_edit:
             print('updating edit mesh')
@@ -948,9 +948,9 @@ class Contours(object):
             new_matrix = [v for l in r3d.view_matrix for v in l]
             #if new_matrix != self.last_matrix:
                 #for path in self.cut_paths:
-                    #path.update_visibility(context, self.original_form)
+                    #path.update_visibility(context, self.obj_orig)
                     #for cut_line in path.cuts:
-                        #cut_line.update_visibility(context, self.original_form)
+                        #cut_line.update_visibility(context, self.obj_orig)
                             
             self.post_update = False
             self.last_matrix = new_matrix
@@ -986,7 +986,7 @@ class Contours(object):
     def draw_post_view(self,context):
         if len(self.cut_paths):
             for path in self.cut_paths:
-                path.draw3d(context, self.original_form.matrix_world)
+                path.draw3d(context, self.obj_orig.matrix_world)
         
         return
     
