@@ -82,7 +82,11 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False
-        
+
+        if self.settings.source_object == self.settings.target_object:
+            showErrorMessage('Source and Target cannot be same object')
+            return False
+
         return True
     
     def start(self, context):
