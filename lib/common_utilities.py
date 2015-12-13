@@ -113,6 +113,28 @@ def get_target_object():
 
     return target_object
 
+def setup_target_object( new_object, original_object, bmesh ):
+    settings = get_settings()
+    obj_orig = original_object
+    dest_bme = bmesh
+
+    if settings.target_object:
+        if settings.target_object in bpy.context.scene.objects:
+            dest_bme.from_mesh( get_target_object().data )
+            dest_obj = get_target_object()
+        else:
+            dest_me  = bpy.data.meshes.new(new_object)
+            dest_obj = bpy.data.objects.new(new_object, dest_me)
+            dest_obj.matrix_world = obj_orig.matrix_world
+            bpy.context.scene.objects.link(dest_obj)
+    else:
+        dest_me  = bpy.data.meshes.new(new_object)
+        dest_obj = bpy.data.objects.new(new_object, dest_me)
+        dest_obj.matrix_world = obj_orig.matrix_world
+        bpy.context.scene.objects.link(dest_obj)
+
+    return dest_obj
+
 def dprint(s, l=2):
     settings = get_settings()
     if settings.debug >= l:
