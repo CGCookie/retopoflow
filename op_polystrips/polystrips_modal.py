@@ -72,7 +72,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             return False
         
         if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
-            showErrorMessage('Must specify a source object first or enable Use Active')
+            showErrorMessage('Must specify a source object or select an object')
             return False
         
         if context.mode == 'OBJECT' and self.settings.source_object not in context.scene.objects and not context.active_object:
@@ -80,7 +80,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             return False
 
         if get_source_object().type != 'MESH':
-            showErrorMessage('Must select a mesh object')
+            showErrorMessage('Source must be a mesh object')
             return False
         
         return True
