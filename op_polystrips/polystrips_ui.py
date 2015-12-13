@@ -33,7 +33,8 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_source_object, get_target_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
+from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
@@ -109,15 +110,9 @@ class Polystrips_UI:
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
-            if self.settings.target_object:
-                self.dest_bme.from_mesh( get_target_object().data )
-                self.dest_obj = get_target_object()
-            else:
-                dest_me  = bpy.data.meshes.new(nm_polystrips)
-                self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-                self.dest_obj.matrix_world = self.obj_orig.matrix_world
-                context.scene.objects.link(self.dest_obj)
-            
+
+            self.dest_obj = setup_target_object( nm_polystrips, self.obj_orig, self.dest_bme )
+
             self.extension_geometry = []
             self.snap_eds = []
             self.snap_eds_vis = []
