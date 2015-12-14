@@ -44,9 +44,6 @@ from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object
 
 #from development.cgc-retopology import contour_utilities
 
-#Make the addon name and location accessible
-AL = common_utilities.AddonLocator()
-
 class Contours(object):
     def __init__(self,context, settings):
         self.settings = settings

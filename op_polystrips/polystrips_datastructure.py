@@ -32,7 +32,7 @@ import blf, bgl
 import itertools
 
 from ..lib import common_utilities
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 

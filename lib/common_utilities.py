@@ -43,15 +43,6 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-class AddonLocator(object):
-    def __init__(self, f=None):
-        self.fullInitPath = f if f else __file__
-        self.FolderPath = os.path.dirname(self.fullInitPath)
-        self.FolderName = os.path.basename(self.FolderPath)
-    
-    def AppendPath(self):
-        sys.path.append(self.FolderPath)
-        print("Addon path has been registered into system path for this session")
 
 def bversion():
     bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
