@@ -38,6 +38,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object, showErrorMessage
+from ..lib.common_utilities import simple_circle
 from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 #from development.cgc-retopology import contour_utilities
@@ -539,7 +540,7 @@ class Contours(object):
                                     self.snap_circle = contour_utilities.pi_slice(best_vert[0],best_vert[1],settings.extend_radius,.1 * settings.extend_radius, left,right, 20,t_fan = True)
                                     self.snap_circle.append(self.snap_circle[0])
                                 else:
-                                    self.snap_circle = contour_utilities.simple_circle(best_vert[0], best_vert[1], settings.extend_radius, 20)
+                                    self.snap_circle = simple_circle(best_vert[0], best_vert[1], settings.extend_radius, 20)
                                     self.snap_circle.append(self.snap_circle[0])
                                     
                                 breakout = True
@@ -3705,13 +3706,13 @@ class CutLineManipulatorWidget(object):
         self.arc_arrow_1 = contour_utilities.arc_arrow(self.x, self.y, self.arc_radius, left - deg_45+.2, left + deg_45-.2, 10, self.arrow_size, 2*deg_45, ccw = True)
         self.arc_arrow_2 = contour_utilities.arc_arrow(self.x, self.y, self.arc_radius, right - deg_45+.2, right + deg_45-.2, 10, self.arrow_size,2*deg_45, ccw = True)
   
-        self.inner_circle = contour_utilities.simple_circle(self.x, self.y, self.inner_radius, 20)
+        self.inner_circle = simple_circle(self.x, self.y, self.inner_radius, 20)
         
         #New screen coords, leaving old ones until completely transitioned
         self.arc_arrow_rotate_ccw = contour_utilities.arc_arrow(self.x, self.y, self.radius, left - deg_45-.3, left + deg_45+.3, 10, self.arrow_size, 2*deg_45, ccw = True)
         self.arc_arrow_rotate_cw = contour_utilities.arc_arrow(self.x, self.y, self.radius, left - deg_45-.3, left + deg_45+.3, 10, self.arrow_size, 2*deg_45, ccw = False)
         
-        self.inner_circle = contour_utilities.simple_circle(self.x, self.y, self.inner_radius, 20)
+        self.inner_circle = simple_circle(self.x, self.y, self.inner_radius, 20)
         self.inner_circle.append(self.inner_circle[0])
         
         self.outer_circle_1 = contour_utilities.arc_arrow(self.x, self.y, self.radius, up, down,10, self.arrow_size,2*deg_45, ccw = True)
