@@ -95,7 +95,6 @@ def n_of_i_j(X, Y, i, j):
     n = i*Y + j
     return n
 
-
 def blend_side_primary(V_edges, n_side, pad = 'max'):
     '''
     args:
@@ -145,7 +144,7 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
     verts = list of verts
     X = width of side verts = subvidivion of that side + 1
     Y = pading depth
-    W = list of weights
+    W = list of weights, calculated as the vertex position as % of the side length.
     
     returns new side data, does not modifiy
     '''
@@ -209,7 +208,6 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
             i_nm1, w_nm1 = n_w_of_i_j_prev(xi_n, yi_n, Xn, Yn, Xnm1, Ynm1, Wnm1)
             
             if i_np1 != -1 and i_nm1 != -1:
-                #print('blend 3 verts together')
                 #print('index in this side, index in next side, index in prev side')
                 #print((i, i_np1, i_nm1))
                 v_np1 = vs_np1[i_np1]
@@ -232,9 +230,9 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
                 #print('Coef V n+1 %f' % coef_vnp1)
                 
                 
-                v_new = 1/3*vn + 1/3*v_nm1 + 1/3*v_np1
-                #new_verts += [v_new]
-                new_verts += [vn]
+                v_new = .5*vn + .5 * ((1-wn) * v_nm1 + wn*v_np1) #may experiment with this weighting
+                new_verts += [v_new]
+                #new_verts += [vn]  #actually...if 3 are involved, fuck em all
                 
             elif i_np1 != -1 and i_nm1 == -1:
                
@@ -258,18 +256,7 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
                 #new_verts += [vn]
             
             elif i_np1 == -1 and i_nm1 != -1:
-                print('only N-1 side to blend with')
-                #print('index in this side, index in prev side')
-                print((i,i_nm1))
                 v_nm1 = vs_nm1[i_nm1]
-                #coef_vn = w_nm1
-                #coef_vnm1 =  1 - wn
-                #coef_sum = coef_vn + coef_vnm1
-                #print('Coef total %f' % coef_sum)
-                #print('Coef Vn %f' % coef_vn)
-                #print('Coef V n-1 %f' % coef_vnm1)
-
-                #v_new = 1/coef_sum * (coef_vn*vn + coef_vnm1*v_nm1)
                 v_new = 1/2*vn + 1/2*v_nm1
                 new_verts += [v_new]
                 #new_verts += [vn]
@@ -299,29 +286,38 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
     '''
     
     N = len(V_edges)        
-    L = [len(v_edge)-1 for v_edge in V_edges]
+    L = [len(v_edge)-1 for v_edge in V_edges]  #this is the actual # of edges, or the number of times the patch side is subdivided
     W = [calc_weights_vert_path(v_edge) for v_edge in V_edges]  #all going same direction around polygon
 
+    
+    #this determines how far across the patch an edge can be
+    #extrapolated.  It is limited by the subdivision of the
+    #adjacent sides
+    max_pads = []
+    for n in range(0,N):
+        n_p1 = (n + 1)%N
+        n_m1 = (n - 1)%N
+        max_pads += [min(L[n_m1]-1,L[n_p1]-1)]
+    print(max_pads)
+    #this is the desired padding by the user.  Eventually
+    #this will be a required variable.  For now, if none
+    #specified, just return the max padding
     if ps == []:
-        pads = []
-        for n in range(0,N):
-            n_p1 = (n + 1)%N
-            n_m1 = (n - 1)%N
-            pads += [min(L[n_m1]-1,L[n_p1]-1)]
+        pads = max_pads
     else:
         pads = ps
         
     geom_dict = {}
     
-    #first round interpolation    
+    #first round interpolation, use maximum padding across the patch  
     sides_interp = []
     for i in range(0,N):
-        print('add side to sides interp %i' % i)
-        sides_interp += [blend_side_primary(V_edges, i, pad = pads[i])]        
-        print(len(sides_interp))
-    
+        sides_interp += [blend_side_primary(V_edges, i, pad = max_pads[i])]        
+        
     old_verts = sides_interp
     new_verts = []
+    
+    #first round blending, use maxiumum padding across the patch
     for n in range(0,N):
         n_p1 = (n + 1)%N
         n_m1 = (n - 1)%N    
@@ -332,19 +328,46 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
         Y = pading depth
         W = list of weights
         '''
-        
 
-        SD_nm1 =  old_verts[n_m1], L[n_m1]+1, pads[n_m1], W[n_m1]
-        SD_n   =     old_verts[n], L[n]+1,    pads[n],    W[n]
-        SD_np1 =  old_verts[n_p1], L[n_p1]+1, pads[n_p1], W[n_p1]
+        SD_nm1 =  old_verts[n_m1], L[n_m1]+1, max_pads[n_m1], W[n_m1]
+        SD_n   =     old_verts[n], L[n]+1,    max_pads[n],    W[n]
+        SD_np1 =  old_verts[n_p1], L[n_p1]+1, max_pads[n_p1], W[n_p1]
         
         new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
+    
+    #slice off the appropriate amount of the desired padding
+    sliced_verts = []
+    for n in range(0,N):
+        slice_v = []
+        for i in range(0, L[n]+1):
+            slice_v += new_verts[n][i*max_pads[n]:i*max_pads[n]+pads[n]]
+        #print(slice_v)
+        sliced_verts += [slice_v]
+        
+    
+    #blend the corners that still overlap
+    #for n in range(0,N):
+        #n_p1 = (n + 1)%N
+        #n_m1 = (n - 1)%N    
+        '''
+        SD = side_data = Tuple ([list verts], X, Y, W)
+        verts = list of verts
+        X = width of side verts = subvidivion of that side + 1
+        Y = pading depth
+        W = list of weights
+        '''
+
+        #SD_nm1 =  old_verts[n_m1], L[n_m1]+1, pads[n_m1], W[n_m1]
+        #SD_n   =     old_verts[n], L[n]+1,    pads[n],    W[n]
+        #SD_np1 =  old_verts[n_p1], L[n_p1]+1, pads[n_p1], W[n_p1]
+        
+        #new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
             
     if side == 'all':
-        geom_dict['verts'] = new_verts
+        geom_dict['verts'] = sliced_verts
         return geom_dict
     else:
-        geom_dict['verts'] = [new_verts[side]]
+        geom_dict['verts'] = [sliced_verts[side]]
         return geom_dict
     
 def blend_polygon(V_edges, depth, corner = 'all'):
@@ -352,7 +375,6 @@ def blend_polygon(V_edges, depth, corner = 'all'):
     args:
         V_edges = list of [list of verts] along an edge loop which represents a side of the polygon
                   V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
-
     returns dictionary with keys
       'verts'   list of corner patches of verts.  If a single corner
                 is specified, a single element list containing a list of vertices
