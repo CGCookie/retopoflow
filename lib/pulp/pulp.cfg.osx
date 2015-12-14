@@ -1,0 +1,18 @@
+# The configuration file that holds locations for 3rd party solvers
+# This is an appropriate configuration file for linux uses and in this case is assuming that the
+# needed libraries are in the same directory as the config file (note this is not ideal and
+# may change in later versions)
+# Libraries are ordered in the needed order to resolve dependancies and CoinMP is loaded last
+# a windows specific configuation file is pulp.cfg.win
+#$Id: pulp.cfg 1704 2007-12-20 21:56:14Z smit023 $
+[locations]
+CplexPath = /usr/ilog/cplex/bin/x86_rhel4.0_3.4/libcplex110.so
+#note the recommended gurobi changes must be made to your PATH
+#and LD_LIBRARY_PATH environment variables
+GurobiPath = /opt/gurobi201/linux32/lib/python2.5
+CbcPath = cbc
+GlpkPath = glpsol
+PulpCbcPath = %(here)s/solverdir/cbc/%(os)s/%(arch)s/cbc
+[licenses]
+ilm_cplex_license = "LICENSE your-enterprise\nRUNTIME NEVER ..."
+ilm_cplex_license_signature = 0
