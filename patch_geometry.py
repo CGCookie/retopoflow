@@ -312,7 +312,7 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
     #first round interpolation, use maximum padding across the patch  
     sides_interp = []
     for i in range(0,N):
-        sides_interp += [blend_side_primary(V_edges, i, pad = max_pads[i])]        
+        sides_interp += [blend_side_primary(V_edges, i, pad = max_pads[i]+1)]        
         
     old_verts = sides_interp
     new_verts = []
@@ -329,9 +329,9 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
         W = list of weights
         '''
 
-        SD_nm1 =  old_verts[n_m1], L[n_m1]+1, max_pads[n_m1], W[n_m1]
-        SD_n   =     old_verts[n], L[n]+1,    max_pads[n],    W[n]
-        SD_np1 =  old_verts[n_p1], L[n_p1]+1, max_pads[n_p1], W[n_p1]
+        SD_nm1 =  old_verts[n_m1], L[n_m1]+1, max_pads[n_m1]+1, W[n_m1]
+        SD_n   =     old_verts[n], L[n]+1,    max_pads[n]+1,    W[n]
+        SD_np1 =  old_verts[n_p1], L[n_p1]+1, max_pads[n_p1]+1, W[n_p1]
         
         new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
     
@@ -340,15 +340,16 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
     for n in range(0,N):
         slice_v = []
         for i in range(0, L[n]+1):
-            slice_v += new_verts[n][i*max_pads[n]:i*max_pads[n]+pads[n]]
+            slice_v += new_verts[n][i*(max_pads[n]+1):i*(max_pads[n]+1)+pads[n]+1]
         #print(slice_v)
         sliced_verts += [slice_v]
         
     
+    new_verts = []
     #blend the corners that still overlap
-    #for n in range(0,N):
-        #n_p1 = (n + 1)%N
-        #n_m1 = (n - 1)%N    
+    for n in range(0,N):
+        n_p1 = (n + 1)%N
+        n_m1 = (n - 1)%N    
         '''
         SD = side_data = Tuple ([list verts], X, Y, W)
         verts = list of verts
@@ -357,17 +358,17 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
         W = list of weights
         '''
 
-        #SD_nm1 =  old_verts[n_m1], L[n_m1]+1, pads[n_m1], W[n_m1]
-        #SD_n   =     old_verts[n], L[n]+1,    pads[n],    W[n]
-        #SD_np1 =  old_verts[n_p1], L[n_p1]+1, pads[n_p1], W[n_p1]
+        SD_nm1 =  sliced_verts[n_m1], L[n_m1]+1, pads[n_m1]+1, W[n_m1]
+        SD_n   =  sliced_verts[n],       L[n]+1,    pads[n]+1,    W[n]
+        SD_np1 =  sliced_verts[n_p1], L[n_p1]+1, pads[n_p1]+1, W[n_p1]
         
-        #new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
+        new_verts += [blend_adjacent_sides(SD_nm1, SD_n, SD_np1)]
             
     if side == 'all':
-        geom_dict['verts'] = sliced_verts
+        geom_dict['verts'] = new_verts
         return geom_dict
     else:
-        geom_dict['verts'] = [sliced_verts[side]]
+        geom_dict['verts'] = [new_verts[side]]
         return geom_dict
     
 def blend_polygon(V_edges, depth, corner = 'all'):
