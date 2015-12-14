@@ -39,6 +39,7 @@ from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object, showErrorMessage
 from ..lib.common_utilities import simple_circle
+from ..lib.common_mesh import edge_loops_from_bmedges
 from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 #from development.cgc-retopology import contour_utilities
@@ -172,7 +173,7 @@ class Contours(object):
         
         self.existing_loops = []
         if len(ed_inds):
-            vert_loops = contour_utilities.edge_loops_from_bmedges(self.dest_bme, ed_inds)
+            vert_loops = edge_loops_from_bmedges(self.dest_bme, ed_inds)
 
             if len(vert_loops) > 1:
                 print('there are %i edge loops selected' % len(vert_loops))
