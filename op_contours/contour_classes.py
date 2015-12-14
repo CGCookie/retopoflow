@@ -927,7 +927,7 @@ class Contours(object):
             self.cut_line_widget.draw(context)
             
         if len(self.sketch):
-            common_drawing_px.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_SMOOTH")
+            common_drawing_px.draw_polyline_from_points(context, self.sketch, self.snap_color, 2, "GL_LINE_STIPPLE")
             
         if len(self.cut_paths):
             for path in self.cut_paths:
