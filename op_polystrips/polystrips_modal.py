@@ -28,7 +28,7 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import showErrorMessage, get_source_object
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 
 from ..modaloperator import ModalOperator
@@ -77,6 +77,10 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
 
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
+            return False
+
+        if get_target_object().type != 'MESH':
+            showErrorMessage('Target must be a mesh object')
             return False
 
         if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
