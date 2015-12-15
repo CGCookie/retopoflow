@@ -1247,7 +1247,9 @@ def tri_prim_0(vs, L, ps, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
+    
     else:
         return verts, faces
 
@@ -1318,6 +1320,7 @@ def tri_prim_1(vs,L,ps, x, q1, q2, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1386,6 +1389,7 @@ def quad_prim_1(vs, L, ps, x, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1436,6 +1440,7 @@ def quad_prim_2(vs,L,ps, x, y, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         if mode != 'corners':
@@ -1509,6 +1514,7 @@ def quad_prim_3(vs,L,ps, x, q1, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1604,6 +1610,7 @@ def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1631,6 +1638,7 @@ def pent_prim_0(vs,L,ps, mode = 'edges'):  #Done, any cuts can be represented as
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1683,7 +1691,7 @@ def pent_prim_1(vs,L,ps, x, q4, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
-        
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1760,6 +1768,7 @@ def pent_prim_2(vs, L,ps, x, q0, q1, q4, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1880,6 +1889,7 @@ def hex_prim_0(vs,L,ps, x, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -1962,6 +1972,7 @@ def hex_prim_1(vs,L,ps, x, y, z, w, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
@@ -2062,6 +2073,7 @@ def hex_prim_2(vs,L,ps, x, y, q3, q0, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         if mode != 'corners':
@@ -2249,6 +2261,7 @@ def hex_prim_3(vs,L,ps,x,y,z,q3, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        return geom_dict['verts'], geom_dict['faces']
         return complete_verts, complete_faces
     else:
         return verts, faces
