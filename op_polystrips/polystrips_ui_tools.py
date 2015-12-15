@@ -165,7 +165,7 @@ class Polystrips_UI_Tools():
             
             l = [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
             lgvmove += l
-            lallverts += [c for gv,_,c,_ in l if not gv.is_fromMesh()]
+            lallverts += [c for gv,_,c,_ in l if not gv.from_mesh]
             
             supdate.add(gv)
             for ge in gv.get_gedges_notnone():
@@ -190,7 +190,7 @@ class Polystrips_UI_Tools():
                 ge.freeze()
                 
                 lgemove += [(gv,i,p0,d0,p1,d1)]
-                if not ge.is_fromMesh():
+                if not ge.from_mesh:
                     lallverts += [p0,p1]
                 
                 supdate.add(ge)
