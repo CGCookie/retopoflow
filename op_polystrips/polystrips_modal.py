@@ -79,6 +79,10 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Source object no longer exists, specify new source or select an object')
             return False
 
+        if context.mode == 'EDIT_MESH' and self.settings.source_object not in context.scene.objects:
+            showErrorMessage('Source object no longer exists, specific a new source first')
+            return False
+
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False
