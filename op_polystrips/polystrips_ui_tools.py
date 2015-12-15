@@ -190,8 +190,10 @@ class Polystrips_UI_Tools():
                 ge.freeze()
                 
                 lgemove += [(gv,i,p0,d0,p1,d1)]
-                if not ge.from_mesh:
-                    lallverts += [p0,p1]
+
+                # Is this needed? GEdges have no from_mesh currently and breaks tweaking in PS modal
+                # if not ge.from_mesh:
+                #     lallverts += [p0,p1]
                 
                 supdate.add(ge)
                 supdate.add(ge.gvert0)
