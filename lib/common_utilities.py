@@ -42,6 +42,7 @@ import bmesh
 import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy.app.handlers import persistent
 
 
 def bversion():
@@ -68,10 +69,14 @@ def get_settings():
     return get_settings.cached_settings
 get_settings.cached_settings = None
 
-def get_source_object():
+@persistent
+def check_source_target_objects(scene):
     settings = get_settings()
 
-    objs = bpy.context.scene.objects
+    if settings.source_object not in bpy.context.scene.objects:
+        settings.source_object = ''
+    if settings.target_object not in bpy.context.scene.objects:
+        settings.target_object = ''
 
     # set source to active if none set
     default_source_object_to_active()
