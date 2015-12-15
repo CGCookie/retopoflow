@@ -262,7 +262,7 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
                 #new_verts += [vn]
                 
             else:
-                print('no verts to blend')
+                #print('no verts to blend')
                 new_verts += [vn]
                     
     #right boundary gets passed through #it could technically get kept by proper weighting?
@@ -276,12 +276,13 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
         V_edges = list of [list of verts] along an edge loop which represents a side of the polygon
                   V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
                   
-        ps = padding
+        ps = padding to slice off of each side
 
     returns dictionary with keys
       'verts'   list of corner patches of verts.  If a single corner
                 is specified, a single element list containing a list of vertices
-      'dimensions'  list of (x,y) pairs representing the dimensions of the corner patches
+      'dimensions'  list of (x,y) pairs representing the dimensions of the vertex array.  
+                    (L+1, p+1) (one more vert than faces in each direction)
     
     '''
     
@@ -298,7 +299,7 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
         n_p1 = (n + 1)%N
         n_m1 = (n - 1)%N
         max_pads += [min(L[n_m1]-1,L[n_p1]-1)]
-    print(max_pads)
+
     #this is the desired padding by the user.  Eventually
     #this will be a required variable.  For now, if none
     #specified, just return the max padding
@@ -366,9 +367,13 @@ def blend_polygon_sides(V_edges, ps = [], side = 'all'):
             
     if side == 'all':
         geom_dict['verts'] = new_verts
+        geom_dict['dimensions'] = [(x+1,y+1) for x,y in zip(L,pads)]
+        print(geom_dict['dimensions'])
         return geom_dict
     else:
-        geom_dict['verts'] = [new_verts[side]]
+        geom_dict['verts'] = [new_verts[side]]  #+1
+        geom_dict['dimensions'] = [(L[side]+1, pads[side]+1)] #+1?
+        print(geom_dict['dimensions'])
         return geom_dict
     
 def blend_polygon(V_edges, depth, corner = 'all'):
@@ -572,6 +577,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
     def orig_v_index(n):    
         ind = sum([L[i] for i in range(0,n)])
         return ind
+    
     def slice_corner(c_verts, x_dim, y_dim, x, y):
         cvs = []
         for i in range(1,x):
@@ -871,9 +877,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
 
 def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     '''
-    takes a list of corner verts [v0,v1,v2,v3....]  and paddings = [p0,p1,p2,p3...]
-    returns geom_dict
-    
+    list of patch boundaries in ordered vert chains representing the boundaries
     args:
         vs - list of vectors representing corners OR edge loops of polygon
         ps - list of integers representing paddings
@@ -894,14 +898,28 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         ind = sum([L[i] for i in range(0,n)])
         return ind
     def slice_corner(c_verts, x_dim, y_dim, x, y):
+        '''
+        because the perimeter verts are already included in the geom dict
+        for dumb reasons.  So this leaves out the left and bottom boundary
+        '''
         cvs = []
         for i in range(1,x):
             for j in range(1, y):
                 n = n_of_i_j(x_dim, y_dim, i, j)
                 cvs += [c_verts[n]]
-                
         return cvs
-        
+    
+    def slice_middle(side_verts, x_dim, y_dim, x_start, width,y):
+        '''
+        because the perimeter verts are already included in the geom dict
+        for dumb reasons.  So this leaves out the left and bottom boundary
+        '''
+        mvs = [] #middle verts
+        for i in range(x_start,x_start+width):
+            for j in range(1, y):
+                n = n_of_i_j(x_dim, y_dim, i, j)
+                mvs += [side_verts[n]]
+        return mvs 
         
     #check that pdding is valid
     N = len(L)
@@ -940,6 +958,7 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             verts += v_ed[0:l]
             v_edges += [v_ed]
             new_subdivs += [l - p_m1 - p_p1]
+    
     elif mode == 'edges':
         v_edges = vs
         v_corners = [v_ed[0] for v_ed in vs]
@@ -950,21 +969,24 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             v_m1, p_m1, L_m1  = vs[i_m1], ps[i_m1], L[i_m1]
             v_p1, p_p1, L_p1  = vs[i_p1], ps[i_p1], L[i_p1]
 
-            verts += vs[i][0:len(vs[i])-1]
-            new_subdivs += [l - p_m1 - p_p1]
+            verts += vs[i][0:len(vs[i])-1]  #this removes the duplciated corner, goes around the whole permiter
+            new_subdivs += [l - p_m1 - p_p1]  #This is the remaining subdivision after adjacent padding has been sliced off
     
+    
+    
+    geom_dict['perimeter verts'] = [i for i in range(0,len(verts))]  #keep track of the external indices
+    geom_dict['new subdivs'] = new_subdivs
     
     ###
     #We blend each side, to maximum depth based on adjacent sides
     #collect the "blended" side geometry into a dictionary
-    ###
-    c_blend_geom = blend_polygon(v_edges, depth=1, corner = 'all')
+
+    c_blend_geom = blend_polygon_sides(v_edges, ps=ps, side = 'all')
     c_blend_verts = c_blend_geom['verts']
     c_blend_dims = c_blend_geom['dimensions']
         
-    geom_dict['perimeter verts'] = [i for i in range(0,len(verts))]
-    geom_dict['new subdivs'] = new_subdivs
     
+    print('USING THE SIDE BLENDING METHOD')
     #make the inner corner verts and fill the quad patch created by them
     inner_corners = []
     inner_verts = []
@@ -987,20 +1009,12 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             inner_corners += [orig_v_index(i) + p_m1]
 
         else:
-            v_ed_m1 = verts[i_p_m1] 
-            v_ed_p1 = verts[i_p_p1]    
-            
-            v_ed_m11 = verts[orig_v_index(i_m11)+L[i_m11]-p_m1]
-            v_ed_p11 = verts[orig_v_index(i_p1)+p]
-            
-            v_inner_corner = .5*((1- p_m1/l)*v_ed_m1 + p_m1/l*v_ed_p11 + (1-p/l_m1)*v_ed_p1 + p/l_m1*v_ed_m11)
-            
-            corner_quad_verts2 = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)
+            #use the blended side, and pull out the corner
             x_dim, y_dim = c_blend_dims[i]
             corner_quad_verts = slice_corner(c_blend_verts[i], x_dim, y_dim, p_m1+1, p+1)
-            print('ready for new corner blending')
-            print('original method has %i verts: ' % len(corner_quad_verts))
-            print('new method has  %i verts: ' % len(corner_quad_verts2))
+            #print('ready for new corner blending')
+            #print('original method has %i verts: ' % len(corner_quad_verts))
+            #print('new method has  %i verts: ' % len(corner_quad_verts2))
             
             N_now = len(verts)-1
             verts += corner_quad_verts
@@ -1056,7 +1070,20 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         
         N_now = len(verts)
         middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
-        verts += middle_verts[0:len(middle_verts)-p]
+        
+        x_dim, y_dim = c_blend_dims[i]
+        width = l - p_m1 - p_p1-1
+        middle_verts2 = slice_middle(c_blend_verts[i], x_dim, y_dim, p_m1+1, width, y_dim) #p_m1+1?
+        
+        if width != 0:
+            print('CHECKING MIDDLE VERT METHOD')
+            print('subdiv %i, padding %i, padding_m1 %i, padding_p1 %i' % (l, p, p_m1, p_p1))
+            print(len(middle_verts2))
+            print(len(middle_verts[0:len(middle_verts)-p]))
+        
+        #verts += middle_verts[0:len(middle_verts)-p]
+        
+        verts += middle_verts2
         inner_verts += [inner_corners[i]]
         
         for n in range(0,l-p_m1-p_p1-2):
@@ -1203,7 +1230,7 @@ def tri_prim_0(vs, L, ps, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 3, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1230,7 +1257,7 @@ def tri_prim_1(vs,L,ps, x, q1, q2, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 1, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1322,7 +1349,7 @@ def quad_prim_1(vs, L, ps, x, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 1, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1368,7 +1395,7 @@ def quad_prim_2(vs,L,ps, x, y, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 2, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1421,7 +1448,7 @@ def quad_prim_3(vs,L,ps, x, q1, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 3, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1494,7 +1521,7 @@ def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
         if mode != 'corners':
             print('must give corners only for this to work')
             return
-        geom_dict = pad_patch(vs, ps, L, 4, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 4, mode = mode)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         [v0, v1, v2,v3] = vs
@@ -1586,7 +1613,7 @@ def pent_prim_0(vs,L,ps, mode = 'edges'):  #Done, any cuts can be represented as
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 0, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1614,7 +1641,7 @@ def pent_prim_1(vs,L,ps, x, q4, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 1, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1666,7 +1693,7 @@ def pent_prim_2(vs, L,ps, x, q0, q1, q4, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 2, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1742,7 +1769,7 @@ def pent_prim_3(vs,L,ps, x,y,q1,q4, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 3, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1821,7 +1848,7 @@ def hex_prim_0(vs,L,ps, x, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 0, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1863,7 +1890,7 @@ def hex_prim_1(vs,L,ps, x, y, z, w, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 1, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1944,7 +1971,7 @@ def hex_prim_2(vs,L,ps, x, y, q3, q0, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 2, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -2048,7 +2075,7 @@ def hex_prim_3(vs,L,ps,x,y,z,q3, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        geom_dict = pad_patch(vs, ps, L, 3, mode = mode)
+        geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
