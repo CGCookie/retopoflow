@@ -75,14 +75,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             showErrorMessage('Must select an object or specifiy a Source Object')
             return False
 
-        elif context.mode == 'OBJECT' and self.settings.source_object not in context.scene.objects and not context.active_object:
-            showErrorMessage('Source object no longer exists, specify new source or select an object')
-            return False
-
-        elif context.mode == 'EDIT_MESH' and self.settings.source_object not in context.scene.objects:
-            showErrorMessage('Source object no longer exists, specific a new source first')
-            return False
-
         if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
             showErrorMessage('Source and Target cannot be same object')
             return False
