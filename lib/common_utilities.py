@@ -71,19 +71,17 @@ get_settings.cached_settings = None
 def get_source_object():
     settings = get_settings()
 
-    if bpy.context.mode == 'OBJECT':
-        default_source_object_to_active()
-        # check if the source object is set and make sure the object exists in the scene
-        if settings.source_object and settings.source_object in bpy.context.scene.objects:
-            source_object = bpy.data.objects[settings.source_object]
-        # if no objects are set as source or selected, stop
-        elif not bpy.context.active_object:
-            return
-        else:
-            source_object = bpy.context.active_object
-            update_source_object()
-    elif bpy.context.mode == 'EDIT_MESH':
-            source_object = bpy.data.objects[settings.source_object]
+    objs = bpy.context.scene.objects
+
+    # set source to active if none set
+    default_source_object_to_active()
+
+    if settings.source_object in objs:
+        source_object = bpy.data.objects[settings.source_object]
+
+    elif settings.source_object not in objs:
+        source_object = bpy.context.active_object
+        update_source_object()
 
     return source_object
 
