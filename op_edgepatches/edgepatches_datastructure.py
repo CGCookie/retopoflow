@@ -413,20 +413,18 @@ class EPPatch:
             vs = c_vs[n:] + c_vs[:n]
             vs.reverse()
             vs = [vs[-1]] + vs[0:len(vs)-1]
-            ed_loops.reverse()  #this just reverses the whole loop
+            ed_loops.reverse()  #this just reverses the list of loops
             ed_loops = [ed_loops[-1]] + ed_loops[0:len(ed_loops)-1] #maybe we don't do this!
             
             new_loops = [ed_l.copy() for ed_l in ed_loops]
             for ed_l in new_loops:
                 ed_l.reverse()
-                
-            ed_loops = new_loops
-            ed_loops = [reversed(ed_l) for ed_l in ed_loops]  #reverse the vert chains along the edge loop
-            #who knows  
+            
+                  
         else:
             vs = c_vs[n:] + c_vs[:n]
             new_loops = [ed_l.copy() for ed_l in ed_loops]
-            ed_loops = new_loops[n:] + new_loops[:n]
+            ed_loops = new_loops[n:] + new_loops[:n]    
         
         print('subdivisions calced from corrected edge loops')
         print([len(loop)-1 for loop in ed_loops])
@@ -545,12 +543,67 @@ class EPPatch:
                           set(self.gdict['perimeter verts']))
         
         #relax_verts= [i for i in range(0,len(self.verts))]
-        print(relax_verts)
+        #print(relax_verts)
+        
+        deltas = dict()
+        
+        #edges as springs
+        for i in relax_verts:
+            bmv0 = bmmesh.verts[i]
+            lbmeds = bmv0.link_edges
+            
+            net_f = Vector((0,0,0))
+            
+        
+            for bme in lbmeds:
+                bmv1 = bme.other_vert(bmv0)
+                net_f += bmv1.co - bmv0.co
+                
+            deltas[bmv0.index] = .1*net_f  #todo, normalize this to average spring length?
+            
+        
+        #cross braces on faces, try to expand face to square
+        for bmf in bmmesh.faces:
+            if len(bmf.verts) != 4: continue
+            
+            dia0 = bmf.verts[2].co - bmf.verts[0].co
+            dia1 = bmf.verts[3].co - bmf.verts[1].co
+            
+            avg_l = .5 * dia0.length + .5 * dia1.length
+            
+            d0 = .5 * (dia0.length - avg_l)
+            d1 = .5 * (dia1.length - avg_l)
+            
+            dia0.normalize()
+            dia1.normalize()
+            
+            #only expand, no tension
+            if d0 < 0:
+                if bmf.verts[0].index in relax_verts:
+                    deltas[bmf.verts[0].index] += .3 * d0 * dia0
+                if bmf.verts[2].index in relax_verts:
+                    deltas[bmf.verts[2].index] += -.3 * d0 * dia0
+            
+            if d1 < 0:
+                if bmf.verts[1].index in relax_verts:
+                    deltas[bmf.verts[1].index] += .3 * d1 * dia1
+                if bmf.verts[3].index in relax_verts:
+                    deltas[bmf.verts[3].index] += -.3 * d1 * dia1
+                
+                
+                  
+        for i in deltas:
+            bmmesh.verts[i].co += deltas[i]    
+        
+        '''
         avgDist = 0.0
         avgCount = 0
         
         divco = dict()
         dibmf = dict()
+        
+        
+
         for i in relax_verts:
             bmv0 = bmmesh.verts[i]
             lbme = bmv0.link_edges
@@ -580,18 +633,18 @@ class EPPatch:
             for bme in bmv0.link_edges:
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
-                m = (avgDist - diff.length) * 0.3
+                m = (avgDist - diff.length) * 0.1
                 if bmv1.index in relax_verts:
                     divco[bmv1.index] += diff * m
             
             #centroid schema, should help undo overlaps
-            centroid = Vector((0,0,0))
-            for bme in bmv0.link_edges:
-                bmv1 = bme.other_vert(bmv0)    
-                centroid += 1/len(bmv0.link_edges) * bmv1.co
+            #centroid = Vector((0,0,0))
+            #for bme in bmv0.link_edges:
+            #    bmv1 = bme.other_vert(bmv0)    
+            #    centroid += 1/len(bmv0.link_edges) * bmv1.co
                 
-            diff = (centroid - bmv0.co)
-            divco[bmv0.index] += .1*diff
+            #diff = (centroid - bmv0.co)
+            #divco[bmv0.index] += .1*diff
             
             for bmf in bmv0.link_faces:
                 ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
@@ -604,6 +657,10 @@ class EPPatch:
         
         for i in divco:
             bmmesh.verts[i].co = divco[i]
+        
+        '''
+        
+        
         
         self.bmesh.to_mesh(self.me)
         #TODOD, link bmesh to scene, update edit mesh all that shit!!!
