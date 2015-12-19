@@ -1524,12 +1524,13 @@ def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
         print('dimensions mismatch!!')
         return 
     if any(ps):
-        if mode != 'corners':
-            print('must give corners only for this to work')
-            return
         geom_dict = pad_patch_sides_method(vs, ps, L, 4, mode = mode)
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
+        if mode != 'corners':
+            print('must give corners only for this to work')
+            print('you gave corners and paddings.  No padding possible this way?')
+            return
         [v0, v1, v2,v3] = vs
         
     c00 = .75 * v0 + .25 * v1
@@ -1848,6 +1849,8 @@ def pent_prim_3(vs,L,ps, x,y,q1,q4, mode = 'edges'):
         faces_off = add_offset_to_faces(faces, off)
         complete_verts = geom_dict['verts'] + verts
         complete_faces = geom_dict['faces'] + faces_off
+        
+        return geom_dict['verts'], geom_dict['faces'], geom_dict
         return complete_verts, complete_faces
     else:
         return verts, faces

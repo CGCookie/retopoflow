@@ -377,7 +377,7 @@ class EPPatch:
         self.patch = Patch()
         self.patch.edge_subdivision = self.L_sub
         self.patch.permute_and_find_solutions()
-        time.sleep(2) #needed to prevent error on some patches.
+        time.sleep(3) #needed to prevent error on some patches.
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
         sol.report()
@@ -402,24 +402,29 @@ class EPPatch:
         print('Subdivisions by active solution')
         print(L)
         
-        print('Subdivision by self.L_sub (lepedges)')
-        print(self.L_sub)
+        #print('Subdivision by self.L_sub (lepedges)')
+        #print(self.L_sub)
         
-        print('Pre Corrected Subdivisions, derived from len(edge loops)')
-        print([len(loop)-1 for loop in ed_loops])
+        #print('Pre Corrected Subdivisions, derived from len(edge loops)')
+        #print([len(loop)-1 for loop in ed_loops])
         
         if fwd == -1:
             #a = (n + 1) % N
             vs = c_vs[n:] + c_vs[:n]
             vs.reverse()
             vs = [vs[-1]] + vs[0:len(vs)-1]
-            ed_loops.reverse()  #this just reverses the list of loops
-            ed_loops = [ed_loops[-1]] + ed_loops[0:len(ed_loops)-1] #maybe we don't do this!
             
             new_loops = [ed_l.copy() for ed_l in ed_loops]
+            #if n != 0??
+            new_loops = new_loops[n:] + new_loops[:len(new_loops) -1] #shift them
+            new_loops.reverse()  #this just reverses the list of loops
+            new_loops = [new_loops[-1]] + new_loops[0:len(ed_loops)-1] #make the tip the tip again
+            
+            
             for ed_l in new_loops:
                 ed_l.reverse()
             
+            ed_loops = new_loops
                   
         else:
             vs = c_vs[n:] + c_vs[:n]
@@ -578,17 +583,17 @@ class EPPatch:
             dia1.normalize()
             
             #only expand, no tension
-            if d0 < 0:
-                if bmf.verts[0].index in relax_verts:
-                    deltas[bmf.verts[0].index] += .3 * d0 * dia0
-                if bmf.verts[2].index in relax_verts:
-                    deltas[bmf.verts[2].index] += -.3 * d0 * dia0
             
-            if d1 < 0:
-                if bmf.verts[1].index in relax_verts:
-                    deltas[bmf.verts[1].index] += .3 * d1 * dia1
-                if bmf.verts[3].index in relax_verts:
-                    deltas[bmf.verts[3].index] += -.3 * d1 * dia1
+            if bmf.verts[0].index in relax_verts:
+                deltas[bmf.verts[0].index] += .3 * d0 * dia0
+            if bmf.verts[2].index in relax_verts:
+                deltas[bmf.verts[2].index] += -.3 * d0 * dia0
+        
+        
+            if bmf.verts[1].index in relax_verts:
+                deltas[bmf.verts[1].index] += .3 * d1 * dia1
+            if bmf.verts[3].index in relax_verts:
+                deltas[bmf.verts[3].index] += -.3 * d1 * dia1
                 
                 
                   

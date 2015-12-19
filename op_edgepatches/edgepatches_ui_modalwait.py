@@ -225,7 +225,7 @@ class EdgePatches_UI_ModalWait():
         if self.act_eppatch:
             if eventd['press'] in {'L'}:
                 self.act_eppatch.ILP_initial_solve()
-                time.sleep(.5)
+                time.sleep(2)
                 return ''
     
             elif eventd['press'] in {'G'}:
