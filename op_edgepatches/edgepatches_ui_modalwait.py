@@ -245,6 +245,11 @@ class EdgePatches_UI_ModalWait():
                 n = randint(0,5)
                 self.act_eppatch.change_pattern(n)
                 return ''
+            elif eventd['press'] in {'J'}:
+                n = randint(0,5)
+                self.act_eppatch.relax_patch()
+                self.act_eppatch.bmesh_to_patch()
+            
             elif eventd['press'] in {'R'}:
                 self.act_eppatch.patch.report()
                 return ''

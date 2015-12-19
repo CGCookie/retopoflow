@@ -292,7 +292,16 @@ class EPPatch:
         self.patch_solution = []
         self.verts = []
         self.faces = []
+        
+        self.bmesh = bmesh.new()
         self.patch = None
+        
+        #add a mesh and object to the scene
+        self.me = bpy.data.meshes.new('Patch')
+        self.ob = bpy.data.objects.new('Patch', self.me)
+        bpy.context.scene.objects.link(self.ob)
+        
+        
         
         self.update()
         
@@ -375,6 +384,9 @@ class EPPatch:
         
         return
     def generate_geometry(self):
+        
+        self.bmesh.free()
+        
         if self.patch == None: return
         
         N = len(self.get_corner_locations())
@@ -407,59 +419,60 @@ class EPPatch:
         else:
             vs = c_vs[n:] + c_vs[:n]
 
-        vrts, fcs = [], []
+        verts, fcs, gdict = [], [], {}
         vars = self.patch.get_active_solution_variables()
         print(vars)
         vs = ed_loops
         if N == 6:
             ps = vars[:6]
             if pat == 0:
-                vrts, fcs = hex_prim_0(vs, L, ps, *vars[6:])
+                verts, fcs, gdict = hex_prim_0(vs, L, ps, *vars[6:])
             elif pat == 1:
-                vrts, fcs = hex_prim_1(vs, L, ps, *vars[6:])
+                verts, fcs, gdict = hex_prim_1(vs, L, ps, *vars[6:])
             elif pat == 2:
                 vars += [0,0]
-                vrts, fcs = hex_prim_2(vs, L, ps, *vars[6:])
+                verts, fcs, gdict = hex_prim_2(vs, L, ps, *vars[6:])
             elif pat == 3:
                 vars += [0]
-                vrts, fcs = hex_prim_3(vs, L, ps, *vars[6:])
+                verts, fcs, gdict = hex_prim_3(vs, L, ps, *vars[6:])
         elif N == 5:
             ps = vars[:5]
             if pat == 0:
-                vrts, fcs = pent_prim_0(vs, L, ps)
+                verts, fcs, gdict = pent_prim_0(vs, L, ps)
             elif pat == 1:
                 print(vars[5:])
                 vars += [0]
-                vrts, fcs = pent_prim_1(vs, L, ps, *vars[5:])
+                verts, fcs, gdict = pent_prim_1(vs, L, ps, *vars[5:])
             elif pat == 2:
                 vars += [0,0,0]
-                vrts, fcs = pent_prim_2(vs, L, ps, *vars[5:])
+                verts, fcs, gdict = pent_prim_2(vs, L, ps, *vars[5:])
             elif pat == 3:
                 vars += [0,0]
-                vrts, fcs = pent_prim_3(vs, L, ps, *vars[5:])
+                verts, fcs, gdict = pent_prim_3(vs, L, ps, *vars[5:])
         elif N == 4:
             ps = vars[:4]
             if pat == 0:
-                vrts, fcs = quad_prim_0(vs, L, ps)
+                verts, fcs, gdict = quad_prim_0(vs, L, ps)
             elif pat == 1:
-                vrts, fcs = quad_prim_1(vs, L, ps, *vars[4:])
+                verts, fcs, gdict = quad_prim_1(vs, L, ps, *vars[4:])
             elif pat == 2:
-                vrts, fcs = quad_prim_2(vs, L, ps, *vars[4:])
+                verts, fcs, gdict = quad_prim_2(vs, L, ps, *vars[4:])
             elif pat == 3:
                 vars += [0]
-                vrts, fcs = quad_prim_3(vs, L, ps, *vars[4:])
+                verts, fcs, gdict = quad_prim_3(vs, L, ps, *vars[4:])
             elif pat == 4:
                 vars += [0]
-                vrts, fcs = quad_prim_4(vs, L, ps, *vars[4:])
+                verts, fcs, gdict = quad_prim_4(vs, L, ps, *vars[4:])
         elif N == 3:
             ps = vars[:3]
             if pat == 0:
-                vrts, fcs = tri_prim_0(vs, L, ps)
+                verts, fcs, gdict = tri_prim_0(vs, L, ps)
             elif pat == 1:
                 vars += [0,0]
-                vrts, fcs = tri_prim_1(vs,L,ps,*vars[3:])
+                verts, fcs, gdict = tri_prim_1(vs,L,ps,*vars[3:])
 
-        self.verts, self.faces = vrts, fcs
+        self.verts, self.faces, self.gdict = verts, fcs, gdict
+        self.generate_bmesh()
             
     def rotate_solution(self,step):
         if not self.patch: return
@@ -477,7 +490,113 @@ class EPPatch:
             self.generate_geometry()
         else:
             print('Pattern %i does not solve patch' % n)
-                                         
+   
+    def generate_bmesh(self):
+        self.bmesh = bmesh.new()
+        bmverts = [self.bmesh.verts.new(v) for v in self.verts]  #TODO, matrix stuff
+        self.bmesh.verts.index_update()
+        
+        bmfaces = [self.bmesh.faces.new(tuple(bmverts[iv] for iv in face)) for face in self.faces]
+        self.bmesh.faces.index_update()
+        
+        self.bmesh.verts.ensure_lookup_table()
+        self.bmesh.faces.ensure_lookup_table()
+        
+        self.bmesh.to_mesh(self.me)
+        
+        
+    def bmesh_to_patch(self):
+        
+        if not self.bmesh: return
+        self.verts = []
+        self.faces = []
+        
+        self.verts = [v.co for v in self.bmesh.verts] #TODO, matrix stuff
+        self.faces = [tuple([v.index for v in f.verts]) for f in self.bmesh.faces]
+    
+    def update_bmesh_verts(self):
+        if len(self.verts) != len(self.bmesh.verts):
+            print('uh oh, bmesh and verts dont match')
+            return
+        self.bmesh.verts.ensure_lookup_table()
+        for i, v in enumerate(self.verts):
+            self.bmesh.verts[i].co = v
+        
+        self.bmesh.to_mesh(self.me)
+            
+    def relax_patch(self):
+        
+        print('RELAXING RELAXING')
+        bmmesh = self.bmesh
+        
+        relax_verts =list(set([i for i in range(0,len(self.verts))]) - 
+                          set(self.gdict['perimeter verts']))
+        
+        #relax_verts= [i for i in range(0,len(self.verts))]
+        print(relax_verts)
+        avgDist = 0.0
+        avgCount = 0
+        
+        divco = dict()
+        dibmf = dict()
+        for i in relax_verts:
+            bmv0 = bmmesh.verts[i]
+            lbme = bmv0.link_edges
+            avgDist += sum(bme.calc_length() for bme in lbme)
+            avgCount += len(lbme)
+            divco[i] = bmv0.co
+            for bme in lbme:
+                bmv1 = bme.other_vert(bmv0)
+                divco[bmv1.index] = bmv1.co
+            for bmf in bmv0.link_faces:
+                if len(bmf.verts) != 4: continue
+                dibmf[bmf.index] = bmf
+                for bmv in bmf.verts:
+                    if bmv.index in relax_verts:
+                        divco[bmv.index] = bmv.co
+        
+        if avgCount == 0: return ''
+        
+        avgDist /= avgCount
+        
+        for i in relax_verts:
+            bmv0 = bmmesh.verts[i]
+            lbme = bmv0.link_edges
+            if not lbme: continue
+            
+            #avg dist scheme
+            for bme in bmv0.link_edges:
+                bmv1 = bme.other_vert(bmv0)
+                diff = (bmv1.co - bmv0.co)
+                m = (avgDist - diff.length) * 0.3
+                if bmv1.index in relax_verts:
+                    divco[bmv1.index] += diff * m
+            
+            #centroid schema, should help undo overlaps
+            centroid = Vector((0,0,0))
+            for bme in bmv0.link_edges:
+                bmv1 = bme.other_vert(bmv0)    
+                centroid += 1/len(bmv0.link_edges) * bmv1.co
+                
+            diff = (centroid - bmv0.co)
+            divco[bmv0.index] += .1*diff
+            
+            for bmf in bmv0.link_faces:
+                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
+                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
+                for bmv in bmf.verts:
+                    diff = (bmv.co - ctr)
+                    m = (fd - diff.length) * 0.25
+                    if bmv.index in relax_verts:
+                        divco[bmv.index] += diff * m
+        
+        for i in divco:
+            bmmesh.verts[i].co = divco[i]
+        
+        self.bmesh.to_mesh(self.me)
+        #TODOD, link bmesh to scene, update edit mesh all that shit!!!
+            
+                                             
 class EdgePatches:
     def __init__(self, context, src_obj, tar_obj):
         # class/static variables (shared across all instances)
