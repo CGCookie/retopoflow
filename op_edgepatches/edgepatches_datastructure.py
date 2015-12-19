@@ -288,7 +288,7 @@ class EPPatch:
         self.center = Vector()
         self.normal = Vector()
 
-        self.L_sub = [ep.subdivision for ep in self.lepedges]
+        self.L_sub = [ep.subdivision for ep in self.lepedges] #this may be problem.  self.lepedges not in same order as get_edge loops
         self.patch_solution = []
         self.verts = []
         self.faces = []
@@ -398,27 +398,39 @@ class EPPatch:
         print('Solved by pattern # %i' % pat)
         print('%i side is now the 0 side' % n)
         print('%i direction around path' % fwd)
-        print('Subdivisions')
+        
+        print('Subdivisions by active solution')
         print(L)
+        
+        print('Subdivision by self.L_sub (lepedges)')
+        print(self.L_sub)
+        
+        print('Pre Corrected Subdivisions, derived from len(edge loops)')
+        print([len(loop)-1 for loop in ed_loops])
         
         if fwd == -1:
             #a = (n + 1) % N
             vs = c_vs[n:] + c_vs[:n]
             vs.reverse()
             vs = [vs[-1]] + vs[0:len(vs)-1]
-            ed_loops.reverse()
-            ed_loops = [ed_loops[-1]] + ed_loops[0:len(ed_loops)-1]
+            ed_loops.reverse()  #this just reverses the whole loop
+            ed_loops = [ed_loops[-1]] + ed_loops[0:len(ed_loops)-1] #maybe we don't do this!
             
             new_loops = [ed_l.copy() for ed_l in ed_loops]
             for ed_l in new_loops:
                 ed_l.reverse()
                 
             ed_loops = new_loops
-            #ed_loops = [reversed(ed_l) for ed_l in ed_loops]
+            ed_loops = [reversed(ed_l) for ed_l in ed_loops]  #reverse the vert chains along the edge loop
             #who knows  
         else:
             vs = c_vs[n:] + c_vs[:n]
-
+            new_loops = [ed_l.copy() for ed_l in ed_loops]
+            ed_loops = new_loops[n:] + new_loops[:n]
+        
+        print('subdivisions calced from corrected edge loops')
+        print([len(loop)-1 for loop in ed_loops])
+        
         verts, fcs, gdict = [], [], {}
         vars = self.patch.get_active_solution_variables()
         print(vars)

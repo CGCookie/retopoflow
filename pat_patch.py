@@ -249,17 +249,24 @@ def permute_subdivs(L, reverse = True):
     perms = []
     shift_dir = []
     N = len(L)
-    for i in range(0, N -1):
+    
+    print('this is the raw subdivision fed into the permutations')
+    print(L)
+    for i in range(0, N):  #N - 1
         p = L[i:] + L[:i]
         perms += [p]
         shift_dir += [(i, 1)]
         
         if reverse:
-            pr = p.copy()
+            pr =  L[i:] + L[:i]
             pr.reverse()
+            pr = [pr[-1]] + pr[0:len(pr)-1] #this keeps the original start side after list reversal
             perms += [pr]
-            shift_dir += [((i+N-1) % N, -1)]
-    
+            #shift_dir += [((i+N-1) % N, -1)] #this may be totally wrong, seems like it is
+            shift_dir += [(i, -1)]
+    print('these are the supplied permutations')
+    for p, sd in zip(perms, shift_dir):
+        print((p, sd))
     return perms, shift_dir
     
 def reducible(edge_subdivs):
@@ -377,6 +384,14 @@ class Patch():
     def get_active_solution(self):
         
         n = self.active_solution_index
+        
+        if n > len(self.valid_perms)-1:
+            print('not enough valid perms')
+            print(n)
+            for perm in self.valid_perms:
+                print(perm)
+            
+            return
         if n == -1:
             print('no valid solutions')
             return
