@@ -120,6 +120,12 @@ class ModalOperator(Operator):
     ####################################################################
     # Draw handler function
 
+    def draw_callback_preview(self, context):
+        if 'draw_preview' in dir(self):
+            bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
+            self.draw_preview(context)
+            bgl.glPopAttrib()                           # restore OpenGL attributes
+
     def draw_callback_postview(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         self.draw_postview(context)
@@ -210,6 +216,7 @@ class ModalOperator(Operator):
         self.mode_pos      = (0, 0)
         self.cur_pos       = (0, 0)
         self.is_navigating = False
+        self.cb_rv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_preview, (context, ), 'WINDOW', 'PRE_VIEW')
         self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_VIEW')
         self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (context, ), 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
@@ -225,6 +232,7 @@ class ModalOperator(Operator):
         finish up stuff, as our tool is leaving modal mode
         '''
         self.end(context)
+        SpaceView3D.draw_handler_remove(self.cb_rv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
         context.area.header_text_set()

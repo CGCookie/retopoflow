@@ -59,6 +59,7 @@ if bversion() >= '002.076.000':
     from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
     from .op_loopcut.loopcut_modal import CGC_LoopCut
     from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
+    from .render import OP_Render
 
 
 # Used to store keymaps for addon
@@ -77,6 +78,7 @@ def register():
         bpy.utils.register_class(CGC_EyeDropper)
         bpy.utils.register_class(CGC_LoopCut)
         bpy.utils.register_class(CGC_EdgeSlide)
+        bpy.utils.register_class(OP_Render)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -91,6 +93,7 @@ def register():
 
 def unregister():
     if bversion() >= '002.076.000':
+        bpy.utils.unregister_class(OP_Render)
         bpy.utils.unregister_class(CGC_Polystrips)
         bpy.utils.unregister_class(CGC_Tweak)
         bpy.utils.unregister_class(CGC_Contours)
