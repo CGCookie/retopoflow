@@ -377,7 +377,10 @@ class EPPatch:
         self.patch = Patch()
         self.patch.edge_subdivision = self.L_sub
         self.patch.permute_and_find_solutions()
-        time.sleep(3) #needed to prevent error on some patches.
+        if len(self.L_sub) > 5:
+            time.sleep(15) #needed to prevent error on some patches.
+        else:
+            time.sleep(4)
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
         sol.report()
@@ -416,11 +419,13 @@ class EPPatch:
             
             new_loops = [ed_l.copy() for ed_l in ed_loops]
             #if n != 0??
-            new_loops = new_loops[n:] + new_loops[:len(new_loops) -1] #shift them
+            if n != 0:
+                new_loops = new_loops[n:] + new_loops[:n] #shift them
+            
             new_loops.reverse()  #this just reverses the list of loops
             new_loops = [new_loops[-1]] + new_loops[0:len(ed_loops)-1] #make the tip the tip again
             
-            
+            #this reverses each vert chain in the loop
             for ed_l in new_loops:
                 ed_l.reverse()
             

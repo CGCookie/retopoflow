@@ -1,23 +1,26 @@
 Edge-Patches Help (click to hide help):
 
+Do these steps
+
 DRAWING:
-- LMB: draw edge on surface
-- SELECTMOUSE: select edge, node, or node handle
-- F: adjust brush size
+-LMB, draw a patch
+-P to refresh patches check for patches
+-RMB to select the patch
 
-TRANSFORM:
-- G: grab
-- R: rotate
-- CTRL+S: scale
+PATCH FILLING:
+-Select the patch
+-L to Solve the patch (wait a few seconds, there
+are sleep commands beacuse the ILP library will
+crash if blender asks it for something before it
+is finished.
 
-MERGE / DELETE / CONVERT:
-- CTRL+D: dissolve node
-- K: cut new node under mouse on selected edge
-- M: merge selected node to hovered
-- X: delete
+-G to generate geometry
+-Z to randomly try another patch solution
+-J to relax the patch
+-Look in console for reporting
 
-FILL / SEGMENTS:
-- P: update auto-detected patches
+ESC to cancel,
+There will be a mesh object
 
 GENERATE MESH:
 - ENTER / RETURN: confirm retopology and generate mesh

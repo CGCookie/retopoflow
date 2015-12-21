@@ -791,13 +791,16 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
         if l - p_p1 == 1: print('Side %i: next adjacent padding 1 less than this subdiv'% i)
         if l_m1 - p == 1 and p != 0: print('Side %i: padding on this side, no corner verts on previous side'% i)
         if l_m1 - p_m11 == 1 and p_m11 != 0 and p != 0: print('Side %i: no corner verts on previous side because m11 side padding'% i)
+        
+        
+        
         if p_m1 != 0 and not ((l_m1 - p == 1 and p != 0) or 
                               (l_m1 - p_m11 == 1 and p_m11 != 0) or
                               (l - p_m1 == 1) or
                               (l - p_p1 == 1)):#normal padding previous adjacent side
         
             #print('Side %i' % i)
-            #print('normal padding on previous side')
+            print('Side %i, normal padding on previous side' %i)
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
             strip_1 = [ind for ind in range(N_now,N_now+p)]
             strip_0.insert(0,orig_v_index(i)+p_m1)
@@ -827,9 +830,10 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
             faces += face_strip(strip_0, strip_1)
             #print(strip_0)
             #print(strip_1)
+            
         if p_p1 != 0 and p_p1 != (l - 1): #normal padding forward adjacent side
             #print('Side %i' % i)
-            #print('normal padding forward adjacent side, compare strips')
+            print('Side %i: normal padding forward adjacent side, compare strips' %i)
             alpha = len(verts) - 1
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
@@ -840,6 +844,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
             faces += face_strip(strip_0, strip_1)
             print(strip_0)
             print(strip_1)
+        
         elif p_p1 == 0: #no padding on forward adjacent side
             print('Side %i' % i)
             print('no padding forward adjacent side, compare strips')
@@ -920,7 +925,14 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
                 n = n_of_i_j(x_dim, y_dim, i, j)
                 mvs += [side_verts[n]]
         return mvs 
-        
+    
+    
+    #validate padding. By definition, padding can not change the number of sides
+    
+    if mode == 'edges':
+        L = [len(v)-1 for v in vs]    
+    
+    
     #check that pdding is valid
     N = len(L)
     
@@ -935,9 +947,9 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         L_k = L[k]
         p_min_1 = ps[k_min_1]
         p_plu_1 = ps[k_plu_1]
-        if L_k + 1 < p_min_1 + p_plu_1:
-            print('Invalid because of p-1: %i p+1: %1 greater than Ln: %i' % (p_min_1, p_plu_1, L[k]))
-            return [], []
+        if  p_min_1 + p_plu_1 > L_k - 1:
+            print('Invalid because of p-1: %i p+1: %i greater than Ln-1: %i' % (p_min_1, p_plu_1, L_k))
+            return
     
     geom_dict = {}
     verts = []
@@ -980,17 +992,15 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     ###
     #We blend each side, to maximum depth based on adjacent sides
     #collect the "blended" side geometry into a dictionary
-
     c_blend_geom = blend_polygon_sides(v_edges, ps=ps, side = 'all')
     c_blend_verts = c_blend_geom['verts']
     c_blend_dims = c_blend_geom['dimensions']
         
-    
-    print('USING THE SIDE BLENDING METHOD')
     #make the inner corner verts and fill the quad patch created by them
     inner_corners = []
     inner_verts = []
     for i,v in enumerate(v_corners):
+        print('Corner %i' % i)
         i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  #the index of the elements forward and behind of the current
         p, l = ps[i], L[i]
         v_m1, p_m1, l_m1  = v_corners[i_m1], ps[i_m1], L[i_m1]
@@ -999,17 +1009,21 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         i_p_m1 = orig_v_index(i_m1) + L[i_m1] - p
         i_p_p1 = orig_v_index(i) + p_m1
         
-        if p_m1 == 0 and p == 0: #this might be rare
+        if p_m1 == 0 and p == 0: #
+            print('no padding on this side, no padding on prev side.  Corner remains unchanged')
             inner_corners += [orig_v_index(i)]
         
-        elif p_m1 == 0 and p != 0:
+        elif p_m1 == 0 and p != 0:  #no padding previous side, padding on this side.
+            print('no padding previous side, some padding on this side, corner is moved along previous edge')
             inner_corners += [orig_v_index(i_m1) + L[i_m1] - p] 
         
         elif p_m1 != 0 and p == 0:
+            print('no padding this side, some padding prev side, corner is moved along this edge')
             inner_corners += [orig_v_index(i) + p_m1]
 
         else:
-            #use the blended side, and pull out the corner
+            #use the blended side, and pull out the corne
+            print('padding on both adjacents sides, inner corner becomes quadrangulated')
             x_dim, y_dim = c_blend_dims[i]
             corner_quad_verts = slice_corner(c_blend_verts[i], x_dim, y_dim, p_m1+1, p+1)
             #print('ready for new corner blending')
@@ -1047,6 +1061,8 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         
     for i,v in enumerate(v_corners):
         #INDEXING FOR THIS PASS
+        print('\n')
+        
         i_m1, i_p1, i_m11, i_p11 = (i - 1) % N, (i + 1) % N,(i - 2) % N, (i + 2) % N  
         p, l = ps[i], L[i]
         v_m1, p_m1, l_m1  = v_corners[i_m1], ps[i_m1], L[i_m1]
@@ -1076,14 +1092,11 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         middle_verts2 = slice_middle(c_blend_verts[i], x_dim, y_dim, p_m1+1, width, y_dim) #p_m1+1?
         
         if width != 0:
-            print('CHECKING MIDDLE VERT METHOD')
+            print('Side %i, Width of midlle is %i' % (i,width))
             print('subdiv %i, padding %i, padding_m1 %i, padding_p1 %i' % (l, p, p_m1, p_p1))
-            print(len(middle_verts2))
-            print(len(middle_verts[0:len(middle_verts)-p]))
         
         #verts += middle_verts[0:len(middle_verts)-p]
-        
-        verts += middle_verts2
+        verts += middle_verts2 #new method
         inner_verts += [inner_corners[i]]
         
         for n in range(0,l-p_m1-p_p1-2):
@@ -1113,7 +1126,7 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         
         if l - p_m1 - p_p1 == 1 and p_m1 != 0 and p_p1 != 0:
             #print('Side %i' % i)
-            #print('special zipping 1 strip up middle')            
+            print('special zipping 1 face strip up middle, basically a ladder between 2 corner patches')           
             strip_0 = [inner_corners[i] - p +1 + n for n in range(0,p)]
             alpha = orig_v_index(i) + p_m1
             strip_0.insert(0,alpha)
@@ -1131,15 +1144,17 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         
         if l - p_m1 == 1: print('Side %i: prev adjacent padding 1 less than this subdiv' % i)
         if l - p_p1 == 1: print('Side %i: next adjacent padding 1 less than this subdiv'% i)
-        if l_m1 - p == 1 and p != 0: print('Side %i: padding on this side, no corner verts on previous side'% i)
+        if l_m1 - p == 1 and p != 0: print('Side %i: Previously disallowed case, may cause rare bad outcomes'% i)
         if l_m1 - p_m11 == 1 and p_m11 != 0 and p != 0: print('Side %i: no corner verts on previous side because m11 side padding'% i)
-        if p_m1 != 0 and not ((l_m1 - p == 1 and p != 0) or 
+        
+        
+        if p_m1 != 0 and not (#(l_m1 - p == 1 and p != 0) or 
                               (l_m1 - p_m11 == 1 and p_m11 != 0) or
                               (l - p_m1 == 1) or
                               (l - p_p1 == 1)):#normal padding previous adjacent side
         
             #print('Side %i' % i)
-            #print('normal padding on previous side')
+            print('Side %i, normal padding on previous side' % i)
             strip_0 = [ind for ind in range(inner_corners[i]-p+1, inner_corners[i]+1)]
             strip_1 = [ind for ind in range(N_now,N_now+p)]
             strip_0.insert(0,orig_v_index(i)+p_m1)
@@ -1169,9 +1184,10 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             faces += face_strip(strip_0, strip_1)
             #print(strip_0)
             #print(strip_1)
+        
         if p_p1 != 0 and p_p1 != (l - 1): #normal padding forward adjacent side
             #print('Side %i' % i)
-            #print('normal padding forward adjacent side, compare strips')
+            print('Side %i: normal padding forward adjacent side, compare strips' % i)
             alpha = len(verts) - 1
             strip_0 = [alpha - n for n in range(0,p)]
             strip_0.reverse()
@@ -1182,6 +1198,7 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             faces += face_strip(strip_0, strip_1)
             print(strip_0)
             print(strip_1)
+        
         elif p_p1 == 0: #no padding on forward adjacent side
             print('Side %i' % i)
             print('no padding forward adjacent side, compare strips')
@@ -1231,6 +1248,9 @@ def tri_prim_0(vs, L, ps, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
+        
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1260,6 +1280,8 @@ def tri_prim_1(vs,L,ps, x, q1, q2, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1353,6 +1375,8 @@ def quad_prim_1(vs, L, ps, x, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1400,6 +1424,8 @@ def quad_prim_2(vs,L,ps, x, y, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1454,6 +1480,8 @@ def quad_prim_3(vs,L,ps, x, q1, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1525,6 +1553,8 @@ def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 4, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1622,6 +1652,8 @@ def pent_prim_0(vs,L,ps, mode = 'edges'):  #Done, any cuts can be represented as
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1651,6 +1683,8 @@ def pent_prim_1(vs,L,ps, x, q4, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1703,6 +1737,8 @@ def pent_prim_2(vs, L,ps, x, q0, q1, q4, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1780,6 +1816,8 @@ def pent_prim_3(vs,L,ps, x,y,q1,q4, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1861,6 +1899,10 @@ def hex_prim_0(vs,L,ps, x, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
+        if not geom_dict:
+            return [], [], {}
+        return geom_dict['verts'], geom_dict['faces'], geom_dict
+        
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1904,6 +1946,8 @@ def hex_prim_1(vs,L,ps, x, y, z, w, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -1986,6 +2030,8 @@ def hex_prim_2(vs,L,ps, x, y, q3, q0, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':
@@ -2091,6 +2137,8 @@ def hex_prim_3(vs,L,ps,x,y,z,q3, mode = 'edges'):
         return 
     if any(ps):
         geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
+        if not geom_dict:
+            return [], [], {}
         [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     else:
         if mode != 'corners':

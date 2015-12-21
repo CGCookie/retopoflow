@@ -4,6 +4,7 @@ Created on Jul 15, 2015
 @author: Patrick
 '''
 from pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
+import time
 
 def identify_patch_pattern(edges_reduced, check_pattern = -1):
     '''
@@ -362,15 +363,23 @@ class Patch():
             for pat in range(0,pat_dict[N]):
                 if N == 6:
                     sol = PatchSolver6(perm, pat)
+                    sleep_time = .7
                 elif N == 5:
                     sol = PatchSolver5(perm, pat)
+                    sleep_time = .2
                 elif N == 4:    
                     sol = PatchSolver4(perm, pat)
+                    sleep_time = .2
                 elif N == 3:    
                     sol = PatchSolver3(perm, pat)
-                    
+                    sleep_time = .2
+                else:
+                    return
+                
+                print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
                 
+                time.sleep(sleep_time)
                 if sol.prob.status == 1:
                     self.valid_perms += [perm]
                     self.valid_rot_dirs += [rot_dirs[i]]
