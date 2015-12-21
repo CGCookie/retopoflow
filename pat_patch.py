@@ -3,7 +3,7 @@ Created on Jul 15, 2015
 
 @author: Patrick
 '''
-from pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
+from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
 import time
 
 def identify_patch_pattern(edges_reduced, check_pattern = -1):

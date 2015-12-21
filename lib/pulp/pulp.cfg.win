@@ -1,0 +1,16 @@
+# The configuration file that holds locations for 3rd party solvers
+# for CoinMp.dll it is assumed that no location will place the file in the
+# same directory as the configuration file. (note this is not ideal and
+# may change in later versions)
+# a linux file is provided in pulp.cfg.linux
+#$Id: pulp.cfg 1704 2007-12-20 21:56:14Z smit023 $
+[locations]
+CplexPath = cplex100.dll
+#must have gurobi.dll somewhere on the search path
+GurobiPath = C:\gurobi10\win32\python2.5\lib
+CbcPath = cbc
+GlpkPath = glpsol
+PulpCbcPath = %(here)s\solverdir\cbc\%(os)s\%(arch)s\cbc.exe
+[licenses]
+ilm_cplex_license = "LICENSE your-enterprise\nRUNTIME NEVER ..."
+ilm_cplex_license_signature = 0
