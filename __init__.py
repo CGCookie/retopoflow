@@ -24,7 +24,7 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 1, 2),
+    "version":     (1, 1, 3),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
@@ -104,7 +104,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
+    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
 
     clear_icons()
 
