@@ -104,7 +104,7 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
+    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
 
     clear_icons()
 
