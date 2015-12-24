@@ -41,7 +41,8 @@ def edge_loops_from_bmedges(bmesh, bm_edges):
     """
     Edge loops defined by edges
 
-    Takes [mesh edge indices] or a list of edges and returns the edge loops
+    Takes [mesh edge indices]  
+    (eg [ed.index for ed in bmesh.edges if not ed.is_manifold])
 
     return a list of vertex indices.
     [ [1, 6, 7, 2], ...]

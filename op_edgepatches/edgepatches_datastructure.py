@@ -446,52 +446,60 @@ class EPPatch:
         if N == 6:
             ps = vars[:6]
             if pat == 0:
-                verts, fcs, gdict = hex_prim_0(vs, L, ps, *vars[6:])
+                gdict = hex_prim_0(vs, L, ps, *vars[6:])
             elif pat == 1:
-                verts, fcs, gdict = hex_prim_1(vs, L, ps, *vars[6:])
+                gdict = hex_prim_1(vs, L, ps, *vars[6:])
             elif pat == 2:
                 vars += [0,0]
-                verts, fcs, gdict = hex_prim_2(vs, L, ps, *vars[6:])
+                gdict = hex_prim_2(vs, L, ps, *vars[6:])
             elif pat == 3:
                 vars += [0]
-                verts, fcs, gdict = hex_prim_3(vs, L, ps, *vars[6:])
+                gdict = hex_prim_3(vs, L, ps, *vars[6:])
         elif N == 5:
             ps = vars[:5]
             if pat == 0:
-                verts, fcs, gdict = pent_prim_0(vs, L, ps)
+                gdict = pent_prim_0(vs, L, ps)
             elif pat == 1:
                 print(vars[5:])
                 vars += [0]
-                verts, fcs, gdict = pent_prim_1(vs, L, ps, *vars[5:])
+                gdict = pent_prim_1(vs, L, ps, *vars[5:])
             elif pat == 2:
                 vars += [0,0,0]
-                verts, fcs, gdict = pent_prim_2(vs, L, ps, *vars[5:])
+                gdict = pent_prim_2(vs, L, ps, *vars[5:])
             elif pat == 3:
                 vars += [0,0]
-                verts, fcs, gdict = pent_prim_3(vs, L, ps, *vars[5:])
+                gdict = pent_prim_3(vs, L, ps, *vars[5:])
         elif N == 4:
             ps = vars[:4]
             if pat == 0:
-                verts, fcs, gdict = quad_prim_0(vs, L, ps)
+                gdict = quad_prim_0(vs, L, ps)
             elif pat == 1:
-                verts, fcs, gdict = quad_prim_1(vs, L, ps, *vars[4:])
+                gdict = quad_prim_1(vs, L, ps, *vars[4:])
             elif pat == 2:
-                verts, fcs, gdict = quad_prim_2(vs, L, ps, *vars[4:])
+                gdict = quad_prim_2(vs, L, ps, *vars[4:])
             elif pat == 3:
                 vars += [0]
-                verts, fcs, gdict = quad_prim_3(vs, L, ps, *vars[4:])
+                gdict = quad_prim_3(vs, L, ps, *vars[4:])
             elif pat == 4:
                 vars += [0]
-                verts, fcs, gdict = quad_prim_4(vs, L, ps, *vars[4:])
+                gdict = quad_prim_4(vs, L, ps, *vars[4:])
         elif N == 3:
             ps = vars[:3]
             if pat == 0:
-                verts, fcs, gdict = tri_prim_0(vs, L, ps)
+                gdict = tri_prim_0(vs, L, ps)
             elif pat == 1:
                 vars += [0,0]
-                verts, fcs, gdict = tri_prim_1(vs,L,ps,*vars[3:])
+                gdict = tri_prim_1(vs,L,ps,*vars[3:])
 
-        self.verts, self.faces, self.gdict = verts, fcs, gdict
+        self.verts, self.faces, self.gdict = gdict['verts'], gdict['faces'], gdict
+        
+        print('check indices of inner corners and inner verts')
+        print(self.gdict['inner corners'])
+        print(self.gdict['inner verts'])
+        
+        print('check the new subdivisions')
+        print(self.gdict['new subdivs'])
+        
         self.generate_bmesh()
             
     def rotate_solution(self,step):
