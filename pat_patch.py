@@ -379,7 +379,7 @@ class Patch():
                 print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
                 
-                time.sleep(sleep_time)
+                #time.sleep(sleep_time)
                 if sol.prob.status == 1:
                     self.valid_perms += [perm]
                     self.valid_rot_dirs += [rot_dirs[i]]

@@ -225,7 +225,8 @@ class EdgePatches_UI_ModalWait():
         if self.act_eppatch:
             if eventd['press'] in {'L'}:
                 self.act_eppatch.ILP_initial_solve()
-                time.sleep(4)
+                #sleep needed?
+                #time.sleep(4)
                 print('about to request info from ILP')
                 return ''
     
