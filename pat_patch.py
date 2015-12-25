@@ -469,6 +469,8 @@ class Patch():
             print('Need to permute and find solutions or perhaps...infeasible :-(')
             return False
         
+        print('valid patterns')
+        print(list(set(self.valid_patterns)))
         pat_id = pattern
         n_orig, rot_dir = self.valid_rot_dirs[self.active_solution_index]
         

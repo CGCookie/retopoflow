@@ -244,8 +244,9 @@ class EdgePatches_UI_ModalWait():
                 self.act_eppatch.rotate_solution(-1)
                 return ''
             elif eventd['press'] in {'Z'}:
-                n = randint(0,len(self.act_eppatch.patch.valid_patterns)-1)
-                m = self.act_eppatch.patch.valid_patterns[n]
+                unique_patterns = list(set(self.act_eppatch.patch.valid_patterns))
+                n = randint(0,len(unique_patterns)-1)
+                m = unique_patterns[n]
                 self.act_eppatch.change_pattern(m)
                 return ''
             elif eventd['press'] in {'J'}:
