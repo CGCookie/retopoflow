@@ -70,7 +70,6 @@ def find_coord(bme, v_search, vert_list = []):
         print(ds)
         print(min(ds))
         print(ind)
-        return ind
         return vert_list[ind]
     
     else:
