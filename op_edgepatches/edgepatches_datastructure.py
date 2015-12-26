@@ -751,8 +751,6 @@ class EPPatch:
         
         '''
         
-        
-        
         self.bmesh.to_mesh(self.me)
         #TODOD, link bmesh to scene, update edit mesh all that shit!!!
             
