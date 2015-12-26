@@ -1407,65 +1407,44 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     geom_dict['faces'] = faces  
     return geom_dict
 
-def tri_prim_0(vs, L, ps):
+def tri_prim_0(vs):
     '''
     args:
-        vs - list of list of vectors representing edge chains
-        L  - list of integers representing subdivision on each edge
-        ps - list of integers representing padding on each edge
+        vs - list of list of vectors representing corners of patch
     '''
     
     #reality check
-    if not len(vs) == len(L) == len(ps) == 3:
+    if not len(vs) == 3:
         print('dimensions mismatch!!')
-        return 
-    
-    geom_dict = pad_patch_sides_method(vs, ps, L, 0)
-        
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], 3, spring_power=.1, quad_power=.1)
-    
-    if not geom_dict:
         return {}
     
-    [v0, v1, v2] = [pad_bme.verts[i].co for i in geom_dict['inner corners']]
+    #[v0, v1, v2] = [pad_bme.verts[i].co for i in geom_dict['inner corners']]
     #else:
     #    if mode != 'corners':
     #        print('must give corners only for this to work')
     #        return
     #    [v0, v1, v2] = vs
     
-    #old way    
+
+    [v0, v1, v2] = vs  
     pole0 = .5*v0 + .5*v1
-    #if mode == 'corners':
-    #    verts = [v0, pole0, v1, v2]
-    #    faces = [(0,1,2,3)]
+    verts = [v0, pole0, v1, v2]
+    faces = [(0,1,2,3)]
     
-    #else:
-        #new waay
-        #beacuse the final fill is jsut a single face
-    faces = [geom_dict['inner verts']]
-    pad_bme.faces.new(tuple(pad_bme.verts[i] for i in geom_dict['inner verts'])) #this just adds a single quad
-    geom_dict['faces'] += faces
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['bme'] = pad_bme
+    geom_dict = {}
+    geom_dict['faces'] = faces
+    geom_dict['verts'] = verts
     
     return geom_dict
     
 
-def tri_prim_1(vs,L,ps, x, q1, q2):
+def tri_prim_1(vs, x, q1, q2):
     
-    if not len(vs) == len(L) == len(ps) == 3:
+    if not len(vs) == 3:
         print('dimensions mismatch!!')
-        return 
-    
-    geom_dict = pad_patch_sides_method(vs, ps, L, 1)
-    if not geom_dict:
         return {}
-           
-    pad_bme = make_bme(geom_dict['verts'],geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2] = [pad_bme.verts[i].co for i in geom_dict['inner corners']]
+    
+    [v0, v1, v2] = vs
     #else:
     #    if mode != 'corners':
     #        print('must give corners only for this to work')
@@ -1521,98 +1500,50 @@ def tri_prim_1(vs,L,ps, x, q1, q2):
         faces += [(a,b,c,d)]
     
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
 
-def quad_prim_0(vs, L, ps, mode = 'edges'):
+def quad_prim_0(vs):#, x, y):  #TODO TODO, make it fit with other solns format
     '''
-    vs - vert corners
-    L - subdivision on each edge.  Ignored [y,x,y,x]
-    ps - ignored
-    
+    this is dumb...but it's how other primitives work
     '''
     
     
-    y = ps[1] + ps[3]
-    x = ps[0] + ps[2]
+    #y = ps[1] + ps[3]
+    #x = ps[0] + ps[2]
     [v0,v1,v2,v3] = vs
-    verts = quadrangulate_verts(v0, v1, v2, v3, x, y, x_off = 0, y_off = 0)
-    faces = []
-    for i in range(0, y+1):
-        for j in range(0,x+1):
-            A =i*(x+2) + j
-            B =(i + 1) * (x+2) + j
-            faces += [(A, B, B+1, A+1)]
-            
-    return verts, faces
-
-def quad_prim_1(vs, L, ps, x, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 4:
-        print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    if not geom_dict:
-        return {}
-    [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    #verts = quadrangulate_verts(v0, v1, v2, v3, x, y, x_off = 0, y_off = 0)
+    #faces = []
+    #for i in range(0, y+1):
+    #    for j in range(0,x+1):
+    #        A =i*(x+2) + j
+    #        B =(i + 1) * (x+2) + j
+    #        faces += [(A, B, B+1, A+1)]
     
-        
+    faces = [0,1,2,3]
+    geom_dict = {}
+    geom_dict['verts'] = [v0,v1,v2,v3]       
+    geom_dict['faces'] = faces
+    return [v0,v1,v2,v3], faces
+
+def quad_prim_1(vs, x):
+    if not len(vs) == 4:
+        print('dimensions mismatch!!')
+        return {}
+
+    #geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
+    #pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
+    #relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
+    #if not geom_dict:
+    #    return {}
+    #[v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    
+    [v0, v1, v2, v3] = vs    
     N = 3*x + 7
     pole0 = 0.25 * (v0 + v1 + v2 + v3)
     c0 = .5*v0 + .5*v1
@@ -1637,74 +1568,26 @@ def quad_prim_1(vs, L, ps, x, mode = 'edges'):
         
     faces += [(N-4, N-1, N-2, N-3)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def quad_prim_2(vs,L,ps, x, y, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 4:
+def quad_prim_2(vs, x, y):
+    if not len(vs)== 4:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    if not geom_dict:
         return {}
-    [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
-         
+
+    #geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
+    #pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
+    #relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
+    #if not geom_dict:
+    #    return {}
+    #[v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+     
+    [v0, v1, v2, v3] = vs     
     c0 = .67 * v0 + .33 * v1
     pole0 = .67 * v1 + .33 * v0
     
@@ -1732,75 +1615,19 @@ def quad_prim_2(vs,L,ps, x, y, mode = 'edges'):
             B =(i + 1) * (x+3) + j
             faces += [(A, B, B+1, A+1)] 
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def quad_prim_3(vs,L,ps, x, q1, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 4:
+def quad_prim_3(vs, x, q1):
+    if not len(vs) == 4:
         print('dimensions mismatch!!')
-        return 
+        return {}
 
-    geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    if not geom_dict:
-        return {}
-    if not geom_dict:
-        return {}
-    [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+    [v0, v1, v2, v3] = vs
     
     c00 = .67 * v0 + .33 * v1
     c01 = .33 * v0 + .67 * v1
@@ -1849,74 +1676,20 @@ def quad_prim_3(vs,L,ps, x, q1, mode = 'edges'):
             
     faces += [(beta+2, beta +1, beta, N-1)]        
      
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 4:
+def quad_prim_4(vs, x, y, q1):
+    if not len(vs) == 4:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 4, mode = mode)
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    if not geom_dict:
-        print('failure in padding')
         return {}
-    [v0, v1, v2, v3] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+
+    
+    [v0, v1, v2, v3] = vs
     
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
@@ -1991,148 +1764,39 @@ def quad_prim_4(vs,L,ps, x, y, q1, mode = 'edges'):
             
     faces += [(beta+2, beta +1, beta, N-1)]
       
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def pent_prim_0(vs,L,ps, mode = 'edges'):  #Done, any cuts can be represented as padding
-    if not len(vs) == len(L) == len(ps) == 5:
+def pent_prim_0(vs):  #Done, any cuts can be represented as padding, however may want to make this fall in line with other fns
+    if not len(vs) == 5:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)    
-    [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
-    
+
+    [v0, v1, v2, v3,v4] = vs
         
     c0 = .5*v0 + .5*v1
     verts = [v0,c0,v1,v2,v3,v4]
     faces = [(0,1,4,5),(1,2,3,4)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
     
-def pent_prim_1(vs,L,ps, x, q4, mode = 'edges'):
+def pent_prim_1(vs, x, q4):
     
-    if not len(vs) == len(L) == len(ps) == 5:
+    if not len(vs) == 5:
         print('dimensions mismatch!!')
-        return 
-    
-    geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
     
+
+    [v0, v1, v2, v3,v4] = vs
     pole0 = .5*v0 + .5*v1
     
     #verts = [v0,pole0,v1,v2,v3,v4]
@@ -2162,73 +1826,19 @@ def pent_prim_1(vs,L,ps, x, q4, mode = 'edges'):
             B =(i + 1) * (x+3) + j
             faces += [(A, B, B+1, A+1)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
        
-def pent_prim_2(vs, L,ps, x, q0, q1, q4, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 5:
+def pent_prim_2(vs, x, q0, q1, q4):
+    if not len(vs) == 5:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+
+    [v0, v1, v2, v3, v4] = vs
     
     c00 = .75*v0 + .25*v1
     p0 = .5*v0 + .5*v1
@@ -2284,74 +1894,19 @@ def pent_prim_2(vs, L,ps, x, q0, q1, q4, mode = 'edges'):
         d = a + 1
         faces += [(a,b,c,d)]
               
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
-    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def pent_prim_3(vs,L,ps, x,y,q1,q4, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 5:
+def pent_prim_3(vs, x, y, q1, q4):
+    if not len(vs)  == 5:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
 
+    [v0, v1, v2, v3,v4] = vs
+    
     c00 = .8*v0 + .2*v1
     c01 = .6*v0 + .4*v1
     c02 = .4*v0 + .6*v1
@@ -2409,75 +1964,19 @@ def pent_prim_3(vs,L,ps, x,y,q1,q4, mode = 'edges'):
     #verts = [v0,c00,c01,c02,c03,v1,c10,v2,v3,v4, pole0, cp0, cp1, pole1]
     #faces = [(0,1,10,9), (1,2,11,10),(2,3,12,11),(3,4,13,12),
     #         (4,5,6,13),(6,7,12,13),(7,8,11,12),(8,9,10,11)]
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4]]
     
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
-    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
     
-def hex_prim_0(vs,L,ps, x, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 6:
+def hex_prim_0(vs, x):
+    if not len(vs) == 6:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 0, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-        
-    [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
-    
+
+    [v0, v1, v2, v3,v4,v5] = vs
     #verts = [v0,v1,v2,v3,v4,v5]
     #faces = [(0,1,2,5), (2,3,4,5)]
     verts = []
@@ -2498,75 +1997,21 @@ def hex_prim_0(vs,L,ps, x, mode = 'edges'):
             #print((A,B,B+1,A+1))
             faces += [(A, B, B+1, A+1)]
                 
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4,v5]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict= {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def hex_prim_1(vs,L,ps, x, y, z, w, mode = 'edges'):
+def hex_prim_1(vs, x, y, z, w):
     
-    if not len(vs) == len(L) == len(ps) == 6:
+    if not len(vs) == 6:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 1, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
-      
+
+    [v0, v1, v2, v3,v4,v5] = vs
+    
     c0 = .5*v0  +.5*v1
     c1 = .5*v1 + .5*v2
     cp0 = .18*(v3 + v4 + v5) + .1533*(v0 + v1 + v2)
@@ -2626,73 +2071,19 @@ def hex_prim_1(vs,L,ps, x, y, z, w, mode = 'edges'):
         d = a + 1
         faces += [(a,b,c,d)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4,v5]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
 
-def hex_prim_2(vs,L,ps, x, y, q3, q0, mode = 'edges'):
-    if not len(vs) == len(L) == len(ps) == 6:
+def hex_prim_2(vs, x, y, q3, q0):
+    if not len(vs) == 6:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 2, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 5, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
+
+    [v0, v1, v2, v3,v4,v5] = vs
     
     c00 = .67*v0 + .33 * v1
     c01 = .33*v0 + .67*v1
@@ -2772,75 +2163,20 @@ def hex_prim_2(vs,L,ps, x, y, q3, q0, mode = 'edges'):
 
     faces += [(a,b,c,d)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4,v5]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 8)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
-    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
         
-def hex_prim_3(vs,L,ps,x,y,z,q3, mode = 'edges'):    
+def hex_prim_3(vs,x,y,z,q3):    
     
-    if not len(vs) == len(L) == len(ps) == 6:
+    if not len(vs) == 6:
         print('dimensions mismatch!!')
-        return 
-
-    geom_dict = pad_patch_sides_method(vs, ps, L, 3, mode = mode)
-    if not geom_dict:
         return {}
-    pad_bme = make_bme(geom_dict['verts'], geom_dict['faces'])
-    relax_bmesh(pad_bme, geom_dict['perimeter verts'], iterations = 4, spring_power = .1, quad_power=.2)
-    [v0, v1, v2, v3,v4,v5] = [geom_dict['verts'][i] for i in geom_dict['inner corners']]
-      
+
+    [v0, v1, v2, v3,v4,v5] = vs
+    
     c00 = .75 * v0 + .25 * v1
     c01 = .5 * v0 + .5 * v1
     c02 = .25 * v0 + .75 * v1
@@ -2999,58 +2335,9 @@ def hex_prim_3(vs,L,ps,x,y,z,q3, mode = 'edges'):
     a = n_p3 - 1
     faces += [(a,b,c,d)]
     
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    patch_bme = make_bme(verts, faces)
-    outer_verts = find_perimeter_verts(patch_bme)
-    patch_corners = [find_coord(patch_bme, v, outer_verts) for v in [v0,v1,v2,v3,v4,v5]]
-    
-    print('compare outer verts and inner verts')
-    print(outer_verts)
-    print(geom_dict['inner verts'])
-    
-    print('compare padd inner corners with patch outer corners')
-    print(geom_dict['inner corners'])
-    print(patch_corners)
-    
-    #use patch corners to get outer verts in correct orientations
-    ind0 = outer_verts.index(patch_corners[0])
-    outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-    
-    print('line up the 0 corner')
-    print(outer_verts)
-    
-    print('reverse the order?')
-    ind1patch = outer_verts.index(patch_corners[1])
-    ind1pad = geom_dict['inner verts'].index(geom_dict['inner corners'][1])
-    
-    if ind1patch != ind1pad:
-        print('yes reverse it')
-        outer_verts.reverse()
-        outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-        
-    
-    perimeter_map = {}    
-    for n, m in zip(outer_verts, geom_dict['inner verts']):
-        perimeter_map[n] = m
-        
-    print(outer_verts)
-    
-    #figure out what direction the loops make sense in
-    #
-    
-    
-    #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
-    join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
-    
-    relax_bmesh(pad_bme, exclude = geom_dict['perimeter verts'], iterations = 2)
-    
-    pad_bme.verts.ensure_lookup_table()
-    pad_bme.faces.ensure_lookup_table()
-    
-    print('length of pad_mesh verts %i' % len(pad_bme.verts))
-    geom_dict['bme'] = pad_bme
-    geom_dict['verts'] = [v.co for v in pad_bme.verts]
-    geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict

@@ -436,68 +436,144 @@ class EPPatch:
         print('subdivisions calced from corrected edge loops')
         print([len(loop)-1 for loop in ed_loops])
         
-        verts, fcs, gdict = [], [], {}
+        verts, fcs, geom_dict = [], [], {}
         vars = self.patch.get_active_solution_variables()
         print(vars)
         vs = ed_loops
+        
         if N == 6:
             ps = vars[:6]
             if pat == 0:
-                gdict = hex_prim_0(vs, L, ps, *vars[6:])
+                patch_fn = hex_prim_0 #(vs, L, ps, *vars[6:])
             elif pat == 1:
-                gdict = hex_prim_1(vs, L, ps, *vars[6:])
+                patch_fn = hex_prim_1#(vs, L, ps, *vars[6:])
             elif pat == 2:
                 vars += [0,0]
-                gdict = hex_prim_2(vs, L, ps, *vars[6:])
+                patch_fn = hex_prim_2#(vs, L, ps, *vars[6:])
             elif pat == 3:
                 vars += [0]
-                gdict = hex_prim_3(vs, L, ps, *vars[6:])
+                patch_fn = hex_prim_3#(vs, L, ps, *vars[6:])
         elif N == 5:
             ps = vars[:5]
             if pat == 0:
-                gdict = pent_prim_0(vs, L, ps)
+                patch_fn = pent_prim_0#(vs, L, ps)
             elif pat == 1:
                 print(vars[5:])
                 vars += [0]
-                gdict = pent_prim_1(vs, L, ps, *vars[5:])
+                patch_fn = pent_prim_1#(vs, L, ps, *vars[5:])
             elif pat == 2:
                 vars += [0,0,0]
-                gdict = pent_prim_2(vs, L, ps, *vars[5:])
+                patch_fn = pent_prim_2#(vs, L, ps, *vars[5:])
             elif pat == 3:
                 vars += [0,0]
-                gdict = pent_prim_3(vs, L, ps, *vars[5:])
+                patch_fn = pent_prim_3#(vs, L, ps, *vars[5:])
         elif N == 4:
             ps = vars[:4]
             if pat == 0:
-                gdict = quad_prim_0(vs, L, ps)
+                patch_fn = quad_prim_0#(vs, L, ps)
             elif pat == 1:
-                gdict = quad_prim_1(vs, L, ps, *vars[4:])
+                patch_fn = quad_prim_1#(vs, L, ps, *vars[4:])
             elif pat == 2:
-                gdict = quad_prim_2(vs, L, ps, *vars[4:])
+                patch_fn = quad_prim_2#(vs, L, ps, *vars[4:])
             elif pat == 3:
                 vars += [0]
-                gdict = quad_prim_3(vs, L, ps, *vars[4:])
+                patch_fn = quad_prim_3#(vs, L, ps, *vars[4:])
             elif pat == 4:
                 vars += [0]
-                gdict = quad_prim_4(vs, L, ps, *vars[4:])
+                patch_fn = quad_prim_4#(vs, L, ps, *vars[4:])
         elif N == 3:
             ps = vars[:3]
             if pat == 0:
-                gdict = tri_prim_0(vs, L, ps)
+                patch_fn = tri_prim_0#(vs, L, ps)
             elif pat == 1:
                 vars += [0,0]
-                gdict = tri_prim_1(vs,L,ps,*vars[3:])
+                patch_fn = tri_prim_1#(vs,L,ps,*vars[3:])
 
-        self.verts, self.faces, self.gdict = gdict['verts'], gdict['faces'], gdict
+        #All information collected, now generate the patch
+        
+        #First, slice off the padding from each side
+        pad_geom_dict = pad_patch_sides_method(vs, ps, L, pat)
+        if not pad_geom_dict:
+            self.verts, self.faces, self.gdict = [], [], {}
+            
+        #make a bmesh of the padding
+        pad_bme = make_bme(pad_geom_dict['verts'], pad_geom_dict['faces'])
+        relax_bmesh(pad_bme, pad_geom_dict['perimeter verts'], 3, spring_power=.1, quad_power=.1)
+        
+        inner_corners = [pad_bme.verts[i].co for i in pad_geom_dict['inner corners']]
+        
+        #take the new inner corners, and fill them with patch
+        patch_geom = patch_fn(inner_corners, *vars[N:])
+        patch_bme = make_bme(patch_geom['verts'], patch_geom['faces'])
+        
+        #correlate the outer verts of patch primitive to inner verts of padding
+        outer_verts = find_perimeter_verts(patch_bme)
+        print(outer_verts)
+        patch_corners = [find_coord(patch_bme, v, outer_verts) for v in inner_corners]
+        
+        print('compare patch outer verts and pad inner verts')
+        print(outer_verts)
+        print(pad_geom_dict['inner verts'])
+        
+        print('compare pad inner corners with patch outer corners')
+        print(pad_geom_dict['inner corners'])
+        print(patch_corners)
+        
+        #use patch corners to get outer verts in correct orientations
+        ind0 = outer_verts.index(patch_corners[0])
+        outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
+        
+        print('line up the 0 corner')
+        print(outer_verts)
+        
+        print('reverse the order?')
+        ind1patch = outer_verts.index(patch_corners[1])
+        ind1pad = pad_geom_dict['inner verts'].index(pad_geom_dict['inner corners'][1])
+        
+        if ind1patch != ind1pad:
+            print('yes reverse it')
+            outer_verts.reverse()
+            outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
+            
+        
+        perimeter_map = {}    
+        for n, m in zip(outer_verts, pad_geom_dict['inner verts']):
+            perimeter_map[n] = m
+            
+        print(outer_verts)
+        
+        #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
+        join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
+        
+        #the pad bmesh now is completely filled, so it's good to go.
+        relax_bmesh(pad_bme, exclude = pad_geom_dict['perimeter verts'], iterations = 2)
+        
+        pad_bme.verts.ensure_lookup_table()
+        pad_bme.faces.ensure_lookup_table()
+        
+        geom_dict = {}
+        geom_dict['bme'] = pad_bme
+        geom_dict['verts'] = [v.co for v in pad_bme.verts]
+        geom_dict['faces'] = [tuple(v.index for v in f.verts) for f in pad_bme.faces]
+        
+        #copy some relevant info from padding geom into geom dict that is accessible
+        #from patch class
+        geom_dict['patch primitive corners'] = pad_geom_dict['inner corners']
+        geom_dict['reduced subdivision'] = pad_geom_dict['new subdivs']
+        geom_dict['patch perimeter verts'] = pad_geom_dict['perimeter verts']
+        #return geom_dict['verts'], geom_dict['faces'], geom_dict
+
+        
+        self.verts, self.faces, self.gdict = geom_dict['verts'], geom_dict['faces'], geom_dict
         
         print('check indices of inner corners and inner verts')
-        print(self.gdict['inner corners'])
-        print(self.gdict['inner verts'])
+        print(self.gdict['patch primitive corners'])
+        print(self.gdict['patch perimeter verts'])
         
         print('check the new subdivisions')
-        print(self.gdict['new subdivs'])
+        print(self.gdict['reduced subdivision'])
         
-        self.generate_bmesh()
+        self.bmesh = pad_bme
             
     def rotate_solution(self,step):
         if not self.patch: return
@@ -555,7 +631,7 @@ class EPPatch:
         bmmesh = self.bmesh
         
         relax_verts =list(set([i for i in range(0,len(self.verts))]) - 
-                          set(self.gdict['perimeter verts']))
+                          set(self.gdict['patch perimeter verts']))
         
         #relax_verts= [i for i in range(0,len(self.verts))]
         #print(relax_verts)
