@@ -1525,11 +1525,11 @@ def quad_prim_0(vs):#, x, y):  #TODO TODO, make it fit with other solns format
     #        B =(i + 1) * (x+2) + j
     #        faces += [(A, B, B+1, A+1)]
     
-    faces = [0,1,2,3]
+    faces = [[0,1,2,3]]
     geom_dict = {}
     geom_dict['verts'] = [v0,v1,v2,v3]       
     geom_dict['faces'] = faces
-    return [v0,v1,v2,v3], faces
+    return geom_dict
 
 def quad_prim_1(vs, x):
     if not len(vs) == 4:
