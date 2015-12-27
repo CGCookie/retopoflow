@@ -396,8 +396,8 @@ class EPPatch:
         
         print('%i Sided Patch' % N)
         print('Solved by pattern # %i' % pat)
-        print('%i side is now the 0 side' % n)
-        print('%i direction around path' % fwd)
+        #print('%i side is now the 0 side' % n)
+        #print('%i direction around path' % fwd)
         
         print('Subdivisions by active solution')
         print(L)
@@ -433,12 +433,12 @@ class EPPatch:
             new_loops = [ed_l.copy() for ed_l in ed_loops]
             ed_loops = new_loops[n:] + new_loops[:n]    
         
-        print('subdivisions calced from corrected edge loops')
-        print([len(loop)-1 for loop in ed_loops])
+        #print('subdivisions calced from corrected edge loops')
+        #print([len(loop)-1 for loop in ed_loops])
         
         verts, fcs, geom_dict = [], [], {}
         vars = self.patch.get_active_solution_variables()
-        print(vars)
+        #print(vars)
         vs = ed_loops
         
         if N == 6:
@@ -448,24 +448,24 @@ class EPPatch:
             elif pat == 1:
                 patch_fn = hex_prim_1#(vs, L, ps, *vars[6:])
             elif pat == 2:
-                vars += [0,0]
+                #vars += [0,0]
                 patch_fn = hex_prim_2#(vs, L, ps, *vars[6:])
             elif pat == 3:
-                vars += [0]
+                #vars += [0]
                 patch_fn = hex_prim_3#(vs, L, ps, *vars[6:])
         elif N == 5:
             ps = vars[:5]
             if pat == 0:
                 patch_fn = pent_prim_0#(vs, L, ps)
             elif pat == 1:
-                print(vars[5:])
-                vars += [0]
+                #print(vars[5:])
+                #vars += [0]
                 patch_fn = pent_prim_1#(vs, L, ps, *vars[5:])
             elif pat == 2:
-                vars += [0,0,0]
+                #vars += [0,0,0]
                 patch_fn = pent_prim_2#(vs, L, ps, *vars[5:])
             elif pat == 3:
-                vars += [0,0]
+                #vars += [0,0]
                 patch_fn = pent_prim_3#(vs, L, ps, *vars[5:])
         elif N == 4:
             ps = vars[:4]
@@ -476,17 +476,17 @@ class EPPatch:
             elif pat == 2:
                 patch_fn = quad_prim_2#(vs, L, ps, *vars[4:])
             elif pat == 3:
-                vars += [0]
+                #vars += [0]
                 patch_fn = quad_prim_3#(vs, L, ps, *vars[4:])
             elif pat == 4:
-                vars += [0]
+                #vars += [0]
                 patch_fn = quad_prim_4#(vs, L, ps, *vars[4:])
         elif N == 3:
             ps = vars[:3]
             if pat == 0:
                 patch_fn = tri_prim_0#(vs, L, ps)
             elif pat == 1:
-                vars += [0,0]
+                #vars += [0,0]  q1 and q2 vars now included in ILP problem
                 patch_fn = tri_prim_1#(vs,L,ps,*vars[3:])
 
         #All information collected, now generate the patch
@@ -494,6 +494,7 @@ class EPPatch:
         #First, slice off the padding from each side
         pad_geom_dict = pad_patch_sides_method(vs, ps, L, pat)
         if not pad_geom_dict:
+            print('padding failure!!')
             self.verts, self.faces, self.gdict = [], [], {}
             
         #make a bmesh of the padding
@@ -508,30 +509,30 @@ class EPPatch:
         
         #correlate the outer verts of patch primitive to inner verts of padding
         outer_verts = find_perimeter_verts(patch_bme)
-        print(outer_verts)
+        #print(outer_verts)
         patch_corners = [find_coord(patch_bme, v, outer_verts) for v in inner_corners]
         
-        print('compare patch outer verts and pad inner verts')
-        print(outer_verts)
-        print(pad_geom_dict['inner verts'])
+        #print('compare patch outer verts and pad inner verts')
+        #print(outer_verts)
+        #print(pad_geom_dict['inner verts'])
         
-        print('compare pad inner corners with patch outer corners')
-        print(pad_geom_dict['inner corners'])
-        print(patch_corners)
+        #print('compare pad inner corners with patch outer corners')
+        #print(pad_geom_dict['inner corners'])
+        #print(patch_corners)
         
         #use patch corners to get outer verts in correct orientations
         ind0 = outer_verts.index(patch_corners[0])
         outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
         
-        print('line up the 0 corner')
-        print(outer_verts)
+        #print('line up the 0 corner')
+        #print(outer_verts)
         
-        print('reverse the order?')
+        #print('reverse the order?')
         ind1patch = outer_verts.index(patch_corners[1])
         ind1pad = pad_geom_dict['inner verts'].index(pad_geom_dict['inner corners'][1])
         
         if ind1patch != ind1pad:
-            print('yes reverse it')
+            #print('yes reverse it')
             outer_verts.reverse()
             outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
             
@@ -540,7 +541,7 @@ class EPPatch:
         for n, m in zip(outer_verts, pad_geom_dict['inner verts']):
             perimeter_map[n] = m
             
-        print(outer_verts)
+        #print(outer_verts)
         
         #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
         join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
@@ -566,12 +567,12 @@ class EPPatch:
         
         self.verts, self.faces, self.gdict = geom_dict['verts'], geom_dict['faces'], geom_dict
         
-        print('check indices of inner corners and inner verts')
-        print(self.gdict['patch primitive corners'])
-        print(self.gdict['patch perimeter verts'])
+        #print('check indices of inner corners and inner verts')
+        #print(self.gdict['patch primitive corners'])
+        #print(self.gdict['patch perimeter verts'])
         
-        print('check the new subdivisions')
-        print(self.gdict['reduced subdivision'])
+        #print('check the new subdivisions')
+        #print(self.gdict['reduced subdivision'])
         
         self.bmesh = pad_bme
             
@@ -591,7 +592,17 @@ class EPPatch:
             self.generate_geometry()
         else:
             print('Pattern %i does not solve patch' % n)
+
+
+    def adjust_parameter(self, param_index, delta): #perhaps maybe...use a dictionary
    
+        
+        success = self.patch.adjust_patch(param_index, delta)
+        
+        if success:
+            self.generate_geometry()
+       
+       
     def generate_bmesh(self):
         self.bmesh = bmesh.new()
         bmverts = [self.bmesh.verts.new(v) for v in self.verts]  #TODO, matrix stuff
@@ -626,8 +637,6 @@ class EPPatch:
         self.bmesh.to_mesh(self.me)
             
     def relax_patch(self):
-        
-        print('RELAXING RELAXING')
         bmmesh = self.bmesh
         
         relax_verts =list(set([i for i in range(0,len(self.verts))]) - 
@@ -685,71 +694,6 @@ class EPPatch:
                   
         for i in deltas:
             bmmesh.verts[i].co += deltas[i]    
-        
-        '''
-        avgDist = 0.0
-        avgCount = 0
-        
-        divco = dict()
-        dibmf = dict()
-        
-        
-
-        for i in relax_verts:
-            bmv0 = bmmesh.verts[i]
-            lbme = bmv0.link_edges
-            avgDist += sum(bme.calc_length() for bme in lbme)
-            avgCount += len(lbme)
-            divco[i] = bmv0.co
-            for bme in lbme:
-                bmv1 = bme.other_vert(bmv0)
-                divco[bmv1.index] = bmv1.co
-            for bmf in bmv0.link_faces:
-                if len(bmf.verts) != 4: continue
-                dibmf[bmf.index] = bmf
-                for bmv in bmf.verts:
-                    if bmv.index in relax_verts:
-                        divco[bmv.index] = bmv.co
-        
-        if avgCount == 0: return ''
-        
-        avgDist /= avgCount
-        
-        for i in relax_verts:
-            bmv0 = bmmesh.verts[i]
-            lbme = bmv0.link_edges
-            if not lbme: continue
-            
-            #avg dist scheme
-            for bme in bmv0.link_edges:
-                bmv1 = bme.other_vert(bmv0)
-                diff = (bmv1.co - bmv0.co)
-                m = (avgDist - diff.length) * 0.1
-                if bmv1.index in relax_verts:
-                    divco[bmv1.index] += diff * m
-            
-            #centroid schema, should help undo overlaps
-            #centroid = Vector((0,0,0))
-            #for bme in bmv0.link_edges:
-            #    bmv1 = bme.other_vert(bmv0)    
-            #    centroid += 1/len(bmv0.link_edges) * bmv1.co
-                
-            #diff = (centroid - bmv0.co)
-            #divco[bmv0.index] += .1*diff
-            
-            for bmf in bmv0.link_faces:
-                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
-                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
-                for bmv in bmf.verts:
-                    diff = (bmv.co - ctr)
-                    m = (fd - diff.length) * 0.25
-                    if bmv.index in relax_verts:
-                        divco[bmv.index] += diff * m
-        
-        for i in divco:
-            bmmesh.verts[i].co = divco[i]
-        
-        '''
         
         self.bmesh.to_mesh(self.me)
         #TODOD, link bmesh to scene, update edit mesh all that shit!!!

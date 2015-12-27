@@ -249,6 +249,16 @@ class EdgePatches_UI_ModalWait():
                 m = unique_patterns[n]
                 self.act_eppatch.change_pattern(m)
                 return ''
+            
+            elif eventd['press'] in {'A'}:
+                print('adjustment!')
+                n = len(self.act_eppatch.patch.get_active_solution_variables())
+                param_index = randint(0,n-1)
+                delta = randint(-3, 3)
+                self.act_eppatch.adjust_parameter(param_index, delta)
+                return ''
+            
+            
             elif eventd['press'] in {'J'}:
                 n = randint(0,5)
                 self.act_eppatch.relax_patch()

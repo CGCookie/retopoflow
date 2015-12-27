@@ -414,8 +414,13 @@ class Patch():
             print('no solution, permute and find solutions first')
             return
         
+        
         sol = self.valid_solutions[self.active_solution_index]
-        existing_vars = [int(v.varValue) for v in sol.prob.variables()]
+        
+        if sol.prob_type == 'adjust':
+            existing_vars = [int(v.varValue) for v in sol.prob.variables() if "min" not in v.name]
+        else:
+            existing_vars = [int(v.varValue) for v in sol.prob.variables()]
         return existing_vars
             
     def rotate_solution(self,step):
@@ -482,6 +487,48 @@ class Patch():
                 return True
                     
         return False
+    
+    def adjust_patch(self, param_index, delta):
+        L, rot_dir, pat, sol = self.get_active_solution()
+        existing_vars = self.get_active_solution_variables()
+        print('the existing variables are')
+        print(existing_vars)
+        new_vars = existing_vars.copy()
+        new_vars[param_index] = max(0, new_vars[param_index] + delta) #make sure nothing goes negative
+        print('the target variables are')
+        print(new_vars)
+        
+        N = len(self.edge_subdivision)
+            
+        if N == 6:
+            new_sol = PatchAdjuster6(L, pat, existing_vars, new_vars)
+        elif N == 5:
+            new_sol = PatchAdjuster5(L, pat, existing_vars, new_vars)
+        elif N == 4:    
+            new_sol = PatchAdjuster4(L, pat, existing_vars, new_vars)
+        elif N == 3:    
+            new_sol = PatchAdjuster3(L, pat, existing_vars, new_vars)
+        else:
+            return
+        
+        new_sol.solve(report = False)
+        
+        print('the adjusted variables are')
+        for v in new_sol.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))        
+        #time.sleep(sleep_time)
+        #if this solution is valid...keep it.
+        if new_sol.prob.status == 1:
+            print('successfuly adjusted patch')
+            self.valid_perms += [L]
+            self.valid_rot_dirs += [rot_dir]
+            self.valid_patterns += [pat]
+            self.valid_solutions += [new_sol]
+            self.active_solution_index = len(self.valid_perms) -1 
+            return True
+        else:
+            print('desired adjustment not possible')
+            return False
     def report(self):
         if self.active_solution_index == -1:
             print('no active soluton')
@@ -692,10 +739,10 @@ def add_constraints_3p0(prob, L, p0, p1, p2):
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
     prob +=  p1 + p0            == L[2] - 1, "Side 2"
 
-def add_constraints_3p1(prob, L, p0, p1, p2, x):
-    prob +=  p2 + p1 +2*x     == L[0] - 4, "Side 0"
-    prob +=  p0 + p2          == L[1] - 1, "Side 1"
-    prob +=  p1 + p0          == L[2] - 1, "Side 2"
+def add_constraints_3p1(prob, L, p0, p1, p2, x, q1, q2):
+    prob +=  p2 + p1 +2*x + q1 + q2    == L[0] - 4, "Side 0"
+    prob +=  p0 + p2 + q2              == L[1] - 1, "Side 1"
+    prob +=  p1 + p0 + q1              == L[2] - 1, "Side 2"
     
 def add_constraints_4p0(prob, L, p0, p1, p2, p3):
     prob +=  p3 + p1            == L[0] - 1, "Side 0"
@@ -715,23 +762,23 @@ def add_constraints_4p2(prob, L, p0, p1, p2, p3, x, y):
     prob +=  p1 + p3            == L[2] - 1, "Side 2"
     prob +=  p2 + p0 + y        == L[3] - 1, "Side 3"
 
-def add_constraints_4p3(prob, L, p0, p1, p2, p3, x):
+def add_constraints_4p3(prob, L, p0, p1, p2, p3, x, q1):
     '''
     p1 + q1 = constant
     '''
-    prob +=  p3 + p1 + 2*x      == L[0] - 3, "Side 0"
-    prob +=  p0 + p2            == L[1] - 1, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p0            == L[3] - 1, "Side 3"
+    prob +=  p3 + p1 + 2*x +q1    == L[0] - 3, "Side 0"
+    prob +=  p0 + p2              == L[1] - 1, "Side 1"
+    prob +=  p1 + p3 + q1         == L[2] - 1, "Side 2"
+    prob +=  p2 + p0              == L[3] - 1, "Side 3"
    
-def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y):
+def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y, q1):
     '''
     p0 + q0 = constant
     '''
-    prob +=  p1 + p3 + 2*x + y   == L[0] - 4, "Side 0"
-    prob +=  p0 + p2 + y         == L[1] - 2, "Side 1"
-    prob +=  p1 + p3             == L[2] - 1, "Side 2"
-    prob +=  p2 + p0             == L[3] - 1, "Side 3"
+    prob +=  p1 + p3 + 2*x + y +q1  == L[0] - 4, "Side 0"
+    prob +=  p0 + p2 + y            == L[1] - 2, "Side 1"
+    prob +=  p1 + p3  +q1           == L[2] - 1, "Side 2"
+    prob +=  p2 + p0                == L[3] - 1, "Side 3"
 
 def add_constraints_5p0(prob, L, p0, p1, p2, p3, p4):
     prob +=  p4 + p1            == L[0] - 2, "Side 0"
@@ -740,37 +787,37 @@ def add_constraints_5p0(prob, L, p0, p1, p2, p3, p4):
     prob +=  p2 + p4            == L[3] - 1, "Side 3"
     prob +=  p3 + p0            == L[4] - 1, "Side 4"
    
-def add_constraints_5p1(prob, L, p0, p1, p2, p3, p4, x): 
+def add_constraints_5p1(prob, L, p0, p1, p2, p3, p4, x, q4): 
     '''
     q4 + p4 = constant
     '''
-    prob +=  p4 + p1 + x        == L[0] - 2, "Side 0"
-    prob +=  p0 + p2 + x        == L[1] - 1, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p4            == L[3] - 1, "Side 3"
-    prob +=  p3 + p0            == L[4] - 1, "Side 4"
+    prob +=  p4 + p1 + x + q4       == L[0] - 2, "Side 0"
+    prob +=  p0 + p2 + x            == L[1] - 1, "Side 1"
+    prob +=  p1 + p3                == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + q4           == L[3] - 1, "Side 3"
+    prob +=  p3 + p0                == L[4] - 1, "Side 4"
     
-def add_constraints_5p2(prob, L, p0, p1, p2, p3, p4, x):
+def add_constraints_5p2(prob, L, p0, p1, p2, p3, p4, x, q0, q1, q4):
     '''
     p0 + q0 = constant
     p1 + q1 = constant
     '''
-    prob +=  p4 + p1 + 2*x      == L[0] - 4, "Side 0"
-    prob +=  p0 + p2            == L[1] - 1, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p4            == L[3] - 1, "Side 3"
-    prob +=  p3 + p0            == L[4] - 1, "Side 4"
+    prob +=  p4 + p1 + 2*x + q1 + q4  == L[0] - 4, "Side 0"
+    prob +=  p0 + p2  + q0            == L[1] - 1, "Side 1"
+    prob +=  p1 + p3 + q1             == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + q4             == L[3] - 1, "Side 3"
+    prob +=  p3 + p0 + q0             == L[4] - 1, "Side 4"
   
-def add_constraints_5p3(prob, L, p0, p1, p2, p3, p4, x, y):
+def add_constraints_5p3(prob, L, p0, p1, p2, p3, p4, x, y, q1, q4):
     '''
     p0 + q1 = constant
     p4 + q4 = constant
     '''
-    prob +=  p4 + p1 + 2*x + y  == L[0] - 5, "Side 0"
-    prob +=  p0 + p2 + y        == L[1] - 2, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
-    prob +=  p2 + p4            == L[3] - 1, "Side 3"
-    prob +=  p3 + p0            == L[4] - 1, "Side 4"
+    prob +=  p4 + p1 + 2*x + y + q1 + q4  == L[0] - 5, "Side 0"
+    prob +=  p0 + p2 + y                  == L[1] - 2, "Side 1"
+    prob +=  p1 + p3 + q1                 == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + q4                 == L[3] - 1, "Side 3"
+    prob +=  p3 + p0                      == L[4] - 1, "Side 4"
                 
 def add_constraints_6p0(prob, L, p0, p1, p2, p3, p4, p5, x): 
     prob +=  p5 + p1 + x        == L[0] - 1, "Side 0"
@@ -788,33 +835,34 @@ def add_constraints_6p1(prob, L, p0, p1, p2, p3, p4, p5, x, y, z, w):
     prob +=  p3 + p5 + z           == L[4] - 1, "Side 4"
     prob +=  p4 + p0 + w           == L[5] - 1, "Side 5"
     
-def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y):  
+def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y, q0, q3):  
     '''
     q3 + p3 = constant, q0 + p0 = constant
     '''
     prob +=  p5 + p1 + 2*x + y  == L[0] - 3, "Side 0"
-    prob +=  p0 + p2            == L[1] - 1, "Side 1"
-    prob +=  p1 + p3            == L[2] - 1, "Side 2"
+    prob +=  p0 + p2 + q0            == L[1] - 1, "Side 1"
+    prob +=  p1 + p3 + q3           == L[2] - 1, "Side 2"
     prob +=  p2 + p4 + y        == L[3] - 1, "Side 3"
-    prob +=  p3 + p5            == L[4] - 1, "Side 4"
-    prob +=  p4 + p0            == L[5] - 1, "Side 5"
+    prob +=  p3 + p5 + q3           == L[4] - 1, "Side 4"
+    prob +=  p4 + p0 + q0           == L[5] - 1, "Side 5"
     
-def add_constraints_6p3(prob, L, p0, p1, p2, p3, p4, p5, x, y, z):
+def add_constraints_6p3(prob, L, p0, p1, p2, p3, p4, p5, x, y, z, q3):
     '''
     q3 + p3 = constant
     '''
-    prob +=  p5 + p1 + 2*x + y + z == L[0] - 4, "Side 0"
-    prob +=  p0 + p2 + y           == L[1] - 2, "Side 1"
-    prob +=  p1 + p3               == L[2] - 1, "Side 2"
-    prob +=  p2 + p4 + z           == L[3] - 1, "Side 3"
-    prob +=  p3 + p5               == L[4] - 1, "Side 4"
-    prob +=  p4 + p0               == L[5] - 1, "Side 5"
+    prob +=  p5 + p1 + 2*x + y + z  == L[0] - 4, "Side 0"
+    prob +=  p0 + p2 + y            == L[1] - 2, "Side 1"
+    prob +=  p1 + p3 + q3           == L[2] - 1, "Side 2"
+    prob +=  p2 + p4 + z            == L[3] - 1, "Side 3"
+    prob +=  p3 + p5 + q3           == L[4] - 1, "Side 4"
+    prob +=  p4 + p0                == L[5] - 1, "Side 5"
     
                   
 class PatchSolver6(object):
     def __init__(self, L, pattern):
         self.pattern = pattern
         self.L = L
+        self.prob_type = 'solve'
         self.prob = LpProblem("N6 Patch", LpMaximize)
 
         max_p0 = float(min(L[1], L[5]) - 1)
@@ -831,6 +879,9 @@ class PatchSolver6(object):
         p4 = LpVariable("p4",0,max_p4,LpInteger)
         p5 = LpVariable("p5",0,max_p5,LpInteger)
         
+        q0 = LpVariable("q0",0,max_p0,LpInteger)
+        q3 = LpVariable("q3",0,max_p3,LpInteger)
+        
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
         z = LpVariable("z",0,None,LpInteger)
@@ -844,9 +895,9 @@ class PatchSolver6(object):
         elif self.pattern == 1:
             add_constraints_6p1(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z,w)
         elif self.pattern == 2:
-            add_constraints_6p2(self.prob, L,p0,p1,p2,p3,p4,p5,x,y)
+            add_constraints_6p2(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,q0,q3)
         elif self.pattern == 3:
-            add_constraints_6p3(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z)
+            add_constraints_6p3(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z,q3)
     
     def solve(self, report = True):
         self.prob.solve()
@@ -867,6 +918,7 @@ class PatchAdjuster6():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'adjust'
         self.prob = LpProblem("N6 Patch Adjust", LpMinimize)
         self.pattern = pattern
         self.L = L
@@ -884,6 +936,9 @@ class PatchAdjuster6():
         p3 = LpVariable("p3",0,max_p3,LpInteger)
         p4 = LpVariable("p4",0,max_p4,LpInteger)
         p5 = LpVariable("p5",0,max_p5,LpInteger)
+        
+        q0 = LpVariable("q0",0,max_p0,LpInteger)
+        q3 = LpVariable("q3",0,max_p3,LpInteger)
         
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
@@ -942,7 +997,7 @@ class PatchAdjuster6():
             add_constraints_6p1(self.prob, L, p0, p1, p2, p3, p4,p5,x,y,z,w)
         
         elif self.pattern == 2:
-            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y]
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,q0,q3]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -964,7 +1019,7 @@ class PatchAdjuster6():
             add_constraints_6p2(self.prob, L, p0,p1,p2,p3,p4,p5,x,y)
         
         elif self.pattern == 3:
-            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,z]
+            PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,z,q3]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1004,6 +1059,7 @@ class PatchSolver5():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'solve'
         self.prob = LpProblem("N5 Patch", LpMaximize)
         self.pattern = pattern
         self.L = L
@@ -1019,6 +1075,11 @@ class PatchSolver5():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
         p3 = LpVariable("p3",0,max_p3,LpInteger)
         p4 = LpVariable("p4",0,max_p4,LpInteger)
+        
+        q0 = LpVariable("q0",0,max_p0,LpInteger)
+        q1 = LpVariable("q1",0,max_p1,LpInteger)
+        q4 = LpVariable("q4",0,max_p4,LpInteger)
+        
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
 
@@ -1028,11 +1089,11 @@ class PatchSolver5():
         if self.pattern == 0:
             add_constraints_5p0(self.prob, L, p0, p1, p2, p3, p4)
         elif self.pattern == 1:
-            add_constraints_5p1(self.prob, L, p0, p1, p2, p3, p4, x)
+            add_constraints_5p1(self.prob, L, p0, p1, p2, p3, p4, x, q4)
         elif self.pattern == 2:
-            add_constraints_5p2(self.prob, L, p0, p1, p2, p3, p4, x)
+            add_constraints_5p2(self.prob, L, p0, p1, p2, p3, p4, x, q0, q1, q4)
         elif self.pattern == 3:
-            add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y)
+            add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
             
     def solve(self, report = True):
         self.prob.solve()
@@ -1056,6 +1117,7 @@ class PatchAdjuster5():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'adjust'
         self.prob = LpProblem("N5 Patch Adjust", LpMinimize)
         self.pattern = pattern
         self.L = L
@@ -1071,6 +1133,11 @@ class PatchAdjuster5():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
         p3 = LpVariable("p3",0,max_p3,LpInteger)
         p4 = LpVariable("p4",0,max_p4,LpInteger)
+        
+        q0 = LpVariable("q0",0,max_p0,LpInteger)
+        q1 = LpVariable("q1",0,max_p1,LpInteger)
+        q4 = LpVariable("q4",0,max_p4,LpInteger)
+        
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
 
@@ -1104,7 +1171,7 @@ class PatchAdjuster5():
             
             
         elif self.pattern == 1:
-            PULP_vars = [p0,p1,p2,p3,p4,x]
+            PULP_vars = [p0,p1,p2,p3,p4,x,q4]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1123,9 +1190,10 @@ class PatchAdjuster5():
                     self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
-            add_constraints_5p1(self.prob, L, p0, p1, p2, p3, p4,x)
+            add_constraints_5p1(self.prob, L, p0, p1, p2, p3, p4, x, q4)
+        
         elif self.pattern == 2:
-            PULP_vars = [p0,p1,p2,p3,p4,x]
+            PULP_vars = [p0,p1,p2,p3,p4,x, q0, q1, q4]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1144,10 +1212,10 @@ class PatchAdjuster5():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_5p2(self.prob, L, p0, p1, p2, p3, p4, x)
+            add_constraints_5p2(self.prob, L, p0, p1, p2, p3, p4, x, q0, q1, q4)
         
         elif self.pattern == 3:
-            PULP_vars = [p0,p1,p2,p3,p4,x,y]
+            PULP_vars = [p0,p1,p2,p3,p4,x,y, q1, q4]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1163,7 +1231,7 @@ class PatchAdjuster5():
                     self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
-            add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x,y)
+            add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
         
     def solve(self, report = True):
         self.prob.solve()
@@ -1183,6 +1251,7 @@ class PatchSolver4():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'solve'
         self.prob = LpProblem("N4 Patch", LpMaximize)
         self.pattern = pattern
         self.L = L
@@ -1196,6 +1265,8 @@ class PatchSolver4():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
         p3 = LpVariable("p3",0,max_p3,LpInteger)
 
+        q1 = LpVariable("q1",0,max_p1,LpInteger)
+        
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
 
@@ -1209,9 +1280,9 @@ class PatchSolver4():
         elif self.pattern == 2:
             add_constraints_4p2(self.prob, L, p0, p1, p2, p3, x, y)
         elif self.pattern == 3:
-            add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x)
+            add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x, q1)
         elif self.pattern == 4:
-            add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y)
+            add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
     def solve(self, report = True):
         self.prob.solve()
@@ -1232,6 +1303,7 @@ class PatchAdjuster4():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'adjust'
         self.prob = LpProblem("N4 Patch Adjust", LpMinimize)
         self.pattern = pattern
         self.L = L
@@ -1245,6 +1317,8 @@ class PatchAdjuster4():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
         p3 = LpVariable("p3",0,max_p3,LpInteger)
 
+        q1 = LpVariable("q1",0,max_p1,LpInteger)
+         
         x = LpVariable("x",0,None,LpInteger)
         y = LpVariable("y",0,None,LpInteger)
 
@@ -1319,7 +1393,7 @@ class PatchAdjuster4():
             add_constraints_4p2(self.prob, L, p0, p1, p2, p3, x, y)
         
         elif self.pattern == 3:
-            PULP_vars = [p0,p1,p2,p3,x]
+            PULP_vars = [p0,p1,p2,p3,x, q1]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1335,9 +1409,10 @@ class PatchAdjuster4():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x)
+            add_constraints_4p3(self.prob, L, p0, p1, p2, p3, x, q1)
+        
         elif self.pattern == 4:
-            PULP_vars = [p0,p1,p2,p3,x,y]
+            PULP_vars = [p0,p1,p2,p3,x,y, q1]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1354,7 +1429,7 @@ class PatchAdjuster4():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y)
+            add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
     def solve(self, report = True):
         self.prob.solve()
@@ -1376,7 +1451,7 @@ class PatchSolver3():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
-        
+        self.prob_type = 'solve'
         self.prob = LpProblem("N6 Patch", LpMaximize)
         self.adjust_prob = None
         
@@ -1393,6 +1468,9 @@ class PatchSolver3():
        
 
         x = LpVariable("x",0,None,LpInteger)
+        
+        q1 = LpVariable("q1",0,max_p1,LpInteger)
+        q2 = LpVariable("q2",0,max_p2,LpInteger)
 
         #first objective, maximize padding
         self.prob += p0 + p1 + p2    
@@ -1400,7 +1478,7 @@ class PatchSolver3():
         if self.pattern == 0:
             add_constraints_3p0(self.prob, L, p0, p1, p2)
         elif self.pattern == 1:
-            add_constraints_3p1(self.prob, L, p0, p1, p2, x)
+            add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
     
     def solve(self, report = True):
         self.prob.solve()
@@ -1421,6 +1499,7 @@ class PatchAdjuster3():
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
+        self.prob_type = 'adjust'
         self.prob = LpProblem("N3 Patch Adjust", LpMinimize)
         self.pattern = pattern
         self.L = L
@@ -1434,6 +1513,8 @@ class PatchAdjuster3():
         p2 = LpVariable("p2",0,max_p2,LpInteger)
 
         x = LpVariable("x",0,None,LpInteger)
+        q1 = LpVariable("q1", 0, max_p1, LpInteger)
+        q2 = LpVariable("q2", 0, max_p2, LpInteger)
 
         changes = []
         for i, (tv, ev) in enumerate(zip(target_vars,existing_vars)):
@@ -1464,7 +1545,7 @@ class PatchAdjuster3():
             
             
         elif self.pattern == 1:
-            PULP_vars = [p0,p1,p2,x]
+            PULP_vars = [p0,p1,p2,x,q1,q2]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1483,7 +1564,7 @@ class PatchAdjuster3():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_3p1(self.prob, L, p0, p1, p2, x)
+            add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
         
 
     def solve(self, report = True):
