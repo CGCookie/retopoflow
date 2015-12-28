@@ -53,7 +53,7 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
         FSM['rotate tool']      = self.modal_rotate_tool
         FSM['scale tool']       = self.modal_scale_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
-        ModalOperator.initialize(self, FSM)
+        self.initialize('help_edgepatches.txt', FSM)
         self.initialize_ui()
     
     def start_poll(self, context):

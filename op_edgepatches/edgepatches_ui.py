@@ -35,7 +35,8 @@ import copy
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
-from ..lib.common_classes import SketchBrush, TextBox
+from ..lib.classes.textbox.textbox import TextBox
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
 from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
 
@@ -114,21 +115,7 @@ class EdgePatches_UI:
         
         self.edgepatches = EdgePatches(context, self.obj_orig, self.dest_obj)
         
-        
-        # help file stuff
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, '..', 'help', 'help_edgepatches.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File (%s) found, please reinstall!" % filename
-        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
-        
         context.area.header_text_set('Edge-Patches')
-        
         
         self.act_epvert = None
         self.act_epedge = None

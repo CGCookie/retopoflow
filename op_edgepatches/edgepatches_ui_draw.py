@@ -209,7 +209,7 @@ class EdgePatches_UI_Draw():
                     
                 draw3d_points(eppatch.verts, color_line, 3)
             else:
-                draw3d_fan(eppatch.center + eppatch.normal*0.02, eppatch.get_outer_points(), color)   
+                draw3d_fan(eppatch.center, eppatch.get_outer_points(), color)   
         
         if self.act_epvert:
             epv0 = self.act_epvert

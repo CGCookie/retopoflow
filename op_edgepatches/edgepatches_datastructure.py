@@ -285,6 +285,7 @@ class EPPatch:
         for epv in self.get_epverts():
             epv.eppatches += [self]
         
+        
         self.center = Vector()
         self.normal = Vector()
 
@@ -296,12 +297,10 @@ class EPPatch:
         self.bmesh = bmesh.new()
         self.patch = None
         
-        #add a mesh and object to the scene
+        #add a mesh and object to the scene #TODO...don't do this
         self.me = bpy.data.meshes.new('Patch')
         self.ob = bpy.data.objects.new('Patch', self.me)
         bpy.context.scene.objects.link(self.ob)
-        
-        
         
         self.update()
         
@@ -313,9 +312,12 @@ class EPPatch:
                 ctr += p
             cnt += len(epe.curve_verts)
         if cnt:
+            mx  = EdgePatches.matrix
+            imx = EdgePatches.matrixinv
+            mxn = EdgePatches.matrixnorm
             p,n,_ = EdgePatches.getClosestPoint(ctr/float(cnt))
-            self.center = p
-            self.normal = n
+            self.center =  p
+            self.normal =  n
         else:
             self.center = Vector()
             self.normal = Vector()
@@ -570,6 +572,12 @@ class EPPatch:
         pad_bme.verts.ensure_lookup_table()
         pad_bme.faces.ensure_lookup_table()
         
+        
+        #finally, snap everything
+        for v in pad_bme.verts:
+            p, _, _ = EdgePatches.getClosestPoint(v.co, meth = 'BVH')
+            v.co = p
+        
         geom_dict = {}
         geom_dict['bme'] = pad_bme
         geom_dict['verts'] = [v.co for v in pad_bme.verts]
@@ -594,6 +602,7 @@ class EPPatch:
         
         self.bmesh = pad_bme
         self.bmesh.to_mesh(self.me)
+    
             
     def rotate_solution(self,step):
         if not self.patch: return
@@ -713,6 +722,10 @@ class EPPatch:
                   
         for i in deltas:
             bmmesh.verts[i].co += deltas[i]    
+        
+        for i in deltas:
+            p, _, _ = EdgePatches.getClosestPoint(bmmesh.verts[i].co, meth = 'BVH')
+            bmmesh.verts[i].co = p
         
         self.bmesh.to_mesh(self.me)
         #TODOD, link bmesh to scene, update edit mesh all that shit!!!
