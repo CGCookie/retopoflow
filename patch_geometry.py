@@ -1695,10 +1695,6 @@ def quad_prim_3(vs, q1, x):
 
 def quad_prim_4(vs, q1, x, y):
     
-    print('alphabetized variables?')
-    print('q1: %i' % q1)
-    print('x: %i' % x)
-    print('y: %i' % y)
     if not len(vs) == 4:
         print('dimensions mismatch!!')
         return {}
@@ -1805,9 +1801,7 @@ def pent_prim_0(vs):  #Done, any cuts can be represented as padding, however may
     return geom_dict
     
 def pent_prim_1(vs, q4, x):
-    print('alphabetized variables?')
-    print('q1: %i' % q4)
-    print('x: %i' % x)
+    
     if not len(vs) == 5:
         print('dimensions mismatch!!')
         return {}
@@ -1851,12 +1845,6 @@ def pent_prim_1(vs, q4, x):
     return geom_dict
        
 def pent_prim_2(vs, q0, q1, q4, x):
-    
-    print('alphabetized variables?')
-    print('q0: %i' % q0)
-    print('q1: %i' % q1)
-    print('q4: %i' % q4)
-    print('x: %i' % x)
     
     if not len(vs) == 5:
         print('dimensions mismatch!!')
@@ -1925,11 +1913,7 @@ def pent_prim_2(vs, q0, q1, q4, x):
     return geom_dict
 
 def pent_prim_3(vs, q1, q4, x, y):
-    print('alphabetized variables?')
-    print('q1: %i' % q1)
-    print('q4: %i' % q4)
-    print('x: %i' % x)
-    print('y: %i' % y) 
+    
     if not len(vs)  == 5:
         print('dimensions mismatch!!')
         return {}
@@ -2034,11 +2018,7 @@ def hex_prim_0(vs, x):
     return geom_dict
 
 def hex_prim_1(vs, w, x, y, z):
-    print('alphabetized variables?')
-    print('w: %i' % w)
-    print('x: %i' % x)
-    print('y: %i' % y)
-    print('z: %i' % z)
+   
     if not len(vs) == 6:
         print('dimensions mismatch!!')
         return {}
@@ -2112,11 +2092,6 @@ def hex_prim_1(vs, w, x, y, z):
     return geom_dict
 
 def hex_prim_2(vs, q0, q3, x, y):
-    print('alphabetized variables?')
-    print('q0: %i' % q0)
-    print('q3: %i' % q3)
-    print('x: %i' % x)
-    print('y: %i' % y)
     
     if not len(vs) == 6:
         print('dimensions mismatch!!')
@@ -2209,11 +2184,7 @@ def hex_prim_2(vs, q0, q3, x, y):
     return geom_dict
         
 def hex_prim_3(vs,q3,x,y,z):    
-    print('alphabetized variables?')
-    print('q3: %i' % q3)
-    print('x: %i' % x)
-    print('y: %i' % y)
-    print('z: %i' % z)
+    
     if not len(vs) == 6:
         print('dimensions mismatch!!')
         return {}
