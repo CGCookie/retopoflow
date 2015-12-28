@@ -333,6 +333,9 @@ class Patch():
         self.valid_patterns = []
         self.valid_solutions = []
         
+        self.param_index = 0
+        self.delta = 0
+        
     def validate(self):
         self.valid = False
         self.valid |= len(self.corner) == len(self.sides)
@@ -422,7 +425,19 @@ class Patch():
         else:
             existing_vars = [int(v.varValue) for v in sol.prob.variables()]
         return existing_vars
-            
+    
+    def get_adjust_variable_name(self):
+        if self.active_solution_index == -1: return None
+        
+        sol = self.valid_solutions[self.active_solution_index]
+        n = self.param_index
+        
+        if sol.prob_type == 'adjust':
+            var_names = [v.name for v in sol.prob.variables() if "min" not in v.name]
+        else:
+            var_names = [v.name for v in sol.prob.variables()]
+        return var_names[n]
+         
     def rotate_solution(self,step):
         #look for same pattern, with different rotation
         if len(self.valid_patterns) == 0:
@@ -441,6 +456,9 @@ class Patch():
                 if r_dir == rot_dir and n == target_n:                    
                     self.active_solution_index = i
                     print('found a solution!')
+                    
+                    self.param_index = 0
+                    self.delta = 0
                     return True
                     
         return False
@@ -462,6 +480,8 @@ class Patch():
                     
                     self.active_solution_index = i
                     print('found a solution with same L0 but reversed')
+                    self.param_index = 0
+                    self.delta = 0
                     return True
         return False
     
@@ -488,7 +508,11 @@ class Patch():
                     
         return False
     
-    def adjust_patch(self, param_index, delta):
+    def adjust_patch(self):
+        
+        param_index = self.param_index
+        delta = self.delta
+        
         L, rot_dir, pat, sol = self.get_active_solution()
         existing_vars = self.get_active_solution_variables()
         print('the existing variables are')
@@ -509,13 +533,13 @@ class Patch():
         elif N == 3:    
             new_sol = PatchAdjuster3(L, pat, existing_vars, new_vars)
         else:
-            return
+            return False
         
         new_sol.solve(report = False)
         
-        print('the adjusted variables are')
-        for v in new_sol.prob.variables():
-            print(v.name + ' = ' + str(v.varValue))        
+        #print('the adjusted variables are')
+        #for v in new_sol.prob.variables():
+        #    print(v.name + ' = ' + str(v.varValue))        
         #time.sleep(sleep_time)
         #if this solution is valid...keep it.
         if new_sol.prob.status == 1:
@@ -524,7 +548,10 @@ class Patch():
             self.valid_rot_dirs += [rot_dir]
             self.valid_patterns += [pat]
             self.valid_solutions += [new_sol]
-            self.active_solution_index = len(self.valid_perms) -1 
+            self.active_solution_index = len(self.valid_perms) -1
+            print('the adjusted variables') 
+            new_vars = self.get_active_solution_variables()
+            print(new_vars)
             return True
         else:
             print('desired adjustment not possible')
@@ -982,7 +1009,7 @@ class PatchAdjuster6():
             
             self.prob += sum(min_vars), "Minimize the sum of differences in variables"
             
-            for i, ev in enumerate(existing_vars):
+            for i, ev in enumerate(existing_vars): #I may need to re-eval this statement
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
                 

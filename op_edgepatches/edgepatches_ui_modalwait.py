@@ -251,14 +251,31 @@ class EdgePatches_UI_ModalWait():
                 return ''
             
             elif eventd['press'] in {'A'}:
-                print('adjustment!')
-                n = len(self.act_eppatch.patch.get_active_solution_variables())
-                param_index = randint(0,n-1)
-                delta = randint(-3, 3)
-                self.act_eppatch.adjust_parameter(param_index, delta)
-                return ''
+                print('change adjust variable')
+                n = self.act_eppatch.patch.param_index
+                N = len(self.act_eppatch.patch.get_active_solution_variables())
+                
+                new_index = (n + 1) % (N-1)
+                
+                self.act_eppatch.patch.param_index = new_index
+                self.act_eppatch.patch.delta = 0
+                name = self.act_eppatch.patch.get_adjust_variable_name()
+                print('adjust parameter %s' % name)
             
-            
+            elif eventd['press'] in {'UP_ARROW'}:
+                self.act_eppatch.patch.delta += 1
+                if self.act_eppatch.patch.adjust_patch():
+                    self.act_eppatch.patch.delta = 0
+                    self.act_eppatch.generate_geometry()
+                    return ''
+                
+            elif eventd['press'] in {'DOWN_ARROW'}:
+                self.act_eppatch.patch.delta -= 1
+                if self.act_eppatch.patch.adjust_patch():
+                    self.act_eppatch.patch.delta = 0
+                    self.act_eppatch.generate_geometry()
+                    return ''
+                
             elif eventd['press'] in {'J'}:
                 n = randint(0,5)
                 self.act_eppatch.relax_patch()

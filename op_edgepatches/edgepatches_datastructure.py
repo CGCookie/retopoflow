@@ -501,49 +501,67 @@ class EPPatch:
         pad_bme = make_bme(pad_geom_dict['verts'], pad_geom_dict['faces'])
         relax_bmesh(pad_bme, pad_geom_dict['perimeter verts'], 3, spring_power=.1, quad_power=.1)
         
+        #these corners re in order, and correspond to V0, V1, V2 etc corners of the
+        #entire patch/polygon
         inner_corners = [pad_bme.verts[i].co for i in pad_geom_dict['inner corners']]
-        
+    
         #take the new inner corners, and fill them with patch
         patch_geom = patch_fn(inner_corners, *vars[N:])
         patch_bme = make_bme(patch_geom['verts'], patch_geom['faces'])
         
         #correlate the outer verts of patch primitive to inner verts of padding
+        
+        #these outer verts are in order, but the 0 index item in the list
+        #is not correlated to V0 in any way.
         outer_verts = find_perimeter_verts(patch_bme)
+        #print('the outer vert indices in the patch primitive in no particular order')
         #print(outer_verts)
+        
+        #the patch corners, are in order, because they are found wrt 'inner corners'
+        #which are in order
         patch_corners = [find_coord(patch_bme, v, outer_verts) for v in inner_corners]
         
-        #print('compare patch outer verts and pad inner verts')
-        #print(outer_verts)
+        #print('The inner vert indices in the padding mesh')
         #print(pad_geom_dict['inner verts'])
         
-        #print('compare pad inner corners with patch outer corners')
-        #print(pad_geom_dict['inner corners'])
+        #print('The outer corner indices of the patch primitive')
         #print(patch_corners)
+        
+        #print('The inner corner indices of the padding mesh')
+        #print(pad_geom_dict['inner corners'])
+        
         
         #use patch corners to get outer verts in correct orientations
         ind0 = outer_verts.index(patch_corners[0])
         outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
         
-        #print('line up the 0 corner')
+        #print('line up the 0 corner by shifting %i' % ind0)
         #print(outer_verts)
         
         #print('reverse the order?')
         ind1patch = outer_verts.index(patch_corners[1])
         ind1pad = pad_geom_dict['inner verts'].index(pad_geom_dict['inner corners'][1])
         
-        if ind1patch != ind1pad:
-            #print('yes reverse it')
+        ind2patch = outer_verts.index(patch_corners[2])
+        ind2pad = pad_geom_dict['inner verts'].index(pad_geom_dict['inner corners'][2])
+        
+        if ind1patch != ind1pad or ind2patch != ind2pad:  #must check 2 inds due to symmetric case.  reverse direction with pole at exact midpoint
+            #print('reverse the direction')
             outer_verts.reverse()
             outer_verts = [outer_verts[-1]] + outer_verts[0:len(outer_verts)-1]
-            
+            #print(outer_verts)
+            #print(pad_geom_dict['inner verts'])
         
         perimeter_map = {}    
         for n, m in zip(outer_verts, pad_geom_dict['inner verts']):
             perimeter_map[n] = m
             
-        #print(outer_verts)
-        
         #relax_bmesh(patch_bme, outer_verts, iterations = 3, spring_power=.1, quad_power=.2)
+        #if N== 5 and pat == 2:
+        #    print('special case...something here is wrong')
+        #    print(perimeter_map)
+        #    join_bmesh(patch_bme, pad_bme, {})
+        #else:
         join_bmesh(patch_bme, pad_bme, perimeter_map) #this modifies target (pad_bme)
         
         #the pad bmesh now is completely filled, so it's good to go.
@@ -575,6 +593,7 @@ class EPPatch:
         #print(self.gdict['reduced subdivision'])
         
         self.bmesh = pad_bme
+        self.bmesh.to_mesh(self.me)
             
     def rotate_solution(self,step):
         if not self.patch: return
