@@ -78,7 +78,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         polystrips_icon = icons.get("rf_polystrips_icon")
         col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
 
-		col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
+        col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
         if context.mode =='EDIT_MESH':
             tweaK_icon = icons.get("rf_tweak_icon")
             loop_cut_icon = icons.get("rf_loopcut_icon")
@@ -133,7 +133,7 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         icons = load_icons()
         contours_icon = icons.get("rf_contours_icon")
         polystrips_icon = icons.get("rf_polystrips_icon")
-            layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
+        layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
 
         layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
         layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
