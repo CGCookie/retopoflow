@@ -27,6 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
+from mathutils.bvhtree import BVHTree
 import math
 
 
@@ -48,7 +49,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     bl_label = "RetopoFlow Loop Cut"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
+    bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
     
     def __init__(self):
         FSM = {}
@@ -61,7 +62,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
         
-        self.initialize(FSM)
+        self.initialize('help_loopcut.txt', FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
@@ -78,11 +79,26 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         ''' Called when tool has been invoked '''
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
-        self.trg_obj = get_target_object()
+        
         self.src_obj = get_source_object()
+        self.src_mx = self.src_obj.matrix_world
+        self.src_bme = bmesh.new()
+        self.src_bme.from_object(self.src_obj, context.scene)
+        self.src_bvh = BVHTree.FromBMesh(self.src_bme)
+        
+        self.trg_obj = get_target_object()
+        self.trg_mx = self.trg_obj.matrix_world
+        
         bpy.context.scene.update()
-        self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
-        self.loopcut = LoopCut(context, self.trg_obj, self.src_obj)
+        self.trg_bme = bmesh.from_edit_mesh(self.trg_obj.data)
+        self.trg_bme.faces.ensure_lookup_table()
+        self.trg_bme.edges.ensure_lookup_table()
+        self.trg_bme.verts.ensure_lookup_table()
+        self.trg_bvh = BVHTree.FromBMesh(self.trg_bme)
+        
+        
+        self.loopcut = LoopCut(context, self.trg_obj, self.trg_bvh, 
+                               source_obj = self.src_obj, source_bvh = self.src_bvh)
         
         context.area.header_text_set('LOOP CUT')
         
@@ -91,13 +107,16 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         ''' Called when tool is ending modal '''
         bpy.ops.object.editmode_toggle()
         bpy.ops.object.editmode_toggle()
-        self.bme.free()
+        self.trg_bme.free()
+        self.src_bme.free()
+        del self.src_bvh
+        del self.trg_bvh
         context.area.header_text_set()
         pass
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
-        self.loopcut.cut_loop(self.bme, select=True)
+        self.loopcut.cut_loop(self.trg_bme, select=True)
         pass
     
     def end_cancel(self, context):
@@ -110,8 +129,9 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     
     def update(self,context, eventd):
         '''Place update stuff here'''
-        self.loopcut.cut_loop(self.bme, select=True)
-        self.loopcut.push_to_edit_mesh(self.bme)
+        self.loopcut.cut_loop(self.trg_bme, select=True)
+        self.trg_bvh = self.loopcut.update_trg_bvh(self.trg_bme)
+        self.loopcut.push_to_edit_mesh(self.trg_bme)
         self.loopcut.clear()
         return 'main'
 
@@ -122,16 +142,12 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         region = eventd['region']
         r3d = eventd['r3d']
         
-        bpy.ops.object.editmode_toggle()
-        hit = common_utilities.ray_cast_region2d(region, r3d, (x,y), self.trg_obj, settings)[1]
-        bpy.ops.object.editmode_toggle()
+        #bpy.ops.object.editmode_toggle()
+        #hit = common_utilities.ray_cast_region2d(region, r3d, (x,y), self.trg_obj, settings)[1]
+        hit = common_utilities.ray_cast_region2d_bvh(region, r3d, (x,y), self.trg_bvh, self.trg_mx, settings)[1]
+        #bpy.ops.object.editmode_toggle()
         
-        self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
-        self.bme.faces.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.verts.ensure_lookup_table()
-        
-        if hit[2] != -1: #TODO store the ed in loopcut class and only recalc if it's different
+        if hit[2] != None: #TODO store the ed in loopcut class and only recalc if it's different
             pt = hit[0]
             def ed_dist(ed):
                 p0 = ed.verts[0].co
@@ -141,7 +157,7 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
                 return dist.length, pct
             
             
-            f = self.bme.faces[hit[2]]
+            f = self.trg_bme.faces[hit[2]]
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
             d, best_pct = ed_dist(test_edge)
@@ -161,8 +177,8 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
                 self.loopcut.pct = .5
                 self.loopcut.slide = False
                 
-            self.loopcut.find_face_loop(self.bme,test_edge)
-            self.loopcut.calc_snaps(self.bme)
+            self.loopcut.find_face_loop(self.trg_bme,test_edge)
+            self.loopcut.calc_snaps(self.trg_bme)
         else:
             self.loopcut.clear()
         

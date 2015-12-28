@@ -2,7 +2,9 @@ import bpy
 
 from .lib import common_utilities
 from .lib.common_utilities import bversion
-from .icons import load_icons
+
+if bversion() >= '002.076.000':
+    from .icons import load_icons
 
 class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
@@ -21,6 +23,13 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         layout = self.layout
 
         settings = common_utilities.get_settings()
+        
+        
+        if bversion() < '002.076.00':
+            col = layout.column(align=True)
+            col.label('ERROR: upgrade needed', icon='ERROR')
+            col.label('RetopoFlow requires Blender 2.76+')
+            return
 
         col = layout.column(align=True)
 
@@ -61,25 +70,25 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
 
         col.label("Tools:")
-        if bversion() > '002.074.004':
-            icons = load_icons()
-            contours_icon = icons.get("rf_contours_icon")
-            col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
-        else:
-            col.operator("cgcookie.contours", icon='IPO_LINEAR')
 
-        if bversion() > '002.074.004':
-            polystrips_icon = icons.get("rf_polystrips_icon")
-            col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
-        else:
-            col.operator("cgcookie.polystrips", icon='IPO_BEZIER')
-        
+        icons = load_icons()
+        contours_icon = icons.get("rf_contours_icon")
+        col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+
+        polystrips_icon = icons.get("rf_polystrips_icon")
+        col.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+
+		col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
         if context.mode =='EDIT_MESH':
-            col.operator("cgcookie.tweak", icon='HAND')
-            col.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
-            col.operator("cgcookie.edge_slide", text='Edge Slide', icon='SNAP_EDGE')
+            tweaK_icon = icons.get("rf_tweak_icon")
+            loop_cut_icon = icons.get("rf_loopcut_icon")
+            edgeslide_icon = icons.get("rf_edgeslide_icon")
 
-        col.operator("cgcookie.edgepatches", icon='OUTLINER_OB_MESH')
+
+
+            col.operator("cgcookie.tweak", icon_value=tweaK_icon.icon_id)
+            col.operator("cgcookie.loop_cut", text='Loop Cut', icon_value=loop_cut_icon.icon_id)
+            col.operator("cgcookie.edge_slide", text='Edge Slide', icon_value=edgeslide_icon.icon_id)
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
@@ -87,10 +96,12 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         box = layout.box()
         row = box.row()
 
-        row.prop(settings, "contour_panel_settings")
+        row.prop(settings, "retopoflow_panel_settings")
 
-        if settings.contour_panel_settings:
+        if settings.retopoflow_panel_settings:
             col = box.column()
+            col.label("CONTOURS:")
+
             col.prop(settings, "vertex_count")
 
             col.label("Guide Mode:")
@@ -102,14 +113,11 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             if settings.recover:
                 col.prop(settings, "recover_clip")
 
-            col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
+            #col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
-        row = box.row()
 
-        row.prop(settings, "polystrips_panel_settings")
-
-        if settings.polystrips_panel_settings:
             col = box.column()
+            col.label("POLYSTRIPS:")
             col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
@@ -122,19 +130,22 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        if bversion() > '002.074.004':
-            icons = load_icons()
-            contours_icon = icons.get("rf_contours_icon")
-            polystrips_icon = icons.get("rf_polystrips_icon")
-            layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
-            layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
-            layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
-        else:
-            layout.operator("cgcookie.contours", icon="IPO_LINEAR")
-            layout.operator("cgcookie.polystrips", icon="IPO_BEZIER")
+        icons = load_icons()
+        contours_icon = icons.get("rf_contours_icon")
+        polystrips_icon = icons.get("rf_polystrips_icon")
             layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
 
+        layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+        layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+
+
         if context.mode =='EDIT_MESH':
-            layout.operator("cgcookie.tweak", icon="HAND")
-            layout.operator("cgcookie.loop_cut", text='Loop Cut', icon='EDGESEL')
+            icons = load_icons()
+            loopcut_icon = icons.get("rf_loopcut_icon")
+            edgeslide_icon = icons.get("rf_edgeslide_icon")
+            tweak_icon = icons.get("rf_tweak_icon")
+
+            layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
+            layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
+            layout.operator("cgcookie.edge_slide", text="Edge Slide", icon_value=edgeslide_icon.icon_id)
 

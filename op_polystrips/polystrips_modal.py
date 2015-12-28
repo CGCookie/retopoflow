@@ -24,17 +24,18 @@ import bgl
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import showErrorMessage, get_source_object
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 
 from ..modaloperator import ModalOperator
 from .polystrips_ui            import Polystrips_UI
 from .polystrips_ui_modalwait  import Polystrips_UI_ModalWait
 from .polystrips_ui_tools      import Polystrips_UI_Tools
 from .polystrips_ui_draw       import Polystrips_UI_Draw
-
 from .polystrips_datastructure import Polystrips
 
 
@@ -58,9 +59,9 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
         FSM['tweak move tool']  = self.modal_tweak_move_tool
         FSM['tweak relax tool'] = self.modal_tweak_relax_tool
-        ModalOperator.initialize(self, FSM)
+        self.initialize('help_polystrips.txt', FSM)
         self.initialize_ui()
-    
+
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
         
@@ -71,13 +72,21 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             return False
         
         if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
-            showErrorMessage('Must specify a source object first or enable Use Active')
+            showErrorMessage('Must specify a source object or select an object')
             return False
-        
+
         if get_source_object().type != 'MESH':
-            showErrorMessage('Must select a mesh object')
+            showErrorMessage('Source must be a mesh object')
             return False
-        
+
+        if get_target_object().type != 'MESH':
+            showErrorMessage('Target must be a mesh object')
+            return False
+
+        if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
+            showErrorMessage('Source and Target cannot be same object')
+            return False
+
         return True
     
     def start(self, context):

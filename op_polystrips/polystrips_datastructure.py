@@ -24,7 +24,7 @@ import math
 from math import sin, cos
 import time
 import copy
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, kdtree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 import bmesh
@@ -386,6 +386,7 @@ class GVert:
             self.visible = False not in bvh_meth
         else:
             self.visible = common_utilities.ray_cast_visible_bvh([self.snap_pos], mesh_cache['bvh'],self.mx, r3d)[0]
+        self.visible = True
         
         if not update_gedges: return
         for ge in self.get_gedges_notnone():
@@ -1103,7 +1104,7 @@ class GEdge:
         
     
     def is_picked(self, pt):
-        for p0,p1,p2,p3 in self.iter_segments(only_visible=True):
+        for p0,p1,p2,p3 in self.iter_segments():
         #for p0,p1,p2,p3 in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
@@ -1298,7 +1299,7 @@ class GPatch:
             self.count_error = True
             return
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
@@ -1486,7 +1487,7 @@ class GPatch:
             return
         self.count_error = False
         
-        mx = bpy.data.objects[self.o_name].matrix_world
+        mx = self.mx
         imx = mx.inverted()
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
@@ -1568,7 +1569,7 @@ class GPatch:
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
         
     def is_picked(self, pt):
-        for (p0,p1,p2,p3) in self.iter_segments(only_visible=True):
+        for (p0,p1,p2,p3) in self.iter_segments():
         #for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
@@ -1609,6 +1610,7 @@ class Polystrips(object):
         Polystrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
+        self.mx = obj.matrix_world
         self.targ_o_name =targ_obj.name
         self.length_scale = get_object_length_scale(bpy.data.objects[self.o_name])
         
@@ -1849,23 +1851,55 @@ class Polystrips(object):
         
         
         # self intersection test
+
+        # ignore_lists is the set of neighboring points each point on the list has.
+        # These points are 'near' but are not 'intersecting'
+        ignore_lists = [set() for _ in range( len( stroke ) )]
+
+        # Initialize the kd-tree that will be used to find intersecting points
+        kd = kdtree.KDTree( len(stroke) )
+
+        # fill in the ignore lists and kd-tree
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+
+            # insert into kdtree
+            kd.insert( pt0, i )
+
+            # Add this point to its own ignore list
+            ignore_lists[i].add(i)
+
+            # add neighboring points to the ignore list
+            for j in range( i + 1, len( stroke ) ):
+                pt1,pr1 = stroke[j]
+
+                # If the points are 'near' then add them to eachothers ignore list
+                if (pt0-pt1).length <= min( pr0, pr1 ):
+                    ignore_lists[i].add(j)
+                    ignore_lists[j].add(i)
+                else:
+                    break
+
+        # finalize the kd-tree
+        kd.balance()
+
+        # find intersections
         min_i0,min_i1,min_dist = -1,-1,float('inf')
-        for i0,info0 in enumerate(stroke):
-            pt0,pr0 = info0
-            # find where we start to be far enough away
-            i1 = i0+1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                if (pt0-pt1).length > (pr0+pr1): break
-                i1 += 1
-            while i1 < len(stroke):
-                pt1,pr1 = stroke[i1]
-                d = (pt0-pt1).length - min(pr0,pr1)
-                if d < min_dist:
-                    min_i0 = i0
-                    min_i1 = i1
-                    min_dist = d
-                i1 += 1
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+            # find all points touching the given point that are not in the ignore list
+            nearby_results = kd.find_range( pt0, pr0 )
+            _, nearby_indexes, _ = zip(*nearby_results)
+            # XOR the nearby list and the ignore list to get non-ignored intersecting points
+            intersecting_indexes = set(nearby_indexes)^ignore_lists[i]
+            # track the closest two points
+            for j in intersecting_indexes:
+                pt1,pr1 = stroke[j]
+                dist = (pt0-pt1).length - min(pr0,pr1)
+                if dist < min_dist:
+                    min_i0 = i
+                    min_i1 = j
+                    min_dist = dist
         
         if min_dist < 0:
             i0 = min_i0
@@ -2135,7 +2169,7 @@ class Polystrips(object):
         
     def dissolve_gvert(self, gvert, tessellation=20):
         if not (gvert.is_endtoend() or gvert.is_ljunction()):
-            print('Cannot dissolve GVert with %i connections' % gvert.count_gedges())
+            print('Cannot dissolve junction with %i connections' % gvert.count_gedges())
             return
         
         gedge0 = gvert.gedge0
@@ -2446,12 +2480,12 @@ class Polystrips(object):
         return gvert1
     
     def attempt_gpatch(self, gedges):
-        if len(gedges) == 0: return 'No GEdges specified'
+        if len(gedges) == 0: return 'No strips specified'
         
         gedges = list(gedges)
         
         if any(ge.is_zippered() for ge in gedges):
-            return 'Cannot create GPatches with zippered GEdges'
+            return 'Cannot create patches with zippered strips'
         
         def walkabout(gedge, gvfrom):
             gefrom = gedge
@@ -2525,7 +2559,7 @@ class Polystrips(object):
             return [self.create_gpatch(*[self.gedges[kv] for kv in k]) for k in fill_cycles]
         
         if len(gedges) < 2:
-            return 'Must select at least two GEdges to create GPatch from non-cycle'
+            return 'Must select at least two strips to fill a patch'
         
         if not fill_noncycles:
             if len(gedges) == 2 and not any(gedges[0].has_endpoint(gv) for gv in [gedges[1].gvert0,gedges[1].gvert3]):
@@ -2560,7 +2594,7 @@ class Polystrips(object):
                 
                 return [self.create_gpatch(lgedge, bgedge, rgedge, tgedge)]
             
-            return 'Could not determine type of GPatch.  Try selecting more or different GEdges'
+            return 'Could not determine type of patch. Try selecting different strips'
         
         lgp = []
         for k in fill_noncycles:
@@ -2572,7 +2606,7 @@ class Polystrips(object):
                 gv0 = sge0.get_other_end(gv1)
                 gv2 = sge1.get_other_end(gv1)
                 if gv0 == gv2:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge2 = self.insert_gedge_between_gverts(gv0,gv2)
                 lgp += [self.create_gpatch(sge0,sge1,sge2)]
             elif l == 3:
@@ -2582,7 +2616,7 @@ class Polystrips(object):
                 gv2 = gvert_in_common(sge1,sge2)
                 gv3 = sge2.get_other_end(gv2)
                 if gv0 == gv3:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge3 = self.insert_gedge_between_gverts(gv0, gv3)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3)]
             elif l == 4:
@@ -2592,7 +2626,7 @@ class Polystrips(object):
                 gv3 = gvert_in_common(sge2,sge3)
                 gv4 = sge3.get_other_end(gv3)
                 if gv0 == gv4:
-                    return 'Detected loop with end-to-end junction.  Cannot create this type of GPatch.  Change junction to L.'
+                    return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
                 sge4 = self.insert_gedge_between_gverts(gv0,gv4)
                 lgp += [self.create_gpatch(sge0,sge1,sge2,sge3,sge4)]
         

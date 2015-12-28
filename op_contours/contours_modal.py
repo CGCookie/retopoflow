@@ -32,10 +32,12 @@ import os
 from ..modaloperator import ModalOperator
 from .. import key_maps
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
 from ..cache import mesh_cache
+from ..lib.common_utilities import get_settings
 
 
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
@@ -57,7 +59,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         '''
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
-        self.initialize(FSM)
+        self.initialize('help_contours.txt', FSM)
     
     def start_poll(self,context):
 
@@ -69,9 +71,23 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must specify a Source Object')
             return False
+
         elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must select an object or specifiy a Source Object')
             return False
+
+        if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
+            showErrorMessage('Source and Target cannot be same object')
+            return False
+
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+
+        if get_target_object().type != 'MESH':
+            showErrorMessage('Target must be a mesh object')
+            return False
+
         return True
     
     def start(self, context):
@@ -79,7 +95,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         print('did we get started')
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
-        self.get_help_text(context)
         self.contours = Contours(context, self.settings)
         return ''
     
@@ -99,13 +114,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
                 self.contours.mode = 'loop'
             return ''
         
-        elif eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(context,corner = [1,1])
-        
         elif eventd['press'] in self.keymap['undo']:
             self.contours.undo_action()
             return ''
@@ -120,7 +128,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
-            self.help_box.hover(x,y)
             self.contours.hover_loop_mode(context, self.settings, x,y)
             return ''
         
@@ -130,15 +137,6 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
                 return ''    
         
         if eventd['press'] in self.keymap['action']:   # cutting and widget hard coded to LMB
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(context,corner = [1,1])
-            
-                return ''
-            
             if self.contours.cut_line_widget:
                 self.contours.prepare_widget(eventd)
                 return 'widget'
@@ -206,28 +204,19 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         
         if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering widget
             x,y = eventd['mouse']
-            self.help_box.hover(x,y)
             self.contours.hover_guide_mode(context, self.settings, x, y)
             return ''
         
-        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
-            self.contours.guide_mode_select()   
-            return ''
-        
         if eventd['press'] in self.keymap['action']: #LMB hard code for sketching
-            
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(context,corner = [1,1])
-                return ''
             
             self.footer = 'sketching'
             x,y = eventd['mouse']
             self.contours.sketch = [(x,y)] 
             return 'sketch'
+        
+        if eventd['press'] in selection_mouse(): #self.keymap['select']: # selection
+            self.contours.guide_mode_select()   
+            return ''
         
         if self.contours.sel_path:
             if eventd['press'] in self.keymap['delete']:
@@ -318,10 +307,26 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
             return ''
         
         elif eventd['release'] in self.keymap['action']:
+            
+            if eventd['release'] in selection_mouse(): #selection and action overlap
+                print('selection action overlap')
+                dist_traveled = 0.0
+                for s0,s1 in zip(self.contours.sketch[:-1],self.contours.sketch[1:]):
+                    dist_traveled += (Vector(s0) - Vector(s1)).length
+                    
+                if dist_traveled < 5:
+                    settings = get_settings()
+                    x,y = eventd['mouse']
+                    self.contours.hover_guide_mode(context, settings, x, y)
+                    self.contours.guide_mode_select()  
+                    self.contours.skecth = [] 
+                    return 'main' #''
+                else:
+                    print('dist traveled was real sketch')
+                    print(dist_traveled)
+            
             self.contours.sketch_confirm(context) 
             return 'main'
-        
-        
         return ''
     
     def modal_widget(self,context,eventd):
@@ -357,15 +362,3 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         ''' Called when tool is canceled '''
         pass
     
-    def get_help_text(self,context):
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir,'..', 'help','help_contours.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-    
-        self.help_box.raw_text = help_txt
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])

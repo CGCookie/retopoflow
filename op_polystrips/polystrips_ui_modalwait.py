@@ -47,12 +47,6 @@ class Polystrips_UI_ModalWait():
 
         ########################################
         # accept / cancel
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
         if eventd['press'] in self.keymap['confirm']:
             self.create_mesh(eventd['context'])
             eventd['context'].area.header_text_set()
@@ -92,35 +86,25 @@ class Polystrips_UI_ModalWait():
 
         if eventd['press'] == 'P':                                                  # grease pencil => strokes
             # TODO: only convert gpencil strokes that are visible and prevent duplicate conversion
-            for gpl in self.obj.grease_pencil.layers: gpl.hide = True
+            for gpl in self.obj_orig.grease_pencil.layers: gpl.hide = True
             for stroke in self.strokes_original:
                 self.polystrips.insert_gedge_from_stroke(stroke, True)
             self.polystrips.remove_unconnected_gverts()
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
         
-        if eventd['press'] in self.keymap['tweak move']:
+        if eventd['press'] in self.keymap['tweak move'] or eventd['press'] in self.keymap['tweak relax']:
             self.create_undo_snapshot('tweak')
             self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
             self.act_gvert = None
             self.act_gedge = None
             self.sel_gedges = set()
             self.act_gpatch = None
-            return 'tweak move tool' if eventd['press']=='T' else 'tweak relax tool'
+            return 'tweak move tool' if eventd['press'] in self.keymap['tweak move'] else 'tweak relax tool'
         
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching
         if eventd['press'] in {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
-            
-            if self.help_box.is_hovered:
-                if  self.help_box.is_collapsed:
-                    self.help_box.uncollapse()
-                else:
-                    self.help_box.collapse()
-                self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-            
-                return ''
-            
             self.create_undo_snapshot('sketch')
             # start sketching
             self.footer = 'Sketching'

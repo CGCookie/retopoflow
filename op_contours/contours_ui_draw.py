@@ -46,7 +46,6 @@ class Contours_UI_Draw():
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''
         #self.contours.draw_post_pixel(context)
-        self.help_box.draw()
         self.contours.draw_post_pixel(context)
         pass
     

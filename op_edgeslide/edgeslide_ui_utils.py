@@ -20,16 +20,9 @@ class EdgeSlide_UI_fns():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        bpy.ops.object.editmode_toggle()
-        hit = common_utilities.ray_cast_region2d(region, r3d, (x,y), self.trg_obj, settings)[1]
-        bpy.ops.object.editmode_toggle()
+        hit = common_utilities.ray_cast_region2d_bvh(region, r3d, (x,y), self.trg_bvh, self.trg_mx, settings)[1]
         
-        self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
-        self.bme.faces.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.verts.ensure_lookup_table()
-        
-        if hit[2] != -1: #TODO store the ed in loopcut class and only recalc if it's different
+        if hit[2] != None: #TODO store the ed in loopcut class and only recalc if it's different
             pt = hit[0]
             def ed_dist(ed):
                 p0 = ed.verts[0].co
@@ -39,14 +32,14 @@ class EdgeSlide_UI_fns():
                 return dist.length, pct
             
             
-            f = self.bme.faces[hit[2]]
+            f = self.trg_bme.faces[hit[2]]
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
             
-            self.edgeslide.find_edge_loop(self.bme,test_edge)
+            self.edgeslide.find_edge_loop(self.trg_bme,test_edge)
             self.edgeslide.pct = 0
             self.edgeslide.right = True
-            self.edgeslide.calc_snaps(self.bme, snap = False)
+            self.edgeslide.calc_snaps(self.trg_bme, snap = False)
         else:
             self.edgeslide.clear()
             
@@ -55,24 +48,18 @@ class EdgeSlide_UI_fns():
         region = context.region
         region = eventd['region']
         r3d = eventd['r3d']
-        
-        bpy.ops.object.editmode_toggle()
-        hit = common_utilities.ray_cast_region2d(region, r3d, (x,y), self.trg_obj, settings)[1]
-        bpy.ops.object.editmode_toggle()
-        self.bme = bmesh.from_edit_mesh(self.trg_obj.data)
-        self.bme.faces.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.verts.ensure_lookup_table()
-        if hit[2] != -1:
+        hit = common_utilities.ray_cast_region2d_bvh(region, r3d, (x,y), self.trg_bvh, self.trg_mx, settings)[1]
+
+        if hit[2] != None:
             pt = hit[0]
             def dist(v_index):
-                v = self.bme.verts[v_index]
+                v = self.trg_bme.verts[v_index]
                 l = v.co - pt
                 return l.length
             
             v_ind = min(self.edgeslide.vert_loop_vs, key = dist)  #<  The closest edgeloop point to the mouse
             n = self.edgeslide.vert_loop_vs.index(v_ind)
-            v_pt = self.bme.verts[v_ind].co
+            v_pt = self.trg_bme.verts[v_ind].co
             
             p_right, pct_right = intersect_point_line(pt, v_pt, v_pt + self.edgeslide.edge_loop_right[n])
             p_left, pct_left = intersect_point_line(pt, v_pt, v_pt + self.edgeslide.edge_loop_left[n])
@@ -85,6 +72,6 @@ class EdgeSlide_UI_fns():
                 self.edgeslide.pct = min(1, pct_left)
                 
                 
-            self.edgeslide.calc_snaps(self.bme, snap = False)
+            self.edgeslide.calc_snaps(self.trg_bme, snap = False)
             
         return            

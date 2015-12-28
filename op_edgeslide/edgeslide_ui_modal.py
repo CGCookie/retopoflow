@@ -46,7 +46,7 @@ class EdgeSlide_UI_Modal():
 
         if eventd['press'] == 'LEFTMOUSE':
             if len(self.edgeslide.vert_loop_vs) > 0:
-                print('SLIDE')
+                #print('SLIDE')
                 return 'slide'
             
         elif eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
@@ -58,8 +58,8 @@ class EdgeSlide_UI_Modal():
     def modal_slide(self,context,eventd):
         settings = common_utilities.get_settings()
         if eventd['press'] in self.keymap['action'] or eventd['press'] in self.keymap['confirm']:
-            self.edgeslide.calc_snaps(self.bme, snap = True)
-            self.edgeslide.move_loop(self.bme)
+            self.edgeslide.calc_snaps(self.trg_bme, snap = True)
+            self.edgeslide.move_loop(self.trg_bme)
             self.edgeslide.clear()
             return 'main'
         

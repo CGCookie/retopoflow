@@ -35,9 +35,9 @@ import copy
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
-from ..lib.common_classes import SketchBrush, TextBox
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
-from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
+from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid, tweak_undo_cache
 
 
 class Tweak_UI:
@@ -61,7 +61,7 @@ class Tweak_UI:
         self.post_update = True
 
         self.obj_orig = get_source_object()
-        self.mx = self.obj_orig.matrix_word
+        self.mx = self.obj_orig.matrix_world
         
         is_valid = is_object_valid(self.obj_orig)
         
@@ -92,7 +92,7 @@ class Tweak_UI:
         self.hover_ed = None
         
         
-        self.scale = self.obj.scale[0]
+        self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
@@ -107,21 +107,7 @@ class Tweak_UI:
                                         mesh_cache['bvh'], self.mx,
                                         self.obj_orig.dimensions.length)
 
-        self.undo_cache = []            # Clear the cache in case any is left over
-        
-        
-        # help file stuff
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, '..', 'help', 'help_tweak.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
-        
+        tweak_undo_cache.clear()        # Clear the cache in case any is left over
         
         
         context.area.header_text_set('Tweak')
@@ -143,54 +129,39 @@ class Tweak_UI:
     
     def create_undo_snapshot(self, action):
         '''
-        unsure about all the _timers get deep copied
-        and if sel_gedges and verts get copied as references
-        or also duplicated, making them no longer valid.
         '''
-        
-        print('create_undo_snapshot not implemented')
-        return
-        
-        repeated_actions = {'count', 'zip count'}
 
-        if action in repeated_actions and len(self.undo_cache):
-            if action == self.undo_cache[-1][1]:
-                dprint('repeatable...dont take snapshot')
+        repeated_actions = {'relax'}
+
+        if action in repeated_actions and len(tweak_undo_cache):
+            if action == tweak_undo_cache[-1][1]:
+                dprint('repeatable...don\'t take snapshot')
                 return
 
-        p_data = copy.deepcopy(self.polystrips)
+        v_data = [tuple(v.co) for v in self.dest_bme.verts]
+        tweak_undo_cache.append((v_data, action))
+        dprint('undo: %s' % action)
 
-        self.undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
-
-        if len(self.undo_cache) > self.settings.undo_depth:
-            self.undo_cache.pop(0)
+        if len(tweak_undo_cache) > self.settings.undo_depth:
+            tweak_undo_cache.pop(0)
+    
+    def undo_stopRepeated(self, action):
+        if not tweak_undo_cache: return
+        if tweak_undo_cache[-1][1] == action:
+            tweak_undo_cache[-1] = (tweak_undo_cache[-1][0], action + '.')
 
     def undo_action(self):
         '''
         '''
-        
-        print('undo_action not implemented')
-        return
-        
-        if len(self.undo_cache) > 0:
-            data, action = self.undo_cache.pop()
-
-            self.polystrips = data[0]
-
-            if data[1]:
-                self.act_gvert = self.polystrips.gverts[data[1]]
-            else:
-                self.act_gvert = None
-
-            if data[2]:
-                self.sel_gedge = self.polystrips.gedges[data[2]]
-            else:
-                self.sel_gedge = None
-
-            if data[3]:
-                self.act_gvert = self.polystrips.gverts[data[3]]
-            else:
-                self.act_gvert = None
+        if not tweak_undo_cache: return
+        v_data,action = tweak_undo_cache.pop()
+        dprint('undoing: %s' % action)
+        for v,co in zip(self.dest_bme.verts, v_data): v.co = co
+        bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
     
+    def undo_all_actions(self):
+        if not tweak_undo_cache: return
+        while len(tweak_undo_cache) > 1: tweak_undo_cache.pop()
+        self.undo_action()
 
     
