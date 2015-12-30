@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy, blf, bgl
 from ... import common_drawing_px
+from ...common_utilities import get_dpi, get_dpi_factor
 
 
 class TextBox(object):
@@ -34,17 +35,17 @@ class TextBox(object):
         self.def_height = height
         self.hang_indent = '-'
         
-        self.width = width
-        self.height = height
-        self.border = border
-        self.margin = margin
-        self.spacer = 7  # pixels between text lines
+        self.width = width * get_dpi_factor()
+        self.height = height * get_dpi_factor()
+        self.border = border * get_dpi_factor()
+        self.margin = margin * get_dpi_factor()
+        self.spacer = 7 * get_dpi_factor()  # pixels between text lines
         self.is_collapsed = False
         self.is_hovered = False
         self.collapsed_msg = "Click for Help"
 
         self.text_size = 12
-        self.text_dpi = context.user_preferences.system.dpi
+        self.text_dpi = get_dpi()
         blf.size(0, self.text_size, self.text_dpi)
         self.line_height = self.txt_height('A')
         self.raw_text = message
@@ -261,8 +262,7 @@ class TextBox(object):
         common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
         common_drawing_px.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
         
-        dpi = bpy.context.user_preferences.system.dpi
-        blf.size(0, self.text_size, dpi)
+        blf.size(0, self.text_size, self.text_dpi)
         
         if self.is_collapsed:
             txt_x = left + self.border

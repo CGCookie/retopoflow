@@ -76,6 +76,14 @@ def get_settings():
 
 get_settings.cached_settings = None
 
+def get_dpi():
+    system_preferences = bpy.context.user_preferences.system
+    factor = getattr(system_preferences, "pixel_size", 1)
+    return int(system_preferences.dpi * factor)
+
+def get_dpi_factor():
+    return get_dpi() / 72
+
 @persistent
 def check_source_target_objects(scene):
     settings = get_settings()
