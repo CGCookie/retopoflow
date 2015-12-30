@@ -19,5 +19,5 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["common_bezier", "common_classes", "common_drawing", "common_utilities"]
+__all__ = ["common_bezier", "common_drawing_px", "common_drawing_view", "common_mesh", "common_utilities"]
 

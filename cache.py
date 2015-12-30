@@ -8,6 +8,7 @@ mesh_cache = {}
 contour_cache = {}
 contour_undo_cache = []
 polystrips_undo_cache = [] #TODO, implement this
+tweak_undo_cache = []
 
 def object_validation(ob):
     me = ob.data

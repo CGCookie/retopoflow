@@ -36,65 +36,6 @@ import bpy
 from bpy_extras import view3d_utils
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
-
-def edge_loops_from_bmedges(bmesh, bm_edges):
-    """
-    Edge loops defined by edges
-
-    Takes [mesh edge indices] or a list of edges and returns the edge loops
-
-    return a list of vertex indices.
-    [ [1, 6, 7, 2], ...]
-
-    closed loops have matching start and end values.
-    """
-    line_polys = []
-    edges = bm_edges.copy()
-
-    while edges:
-        current_edge = bmesh.edges[edges.pop()]
-        vert_e, vert_st = current_edge.verts[:]
-        vert_end, vert_start = vert_e.index, vert_st.index
-        line_poly = [vert_start, vert_end]
-
-        ok = True
-        while ok:
-            ok = False
-            #for i, ed in enumerate(edges):
-            i = len(edges)
-            while i:
-                i -= 1
-                ed = bmesh.edges[edges[i]]
-                v_1, v_2 = ed.verts
-                v1, v2 = v_1.index, v_2.index
-                if v1 == vert_end:
-                    line_poly.append(v2)
-                    vert_end = line_poly[-1]
-                    ok = 1
-                    del edges[i]
-                    # break
-                elif v2 == vert_end:
-                    line_poly.append(v1)
-                    vert_end = line_poly[-1]
-                    ok = 1
-                    del edges[i]
-                    #break
-                elif v1 == vert_start:
-                    line_poly.insert(0, v2)
-                    vert_start = line_poly[0]
-                    ok = 1
-                    del edges[i]
-                    # break
-                elif v2 == vert_start:
-                    line_poly.insert(0, v1)
-                    vert_start = line_poly[0]
-                    ok = 1
-                    del edges[i]
-                    #break
-        line_polys.append(line_poly)
-
-    return line_polys
-
 def perp_vector_point_line(pt1, pt2, ptn):
     '''
     Vector bwettn pointn and line between point1
@@ -317,24 +258,7 @@ def arc_arrow(x,y,r1,thta1,thta2,res, arrow_size, arrow_angle, ccw = True):
     points.append(points[-1] + arrow_size * arrow_side_1)
     points.append(points[-2] + arrow_size * arrow_side_2) 
            
-    return(points)
-
-def simple_circle(x,y,r,res):
-    '''
-    args: 
-    x,y - center coordinate of cark
-    r1 = radius of arc
-    '''
-    points = [Vector((0,0))]*res  #The arc + 2 arrow points
-
-    for i in range(0,res):
-        theta = i * 2 * math.pi / res
-        x1 = math.cos(theta) 
-        y1 = math.sin(theta)
-    
-        points[i]=Vector((r * x1 + x, r * y1 + y))
-           
-    return(points)     
+    return(points)    
 
 
 def get_path_length(verts):
@@ -782,7 +706,7 @@ def generic_axes_from_plane_normal(p_pt, no):
     #x = D/a - b/a * y - c/a * z
     elif a != 0:
         Rx = D/a - b/a * R[1] - c/a * R[2]
-        R[0] = Rz
+        R[0] = Rx
     else:
         print('undefined plane you wanker!')
         return(False)

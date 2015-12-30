@@ -33,7 +33,8 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_source_object, get_target_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
+from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
@@ -109,15 +110,9 @@ class Polystrips_UI:
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
-            if self.settings.target_object:
-                self.dest_bme.from_mesh( get_target_object().data )
-                self.dest_obj = get_target_object()
-            else:
-                dest_me  = bpy.data.meshes.new(nm_polystrips)
-                self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-                self.dest_obj.matrix_world = self.obj_orig.matrix_world
-                context.scene.objects.link(self.dest_obj)
-            
+
+            self.dest_obj = setup_target_object( nm_polystrips, self.obj_orig, self.dest_bme )
+
             self.extension_geometry = []
             self.snap_eds = []
             self.snap_eds_vis = []
@@ -278,6 +273,7 @@ class Polystrips_UI:
     # mesh creation
     
     def create_mesh(self, context):
+        self.settings = common_utilities.get_settings()
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
@@ -295,10 +291,16 @@ class Polystrips_UI:
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
             self.dest_obj.show_wire      = True
-            self.dest_obj.show_x_ray     = True
+            self.dest_obj.show_x_ray     = self.settings.use_x_ray
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
+
+            # check for symmetry and then add a mirror if needed
+            if self.settings.symmetry_plane == 'x':
+                self.dest_obj.modifiers.new(type='MIRROR', name='Polystrips-Symmetry')
+                self.dest_obj.modifiers['Polystrips-Symmetry'].use_clip = True
+
             common_utilities.default_target_object_to_active()
         
         container_bme = bmesh.new()
@@ -371,7 +373,7 @@ class Polystrips_UI:
         
         for gp in lgp:
             gp.update()
-        self.polystrips.update_visibility(eventd['r3d'])
+        #self.polystrips.update_visibility(eventd['r3d'])
 
 
 
@@ -385,7 +387,7 @@ class Polystrips_UI:
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
         for gv in self.polystrips.extension_geometry:
-            if not gv.is_visible(): continue
+            #if not gv.is_visible(): continue
             rgn   = eventd['context'].region
             r3d   = eventd['context'].space_data.region_3d
             mx,my = eventd['mouse']
@@ -435,7 +437,8 @@ class Polystrips_UI:
                 self.sel_gverts = set([cpt])
                 self.act_gpatch = None
                 return ''
-        # Select gvert
+        
+        # select gvert?
         for gv in self.polystrips.gverts:
             if gv.is_unconnected(): continue
             if not gv.is_picked(pt): continue
@@ -446,6 +449,7 @@ class Polystrips_UI:
             self.act_gpatch = None
             return ''
 
+        # select gedge?
         for ge in self.polystrips.gedges:
             if not ge.is_picked(pt): continue
             self.act_gvert = None

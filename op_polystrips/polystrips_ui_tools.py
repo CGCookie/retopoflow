@@ -110,7 +110,7 @@ class Polystrips_UI_Tools():
                 self.polystrips.insert_gedge_from_stroke(p3d, False)
             
             self.polystrips.remove_unconnected_gverts()
-            self.polystrips.update_visibility(eventd['r3d'])
+            #self.polystrips.update_visibility(eventd['r3d'])
 
             self.act_gvert = None
             self.act_gedge = None
@@ -146,6 +146,7 @@ class Polystrips_UI_Tools():
         lgemove = []  #Gedges
         lgpmove = [] #Patch
         lmverts = []  #BMVert
+        lallverts = [] # all vertex positions (for relaxing)
         supdate = set()
         
         for i_mv,mv in enumerate(self.dest_bme.verts):
@@ -153,6 +154,7 @@ class Polystrips_UI_Tools():
             if not d < max_dist:
                 continue
             lmverts.append((i_mv,mx *mv.co,d))
+            lallverts.append(mx*mv.co)
         
         for gv in self.polystrips.gverts:
             lcorners = gv.get_corners()
@@ -160,7 +162,11 @@ class Polystrips_UI_Tools():
             if not any(d < max_dist for d in ld):
                 continue
             gv.freeze()
-            lgvmove += [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
+            
+            l = [(gv,ic,c,d) for ic,c,d in zip([0,1,2,3], lcorners, ld) if d < max_dist]
+            lgvmove += l
+            lallverts += [c for gv,_,c,_ in l if not gv.from_mesh]
+            
             supdate.add(gv)
             for ge in gv.get_gedges_notnone():
                 supdate.add(ge)
@@ -182,7 +188,13 @@ class Polystrips_UI_Tools():
                 d1 = (p1-hit_p3d).length / self.stroke_radius
                 if d0 >= max_dist and d1 >= max_dist: continue
                 ge.freeze()
+                
                 lgemove += [(gv,i,p0,d0,p1,d1)]
+
+                # Is this needed? GEdges have no from_mesh currently and breaks tweaking in PS modal
+                # if not ge.from_mesh:
+                #     lallverts += [p0,p1]
+                
                 supdate.add(ge)
                 supdate.add(ge.gvert0)
                 supdate.add(ge.gvert3)
@@ -197,6 +209,7 @@ class Polystrips_UI_Tools():
                 if d >= max_dist: continue
                 freeze = True
                 lgpmove += [(gp,i_pt,p,d)]
+                lallverts += [p]
             if not freeze: continue
             gp.freeze()
             supdate.add(gp)
@@ -224,7 +237,10 @@ class Polystrips_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
+        print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
+        
         if eventd['press'] == 'LEFTMOUSE':
+            self.create_undo_snapshot('tweak')
             self.modal_tweak_setup(context, eventd)
             return ''
         
@@ -256,16 +272,13 @@ class Polystrips_UI_Tools():
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
-                    #vertices[gv.corner0_ind].co = imx*gv.corner0
                 elif ic == 1:
                     gv.corner1 = update(c,d)
-                    #vertices[gv.corner1_ind].co = imx*gv.corner1
                 elif ic == 2:
                     gv.corner2 = update(c,d)
-                    #vertices[gv.corner2_ind].co = imx*gv.corner2
                 elif ic == 3:
                     gv.corner3 = update(c,d)
-                    #vertices[gv.corner3_ind].co = imx*gv.corner3
+            
             if bpy.context.mode == 'EDIT_MESH':
                 bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
@@ -279,7 +292,6 @@ class Polystrips_UI_Tools():
                 elif ic == 3:
                     gv.corner3 = update(c,d)
             
-                
             for gv,ic,c0,d0,c1,d1 in self.tweak_data['lgemove']:
                 nc0 = update(c0,d0)
                 nc1 = update(c1,d1)
@@ -295,8 +307,8 @@ class Polystrips_UI_Tools():
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
                     u.update()
-                for u in self.tweak_data['supdate']:
-                    u.update_visibility(eventd['r3d'])
+                #for u in self.tweak_data['supdate']:
+                    # u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
     
@@ -310,6 +322,8 @@ class Polystrips_UI_Tools():
         settings = common_utilities.get_settings()
         region = eventd['region']
         r3d = eventd['r3d']
+        
+        print('relaxing: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
         
         if eventd['press'] == 'LEFTMOUSE':
             self.modal_tweak_setup(context, eventd, max_dist=2.0)
@@ -341,18 +355,15 @@ class Polystrips_UI_Tools():
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
                     gv.corner0 = update(c,d)
-                    #vertices[gv.corner0_ind].co = imx*gv.corner0
                 elif ic == 1:
                     gv.corner1 = update(c,d)
-                    #vertices[gv.corner1_ind].co = imx*gv.corner1
                 elif ic == 2:
                     gv.corner2 = update(c,d)
-                    #vertices[gv.corner2_ind].co = imx*gv.corner2
                 elif ic == 3:
                     gv.corner3 = update(c,d)
-                    #vertices[gv.corner3_ind].co = imx*gv.corner3
             
-            bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            if bpy.context.mode == 'EDIT_MESH':
+                bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             
             for gv,ic,c,d in self.tweak_data['lgvmove']:
                 if ic == 0:
@@ -380,8 +391,8 @@ class Polystrips_UI_Tools():
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
                     u.update()
-                for u in self.tweak_data['supdate']:
-                    u.update_visibility(eventd['r3d'])
+                # for u in self.tweak_data['supdate']:
+                    # u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
         return ''
@@ -527,7 +538,7 @@ class Polystrips_UI_Tools():
                 gv.position = p
                 gv.update()
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
             sgv = self.act_gvert
@@ -538,7 +549,7 @@ class Polystrips_UI_Tools():
                 gv.position = p + (gv.position-p) * m
                 gv.update()
             sgv.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_gvert_radius(self, command, eventd):
         if command == 'init':
@@ -549,12 +560,12 @@ class Polystrips_UI_Tools():
         elif command == 'undo':
             self.act_gvert.radius = self.tool_data
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
             self.act_gvert.radius *= m
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_stroke_radius(self, command, eventd):
         if command == 'init':
@@ -586,7 +597,7 @@ class Polystrips_UI_Tools():
             for gv,p,_ in self.tool_data: gv.position = p
             for gv,_,_ in self.tool_data:
                 gv.update()
-                gv.update_visibility(eventd['r3d'], update_gedges=True)
+                # gv.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             factor_slow,factor_fast = 0.2,1.0
             dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
@@ -598,7 +609,7 @@ class Polystrips_UI_Tools():
                 d[0].position = p2d
             for gv,_,_ in self.tool_data:
                 gv.update()
-                gv.update_visibility(eventd['r3d'], update_gedges=True)
+                # gv.update_visibility(eventd['r3d'], update_gedges=True)
 
     def grab_tool_gvert(self, command, eventd):
         '''

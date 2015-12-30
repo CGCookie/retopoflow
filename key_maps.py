@@ -36,7 +36,7 @@ def_rf_key_map['select all'] = {'A'}
 def_rf_key_map['cancel'] = {'ESC', 'CTRL+ALT+DEL'}
 def_rf_key_map['confirm'] = {'RET', 'NUMPAD_ENTER'}
 def_rf_key_map['modal confirm'] = {'SPACE', 'RET', 'NUMPAD_ENTER'}
-def_rf_key_map['modal cancel'] = {'RIGHTMOUSE','ESC'}
+def_rf_key_map['modal cancel'] = {'ESC'}
 def_rf_key_map['modal precise'] = 'SHIFT'
 def_rf_key_map['modal constrain'] = 'ALT'
 def_rf_key_map['scale'] = {'S'}
@@ -74,11 +74,15 @@ def_rf_key_map['align handles'] = {'C'}
 def_rf_key_map['symmetry_x'] = {'SHIFT+X'}
 def_rf_key_map['tweak move'] = {'T'}
 def_rf_key_map['tweak relax'] = {'SHIFT+T'}
+def_rf_key_map['untweak'] = {'CTRL+T'}
 def_rf_key_map['update'] = {'CTRL+U'}
 def_rf_key_map['zip'] = {'Z'}
 def_rf_key_map['zip down'] = {'CTRL+NUMPAD_PLUS'}
 def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 
+#TWEAK UNIQUE KEYS
+def_rf_key_map['tweak tool move'] = {'LEFTMOUSE'}
+def_rf_key_map['tweak tool relax'] = {'SHIFT+LEFTMOUSE'}
 
 navigation_events = {'Rotate View', 'Move View', 'Zoom View','Dolly View',
                      'View Pan', 'View Orbit', 'Rotate View', 
