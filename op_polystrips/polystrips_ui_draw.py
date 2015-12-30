@@ -233,7 +233,10 @@ class Polystrips_UI_Draw():
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
-            if gpatch.is_frozen():
+            if gpatch.is_frozen() and gpatch == self.act_gpatch:
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gpatch.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             if gpatch.count_error:
