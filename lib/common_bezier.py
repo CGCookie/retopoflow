@@ -189,7 +189,7 @@ def cubic_bezier_t_of_s(p0,p1,p2,p3, steps = 100):
 
 def cubic_bezier_t_of_s_dynamic(p0,p1,p2,p3, initial_step = 50):
     '''
-    returns a dictionary mapping of arclen values ot t values
+    returns a dictionary mapping of arclen values to t values
     approximated at steps along the curve.  Dumber method than
     the decastelejue subdivision.
     '''
@@ -200,20 +200,24 @@ def cubic_bezier_t_of_s_dynamic(p0,p1,p2,p3, initial_step = 50):
     cumul_length = 0
     
     iters = 0
-    dt = 1/initial_step      
+    dt = 1/initial_step
     t = dt
     while t < 1  and iters < 1000:
         iters += 1
         
         weights = cubic_bezier_weights(t)
-        pi1 = cubic_bezier_blend_weights(p0, p1, p2, p3, weights)    
-        cumul_length += (pi1 - pi0).length
+        pi1 = cubic_bezier_blend_weights(p0, p1, p2, p3, weights)
+        dist_traveled = (pi1 - pi0).length
+        if dist_traveled == 0.0:
+            # prevent division by zero when
+            # bezier has zero length
+            return s_t_map
+        cumul_length += dist_traveled
         
-        
-        v_num = (pi1 - pi0).length/dt
+        v_num = dist_traveled / dt
         v_cls = cubic_bezier_derivative(p0, p1, p2, p3, t).length
         s_t_map[cumul_length] = t
-             
+        
         pi0 = pi1
         dt *= v_cls/v_num
         t += dt

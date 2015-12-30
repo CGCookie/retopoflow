@@ -308,7 +308,11 @@ class Polystrips_UI:
         bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
         container_bme.verts.index_update()
         for q in quads: 
-            container_bme.faces.new([bmverts[i] for i in q])
+            try:
+                container_bme.faces.new([bmverts[i] for i in q])
+            except ValueError as e:
+                dprint('ValueError: ' + str(e))
+                pass
         for nq in non_quads:
             container_bme.faces.new([bmverts[i] for i in nq])
         
@@ -369,7 +373,7 @@ class Polystrips_UI:
         
         for gp in lgp:
             gp.update()
-        self.polystrips.update_visibility(eventd['r3d'])
+        #self.polystrips.update_visibility(eventd['r3d'])
 
 
 
@@ -383,7 +387,7 @@ class Polystrips_UI:
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
         for gv in self.polystrips.extension_geometry:
-            if not gv.is_visible(): continue
+            #if not gv.is_visible(): continue
             rgn   = eventd['context'].region
             r3d   = eventd['context'].space_data.region_3d
             mx,my = eventd['mouse']

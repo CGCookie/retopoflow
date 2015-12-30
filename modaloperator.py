@@ -71,9 +71,9 @@ class ModalOperator(Operator):
         # help file stuff
         if helpText:
             path = os.path.split(os.path.abspath(__file__))[0]
-            helpTextFilename = os.path.join(path, 'help', helpText)
-            if os.path.isfile(helpTextFilename):
-                helpText = open(helpTextFilename, mode='r').read()
+            path = os.path.join(path, 'help', helpText)
+            if os.path.isfile(path):
+                helpText = open(path, mode='r').read()
             self.help_box = TextBox(500,500,300,200,10,20, helpText)
             if not self.settings.help_def:
                 self.help_box.collapse()

@@ -1,6 +1,8 @@
 #common cache for bmesh and BVH
 from mathutils import Vector
 
+from .lib.common_utilities import dprint
+
 mesh_cache = {}
 
 contour_cache = {}
@@ -21,13 +23,13 @@ def is_object_valid(ob):
     return mesh_cache['valid'] == object_validation(ob)
 
 def write_mesh_cache(orig_ob, bme, bvh):
-    print('writing mesh cache')
+    dprint('writing mesh cache')
     mesh_cache['valid'] = object_validation(orig_ob)
     mesh_cache['bme'] = bme
     mesh_cache['bvh'] = bvh
 
 def clear_mesh_cache():
-    print('clearing mesh cache')
+    dprint('clearing mesh cache')
     if 'valid' in mesh_cache and mesh_cache['valid']:
         del mesh_cache['valid']
 
