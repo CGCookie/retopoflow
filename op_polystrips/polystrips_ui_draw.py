@@ -350,7 +350,7 @@ class Polystrips_UI_Draw():
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
-                draw3d_points(context, p3d, color, 8)
+                draw3d_points(context, p3d, color_handle, 8)
             
             else:
                 p3d = [gv.position for gv in ge.gverts()]
