@@ -706,7 +706,7 @@ def generic_axes_from_plane_normal(p_pt, no):
     #x = D/a - b/a * y - c/a * z
     elif a != 0:
         Rx = D/a - b/a * R[1] - c/a * R[2]
-        R[0] = Rz
+        R[0] = Rx
     else:
         print('undefined plane you wanker!')
         return(False)
