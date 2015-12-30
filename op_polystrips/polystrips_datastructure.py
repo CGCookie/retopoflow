@@ -1678,7 +1678,6 @@ class GPatch:
         
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments():
-        #for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
             d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
