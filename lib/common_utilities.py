@@ -56,20 +56,18 @@ def selection_mouse():
 def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
-        frame = inspect.currentframe()
-
-        while frame:
-            folderpath = os.path.dirname(frame.f_code.co_filename)
-            foldername = os.path.basename(folderpath)
-            frame = frame.f_back
+        
+        #frame = inspect.currentframe()
+        #frame.f_code.co_filename
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
             if foldername in {'lib','addons'}: continue
-            
-            if foldername in addons:
-                get_settings.cached_settings = addons[foldername].preferences
-                break
-            else:
-                assert False, 'could not find non-"lib" folder'
-                
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find non-"lib" folder'
+        
+        get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
 
