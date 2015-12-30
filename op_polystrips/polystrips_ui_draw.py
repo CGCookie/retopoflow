@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler
 
 from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
@@ -351,9 +351,6 @@ class Polystrips_UI_Draw():
                 draw3d_points(context, p3d, color_handle, 8)
                 draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
                 draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
-
-            if settings.show_segment_count:
-                self.draw_gedge_info(self.act_gedge, context)
                 
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -442,3 +439,7 @@ class Polystrips_UI_Draw():
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             common_drawing_px.draw_bmedge(context, self.hover_ed, self.dest_obj.matrix_world, 2, color)
 
+        if self.act_gedge:
+            if settings.show_segment_count:
+                bgl.glColor4f(*color_active)
+                self.draw_gedge_info(self.act_gedge, context)
