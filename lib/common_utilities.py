@@ -57,22 +57,31 @@ def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
         frame = inspect.currentframe()
+
         while frame:
             folderpath = os.path.dirname(frame.f_code.co_filename)
             foldername = os.path.basename(folderpath)
             frame = frame.f_back
             if foldername in {'lib','addons'}: continue
-            if foldername in addons: break
-        else:
-            assert False, 'could not find non-"lib" folder'
-        get_settings.cached_settings = addons[foldername].preferences
+            
+            if foldername in addons:
+                get_settings.cached_settings = addons[foldername].preferences
+                break
+            else:
+                assert False, 'could not find non-"lib" folder'
+                
+   
     return get_settings.cached_settings
+
+
 get_settings.cached_settings = None
 
 @persistent
 def check_source_target_objects(scene):
     settings = get_settings()
 
+    if not settings: return #sometimes...there are no settings to get.
+    
     if settings.source_object not in bpy.context.scene.objects:
         settings.source_object = ''
     if settings.target_object not in bpy.context.scene.objects:

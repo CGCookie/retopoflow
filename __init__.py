@@ -66,9 +66,10 @@ addon_keymaps = []
 
 def register():
     
-    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
+    
 
     bpy.utils.register_class(RetopoFlowPreferences)
+    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
@@ -102,9 +103,10 @@ def unregister():
     
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
+    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
-    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
+    
 
     clear_icons()
 
