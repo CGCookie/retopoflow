@@ -240,6 +240,7 @@ class Polystrips_UI_Tools():
         print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
         
         if eventd['press'] == 'LEFTMOUSE':
+            self.create_undo_snapshot('tweak')
             self.modal_tweak_setup(context, eventd)
             return ''
         
