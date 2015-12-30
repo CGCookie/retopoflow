@@ -32,7 +32,8 @@ import os
 from ..modaloperator import ModalOperator
 from .. import key_maps
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
 from ..cache import mesh_cache
@@ -70,9 +71,23 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must specify a Source Object')
             return False
+
         elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must select an object or specifiy a Source Object')
             return False
+
+        if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
+            showErrorMessage('Source and Target cannot be same object')
+            return False
+
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+
+        if get_target_object().type != 'MESH':
+            showErrorMessage('Target must be a mesh object')
+            return False
+
         return True
     
     def start(self, context):

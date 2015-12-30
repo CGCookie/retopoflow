@@ -24,8 +24,8 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 0, 1),
-    "blender":     (2, 7, 5),
+    "version":     (1, 1, 3),
+    "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
     "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
@@ -40,7 +40,7 @@ bl_info = {
 import bpy
 
 #CGCookie imports
-from .lib.common_utilities import bversion
+from .lib.common_utilities import bversion, check_source_target_objects
 
 
 #Menus, Panels, Interface and Icon 
@@ -66,6 +66,8 @@ addon_keymaps = []
 
 def register():
     
+    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
+
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
@@ -101,6 +103,8 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(RetopoFlowPreferences)
+
+    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
 
     clear_icons()
 

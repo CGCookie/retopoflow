@@ -41,7 +41,7 @@ from .edgeslide_ui_utils import EdgeSlide_UI_fns
 
 
 
-class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide_UI_Draw):
+class CGC_EdgeSlide(ModalOperator, EdgeSlide_UI_fns, EdgeSlide_UI_Modal, EdgeSlide_UI_Draw):
     ''' Edge Slide Modal Op '''
     bl_category = "Retopology"
     bl_idname = "cgcookie.edge_slide"        # unique identifier for buttons and menu items to reference

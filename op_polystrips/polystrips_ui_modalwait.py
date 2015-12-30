@@ -93,14 +93,14 @@ class Polystrips_UI_ModalWait():
             self.polystrips.update_visibility(eventd['r3d'])
             return ''
         
-        if eventd['press'] in self.keymap['tweak move']:
+        if eventd['press'] in self.keymap['tweak move'] or eventd['press'] in self.keymap['tweak relax']:
             self.create_undo_snapshot('tweak')
             self.footer = 'Tweak: ' + ('Moving' if eventd['press']=='T' else 'Relaxing')
             self.act_gvert = None
             self.act_gedge = None
             self.sel_gedges = set()
             self.act_gpatch = None
-            return 'tweak move tool' if eventd['press']=='T' else 'tweak relax tool'
+            return 'tweak move tool' if eventd['press'] in self.keymap['tweak move'] else 'tweak relax tool'
         
         # Selecting and Sketching
         ## if LMB is set to select, selecting happens in def modal_sketching

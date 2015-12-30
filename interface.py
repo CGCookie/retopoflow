@@ -104,7 +104,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             if settings.recover:
                 col.prop(settings, "recover_clip")
 
-            col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
+            #col.operator("cgcookie.contours_clear_cache", text = "Clear Cache", icon = 'CANCEL')
 
 
             col = box.column()
