@@ -382,20 +382,6 @@ class GVert:
         else:
             assert False
     
-    def update_visibility(self, r3d, update_gedges=False, hq = True):
-        if hq:
-            bvh_meth = common_utilities.ray_cast_visible_bvh(self.get_corners(), mesh_cache['bvh'], self.mx, r3d)    
-            self.visible = False not in bvh_meth
-        else:
-            self.visible = common_utilities.ray_cast_visible_bvh([self.snap_pos], mesh_cache['bvh'],self.mx, r3d)[0]
-        self.visible = True
-        
-        if not update_gedges: return
-        for ge in self.get_gedges_notnone():
-            ge.update_visibility(r3d)
-    
-    def is_visible(self): return self.visible
-    
     def get_corners(self):
         return (self.corner0, self.corner1, self.corner2, self.corner3)
     
@@ -693,7 +679,13 @@ class GEdge:
     
     def set_count(self, c):
         c = min(c,50)
+        
+        if self.frozen:
+            # cannot modify count of frozen gedges
+            return
+        
         if self.force_count and self.n_quads == c:
+            # no work to be done
             return
         
         if self.changing_count:
@@ -712,6 +704,8 @@ class GEdge:
         
         
     def unset_count(self):
+        if self.frozen:
+            return
         if self.fill_to0 or self.fill_to1:
             print('Cannot unset force count when filling')
             return
@@ -806,11 +800,6 @@ class GEdge:
         self.gvert1.disconnect_gedge(self)
         self.gvert2.disconnect_gedge(self)
         self.gvert3.disconnect_gedge(self)
-    
-    def update_visibility(self, rv3d):
-        lp = [gv.snap_pos for gv in self.cache_igverts]
-        lv = common_utilities.ray_cast_visible_bvh(lp, mesh_cache['bvh'],self.mx, rv3d)
-        for gv,v in zip(self.cache_igverts,lv): gv.visible = v
     
     def gverts(self):
         return [self.gvert0,self.gvert1,self.gvert2,self.gvert3]
@@ -1220,13 +1209,12 @@ class GEdge:
                 return True
         return False
     
-    def iter_segments(self, only_visible=False):
+    def iter_segments(self):
         l = len(self.cache_igverts)
         if l == 0:
             cur0,cur1 = self.gvert0.get_corners_of(self)
             cur2,cur3 = self.gvert3.get_corners_of(self)
-            if not only_visible or (self.gvert0.is_visible() and self.gvert3.is_visible()):
-                yield (cur0,cur1,cur2,cur3)
+            yield (cur0,cur1,cur2,cur3)
             return
         
         prev0,prev1 = None,None
@@ -1244,8 +1232,7 @@ class GEdge:
                 cur1 = gvert.position-gvert.tangent_y*gvert.radius
             
             if prev0 and prev1:
-                if not only_visible or gvert.is_visible():
-                    yield (prev0,cur0,cur1,prev1)
+                yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
     
     def iter_igverts(self):
@@ -1297,18 +1284,33 @@ class GPatch:
             for ge in self.gedges: ge.set_count(count)
         
         elif self.nsides == 4:
-            count02 = min(self.gedges[0].get_count(), self.gedges[2].get_count())
-            count13 = min(self.gedges[1].get_count(), self.gedges[3].get_count())
+            if self.gedges[0].is_frozen():
+                count02 = self.gedges[0].get_count()
+            elif self.gedges[2].is_frozen():
+                count02 = self.gedges[2].get_count()
+            else:
+                count02 = min(self.gedges[0].get_count(), self.gedges[2].get_count())
+            if self.gedges[1].is_frozen():
+                count13 = self.gedges[1].get_count()
+            elif self.gedges[3].is_frozen():
+                count13 = self.gedges[3].get_count()
+            else:
+                count13 = min(self.gedges[1].get_count(), self.gedges[3].get_count())
             self.gedges[0].set_count(count02)
-            self.gedges[2].set_count(count02)
             self.gedges[1].set_count(count13)
+            self.gedges[2].set_count(count02)
             self.gedges[3].set_count(count13)
         
         elif self.nsides == 5:
             count0 = self.gedges[0].get_count()-2
             if count0%2==1: count0 += 1
             count0  = max(count0,2)
-            count14 = min(self.gedges[1].get_count(), self.gedges[4].get_count())
+            if self.gedges[1].is_frozen():
+                count14 = self.gedges[1].get_count()
+            elif self.gedges[4].is_frozen():
+                count14 = self.gedges[4].get_count()
+            else:
+                count14 = min(self.gedges[1].get_count(), self.gedges[4].get_count())
             self.gedges[0].set_count(count0+2)
             self.gedges[2].set_count(count0//2+2)
             self.gedges[3].set_count(count0//2+2)
@@ -1685,11 +1687,9 @@ class GPatch:
                 return True
         return False
     
-    def iter_segments(self, only_visible=False):
+    def iter_segments(self):
         for i0,i1,i2,i3 in self.quads:
             pt0,pt1,pt2,pt3 = self.pts[i0],self.pts[i1],self.pts[i2],self.pts[i3]
-            if only_visible and not all(v for p,v,k in [pt0,pt1,pt2,pt3]):
-                continue
             yield (pt0[0],pt1[0],pt2[0],pt3[0])
     
     def normal(self):
@@ -1697,10 +1697,6 @@ class GPatch:
         for p0,p1,p2,p3 in self.iter_segments():
             n += (p3-p0).cross(p1-p0).normalized()
         return n.normalized()
-        
-    def update_visibility(self, r3d):
-        lv = common_utilities.ray_cast_visible([p for p,v,k in self.pts], bpy.data.objects[self.o_name], r3d)
-        self.pts = [(pt[0],v,pt[2]) for pt,v in zip(self.pts,lv)]
 
 
 
@@ -1794,14 +1790,6 @@ class Polystrips(object):
             if min_i==-1 or d < min_d:
                 min_i,min_ge,min_t,min_d = i,gedge,t,d
         return (min_i,min_ge, min_t, min_d)
-    
-    def update_visibility(self, r3d):
-        for gv in self.gverts:
-            gv.update_visibility(r3d)
-        for ge in self.gedges:
-            ge.update_visibility(r3d)
-        for gp in self.gpatches:
-            gp.update_visibility(r3d)
     
     def split_gedge_at_t(self, gedge, t, connect_gvert=None):
         if gedge.zip_to_gedge or gedge.zip_attached: return

@@ -369,7 +369,7 @@ class Polystrips_UI:
         
         for gp in lgp:
             gp.update()
-        self.polystrips.update_visibility(eventd['r3d'])
+        #self.polystrips.update_visibility(eventd['r3d'])
 
 
 
@@ -383,7 +383,7 @@ class Polystrips_UI:
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
         for gv in self.polystrips.extension_geometry:
-            if not gv.is_visible(): continue
+            #if not gv.is_visible(): continue
             rgn   = eventd['context'].region
             r3d   = eventd['context'].space_data.region_3d
             mx,my = eventd['mouse']

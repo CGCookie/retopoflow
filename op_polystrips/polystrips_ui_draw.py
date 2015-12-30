@@ -284,7 +284,6 @@ class Polystrips_UI_Draw():
 
         ### Verts ###
         for gv in self.polystrips.gverts:
-            #if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
@@ -315,7 +314,7 @@ class Polystrips_UI_Draw():
             draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
 
         # Draw inner gvert handles (dots) on each gedge
-        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible()]
+        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected()]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
         draw3d_points(context, p3d, color_handle, 4)
 
