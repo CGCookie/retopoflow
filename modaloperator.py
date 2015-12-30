@@ -247,8 +247,6 @@ class ModalOperator(Operator):
             nmode = self.FSM[self.fsm_mode](context, eventd)
         except Exception as e:
             print_exception()
-            #e = sys.exc_info()[0]
-            #print("Unexpected error caught ({0}): {1}".format(type(e), str(e)))
             nmode = ''
         self.mode_pos = eventd['mouse']
 
@@ -260,10 +258,19 @@ class ModalOperator(Operator):
 
         if nmode in {'finish','cancel'}:
             if nmode == 'finish':
-                self.end_commit(context)
+                try:
+                    self.end_commit(context)
+                except Exception as e:
+                    print_exception()
             else:
-                self.end_cancel(context)
-            self.modal_end(context)
+                try:
+                    self.end_cancel(context)
+                except Exception as e:
+                    print_exception()
+            try:
+                self.modal_end(context)
+            except Exception as e:
+                print_exception()
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.fsm_mode = nmode

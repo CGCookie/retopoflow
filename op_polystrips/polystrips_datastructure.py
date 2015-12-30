@@ -1345,11 +1345,14 @@ class GEdgeSeries:
         return c
     
     def set_count(self, count):
-        if self.changing_count: return
+        #if self.changing_count: return
+        if self.n_quads == count: return
+        if self.is_frozen(): return
         
         self.changing_count = True
         if len(self.gedges) == 1:
             self.gedges[0].set_count(count)
+            self.update()
             if self.gpatch:
                 self.gpatch.set_count(self)
         self.changing_count = False
@@ -1373,12 +1376,15 @@ class GEdgeSeries:
         for ge in self.gedges:
             ge.freeze()
     
+    def is_frozen(self):
+        return any(ge.is_frozen() for ge in self.gedges)
+    
     def thaw(self):
         if self.gpatch:
             self.gpatch.thaw()
     
     def disconnect(self):
-        for ge in self.gedges():
+        for ge in self.gedges:
             ge.detach_gedgeseries(self)
         self.gpatch = None
         self.gedges = []
@@ -1514,8 +1520,8 @@ class GPatch:
     def is_frozen(self): return self.frozen
     
     def disconnect(self):
-        for ges in self.gedgeseries:
-            ges.detach_gpatch(self)
+        #for ges in self.gedgeseries:
+        #    ges.detach_gpatch(self)
         self.gedgeseries = []
         self.rev = []
         self.pts = []
@@ -1524,27 +1530,26 @@ class GPatch:
     
     def set_count(self, gedgeseries):
         n_quads = gedgeseries.n_quads
+        i_gedgeseries = self.gedgeseries.index(gedgeseries)
         if self.nsides == 4:
-            i_gedgeseries = self.gedgeseries.index(gedgeseries)
             self.gedgeseries[(i_gedgeseries+2)%4].set_count(n_quads)
         elif self.nsides == 3:
             for ges in self.gedgeseries:
                 ges.set_count(n_quads)
         elif self.nsides == 5:
-            i_gedgeseries = self.gedgeseries.index(gedgeseries)
-            if i_gedge == 0:
+            if i_gedgeseries == 0:
                 n_quads = max(n_quads,4)
                 self.gedgeseries[2].set_count((n_quads-2) // 2 + 2)
                 self.gedgeseries[3].set_count((n_quads-2) // 2 + 2)
-            elif i_gedge == 1:
+            elif i_gedgeseries == 1:
                 self.gedgeseries[4].set_count(gedgeseries.n_quads)
-            elif i_gedge == 2:
+            elif i_gedgeseries == 2:
                 self.gedgeseries[3].set_count(n_quads)
                 self.gedgeseries[0].set_count((n_quads-2) * 2 + 2)
-            elif i_gedge == 3:
+            elif i_gedgeseries == 3:
                 self.gedgeseries[2].set_count(n_quads)
                 self.gedgeseries[0].set_count((n_quads-2) * 2 + 2)
-            elif i_gedge == 4:
+            elif i_gedgeseries == 4:
                 self.gedgeseries[1].set_count(n_quads)
         
         # self will be updated once the set_count() calls are finished
@@ -1889,6 +1894,9 @@ class Polystrips(object):
         
     def disconnect_gpatch(self, gpatch):
         assert gpatch in self.gpatches
+        for ges in list(gpatch.gedgeseries):
+            ges.disconnect()
+            self.gedgeseries.remove(ges)
         gpatch.disconnect()
         self.gpatches = [gp for gp in self.gpatches if gp != gpatch]
     
@@ -2690,7 +2698,7 @@ class Polystrips(object):
         
         map_ipt_vert = {}
         for gp in self.gpatches:
-            li_ge = [self.gedges.index(ge) for ge in gp.gedges]
+            li_ge = [self.gedges.index(ge) for ges in gp.gedgeseries for ge in ges.gedges]
             
             for i_pt,pt in enumerate(gp.pts):
                 p,_,k = pt
@@ -2812,16 +2820,16 @@ class Polystrips(object):
         map_ge_idx = {ge:i_ge for i_ge,ge in enumerate(self.gedges)}
         def cycle_key(lge):
             # rotate lge to smallest idx
-            lige = [map_ge_idx[ge] for ge in lge]
-            siige = lige.index(min(lige))
-            lige = lige[siige:] + lige[:siige]
-            return tuple(lige)
+            liges = [map_ge_idx[ge] for ge in lge]
+            siiges = liges.index(min(liges))
+            liges = liges[siiges:] + liges[:siiges]
+            return tuple(liges)
         def noncycle_key(lge):
             return tuple(map_ge_idx[ge] for ge in lge)
-        def compute_key(lge, cycle):
-            if cycle: return cycle_key(lge)
-            return noncycle_key(lge)
-        lgp = set(cycle_key(gp.gedges) for gp in self.gpatches)
+        def compute_key(lges, cycle):
+            if cycle: return cycle_key(lges)
+            return noncycle_key(lges)
+        lgp = set(cycle_key([ge for ges in gp.gedgeseries for ge in ges.gedges]) for gp in self.gpatches)
         
         def gvert_in_common(ge0,ge1):
             return ge0.gvert0 if ge0.gvert0 == ge1.gvert0 or ge0.gvert0 == ge1.gvert3 else ge0.gvert3

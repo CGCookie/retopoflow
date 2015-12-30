@@ -145,6 +145,7 @@ class Polystrips_UI_Draw():
         color_mirror = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
         
         bgl.glDepthRange(0.0, 0.999)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
         
         def draw3d_polyline(context, points, color, thickness, LINE_TYPE):
             if LINE_TYPE == "GL_LINE_STIPPLE":
@@ -458,7 +459,20 @@ class Polystrips_UI_Draw():
                 self.draw_gedge_info(self.act_gedge, context)
         
         if True:
-            bgl.glColor4f(1,1,1,0.5)
+            txt = 'v:%d e:%d s:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gedgeseries), len(self.polystrips.gpatches))
+            txt_width, txt_height = blf.dimensions(0, txt)
+            
+            bgl.glEnable(bgl.GL_BLEND)
+            
+            bgl.glColor4f(0,0,0,0.8)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(0, 0)
+            bgl.glVertex2f(10+txt_width, 0)
+            bgl.glVertex2f(10+txt_width, 10+txt_height)
+            bgl.glVertex2f(0, 10+txt_height)
+            bgl.glEnd()
+            
+            bgl.glColor4f(1,1,1,1)
             blf.position(0, 5, 5, 0)
-            blf.draw(0, 'v:%d e:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gpatches)))
+            blf.draw(0, txt)
         
