@@ -263,7 +263,10 @@ class Polystrips_UI_Draw():
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
-            if gedge.is_frozen():
+            if gedge.is_frozen() and gedge == self.act_gedge:
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gedge.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
@@ -299,7 +302,10 @@ class Polystrips_UI_Draw():
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
-            if gv.is_frozen():
+            if gv.is_frozen() and is_active :
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gv.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
