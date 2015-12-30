@@ -443,7 +443,7 @@ class Polystrips_UI_Draw():
                 bgl.glColor4f(*color_active)
                 self.draw_gedge_info(self.act_gedge, context)
         
-        if True:
+        if False:
             bgl.glColor4f(1,1,1,0.5)
             blf.position(0, 5, 5, 0)
             blf.draw(0, 'v:%d e:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gpatches)))
