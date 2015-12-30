@@ -25,7 +25,7 @@ class  CGC_EyeDropper(ModalOperator):
         '''
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
-        self.initialize(FSM)
+        self.initialize('Click an object', FSM)
         
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
@@ -39,7 +39,6 @@ class  CGC_EyeDropper(ModalOperator):
         self.ob = None
         self.ob_preview = 'None'
         
-        self.help_box.raw_text = "Click an object"
         self.help_box.uncollapse()
         self.help_box.fit_box_width_to_text_lines()
         self.help_box.snap_to_corner(context, corner = [1,1])
@@ -74,7 +73,6 @@ class  CGC_EyeDropper(ModalOperator):
     
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''
-        self.help_box.draw()
         return
     
     def modal_wait(self, context, eventd):

@@ -1,0 +1,12 @@
+Loop Cut (click to hide help):
+
+CUTTING LOOPS:
+- LMB: cut new loop
+
+
+TIPS:
+- New loops are centered in faceloop.
+- Cut any number of loops during a single modal
+
+FINSIH:
+- ENTER / RETURN / ESC: exit modal

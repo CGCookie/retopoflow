@@ -42,8 +42,7 @@ import bmesh
 import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-
-
+from bpy.app.handlers import persistent
 
 class AddonLocator(object):
     def __init__(self, f=None):
@@ -79,18 +78,39 @@ def get_settings():
     return get_settings.cached_settings
 get_settings.cached_settings = None
 
+@persistent
+def check_source_target_objects(scene):
+    settings = get_settings()
+
+    if settings.source_object not in bpy.context.scene.objects:
+        settings.source_object = ''
+    if settings.target_object not in bpy.context.scene.objects:
+        settings.target_object = ''
+
 def get_source_object():
     settings = get_settings()
 
-    if bpy.context.mode == 'OBJECT':
-        if settings.source_object:
-            source_object = bpy.data.objects[settings.source_object]
-        else:
-            source_object = bpy.context.active_object
-    elif bpy.context.mode == 'EDIT_MESH':
-            source_object = bpy.data.objects[settings.source_object]
+    default_source_object_to_active()
+
+    source_object = bpy.data.objects[settings.source_object]
 
     return source_object
+
+def update_source_object():
+    settings = get_settings()
+    settings.source_object = bpy.context.active_object.name
+
+def default_source_object_to_active():
+    if not bpy.context.active_object: return
+    settings = get_settings()
+    if settings.source_object: return
+    settings.source_object = bpy.context.active_object.name
+
+def default_target_object_to_active():
+    if not bpy.context.active_object: return
+    settings = get_settings()
+    if settings.target_object: return
+    settings.target_object = bpy.context.active_object.name
 
 def get_target_object():
     settings = get_settings()
@@ -101,6 +121,34 @@ def get_target_object():
         target_object = bpy.context.active_object
 
     return target_object
+
+def update_target_object(dest_obj):
+    settings = get_settings()
+    settings.target_object = dest_obj.name
+
+def setup_target_object( new_object, original_object, bmesh ):
+    settings = get_settings()
+    obj_orig = original_object
+    dest_bme = bmesh
+
+    if settings.target_object:
+        if settings.target_object in bpy.context.scene.objects:
+            dest_bme.from_mesh( get_target_object().data )
+            dest_obj = get_target_object()
+        else:
+            dest_me  = bpy.data.meshes.new(new_object)
+            dest_obj = bpy.data.objects.new(new_object, dest_me)
+            dest_obj.matrix_world = obj_orig.matrix_world
+            bpy.context.scene.objects.link(dest_obj)
+            update_target_object(dest_obj)
+    else:
+        dest_me  = bpy.data.meshes.new(new_object)
+        dest_obj = bpy.data.objects.new(new_object, dest_me)
+        dest_obj.matrix_world = obj_orig.matrix_world
+        bpy.context.scene.objects.link(dest_obj)
+        update_target_object(dest_obj)
+
+    return dest_obj
 
 def dprint(s, l=2):
     settings = get_settings()

@@ -33,9 +33,10 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_source_object, get_target_object, selection_mouse, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
+from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
-from ..lib.common_classes import SketchBrush, TextBox
+from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
 from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
@@ -46,6 +47,9 @@ class Polystrips_UI:
     def initialize_ui(self):
         self.is_fullscreen  = False
         self.was_fullscreen = False
+        
+        if 'brush_radius' not in dir(Polystrips_UI):
+            Polystrips_UI.brush_radius = 15
     
     
     def start_ui(self, context):
@@ -106,15 +110,9 @@ class Polystrips_UI:
             #Create a new empty destination object for new retopo mesh
             nm_polystrips = self.obj_orig.name + "_polystrips"
             self.dest_bme = bmesh.new()
-            if self.settings.target_object:
-                self.dest_bme.from_mesh( get_target_object().data )
-                self.dest_obj = get_target_object()
-            else:
-                dest_me  = bpy.data.meshes.new(nm_polystrips)
-                self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-                self.dest_obj.matrix_world = self.obj_orig.matrix_world
-                context.scene.objects.link(self.dest_obj)
-            
+
+            self.dest_obj = setup_target_object( nm_polystrips, self.obj_orig, self.dest_bme )
+
             self.extension_geometry = []
             self.snap_eds = []
             self.snap_eds_vis = []
@@ -165,27 +163,12 @@ class Polystrips_UI:
         self.sketch_brush = SketchBrush(context,
                                         self.settings,
                                         0, 0, #event.mouse_region_x, event.mouse_region_y,
-                                        15,  # settings.quad_prev_radius,
+                                        Polystrips_UI.brush_radius,  # settings.quad_prev_radius,
                                         mesh_cache['bvh'], self.mx,
                                         self.obj_orig.dimensions.length)
 
         self.polystrips = Polystrips(context, self.obj_orig, self.dest_obj)
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
-        
-        
-        # help file stuff
-        my_dir = os.path.split(os.path.abspath(__file__))[0]
-        filename = os.path.join(my_dir, '..', 'help', 'help_polystrips.txt')
-        if os.path.isfile(filename):
-            help_txt = open(filename, mode='r').read()
-        else:
-            help_txt = "No Help File found, please reinstall!"
-        self.help_box = TextBox(context,500,500,300,200,10,20, help_txt)
-        if not self.settings.help_def:
-            self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
-        
-        
         
         if self.obj_orig.grease_pencil:
             self.create_polystrips_from_greasepencil()
@@ -204,6 +187,8 @@ class Polystrips_UI:
         if not self.was_fullscreen and self.settings.distraction_free:
             bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = False
+        
+        Polystrips_UI.brush_radius = self.sketch_brush.pxl_rad
         
     def cleanup(self, context, cleantype=''):
         '''
@@ -288,6 +273,7 @@ class Polystrips_UI:
     # mesh creation
     
     def create_mesh(self, context):
+        self.settings = common_utilities.get_settings()
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
@@ -305,10 +291,17 @@ class Polystrips_UI:
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
             self.dest_obj.show_wire      = True
-            self.dest_obj.show_x_ray     = True
+            self.dest_obj.show_x_ray     = self.settings.use_x_ray
          
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
+
+            # check for symmetry and then add a mirror if needed
+            if self.settings.symmetry_plane == 'x':
+                self.dest_obj.modifiers.new(type='MIRROR', name='Polystrips-Symmetry')
+                self.dest_obj.modifiers['Polystrips-Symmetry'].use_clip = True
+
+            common_utilities.default_target_object_to_active()
         
         container_bme = bmesh.new()
         
@@ -440,7 +433,8 @@ class Polystrips_UI:
                 self.sel_gverts = set([cpt])
                 self.act_gpatch = None
                 return ''
-        # Select gvert
+        
+        # select gvert?
         for gv in self.polystrips.gverts:
             if gv.is_unconnected(): continue
             if not gv.is_picked(pt): continue
@@ -451,6 +445,7 @@ class Polystrips_UI:
             self.act_gpatch = None
             return ''
 
+        # select gedge?
         for ge in self.polystrips.gedges:
             if not ge.is_picked(pt): continue
             self.act_gvert = None

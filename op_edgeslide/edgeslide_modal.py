@@ -28,8 +28,6 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
-import math
-
 
 from ..modaloperator import ModalOperator
 from ..lib import common_utilities
@@ -64,7 +62,7 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
         
-        self.initialize(FSM)
+        self.initialize('help_loopslide.txt', FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
@@ -99,7 +97,8 @@ class CGC_EdgeSlide(ModalOperator,EdgeSlide_UI_fns, EdgeSlide_UI_Modal,EdgeSlide
         
         
         self.edgeslide = EdgeSlide(context, self.trg_obj, self.trg_bvh, source_obj = self.src_obj, source_bvh = self.src_bvh)
-        
+
+
         context.area.header_text_set('EDGE SLIDE')
         
         

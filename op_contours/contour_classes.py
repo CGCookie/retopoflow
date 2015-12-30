@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 # Common imports
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
-from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object, showErrorMessage
 from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 #from development.cgc-retopology import contour_utilities
@@ -88,45 +88,7 @@ class Contours(object):
         self.hot_key = None  #Keep track of which hotkey was pressed
         self.draw = False  #Being in the state of drawing a guide stroke
         self.last_matrix = None
-              
-    def new_destination_obj(self,context,name, mx):
-        '''
-        creates new object for mesh data to enter
-        '''
-        dest_me = bpy.data.meshes.new(name)
-        dest_ob = bpy.data.objects.new(name,dest_me) #this is an empty currently
-        dest_ob.matrix_world = mx
-        dest_ob.update_tag()
-        dest_bme = bmesh.new()
-        dest_bme.from_mesh(dest_me)
-        
-        return dest_ob, dest_me, dest_bme
     
-    #def tmp_obj_and_triangulate(self,context, bme, ngons, mx):
-    #    '''
-    #    ob -  input object
-    #    bme - bmesh extracted from input object <- this will be modified by triangulation
-    #    ngons - list of bmesh faces that are ngons
-    
-        
-    #    if len(ngons):
-    #        new_geom = bmesh.ops.triangulate(bme, faces = ngons, quad_method=0, ngon_method=1)
-    #        new_faces = new_geom['faces']
-
-    #    new_me = bpy.data.meshes.new('tmp_recontour_mesh')
-    #    bme.to_mesh(new_me)
-    #    new_me.update()
-    #    tmp_ob = bpy.data.objects.new('ContourTMP', new_me)
-        
-        #ob must be linked to scene for ray casting?
-    #    context.scene.objects.link(tmp_ob)
-    #    tmp_ob.update_tag()
-    #    context.scene.update()
-        #however it can be unlinked to prevent user from seeing it?
-    #    context.scene.objects.unlink(tmp_ob)
-    #    tmp_ob.matrix_world = mx
-        
-    #    return tmp_ob
     
     def mesh_data_gather_object_mode(self,context):
         '''
@@ -134,25 +96,21 @@ class Contours(object):
         '''
         
         self.settings = common_utilities.get_settings()
-        target_object = get_target_object()
 
         self.sel_edge = None
         self.sel_verts = None
         self.existing_cut = None
-        self.original_form = get_source_object()
-        self.mx = self.original_form.matrix_world
+        self.obj_orig = get_source_object()
+        self.mx = self.obj_orig.matrix_world
         
-        name = self.original_form.name + '_recontour'
+        # create a new empty destination object for new retopo mesh
+        nm_contours = self.obj_orig.name + '_contours'
+        self.dest_bme = bmesh.new()
         
-        if self.settings.target_object:
-            self.dest_ob = bpy.data.objects[self.settings.target_object]
-            self.dest_me = self.dest_ob.data
-            self.dest_bme = bmesh.new()
-            self.dest_bme.from_mesh(self.dest_me)
-        else:
-            self.dest_ob, self.dest_me, self.dest_bme = self.new_destination_obj(context, name, self.original_form.matrix_world)
-        
-        is_valid = is_object_valid(self.original_form)
+        self.dest_obj = setup_target_object( nm_contours, self.obj_orig, self.dest_bme )
+        self.dest_me = self.dest_obj.data
+
+        is_valid = is_object_valid(self.obj_orig)
         
         if is_valid:
             #don't need to do anything
@@ -163,25 +121,25 @@ class Contours(object):
         else:
             clear_mesh_cache()
             contour_undo_cache = []
-            me = self.original_form.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
+            me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW') #<--this may make non mesh objects ok :-)
             me.update()
             bme = bmesh.new()
             bme.from_mesh(me)
             bvh = BVHTree.FromBMesh(bme)
-            write_mesh_cache(self.original_form,bme, bvh)
+            write_mesh_cache(self.obj_orig,bme, bvh)
          
     def mesh_data_gather_edit_mode(self,context):
         '''
         get references to object and object data
         '''
         
-        self.dest_ob = context.object        
-        self.dest_me = self.dest_ob.data
+        self.dest_obj = context.object
+        self.dest_me = self.dest_obj.data
         self.dest_bme = bmesh.from_edit_mesh(self.dest_me)
         
         ob = get_source_object()
-        self.original_form = ob
-        self.mx = self.original_form.matrix_world
+        self.obj_orig = ob
+        self.mx = self.obj_orig.matrix_world
         is_valid = is_object_valid(ob)
     
         if is_valid:
@@ -196,7 +154,7 @@ class Contours(object):
             bme = bmesh.new()
             bme.from_mesh(me)
             bvh = BVHTree.FromBMesh(bme)
-            write_mesh_cache(self.original_form, bme, bvh)
+            write_mesh_cache(self.obj_orig, bme, bvh)
         
         if self.settings.recover and is_valid:
             print('loading cache!')
@@ -229,7 +187,7 @@ class Contours(object):
                     existing_loop =ExistingVertList(context,
                                                     lverts, 
                                                     loop, 
-                                                    self.dest_ob.matrix_world,
+                                                    self.dest_obj.matrix_world,
                                                     key_type = 'INDS')
                     
                     #make a blank path with just an existing head
@@ -250,12 +208,13 @@ class Contours(object):
                     self.existing_loops.append(existing_loop)       
             
     def finish_mesh(self, context):
+        self.settings = common_utilities.get_settings()
         back_to_edit = (context.mode == 'EDIT_MESH')
                     
         #This is where all the magic happens
         print('pushing data into bmesh')
         for path in self.cut_paths:
-            path.push_data_into_bmesh(context, self.dest_ob, self.dest_bme, self.original_form, self.dest_me)
+            path.push_data_into_bmesh(context, self.dest_obj, self.dest_bme, self.obj_orig, self.dest_me)
         
         if back_to_edit:
             print('updating edit mesh')
@@ -266,15 +225,13 @@ class Contours(object):
             print('write data into the object')
             self.dest_bme.to_mesh(self.dest_me)
         
-            #remember we created a new object
-            if not self.settings.target_object:
-                print('link destination object')
-                context.scene.objects.link(self.dest_ob)
             
             print('select and make active')
-            self.dest_ob.select = True
-            context.scene.objects.active = self.dest_ob
-            
+            self.dest_obj.select = True
+            context.scene.objects.active = self.dest_obj
+
+            self.dest_obj.show_x_ray = self.settings.use_x_ray
+
             if context.space_data.local_view:
                 view_loc = context.space_data.region_3d.view_location.copy()
                 view_rot = context.space_data.region_3d.view_rotation.copy()
@@ -286,6 +243,8 @@ class Contours(object):
                 context.space_data.region_3d.view_rotation = view_rot
                 context.space_data.region_3d.view_distance = view_dist
                 context.space_data.region_3d.update()
+            
+            common_utilities.default_target_object_to_active()
     
         return
     
@@ -943,9 +902,9 @@ class Contours(object):
             new_matrix = [v for l in r3d.view_matrix for v in l]
             #if new_matrix != self.last_matrix:
                 #for path in self.cut_paths:
-                    #path.update_visibility(context, self.original_form)
+                    #path.update_visibility(context, self.obj_orig)
                     #for cut_line in path.cuts:
-                        #cut_line.update_visibility(context, self.original_form)
+                        #cut_line.update_visibility(context, self.obj_orig)
                             
             self.post_update = False
             self.last_matrix = new_matrix
@@ -981,7 +940,7 @@ class Contours(object):
     def draw_post_view(self,context):
         if len(self.cut_paths):
             for path in self.cut_paths:
-                path.draw3d(context, self.original_form.matrix_world)
+                path.draw3d(context, self.obj_orig.matrix_world)
         
         return
     
