@@ -14,6 +14,91 @@ def glColor(color):
     else:
         bgl.glColor4f(*color)
 
+def glSetDefaultOptions(opts=None):
+    if opts == None: opts = {}
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glDisable(bgl.GL_LIGHTING)
+    bgl.glEnable(bgl.GL_DEPTH_TEST)
+
+def glSetPolyOptions(opts=None):
+    if opts == None: opts = {}
+    if 'poly depth' in opts: bgl.glDepthRange(*opts['poly depth'])
+    if 'poly color' in opts: glColor(opts['poly color'])
+
+def glSetLineOptions(opts=None):
+    if opts == None: opts = {}
+    if 'line width' in opts: bgl.glLineWidth(opts['line width'])
+    if 'line depth' in opts: bgl.glDepthRange(*opts['line depth'])
+    if 'line color' in opts: glColor(opts['line color'])
+
+def glSetPointOptions(opts=None):
+    if opts == None: opts = {}
+    if 'point size'  in opts: bgl.glPointSize(opts['point size'])
+    if 'point depth' in opts: bgl.glDepthRange(*opts['point depth'])
+    if 'point color' in opts: glColor(opts['point color'])
+
+
+def glDrawBMFace(bmf, opts=None):
+    glSetPolyOptions(opts=opts)
+    bgl.glBegin(bgl.GL_TRIANGLES)
+    bgl.glNormal3f(*bmf.normal)
+    bmv0 = bmf.verts[0]
+    for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
+        bgl.glVertex3f(*bmv0.co)
+        bgl.glVertex3f(*bmv1.co)
+        bgl.glVertex3f(*bmv2.co)
+    bgl.glEnd()
+
+def glDrawBMFaces(lbmf, opts=None):
+    glSetPolyOptions(opts=opts)
+    bgl.glBegin(bgl.GL_TRIANGLES)
+    for bmf in lbmf:
+        bgl.glNormal3f(*bmf.normal)
+        bmv0 = bmf.verts[0]
+        for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
+            bgl.glVertex3f(*bmv0.co)
+            bgl.glVertex3f(*bmv1.co)
+            bgl.glVertex3f(*bmv2.co)
+    bgl.glEnd()
+
+def glDrawBMFaceEdges(bmf, opts=None):
+    glDrawBMEdges(bmf.edges, opts=opts)
+
+def glDrawBMFaceVerts(bmf, opts=None):
+    glDrawBMVerts(bmf.verts, opts=opts)
+
+def glDrawBMEdge(bme, opts=None):
+    glSetLineOptions(opts=opts)
+    bgl.glBegin(bgl.GL_LINES)
+    bgl.glVertex3f(*bme.verts[0].co)
+    bgl.glVertex3f(*bme.verts[1].co)
+    bgl.glEnd()
+
+def glDrawBMEdges(lbme, opts=None):
+    glSetLineOptions(opts=opts)
+    bgl.glBegin(bgl.GL_LINES)
+    for bme in lbme:
+        bgl.glVertex3f(*bme.verts[0].co)
+        bgl.glVertex3f(*bme.verts[1].co)
+    bgl.glEnd()
+
+def glDrawBMEdgeVerts(bme, opts=None):
+    glDrawBMVerts(bme.verts, opts=opts)
+
+def glDrawBMVert(bmv, opts=None):
+    glSetPointOptions(opts=opts)
+    bgl.glBegin(bgl.GL_POINTS)
+    bgl.glVertex3f(*bmv.co)
+    bgl.glEnd()
+
+def glDrawBMVerts(lbmv, opts=None):
+    glSetPointOptions(opts=opts)
+    bgl.glBegin(bgl.GL_POINTS)
+    for bmv in lbmv:
+        bgl.glVertex3f(*bmv.co)
+    bgl.glEnd()
+
+
 class BMeshRender():
     def __init__(self, bmesh):
         self.bmesh = bmesh
@@ -38,40 +123,15 @@ class BMeshRender():
     
     def _draw_immediate(self, opts=None):
         # do not change attribs if they're not set
-        if not opts: opts = {}
-        print(str(opts))
+        glSetDefaultOptions(opts=opts)
         
-        if 'poly depth' in opts: bgl.glDepthRange(*opts['poly depth'])
-        if 'poly color' in opts: glColor(opts['poly color'])
-        #bgl.glEnable(bgl.GL_LIGHTS)
-        bgl.glDisable(bgl.GL_LIGHTING)
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
-        bgl.glBegin(bgl.GL_TRIANGLES)
-        for bmf in self.bmesh.faces:
-            bmv0 = bmf.verts[0]
-            bgl.glNormal3f(*bmf.normal)
-            for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
-                bgl.glVertex3f(*bmv0.co)
-                bgl.glVertex3f(*bmv1.co)
-                bgl.glVertex3f(*bmv2.co)
-        bgl.glEnd()
+        glSetPolyOptions(opts=opts)
+        glDrawBMFaces(self.bmesh.faces)
         
-        if 'line width' in opts: bgl.glLineWidth(opts['line width'])
-        if 'line depth' in opts: bgl.glDepthRange(*opts['line depth'])
-        if 'line color' in opts: glColor(opts['line color'])
-        bgl.glBegin(bgl.GL_LINES)
-        for bme in self.bmesh.edges:
-            bmv0,bmv1 = bme.verts
-            bgl.glVertex3f(*bmv0.co)
-            bgl.glVertex3f(*bmv1.co)
-        bgl.glEnd()
+        glSetLineOptions(opts=opts)
+        glDrawBMEdges(self.bmesh.edges)
         
-        if 'point size'  in opts: bgl.glPointSize(opts['point size'])
-        if 'point depth' in opts: bgl.glDepthRange(*opts['point depth'])
-        if 'point color' in opts: glColor(opts['point color'])
-        bgl.glBegin(bgl.GL_POINTS)
-        for bmv in self.bmesh.verts:
-            bgl.glVertex3f(*bmv.co)
-        bgl.glEnd()
+        glSetPointOptions(opts=opts)
+        glDrawBMVerts(self.bmesh.verts)
         
         bgl.glDepthRange(0, 1)
