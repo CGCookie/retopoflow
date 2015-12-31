@@ -28,12 +28,14 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Euler
 
+import sys
 import math
 import os
 
 from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
 from .lib import common_utilities
+from .lib.common_utilities import print_exception
 
 class ModalOperator(Operator):
 
@@ -245,7 +247,13 @@ class ModalOperator(Operator):
         eventd = self.get_event_details(context, event)
 
         self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.fsm_mode](context, eventd)
+        try:
+            nmode = self.FSM[self.fsm_mode](context, eventd)
+        except Exception as e:
+            print_exception()
+            #e = sys.exc_info()[0]
+            #print("Unexpected error caught ({0}): {1}".format(type(e), str(e)))
+            nmode = ''
         self.mode_pos = eventd['mouse']
 
         if nmode == 'wait': nmode = 'main'
