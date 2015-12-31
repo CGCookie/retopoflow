@@ -60,7 +60,6 @@ if bversion() >= '002.076.000':
     from .op_loopcut.loopcut_modal import CGC_LoopCut
     from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
 
-
 # Used to store keymaps for addon
 addon_keymaps = []
 
@@ -73,6 +72,7 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
+
     if bversion() >= '002.076.000':
         bpy.utils.register_class(CGC_Polystrips)
         bpy.utils.register_class(CGC_Tweak)
@@ -91,8 +91,8 @@ def register():
     kmi.active = True
     addon_keymaps.append((km, kmi))
 
-
 def unregister():
+
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
         bpy.utils.unregister_class(CGC_Tweak)
@@ -100,7 +100,7 @@ def unregister():
         bpy.utils.unregister_class(CGC_EyeDropper)
         bpy.utils.unregister_class(CGC_LoopCut)
         bpy.utils.unregister_class(CGC_EdgeSlide)
-    
+
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)

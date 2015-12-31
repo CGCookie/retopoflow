@@ -37,8 +37,9 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
+from ..lib.classes.profiler import profiler
 
 from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
