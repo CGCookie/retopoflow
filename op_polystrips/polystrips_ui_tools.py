@@ -28,7 +28,8 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.classes.profiler import profiler
 from ..cache import mesh_cache
 
 class Polystrips_UI_Tools():
@@ -110,7 +111,7 @@ class Polystrips_UI_Tools():
                 self.polystrips.insert_gedge_from_stroke(p3d, False)
             
             self.polystrips.remove_unconnected_gverts()
-            self.polystrips.update_visibility(eventd['r3d'])
+            #self.polystrips.update_visibility(eventd['r3d'])
 
             self.act_gvert = None
             self.act_gedge = None
@@ -240,6 +241,7 @@ class Polystrips_UI_Tools():
         print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
         
         if eventd['press'] == 'LEFTMOUSE':
+            self.create_undo_snapshot('tweak')
             self.modal_tweak_setup(context, eventd)
             return ''
         
@@ -306,8 +308,8 @@ class Polystrips_UI_Tools():
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
                     u.update()
-                for u in self.tweak_data['supdate']:
-                    u.update_visibility(eventd['r3d'])
+                #for u in self.tweak_data['supdate']:
+                    # u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
     
@@ -390,8 +392,8 @@ class Polystrips_UI_Tools():
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
                     u.update()
-                for u in self.tweak_data['supdate']:
-                    u.update_visibility(eventd['r3d'])
+                # for u in self.tweak_data['supdate']:
+                    # u.update_visibility(eventd['r3d'])
                 self.tweak_data = None
         
         return ''
@@ -537,7 +539,7 @@ class Polystrips_UI_Tools():
                 gv.position = p
                 gv.update()
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
             sgv = self.act_gvert
@@ -548,7 +550,7 @@ class Polystrips_UI_Tools():
                 gv.position = p + (gv.position-p) * m
                 gv.update()
             sgv.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_gvert_radius(self, command, eventd):
         if command == 'init':
@@ -559,12 +561,12 @@ class Polystrips_UI_Tools():
         elif command == 'undo':
             self.act_gvert.radius = self.tool_data
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             m = command
             self.act_gvert.radius *= m
             self.act_gvert.update()
-            self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+            # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
 
     def scale_tool_stroke_radius(self, command, eventd):
         if command == 'init':
@@ -596,7 +598,7 @@ class Polystrips_UI_Tools():
             for gv,p,_ in self.tool_data: gv.position = p
             for gv,_,_ in self.tool_data:
                 gv.update()
-                gv.update_visibility(eventd['r3d'], update_gedges=True)
+                # gv.update_visibility(eventd['r3d'], update_gedges=True)
         else:
             factor_slow,factor_fast = 0.2,1.0
             dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
@@ -608,7 +610,7 @@ class Polystrips_UI_Tools():
                 d[0].position = p2d
             for gv,_,_ in self.tool_data:
                 gv.update()
-                gv.update_visibility(eventd['r3d'], update_gedges=True)
+                # gv.update_visibility(eventd['r3d'], update_gedges=True)
 
     def grab_tool_gvert(self, command, eventd):
         '''

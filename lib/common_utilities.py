@@ -44,15 +44,6 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from bpy.app.handlers import persistent
 
-class AddonLocator(object):
-    def __init__(self, f=None):
-        self.fullInitPath = f if f else __file__
-        self.FolderPath = os.path.dirname(self.fullInitPath)
-        self.FolderName = os.path.basename(self.FolderPath)
-    
-    def AppendPath(self):
-        sys.path.append(self.FolderPath)
-        print("Addon path has been registered into system path for this session")
 
 def bversion():
     bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
@@ -66,22 +57,39 @@ def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
         frame = inspect.currentframe()
+
         while frame:
             folderpath = os.path.dirname(frame.f_code.co_filename)
             foldername = os.path.basename(folderpath)
             frame = frame.f_back
             if foldername in {'lib','addons'}: continue
-            if foldername in addons: break
-        else:
-            assert False, 'could not find non-"lib" folder'
-        get_settings.cached_settings = addons[foldername].preferences
+            
+            if foldername in addons:
+                get_settings.cached_settings = addons[foldername].preferences
+                break
+            else:
+                assert False, 'could not find non-"lib" folder'
+                
+   
     return get_settings.cached_settings
+
+
 get_settings.cached_settings = None
+
+def get_dpi():
+    system_preferences = bpy.context.user_preferences.system
+    factor = getattr(system_preferences, "pixel_size", 1)
+    return int(system_preferences.dpi * factor)
+
+def get_dpi_factor():
+    return get_dpi() / 72
 
 @persistent
 def check_source_target_objects(scene):
     settings = get_settings()
 
+    if not settings: return #sometimes...there are no settings to get.
+    
     if settings.source_object not in bpy.context.scene.objects:
         settings.source_object = ''
     if settings.target_object not in bpy.context.scene.objects:
@@ -161,9 +169,6 @@ def dcallstack(l=2):
     for i,entry in enumerate(inspect.stack()):
         if i>0: dprint('  %s' % str(entry), l=l)
 
-
-
-
 def showErrorMessage(message, wrap=80):
     lines = []
     if wrap > 0:
@@ -196,68 +201,6 @@ def callback_cleanup(self, context):
     #else:
         #context.region.callback_remove(self._handle)
     #return None
-
-
-
-class Profiler(object):
-    class ProfilerHelper(object):
-        def __init__(self, pr, text):
-            full_text = (pr.stack[-1].text+'^' if pr.stack else '') + text
-            assert full_text not in pr.d_start, '"%s" found in profiler already?'%text
-            self.pr = pr
-            self.text = full_text
-            self._is_done = False
-            self.pr.d_start[self.text] = time.time()
-            self.pr.stack += [self]
-        def __del__(self):
-            if not self._is_done:
-                dprint('WARNING: calling ProfilerHelper.done!')
-                self.done()
-        def done(self):
-            assert self.pr.stack[-1] == self
-            assert not self._is_done
-            self.pr.stack.pop()
-            self._is_done = True
-            st = self.pr.d_start[self.text]
-            en = time.time()
-            self.pr.d_times[self.text] = self.pr.d_times.get(self.text,0) + (en-st)
-            self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
-            del self.pr.d_start[self.text]
-    
-    def __init__(self):
-        self.d_start = {}
-        self.d_times = {}
-        self.d_count = {}
-        self.stack = []
-    
-    def start(self, text=None):
-        if not text:
-            frame = inspect.currentframe().f_back
-            filename = os.path.basename( frame.f_code.co_filename )
-            linenum = frame.f_lineno
-            fnname = frame.f_code.co_name
-            text = '%s (%s:%d)' % (fnname, filename, linenum)
-        return self.ProfilerHelper(self, text)
-    
-    def __del__(self):
-        #self.printout()
-        pass
-    
-    def printout(self):
-        dprint('Profiler:')
-        for text in sorted(self.d_times):
-            tottime = self.d_times[text]
-            totcount = self.d_count[text]
-            calls = text.split('^')
-            if len(calls) == 1:
-                t = text
-            else:
-                t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            dprint('  %6.2f / %3d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
-        dprint('')
-        dprint('Stack: %d' % len(self.stack))
-
-profiler = Profiler()
 
 
 def range_mod(m):

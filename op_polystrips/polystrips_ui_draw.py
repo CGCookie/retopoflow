@@ -37,7 +37,9 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
+from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
+from ..lib.classes.profiler import profiler
 
 from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
@@ -223,6 +225,13 @@ class Polystrips_UI_Draw():
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
             bgl.glPointSize(1.0)
+        
+        def freeze_color(c):
+            return (
+                c[0] * 0.5 + color_frozen[0] * 0.5,
+                c[1] * 0.5 + color_frozen[1] * 0.5,
+                c[2] * 0.5 + color_frozen[2] * 0.5,
+                c[3])
             
 
         ### Patches ###
@@ -233,7 +242,10 @@ class Polystrips_UI_Draw():
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
                 color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.10)
-            if gpatch.is_frozen():
+            if gpatch.is_frozen() and gpatch == self.act_gpatch:
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gpatch.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             if gpatch.count_error:
@@ -250,17 +262,20 @@ class Polystrips_UI_Draw():
             # Color active strip
             if gedge == self.act_gedge:
                 color_border = (color_active[0], color_active[1], color_active[2], 1.00)
-                color_fill = (color_active[0], color_active[1], color_active[2], 0.20)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             # Color selected strips
             elif gedge in self.sel_gedges:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
-                color_fill = (color_selection[0], color_selection[1], color_selection[2], 0.20)
+                color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
             # Color unselected strips
             else:
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
-                color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+                color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
-            if gedge.is_frozen():
+            if gedge.is_frozen() and gedge == self.act_gedge:
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gedge.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
@@ -275,7 +290,6 @@ class Polystrips_UI_Draw():
 
         ### Verts ###
         for gv in self.polystrips.gverts:
-            #if not gv.is_visible(): continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
@@ -296,7 +310,10 @@ class Polystrips_UI_Draw():
             if gv in self.sel_gverts:
                 color_border = (color_selection[0], color_selection[1], color_selection[2], 0.75)
                 color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
-            if gv.is_frozen():
+            if gv.is_frozen() and is_active :
+                color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gv.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
@@ -305,7 +322,7 @@ class Polystrips_UI_Draw():
             draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
 
         # Draw inner gvert handles (dots) on each gedge
-        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible()]
+        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected()]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
         draw3d_points(context, p3d, color_handle, 4)
 
@@ -322,25 +339,32 @@ class Polystrips_UI_Draw():
                 draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
             else:
                 # Draw both handles when gvert is selected
-                p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered()]
+                p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered() and not ge.is_frozen()]
                 draw3d_points(context, p3d, color_handle, 8)
                 # Draw connecting line between handles
                 for p1 in p3d:
                     draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
 
         # Draw gvert handles on active gedge
-        if self.act_gedge:
+        if self.act_gedge and not self.act_gedge.is_frozen():
             color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
-                draw3d_points(context, p3d, color, 8)
+                draw3d_points(context, p3d, color_handle, 8)
             
             else:
                 p3d = [gv.position for gv in ge.gverts()]
                 draw3d_points(context, p3d, color_handle, 8)
                 draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
                 draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
+                if False:
+                    # draw each normal of each gvert
+                    for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
+                        draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH")
+
+            if settings.show_segment_count:
+                self.draw_gedge_info(self.act_gedge, context)
                 
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -433,3 +457,9 @@ class Polystrips_UI_Draw():
             if settings.show_segment_count:
                 bgl.glColor4f(*color_active)
                 self.draw_gedge_info(self.act_gedge, context)
+        
+        if True:
+            bgl.glColor4f(1,1,1,0.5)
+            blf.position(0, 5, 5, 0)
+            blf.draw(0, 'v:%d e:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gpatches)))
+        

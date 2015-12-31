@@ -42,7 +42,12 @@ class ModalOperator(Operator):
     def initialize(self, helpText=None, FSM=None):
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_default_keymap_generate()
-        
+
+        # check keymap against system language
+        key_maps.navigation_language()
+
+        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
         dfns = {
@@ -62,7 +67,6 @@ class ModalOperator(Operator):
             for fnname in lbad: print('  %s' % dfns[fnname])
             assert False, 'Modal operator missing definitions: %s' % ','.join(dfns[fnname] for fnname in lbad)
 
-        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
@@ -71,9 +75,9 @@ class ModalOperator(Operator):
         # help file stuff
         if helpText:
             path = os.path.split(os.path.abspath(__file__))[0]
-            helpTextFilename = os.path.join(path, 'help', helpText)
-            if os.path.isfile(helpTextFilename):
-                helpText = open(helpTextFilename, mode='r').read()
+            path = os.path.join(path, 'help', helpText)
+            if os.path.isfile(path):
+                helpText = open(path, mode='r').read()
             self.help_box = TextBox(500,500,300,200,10,20, helpText)
             if not self.settings.help_def:
                 self.help_box.collapse()

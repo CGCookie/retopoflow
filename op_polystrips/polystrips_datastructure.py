@@ -32,9 +32,10 @@ import blf, bgl
 import itertools
 
 from ..lib import common_utilities
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
+from ..lib.classes.profiler.profiler import Profiler
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
@@ -83,7 +84,7 @@ class GVert:
         #data used when extending or emulating data
         #already within a BMesh
         self.from_mesh = from_mesh
-        self.from_mesh_ind = -1 #needs to be set explicitly
+        self.from_mesh_ind = -1 # index of face, needs to be set explicitly
         self.corner0_ind = -1
         self.corner1_ind = -1
         self.corner2_ind = -1
@@ -108,7 +109,9 @@ class GVert:
     def has_1(self): return not (self.gedge1 is None)
     def has_2(self): return not (self.gedge2 is None)
     def has_3(self): return not (self.gedge3 is None)
-    def is_inner(self): return not (self.gedge_inner is None)
+    def is_inner(self): return (self.gedge_inner is not None)
+    
+    def is_fromMesh(self):    return (self.from_mesh_ind != -1)
     
     def count_gedges(self):   return len(self.get_gedges_notnone())
     
@@ -120,7 +123,11 @@ class GVert:
     def is_cross(self):       return self.has_0() and self.has_1() and self.has_2() and self.has_3()
     
     def freeze(self): self.frozen = True
-    def thaw(self): self.frozen = False
+    def thaw(self):
+        self.frozen = False
+        for ge in self.get_gedges_notnone():
+            ge.thaw()
+        self.update()
     def is_frozen(self): return self.frozen
     
     def get_gedges(self): return [self.gedge0,self.gedge1,self.gedge2,self.gedge3]
@@ -140,7 +147,7 @@ class GVert:
         assert False
     
     def disconnect_gedge(self, gedge):
-        pr = profiler.start()
+        pr = Profiler().start()
         if self.gedge_inner == gedge:
             self.gedge_inner = None
         else:
@@ -161,7 +168,7 @@ class GVert:
     def update_gedges(self):
         if self.is_unconnected(): return
         
-        pr = profiler.start()
+        pr = Profiler().start()
         
         norm = self.snap_norm
         
@@ -212,7 +219,7 @@ class GVert:
     
     
     def connect_gedge(self, gedge):
-        pr = profiler.start()
+        pr = Profiler().start()
         if not self.gedge0: self.gedge0 = gedge
         elif not self.gedge1: self.gedge1 = gedge
         elif not self.gedge2: self.gedge2 = gedge
@@ -230,7 +237,8 @@ class GVert:
     
     def snap_corners(self):
         if self.frozen: return
-        pr = profiler.start()
+        
+        pr = Profiler().start()
         
         mx = self.mx
         mx3x3 = mx.to_3x3()
@@ -264,7 +272,7 @@ class GVert:
             self.zip_over_gedge.update()
             return
         
-        pr = profiler.start()
+        pr = Profiler().start()
         
         bvh = mesh_cache['bvh']
         mx = self.mx
@@ -272,7 +280,7 @@ class GVert:
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        if not self.frozen:
+        if not self.frozen and not self.is_inner():
             l,n,i, d = bvh.find(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
@@ -380,20 +388,6 @@ class GVert:
         else:
             assert False
     
-    def update_visibility(self, r3d, update_gedges=False, hq = True):
-        if hq:
-            bvh_meth = common_utilities.ray_cast_visible_bvh(self.get_corners(), mesh_cache['bvh'], self.mx, r3d)    
-            self.visible = False not in bvh_meth
-        else:
-            self.visible = common_utilities.ray_cast_visible_bvh([self.snap_pos], mesh_cache['bvh'],self.mx, r3d)[0]
-        self.visible = True
-        
-        if not update_gedges: return
-        for ge in self.get_gedges_notnone():
-            ge.update_visibility(r3d)
-    
-    def is_visible(self): return self.visible
-    
     def get_corners(self):
         return (self.corner0, self.corner1, self.corner2, self.corner3)
     
@@ -468,7 +462,7 @@ class GVert:
             print('Cannot toggle corner on GVert with %i connections' % self.count_gedges())
     
     def smooth(self, v=0.15):
-        pr = profiler.start()
+        pr = Profiler().start()
         
         der0 = self.gedge0.get_derivative_at(self, ignore_igverts=True).normalized() if self.gedge0 else Vector()
         der1 = self.gedge1.get_derivative_at(self, ignore_igverts=True).normalized() if self.gedge1 else Vector()
@@ -590,7 +584,97 @@ class GEdge:
         gvert1.connect_gedge_inner(self)
         gvert2.connect_gedge_inner(self)
         gvert3.connect_gedge(self)
-
+        
+        self.from_edges = None
+        self.from_build = False
+        self.from_mesh  = False
+        if gvert0.is_fromMesh() and gvert3.is_fromMesh():
+            self.check_fromMesh();
+    
+    def is_fromMesh(self): return self.from_mesh
+    
+    def check_fromMesh(self):
+        # can we walk from gvert0 to gvert3?
+        
+        def quad_oppositeEdges(q):
+            yield (q.edges[0],q.edges[2])
+            yield (q.edges[1],q.edges[3])
+            yield (q.edges[2],q.edges[0])
+            yield (q.edges[3],q.edges[1])
+        def edge_direction(q,e):
+            em = (e.verts[0].co + e.verts[1].co) / 2.0
+            qm = q.calc_center_median()
+            d  = em - qm        # quad center to edge center
+            ed = e.verts[1].co - e.verts[0].co
+            if d.cross(ed).dot(q.normal) < 0: return -1
+            return 1
+        
+        # build walking data struct
+        bm = bmesh.new()
+        bm.from_mesh(bpy.data.meshes[self.targ_o_name])
+        bm.faces.ensure_lookup_table()
+        q0,q1 = bm.faces[self.gvert0.from_mesh_ind],bm.faces[self.gvert3.from_mesh_ind]
+        
+        bseq = None     # the "best" sequence of edges
+        for e0,e1 in quad_oppositeEdges(q0):
+            #         | quad | quad | quad | ... | quad |
+            #         ^  ^^  ^                      q1
+            # search: e0 q0 e1 ->
+            # if we find a path from q0 to q1, then bseq will look like
+            #               q0 |   q  |   q  |  ...    q1 |
+            #     bseq = [ (q0,e) (q, e) (q, e) ...   (q1,e) ]
+            lseq = [(q0,e1)]
+            while True:
+                # | q0 | ... | quad | quad | ... | q1 |
+                #               ^^  ^  ^^  ^
+                #               qp e0  qn  e1
+                qp,e0 = lseq[-1]
+                if qp == q1:
+                    # (e0 is far side of q1)
+                    dprint('found q1!')
+                    break
+                if e0.is_boundary:
+                    dprint('hit boundary; no more polygons to search')
+                    break
+                # test that e0 has only two link_faces?
+                qn = [qo for qo in e0.link_faces if qo != qp][0]
+                if qn == q0:
+                    dprint('wrapped back around')
+                    break
+                if len(qn.edges) != 4:
+                    dprint('hit non-quad polygon')
+                    break
+                # find opposite edge
+                e1 = None
+                for _e0,_e1 in quad_oppositeEdges(qn):
+                    if e0 == _e0: e1 = _e1
+                assert e1, 'could not find opposite edge' # something unexpected happened
+                lseq += [(qn,e1)]
+            
+            if lseq[-1][0] == q1:
+                # we reached q1 by walking the loop!
+                if bseq == None or len(lseq) < len(bseq):
+                    bseq = lseq
+        
+        if bseq == None:
+            dprint('gedge not from mesh')
+            # not from mesh!
+            return
+        
+        def vinds(q,e):
+            li = [v.index for v in e.verts]
+            if edge_direction(q,e) < 0: li.reverse()
+            return li
+        
+        self.from_mesh   = True
+        self.force_count = True
+        self.frozen      = True
+        self.n_quads     = len(bseq)                    # including q0 and q1
+        self.from_edges  = [vinds(q,e) for q,e in bseq]
+        self.from_build  = True
+        
+        dprint('gedge from mesh, len = %d' % (len(bseq)))
+    
     def get_count(self):
         l = len(self.cache_igverts)
         if l > 4:
@@ -601,7 +685,13 @@ class GEdge:
     
     def set_count(self, c):
         c = min(c,50)
+        
+        if self.frozen:
+            # cannot modify count of frozen gedges
+            return
+        
         if self.force_count and self.n_quads == c:
+            # no work to be done
             return
         
         if self.changing_count:
@@ -620,10 +710,12 @@ class GEdge:
         
         
     def unset_count(self):
+        if self.frozen:
+            return
         if self.fill_to0 or self.fill_to1:
             print('Cannot unset force count when filling')
             return
-        self.force_count = None
+        self.force_count = False
         self.n_quads = None
         self.update()
     
@@ -641,6 +733,7 @@ class GEdge:
         self.frozen = False
         for gp in self.gpatches:
             gp.thaw()
+        self.update()
     def is_frozen(self): return self.frozen
     
     def zip_to(self, gedge):
@@ -714,11 +807,6 @@ class GEdge:
         self.gvert1.disconnect_gedge(self)
         self.gvert2.disconnect_gedge(self)
         self.gvert3.disconnect_gedge(self)
-    
-    def update_visibility(self, rv3d):
-        lp = [gv.snap_pos for gv in self.cache_igverts]
-        lv = common_utilities.ray_cast_visible_bvh(lp, mesh_cache['bvh'],self.mx, rv3d)
-        for gv,v in zip(self.cache_igverts,lv): gv.visible = v
     
     def gverts(self):
         return [self.gvert0,self.gvert1,self.gvert2,self.gvert3]
@@ -978,7 +1066,7 @@ class GEdge:
             
             # compute interval lengths and ts
             l_widths = [0] + [r0 + s*i - d_os for i in range(c)]
-            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure lenght distribution
+            l_ts = [closest_t_of_s(s_t_map, dist) for w,dist in iter_running_sum(l_widths)]  #pure length distribution
         
         else:
             # find "optimal" count for subdividing spline based on radii of two endpoints
@@ -1063,8 +1151,23 @@ class GEdge:
                     igv.snap_pos = igv.position
                     igv.snap_radius = igv.radius
                     igv.snap_tany = igv.tangent_y
-                
-                
+        
+        elif self.from_mesh:
+            if self.from_build:
+                m = bpy.data.meshes[self.targ_o_name]
+                self.update_nozip(debug=debug)
+                for i,igv in enumerate(self.cache_igverts):
+                    if i % 2 == 0: continue
+                    liv = self.from_edges[int((i-1)/2)]
+                    p0,p1 = m.vertices[liv[0]].co,m.vertices[liv[1]].co
+                    igv.position = (p0+p1) / 2.0
+                    igv.radius = (p0-p1).length / 2.0
+                    igv.tangent_y = (p1-p0).normalized()
+                    igv.snap_pos = igv.position
+                    igv.snap_radius = igv.radius
+                    igv.snap_tany = igv.tangent_y
+                self.from_build = False
+        
         for zgedge in self.zip_attached:
             zgedge.update(debug=debug)
 
@@ -1075,14 +1178,39 @@ class GEdge:
         '''
         snaps already computed igverts to surface of object ob
         '''
+        
+        thinSurface_maxDist = 0.05
+        thinSurface_offset = 0.005
+        thinSurface_opposite = -0.4
+        
         bvh = mesh_cache['bvh']
         mx = self.mx
         mxnorm = mx.transposed().inverted().to_3x3()
         mx3x3 = mx.to_3x3()
         imx = mx.inverted()
         
+        
+        dprint('\nsnapping igverts')
         for igv in self.cache_igverts:
-            l,n,i,d = bvh.find(imx * igv.position)
+            if igv.is_inner(): continue
+            l,n,_,_ = bvh.find(imx * igv.position)
+            
+            # assume that if the snapped norm is pointing opposite to the norms
+            # of outer control points of gedge then we've likely snapped to the
+            # wrong side of a thin surface.
+            d0,d3 = n.dot(self.gvert0.snap_norm),n.dot(self.gvert3.snap_norm)
+            dprint('n.dot(gv0.n) = %f, n.dot(gv3.n) = %f' % (d0, d3))
+            if d0 < thinSurface_opposite or d3 < thinSurface_opposite:
+                dprint('possible thin surface detected. casting ray backwards')
+                hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
+                if hit:
+                    lr,nr,_,dr = hit
+                    d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
+                    dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
+                    if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
+                        # seems reasonable enough
+                        l,n = lr,nr
+            
             igv.position = mx * l
             
             if Polystrips.settings.symmetry_plane == 'x':
@@ -1112,13 +1240,12 @@ class GEdge:
                 return True
         return False
     
-    def iter_segments(self, only_visible=False):
+    def iter_segments(self):
         l = len(self.cache_igverts)
         if l == 0:
             cur0,cur1 = self.gvert0.get_corners_of(self)
             cur2,cur3 = self.gvert3.get_corners_of(self)
-            if not only_visible or (self.gvert0.is_visible() and self.gvert3.is_visible()):
-                yield (cur0,cur1,cur2,cur3)
+            yield (cur0,cur1,cur2,cur3)
             return
         
         prev0,prev1 = None,None
@@ -1136,8 +1263,7 @@ class GEdge:
                 cur1 = gvert.position-gvert.tangent_y*gvert.radius
             
             if prev0 and prev1:
-                if not only_visible or gvert.is_visible():
-                    yield (prev0,cur0,cur1,prev1)
+                yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
     
     def iter_igverts(self):
@@ -1189,18 +1315,33 @@ class GPatch:
             for ge in self.gedges: ge.set_count(count)
         
         elif self.nsides == 4:
-            count02 = min(self.gedges[0].get_count(), self.gedges[2].get_count())
-            count13 = min(self.gedges[1].get_count(), self.gedges[3].get_count())
+            if self.gedges[0].is_frozen():
+                count02 = self.gedges[0].get_count()
+            elif self.gedges[2].is_frozen():
+                count02 = self.gedges[2].get_count()
+            else:
+                count02 = min(self.gedges[0].get_count(), self.gedges[2].get_count())
+            if self.gedges[1].is_frozen():
+                count13 = self.gedges[1].get_count()
+            elif self.gedges[3].is_frozen():
+                count13 = self.gedges[3].get_count()
+            else:
+                count13 = min(self.gedges[1].get_count(), self.gedges[3].get_count())
             self.gedges[0].set_count(count02)
-            self.gedges[2].set_count(count02)
             self.gedges[1].set_count(count13)
+            self.gedges[2].set_count(count02)
             self.gedges[3].set_count(count13)
         
         elif self.nsides == 5:
             count0 = self.gedges[0].get_count()-2
             if count0%2==1: count0 += 1
             count0  = max(count0,2)
-            count14 = min(self.gedges[1].get_count(), self.gedges[4].get_count())
+            if self.gedges[1].is_frozen():
+                count14 = self.gedges[1].get_count()
+            elif self.gedges[4].is_frozen():
+                count14 = self.gedges[4].get_count()
+            else:
+                count14 = min(self.gedges[1].get_count(), self.gedges[4].get_count())
             self.gedges[0].set_count(count0+2)
             self.gedges[2].set_count(count0//2+2)
             self.gedges[3].set_count(count0//2+2)
@@ -1241,6 +1382,7 @@ class GPatch:
             ge.freeze()
     def thaw(self):
         self.frozen = False
+        self.update()
     def is_frozen(self): return self.frozen
     
     def disconnect(self):
@@ -1570,7 +1712,6 @@ class GPatch:
         
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments():
-        #for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
             d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
@@ -1578,11 +1719,9 @@ class GPatch:
                 return True
         return False
     
-    def iter_segments(self, only_visible=False):
+    def iter_segments(self):
         for i0,i1,i2,i3 in self.quads:
             pt0,pt1,pt2,pt3 = self.pts[i0],self.pts[i1],self.pts[i2],self.pts[i3]
-            if only_visible and not all(v for p,v,k in [pt0,pt1,pt2,pt3]):
-                continue
             yield (pt0[0],pt1[0],pt2[0],pt3[0])
     
     def normal(self):
@@ -1590,10 +1729,6 @@ class GPatch:
         for p0,p1,p2,p3 in self.iter_segments():
             n += (p3-p0).cross(p1-p0).normalized()
         return n.normalized()
-        
-    def update_visibility(self, r3d):
-        lv = common_utilities.ray_cast_visible([p for p,v,k in self.pts], bpy.data.objects[self.o_name], r3d)
-        self.pts = [(pt[0],v,pt[2]) for pt,v in zip(self.pts,lv)]
 
 
 
@@ -1687,14 +1822,6 @@ class Polystrips(object):
             if min_i==-1 or d < min_d:
                 min_i,min_ge,min_t,min_d = i,gedge,t,d
         return (min_i,min_ge, min_t, min_d)
-    
-    def update_visibility(self, r3d):
-        for gv in self.gverts:
-            gv.update_visibility(r3d)
-        for ge in self.gedges:
-            ge.update_visibility(r3d)
-        for gp in self.gpatches:
-            gp.update_visibility(r3d)
     
     def split_gedge_at_t(self, gedge, t, connect_gvert=None):
         if gedge.zip_to_gedge or gedge.zip_attached: return
@@ -2005,6 +2132,7 @@ class Polystrips(object):
                 
                 va1a0 = a1 - a0
                 da1a0 = va1a0.normalized()
+                if da1a0.y == 0: return None
                 
                 dist = a0.y / -da1a0.y
                 if dist < 0 or dist > la1a0: return None
@@ -2152,13 +2280,15 @@ class Polystrips(object):
             else:
                 gv3 = self.create_gvert(bpt3, radius=r3)
             
-            if (gv1.position-gv0.position).length == 0: dprint('gv01.der = 0')
-            if (gv2.position-gv3.position).length == 0: dprint('gv32.der = 0')
             if (gv0.position-gv3.position).length == 0:
                 dprint(spc+'gv03.der = 0')
                 dprint(spc+str(l_bpts))
                 dprint(spc+(str(sgv0.position) if sgv0 else 'None'))
                 dprint(spc+(str(sgv3.position) if sgv3 else 'None'))
+            elif (gv1.position-gv0.position).length == 0:
+                dprint('gv01.der = 0')
+            elif (gv2.position-gv3.position).length == 0:
+                dprint('gv32.der = 0')
             else:
                 self.create_gedge(gv0,gv1,gv2,gv3)
             pregv = gv3
@@ -2229,7 +2359,9 @@ class Polystrips(object):
         
         def create_Gvert(gv):
             i_gv = gv_idx[gv]
-            if (i_gv,0) in igv_corner_vind: return
+            if (i_gv,0) in igv_corner_vind:
+                # already created this gvert, so return
+                return
             
             
             liv = [insert_vert(p) if i == -1 else i for i,p in zip(gv.get_corner_inds(),gv.get_corners())] #List of Indices(bmesh) for Vertices acronym = liv
@@ -2263,7 +2395,11 @@ class Polystrips(object):
             igv_corner_vind[(i_gv,3)] = liv[3]
             
             if -1 in gv.get_corner_inds():
+                # at least one corner (vertex) of gvert has not been created
                 create_quad(liv[3],liv[2],liv[1],liv[0])
+            else:
+                # this gvert existed before
+                pass
         
         
         #copy all existing mesh data into our format
@@ -2312,6 +2448,18 @@ class Polystrips(object):
                     if l == 0:
                         # no segments
                         create_quad(c0,c1,c2,c3)
+                    elif ge.is_fromMesh():
+                        #ige_side_lvind[(i_ge, 1)] += [c0]
+                        #ige_side_lvind[(i_ge,-1)] += [c1]
+                        l = len(ge.from_edges)
+                        for i,ivs in enumerate(ge.from_edges):
+                            if i == 0: continue
+                            if i == l-2: continue
+                            if i == l-1: continue
+                            ige_side_lvind[(i_ge,-1)] += [ivs[0]]
+                            ige_side_lvind[(i_ge, 1)] += [ivs[1]]
+                        #ige_side_lvind[(i_ge,-1)] += [c2]
+                        #ige_side_lvind[(i_ge, 1)] += [c3]
                     else:
                         cc0,cc1 = c0,c1
                         for i,gvert in enumerate(ge.cache_igverts):

@@ -27,7 +27,8 @@ from mathutils import Vector, Matrix
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.classes.profiler import profiler
 from ..cache import mesh_cache
 
 class Polystrips_UI_ModalWait():
@@ -90,7 +91,7 @@ class Polystrips_UI_ModalWait():
             for stroke in self.strokes_original:
                 self.polystrips.insert_gedge_from_stroke(stroke, True)
             self.polystrips.remove_unconnected_gverts()
-            self.polystrips.update_visibility(eventd['r3d'])
+            #self.polystrips.update_visibility(eventd['r3d'])
             return ''
         
         if eventd['press'] in self.keymap['tweak move'] or eventd['press'] in self.keymap['tweak relax']:
@@ -155,16 +156,28 @@ class Polystrips_UI_ModalWait():
                 self.polystrips.disconnect_gpatch(self.act_gpatch)
                 self.act_gpatch = None
                 return ''
+            
             if eventd['press'] in self.keymap['rotate pole']:
                 reverse = eventd['press']=='SHIFT+R'
                 self.act_gpatch.rotate_pole(reverse=reverse)
-                self.polystrips.update_visibility(eventd['r3d'])
+                #self.polystrips.update_visibility(eventd['r3d'])
+                return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gpatch.thaw()
                 return ''
 
         ###################################
         # Selected gedge commands
      
         if self.act_gedge:
+            if eventd['press'] in {'ONE','TWO','THREE','FOUR'}:
+                d = {'ONE':0, 'TWO':1, 'THREE':2, 'FOUR':3}
+                self.act_gvert = self.act_gedge.gverts()[d[eventd['press']]]
+                self.act_gedge = None
+                self.sel_gedges.clear()
+                return ''
+            
             if eventd['press'] in self.keymap['delete']:
                 self.create_undo_snapshot('delete')
                 self.polystrips.disconnect_gedge(self.act_gedge)
@@ -196,7 +209,7 @@ class Polystrips_UI_ModalWait():
             if eventd['press'] in self.keymap['up count']:
                 self.create_undo_snapshot('count')
                 self.act_gedge.set_count(self.act_gedge.n_quads + 1)
-                self.polystrips.update_visibility(eventd['r3d'])
+                #self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
             if eventd['press'] in self.keymap['dn count']:
@@ -204,7 +217,7 @@ class Polystrips_UI_ModalWait():
                 if self.act_gedge.n_quads > 3:
                     self.create_undo_snapshot('count')
                     self.act_gedge.set_count(self.act_gedge.n_quads - 1)
-                    self.polystrips.update_visibility(eventd['r3d'])
+                    #self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
             if eventd['press'] in self.keymap['zip'] and not self.act_gedge.is_gpatched():
@@ -257,6 +270,10 @@ class Polystrips_UI_ModalWait():
                 self.create_undo_snapshot('simplefill')
                 self.fill(eventd)
                 return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gedge.thaw()
+                return ''
 
         ###################################
         # selected gvert commands
@@ -300,7 +317,7 @@ class Polystrips_UI_ModalWait():
                 self.polystrips.dissolve_gvert(self.act_gvert)
                 self.act_gvert = None
                 self.polystrips.remove_unconnected_gverts()
-                self.polystrips.update_visibility(eventd['r3d'])
+                # self.polystrips.update_visibility(eventd['r3d'])
                 return ''
 
             if eventd['press'] in self.keymap['scale'] and not self.act_gvert.is_unconnected():
@@ -319,7 +336,7 @@ class Polystrips_UI_ModalWait():
                     return ''
                 self.create_undo_snapshot('toggle')
                 self.act_gvert.toggle_corner()
-                self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+                # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
             if eventd['press'] in self.keymap['scale handles'] and not self.act_gvert.is_unconnected():
@@ -330,7 +347,7 @@ class Polystrips_UI_ModalWait():
             if eventd['press'] in self.keymap['smooth']:
                 self.create_undo_snapshot('smooth')
                 self.act_gvert.smooth()
-                self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
+                # self.act_gvert.update_visibility(eventd['r3d'], update_gedges=True)
                 return ''
 
             if eventd['press'] in self.keymap['rotate']:
@@ -340,6 +357,10 @@ class Polystrips_UI_ModalWait():
 
             if eventd['press'] in self.keymap['update']:
                 self.act_gvert.update_gedges()
+                return ''
+            
+            if eventd['press'] in self.keymap['untweak']:
+                self.act_gvert.thaw()
                 return ''
 
             if eventd['press'] in self.keymap['rip']:

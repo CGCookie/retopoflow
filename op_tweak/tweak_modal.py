@@ -27,8 +27,9 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_utilities import showErrorMessage
+from ..lib.classes.profiler import profiler
 from .tweak_ui import Tweak_UI
 from .tweak_ui_tools import Tweak_UI_Tools
 
