@@ -125,7 +125,28 @@ class Polystrips_UI_Draw():
         else:
             n_quads = 3
         self.draw_gedge_text(gedge, context, str(n_quads))
-
+    
+    
+    def draw_gpatch_info(self, gpatch, context):
+        cp,cnt = Vector(),0
+        for p,_,_ in gpatch.pts:
+            cp += p
+            cnt += 1
+        cp /= max(1,cnt)
+        for ges in gpatch.gedgeseries:
+            l = ges.n_quads
+            p,c = Vector(),0
+            for gvert in ges.cache_igverts:
+                p += gvert.snap_pos
+                c += 1
+            p /= c
+            txt = str(l)
+            p2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, cp*0.2+p*0.8)
+            txt_width, txt_height = blf.dimensions(0, txt)
+            blf.position(0, p2d[0]-(txt_width/2), p2d[1]-(txt_height/2), 0)
+            blf.draw(0, txt)
+            
+    
     def draw_3d(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
@@ -355,7 +376,6 @@ class Polystrips_UI_Draw():
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
                 draw3d_points(context, p3d, color_handle, 8)
-            
             else:
                 p3d = [gv.position for gv in ge.gverts()]
                 draw3d_points(context, p3d, color_handle, 8)
@@ -365,10 +385,7 @@ class Polystrips_UI_Draw():
                     # draw each normal of each gvert
                     for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
                         draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH")
-
-            if settings.show_segment_count:
-                self.draw_gedge_info(self.act_gedge, context)
-                
+        
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
@@ -460,6 +477,11 @@ class Polystrips_UI_Draw():
             if settings.show_segment_count:
                 bgl.glColor4f(*color_active)
                 self.draw_gedge_info(self.act_gedge, context)
+        
+        if self.act_gpatch:
+            if settings.show_segment_count:
+                bgl.glColor4f(*color_active)
+                self.draw_gpatch_info(self.act_gpatch, context)
         
         if True:
             txt = 'v:%d e:%d s:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gedgeseries), len(self.polystrips.gpatches))

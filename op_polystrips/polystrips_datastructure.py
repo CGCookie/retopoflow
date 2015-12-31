@@ -1419,6 +1419,7 @@ class GEdgeSeries:
             if i == 1:
                 gv0 = self.gvert0
                 cur0,cur1 = gv0.get_corners_of(self.gedges[0])
+                if rev: cur1,cur0 = cur0,cur1
             elif i == l-2:
                 gv3 = self.gvert3
                 cur1,cur0 = gv3.get_corners_of(self.gedges[-1])
