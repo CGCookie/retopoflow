@@ -39,6 +39,7 @@ from ..lib import common_utilities
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
+from ..lib.common_drawing_view import draw3d_arrow
 
 from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
@@ -311,6 +312,14 @@ class Polystrips_UI_Draw():
                 p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
+        
+        for gp in self.polystrips.gpatches:
+            for rev,gedgeseries in zip(gp.rev, gp.gedgeseries):
+                for revge,ge in zip(gedgeseries.rev, gedgeseries.gedges):
+                    color = (0.25,0.5,0.25,0.9) if not revge else (0.5,0.25,0.25,0.9)
+                    draw3d_arrow(context, ge.gvert0.snap_pos, ge.gvert3.snap_pos, ge.gvert0.snap_norm, color, 2, '')
+                color = (0.5,1.0,0.5,0.5) if not rev else (1,0.5,0.5,0.5)
+                draw3d_arrow(context, gedgeseries.gvert0.snap_pos, gedgeseries.gvert3.snap_pos, gedgeseries.gvert0.snap_norm, color, 2, '')
 
         ### Verts ###
         for gv in self.polystrips.gverts:

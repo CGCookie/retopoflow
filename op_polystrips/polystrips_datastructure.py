@@ -2725,27 +2725,31 @@ class Polystrips(object):
         
         dge_i = {ge:i_ge for i_ge,ge in enumerate(self.gedges)}
         
-        map_ipt_vert = {}
         for gp in self.gpatches:
-            for i_pt,pt in enumerate(gp.pts):
-                p,_,k = pt
-                
+            map_ipt_vert = []
+            
+            for p,_,k in gp.pts:
                 if not k:
-                    map_ipt_vert[i_pt] = insert_vert(p)
+                    map_ipt_vert += [insert_vert(p)]
                     continue
                 
                 i_ges,i_v = k
                 ge,i_v,rev2 = gp.get_gedge_from_gedgeseries(i_ges, i_v)
                 i_ge = dge_i[ge]
                 rev = gp.rev[i_ges]
-                if rev2: rev = not rev
-                lverts = ige_side_lvind[(i_ge, -1 if not rev else 1)]
+                rev3 = rev if not rev2 else not rev
+                lverts = ige_side_lvind[(i_ge, -1 if not rev3 else 1)]
                 idx = (i_v+1) if not rev else (len(lverts)-i_v-2)
-                print('len:%d i_v:%d 0:%d 1:%d c:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, 0 if not rev else 1))
-                map_ipt_vert[i_pt] = lverts[idx]
+                print('len:%d i_v:%d 0:%d 1:%d idx:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, idx))
+                if idx < len(lverts):
+                    map_ipt_vert += [lverts[idx]]
+                else:
+                    map_ipt_vert += [-1]
             
-            for i0,i1,i2,i3 in gp.quads:
-                create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
+            for li in gp.quads:
+                lip = [map_ipt_vert[i] for i in li]
+                if any(ip==-1 for ip in lip): continue
+                create_quad(*lip)
             
         # remove unused verts and remap quads  <----#likely area of issue #116
         #if a vert is not part of a quad in the existing mesh, it gets removed
@@ -2852,6 +2856,12 @@ class Polystrips(object):
                     # ready to start next gedgeseries
                     lgedgeseries += [gedgeseries]
                     if ge1 == ge0_:
+                        if len(sgedges) != 1:
+                            print('not all selected set')
+                            return None
+                        if ge1 not in sgedges:
+                            print('ending not expected')
+                            return None
                         return lgedgeseries
                     gedgeseries = [ge1]
                 else:

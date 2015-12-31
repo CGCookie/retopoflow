@@ -262,11 +262,16 @@ class ModalOperator(Operator):
                     self.end_commit(context)
                 except Exception as e:
                     print_exception()
+                    nmode = ''
+                    return {'RUNNING_MODAL'}
             else:
                 try:
                     self.end_cancel(context)
                 except Exception as e:
                     print_exception()
+                    nmode = ''
+                    return {'RUNNING_MODAL'}
+            
             try:
                 self.modal_end(context)
             except Exception as e:
