@@ -35,17 +35,17 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 from ..lib import common_utilities
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator,frange
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, closest_t_and_distance_point_to_line_segment
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items, point_inside_loop2d
-
+from ..lib.classes.profiler.profiler import profiler
 from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
 from ..pat_patch import Patch
 from ..patch_geometry import *
-
+from ..lib.common_mesh import join_mesh, find_perimeter_verts
 
 class EPVert:
     def __init__(self, position):

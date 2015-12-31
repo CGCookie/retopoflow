@@ -80,3 +80,115 @@ def edge_loops_from_bmedges(bmesh, bm_edges):
 
     return line_polys
 
+def find_edge_loops(bme, sel_vert_corners, select = False):
+    '''takes N verts which define the corners of a
+    polygon patch and returns the edges ordered in
+    one direction around the loop.  Eds must be non
+    manifold
+    '''
+    
+    bme.edges.ensure_lookup_table()
+    bme.verts.ensure_lookup_table()
+       
+    def next_edge(cur_ed, cur_vert):
+        ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
+        next_edge = [ed for ed in ledges if not ed.is_manifold][0]
+        return next_edge
+    
+    def next_vert(cur_ed, cur_vert):
+        next_vert = cur_ed.other_vert(cur_vert)
+        return next_vert
+    
+    vert_chains_co = []
+    vert_chains_ind = []
+    
+    corner_inds = [v.index for v in sel_vert_corners]
+    max_iters = 1000
+     
+    v_cur = bme.verts[corner_inds[0]]
+    ed_cur = [ed for ed in v_cur.link_edges if not ed.is_manifold][0]
+    iters = 0
+    while len(corner_inds) and iters < max_iters:
+        v_chain = [v_cur.co]
+        v_chain_ind = [v_cur.index]
+        print('starting at current v index: %i' % v_cur.index)
+        marching = True
+        while marching:
+            iters += 1
+            ed_next = next_edge(ed_cur, v_cur) 
+            v_next = next_vert(ed_next, v_cur)
+            
+            v_chain += [v_next.co]
+            ed_cur = ed_next
+            v_cur = v_next
+            if v_next.index in corner_inds:
+                print('Stopping: found a corner %i' % v_next.index)
+                corner_inds.pop(corner_inds.index(v_next.index))
+                vert_chains_co.append(v_chain)
+                vert_chains_ind.append(v_chain_ind)
+                marching = False
+    
+    return vert_chains_co, vert_chains_ind
+
+def make_bme(verts, faces):
+    bme = bmesh.new()
+    bmverts = [bme.verts.new(v) for v in verts]  #TODO, matrix stuff
+    bme.verts.index_update()
+        
+    bmfaces = [bme.faces.new(tuple(bmverts[iv] for iv in face)) for face in faces]
+    bme.faces.index_update()
+    bme.verts.ensure_lookup_table()
+    bme.faces.ensure_lookup_table()
+    return bme
+
+def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = None):
+    '''
+    
+    '''
+    L = len(target.verts)
+    
+    
+    
+    #TDOD  matrix math stuff
+    new_bmverts = [target.verts.new(v.co) for v in source.verts]# if v.index not in src_trg_map]
+    
+    
+    def src_to_trg_ind(v):
+        if v.index in src_trg_map:
+            new_ind = src_trg_map[v.index]
+        else:
+            new_ind = v.index + L  #TODO, this takes the actual versts from sources, these verts are in target
+            
+        return new_ind
+    
+    #new_bmfaces = [target.faces.new(tuple(new_bmverts[v.index] for v in face.verts)) for face in source.faces]
+    target.verts.index_update()  #does this still work?
+    target.verts.ensure_lookup_table()
+    #print('new faces')
+    #for f in source.faces:
+        #print(tuple(src_to_trg_ind(v) for v in f.verts))
+    new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
+    target.faces.ensure_lookup_table()
+
+def find_perimeter_verts(bme):
+    '''
+    returns a list of vert indices, in order
+    around the perimeter of a mesh
+    '''
+    bme.edges.index_update()
+    bme.edges.ensure_lookup_table()
+    bme.verts.ensure_lookup_table()
+    
+    non_man_eds = [ed.index for ed in bme.edges if not ed.is_manifold]
+    ed_loops = edge_loops_from_bmedges(bme, non_man_eds)
+    
+    
+    if len(ed_loops) == 0:
+        print('no perimeter, watertight surface')
+        return []
+    
+    else:
+        perim = ed_loops[0]
+        perim.pop()
+        n = perim.index(min(perim))
+        return perim[n:] + perim[:n]

@@ -182,56 +182,6 @@ def identify_patch_pattern(edges_reduced, check_pattern = -1):
     print('%i sided patch with pattern #%i' % (n_sides, pattern))
     return pattern, nl0, direction
 
-def find_edge_loops(bme, sel_vert_corners, select = False):
-    '''takes N verts which define the corners of a
-    polygon patch and returns the edges ordered in
-    one direction around the loop.  Eds must be non
-    manifold
-    '''
-    
-    bme.edges.ensure_lookup_table()
-    bme.verts.ensure_lookup_table()
-       
-    def next_edge(cur_ed, cur_vert):
-        ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
-        next_edge = [ed for ed in ledges if not ed.is_manifold][0]
-        return next_edge
-    
-    def next_vert(cur_ed, cur_vert):
-        next_vert = cur_ed.other_vert(cur_vert)
-        return next_vert
-    
-    vert_chains_co = []
-    vert_chains_ind = []
-    
-    corner_inds = [v.index for v in sel_vert_corners]
-    max_iters = 1000
-     
-    v_cur = bme.verts[corner_inds[0]]
-    ed_cur = [ed for ed in v_cur.link_edges if not ed.is_manifold][0]
-    iters = 0
-    while len(corner_inds) and iters < max_iters:
-        v_chain = [v_cur.co]
-        v_chain_ind = [v_cur.index]
-        print('starting at current v index: %i' % v_cur.index)
-        marching = True
-        while marching:
-            iters += 1
-            ed_next = next_edge(ed_cur, v_cur) 
-            v_next = next_vert(ed_next, v_cur)
-            
-            v_chain += [v_next.co]
-            ed_cur = ed_next
-            v_cur = v_next
-            if v_next.index in corner_inds:
-                print('Stopping: found a corner %i' % v_next.index)
-                corner_inds.pop(corner_inds.index(v_next.index))
-                vert_chains_co.append(v_chain)
-                vert_chains_ind.append(v_chain_ind)
-                marching = False
-    
-    return vert_chains_co, vert_chains_ind
-
 def permute_subdivs(L, reverse = True):
     '''
     returns a list of permutations that preserves the original
@@ -1272,6 +1222,7 @@ class PatchAdjuster5():
         print('Status: ' + LpStatus[self.prob.status])
         for v in self.prob.variables():
             print(v.name + ' = ' + str(v.varValue))
+
 class PatchSolver4():
     def __init__(self, L, pattern):
         '''

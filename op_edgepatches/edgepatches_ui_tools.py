@@ -29,7 +29,8 @@ import math
 import time
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.classes.profiler.profiler import profiler
 from ..cache import mesh_cache
 
 class EdgePatches_UI_Tools:

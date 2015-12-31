@@ -29,8 +29,8 @@ import time
 from random import randint
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
-
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.classes.profiler.profiler import profiler
 
 class EdgePatches_UI_ModalWait():
     def modal_wait(self, context, eventd):

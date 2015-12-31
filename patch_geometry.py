@@ -6,46 +6,10 @@ Created on Jul 18, 2015
 from itertools import chain
 from mathutils import Vector
 from mathutils.geometry import  intersect_line_line
-from .pat_patch import identify_patch_pattern, find_edge_loops
+from .pat_patch import identify_patch_pattern
 
 import bmesh
-from .op_contours.contour_utilities import edge_loops_from_bmedges
-
-def make_bme(verts, faces):
-    bme = bmesh.new()
-    bmverts = [bme.verts.new(v) for v in verts]  #TODO, matrix stuff
-    bme.verts.index_update()
-        
-    bmfaces = [bme.faces.new(tuple(bmverts[iv] for iv in face)) for face in faces]
-    bme.faces.index_update()
-    bme.verts.ensure_lookup_table()
-    bme.faces.ensure_lookup_table()
-    return bme 
-    
-   
-def find_perimeter_verts(bme):
-    '''
-    returns a list of vert indices, in order
-    around the perimeter of a mesh
-    '''
-    bme.edges.index_update()
-    bme.edges.ensure_lookup_table()
-    bme.verts.ensure_lookup_table()
-    
-    non_man_eds = [ed.index for ed in bme.edges if not ed.is_manifold]
-    ed_loops = edge_loops_from_bmedges(bme, non_man_eds)
-    
-    
-    if len(ed_loops) == 0:
-        print('no perimeter, watertight surface')
-        return []
-    
-    else:
-        perim = ed_loops[0]
-        perim.pop()
-        n = perim.index(min(perim))
-        return perim[n:] + perim[:n]
-    
+from .lib.common_mesh import edge_loops_from_bmedges, find_edge_loops, make_bme, find_perimeter_verts, join_bmesh
 
 def find_coord(bme, v_search, vert_list = []):
     '''
@@ -132,35 +96,7 @@ def relax_bmesh(bme, exclude, iterations = 1, spring_power = .1, quad_power = .1
         for i in deltas:
             bme.verts[i].co += deltas[i]
     
-def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = None):
-    '''
-    
-    '''
-    L = len(target.verts)
-    
-    
-    
-    #TDOD  matrix math stuff
-    new_bmverts = [target.verts.new(v.co) for v in source.verts]# if v.index not in src_trg_map]
-    
-    
-    def src_to_trg_ind(v):
-        if v.index in src_trg_map:
-            new_ind = src_trg_map[v.index]
-        else:
-            new_ind = v.index + L  #TODO, this takes the actual versts from sources, these verts are in target
-            
-        return new_ind
-    
-    #new_bmfaces = [target.faces.new(tuple(new_bmverts[v.index] for v in face.verts)) for face in source.faces]
-    target.verts.index_update()  #does this still work?
-    target.verts.ensure_lookup_table()
-    #print('new faces')
-    #for f in source.faces:
-        #print(tuple(src_to_trg_ind(v) for v in f.verts))
-    new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
-    target.faces.ensure_lookup_table()
-           
+
 def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
     '''
     simple grid interpolation of 4 points, not necessarily planar points
@@ -1047,7 +983,6 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
     geom_dict['faces'] = faces  
     return geom_dict
 
-
 def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     '''
     list of patch boundaries in ordered vert chains representing the boundaries
@@ -1429,7 +1364,6 @@ def tri_prim_0(vs):
     
     return geom_dict
     
-
 def tri_prim_1(vs, q1, q2, x):
     '''
     because LpProblem outputs variables in alphabetical
@@ -1507,7 +1441,6 @@ def tri_prim_1(vs, q1, q2, x):
     
     #return geom_dict['verts'], geom_dict['faces'], geom_dict
     return geom_dict
-
 
 def quad_prim_0(vs):#, x, y):  #TODO TODO, make it fit with other solns format
     '''

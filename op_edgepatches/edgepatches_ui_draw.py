@@ -37,8 +37,8 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler, AddonLocator, zip_pairs
-
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, zip_pairs
+from ..lib.classes.profiler.profiler import profiler
 from ..preferences import RetopoFlowPreferences
 
 
