@@ -385,7 +385,6 @@ class Polystrips_UI:
         mx,my = eventd['mouse'] 
         self.help_box.hover(mx, my)
         
-        if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
         rgn   = eventd['context'].region
         r3d   = eventd['context'].space_data.region_3d
