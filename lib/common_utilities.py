@@ -58,25 +58,21 @@ def selection_mouse():
 def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
-        frame = inspect.currentframe()
-
-        while frame:
-            folderpath = os.path.dirname(frame.f_code.co_filename)
-            foldername = os.path.basename(folderpath)
-            frame = frame.f_back
+        #frame = inspect.currentframe()
+        #frame.f_code.co_filename
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
             if foldername in {'lib','addons'}: continue
-            
-            if foldername in addons:
-                get_settings.cached_settings = addons[foldername].preferences
-                break
-            else:
-                assert False, 'could not find non-"lib" folder'
-                
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find non-"lib" folder'
+        
+        get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
 get_settings.cached_settings = None
 
-<<<<<<< Updated upstream
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
     factor = getattr(system_preferences, "pixel_size", 1)
@@ -84,8 +80,6 @@ def get_dpi():
 
 def get_dpi_factor():
     return get_dpi() / 72
-
-=======
 
 # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
 def print_exception():
@@ -130,7 +124,7 @@ def print_exception2():
     print(repr(traceback.format_tb(exc_traceback)))
     print("*** tb_lineno:", exc_traceback.tb_lineno)
     
->>>>>>> Stashed changes
+
 @persistent
 def check_source_target_objects(scene):
     settings = get_settings()

@@ -128,12 +128,18 @@ class ModalOperator(Operator):
 
     def draw_callback_postview(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postview(context)
+        try:
+            self.draw_postview(context)
+        except:
+            print_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpixel(context)
+        try:
+            self.draw_postpixel(context)
+        except:
+            print_exception()
         if self.settings.show_help:
             self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
@@ -167,7 +173,11 @@ class ModalOperator(Operator):
         '''
 
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
-        nmode = self.FSM['nav'](context, eventd)
+        try:
+            nmode = self.FSM['nav'](context, eventd)
+        except:
+            print_exception()
+            return ''
         if nmode:
             return nmode
 
@@ -224,13 +234,19 @@ class ModalOperator(Operator):
         self.footer = ''
         self.footer_last = ''
         
-        self.start(context)
+        try:
+            self.start(context)
+        except:
+            print_exception()
 
     def modal_end(self, context):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
-        self.end(context)
+        try:
+            self.end(context)
+        except:
+            print_exception()
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
         context.area.header_text_set()
@@ -249,10 +265,8 @@ class ModalOperator(Operator):
         self.cur_pos  = eventd['mouse']
         try:
             nmode = self.FSM[self.fsm_mode](context, eventd)
-        except Exception as e:
+        except:
             print_exception()
-            #e = sys.exc_info()[0]
-            #print("Unexpected error caught ({0}): {1}".format(type(e), str(e)))
             nmode = ''
         self.mode_pos = eventd['mouse']
 
@@ -264,10 +278,23 @@ class ModalOperator(Operator):
 
         if nmode in {'finish','cancel'}:
             if nmode == 'finish':
-                self.end_commit(context)
+                try:
+                    self.end_commit(context)
+                except:
+                    print_exception()
+                    return {'RUNNING_MODAL'}
             else:
-                self.end_cancel(context)
-            self.modal_end(context)
+                try:
+                    self.end_cancel(context)
+                except:
+                    print_exception()
+                    return {'RUNNING_MODAL'}
+            
+            try:
+                self.modal_end(context)
+            except:
+                print_exception()
+            
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.fsm_mode = nmode
