@@ -131,7 +131,7 @@ class Polystrips_UI:
             
             else:
                 clear_mesh_cache()
-                polystrips_undo_cahce = []
+                polystrips_undo_cache = []
                 me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 me.update()
             
