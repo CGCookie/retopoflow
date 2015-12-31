@@ -93,7 +93,7 @@ def print_exception():
         filename,lineno,funcname,line = entry
         if filename != pfilename:
             pfilename = filename
-            errormsg += '          %s\n' % (filename)
+            errormsg += '         %s\n' % (filename)
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
         #errormsg += '%03d %s:%d\n' % (i, filename, lineno)
         #errormsg += '    %s\n' % (funcname)

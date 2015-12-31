@@ -535,6 +535,12 @@ class GVert:
         if self.gedge1 == gedge: return self.gedge0
         if self.gedge2 == gedge: return self.gedge1
         if self.gedge3 == gedge: return self.gedge2
+    def get_gedge_straight(self, gedge):
+        if self.gedge0 == gedge: return self.gedge2
+        if self.gedge1 == gedge: return self.gedge3
+        if self.gedge2 == gedge: return self.gedge0
+        if self.gedge3 == gedge: return self.gedge1
+    
 
 
 
@@ -1294,6 +1300,7 @@ class GEdgeSeries:
         self.n_quads = 0
         self.rev = []
         self.cache_igverts = []
+        self.cache_rev = []
         
         self.changing_count = False     # indicates if we are in process of changing count
         
@@ -1306,22 +1313,23 @@ class GEdgeSeries:
             ge0 = gedges[0]
             gv0 = None
             for ge1 in gedges[1:]:
-                gv1 = ge0.gvert0 if ge0.gvert0 in [ge1.gvert0, ge1.gvert3] else ge0.gvert3
-                gv2 = ge1.get_other_end(gv1)
+                # find following gvert (next intersection)
                 if not self.gvert0:
+                    # find gvert in intersection of ge0 and ge1
+                    gv1 = ge0.gvert0 if ge0.gvert0 in [ge1.gvert0, ge1.gvert3] else ge0.gvert3
+                    # haven't set up gvert0
                     self.gvert0 = ge0.get_other_end(gv1)
                     self.rev = [ge0.gvert0 == gv1]
                 self.rev += [ge1.gvert3 == gv1]
-                self.gvert3 = gv2
+                gv1 = ge1.get_other_end(gv1)
+                self.gvert3 = gv1
         
         for ge in gedges:
             ge.attach_gedgeseries(self)
     
     def update(self):
-        #for ge in self.gedges:
-        #    ge.update()
-        
         self.cache_igverts = []
+        self.cache_rev = []
         self.n_quads = 0
         for ge,rev in zip(self.gedges,self.rev):
             l = list(ge.cache_igverts)
@@ -1330,9 +1338,11 @@ class GEdgeSeries:
             if not self.cache_igverts:
                 self.cache_igverts = l
                 self.n_quads = ge.n_quads
+                self.cache_rev = [rev] * len(l)
             else:
                 self.cache_igverts += l[1:]
                 self.n_quads += ge.n_quads - 1
+                self.cache_rev += [rev] * (len(l)-1)
         
         if self.gpatch:
             self.gpatch.update()
@@ -1404,18 +1414,24 @@ class GEdgeSeries:
         for i,gvert in enumerate(self.cache_igverts):
             if i%2 == 0: continue
             
+            rev = self.cache_rev[i]
+            
             if i == 1:
                 gv0 = self.gvert0
                 cur0,cur1 = gv0.get_corners_of(self.gedges[0])
             elif i == l-2:
                 gv3 = self.gvert3
                 cur1,cur0 = gv3.get_corners_of(self.gedges[-1])
+                if rev: cur1,cur0 = cur0,cur1
             else:
                 cur0 = gvert.position+gvert.tangent_y*gvert.radius
                 cur1 = gvert.position-gvert.tangent_y*gvert.radius
             
             if prev0 and prev1:
-                yield (prev0,cur0,cur1,prev1)
+                if rev:
+                    yield (prev1,cur1,cur0,prev0)
+                else:
+                    yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
 
 
@@ -2705,9 +2721,13 @@ class Polystrips(object):
                 if not k:
                     map_ipt_vert[i_pt] = insert_vert(p)
                 else:
-                    i_ge,i_v = k
-                    lverts = ige_side_lvind[(li_ge[i_ge],1 if gp.rev[i_ge] else -1)]
-                    map_ipt_vert[i_pt] = lverts[(i_v+1) if not gp.rev[i_ge] else (len(lverts)-i_v-2)]
+                    i_ges,i_v = k
+                    ind = li_ge[i_ges]
+                    rev = gp.rev[i_ges]
+                    lverts = ige_side_lvind[(ind, -1 if not rev else 1)]
+                    idx = (i_v+1) if not rev else (len(lverts)-i_v-2)
+                    print('len:%d i_v:%d 0:%d 1:%d c:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, 0 if not rev else 1))
+                    map_ipt_vert[i_pt] = lverts[idx]
             
             for i0,i1,i2,i3 in gp.quads:
                 create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
@@ -2718,7 +2738,6 @@ class Polystrips(object):
         for q in quads + non_quads:
             for vind in q:
                 vind_used[vind] = True
-                
         i_new = 0
         map_vinds = {}
         for i_vind,used in enumerate(vind_used):
@@ -2781,12 +2800,64 @@ class Polystrips(object):
         return gvert1
     
     def attempt_gpatch(self, gedges):
-        if len(gedges) == 0: return 'No strips specified'
+        if len(gedges) == 0:
+            return 'No strips specified'
         
         gedges = list(gedges)
         
         if any(ge.is_zippered() for ge in gedges):
             return 'Cannot create patches with zippered strips'
+        
+        def getcycle(gedges):
+            ge0,gv0 = None,None
+            for ge in gedges:
+                for gv in [ge.gvert0, ge.gvert3]:
+                    ge_ = gv.get_gedge_to_right(ge)
+                    if ge_:
+                        # found starting point
+                        gv0 = ge_.get_other_end(gv)
+                        ge0 = ge_
+                        break
+                if ge0:
+                    # found starting point
+                    break
+            else:
+                print('could not find starting point')
+                return None
+            sgedges = set(gedges)
+            lgedgeseries = []
+            gedgeseries = [ge0]
+            ge0_ = ge0
+            while sgedges:
+                ge1 = gv0.get_gedge_to_right(ge0)
+                if ge1:
+                    if ge1 not in sgedges:
+                        print('found gedge not in selected set')
+                        return None
+                    # ready to start next gedgeseries
+                    lgedgeseries += [gedgeseries]
+                    if ge1 == ge0_:
+                        return lgedgeseries
+                    gedgeseries = [ge1]
+                else:
+                    ge1 = gv0.get_gedge_straight(ge0)
+                    if not ge1:
+                        print('could not find suitable gedge')
+                        return None
+                    if ge1 not in sgedges:
+                        print('found gedge not in selected set')
+                        return None
+                    # add to current gedgeseries
+                    gedgeseries += [ge1]
+                ge0 = ge1
+                gv0 = ge0.get_other_end(gv0)
+                sgedges.remove(ge0)
+            print('could not find cycle')
+            return None
+        cycle = getcycle(gedges)
+        if cycle:
+            print('FOUND CYCLE!!')
+            return [self.create_gpatch(*[self.create_gedgeseries(*lge) for lge in cycle])]
         
         def walkabout(gedge, gvfrom):
             gefrom = gedge

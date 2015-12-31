@@ -170,8 +170,9 @@ class Polystrips_UI_Tools():
             supdate.add(gv)
             for ge in gv.get_gedges_notnone():
                 supdate.add(ge)
-                for gp in ge.gpatches:
-                    supdate.add(gp)
+                for ges in ge.gedgeseries:
+                    if ges.gpatch:
+                        supdate.add(ges.gpatch)
         
         for gv in self.polystrips.extension_geometry:
             lcorners = gv.get_corners()
@@ -198,8 +199,9 @@ class Polystrips_UI_Tools():
                 supdate.add(ge)
                 supdate.add(ge.gvert0)
                 supdate.add(ge.gvert3)
-                for gp in ge.gpatches:
-                    supdate.add(gp)
+                for ges in ge.gedgeseries:
+                    if ges.gpatch:
+                        supdate.add(ges.gpatch)
         
         for gp in self.polystrips.gpatches:
             freeze = False
