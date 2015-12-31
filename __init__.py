@@ -46,7 +46,6 @@ from .lib.common_utilities import bversion, check_source_target_objects
 #Menus, Panels, Interface and Icon 
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
-from .key_maps import language_handler
 
 if bversion() >= '002.076.000':
     from .icons import clear_icons
@@ -70,7 +69,6 @@ def register():
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.app.handlers.scene_update_post.append(check_source_target_objects)
-    bpy.app.handlers.scene_update_post.append(language_handler)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
@@ -105,7 +103,6 @@ def unregister():
 
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    bpy.app.handlers.scene_update_post.remove(language_handler)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 

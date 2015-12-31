@@ -100,15 +100,11 @@ navigation_events = {
     'View Selected': 'view3d.view_selected',
     'Center View to Cursor': 'view3d.view_center_cursor'
     }
-navigation_defaults = navigation_events
 
-@persistent
-def language_handler(scene):
-        navigation_language(navigation_events)
-        # print(navigation_events)
-
-def navigation_language(nav_dict):
+def navigation_language():
     lang = bpy.context.user_preferences.system.language
+
+    nav_dict = navigation_events
     old_dict = dict(nav_dict)
 
     for key, value in old_dict.items():
