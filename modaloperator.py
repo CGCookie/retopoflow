@@ -131,8 +131,11 @@ class ModalOperator(Operator):
 
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpixel(context)
-        if self.settings.show_help:
+        try:
+            self.draw_postpixel(context)
+        except:
+            print_exception()
+        if self.settings.show_help and self.help_box:
             self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
@@ -179,24 +182,25 @@ class ModalOperator(Operator):
             return 'cancel'
         
         # help textbox
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-        if eventd['press'] in self.keymap['action']: # {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
-            if self.help_box.is_hovered:
+        if self.help_box:
+            if eventd['press'] in self.keymap['help']:
                 if  self.help_box.is_collapsed:
                     self.help_box.uncollapse()
                 else:
                     self.help_box.collapse()
                 self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-                return ''
-        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
-            #update brush and brush size
-            x,y = eventd['mouse']
-            self.help_box.hover(x,y)
+            if eventd['press'] in self.keymap['action']: # {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+                if self.help_box.is_hovered:
+                    if  self.help_box.is_collapsed:
+                        self.help_box.uncollapse()
+                    else:
+                        self.help_box.collapse()
+                    self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                    return ''
+            if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
+                #update brush and brush size
+                x,y = eventd['mouse']
+                self.help_box.hover(x,y)
 
         # handle general waiting
         nmode = self.FSM['wait'](context, eventd)
@@ -275,8 +279,9 @@ class ModalOperator(Operator):
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
         
-        self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
+        if self.help_box:
+            self.help_box.collapse()
+            self.help_box.snap_to_corner(context, corner = [1,1])
         
         self.modal_start(context)
         
