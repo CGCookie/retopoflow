@@ -540,7 +540,7 @@ class GVert:
         if self.gedge1 == gedge: return self.gedge3
         if self.gedge2 == gedge: return self.gedge0
         if self.gedge3 == gedge: return self.gedge1
-    
+
 
 
 
@@ -1288,6 +1288,8 @@ class GEdge:
 
 
 
+###############################################################################################################
+# GEdgeSeries: a collection of GEdges
 
 class GEdgeSeries:
     def __init__(self, obj, *gedges):
@@ -1301,6 +1303,7 @@ class GEdgeSeries:
         self.rev = []
         self.cache_igverts = []
         self.cache_rev = []
+        self.cache_gedge = []
         
         self.changing_count = False     # indicates if we are in process of changing count
         
@@ -1330,6 +1333,7 @@ class GEdgeSeries:
     def update(self):
         self.cache_igverts = []
         self.cache_rev = []
+        self.cache_gedge = []
         self.n_quads = 0
         for ge,rev in zip(self.gedges,self.rev):
             l = list(ge.cache_igverts)
@@ -1338,11 +1342,15 @@ class GEdgeSeries:
             if not self.cache_igverts:
                 self.cache_igverts = l
                 self.n_quads = ge.n_quads
-                self.cache_rev = [rev] * len(l)
+                self.cache_rev = [rev for i in range(len(l))]
+                self.cache_gedge = [(ge,i,rev) for i in range(len(l))]
             else:
                 self.cache_igverts += l[1:]
                 self.n_quads += ge.n_quads - 1
-                self.cache_rev += [rev] * (len(l)-1)
+                self.cache_rev += [rev for i in range(1,len(l))]
+                self.cache_gedge = [(ge,i,rev) for i in range(1,len(l))]
+        
+        print(self.cache_rev)
         
         if self.gpatch:
             self.gpatch.update()
@@ -1406,34 +1414,33 @@ class GEdgeSeries:
         if l == 0:
             cur0,cur1 = self.gvert0.get_corners_of(self.gedges[0])
             cur2,cur3 = self.gvert3.get_corners_of(self.gedges[-1])
-            if not only_visible or (self.gvert0.is_visible() and self.gvert3.is_visible()):
-                yield (cur0,cur1,cur2,cur3)
+            yield (cur0,cur1,cur2,cur3)
             return
         
         prev0,prev1 = None,None
         for i,gvert in enumerate(self.cache_igverts):
             if i%2 == 0: continue
             
-            rev = self.cache_rev[i]
-            
             if i == 1:
                 gv0 = self.gvert0
                 cur0,cur1 = gv0.get_corners_of(self.gedges[0])
-                if rev: cur1,cur0 = cur0,cur1
             elif i == l-2:
                 gv3 = self.gvert3
                 cur1,cur0 = gv3.get_corners_of(self.gedges[-1])
-                if rev: cur1,cur0 = cur0,cur1
             else:
                 cur0 = gvert.position+gvert.tangent_y*gvert.radius
                 cur1 = gvert.position-gvert.tangent_y*gvert.radius
+                if self.cache_rev[i]: cur1,cur0 = cur0,cur1
+            
             
             if prev0 and prev1:
-                if rev:
-                    yield (prev1,cur1,cur0,prev0)
-                else:
-                    yield (prev0,cur0,cur1,prev1)
+                yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
+    
+    def get_gedge(self, iter_idx):
+        return self.cache_gedge[iter_idx]
+
+
 
 
 ###############################################################################################################
@@ -1862,7 +1869,10 @@ class GPatch:
         for i0 in range(wid-1):
             for i1 in range(hei-1):
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
-        
+    
+    def get_gedge_from_gedgeseries(self, i_gedgeseries, iter_idx):
+        return self.gedgeseries[i_gedgeseries].get_gedge(iter_idx)
+    
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
@@ -2713,22 +2723,26 @@ class Polystrips(object):
                 done |= {ge}
 
         
+        dge_i = {ge:i_ge for i_ge,ge in enumerate(self.gedges)}
+        
         map_ipt_vert = {}
         for gp in self.gpatches:
-            li_ge = [self.gedges.index(ge) for ges in gp.gedgeseries for ge in ges.gedges]
-            
             for i_pt,pt in enumerate(gp.pts):
                 p,_,k = pt
+                
                 if not k:
                     map_ipt_vert[i_pt] = insert_vert(p)
-                else:
-                    i_ges,i_v = k
-                    ind = li_ge[i_ges]
-                    rev = gp.rev[i_ges]
-                    lverts = ige_side_lvind[(ind, -1 if not rev else 1)]
-                    idx = (i_v+1) if not rev else (len(lverts)-i_v-2)
-                    print('len:%d i_v:%d 0:%d 1:%d c:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, 0 if not rev else 1))
-                    map_ipt_vert[i_pt] = lverts[idx]
+                    continue
+                
+                i_ges,i_v = k
+                ge,i_v,rev2 = gp.get_gedge_from_gedgeseries(i_ges, i_v)
+                i_ge = dge_i[ge]
+                rev = gp.rev[i_ges]
+                if rev2: rev = not rev
+                lverts = ige_side_lvind[(i_ge, -1 if not rev else 1)]
+                idx = (i_v+1) if not rev else (len(lverts)-i_v-2)
+                print('len:%d i_v:%d 0:%d 1:%d c:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, 0 if not rev else 1))
+                map_ipt_vert[i_pt] = lverts[idx]
             
             for i0,i1,i2,i3 in gp.quads:
                 create_quad(map_ipt_vert[i0],map_ipt_vert[i1],map_ipt_vert[i2],map_ipt_vert[i3])
