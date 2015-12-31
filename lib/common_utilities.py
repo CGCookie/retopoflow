@@ -87,21 +87,16 @@ def print_exception():
     
     errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
     etb = traceback.extract_tb(tb)
+    pfilename = None
     for i,entry in enumerate(reversed(etb)):
         filename,lineno,funcname,line = entry
-        errormsg += '%03d %s:%d\n' % (i, filename, lineno)
-        errormsg += '    %s\n' % (funcname)
-        errormsg += '        %s\n' %  (line.strip())
-    
-    #f = tb.tb_frame
-    #lineno = tb.tb_lineno
-    #filename = f.f_code.co_filename
-    #linecache.checkcache(filename)
-    #line = linecache.getline(filename, lineno, f.f_globals)
+        if filename != pfilename:
+            pfilename = filename
+            errormsg += '         %s\n' % (filename)
+        errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     
     print(errormsg)
     showErrorMessage(errormsg, wrap=240)
-    #print_exception2()
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()

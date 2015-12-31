@@ -21,18 +21,29 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy
 import bgl
+import blf
+import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
+from mathutils.bvhtree import BVHTree
 
 import math
-
-from ..lib import common_utilities
-from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
-from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
+import os
+import copy
 
 from ..modaloperator import ModalOperator
 
+from ..lib import common_utilities
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
+from ..lib.common_utilities import setup_target_object
+from ..lib.common_utilities import bversion, selection_mouse
+from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
+from ..lib.classes.profiler.profiler import Profiler
+from .. import key_maps
+from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
+
+from ..lib.common_drawing_bmesh import BMeshRender
 
 class CGC_Polypen(ModalOperator):
     ''' CG Cookie Polypen Modal Editor '''
@@ -127,6 +138,8 @@ class CGC_Polypen(ModalOperator):
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
+        
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
 
         #self.polypen = Polypen(context, self.src_object, self.tar_object)
         
@@ -146,6 +159,14 @@ class CGC_Polypen(ModalOperator):
     
     def draw_postview(self, context):
         ''' Place post view drawing code in here '''
+        opts = {
+            'poly color': (1,1,1,1),
+            'poly depth': (0, 0.999),
+            
+            'line depth': (0, 0.997),
+            'line color': (0,0,0,1),
+        }
+        self.tar_bmeshrender.draw(opts)
         pass
     
     def draw_postpixel(self, context):
@@ -163,4 +184,9 @@ class CGC_Polypen(ModalOperator):
         - 'main': transition to main state
         - 'nav':  transition to a navigation state (passing events through to 3D view)
         '''
+        
+        if eventd['press'] == 'U':
+            self.tar_bmesh.verts[0].co += Vector((0.1,0.1,0.1))
+            self.tar_bmeshrender.dirty()
+        
         return ''
