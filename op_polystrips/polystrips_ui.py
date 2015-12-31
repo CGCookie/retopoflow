@@ -35,7 +35,8 @@ import copy
 from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
 from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, profiler, frange
+from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
+from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
 from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
@@ -84,7 +85,7 @@ class Polystrips_UI:
         if context.mode == 'OBJECT':
 
             # Debug level 2: time start
-            check_time = profiler.start()
+            check_time = Profiler().start()
 
             self.obj_orig = get_source_object()
             self.mx = self.obj_orig.matrix_world

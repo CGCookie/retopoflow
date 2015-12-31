@@ -32,9 +32,10 @@ import blf, bgl
 import itertools
 
 from ..lib import common_utilities
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler,frange
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
+from ..lib.classes.profiler.profiler import Profiler
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
@@ -146,7 +147,7 @@ class GVert:
         assert False
     
     def disconnect_gedge(self, gedge):
-        pr = profiler.start()
+        pr = Profiler().start()
         if self.gedge_inner == gedge:
             self.gedge_inner = None
         else:
@@ -167,7 +168,7 @@ class GVert:
     def update_gedges(self):
         if self.is_unconnected(): return
         
-        pr = profiler.start()
+        pr = Profiler().start()
         
         norm = self.snap_norm
         
@@ -218,7 +219,7 @@ class GVert:
     
     
     def connect_gedge(self, gedge):
-        pr = profiler.start()
+        pr = Profiler().start()
         if not self.gedge0: self.gedge0 = gedge
         elif not self.gedge1: self.gedge1 = gedge
         elif not self.gedge2: self.gedge2 = gedge
@@ -236,7 +237,8 @@ class GVert:
     
     def snap_corners(self):
         if self.frozen: return
-        pr = profiler.start()
+        
+        pr = Profiler().start()
         
         mx = self.mx
         mx3x3 = mx.to_3x3()
@@ -270,7 +272,7 @@ class GVert:
             self.zip_over_gedge.update()
             return
         
-        pr = profiler.start()
+        pr = Profiler().start()
         
         bvh = mesh_cache['bvh']
         mx = self.mx
@@ -460,7 +462,7 @@ class GVert:
             print('Cannot toggle corner on GVert with %i connections' % self.count_gedges())
     
     def smooth(self, v=0.15):
-        pr = profiler.start()
+        pr = Profiler().start()
         
         der0 = self.gedge0.get_derivative_at(self, ignore_igverts=True).normalized() if self.gedge0 else Vector()
         der1 = self.gedge1.get_derivative_at(self, ignore_igverts=True).normalized() if self.gedge1 else Vector()
