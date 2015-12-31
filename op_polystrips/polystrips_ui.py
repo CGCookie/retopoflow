@@ -153,7 +153,10 @@ class Polystrips_UI:
             #TODO snap_eds_vis?  #careful with the 2 matrices. One is the source object mx, the other is the target object mx
             self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
             self.hover_ed = None
-        
+
+            # Hide any existng geometry so as to draw nicely via BmeshRender
+            bpy.ops.mesh.hide(unselected=True)
+
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
