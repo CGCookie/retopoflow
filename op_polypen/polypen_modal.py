@@ -140,11 +140,17 @@ class CGC_Polypen(ModalOperator):
         self.length_scale = get_object_length_scale(self.src_object)
         
         self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
+
+        # Hide any existing geometry
+        bpy.ops.mesh.hide(unselected=True)
+        bpy.ops.mesh.hide(unselected=False)
         
         context.area.header_text_set('Polypen')
     
     def end(self, context):
         ''' Called when tool is ending modal '''
+        # Reveal any existing geometry
+        bpy.ops.mesh.reveal()
         del self.tar_bmeshrender
     
     def end_commit(self, context):
