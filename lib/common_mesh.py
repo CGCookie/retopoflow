@@ -147,11 +147,8 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
     '''
     L = len(target.verts)
     
-    
-    
     #TDOD  matrix math stuff
     new_bmverts = [target.verts.new(v.co) for v in source.verts]# if v.index not in src_trg_map]
-    
     
     def src_to_trg_ind(v):
         if v.index in src_trg_map:

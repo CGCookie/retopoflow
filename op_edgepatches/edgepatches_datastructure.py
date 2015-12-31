@@ -45,7 +45,7 @@ from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, c
 from ..cache import mesh_cache
 from ..pat_patch import Patch
 from ..patch_geometry import *
-from ..lib.common_mesh import join_mesh, find_perimeter_verts
+from ..lib.common_mesh import join_bmesh, find_perimeter_verts
 
 class EPVert:
     def __init__(self, position):
