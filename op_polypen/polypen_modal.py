@@ -140,14 +140,12 @@ class CGC_Polypen(ModalOperator):
         self.length_scale = get_object_length_scale(self.src_object)
         
         self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
-
-        #self.polypen = Polypen(context, self.src_object, self.tar_object)
         
         context.area.header_text_set('Polypen')
     
     def end(self, context):
         ''' Called when tool is ending modal '''
-        pass
+        del self.tar_bmeshrender
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
@@ -160,11 +158,11 @@ class CGC_Polypen(ModalOperator):
     def draw_postview(self, context):
         ''' Place post view drawing code in here '''
         opts = {
-            'poly color': (1,1,1,1),
+            'poly color': (1,1,1,0.5),
             'poly depth': (0, 0.999),
             
+            'line color': (1,1,1,1),
             'line depth': (0, 0.997),
-            'line color': (0,0,0,1),
         }
         self.tar_bmeshrender.draw(opts)
         pass
@@ -176,6 +174,7 @@ class CGC_Polypen(ModalOperator):
     def update(self,context):
         '''Place update stuff here'''
         pass
+    
     def modal_wait(self, context, eventd):
         '''
         Place code here to handle commands issued by user
