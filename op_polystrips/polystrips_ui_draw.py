@@ -232,7 +232,17 @@ class Polystrips_UI_Draw():
                 c[1] * 0.5 + color_frozen[1] * 0.5,
                 c[2] * 0.5 + color_frozen[2] * 0.5,
                 c[3])
+
+
+        ### Existing Geometry ###
+        opts = {
+            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly depth': (0, 0.999),
             
+            'line depth': (0, 0.997),
+            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+        }
+        self.tar_bmeshrender.draw(opts)
 
         ### Patches ###
         for gpatch in self.polystrips.gpatches:

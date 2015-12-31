@@ -44,6 +44,7 @@ class BMeshRender():
         if 'poly depth' in opts: bgl.glDepthRange(*opts['poly depth'])
         if 'poly color' in opts: glColor(opts['poly color'])
         #bgl.glEnable(bgl.GL_LIGHTS)
+        bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_LIGHTING)
         bgl.glEnable(bgl.GL_DEPTH_TEST)
         bgl.glBegin(bgl.GL_TRIANGLES)
