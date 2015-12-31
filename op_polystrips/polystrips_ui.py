@@ -387,7 +387,7 @@ class Polystrips_UI:
         
         if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
-        for gv in self.polystrips.extension_geometry:
+        for gv in self.polystrips.extension_geometry + self.polystrips.gverts:
             #if not gv.is_visible(): continue
             rgn   = eventd['context'].region
             r3d   = eventd['context'].space_data.region_3d
