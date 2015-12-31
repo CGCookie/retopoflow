@@ -156,6 +156,7 @@ class Polystrips_UI:
 
             # Hide any existng geometry so as to draw nicely via BmeshRender
             bpy.ops.mesh.hide(unselected=True)
+            bpy.ops.mesh.hide(unselected=False)
 
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
