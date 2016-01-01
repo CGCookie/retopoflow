@@ -549,6 +549,10 @@ class CGC_Polypen(ModalOperator):
                 # check if verts are same
                 if sbmv[0] == self.nearest_bmvert:
                     return ''
+                # check if verts share an edge
+                if any(sbmv[0] in e.verts for e in self.nearest_bmvert.link_edges):
+                    self.set_selection(lbmv=[self.nearest_bmvert])
+                    return ''
             
             if self.nearest_bmedge:
                 # check if bmv belongs to nearest_bmedge
