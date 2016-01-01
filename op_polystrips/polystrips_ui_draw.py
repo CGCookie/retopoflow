@@ -41,7 +41,6 @@ from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_s
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 from ..lib.classes.profiler import profiler
 
-from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
 
 class Polystrips_UI_Draw():
@@ -131,12 +130,12 @@ class Polystrips_UI_Draw():
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
-        color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
-        color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
-        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
-        color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
+        color_frozen = settings.theme_colors_frozen[settings.theme]
+        color_warning = settings.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -395,12 +394,12 @@ class Polystrips_UI_Draw():
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
-        color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
-        color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
-        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
-        color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
+        color_frozen = settings.theme_colors_frozen[settings.theme]
+        color_warning = settings.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
