@@ -376,6 +376,10 @@ class CGC_Polypen(ModalOperator):
                 if any(self.nearest_bmvert in e.verts for e in sbme):
                     self.set_selection(lbmv=[self.nearest_bmvert])
                     return ''
+                # check if nearest bmvert belongs to face adj to lbme
+                if any(self.nearest_bmvert in f.verts for f in sbme[0].link_faces):
+                    self.set_selection(lbmv=[self.nearest_bmvert])
+                    return ''
             
             if lbme >= 2:
                 min_bme = self.orthogonalest_bmedge(p3d, sbme)
