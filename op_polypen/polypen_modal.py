@@ -545,6 +545,11 @@ class CGC_Polypen(ModalOperator):
             return ''
         
         if lbmv == 1:
+            if self.nearest_bmvert:
+                # check if verts are same
+                if sbmv[0] == self.nearest_bmvert:
+                    return ''
+            
             if self.nearest_bmedge:
                 # check if bmv belongs to nearest_bmedge
                 if sbmv[0] in self.nearest_bmedge.verts:
@@ -598,7 +603,7 @@ class CGC_Polypen(ModalOperator):
         
         if self.nearest_bmedge:
             nbme = self.nearest_bmedge
-            self.set_selection(lbmv=[nbme.verts[0], nbme.verts[1]],lbme=[nbme])
+            self.set_selection(lbme=[nbme])
             return ''
         
         if self.nearest_bmface:
