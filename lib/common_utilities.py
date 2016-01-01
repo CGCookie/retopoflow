@@ -302,7 +302,6 @@ def ray_cast_path(context, ob, screen_coords):
     return world_coords
 
 def ray_cast_path_bvh(context, bvh, mx, screen_coords):
-    
     rgn  = context.region
     rv3d = context.space_data.region_3d
     imx  = mx.inverted()
@@ -320,6 +319,23 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
     return world_coords
+
+def ray_cast_point_bvh(context, bvh, mx, screen_coord):
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx  = mx.inverted()
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rayo,rayd = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn,rv3d, screen_coord).normalized()
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100
+    st,en = imx*(rayo-back*mult*rayd), imx*(rayo+mult*rayd)
+    hit = bvh.ray_cast(st, en-st)
+    if hit[2] == None: return None
+    world_coord = mx*hit[0]
+    world_norm  = imx.transposed()*hit[1]
+    return (world_coord, world_norm)
 
 def ray_cast_stroke(context, ob, stroke):
     '''
