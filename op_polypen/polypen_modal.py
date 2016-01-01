@@ -400,12 +400,19 @@ class CGC_Polypen(ModalOperator):
         
         if self.nearest_bmvert:
             self.selected_bmverts = [self.nearest_bmvert]
+            return ''
         
         if self.nearest_bmedge:
             self.selected_bmedges = [self.nearest_bmedge]
             self.selected_bmverts = [self.nearest_bmedge.verts[0], self.nearest_bmedge.verts[1]]
+            return ''
         
         if self.nearest_bmface:
             self.selected_bmfaces = [self.nearest_bmface]
+            return ''
+        
+        bmv = self.tar_bmesh.verts.new(p3d)
+        self.selected_bmverts = [bmv]
+        self.tar_bmeshrender.dirty()
         
         return ''
