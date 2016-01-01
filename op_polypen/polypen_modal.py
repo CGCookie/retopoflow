@@ -426,6 +426,12 @@ class CGC_Polypen(ModalOperator):
         
         if lbmv == 1:
             if self.nearest_bmedge:
+                # check if bmv belongs to nearest_bmedge
+                if sbmv[0] in self.nearest_bmedge.verts:
+                    self.set_selection(lbme=[self.nearest_bmedge])
+                    return ''
+            
+            if self.nearest_bmedge:
                 bmv0 = sbmv[0]
                 bmv1 = self.nearest_bmedge.verts[0]
                 bmv2 = self.nearest_bmedge.verts[1]
