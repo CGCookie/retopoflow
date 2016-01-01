@@ -284,13 +284,24 @@ class CGC_Polypen(ModalOperator):
                 self.tar_bmeshrender.dirty()
                 return ''
         
-        if eventd['press'] == 'D' and self.selected_bmedges:
-            if len(self.selected_bmedges[0].link_faces) == 2:
-                bmesh.utils.face_join(self.selected_bmedges[0].link_faces)
-                self.set_selection()
-                self.clear_nearest()
-                self.tar_bmeshrender.dirty()
-                return ''
+        if eventd['press'] == 'D':
+            if self.selected_bmedges:
+                if len(self.selected_bmedges[0].link_faces) == 2:
+                    self.create_undo()
+                    bmesh.utils.face_join(self.selected_bmedges[0].link_faces)
+                    self.set_selection()
+                    self.clear_nearest()
+                    self.tar_bmeshrender.dirty()
+                    return ''
+            if self.selected_bmverts:
+                bmv = self.selected_bmverts[0]
+                if len(bmv.link_edges) == 2 and len(bmv.link_faces) == 0:
+                    self.create_undo()
+                    bmesh.utils.vert_dissolve(bmv)
+                    self.set_selection()
+                    self.clear_nearest()
+                    self.tar_bmeshrender.dirty()
+                    return ''
         
         if eventd['press'] == 'TAB':
             if self.mode == 'auto':
@@ -339,11 +350,6 @@ class CGC_Polypen(ModalOperator):
             self.nearest_bmvert = min_bmv
             self.nearest_bmedge = min_bme
             self.nearest_bmface = min_bmf
-        else:
-            #self.create_undo_snapshot('grab')
-            #self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
-            #return 'grab tool'
-            pass
         
         return ''
     
@@ -368,11 +374,11 @@ class CGC_Polypen(ModalOperator):
                 if res:
                     bmv1 = res[0]
                     # make sure verts don't share an edge
-                    share_edge = any(bmv0 in e.verts for e in bmv1.link_edges)
-                    share_face = any(bmv0 in f.verts for f in bmv1.link_faces)
-                    if not share_edge and not share_face:
+                    #share_edge = any(bmv0 in e.verts for e in bmv1.link_edges)
+                    #share_face = any(bmv0 in f.verts for f in bmv1.link_faces)
+                    #if not share_edge and not share_face:
                         # merge!!!
-                        bmv0.co = Vector(bmv1.co)
+                    bmv0.co = Vector(bmv1.co)
                 self.tar_bmeshrender.dirty()
             return ''
         
@@ -386,13 +392,17 @@ class CGC_Polypen(ModalOperator):
             if res:
                 bmv1 = res[0]
                 # make sure verts don't share an edge
-                share_edge = any(bmv0 in e.verts for e in bmv1.link_edges)
-                share_face = any(bmv0 in f.verts for f in bmv1.link_faces)
+                share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
+                share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
+                if share_edge:
+                    # collapse edge
+                    self.collapse_bmedge(share_edge[0])
                 if not share_edge and not share_face:
                     # merge!!!
                     bmesh.utils.vert_splice(bmv0, bmv1)
                     self.set_selection(lbmv=[bmv1])
                     self.clear_nearest()
+                    self.clean_bmesh()
                     self.tar_bmeshrender.dirty()
             self.vert_pos = None
             context.area.header_text_set('Polypen')
@@ -407,6 +417,39 @@ class CGC_Polypen(ModalOperator):
         
         return ''
     
+    def clean_bmesh(self):
+        # make sure we don't have duplicate bmedges (same verts)
+        edges_seen = set()
+        edges_rem = list()
+        for bme in self.tar_bmesh.edges:
+            p0 = (bme.verts[0].index, bme.verts[1].index)
+            p1 = (bme.verts[1].index, bme.verts[0].index)
+            if p0 in edges_seen:
+                edges_rem.append(bme)
+            else:
+                edges_seen.add(p0)
+                edges_seen.add(p1)
+        if edges_rem:
+            for e in edges_rem:
+                lf = [f.verts for f in e.link_faces]
+                self.tar_bmesh.edges.remove(e)
+                for f in lf:
+                    self.tar_bmesh.faces.new(f)
+            self.tar_bmeshrender.dirty()
+    
+    def collapse_bmedge(self, bme):
+        bmv0,bmv1 = bme.verts
+        llbmv = [[bmv for bmv in bmf.verts if bmv != bmv0] for bmf in bme.link_faces]
+        self.tar_bmesh.edges.remove(bme)
+        bmesh.utils.vert_splice(bmv0, bmv1)
+        for lbmv in llbmv:
+            if len(lbmv) > 2:
+                self.tar_bmesh.faces.new(lbmv)
+        self.clean_bmesh()
+        self.clear_nearest()
+        self.set_selection(lbmv=[bmv1])
+        self.tar_bmeshrender.dirty()
+        return ''
     
     def closest_bmvert(self, context, p2d, p3d, max_dist2d, max_dist3d, exclude=None):
         rgn = context.region
