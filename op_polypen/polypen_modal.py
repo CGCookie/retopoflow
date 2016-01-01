@@ -143,10 +143,6 @@ class CGC_Polypen(ModalOperator):
         self.length_scale = get_object_length_scale(self.src_object)
         
         self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
-
-        # Hide any existing geometry
-        bpy.ops.mesh.hide(unselected=True)
-        bpy.ops.mesh.hide(unselected=False)
         
         self.render_normal = {
             'poly color': (1,1,1,0.5),
@@ -199,8 +195,6 @@ class CGC_Polypen(ModalOperator):
     
     def end(self, context):
         ''' Called when tool is ending modal '''
-        # Reveal any existing geometry
-        bpy.ops.mesh.reveal()
         del self.tar_bmeshrender
     
     def end_commit(self, context):
@@ -300,6 +294,24 @@ class CGC_Polypen(ModalOperator):
                 min_bme = bme
         return (min_bme,md)
     
+    def orthogonalest_bmedge(self, p3d, lbme):
+        ortho_bme = None
+        o_theta = 0
+        for bme in lbme:
+            if len(bme.link_faces) == 2:
+                # bmedge has two faces, so we cannot add another face
+                # without making non-manifold
+                continue
+            p0 = bme.verts[0].co
+            p1 = bme.verts[1].co
+            d01 = (p1-p0).normalized()
+            d0p = (p3d-p0).normalized()
+            theta = abs(d0p.dot(d01))
+            if not ortho_bme or theta < o_theta:
+                o_theta = theta
+                ortho_bme = bme
+        return ortho_bme
+    
     def closest_bmface(self, p3d):
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
@@ -327,7 +339,7 @@ class CGC_Polypen(ModalOperator):
         lbmf = len(sbmf)
         
         if lbme == 2:
-            min_bme,_ = self.closest_bmedge(p3d, lbme=sbme)
+            min_bme = self.orthogonalest_bmedge(p3d, sbme)
             self.selected_bmedges = [min_bme]
             sbme = self.selected_bmedges
             lbme = 1
