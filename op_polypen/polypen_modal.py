@@ -288,13 +288,16 @@ class CGC_Polypen(ModalOperator):
         if eventd['type'] == 'MOUSEMOVE':
             if not self.mouse_down:
                 #mouse movement/hovering
+                p2d = self.mouse_curp2d
                 p3d = self.mouse_curp3d
                 if not p3d: return ''
                 
-                min_bmv,md = self.closest_bmvert(p3d, max_dist=0.03)
+                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05)
+                min_bmv = res[0] if res else None
                 
                 if not min_bmv:
-                    min_bme,md = self.closest_bmedge(p3d, max_dist=0.02)
+                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.05)
+                    min_bme = res[0] if res else None
                 else:
                     min_bme = None
                 
@@ -311,38 +314,55 @@ class CGC_Polypen(ModalOperator):
         
         return ''
     
-    def closest_bmvert(self, p3d, max_dist=0.0):
+    def closest_bmvert(self, context, p2d, p3d, max_dist2d, max_dist3d):
+        rgn = context.region
+        r3d = context.space_data.region_3d
         min_bmv = None
-        md = 0
+        min_dist2d = 0
+        min_dist3d = 0
         for bmv in self.tar_bmesh.verts:
-            d = (p3d - bmv.co).length
-            if max_dist > 0 and d > max_dist: continue
-            if min_bmv == None or d < md:
-                md = d
+            d3d = (bmv.co - p3d).length
+            if d3d > max_dist3d: continue
+            bmv2d = location_3d_to_region_2d(rgn, r3d, bmv.co)
+            d2d = (p2d - bmv2d).length
+            if d2d > max_dist2d: continue
+            if not min_bmv or (d2d < min_dist2d and d3d < min_dist3d):
                 min_bmv = bmv
-        return (min_bmv,md)
+                min_dist2d = d2d
+                min_dist3d = d3d
+        if not min_bmv: return None
+        return (min_bmv, min_dist2d, min_dist3d)
     
-    def closest_bmedge(self, p3d, lbme=None, max_dist=0.0):
+    def closest_bmedge(self, context, p2d, p3d, max_dist2d, max_dist3d, lbme=None):
+        rgn = context.region
+        r3d = context.space_data.region_3d
         if not lbme: lbme = self.tar_bmesh.edges
         lmin_bme = []
-        md = 0
+        min_dist2d = 0
+        min_dist3d = 0
         for bme in lbme:
             # if len(bme.link_faces) == 2:
             #     # bmedge has two faces, so we cannot add another face
             #     # without making non-manifold
             #     continue
-            t,d = closest_t_and_distance_point_to_line_segment(p3d, bme.verts[0].co, bme.verts[1].co)
-            if max_dist > 0 and d > max_dist: continue
-            if not lmin_bme or d <= md + 0.0001:
-                if not lmin_bme and abs(d-md) <= 0.0001:
+            bmv0,bmv1 = bme.verts[0],bme.verts[1]
+            t,d3d = closest_t_and_distance_point_to_line_segment(p3d, bmv0.co, bmv1.co)
+            if d3d > max_dist3d: continue
+            bmv3d = bmv1.co * t + bmv0.co * (1-t)
+            bmv2d = location_3d_to_region_2d(rgn, r3d, bmv3d)
+            d2d = (p2d - bmv2d).length
+            if d2d > max_dist2d: continue
+            if not lmin_bme or (d3d <= min_dist3d+0.0001 and d2d <= min_dist2d+0.01):
+                if not lmin_bme and (abs(d2d-min_dist2d) <= 0.01 or abs(d3d-min_dist3d) <= 0.0001):
                     lmin_bme += [bme]
                 else:
-                    md = d
                     lmin_bme = [bme]
-        if not lmin_bme: return (None,0)
+                    min_dist2d = d2d
+                    min_dist3d = d3d
+        if not lmin_bme: return None
         if len(lmin_bme) == 2:
             return orthogonalest_bmedge(p3d, lmin_bme)
-        return (lmin_bme[0],md)
+        return (lmin_bme[0], min_dist2d, min_dist3d)
     
     def orthogonalest_bmedge(self, p3d, lbme):
         p00,p01 = lbme[0].verts[0].co,lbme[0].verts[1].co
@@ -355,7 +375,7 @@ class CGC_Polypen(ModalOperator):
         _,d1 = closest_t_and_distance_point_to_line_segment(p3d, p10, p11)
         
         if abs(d0-d1) > 0.0001:
-            return lbme[0] if d0 < d1 else lbme[1]
+            return (lbme[0] if d0 < d1 else lbme[1],0,0)
         
         p001,p00p = (p01-p00).normalized(), (p3d-p00).normalized()
         p101,p10p = (p11-p10).normalized(), (p3d-p10).normalized()
@@ -363,7 +383,7 @@ class CGC_Polypen(ModalOperator):
         theta0 = abs(p00p.dot(p001))
         theta1 = abs(p10p.dot(p101))
         
-        return lbme[0] if theta0 < theta1 else lbme[1]
+        return (lbme[0] if theta0 < theta1 else lbme[1],0,0)
     
     def closest_bmface(self, p3d):
         for bmf in self.tar_bmesh.faces:
@@ -376,7 +396,7 @@ class CGC_Polypen(ModalOperator):
     def update_mouse(self, eventd):
         hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, eventd['mouse'])
         p3d,n3d = hit if hit else (None,None)
-        self.mouse_curp2d = eventd['mouse']
+        self.mouse_curp2d = Vector(eventd['mouse'])
         self.mouse_curp3d = p3d
         self.mouse_curn3d = n3d
         if eventd['press'] == 'LEFTMOUSE':
@@ -451,6 +471,7 @@ class CGC_Polypen(ModalOperator):
         return bmf
     
     def handle_click(self, context, eventd, dry_run=False):
+        p2d = self.mouse_curp2d
         p3d = self.mouse_curp3d
         if not p3d: return ''
         
@@ -480,7 +501,7 @@ class CGC_Polypen(ModalOperator):
                     return ''
             
             if lbme >= 2:
-                min_bme = self.orthogonalest_bmedge(p3d, sbme)
+                min_bme,_,_ = self.orthogonalest_bmedge(p3d, sbme)
                 sbme = [min_bme]
             
             if self.nearest_bmedge:
@@ -530,7 +551,7 @@ class CGC_Polypen(ModalOperator):
                 if self.nearest_bmvert in sbmf[0].verts:
                     self.set_selection(lbmv=[self.nearest_bmvert])
                     return ''
-            min_bme,_ = self.closest_bmedge(p3d, lbme=sbmf[0].edges)
+            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=sbmf[0].edges)
             bme,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             if self.nearest_bmvert:
                 # merge bmv into nearest_bmvert
