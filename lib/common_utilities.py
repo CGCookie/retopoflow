@@ -96,7 +96,10 @@ def print_exception():
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     
     print(errormsg)
-    showErrorMessage(errormsg, wrap=240)
+    print_exception.count += 1
+    if print_exception.count < 10:
+        showErrorMessage(errormsg, wrap=240)
+print_exception.count = 0
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
