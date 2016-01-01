@@ -59,6 +59,7 @@ class CGC_Polypen(ModalOperator):
     
     def __init__(self):
         FSM = {}
+        FSM['grab tool'] = self.modal_grab_tool
         self.initialize(helpText='help_polypen.txt', FSM=FSM)
     
     def start_poll(self, context):
@@ -321,6 +322,9 @@ class CGC_Polypen(ModalOperator):
                 self.nearest_bmedge = min_bme
                 self.nearest_bmface = min_bmf
             else:
+                #self.create_undo_snapshot('grab')
+                #self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
+                #return 'grab tool'
                 pass
         
         return ''
@@ -363,16 +367,16 @@ class CGC_Polypen(ModalOperator):
             bmv2d = location_3d_to_region_2d(rgn, r3d, bmv3d)
             d2d = (p2d - bmv2d).length
             if d2d > max_dist2d: continue
-            if not lmin_bme or (d3d <= min_dist3d+0.0001 and d2d <= min_dist2d+0.01):
-                if not lmin_bme and (abs(d2d-min_dist2d) <= 0.01 or abs(d3d-min_dist3d) <= 0.0001):
+            if not lmin_bme or (d3d <= min_dist3d+0.01):
+                if lmin_bme and (abs(d3d-min_dist3d) <= 0.01):
                     lmin_bme += [bme]
                 else:
                     lmin_bme = [bme]
                     min_dist2d = d2d
                     min_dist3d = d3d
         if not lmin_bme: return None
-        if len(lmin_bme) == 2:
-            return orthogonalest_bmedge(p3d, lmin_bme)
+        if len(lmin_bme) >= 2:
+            return self.orthogonalest_bmedge(p3d, lmin_bme)
         return (lmin_bme[0], min_dist2d, min_dist3d)
     
     def orthogonalest_bmedge(self, p3d, lbme):
@@ -385,7 +389,7 @@ class CGC_Polypen(ModalOperator):
         _,d0 = closest_t_and_distance_point_to_line_segment(p3d, p00, p01)
         _,d1 = closest_t_and_distance_point_to_line_segment(p3d, p10, p11)
         
-        if abs(d0-d1) > 0.0001:
+        if abs(d0-d1) > 0.01:
             return (lbme[0] if d0 < d1 else lbme[1],0,0)
         
         p001,p00p = (p01-p00).normalized(), (p3d-p00).normalized()
@@ -393,7 +397,6 @@ class CGC_Polypen(ModalOperator):
         
         theta0 = abs(p00p.dot(p001))
         theta1 = abs(p10p.dot(p101))
-        
         return (lbme[0] if theta0 < theta1 else lbme[1],0,0)
     
     def closest_bmface(self, p3d):
@@ -694,3 +697,25 @@ class CGC_Polypen(ModalOperator):
         bmv = self.create_vert(p3d)
         
         return ''
+
+    def modal_grab_tool(self, context, eventd):
+        cx,cy = self.action_center
+        mx,my = eventd['mouse']
+        px,py = self.prev_pos #mode_pos
+        sx,sy = self.mode_start
+
+        if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE','SHIFT+RET','SHIFT+NUMPAD_ENTER','SHIFT+LEFTMOUSE'}:
+            self.tool_fn('commit', eventd)
+            return 'main'
+
+        if eventd['press'] in {'ESC','RIGHTMOUSE'}:
+            self.tool_fn('undo', eventd)
+            return 'main'
+
+        if eventd['type'] == 'MOUSEMOVE':
+            self.tool_fn((mx-px,my-py), eventd)
+            self.prev_pos = (mx,my)
+            return ''
+
+        return ''
+        
