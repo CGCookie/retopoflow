@@ -135,7 +135,11 @@ class CGC_Polypen(ModalOperator):
                 bme.from_mesh(me)
                 bvh = BVHTree.FromBMesh(bme)
                 write_mesh_cache(self.src_object, bme, bvh)
-            
+
+            # Hide any existing geometry
+            bpy.ops.mesh.hide(unselected=True)
+            bpy.ops.mesh.hide(unselected=False)
+    
             self.tar_object = get_target_object()
             self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
         
@@ -195,6 +199,10 @@ class CGC_Polypen(ModalOperator):
     
     def end(self, context):
         ''' Called when tool is ending modal '''
+        if context.mode == 'EDIT_MESH':
+            # Reveal any existing geometry
+            bpy.ops.mesh.reveal()
+        
         del self.tar_bmeshrender
     
     def end_commit(self, context):
