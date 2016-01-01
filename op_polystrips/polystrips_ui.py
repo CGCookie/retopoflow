@@ -36,6 +36,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
 from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
+from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
@@ -152,7 +153,11 @@ class Polystrips_UI:
             #TODO snap_eds_vis?  #careful with the 2 matrices. One is the source object mx, the other is the target object mx
             self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
             self.hover_ed = None
-        
+
+            # Hide any existng geometry so as to draw nicely via BmeshRender
+            bpy.ops.mesh.hide(unselected=True)
+            bpy.ops.mesh.hide(unselected=False)
+
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
@@ -181,7 +186,10 @@ class Polystrips_UI:
             if not was_fullscreen and self.settings.distraction_free:
                 bpy.ops.screen.screen_full_area(use_hide_panels=True)
             self.is_fullscreen = True
-        
+
+        # Draw the existing bmesh geometry in our own style
+        self.tar_bmeshrender = BMeshRender(self.dest_bme)
+
         context.area.header_text_set('Polystrips')
     
     def end_ui(self, context):

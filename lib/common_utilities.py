@@ -31,6 +31,8 @@ import inspect
 import math
 import time
 import itertools
+import linecache
+import traceback
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from mathutils.geometry import distance_point_to_plane, intersect_line_line_2d, intersect_line_line
@@ -56,24 +58,19 @@ def selection_mouse():
 def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
-        frame = inspect.currentframe()
-
-        while frame:
-            folderpath = os.path.dirname(frame.f_code.co_filename)
-            foldername = os.path.basename(folderpath)
-            frame = frame.f_back
+        #frame = inspect.currentframe()
+        #frame.f_code.co_filename
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
             if foldername in {'lib','addons'}: continue
-            
-            if foldername in addons:
-                get_settings.cached_settings = addons[foldername].preferences
-                break
-            else:
-                assert False, 'could not find non-"lib" folder'
-                
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find non-"lib" folder'
+        
+        get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
-
-
 get_settings.cached_settings = None
 
 def get_dpi():
@@ -83,6 +80,45 @@ def get_dpi():
 
 def get_dpi_factor():
     return get_dpi() / 72
+
+# http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
+def print_exception():
+    exc_type, exc_obj, tb = sys.exc_info()
+    
+    errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
+    etb = traceback.extract_tb(tb)
+    pfilename = None
+    for i,entry in enumerate(reversed(etb)):
+        filename,lineno,funcname,line = entry
+        if filename != pfilename:
+            pfilename = filename
+            errormsg += '         %s\n' % (filename)
+        errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
+    
+    print(errormsg)
+    showErrorMessage(errormsg, wrap=240)
+
+def print_exception2():
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    print("*** print_tb:")
+    traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+    print("*** print_exception:")
+    traceback.print_exception(exc_type, exc_value, exc_traceback,
+                              limit=2, file=sys.stdout)
+    print("*** print_exc:")
+    traceback.print_exc()
+    print("*** format_exc, first and last line:")
+    formatted_lines = traceback.format_exc().splitlines()
+    print(formatted_lines[0])
+    print(formatted_lines[-1])
+    print("*** format_exception:")
+    print(repr(traceback.format_exception(exc_type, exc_value,exc_traceback)))
+    print("*** extract_tb:")
+    print(repr(traceback.extract_tb(exc_traceback)))
+    print("*** format_tb:")
+    print(repr(traceback.format_tb(exc_traceback)))
+    print("*** tb_lineno:", exc_traceback.tb_lineno)
+    
 
 @persistent
 def check_source_target_objects(scene):
@@ -170,18 +206,24 @@ def dcallstack(l=2):
         if i>0: dprint('  %s' % str(entry), l=l)
 
 def showErrorMessage(message, wrap=80):
-    lines = []
+    if not message: return
+    lines = message.splitlines()
     if wrap > 0:
-        while len(message) > wrap:
-            i = message.rfind(' ',0,wrap)
-            if i == -1:
-                lines += [message[:wrap]]
-                message = message[wrap:]
-            else:
-                lines += [message[:i]]
-                message = message[i+1:]
-    if message:
-        lines += [message]
+        nlines = []
+        for line in lines:
+            spc = len(line) - len(line.lstrip())
+            while len(line) > wrap:
+                i = line.rfind(' ',0,wrap)
+                if i == -1:
+                    nlines += [line[:wrap]]
+                    line = line[wrap:]
+                else:
+                    nlines += [line[:i]]
+                    line = line[i+1:]
+                if line:
+                    line = ' '*spc + line
+            nlines += [line]
+        lines = nlines
     def draw(self,context):
         for line in lines:
             self.layout.label(line)

@@ -105,6 +105,7 @@ class Tweak_UI_Tools():
                 
             
             bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            self.tar_bmeshrender.dirty()
             
             
             if eventd['release'] in self.keymap['action']:
@@ -184,6 +185,7 @@ class Tweak_UI_Tools():
             bmverts[i].co = mx * bvh.find(imx*divco[i])[0]
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+        self.tar_bmeshrender.dirty()
         
 
     

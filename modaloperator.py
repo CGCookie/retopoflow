@@ -28,12 +28,14 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Euler
 
+import sys
 import math
 import os
 
 from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
 from .lib import common_utilities
+from .lib.common_utilities import print_exception
 
 class ModalOperator(Operator):
 
@@ -126,13 +128,19 @@ class ModalOperator(Operator):
 
     def draw_callback_postview(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postview(context)
+        try:
+            self.draw_postview(context)
+        except:
+            print_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpixel(context)
-        if self.settings.show_help:
+        try:
+            self.draw_postpixel(context)
+        except:
+            print_exception()
+        if self.settings.show_help and self.help_box:
             self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
@@ -165,7 +173,11 @@ class ModalOperator(Operator):
         '''
 
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
-        nmode = self.FSM['nav'](context, eventd)
+        try:
+            nmode = self.FSM['nav'](context, eventd)
+        except:
+            print_exception()
+            return ''
         if nmode:
             return nmode
 
@@ -179,24 +191,25 @@ class ModalOperator(Operator):
             return 'cancel'
         
         # help textbox
-        if eventd['press'] in self.keymap['help']:
-            if  self.help_box.is_collapsed:
-                self.help_box.uncollapse()
-            else:
-                self.help_box.collapse()
-            self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-        if eventd['press'] in self.keymap['action']: # {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
-            if self.help_box.is_hovered:
+        if self.help_box:
+            if eventd['press'] in self.keymap['help']:
                 if  self.help_box.is_collapsed:
                     self.help_box.uncollapse()
                 else:
                     self.help_box.collapse()
                 self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
-                return ''
-        if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
-            #update brush and brush size
-            x,y = eventd['mouse']
-            self.help_box.hover(x,y)
+            if eventd['press'] in self.keymap['action']: # {'LEFTMOUSE', 'SHIFT+LEFTMOUSE', 'CTRL+LEFTMOUSE'}:
+                if self.help_box.is_hovered:
+                    if  self.help_box.is_collapsed:
+                        self.help_box.uncollapse()
+                    else:
+                        self.help_box.collapse()
+                    self.help_box.snap_to_corner(eventd['context'],corner = [1,1])
+                    return ''
+            if eventd['type'] == 'MOUSEMOVE':  #mouse movement/hovering
+                #update brush and brush size
+                x,y = eventd['mouse']
+                self.help_box.hover(x,y)
 
         # handle general waiting
         nmode = self.FSM['wait'](context, eventd)
@@ -222,13 +235,19 @@ class ModalOperator(Operator):
         self.footer = ''
         self.footer_last = ''
         
-        self.start(context)
+        try:
+            self.start(context)
+        except:
+            print_exception()
 
     def modal_end(self, context):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
-        self.end(context)
+        try:
+            self.end(context)
+        except:
+            print_exception()
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
         context.area.header_text_set()
@@ -245,7 +264,11 @@ class ModalOperator(Operator):
         eventd = self.get_event_details(context, event)
 
         self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.fsm_mode](context, eventd)
+        try:
+            nmode = self.FSM[self.fsm_mode](context, eventd)
+        except:
+            print_exception()
+            nmode = ''
         self.mode_pos = eventd['mouse']
 
         if nmode == 'wait': nmode = 'main'
@@ -256,10 +279,23 @@ class ModalOperator(Operator):
 
         if nmode in {'finish','cancel'}:
             if nmode == 'finish':
-                self.end_commit(context)
+                try:
+                    self.end_commit(context)
+                except:
+                    print_exception()
+                    return {'RUNNING_MODAL'}
             else:
-                self.end_cancel(context)
-            self.modal_end(context)
+                try:
+                    self.end_cancel(context)
+                except:
+                    print_exception()
+                    return {'RUNNING_MODAL'}
+            
+            try:
+                self.modal_end(context)
+            except:
+                print_exception()
+            
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 
         if nmode: self.fsm_mode = nmode
@@ -372,8 +408,9 @@ class ModalOperator(Operator):
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
         
-        self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
+        if self.help_box:
+            self.help_box.collapse()
+            self.help_box.snap_to_corner(context, corner = [1,1])
         
         self.modal_start(context)
         

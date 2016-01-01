@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy
 import bgl
+import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
@@ -29,6 +30,7 @@ import math
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_utilities import showErrorMessage
+from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler import profiler
 from .tweak_ui import Tweak_UI
 from .tweak_ui_tools import Tweak_UI_Tools
@@ -79,13 +81,25 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
     
     def start(self, context):
         ''' Called when tool is invoked '''
+
+        # Setup target for BmeshRender drawing of existing geometry
+        self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
+
+        # Hide any existing geometry
+        bpy.ops.mesh.hide(unselected=True)
+        bpy.ops.mesh.hide(unselected=False)
+
         self.start_ui(context)
     
     def end(self, context):
         ''' Called when tool is ending modal '''
         self.end_ui(context)
         self.cleanup(context)
-    
+
+        # Bring back hidden geometry
+        bpy.ops.mesh.reveal()
+
     def end_commit(self, context):
         ''' Called when tool is committing '''
         pass
@@ -100,6 +114,20 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
     
     def draw_postview(self, context):
         ''' Place post view drawing code in here '''
+
+        settings = common_utilities.get_settings()
+        color_frozen = settings.theme_colors_frozen[settings.theme]
+
+        ### Existing Geometry ###
+        opts = {
+            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly depth': (0, 0.999),
+
+            'line depth': (0, 0.997),
+            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+        }
+        self.tar_bmeshrender.draw(opts)
+
         pass
     
     def draw_postpixel(self, context):
