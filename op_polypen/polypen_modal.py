@@ -380,7 +380,19 @@ class CGC_Polypen(ModalOperator):
                     self.tar_bmeshrender.dirty()
                     return ''
                 # bridge
-                #bmf = self.tar_bmesh.faces
+                bmv0,bmv1 = bme0.verts
+                bmv3,bmv2 = bme1.verts
+                d01 = bmv1.co - bmv0.co
+                d02 = bmv2.co - bmv0.co
+                d31 = bmv1.co - bmv3.co
+                d32 = bmv2.co - bmv3.co
+                if (d02.cross(d01)).dot(d31.cross(d32)) < 0:
+                    bmv2,bmv3 = bmv3,bmv2
+                
+                bmf = self.tar_bmesh.faces.new([bmv0,bmv1,bmv3,bmv2])
+                self.set_selection(lbmf=[bmf])
+                self.tar_bmeshrender.dirty()
+                return ''
             
             if self.nearest_bmvert:
                 bmv = self.nearest_bmvert
