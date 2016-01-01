@@ -294,7 +294,7 @@ class CGC_Polypen(ModalOperator):
     
     def closest_bmedge(self, p3d, lbme=None, max_dist=0.0):
         if not lbme: lbme = self.tar_bmesh.edges
-        min_bme = None
+        lmin_bme = []
         md = 0
         for bme in lbme:
             if len(bme.link_faces) == 2:
@@ -303,10 +303,16 @@ class CGC_Polypen(ModalOperator):
                 continue
             t,d = closest_t_and_distance_point_to_line_segment(p3d, bme.verts[0].co, bme.verts[1].co)
             if max_dist > 0 and d > max_dist: continue
-            if min_bme == None or d < md:
-                md = d
-                min_bme = bme
-        return (min_bme,md)
+            if not lmin_bme or d <= md + 0.0001:
+                if not lmin_bme and abs(d-md) <= 0.0001:
+                    lmin_bme += [bme]
+                else:
+                    md = d
+                    lmin_bme = [bme]
+        if not lmin_bme: return (None,0)
+        if len(lmin_bme) == 2:
+            return orthogonalest_bmedge(p3d, lmin_bme)
+        return (lmin_bme[0],md)
     
     def orthogonalest_bmedge(self, p3d, lbme):
         p00,p01 = lbme[0].verts[0].co,lbme[0].verts[1].co
