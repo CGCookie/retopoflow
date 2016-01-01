@@ -129,13 +129,10 @@ class BMeshRender():
         # do not change attribs if they're not set
         glSetDefaultOptions(opts=opts)
         
-        glSetPolyOptions(opts=opts)
-        glDrawBMFaces(self.bmesh.faces)
+        glDrawBMFaces(self.bmesh.faces, opts=opts)
         
-        glSetLineOptions(opts=opts)
-        glDrawBMEdges(self.bmesh.edges)
+        glDrawBMEdges(self.bmesh.edges, opts=opts)
         
-        glSetPointOptions(opts=opts)
-        glDrawBMVerts(self.bmesh.verts)
+        glDrawBMVerts(self.bmesh.verts, opts=opts)
         
         bgl.glDepthRange(0, 1)
