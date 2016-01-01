@@ -255,6 +255,14 @@ class CGC_Polypen(ModalOperator):
                 self.tar_bmeshrender.dirty()
                 return ''
         
+        if eventd['press'] == 'D' and self.selected_bmedges:
+            if len(self.selected_bmedges[0].link_faces) == 2:
+                bmesh.utils.face_join(self.selected_bmedges[0].link_faces)
+                self.set_selection()
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return ''
+        
         if eventd['press'] == 'LEFTMOUSE':
             return self.handle_click(context, eventd)
         
@@ -297,10 +305,10 @@ class CGC_Polypen(ModalOperator):
         lmin_bme = []
         md = 0
         for bme in lbme:
-            if len(bme.link_faces) == 2:
-                # bmedge has two faces, so we cannot add another face
-                # without making non-manifold
-                continue
+            # if len(bme.link_faces) == 2:
+            #     # bmedge has two faces, so we cannot add another face
+            #     # without making non-manifold
+            #     continue
             t,d = closest_t_and_distance_point_to_line_segment(p3d, bme.verts[0].co, bme.verts[1].co)
             if max_dist > 0 and d > max_dist: continue
             if not lmin_bme or d <= md + 0.0001:
