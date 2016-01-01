@@ -525,10 +525,7 @@ class CGC_Polypen(ModalOperator):
     def undo(self, context):
         if not self.undo_stack: return
         bme,liv,lie,lif = self.undo_stack.pop()
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bme.to_mesh(self.tar_object.data)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bme = bmesh.from_edit_mesh(context.object.data)
+        bme = bme.copy()
         bme.verts.ensure_lookup_table()
         bme.edges.ensure_lookup_table()
         bme.faces.ensure_lookup_table()
