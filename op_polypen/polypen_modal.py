@@ -371,6 +371,11 @@ class CGC_Polypen(ModalOperator):
         lbmv,lbme,lbmf = len(sbmv),len(sbme),len(sbmf)
         
         if lbme >= 1:
+            if self.nearest_bmedge:
+                # check if edges share face
+                if any(self.nearest_bmedge in f.edges for f in sbme[0].link_faces):
+                    self.set_selection(lbme=[self.nearest_bmedge])
+                    return ''
             if self.nearest_bmvert:
                 # check if nearest bmvert belongs to lbme
                 if any(self.nearest_bmvert in e.verts for e in sbme):
