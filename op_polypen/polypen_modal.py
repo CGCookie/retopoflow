@@ -120,50 +120,54 @@ class CGC_Polypen(ModalOperator):
         bpy.ops.mesh.hide(unselected=False)
 
         self.tar_object = get_target_object()
-        self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
+        self.tar_bmesh = bmesh.from_edit_mesh(context.object.data).copy()
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
         
         self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
         
+        color_mesh = self.settings.theme_colors_mesh[self.settings.theme]
+        color_selection = self.settings.theme_colors_selection[self.settings.theme]
+        color_active = self.settings.theme_colors_active[self.settings.theme]
+        
         self.render_normal = {
-            'poly color': (1,1,1,0.5),
+            'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
             'poly depth': (0, 0.999),
             
-            'line width': 1.0,
-            'line color': (1,1,1,1),
+            'line width': 2.0,
+            'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
             'line depth': (0, 0.997),
             
-            'point size':  3.0,
-            'point color': (0,0,0,1),
+            'point size':  4.0,
+            'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.4),
             'point depth': (0, 0.996),
         }
         
         self.render_nearest = {
-            'poly color': (1,0.7,0,1),
+            'poly color': (color_selection[0], color_selection[1], color_selection[2], 0.20),
             'poly depth': (0, 0.995),
             
-            'line color': (1,0.7,0,1),
+            'line color': (color_selection[0], color_selection[1], color_selection[2], 0.75),
             'line width': 2.0,
             'line depth': (0, 0.995),
             
-            'point color': (1,0.7,0,1),
+            'point color': (color_selection[0], color_selection[1], color_selection[2], 0.75),
             'point depth': (0, 0.995),
-            'point size': 4.0,
+            'point size': 5.0,
         }
         
         self.render_selected = {
-            'poly color': (1,1,0,1),
+            'poly color': (color_selection[0], color_selection[1], color_selection[2], 0.40),
             'poly depth': (0, 0.995),
             
-            'line color': (1,1,0,1),
+            'line color': (color_selection[0], color_selection[1], color_selection[2], 1.00),
             'line width': 2.0,
             'line depth': (0, 0.995),
             
-            'point color': (1,1,0,1),
+            'point color': (color_selection[0], color_selection[1], color_selection[2], 1.00),
             'point depth': (0, 0.995),
-            'point size': 4.0,
+            'point size': 5.0,
         }
         
         self.selected_bmverts = []
@@ -202,7 +206,9 @@ class CGC_Polypen(ModalOperator):
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
-        pass
+        bpy.ops.object.mode_set(mode='OBJECT')
+        self.tar_bmesh.to_mesh(self.tar_object.data)
+        bpy.ops.object.mode_set(mode='EDIT')
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
@@ -305,10 +311,11 @@ class CGC_Polypen(ModalOperator):
         
         if eventd['type'] == 'MOUSEMOVE':
             if self.mouse_down and len(self.selected_bmedges)==1:
-                if eventd['ctrl']:
-                    return self.handle_insert_vert(context, eventd)
-                else:
-                    return self.handle_extrude_edge(context, eventd)
+                if (self.mouse_curp2d-self.mouse_downp2d).length > 5:
+                    if eventd['ctrl']:
+                        return self.handle_insert_vert(context, eventd)
+                    else:
+                        return self.handle_extrude_edge(context, eventd)
             
             #mouse movement/hovering
             p2d = self.mouse_curp2d
@@ -604,7 +611,7 @@ class CGC_Polypen(ModalOperator):
     
     def handle_extrude_edge(self, context, eventd):
         self.create_undo()
-        p3d = self.mouse_curp3d
+        p3d = self.mouse_downp3d
         bme = self.selected_bmedges[0]
         bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.create_vert(p3d)
         bmf = self.create_face([bmv0, bmv1, bmv2])
@@ -613,7 +620,7 @@ class CGC_Polypen(ModalOperator):
     
     def handle_insert_vert(self, context, eventd):
         self.create_undo()
-        p3d = self.mouse_curp3d
+        p3d = self.mouse_downp3d
         bme = self.selected_bmedges[0]
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         lbme = bmv.link_edges

@@ -120,14 +120,6 @@ class BMeshRender():
         if self.is_dirty:
             # make not dirty first in case bad things happen while drawing
             self.is_dirty = False
-            
-            for bmv in self.bmesh.verts:
-                bmv.hide = True
-            for bme in self.bmesh.edges:
-                bme.hide = True
-            for bmf in self.bmesh.faces:
-                bmf.hide = True
-            
             bgl.glNewList(self.calllist, bgl.GL_COMPILE)
             self._draw_immediate(opts=opts)
             bgl.glEndList()
