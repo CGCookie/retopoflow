@@ -356,8 +356,8 @@ class CGC_Polypen(ModalOperator):
         sbmv,sbme,sbmf = self.selected_bmverts,self.selected_bmedges,self.selected_bmfaces
         lbmv,lbme,lbmf = len(sbmv),len(sbme),len(sbmf)
         
-        if lbme == 1 or lbme == 2:
-            if lbme == 2:
+        if lbme >= 1:
+            if lbme >= 2:
                 min_bme = self.orthogonalest_bmedge(p3d, sbme)
                 sbme = [min_bme]
             
@@ -404,15 +404,29 @@ class CGC_Polypen(ModalOperator):
             return ''
         
         if lbmf == 1:
-            #if self.nearest_bmvert:
             min_bme,_ = self.closest_bmedge(p3d, lbme=sbmf[0].edges)
             bme,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
+            if self.nearest_bmvert:
+                # merge bmv into nearest_bmvert
+                bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
+                bmv = self.nearest_bmvert
+                lbme = [e for e in sbmf[0].edges if bmv in e.verts and len(e.link_faces) != 2]
+            else:
+                lbme = bmv.link_edges
             bmv.co = p3d
-            self.set_selection(lbmv=[bmv], lbme=bmv.link_edges)
+            self.set_selection(lbmv=[bmv], lbme=lbme)
             self.tar_bmeshrender.dirty()
             return ''
         
         if lbmv == 1:
+            if self.nearest_bmedge:
+                bmv0 = sbmv[0]
+                bmv1 = self.nearest_bmedge.verts[0]
+                bmv2 = self.nearest_bmedge.verts[1]
+                bmf = self.tar_bmesh.faces.new([bmv0,bmv1,bmv2])
+                self.set_selection(lbmf=[bmf])
+                self.tar_bmeshrender.dirty()
+                return ''
             if self.nearest_bmvert:
                 bmv = self.nearest_bmvert
                 ibme = [e for e in sbmv[0].link_edges if bmv in e.verts]
