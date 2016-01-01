@@ -74,7 +74,7 @@ class CGC_Polypen(ModalOperator):
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False
-        if get_target_object().type != 'MESH':
+        if get_target_object() and get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')
             return False
         if self.settings.source_object == self.settings.target_object and self.settings.source_object and self.settings.target_object:
@@ -89,59 +89,37 @@ class CGC_Polypen(ModalOperator):
         self.keymap = key_maps.rtflow_user_keymap_generate()
         
         if context.mode == 'OBJECT':
-
-            # Debug level 2: time start
-            check_time = Profiler().start()
-
             self.src_object = get_source_object()
-            self.mx = self.src_object.matrix_world
-            is_valid = is_object_valid(self.src_object)
-            if not is_valid:
-                clear_mesh_cache()
-                polypen_undo_cache = []
-                me = self.src_object.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-                me.update()
-                bme = bmesh.new()
-                bme.from_mesh(me)
-                bvh = BVHTree.FromBMesh(bme)
-                write_mesh_cache(self.src_object, bme, bvh)
-                
-            # Debug level 2: time end
-            check_time.done()
-
-            #Create a new empty destination object for new retopo mesh
             nm_polypen = self.src_object.name + "_polypen"
-            self.tar_bmesh = bmesh.new()
+            self.tar_object = setup_target_object( nm_polypen, self.src_object, bmesh.new() )
+            self.tar_object.select = True
+            bpy.context.scene.objects.active = self.tar_object
+            bpy.ops.object.mode_set(mode='EDIT')
+            self.was_objectmode = True
+        else:
+            self.was_objectmode = False
+        
+        self.src_object = get_source_object()
+        self.mx = self.src_object.matrix_world
+        is_valid = is_object_valid(self.src_object)
 
-            self.tar_object = setup_target_object( nm_polypen, self.src_object, self.tar_bmesh )
+        if not is_valid:
+            clear_mesh_cache()
+            polypen_undo_cache = []
+            me = self.src_object.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+            me.update()
+        
+            bme = bmesh.new()
+            bme.from_mesh(me)
+            bvh = BVHTree.FromBMesh(bme)
+            write_mesh_cache(self.src_object, bme, bvh)
 
-            self.extension_geometry = []
-            self.snap_eds = []
-            self.snap_eds_vis = []
-            self.hover_ed = None
+        # Hide any existing geometry
+        bpy.ops.mesh.hide(unselected=True)
+        bpy.ops.mesh.hide(unselected=False)
 
-        elif context.mode == 'EDIT_MESH':
-            self.src_object = get_source_object()
-            self.mx = self.src_object.matrix_world
-            is_valid = is_object_valid(self.src_object)
-    
-            if not is_valid:
-                clear_mesh_cache()
-                polypen_undo_cache = []
-                me = self.src_object.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-                me.update()
-            
-                bme = bmesh.new()
-                bme.from_mesh(me)
-                bvh = BVHTree.FromBMesh(bme)
-                write_mesh_cache(self.src_object, bme, bvh)
-
-            # Hide any existing geometry
-            bpy.ops.mesh.hide(unselected=True)
-            bpy.ops.mesh.hide(unselected=False)
-    
-            self.tar_object = get_target_object()
-            self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
+        self.tar_object = get_target_object()
+        self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
@@ -202,6 +180,8 @@ class CGC_Polypen(ModalOperator):
         if context.mode == 'EDIT_MESH':
             # Reveal any existing geometry
             bpy.ops.mesh.reveal()
+        if self.was_objectmode:
+            bpy.ops.object.mode_set(mode='OBJECT')
         
         del self.tar_bmeshrender
     
