@@ -357,6 +357,12 @@ class CGC_Polypen(ModalOperator):
         lbmv,lbme,lbmf = len(sbmv),len(sbme),len(sbmf)
         
         if lbme >= 1:
+            if self.nearest_bmvert:
+                # check if nearest bmvert belongs to lbme
+                if any(self.nearest_bmvert in e.verts for e in sbme):
+                    self.set_selection(lbmv=[self.nearest_bmvert])
+                    return ''
+            
             if lbme >= 2:
                 min_bme = self.orthogonalest_bmedge(p3d, sbme)
                 sbme = [min_bme]
