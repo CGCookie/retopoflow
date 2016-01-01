@@ -4,6 +4,7 @@ DRAWING:
 - LMB: insert vertex
 - SELECTMOUSE: select vertex, edge, or face
 - A: deselect all
+- TAB: toggle Face / Edge mode
 
 MERGE / DELETE / DISSOLVE:
 - D: dissolve selected edge
