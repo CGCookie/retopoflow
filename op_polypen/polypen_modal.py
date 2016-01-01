@@ -303,22 +303,21 @@ class CGC_Polypen(ModalOperator):
         return (min_bme,md)
     
     def orthogonalest_bmedge(self, p3d, lbme):
-        ortho_bme = None
-        o_theta = 0
-        for bme in lbme:
-            if len(bme.link_faces) == 2:
-                # bmedge has two faces, so we cannot add another face
-                # without making non-manifold
-                continue
-            p0 = bme.verts[0].co
-            p1 = bme.verts[1].co
-            d01 = (p1-p0).normalized()
-            d0p = (p3d-p0).normalized()
-            theta = abs(d0p.dot(d01))
-            if not ortho_bme or theta < o_theta:
-                o_theta = theta
-                ortho_bme = bme
-        return ortho_bme
+        p00,p01 = lbme[0].verts[0].co,lbme[0].verts[1].co
+        p10,p11 = lbme[1].verts[0].co,lbme[1].verts[1].co
+        _,d0 = closest_t_and_distance_point_to_line_segment(p3d, p00, p01)
+        _,d1 = closest_t_and_distance_point_to_line_segment(p3d, p10, p11)
+        
+        if abs(d0-d1) > 0.0001:
+            return lbme[0] if d0 < d1 else lbme[1]
+        
+        p001,p00p = (p01-p00).normalized(), (p3d-p00).normalized()
+        p101,p10p = (p11-p10).normalized(), (p3d-p10).normalized()
+        
+        theta0 = abs(p00p.dot(p001))
+        theta1 = abs(p10p.dot(p101))
+        
+        return lbme[0] if theta0 < theta1 else lbme[1]
     
     def closest_bmface(self, p3d):
         for bmf in self.tar_bmesh.faces:
