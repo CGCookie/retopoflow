@@ -173,7 +173,7 @@ class CGC_Polypen(ModalOperator):
         self.nearest_bmvert = None
         self.nearest_bmedge = None
         
-        self.undo = []
+        self.undo_stack = []
         
         context.area.header_text_set('Polypen')
     
@@ -266,7 +266,7 @@ class CGC_Polypen(ModalOperator):
                 return ''
         
         if eventd['press'] == 'CTRL+Z':
-            self.redo(context)
+            self.undo(context)
             return ''
         
         if eventd['press'] == 'LEFTMOUSE':
@@ -373,13 +373,13 @@ class CGC_Polypen(ModalOperator):
         liv = [v.index for v in self.selected_bmverts]
         lie = [e.index for e in self.selected_bmedges]
         lif = [f.index for f in self.selected_bmfaces]
-        self.undo += [(self.tar_bmesh.copy(),liv,lie,lif)]
-        if len(self.undo) > 20:
-            self.undo.pop(0)
+        self.undo_stack += [(self.tar_bmesh.copy(),liv,lie,lif)]
+        if len(self.undo_stack) > self.settings.undo_depth:
+            self.undo_stack.pop(0)
     
-    def redo(self, context):
-        if not self.undo: return
-        bme,liv,lie,lif = self.undo.pop()
+    def undo(self, context):
+        if not self.undo_stack: return
+        bme,liv,lie,lif = self.undo_stack.pop()
         bpy.ops.object.mode_set(mode='OBJECT')
         bme.to_mesh(self.tar_object.data)
         bpy.ops.object.mode_set(mode='EDIT')
@@ -387,11 +387,11 @@ class CGC_Polypen(ModalOperator):
         bme.verts.ensure_lookup_table()
         bme.edges.ensure_lookup_table()
         bme.faces.ensure_lookup_table()
+        self.tar_bmesh = bme
+        self.tar_bmeshrender.replace_bmesh(bme)
         self.selected_bmverts = [bme.verts[i] for i in liv]
         self.selected_bmedges = [bme.edges[i] for i in lie]
         self.selected_bmfaces = [bme.faces[i] for i in lif]
-        self.tar_bmesh = bme
-        self.tar_bmeshrender.replace_bmesh(self.tar_bmesh)
         self.clear_nearest()
     
     def handle_click(self, context, eventd, dry_run=False):
@@ -470,6 +470,11 @@ class CGC_Polypen(ModalOperator):
                 # just select nearest
                 self.set_selection(lbme=[self.nearest_bmedge])
                 return ''
+            if self.nearest_bmvert:
+                # check if nearest bmvert belongs to bmf
+                if self.nearest_bmvert in sbmf[0].verts:
+                    self.set_selection(lbmv=[self.nearest_bmvert])
+                    return ''
             min_bme,_ = self.closest_bmedge(p3d, lbme=sbmf[0].edges)
             bme,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             if self.nearest_bmvert:
