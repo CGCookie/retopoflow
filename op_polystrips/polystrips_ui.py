@@ -385,13 +385,12 @@ class Polystrips_UI:
         mx,my = eventd['mouse'] 
         self.help_box.hover(mx, my)
         
-        if not len(self.polystrips.extension_geometry): return
         self.hov_gvert = None
-        for gv in self.polystrips.extension_geometry:
-            #if not gv.is_visible(): continue
-            rgn   = eventd['context'].region
-            r3d   = eventd['context'].space_data.region_3d
-            mx,my = eventd['mouse']
+        rgn   = eventd['context'].region
+        r3d   = eventd['context'].space_data.region_3d
+        mx,my = eventd['mouse']
+        for gv in self.polystrips.extension_geometry + self.polystrips.gverts:
+            if gv.is_inner(): continue
             c0 = location_3d_to_region_2d(rgn, r3d, gv.corner0)
             c1 = location_3d_to_region_2d(rgn, r3d, gv.corner1)
             c2 = location_3d_to_region_2d(rgn, r3d, gv.corner2)
