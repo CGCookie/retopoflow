@@ -331,6 +331,10 @@ class CGC_Polypen(ModalOperator):
     def orthogonalest_bmedge(self, p3d, lbme):
         p00,p01 = lbme[0].verts[0].co,lbme[0].verts[1].co
         p10,p11 = lbme[1].verts[0].co,lbme[1].verts[1].co
+        if (p00-p3d).length_squared > (p01-p3d).length_squared:
+            p00,p01 = p01,p00
+        if (p10-p3d).length_squared > (p11-p3d).length_squared:
+            p10,p11 = p11,p10
         _,d0 = closest_t_and_distance_point_to_line_segment(p3d, p00, p01)
         _,d1 = closest_t_and_distance_point_to_line_segment(p3d, p10, p11)
         
