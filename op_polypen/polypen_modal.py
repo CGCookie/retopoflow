@@ -448,6 +448,23 @@ class CGC_Polypen(ModalOperator):
                 if sbmv[0] in self.nearest_bmedge.verts:
                     self.set_selection(lbme=[self.nearest_bmedge])
                     return ''
+                # check if bmv belong to face adj to nearest_bmedge
+                if any(sbmv[0] in f.verts for f in self.nearest_bmedge.link_faces):
+                    self.set_selection(lbme=[self.nearest_bmedge])
+                    return ''
+            
+            if self.nearest_bmvert:
+                # check if we are splitting a face
+                bmv0 = sbmv[0]
+                bmv1 = self.nearest_bmvert
+                ibmf = set(bmv0.link_faces) & set(bmv1.link_faces)
+                if ibmf:
+                    bmf = ibmf.pop()
+                    bmesh.utils.face_split(bmf, bmv0, bmv1)
+                    self.set_selection()
+                    self.clear_nearest()
+                    self.tar_bmeshrender.dirty()
+                    return ''
             
             if self.nearest_bmedge:
                 bmv0 = sbmv[0]
