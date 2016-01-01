@@ -416,6 +416,10 @@ class CGC_Polypen(ModalOperator):
             return ''
         
         if lbmf == 1:
+            if self.nearest_bmedge:
+                # just select nearest
+                self.set_selection(lbme=[self.nearest_bmedge])
+                return ''
             min_bme,_ = self.closest_bmedge(p3d, lbme=sbmf[0].edges)
             bme,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             if self.nearest_bmvert:
