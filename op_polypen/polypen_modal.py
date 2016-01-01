@@ -199,7 +199,7 @@ class CGC_Polypen(ModalOperator):
         common_drawing_bmesh.glDrawBMFaces(self.selected_bmfaces, opts=self.render_selected)
         common_drawing_bmesh.glDrawBMEdges(self.selected_bmedges, opts=self.render_selected)
         common_drawing_bmesh.glDrawBMVerts(self.selected_bmverts, opts=self.render_selected)
-        if self.nearest_bmface:
+        if self.nearest_bmface and not self.selected_bmverts and not self.selected_bmedges and not self.selected_bmfaces:
             common_drawing_bmesh.glDrawBMFace(self.nearest_bmface, opts=self.render_nearest)
         if self.nearest_bmedge:
             common_drawing_bmesh.glDrawBMEdge(self.nearest_bmedge, opts=self.render_nearest)
@@ -228,6 +228,32 @@ class CGC_Polypen(ModalOperator):
             self.selected_bmverts = []
             self.selected_bmedges = []
             self.selected_bmfaces = []
+        
+        if eventd['press'] == 'X':
+            if self.selected_bmfaces:
+                for bmf in self.selected_bmfaces:
+                    self.tar_bmesh.faces.remove(bmf)
+                self.set_selection()
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return ''
+            if self.selected_bmedges:
+                try:
+                    for bme in self.selected_bmedges:
+                        self.tar_bmesh.edges.remove(bme)
+                except:
+                    pass
+                self.set_selection()
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return ''
+            if self.selected_bmverts:
+                for bmv in self.selected_bmverts:
+                    self.tar_bmesh.verts.remove(bmv)
+                self.set_selection()
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return ''
         
         if eventd['press'] == 'LEFTMOUSE':
             return self.handle_click(context, eventd)
@@ -312,34 +338,56 @@ class CGC_Polypen(ModalOperator):
         if len(p3d) == 0:
             return None
         return p3d[0]
-        
     
-    def handle_click(self, context, eventd):
+    def set_selection(self, lbmv=None, lbme=None, lbmf=None):
+        self.selected_bmverts = [] if not lbmv else lbmv
+        self.selected_bmedges = [] if not lbme else lbme
+        self.selected_bmfaces = [] if not lbmf else lbmf
+    
+    def clear_nearest(self):
+        self.nearest_bmvert = None
+        self.nearest_bmedge = None
+        self.nearest_bmface = None
+    
+    def handle_click(self, context, eventd, dry_run=False):
         p3d = self.get_mouse_raycast(eventd)
         if not p3d: return ''
         
-        sbmv = self.selected_bmverts
-        sbme = self.selected_bmedges
-        sbmf = self.selected_bmfaces
-        lbmv = len(sbmv)
-        lbme = len(sbme)
-        lbmf = len(sbmf)
+        sbmv,sbme,sbmf = self.selected_bmverts,self.selected_bmedges,self.selected_bmfaces
+        lbmv,lbme,lbmf = len(sbmv),len(sbme),len(sbmf)
         
-        if lbme == 2:
-            min_bme = self.orthogonalest_bmedge(p3d, sbme)
-            self.selected_bmedges = [min_bme]
-            sbme = self.selected_bmedges
-            lbme = 1
-        
-        if lbme == 1:
+        if lbme == 1 or lbme == 2:
+            if lbme == 2:
+                min_bme = self.orthogonalest_bmedge(p3d, sbme)
+                sbme = [min_bme]
+            
+            if self.nearest_bmedge:
+                # determine if two edges share face
+                bme0 = sbme[0]
+                bme1 = self.nearest_bmedge
+                if any(bme0 in f.edges for f in bme1.link_faces):
+                    self.set_selection(lbme=[self.nearest_bmedge])
+                    return ''
+                # determine if two edges share vert
+                sbmv = [v for v in bme1.verts if v in bme0.verts]
+                if sbmv:
+                    bmv0 = sbmv[0]
+                    bmv1 = bme0.other_vert(bmv0)
+                    bmv2 = bme1.other_vert(bmv0)
+                    bmf = self.tar_bmesh.faces.new([bmv0,bmv1,bmv2])
+                    lbme = [e for e in bmv2.link_edges if e in bmv1.link_edges]
+                    self.set_selection(lbmf=[bmf])
+                    self.tar_bmeshrender.dirty()
+                    return ''
+                # bridge
+                #bmf = self.tar_bmesh.faces
+            
             if self.nearest_bmvert:
                 bmv = self.nearest_bmvert
             else:
                 bmv = self.tar_bmesh.verts.new(p3d)
             bmf = self.tar_bmesh.faces.new([sbme[0].verts[0], sbme[0].verts[1], bmv])
-            self.selected_bmverts = [bmv]
-            self.selected_bmedges = []
-            self.selected_bmfaces = [bmf]
+            self.set_selection(lbmv=[bmv], lbmf=[bmf])
             self.tar_bmeshrender.dirty()
             return ''
         
@@ -348,9 +396,7 @@ class CGC_Polypen(ModalOperator):
             min_bme,_ = self.closest_bmedge(p3d, lbme=sbmf[0].edges)
             bme,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             bmv.co = p3d
-            self.selected_bmverts = [bmv]
-            self.selected_bmedges = bmv.link_edges
-            self.selected_bmfaces = []
+            self.set_selection(lbmv=[bmv], lbme=bmv.link_edges)
             self.tar_bmeshrender.dirty()
             return ''
         
@@ -368,31 +414,25 @@ class CGC_Polypen(ModalOperator):
                 create_edge = True
             if create_edge:
                 bme = self.tar_bmesh.edges.new([sbmv[0], bmv])
-            self.selected_bmverts = [bmv, sbmv[0]]
-            self.selected_bmedges = [bme]
-            self.selected_bmfaces = []
+            self.set_selection(lbmv=[bmv,sbmv[0]], lbme=[bme])
             self.tar_bmeshrender.dirty()
             return ''
         
-        self.selected_bmverts = []
-        self.selected_bmedges = []
-        self.selected_bmfaces = []
-        
         if self.nearest_bmvert:
-            self.selected_bmverts = [self.nearest_bmvert]
+            self.set_selection(lbmv=[self.nearest_bmvert])
             return ''
         
         if self.nearest_bmedge:
-            self.selected_bmedges = [self.nearest_bmedge]
-            self.selected_bmverts = [self.nearest_bmedge.verts[0], self.nearest_bmedge.verts[1]]
+            nbme = self.nearest_bmedge
+            self.set_selection(lbmv=[nbme.verts[0], nbme.verts[1]],lbme=[nbme])
             return ''
         
         if self.nearest_bmface:
-            self.selected_bmfaces = [self.nearest_bmface]
+            self.set_selection(lbmf=[self.nearest_bmface])
             return ''
         
         bmv = self.tar_bmesh.verts.new(p3d)
-        self.selected_bmverts = [bmv]
+        self.set_selection(lbmv=[bmv])
         self.tar_bmeshrender.dirty()
         
         return ''
