@@ -105,6 +105,10 @@ class BMeshRender():
         self.is_dirty = True
         self.calllist = bgl.glGenLists(1)
     
+    def replace_bmesh(self, bmesh):
+        self.bmesh = bmesh
+        self.is_dirty = True
+    
     def __del__(self):
         bgl.glDeleteLists(self.calllist, 1)
         self.calllist = None
