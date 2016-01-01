@@ -173,6 +173,8 @@ class CGC_Polypen(ModalOperator):
         self.nearest_bmvert = None
         self.nearest_bmedge = None
         
+        self.undo = []
+        
         context.area.header_text_set('Polypen')
     
     def end(self, context):
@@ -262,6 +264,10 @@ class CGC_Polypen(ModalOperator):
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
                 return ''
+        
+        if eventd['press'] == 'CTRL+Z':
+            self.redo(context)
+            return ''
         
         if eventd['press'] == 'LEFTMOUSE':
             return self.handle_click(context, eventd)
@@ -363,9 +369,36 @@ class CGC_Polypen(ModalOperator):
         self.nearest_bmedge = None
         self.nearest_bmface = None
     
+    def create_undo(self):
+        liv = [v.index for v in self.selected_bmverts]
+        lie = [e.index for e in self.selected_bmedges]
+        lif = [f.index for f in self.selected_bmfaces]
+        self.undo += [(self.tar_bmesh.copy(),liv,lie,lif)]
+        if len(self.undo) > 20:
+            self.undo.pop(0)
+    
+    def redo(self, context):
+        if not self.undo: return
+        bme,liv,lie,lif = self.undo.pop()
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bme.to_mesh(self.tar_object.data)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bme = bmesh.from_edit_mesh(context.object.data)
+        bme.verts.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.faces.ensure_lookup_table()
+        self.selected_bmverts = [bme.verts[i] for i in liv]
+        self.selected_bmedges = [bme.edges[i] for i in lie]
+        self.selected_bmfaces = [bme.faces[i] for i in lif]
+        self.tar_bmesh = bme
+        self.tar_bmeshrender.replace_bmesh(self.tar_bmesh)
+        self.clear_nearest()
+    
     def handle_click(self, context, eventd, dry_run=False):
         p3d = self.get_mouse_raycast(eventd)
         if not p3d: return ''
+        
+        self.create_undo()
         
         sbmv,sbme,sbmf = self.selected_bmverts,self.selected_bmedges,self.selected_bmfaces
         lbmv,lbme,lbmf = len(sbmv),len(sbme),len(sbmf)
