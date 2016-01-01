@@ -53,8 +53,8 @@ if bversion() >= '002.076.000':
 
     from .icons import clear_icons
     #Tools
-    from .op_polystrips.polystrips_modal import CGC_Polystrips
-    from .op_contours.contours_modal import CGC_Contours
+    from .op_polystrips.polystrips_modal import CGC_Polystrips, CGC_PolystripsRecover
+    from .op_contours.contours_modal import CGC_Contours, CGC_ContoursRecover
     from .op_tweak.tweak_modal import CGC_Tweak
     from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
     from .op_loopcut.loopcut_modal import CGC_LoopCut
@@ -75,8 +75,10 @@ def register():
 
     if bversion() >= '002.076.000':
         bpy.utils.register_class(CGC_Polystrips)
+        bpy.utils.register_class(CGC_PolystripsRecover)
         bpy.utils.register_class(CGC_Tweak)
         bpy.utils.register_class(CGC_Contours)
+        bpy.utils.register_class(CGC_ContoursRecover)
         bpy.utils.register_class(CGC_EyeDropper)
         bpy.utils.register_class(CGC_LoopCut)
         bpy.utils.register_class(CGC_EdgeSlide)
@@ -95,8 +97,10 @@ def unregister():
 
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
+        bpy.utils.unregister_class(CGC_PolystripsRecover)
         bpy.utils.unregister_class(CGC_Tweak)
         bpy.utils.unregister_class(CGC_Contours)
+        bpy.utils.unregister_class(CGC_ContoursRecover)
         bpy.utils.unregister_class(CGC_EyeDropper)
         bpy.utils.unregister_class(CGC_LoopCut)
         bpy.utils.unregister_class(CGC_EdgeSlide)

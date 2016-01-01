@@ -53,7 +53,7 @@ class Polystrips_UI:
             Polystrips_UI.brush_radius = 15
     
     
-    def start_ui(self, context):
+    def start_ui(self, context, recover = False):
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
         
@@ -81,7 +81,9 @@ class Polystrips_UI:
         self.tweak_data = None
 
         self.post_update = True
-
+        
+        global polystrips_undo_cache
+        
         if context.mode == 'OBJECT':
 
             # Debug level 2: time start
@@ -90,7 +92,12 @@ class Polystrips_UI:
             self.obj_orig = get_source_object()
             self.mx = self.obj_orig.matrix_world
             is_valid = is_object_valid(self.obj_orig)
-            if is_valid:
+            if recover:
+                print('len of undo cache')
+                print(len(polystrips_undo_cache))
+                pass
+            
+            elif is_valid:
                 pass
                 #self.bme = mesh_cache['bme']            
                 #self.bvh = mesh_cache['bvh']
@@ -124,7 +131,12 @@ class Polystrips_UI:
             self.mx = self.obj_orig.matrix_world
             is_valid = is_object_valid(self.obj_orig)
     
-            if is_valid:
+            if recover:
+                print('len of undo cache')
+                print(len(polystrips_undo_cache))
+                pass
+            
+            elif is_valid:
                 pass
                 #self.bme = mesh_cache['bme']            
                 #self.bvh = mesh_cache['bvh']
@@ -183,7 +195,8 @@ class Polystrips_UI:
             self.is_fullscreen = True
         
         context.area.header_text_set('Polystrips')
-    
+        if recover:
+            self.undo_action()
     def end_ui(self, context):
         if not self.was_fullscreen and self.settings.distraction_free:
             bpy.ops.screen.screen_full_area(use_hide_panels=True)

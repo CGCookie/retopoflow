@@ -45,7 +45,7 @@ from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object
 #from development.cgc-retopology import contour_utilities
 
 class Contours(object):
-    def __init__(self,context, settings):
+    def __init__(self,context, settings, recover = False):
         self.settings = settings
         
         self.verts = []
@@ -66,9 +66,9 @@ class Contours(object):
         self.guide_cuts = settings.ring_count
         
         if context.mode == 'OBJECT':
-            self.mesh_data_gather_object_mode(context)
+            self.mesh_data_gather_object_mode(context, recover)
         elif 'EDIT' in context.mode:
-            self.mesh_data_gather_edit_mode(context) 
+            self.mesh_data_gather_edit_mode(context, recover) 
             
         #potential item for snapping in 
         self.snap = []
@@ -89,7 +89,10 @@ class Contours(object):
         self.last_matrix = None
     
     
-    def mesh_data_gather_object_mode(self,context):
+        if recover:
+            self.undo_action()
+            
+    def mesh_data_gather_object_mode(self,context, recover = False):
         '''
         get references to object and object data
         '''
@@ -111,7 +114,13 @@ class Contours(object):
 
         is_valid = is_object_valid(self.obj_orig)
         
-        if is_valid:
+        if recover and is_valid:
+            pass
+        
+        elif recover and not is_valid:
+            showErrorMessage('Selection or Context changed, can not recover')
+        
+        elif is_valid:
             #don't need to do anything
             pass
             #self.bme = mesh_cache['bme']            
@@ -127,7 +136,7 @@ class Contours(object):
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig,bme, bvh)
          
-    def mesh_data_gather_edit_mode(self,context):
+    def mesh_data_gather_edit_mode(self,context,recover = False):
         '''
         get references to object and object data
         '''
@@ -141,10 +150,18 @@ class Contours(object):
         self.mx = self.obj_orig.matrix_world
         is_valid = is_object_valid(ob)
     
-        if is_valid:
+        if recover and is_valid:  #<---might need to be valid and recover
+            pass
+        
+        elif recover and not is_valid:
+            showErrorMessage('Selection or Context changed, cant recover')
+        
+        elif is_valid:
             pass
             #self.bme = mesh_cache['bme']            
             #self.bvh = mesh_cache['bvh']
+            contour_undo_cache = []
+            
         else:
             clear_mesh_cache()
             me = ob.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
@@ -155,12 +172,6 @@ class Contours(object):
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig, bme, bvh)
         
-        if self.settings.recover and is_valid:
-            print('loading cache!')
-            self.undo_action()
-            return
-        
-        else:
             global contour_undo_cache
             contour_undo_cache = []
             
