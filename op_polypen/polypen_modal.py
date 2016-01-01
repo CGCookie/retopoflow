@@ -419,7 +419,7 @@ class CGC_Polypen(ModalOperator):
                 lbme = [e for e in sbmf[0].edges if bmv in e.verts and len(e.link_faces) != 2]
             else:
                 lbme = bmv.link_edges
-            bmv.co = p3d
+                bmv.co = p3d
             self.set_selection(lbmv=[bmv], lbme=lbme)
             self.tar_bmeshrender.dirty()
             return ''
