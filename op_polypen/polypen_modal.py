@@ -394,6 +394,11 @@ class CGC_Polypen(ModalOperator):
                 # make sure verts don't share an edge
                 share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
                 share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
+                if not share_edge and share_face:
+                    # create an edge
+                    bmf = share_face[0]
+                    bmesh.utils.face_split(bmf, bmv0, bmv1)
+                    share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
                 if share_edge:
                     # collapse edge
                     self.collapse_bmedge(share_edge[0])
@@ -685,10 +690,14 @@ class CGC_Polypen(ModalOperator):
                 # check if edge is same
                 if self.nearest_bmedge in sbme:
                     self.set_selection(lbme=[self.nearest_bmedge])
+                    if eventd['press'] == 'CTRL+LEFTMOUSE':
+                        return self.handle_insert_vert(context, eventd)
                     return ''
                 # check if edges share face
                 if any(self.nearest_bmedge in f.edges for f in sbme[0].link_faces):
                     self.set_selection(lbme=[self.nearest_bmedge])
+                    if eventd['press'] == 'CTRL+LEFTMOUSE':
+                        return self.handle_insert_vert(context, eventd)
                     return ''
             if self.nearest_bmvert:
                 # check if nearest bmvert belongs to lbme
@@ -782,8 +791,17 @@ class CGC_Polypen(ModalOperator):
                     self.set_selection(lbme=[self.nearest_bmedge])
                     return ''
                 # check if bmv belong to face adj to nearest_bmedge
-                if any(sbmv[0] in f.verts for f in self.nearest_bmedge.link_faces):
+                bmv0 = sbmv[0]
+                share_face = [bmf for bmf in self.nearest_bmedge.link_faces if bmv0 in bmf.verts]
+                if share_face:
+                    bmf = share_face[0]
                     self.set_selection(lbme=[self.nearest_bmedge])
+                    if eventd['press'] == 'CTRL+LEFTMOUSE':
+                        self.handle_insert_vert(context, eventd)
+                        bmv1 = self.selected_bmverts[0]
+                        bmesh.utils.face_split(bmf, bmv0, bmv1)
+                        self.set_selection(lbmv=[bmv1])
+                        return 'move vert'
                     return ''
             
             if self.nearest_bmvert:
@@ -830,6 +848,8 @@ class CGC_Polypen(ModalOperator):
         if self.nearest_bmedge:
             nbme = self.nearest_bmedge
             self.set_selection(lbme=[nbme])
+            if eventd['press'] == 'CTRL+LEFTMOUSE':
+                return self.handle_insert_vert(context, eventd)
             return ''
         
         if self.nearest_bmface:
