@@ -373,7 +373,26 @@ class CGC_Polypen(ModalOperator):
             self.selected_bmfaces = []
             self.tar_bmeshrender.dirty()
             return ''
-            
+        
+        if lbmv == 1:
+            if self.nearest_bmvert:
+                bmv = self.nearest_bmvert
+                ibme = [e for e in sbmv[0].link_edges if bmv in e.verts]
+                if ibme:
+                    create_edge = False
+                    bme = ibme[0]
+                else:
+                    create_edge = True
+            else:
+                bmv = self.tar_bmesh.verts.new(p3d)
+                create_edge = True
+            if create_edge:
+                bme = self.tar_bmesh.edges.new([sbmv[0], bmv])
+            self.selected_bmverts = [bmv, sbmv[0]]
+            self.selected_bmedges = [bme]
+            self.selected_bmfaces = []
+            self.tar_bmeshrender.dirty()
+            return ''
         
         self.selected_bmverts = []
         self.selected_bmedges = []
