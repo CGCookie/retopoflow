@@ -37,11 +37,11 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, profiler
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 from ..lib.common_drawing_view import draw3d_arrow
+from ..lib.classes.profiler import profiler
 
-from ..preferences import RetopoFlowPreferences
 from ..cache import mesh_cache
 
 class Polystrips_UI_Draw():
@@ -152,12 +152,12 @@ class Polystrips_UI_Draw():
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
-        color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
-        color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
-        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
-        color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
+        color_frozen = settings.theme_colors_frozen[settings.theme]
+        color_warning = settings.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -254,7 +254,17 @@ class Polystrips_UI_Draw():
                 c[1] * 0.5 + color_frozen[1] * 0.5,
                 c[2] * 0.5 + color_frozen[2] * 0.5,
                 c[3])
+
+
+        ### Existing Geometry ###
+        opts = {
+            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly depth': (0, 0.999),
             
+            'line depth': (0, 0.997),
+            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+        }
+        self.tar_bmeshrender.draw(opts)
 
         ### Patches ###
         for gpatch in self.polystrips.gpatches:
@@ -414,12 +424,12 @@ class Polystrips_UI_Draw():
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
         
-        color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
-        color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
-        color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
+        color_inactive = settings.theme_colors_mesh[settings.theme]
+        color_selection = settings.theme_colors_selection[settings.theme]
+        color_active = settings.theme_colors_active[settings.theme]
 
-        color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
-        color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
+        color_frozen = settings.theme_colors_frozen[settings.theme]
+        color_warning = settings.theme_colors_warning[settings.theme]
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 

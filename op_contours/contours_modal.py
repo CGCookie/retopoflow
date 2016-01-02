@@ -32,8 +32,9 @@ import os
 from ..modaloperator import ModalOperator
 from .. import key_maps
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse
 from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
+from ..lib.classes.profiler import profiler
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
 from ..cache import mesh_cache

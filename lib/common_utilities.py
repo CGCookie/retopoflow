@@ -58,7 +58,6 @@ def selection_mouse():
 def get_settings():
     if not get_settings.cached_settings:
         addons = bpy.context.user_preferences.addons
-        
         #frame = inspect.currentframe()
         #frame.f_code.co_filename
         folderpath = os.path.dirname(os.path.abspath(__file__))
@@ -95,19 +94,9 @@ def print_exception():
             pfilename = filename
             errormsg += '         %s\n' % (filename)
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
-        #errormsg += '%03d %s:%d\n' % (i, filename, lineno)
-        #errormsg += '    %s\n' % (funcname)
-        #errormsg += '        %s\n' %  (line.strip())
-    
-    #f = tb.tb_frame
-    #lineno = tb.tb_lineno
-    #filename = f.f_code.co_filename
-    #linecache.checkcache(filename)
-    #line = linecache.getline(filename, lineno, f.f_globals)
     
     print(errormsg)
     showErrorMessage(errormsg, wrap=240)
-    #print_exception2()
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -129,7 +118,6 @@ def print_exception2():
     print("*** format_tb:")
     print(repr(traceback.format_tb(exc_traceback)))
     print("*** tb_lineno:", exc_traceback.tb_lineno)
-
 
 @persistent
 def check_source_target_objects(scene):
@@ -216,9 +204,6 @@ def dcallstack(l=2):
     for i,entry in enumerate(inspect.stack()):
         if i>0: dprint('  %s' % str(entry), l=l)
 
-
-
-
 def showErrorMessage(message, wrap=80):
     if not message: return
     lines = message.splitlines()
@@ -257,67 +242,6 @@ def callback_cleanup(self, context):
     #else:
         #context.region.callback_remove(self._handle)
     #return None
-
-
-
-class Profiler(object):
-    class ProfilerHelper(object):
-        def __init__(self, pr, text):
-            full_text = (pr.stack[-1].text+'^' if pr.stack else '') + text
-            assert full_text not in pr.d_start, '"%s" found in profiler already?'%text
-            self.pr = pr
-            self.text = full_text
-            self._is_done = False
-            self.pr.d_start[self.text] = time.time()
-            self.pr.stack += [self]
-        def __del__(self):
-            if not self._is_done:
-                dprint('WARNING: calling ProfilerHelper.done!')
-                self.done()
-        def done(self):
-            assert self.pr.stack[-1] == self
-            assert not self._is_done
-            self.pr.stack.pop()
-            self._is_done = True
-            st = self.pr.d_start[self.text]
-            en = time.time()
-            self.pr.d_times[self.text] = self.pr.d_times.get(self.text,0) + (en-st)
-            self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
-            del self.pr.d_start[self.text]
-    
-    def __init__(self):
-        self.d_start = {}
-        self.d_times = {}
-        self.d_count = {}
-        self.stack = []
-    
-    def start(self, text=None):
-        if not text:
-            frame = inspect.currentframe().f_back
-            filename = os.path.basename( frame.f_code.co_filename )
-            linenum = frame.f_lineno
-            fnname = frame.f_code.co_name
-            text = '%s (%s:%d)' % (fnname, filename, linenum)
-        return self.ProfilerHelper(self, text)
-    
-    def __del__(self):
-        #self.printout()
-        pass
-    
-    def printout(self):
-        dprint('Profiler:')
-        for text in sorted(self.d_times):
-            tottime = self.d_times[text]
-            totcount = self.d_count[text]
-            calls = text.split('^')
-            if len(calls) == 1:
-                t = text
-            else:
-                t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            dprint('  %6.2f / %3d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
-        dprint('')
-
-profiler = Profiler()
 
 
 def range_mod(m):

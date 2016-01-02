@@ -50,7 +50,7 @@ from .preferences import RetopoFlowPreferences
 if bversion() >= '002.076.000':
     from .icons import clear_icons
     import bpy.utils.previews
-
+    
     from .icons import clear_icons
     #Tools
     from .op_polystrips.polystrips_modal import CGC_Polystrips
@@ -59,15 +59,12 @@ if bversion() >= '002.076.000':
     from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
     from .op_loopcut.loopcut_modal import CGC_LoopCut
     from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
-
+    from .op_polypen.polypen_modal import CGC_Polypen
 
 # Used to store keymaps for addon
 addon_keymaps = []
 
 def register():
-    
-    
-
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.app.handlers.scene_update_post.append(check_source_target_objects)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
@@ -80,6 +77,7 @@ def register():
         bpy.utils.register_class(CGC_EyeDropper)
         bpy.utils.register_class(CGC_LoopCut)
         bpy.utils.register_class(CGC_EdgeSlide)
+        bpy.utils.register_class(CGC_Polypen)
     
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -91,7 +89,6 @@ def register():
     kmi.active = True
     addon_keymaps.append((km, kmi))
 
-
 def unregister():
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
@@ -100,16 +97,15 @@ def unregister():
         bpy.utils.unregister_class(CGC_EyeDropper)
         bpy.utils.unregister_class(CGC_LoopCut)
         bpy.utils.unregister_class(CGC_EdgeSlide)
-    
+        bpy.utils.unregister_class(CGC_Polypen)
+
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
-
     
-
     clear_icons()
-
+    
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)

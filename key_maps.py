@@ -24,6 +24,7 @@ from copy import deepcopy
 
 #Blender Imports
 import bpy
+from bpy.app.handlers import persistent
 
 #CGCookie Imports
 from .lib.common_utilities import dcallstack, dprint
@@ -84,11 +85,36 @@ def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 def_rf_key_map['tweak tool move'] = {'LEFTMOUSE'}
 def_rf_key_map['tweak tool relax'] = {'SHIFT+LEFTMOUSE'}
 
-navigation_events = {'Rotate View', 'Move View', 'Zoom View','Dolly View',
-                     'View Pan', 'View Orbit', 'Rotate View', 
-                     'View Persp/Ortho', 'View Numpad', 'NDOF Orbit View', 
-                     'NDOF Pan View', 'View Selected', 'Center View to Cursor'}
+navigation_events = {
+    'Rotate View': 'view3d.rotate',
+    'Move View': 'view3d.move',
+    'Zoom View': 'view3d.zoom',
+    'Dolly View': 'view3d.dolly',
+    'View Pan': 'view3d.view_pan',
+    'View Orbit': 'view3d.view_orbit',
+    'View Persp/Ortho': 'view3d.view_persportho',
+    'View Numpad': 'view3d.viewnumpad',
+    'NDOF Orbit View': 'view3d.ndof_orbit',
+    'NDOF Pan View': 'view3d.ndof_pan',
+    'NDOF Move View': 'view3d.ndof_all',
+    'View Selected': 'view3d.view_selected',
+    'Center View to Cursor': 'view3d.view_center_cursor'
+    }
 
+def navigation_language():
+    lang = bpy.context.user_preferences.system.language
+
+    nav_dict = navigation_events
+    old_dict = dict(nav_dict)
+
+    for key, value in old_dict.items():
+        for kmi in bpy.context.window_manager.keyconfigs['Blender'].keymaps['3D View'].keymap_items:
+            try:
+                if kmi.idname == value:
+                    nav_dict[kmi.name] = nav_dict.pop(key)
+                    # print('Updated key map item to "' + lang + '": ' + kmi.name)
+            except KeyError as e:
+                print('Key of ' + str(e) + ' not found, trying again')
 
 
 def kmi_details(kmi):

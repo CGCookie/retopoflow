@@ -50,7 +50,7 @@ class OP_BaseEditor(ModalOperator):
         main, nav, and wait states are automatically added in initialize function, called below.
         '''
         
-        self.initialize(FSM)
+        self.initialize(FSM=FSM)
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''

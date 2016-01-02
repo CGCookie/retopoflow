@@ -28,7 +28,8 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, profiler, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.classes.profiler import profiler
 from ..cache import mesh_cache
 
 class Tweak_UI_Tools():
@@ -104,6 +105,7 @@ class Tweak_UI_Tools():
                 
             
             bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+            self.tar_bmeshrender.dirty()
             
             
             if eventd['release'] in self.keymap['action']:
@@ -183,6 +185,7 @@ class Tweak_UI_Tools():
             bmverts[i].co = mx * bvh.find(imx*divco[i])[0]
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+        self.tar_bmeshrender.dirty()
         
 
     
