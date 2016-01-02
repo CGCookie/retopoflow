@@ -8,7 +8,7 @@ class OpenLog(bpy.types.Operator):
 
     def execute(self, context):
 
-        self.openTextFile('operator_simple.py')
+        self.openTextFile('RetopoFlow_log')
 
         return {'FINISHED'}
 
