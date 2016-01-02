@@ -29,3 +29,4 @@ class OpenLog(bpy.types.Operator):
         for space in area.spaces:
             if space.type == 'TEXT_EDITOR':
                 space.text = bpy.data.texts[filename]
+
