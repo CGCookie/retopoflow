@@ -105,6 +105,10 @@ class BMeshRender():
         self.is_dirty = True
         self.calllist = bgl.glGenLists(1)
     
+    def replace_bmesh(self, bmesh):
+        self.bmesh = bmesh
+        self.is_dirty = True
+    
     def __del__(self):
         bgl.glDeleteLists(self.calllist, 1)
         self.calllist = None
@@ -124,14 +128,7 @@ class BMeshRender():
     def _draw_immediate(self, opts=None):
         # do not change attribs if they're not set
         glSetDefaultOptions(opts=opts)
-        
-        glSetPolyOptions(opts=opts)
-        glDrawBMFaces(self.bmesh.faces)
-        
-        glSetLineOptions(opts=opts)
-        glDrawBMEdges(self.bmesh.edges)
-        
-        glSetPointOptions(opts=opts)
-        glDrawBMVerts(self.bmesh.verts)
-        
+        glDrawBMFaces(self.bmesh.faces, opts=opts)
+        glDrawBMEdges(self.bmesh.edges, opts=opts)
+        glDrawBMVerts(self.bmesh.verts, opts=opts)
         bgl.glDepthRange(0, 1)
