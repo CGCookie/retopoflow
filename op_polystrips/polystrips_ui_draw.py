@@ -134,14 +134,14 @@ class Polystrips_UI_Draw():
             cp += p
             cnt += 1
         cp /= max(1,cnt)
-        for ges in gpatch.gedgeseries:
+        for i_ges,ges in enumerate(gpatch.gedgeseries):
             l = ges.n_quads
             p,c = Vector(),0
             for gvert in ges.cache_igverts:
                 p += gvert.snap_pos
                 c += 1
             p /= c
-            txt = str(l)
+            txt = '%d' % l # '%d %d' % (i_ges,l)
             p2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, cp*0.2+p*0.8)
             txt_width, txt_height = blf.dimensions(0, txt)
             blf.position(0, p2d[0]-(txt_width/2), p2d[1]-(txt_height/2), 0)
@@ -323,13 +323,14 @@ class Polystrips_UI_Draw():
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
         
-        for gp in self.polystrips.gpatches:
-            for rev,gedgeseries in zip(gp.rev, gp.gedgeseries):
-                for revge,ge in zip(gedgeseries.rev, gedgeseries.gedges):
-                    color = (0.25,0.5,0.25,0.9) if not revge else (0.5,0.25,0.25,0.9)
-                    draw3d_arrow(context, ge.gvert0.snap_pos, ge.gvert3.snap_pos, ge.gvert0.snap_norm, color, 2, '')
-                color = (0.5,1.0,0.5,0.5) if not rev else (1,0.5,0.5,0.5)
-                draw3d_arrow(context, gedgeseries.gvert0.snap_pos, gedgeseries.gvert3.snap_pos, gedgeseries.gvert0.snap_norm, color, 2, '')
+        if settings.debug >= 2:
+            for gp in self.polystrips.gpatches:
+                for rev,gedgeseries in zip(gp.rev, gp.gedgeseries):
+                    for revge,ge in zip(gedgeseries.rev, gedgeseries.gedges):
+                        color = (0.25,0.5,0.25,0.9) if not revge else (0.5,0.25,0.25,0.9)
+                        draw3d_arrow(context, ge.gvert0.snap_pos, ge.gvert3.snap_pos, ge.gvert0.snap_norm, color, 2, '')
+                    color = (0.5,1.0,0.5,0.5) if not rev else (1,0.5,0.5,0.5)
+                    draw3d_arrow(context, gedgeseries.gvert0.snap_pos, gedgeseries.gvert3.snap_pos, gedgeseries.gvert0.snap_norm, color, 2, '')
 
         ### Verts ###
         for gv in self.polystrips.gverts:

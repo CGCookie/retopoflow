@@ -174,11 +174,11 @@ class GVert:
         
         l_gedges = self.get_gedges_notnone()
         l_vecs   = [ge.get_derivative_at(self).normalized() for ge in l_gedges]
-        if any(v.length == 0 for v in l_vecs): print (l_vecs)
+        #if any(v.length == 0 for v in l_vecs): print(l_vecs)
         #l_vecs = [v if v.length else Vector((1,0,0)) for v in l_vecs]
         l_gedges = sort_objects_by_angles(norm, l_gedges, l_vecs)
         l_vecs   = [ge.get_derivative_at(self).normalized() for ge in l_gedges]
-        if any(v.length == 0 for v in l_vecs): print(l_vecs)
+        #if any(v.length == 0 for v in l_vecs): print(l_vecs)
         #l_vecs = [v if v.length else Vector((1,0,0)) for v in l_vecs]
         l_angles = [vector_angle_between(v0,v1,norm) for v0,v1 in zip(l_vecs,l_vecs[1:]+[l_vecs[0]])]
         
@@ -1345,14 +1345,14 @@ class GEdgeSeries:
                 self.cache_igverts = l
                 self.n_quads = ge.n_quads
                 self.cache_rev = [rev for i in range(len(l))]
-                self.cache_gedge = [(ge,i,rev) for i in range(len(l))]
+                self.cache_gedge = [(ge,(i-1)//2,rev) for i in range(1,len(l),2)]
             else:
                 self.cache_igverts += l[1:]
                 self.n_quads += ge.n_quads - 1
                 self.cache_rev += [rev for i in range(1,len(l))]
-                self.cache_gedge = [(ge,i,rev) for i in range(1,len(l))]
+                self.cache_gedge += [(ge,(i-1)//2,rev) for i in range(1,len(l),2)]
         
-        print(self.cache_rev)
+        #print(self.cache_rev)
         
         if self.gpatch:
             self.gpatch.update()
@@ -1382,13 +1382,13 @@ class GEdgeSeries:
     
     def attach_gpatch(self, gpatch):
         if self.gpatch:
-            print('Already attached to patch')
+            #print('Already attached to patch')
             return
         self.gpatch = gpatch
     
     def detach_gpatch(self, gpatch):
         if not self.gpatch:
-            print('Not attached to patch')
+            #print('Not attached to patch')
             return
         self.gpatch = None
     
@@ -1439,8 +1439,9 @@ class GEdgeSeries:
                 yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
     
-    def get_gedge(self, iter_idx):
-        return self.cache_gedge[iter_idx]
+    def get_gedge_info(self, i_quad, rev):
+        if rev: i_quad = len(self.cache_gedge)-1 - i_quad
+        return self.cache_gedge[i_quad]
 
 
 
@@ -1872,8 +1873,10 @@ class GPatch:
             for i1 in range(hei-1):
                 self.quads += [( (i0+0)*hei+(i1+0), (i0+0)*hei+(i1+1), (i0+1)*hei+(i1+1), (i0+1)*hei+(i1+0) )]
     
-    def get_gedge_from_gedgeseries(self, i_gedgeseries, iter_idx):
-        return self.gedgeseries[i_gedgeseries].get_gedge(iter_idx)
+    def get_gedge_from_gedgeseries(self, i_gedgeseries, i_quad):
+        ges = self.gedgeseries[i_gedgeseries]
+        rev = self.rev[i_gedgeseries]
+        return ges.get_gedge_info(i_quad, rev)
     
     def is_picked(self, pt):
         for (p0,p1,p2,p3) in self.iter_segments():
@@ -2735,14 +2738,17 @@ class Polystrips(object):
                     map_ipt_vert += [insert_vert(p)]
                     continue
                 
-                i_ges,i_v = k
-                ge,i_v,rev2 = gp.get_gedge_from_gedgeseries(i_ges, i_v)
+                i_ges,i_v_ges = k
+                ge,i_v,rev2 = gp.get_gedge_from_gedgeseries(i_ges, i_v_ges)
                 i_ge = dge_i[ge]
+                
                 rev = gp.rev[i_ges]
                 rev3 = rev if not rev2 else not rev
                 lverts = ige_side_lvind[(i_ge, -1 if not rev3 else 1)]
-                idx = (i_v+1) if not rev else (len(lverts)-i_v-2)
-                print('len:%d i_v:%d 0:%d 1:%d idx:%d' % (len(lverts), i_v, i_v+1, len(lverts)-i_v-2, idx))
+                
+                idx = (i_v+1) if not rev2 else (len(lverts)-i_v-2)
+                
+                #print('%d %d %d  len:%d i_v:%d 0:%d 1:%d idx:%d' % (i_ges, i_ge, i_v_ges, len(lverts), i_v, i_v+1, len(lverts)-i_v-2, idx))
                 if idx < len(lverts):
                     map_ipt_vert += [lverts[idx]]
                 else:
@@ -2843,7 +2849,7 @@ class Polystrips(object):
                     # found starting point
                     break
             else:
-                print('could not find starting point')
+                #print('could not find starting point')
                 return None
             sgedges = set(gedges)
             lgedgeseries = []
@@ -2853,37 +2859,37 @@ class Polystrips(object):
                 ge1 = gv0.get_gedge_to_right(ge0)
                 if ge1:
                     if ge1 not in sgedges:
-                        print('found gedge not in selected set')
+                        #print('found gedge not in selected set')
                         return None
                     # ready to start next gedgeseries
                     lgedgeseries += [gedgeseries]
                     if ge1 == ge0_:
                         if len(sgedges) != 1:
-                            print('not all selected set')
+                            #print('not all selected set')
                             return None
                         if ge1 not in sgedges:
-                            print('ending not expected')
+                            #print('ending not expected')
                             return None
                         return lgedgeseries
                     gedgeseries = [ge1]
                 else:
                     ge1 = gv0.get_gedge_straight(ge0)
                     if not ge1:
-                        print('could not find suitable gedge')
+                        #print('could not find suitable gedge')
                         return None
                     if ge1 not in sgedges:
-                        print('found gedge not in selected set')
+                        #print('found gedge not in selected set')
                         return None
                     # add to current gedgeseries
                     gedgeseries += [ge1]
                 ge0 = ge1
                 gv0 = ge0.get_other_end(gv0)
                 sgedges.remove(ge0)
-            print('could not find cycle')
+            #print('could not find cycle')
             return None
         cycle = getcycle(gedges)
         if cycle:
-            print('FOUND CYCLE!!')
+            #print('FOUND CYCLE!!')
             return [self.create_gpatch(*[self.create_gedgeseries(*lge) for lge in cycle])]
         
         def walkabout(gedge, gvfrom):
