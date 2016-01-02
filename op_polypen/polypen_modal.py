@@ -812,7 +812,7 @@ class CGC_Polypen(ModalOperator):
                 if ibmf:
                     bmf = ibmf.pop()
                     bmesh.utils.face_split(bmf, bmv0, bmv1)
-                    self.set_selection()
+                    self.set_selection(lbmv=[bmv1])
                     self.clear_nearest()
                     self.tar_bmeshrender.dirty()
                     return ''
@@ -849,7 +849,9 @@ class CGC_Polypen(ModalOperator):
             nbme = self.nearest_bmedge
             self.set_selection(lbme=[nbme])
             if eventd['press'] == 'CTRL+LEFTMOUSE':
-                return self.handle_insert_vert(context, eventd)
+                ret = self.handle_insert_vert(context, eventd)
+                self.set_selection(lbmv=self.selected_bmverts) # select only inserted vert
+                return ret
             return ''
         
         if self.nearest_bmface:
