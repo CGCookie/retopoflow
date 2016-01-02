@@ -32,7 +32,7 @@ def glSetOptions(prefix, opts):
 
 
 def glDrawBMFace(bmf, opts=None):
-    glDrawMBFaces([bmf], opts=opts)
+    glDrawBMFaces([bmf], opts=opts)
 
 def glDrawBMFaces(lbmf, opts=None):
     glSetOptions('poly', opts)
