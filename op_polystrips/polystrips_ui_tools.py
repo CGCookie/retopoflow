@@ -240,7 +240,7 @@ class Polystrips_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
+        #print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
         
         if eventd['press'] == 'LEFTMOUSE':
             self.create_undo_snapshot('tweak')
@@ -306,6 +306,8 @@ class Polystrips_UI_Tools():
                 p,v,k = gp.pts[i_pt]
                 nc = update(c,d)
                 gp.pts[i_pt] = (nc,v,k)
+            
+            self.tar_bmeshrender.dirty()
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
@@ -389,7 +391,8 @@ class Polystrips_UI_Tools():
                 nc = update(c,d)
                 gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
                 gp.map_pts[(i0,i1)] = nc
-                
+            
+            self.tar_bmeshrender.dirty()
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
