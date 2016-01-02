@@ -102,6 +102,7 @@ class CGC_Polypen(ModalOperator):
         
         self.src_object = get_source_object()
         self.mx = self.src_object.matrix_world
+        self.imx = self.mx.inverted()
         is_valid = is_object_valid(self.src_object)
 
         if not is_valid:
@@ -121,6 +122,8 @@ class CGC_Polypen(ModalOperator):
 
         self.tar_object = get_target_object()
         self.tar_bmesh = bmesh.from_edit_mesh(context.object.data).copy()
+        for bmv in self.tar_bmesh.verts:
+            bmv.co = self.mx * bmv.co
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
@@ -206,8 +209,13 @@ class CGC_Polypen(ModalOperator):
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
+        
+        bme = self.tar_bmesh.copy()
+        for bmv in bme.verts:
+            bmv.co = self.imx * bmv.co
+        
         bpy.ops.object.mode_set(mode='OBJECT')
-        self.tar_bmesh.to_mesh(self.tar_object.data)
+        bme.to_mesh(self.tar_object.data)
         bpy.ops.object.mode_set(mode='EDIT')
     
     def end_cancel(self, context):
