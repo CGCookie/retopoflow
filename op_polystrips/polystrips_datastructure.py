@@ -791,6 +791,9 @@ class GEdge:
         for ges in self.gedgeseries:
             ges.update()
     
+    def get_gpatches(self):
+        return set(ges.gpatch for ges in self.gedgeseries if ges.gpatch)
+    
     def rotate_gverts_at(self, gv, quat):
         if gv == self.gvert0:
             v = self.gvert1.position - self.gvert0.position
@@ -817,6 +820,9 @@ class GEdge:
     
     def gverts(self):
         return [self.gvert0,self.gvert1,self.gvert2,self.gvert3]
+    
+    def get_outer_gverts(self):
+        return [self.gvert0, self.gvert3]
     
     def get_derivative_at(self, gv, ignore_igverts=False):
         if not ignore_igverts and len(self.cache_igverts) < 3:
@@ -1369,13 +1375,19 @@ class GEdgeSeries:
         if self.n_quads == count: return
         if self.is_frozen(): return
         
-        self.changing_count = True
         if len(self.gedges) == 1:
             self.gedges[0].set_count(count)
             self.update()
             if self.gpatch:
                 self.gpatch.set_count(self)
-        self.changing_count = False
+        else:
+            self.changing_count = True
+            #if self.gpatch:
+            #    self.gpatch.set_count(self)
+            self.changing_count = False
+    
+    def get_gedges(self):
+        return self.gedges
     
     def is_gpatched(self):
         return self.gpatch != None
@@ -1513,6 +1525,12 @@ class GPatch:
         self.pts   = []     # list of tuples of (position,visible,lookup), where lookup is either (GEdge,ind_igvert) or None
         
         self.update()
+    
+    def get_gverts(self):
+        return list(set(gv for ges in self.gedgeseries for ge in ges.get_gedges() for gv in ge.get_outer_gverts()))
+    
+    def get_gedges(self):
+        return [ge for ges in self.gedgeseries for ge in ges.get_gedges()]
     
     def rotate_pole(self, reverse=False):
         if self.frozen: return
@@ -1703,9 +1721,9 @@ class GPatch:
         # defer update for a bit (counts don't match up!)
         if sz0 != sz2 or sz1 != sz3:
             self.count_error = True
-            return
-        
-        self.count_error = False
+            #return
+        else:
+            self.count_error = False
         
         mx = self.mx
         imx = mx.inverted()
@@ -1716,21 +1734,28 @@ class GPatch:
         self.quads = []
         
         lc0 = list(ges0.iter_segments())
+        lc1 = list(ges1.iter_segments())
+        lc2 = list(ges2.iter_segments())
+        lc3 = list(ges3.iter_segments())
+        sz02 = min(len(lc0),len(lc2))
+        sz13 = min(len(lc1),len(lc3))
+        lc0 = list(lc0[:sz02])
+        lc1 = list(lc1[:sz13])
+        lc2 = list(lc2[:sz02])
+        lc3 = list(lc3[:sz13])
+        
         idx0 =  (0,1) if rev0 else (3,2)
         lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
         if rev0: lc0.reverse()
         
-        lc1 = list(ges1.iter_segments())
         idx1 =  (0,1) if rev1 else (3,2)
         lc1 = [lc1[0][idx1[0]]] + list(_c[idx1[1]] for _c in lc1)
         if rev1: lc1.reverse()
         
-        lc2 = list(ges2.iter_segments())
         idx2 =  (0,1) if rev2 else (3,2)
         lc2 = [lc2[0][idx2[0]]] + list(_c[idx2[1]] for _c in lc2)
         if not rev2: lc2.reverse()
         
-        lc3 = list(ges3.iter_segments())
         idx3 =  (0,1) if rev3 else (3,2)
         lc3 = [lc3[0][idx3[0]]] + list(_c[idx3[1]] for _c in lc3)
         if not rev3: lc3.reverse()
@@ -2411,6 +2436,9 @@ class Polystrips(object):
             gv1_2    = self.create_gvert(cb1[2], radius=rm)
             gv1_3    = gedge.gvert3
             
+            # record the patches that exist so we can recreate them
+            llge = [[ge for ge in gp.get_gedges() if ge != gedge] for gp in gedge.get_gpatches()]
+            
             self.disconnect_gedge(gedge)
             ge0 = self.create_gedge(gv0_0,gv0_1,gv0_2,gv0_3)
             ge1 = self.create_gedge(gv1_0,gv1_1,gv1_2,gv1_3)
@@ -2427,6 +2455,11 @@ class Polystrips(object):
             if (ge0.gvert2.position-ge0.gvert3.position).length == 0: dprint(spc+'ge0.der3 = 0')
             if (ge1.gvert1.position-ge1.gvert0.position).length == 0: dprint(spc+'ge1.der0 = 0')
             if (ge1.gvert2.position-ge1.gvert3.position).length == 0: dprint(spc+'ge1.der3 = 0')
+            
+            # attempt to recreate gpatches
+            for lge in llge:
+                lge += [ge0,ge1]
+                self.attempt_gpatch(lge)
             
             i0 = crosses[0][0]
             if num_crosses == 1:
@@ -2840,7 +2873,7 @@ class Polystrips(object):
             for ge in gedges:
                 for gv in [ge.gvert0, ge.gvert3]:
                     ge_ = gv.get_gedge_to_right(ge)
-                    if ge_:
+                    if ge_ and ge_ in gedges:
                         # found starting point
                         gv0 = ge_.get_other_end(gv)
                         ge0 = ge_
@@ -2849,7 +2882,7 @@ class Polystrips(object):
                     # found starting point
                     break
             else:
-                #print('could not find starting point')
+                print('could not find starting point')
                 return None
             sgedges = set(gedges)
             lgedgeseries = []
@@ -2859,37 +2892,37 @@ class Polystrips(object):
                 ge1 = gv0.get_gedge_to_right(ge0)
                 if ge1:
                     if ge1 not in sgedges:
-                        #print('found gedge not in selected set')
+                        print('found gedge not in selected set')
                         return None
                     # ready to start next gedgeseries
                     lgedgeseries += [gedgeseries]
                     if ge1 == ge0_:
                         if len(sgedges) != 1:
-                            #print('not all selected set')
+                            print('not all selected set')
                             return None
                         if ge1 not in sgedges:
-                            #print('ending not expected')
+                            print('ending not expected')
                             return None
                         return lgedgeseries
                     gedgeseries = [ge1]
                 else:
                     ge1 = gv0.get_gedge_straight(ge0)
                     if not ge1:
-                        #print('could not find suitable gedge')
+                        print('could not find suitable gedge')
                         return None
                     if ge1 not in sgedges:
-                        #print('found gedge not in selected set')
+                        print('found gedge not in selected set')
                         return None
                     # add to current gedgeseries
                     gedgeseries += [ge1]
                 ge0 = ge1
                 gv0 = ge0.get_other_end(gv0)
                 sgedges.remove(ge0)
-            #print('could not find cycle')
+            print('could not find cycle')
             return None
         cycle = getcycle(gedges)
         if cycle:
-            #print('FOUND CYCLE!!')
+            print('FOUND CYCLE!!')
             return [self.create_gpatch(*[self.create_gedgeseries(*lge) for lge in cycle])]
         
         def walkabout(gedge, gvfrom):
