@@ -114,6 +114,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.label("POLYSTRIPS:")
             col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
+        col = layout.column(align=True)
+        col.operator("wm.open_log", "Open Error Log")
+
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
