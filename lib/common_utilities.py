@@ -232,6 +232,22 @@ def showErrorMessage(message, wrap=80):
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
 
+
+def register():
+    bpy.utils.register_class(SimpleOperator)
+
+
+def unregister():
+    bpy.utils.unregister_class(SimpleOperator)
+
+
+if __name__ == "__main__":
+    register()
+
+    # test call
+    #bpy.ops.object.simple_operator()
+
+
 def callback_register(self, context):
         #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
     self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
