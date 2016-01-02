@@ -237,11 +237,18 @@ class Polystrips_UI_Draw():
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly depth': (0, 0.999),
+            'poly mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
+            'poly mirror depth': (0, 0.999),
             
-            'line depth': (0, 0.997),
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line depth': (0, 0.997),
+            'line mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
+            'line mirror depth': (0, 0.997),
+            'line mirror stipple': True,
+            
+            'mirror x': self.settings.symmetry_plane == 'x',
         }
-        self.tar_bmeshrender.draw(opts)
+        self.tar_bmeshrender.draw(opts=opts)
 
         ### Patches ###
         for gpatch in self.polystrips.gpatches:
