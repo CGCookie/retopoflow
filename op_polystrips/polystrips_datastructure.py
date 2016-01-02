@@ -280,7 +280,7 @@ class GVert:
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
-        if not self.frozen and not self.is_inner():
+        if not self.frozen: # and not self.is_inner():
             l,n,i, d = bvh.find(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
