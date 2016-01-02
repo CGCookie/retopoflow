@@ -1,4 +1,5 @@
 import bpy
+from ...common_utilities import showErrorMessage
 
 class OpenLog(bpy.types.Operator):
     """Open log text files in new window"""
@@ -6,14 +7,25 @@ class OpenLog(bpy.types.Operator):
     bl_label = "Open Log in Text Editor"
 
     def execute(self, context):
-        
-        self.openTextFile()
+
+        self.openTextFile('operator_simple.py')
 
         return {'FINISHED'}
 
-    def openTextFile(self):
-        area_dupli = bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
-        bpy.context.screen.areas[-1].type = 'TEXT_EDITOR'
+    def openTextFile(self, filename):
 
-    # test call
-    #bpy.ops.object.simple_operator()
+        # play it safe!
+        if filename not in bpy.data.texts:
+            showErrorMessage('Log file not found')
+            return
+
+        # duplicate the current area then change it to a text edito
+        area_dupli = bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
+        win = bpy.context.window_manager.windows[-1]
+        area = win.screen.areas[-1]
+        area.type = 'TEXT_EDITOR'
+
+        # load the text file into the correct space
+        for space in area.spaces:
+            if space.type == 'TEXT_EDITOR':
+                space.text = bpy.data.texts[filename]
