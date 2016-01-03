@@ -709,8 +709,15 @@ class Patch():
 
 #    def rotate_solution(self,direction = 1):
 
-        
-
+def add_constraitns_2p0(prob, L, p0, p1, x, y):  
+    prob +=  2*p1 + 2*x + y    == L[0] - 3, "Side 0"
+    prob +=  2*p0 + y          == L[1] - 1, "Side 1"
+          
+def add_constraitns_2p1(prob, L, p0, p1, x, y):  
+    prob +=  2*p1 + x + y      == L[0] - 2, "Side 0"
+    prob +=  2*p0 + x + y      == L[1] - 2, "Side 1"
+    
+    
 def add_constraints_3p0(prob, L, p0, p1, p2):
     prob +=  p2 + p1            == L[0] - 2, "Side 0"
     prob +=  p0 + p2            == L[1] - 1, "Side 1"
