@@ -23,6 +23,9 @@ import bpy
 import bgl
 import blf
 import bmesh
+
+from bmesh.types import BMVert, BMEdge, BMFace
+
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
@@ -42,7 +45,6 @@ from ..lib.common_utilities import bversion, selection_mouse
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
-from .. import key_maps
 from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 from ..lib.common_drawing_bmesh import BMeshRender
@@ -86,8 +88,6 @@ class CGC_Polypen(ModalOperator):
     
     def start(self, context):
         ''' Called when tool has been invoked '''
-        self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_user_keymap_generate()
         
         if context.mode == 'OBJECT':
             self.src_object = get_source_object()
@@ -180,14 +180,17 @@ class CGC_Polypen(ModalOperator):
         self.nearest_bmface = None
         self.nearest_bmvert = None
         self.nearest_bmedge = None
+        self.over_source = False
         
-        self.mouse_down = False
+        self.mouse_down_left = False
+        self.mouse_down_right = False
         self.mouse_downp2d = None
         self.mouse_downp3d = None
         self.mouse_downn3d = None
         self.mouse_curp2d = None
         self.mouse_curp3d = None
         self.mouse_curn3d = None
+        self.mouse_travel = 0
         
         self.vert_pos = None        # used for move vert tool
         
@@ -228,13 +231,12 @@ class CGC_Polypen(ModalOperator):
         common_drawing_bmesh.glDrawBMFaces(self.selected_bmfaces, opts=self.render_selected)
         common_drawing_bmesh.glDrawBMEdges(self.selected_bmedges, opts=self.render_selected)
         common_drawing_bmesh.glDrawBMVerts(self.selected_bmverts, opts=self.render_selected)
-        if self.nearest_bmface and not self.selected_bmverts and not self.selected_bmedges and not self.selected_bmfaces:
+        if self.nearest_bmface:
             common_drawing_bmesh.glDrawBMFace(self.nearest_bmface, opts=self.render_nearest)
         if self.nearest_bmedge:
             common_drawing_bmesh.glDrawBMEdge(self.nearest_bmedge, opts=self.render_nearest)
         if self.nearest_bmvert:
             common_drawing_bmesh.glDrawBMVert(self.nearest_bmvert, opts=self.render_nearest)
-        #common_drawing_bmesh.glDrawBMVert(self.tar_bmesh.verts[0], opts=self.render_selected)
     
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''
@@ -243,6 +245,8 @@ class CGC_Polypen(ModalOperator):
     def update(self,context):
         '''Place update stuff here'''
         pass
+    
+    def mouse_down(self): return self.mouse_down_left or self.mouse_down_right
     
     def modal_wait(self, context, eventd):
         '''
@@ -255,26 +259,68 @@ class CGC_Polypen(ModalOperator):
         
         self.update_mouse(eventd)
         
-        if eventd['press'] == 'G':
-            if len(self.selected_bmverts) == 1:
-                self.mouse_downp2d = self.mouse_curp2d
-                return 'move vert'
-        
-        if eventd['press'] == 'A':
-            self.selected_bmverts = []
-            self.selected_bmedges = []
-            self.selected_bmfaces = []
+        if eventd['press'] in self.keymap['undo']:
+            self.undo(context)
             return ''
         
-        if eventd['press'] == 'X':
+        if eventd['type'] == 'MOUSEMOVE':
+            if self.mouse_down() and len(self.selected_bmedges)==1:
+                if self.mouse_travel > 5:
+                    if eventd['ctrl']:
+                        return self.handle_insert_vert(context, eventd)
+                    else:
+                        return self.handle_extrude_edge(context, eventd)
+            
+            #mouse movement/hovering
+            if not self.over_source:
+                self.clear_nearest()
+            else:
+                p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05)
+                min_bmv = res[0] if res else None
+                if not min_bmv:
+                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.05)
+                    min_bme = res[0] if res else None
+                else:
+                    min_bme = None
+                if not min_bme and not min_bmv:
+                    min_bmf = self.closest_bmface(p3d)
+                else:
+                    min_bmf = None
+                self.nearest_bmvert = min_bmv
+                self.nearest_bmedge = min_bme
+                self.nearest_bmface = min_bmf
+        
+        
+        # SELECTION
+        
+        if eventd['press'] in selection_mouse():
+            # Select element
+            if   self.nearest_bmvert: self.set_selection(lbmv=[self.nearest_bmvert])
+            elif self.nearest_bmedge: self.set_selection(lbme=[self.nearest_bmedge])
+            elif self.nearest_bmface: self.set_selection(lbmf=[self.nearest_bmface])
+            else: self.set_selection()
+            return 'move vert'
+        
+        if eventd['press'] in self.keymap['select all']:
+            self.set_selection()
+            return ''
+        
+        
+        # COMMANDS
+        
+        if eventd['press'] in self.keymap['translate']:
+            self.mouse_downp2d = self.mouse_curp2d
+            return 'move vert'
+        
+        if eventd['press'] in self.keymap['delete']:
             if self.selected_bmfaces:
                 for bmf in self.selected_bmfaces:
                     self.tar_bmesh.faces.remove(bmf)
                 self.set_selection()
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
-                return ''
-            if self.selected_bmedges:
+            elif self.selected_bmedges:
                 try:
                     for bme in self.selected_bmedges:
                         self.tar_bmesh.edges.remove(bme)
@@ -283,16 +329,15 @@ class CGC_Polypen(ModalOperator):
                 self.set_selection()
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
-                return ''
-            if self.selected_bmverts:
+            elif self.selected_bmverts:
                 for bmv in self.selected_bmverts:
                     self.tar_bmesh.verts.remove(bmv)
                 self.set_selection()
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
-                return ''
+            return ''
         
-        if eventd['press'] == 'D':
+        if eventd['press'] in self.keymap['dissolve']:
             if self.selected_bmedges:
                 if len(self.selected_bmedges[0].link_faces) == 2:
                     self.create_undo()
@@ -300,8 +345,7 @@ class CGC_Polypen(ModalOperator):
                     self.set_selection()
                     self.clear_nearest()
                     self.tar_bmeshrender.dirty()
-                    return ''
-            if self.selected_bmverts:
+            elif self.selected_bmverts:
                 bmv = self.selected_bmverts[0]
                 if len(bmv.link_edges) == 2 and len(bmv.link_faces) == 0:
                     self.create_undo()
@@ -309,124 +353,113 @@ class CGC_Polypen(ModalOperator):
                     self.set_selection()
                     self.clear_nearest()
                     self.tar_bmeshrender.dirty()
-                    return ''
-        
-        if eventd['press'] == 'TAB':
-            if self.mode == 'auto':
-                self.mode = 'edge'
-            elif self.mode == 'edge':
-                self.mode = 'auto'
-        
-        if eventd['press'] == 'CTRL+Z':
-            self.undo(context)
             return ''
         
-        if eventd['press'] in {'LEFTMOUSE','CTRL+LEFTMOUSE'}:
-            if self.mode == 'auto':
-                return self.handle_click_auto(context, eventd)
-            elif self.mode == 'edge':
-                return self.handle_click_edge(context, eventd)
-            assert False, "Polypen is in unknown state"
+        # if eventd['press'] == 'TAB':
+        #     if self.mode == 'auto':
+        #         self.mode = 'edge'
+        #     elif self.mode == 'edge':
+        #         self.mode = 'auto'
         
-        if eventd['type'] == 'MOUSEMOVE':
-            if self.mouse_down and len(self.selected_bmedges)==1:
-                if (self.mouse_curp2d-self.mouse_downp2d).length > 5:
-                    if eventd['ctrl']:
-                        return self.handle_insert_vert(context, eventd)
-                    else:
-                        return self.handle_extrude_edge(context, eventd)
-            
-            #mouse movement/hovering
-            p2d = self.mouse_curp2d
-            p3d = self.mouse_curp3d
-            if not p3d: return ''
-            
-            res = self.closest_bmvert(context, p2d, p3d, 5, 0.05)
-            min_bmv = res[0] if res else None
-            
-            if not min_bmv:
-                res = self.closest_bmedge(context, p2d, p3d, 5, 0.05)
-                min_bme = res[0] if res else None
-            else:
-                min_bme = None
-            
-            if not min_bme and not min_bmv:
-                min_bmf = self.closest_bmface(p3d)
-            else:
-                min_bmf = None
-            
-            self.nearest_bmvert = min_bmv
-            self.nearest_bmedge = min_bme
-            self.nearest_bmface = min_bmf
+        
+        # ACTION
+        
+        if eventd['press'] in self.keymap['polypen action']:
+            return self.handle_action(context, eventd)
+        if eventd['press'] in self.keymap['polypen alt action']:
+            return self.handle_action(context, eventd)
+            # if self.mode == 'auto':
+            #     return self.handle_click_auto(context, eventd)
+            # elif self.mode == 'edge':
+            #     return self.handle_click_edge(context, eventd)
+            # assert False, "Polypen is in unknown state"
         
         return ''
     
     def modal_move_vert(self, context, eventd):
         if not self.vert_pos:
-            self.vert_pos = Vector(self.selected_bmverts[0].co)
+            if   self.selected_bmverts: lbmv = self.selected_bmverts
+            elif self.selected_bmedges: lbmv = [bmv for bme in self.selected_bmedges for bmv in bme.verts]
+            elif self.selected_bmfaces: lbmv = [bmv for bmf in self.selected_bmfaces for bmv in bmf.verts]
+            else: return 'main'
+            self.vert_pos = {bmv:Vector(bmv.co) for bmv in lbmv}
+            self.move_cancel_right = not self.mouse_down_right
             context.area.header_text_set('Polypen: Grab')
         
         self.update_mouse(eventd)
         
         if eventd['type'] == 'MOUSEMOVE':
-            bmv0 = self.selected_bmverts[0]
             rgn = context.region
             r3d = context.space_data.region_3d
-            p2d = location_3d_to_region_2d(rgn, r3d, self.vert_pos)
-            p2d = p2d + self.mouse_curp2d - self.mouse_downp2d
-            hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, p2d)
-            if hit:
+            nbmvco = {}
+            for bmv in self.vert_pos:
+                bmvco = self.vert_pos[bmv]
+                p2d = location_3d_to_region_2d(rgn, r3d, bmvco)
+                p2d = p2d + self.mouse_curp2d - self.mouse_downp2d
+                hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, p2d)
+                if not hit: return ''
                 p3d = hit[0]
-                bmv0.co = p3d
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude={bmv0})
+                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
                 if res:
-                    bmv1 = res[0]
-                    # make sure verts don't share an edge
-                    #share_edge = any(bmv0 in e.verts for e in bmv1.link_edges)
-                    #share_face = any(bmv0 in f.verts for f in bmv1.link_faces)
-                    #if not share_edge and not share_face:
-                        # merge!!!
-                    bmv0.co = Vector(bmv1.co)
-                self.tar_bmeshrender.dirty()
+                    # merge-able!
+                    p3d = Vector(res[0].co)
+                nbmvco[bmv] = p3d
+            for bmv,co in nbmvco.items():
+                bmv.co = co
+            self.tar_bmeshrender.dirty()
             return ''
         
-        if eventd['release'] in {'LEFTMOUSE', 'CTRL+LEFTMOUSE', 'RETURN', 'CTRL+RETURN'}:
-            bmv0 = self.selected_bmverts[0]
-            rgn = context.region
-            r3d = context.space_data.region_3d
-            p2d = location_3d_to_region_2d(rgn, r3d, bmv0.co)
-            p3d = self.selected_bmverts[0].co
-            res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude={bmv0})
-            if res:
-                bmv1 = res[0]
-                # make sure verts don't share an edge
-                share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
-                share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
-                if not share_edge and share_face:
-                    # create an edge
-                    bmf = share_face[0]
-                    bmesh.utils.face_split(bmf, bmv0, bmv1)
-                    share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
-                if share_edge:
-                    # collapse edge
-                    self.collapse_bmedge(share_edge[0])
-                if not share_edge and not share_face:
-                    # merge!!!
-                    bmesh.utils.vert_splice(bmv0, bmv1)
-                    self.set_selection(lbmv=[bmv1])
-                    self.clear_nearest()
-                    self.clean_bmesh()
-                    self.tar_bmeshrender.dirty()
-            self.vert_pos = None
-            context.area.header_text_set('Polypen')
-            return 'main'
-        
-        if eventd['release'] in {'RIGHTMOUSE', 'ESC'}:
-            self.selected_bmverts[0].co = self.vert_pos
-            self.tar_bmeshrender.dirty()
-            self.vert_pos = None
-            context.area.header_text_set('Polypen')
-            return 'main'
+        if eventd['release']:
+            commit,cancel = False,False
+            if eventd['type'] in {'LEFTMOUSE', 'RET', 'NUMPAD_ENTER'}:
+                commit = True
+            if not self.move_cancel_right and eventd['type'] in {'RIGHTMOUSE'}:
+                commit = True
+            if eventd['type'] in {'ESC'}:
+                cancel = True
+            if self.move_cancel_right and eventd['type'] in {'RIGHTMOUSE'}:
+                cancel = True
+            
+            if commit:
+                rgn = context.region
+                r3d = context.space_data.region_3d
+                
+                for bmv0 in self.vert_pos:
+                    p3d = bmv0.co
+                    p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+                    res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
+                    if res:
+                        bmv1 = res[0]
+                        # make sure verts don't share an edge
+                        share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
+                        share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
+                        if not share_edge and share_face:
+                            # create an edge
+                            bmf = share_face[0]
+                            bmesh.utils.face_split(bmf, bmv0, bmv1)
+                            share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
+                        if share_edge:
+                            # collapse edge
+                            self.handle_collapse_bmedge(share_edge[0])
+                        if not share_edge and not share_face:
+                            # merge!!!
+                            bmesh.utils.vert_splice(bmv0, bmv1)
+                            self.set_selection(lbmv=[bmv1])
+                            self.clear_nearest()
+                            self.clean_bmesh()
+                            self.tar_bmeshrender.dirty()
+                
+                self.vert_pos = None
+                context.area.header_text_set('Polypen')
+                return 'main'
+            
+            if cancel:
+                for bmv in self.vert_pos:
+                    bmv.co = self.vert_pos[bmv]
+                self.tar_bmeshrender.dirty()
+                self.vert_pos = None
+                context.area.header_text_set('Polypen')
+                return 'main'
         
         return ''
     
@@ -450,19 +483,117 @@ class CGC_Polypen(ModalOperator):
                     self.tar_bmesh.faces.new(f)
             self.tar_bmeshrender.dirty()
     
-    def collapse_bmedge(self, bme):
-        bmv0,bmv1 = bme.verts
-        llbmv = [[bmv for bmv in bmf.verts if bmv != bmv0] for bmf in bme.link_faces]
-        self.tar_bmesh.edges.remove(bme)
-        bmesh.utils.vert_splice(bmv0, bmv1)
-        for lbmv in llbmv:
-            if len(lbmv) > 2:
-                self.tar_bmesh.faces.new(lbmv)
-        self.clean_bmesh()
+    def update_mouse(self, eventd):
+        hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, eventd['mouse'])
+        p3d,n3d = hit if hit else (None,None)
+        self.mouse_curp2d = Vector(eventd['mouse'])
+        self.mouse_curp3d = p3d
+        self.mouse_curn3d = n3d
+        
+        self.over_source = (p3d != None)
+        
+        if eventd['press'] and ('LEFTMOUSE' in eventd['press'] or 'RIGHTMOUSE' in eventd['press']):
+            self.mouse_downp2d = self.mouse_curp2d
+            self.mouse_downp3d = self.mouse_curp3d
+            self.mouse_downn3d = self.mouse_curn3d
+            if 'LEFTMOUSE'  in eventd['press']: self.mouse_down_left  = True
+            if 'RIGHTMOUSE' in eventd['press']: self.mouse_down_right = True
+        
+        if eventd['release'] and ('LEFTMOUSE' in eventd['release'] or 'RIGHTMOUSE' in eventd['release']):
+            self.mouse_downp2d = None
+            self.mouse_downp3d = None
+            self.mouse_downn3d = None
+            if 'LEFTMOUSE'  in eventd['release']: self.mouse_down_left  = False
+            if 'RIGHTMOUSE' in eventd['release']: self.mouse_down_right = False
+        
+        if self.mouse_down():
+            if self.mouse_downp2d:
+                self.mouse_travel = (self.mouse_curp2d - self.mouse_downp2d).length
+    
+    ################################################
+    # hover and selection helper functions
+    
+    def hover_vert(self): return self.nearest_bmvert
+    def hover_edge(self): return self.nearest_bmedge
+    def hover_face(self): return self.nearest_bmface
+    def hover_source(self): return self.over_source and not self.nearest_bmvert and not self.nearest_bmedge and not self.nearest_bmface
+    
+    def set_selection(self, lbmv=None, lbme=None, lbmf=None):
+        self.selected_bmverts = [] if not lbmv else lbmv
+        self.selected_bmedges = [] if not lbme else lbme
+        self.selected_bmfaces = [] if not lbmf else lbmf
+    
+    def select(self, *geo):
+        self.selected_bmverts = [g for g in geo if type(g) is BMVert]
+        self.selected_bmedges = [g for g in geo if type(g) is BMEdge]
+        self.selected_bmfaces = [g for g in geo if type(g) is BMFace]
+    
+    def select_hover(self):
+        self.select(self.hover_vert(), self.hover_edge(), self.hover_face())
+    
+    def clear_nearest(self):
+        self.nearest_bmvert = None
+        self.nearest_bmedge = None
+        self.nearest_bmface = None
+    
+    
+    #########################
+    # undo
+    
+    def create_undo(self):
+        liv = [v.index for v in self.selected_bmverts]
+        lie = [e.index for e in self.selected_bmedges]
+        lif = [f.index for f in self.selected_bmfaces]
+        self.undo_stack += [(self.tar_bmesh.copy(),liv,lie,lif)]
+        if len(self.undo_stack) > self.settings.undo_depth:
+            self.undo_stack.pop(0)
+    
+    def undo(self, context):
+        if not self.undo_stack: return
+        bme,liv,lie,lif = self.undo_stack.pop()
+        bme = bme.copy()
+        bme.verts.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.faces.ensure_lookup_table()
+        self.tar_bmesh = bme
+        self.tar_bmeshrender.replace_bmesh(bme)
+        self.selected_bmverts = [bme.verts[i] for i in liv]
+        self.selected_bmedges = [bme.edges[i] for i in lie]
+        self.selected_bmfaces = [bme.faces[i] for i in lif]
         self.clear_nearest()
-        self.set_selection(lbmv=[bmv1])
+    
+    
+    ###############################################################
+    # creation, modifying, and  deletion helper functions
+    
+    def create_vert(self, co):
+        bmv = self.tar_bmesh.verts.new(co)
+        self.select(bmv)
         self.tar_bmeshrender.dirty()
-        return ''
+        return bmv
+    
+    def create_edge(self, lbmv):
+        bme = self.tar_bmesh.edges.new(lbmv)
+        self.select(bme)
+        self.tar_bmeshrender.dirty()
+        return bme
+    
+    def create_face(self, lbmv):
+        c0,c1,c2 = lbmv[0].co,lbmv[1].co,lbmv[2].co
+        d10,d12 = c0-c1,c2-c1
+        n = d12.cross(d10)
+        dot = n.dot(self.mouse_curn3d)
+        if dot < 0:
+            lbmv = reversed(lbmv)
+        bmf = self.tar_bmesh.faces.new(lbmv)
+        self.select(bmf)
+        self.tar_bmeshrender.dirty()
+        return bmf
+    
+    
+    
+    ########################################
+    # finder helper functions
     
     def closest_bmvert(self, context, p2d, p3d, max_dist2d, max_dist3d, exclude=None):
         rgn = context.region
@@ -543,79 +674,281 @@ class CGC_Polypen(ModalOperator):
                     return bmf
         return None
     
-    def update_mouse(self, eventd):
-        hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, eventd['mouse'])
-        p3d,n3d = hit if hit else (None,None)
-        self.mouse_curp2d = Vector(eventd['mouse'])
-        self.mouse_curp3d = p3d
-        self.mouse_curn3d = n3d
-        if eventd['press'] in {'LEFTMOUSE','CTRL+LEFTMOUSE'}:
-            self.mouse_downp2d = self.mouse_curp2d
-            self.mouse_downp3d = self.mouse_curp3d
-            self.mouse_downn3d = self.mouse_curn3d
-            self.mouse_down = True
-        if eventd['release'] in {'LEFTMOUSE','CTRL+LEFTMOUSE'}:
-            self.mouse_downp2d = None
-            self.mouse_downp3d = None
-            self.mouse_downn3d = None
-            self.mouse_down = False
+    def edge_between_verts(self, bmv0, bmv1):
+        lbme = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
+        return lbme[0] if lbme else None
     
-    def set_selection(self, lbmv=None, lbme=None, lbmf=None):
-        self.selected_bmverts = [] if not lbmv else lbmv
-        self.selected_bmedges = [] if not lbme else lbme
-        self.selected_bmfaces = [] if not lbmf else lbmf
+    def face_between_verts(self, bmv0, bmv1):
+        lbmf = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
+        return lbmf[0] if lbmf else None
     
-    def clear_nearest(self):
-        self.nearest_bmvert = None
-        self.nearest_bmedge = None
-        self.nearest_bmface = None
+    def vert_between_edges(self, bme0, bme1):
+        lbmv = [bmv for bmv in bme1.verts if bmv in bme0.verts]
+        return lbmv[0] if lbmv else None
     
-    def create_undo(self):
-        liv = [v.index for v in self.selected_bmverts]
-        lie = [e.index for e in self.selected_bmedges]
-        lif = [f.index for f in self.selected_bmfaces]
-        self.undo_stack += [(self.tar_bmesh.copy(),liv,lie,lif)]
-        if len(self.undo_stack) > self.settings.undo_depth:
-            self.undo_stack.pop(0)
+    def face_between_vertedge(self, bmv, bme):
+        lbmf = [bmf for bmf in bmv.link_faces if bmf in bme.link_faces]
+        return lbmf[0] if lbmf else None
     
-    def undo(self, context):
-        if not self.undo_stack: return
-        bme,liv,lie,lif = self.undo_stack.pop()
-        bme = bme.copy()
-        bme.verts.ensure_lookup_table()
-        bme.edges.ensure_lookup_table()
-        bme.faces.ensure_lookup_table()
-        self.tar_bmesh = bme
-        self.tar_bmeshrender.replace_bmesh(bme)
-        self.selected_bmverts = [bme.verts[i] for i in liv]
-        self.selected_bmedges = [bme.edges[i] for i in lie]
-        self.selected_bmfaces = [bme.faces[i] for i in lif]
+    def face_between_edges(self, bme0, bme1):
+        lbmf = [bmf for bmf in bme0.link_faces if bmf in bme1.link_faces]
+        return lbmf[0] if lbmf else None
+    
+    ##################################
+    # action handlers
+    
+    
+    def handle_action(self, context, eventd):
+        self.create_undo()
+        if self.selected_bmfaces:
+            return self.handle_action_selface(context, eventd)
+        if self.selected_bmedges:
+            return self.handle_action_seledge(context, eventd)
+        if self.selected_bmverts:
+            return self.handle_action_selvert(context, eventd)
+        return self.handle_action_selnothing(context, eventd)
+    
+    def handle_action_selnothing(self, context, eventd):
+        p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        if self.hover_source():
+            self.create_vert(p3d)
+            return 'move vert'
+        
+        if self.hover_vert():
+            self.select_hover()
+            return 'move vert'
+        
+        if self.hover_edge():
+            self.select_hover()
+            return self.handle_insert_vert(context, eventd)
+        
+        if self.hover_face():
+            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=sbmf[0].edges)
+            _,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
+            lbme = bmv.link_edges
+            bmv.co = p3d
+            self.set_selection(lbmv=[bmv],lbme=lbme)
+            self.clear_nearest()
+            self.tar_bmeshrender.dirty()
+            return 'move vert'
+        
+        return ''
+    
+    def handle_action_selvert(self, context, eventd):
+        p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+        rgn,r3d = context.region,context.space_data.region_3d
+        bmv0 = self.selected_bmverts[0]
+        
+        if self.hover_source():
+            bmv1 = self.create_vert(p3d)
+            bme = self.create_edge([bmv0, bmv1])
+            self.select(bmv1, bme)
+            return 'move vert'
+        
+        if self.hover_vert():
+            bmv1 = self.hover_vert()
+            if bmv0 == bmv1:
+                # same vert
+                return 'move vert'
+            bme = self.edge_between_verts(bmv0, bmv1)
+            if bme:
+                # verts share edge
+                self.select(bmv1)
+                return 'move vert'
+            bmf = self.face_between_verts(bmv0, bmv1)
+            if bmf:
+                # verts share face
+                # split this face!
+                bmesh.utils.face_split(bmf, bmv0, bmv1)
+                self.select(bmv1)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
+            # create edge between verts
+            bme = self.create_edge([bmv0, bmv1])
+            self.select(bmv1, bme)
+            return 'move vert'
+        
+        if self.hover_edge():
+            bme = self.hover_edge()
+            if bmv0 in bme.verts:
+                # vert belongs to edge
+                # insert vert into edge
+                self.select(bme)
+                return handle_insert_vert(context, eventd)
+            bmf = self.face_between_vertedge(bmv0, bme)
+            if bmf:
+                # vert and edge share face
+                # split this face!
+                bmv1,bmv2 = bme.verts
+                bmesh.utils.face_split(bmf, bmv0, bmv1)
+                bmf = self.face_between_verts(bmv0, bmv2)
+                bmesh.utils.face_split(bmf, bmv0, bmv2)
+                self.select(self.edge_between_verts(bmv0, bmv1), self.edge_between_verts(bmv0, bmv2))
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return ''
+            # bridge
+            bmv1 = self.nearest_bmedge.verts[0]
+            bmv2 = self.nearest_bmedge.verts[1]
+            bmf = self.create_face([bmv0,bmv1,bmv2])
+            return ''
+        
+        if self.hover_face():
+            bmf = self.hover_face()
+            p3d = bmv0.co
+            p2d = location_3d_to_region_2d(rgn, r3d, bmv0.co)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges)
+            bmv1,bmv2 = bme.verts
+            bmf = self.create_face([bmv0,bmv1,bmv2])
+            return ''
+        
+        return ''
+    
+    def handle_action_seledge(self, context, eventd):
+        p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        if self.hover_source():
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+            assert bme in self.selected_bmedges
+            bmv0 = self.create_vert(p3d)
+            bmv1,bmv2 = bme.verts
+            bmf = self.create_face([bmv0,bmv1,bmv2])
+            self.select(bmv0, bmf)
+            return 'move vert'
+        
+        if self.hover_vert():
+            bmv0 = self.hover_vert()
+            if any(bme for bme in self.selected_bmedges if bmv0 in bme.verts):
+                # vert belongs to edge
+                self.select(bmv0)
+                return 'move vert'
+            p3d = bmv0.co
+            p2d = location_3d_to_region_2d(rgn, r3d, bmv0.co)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+            bmf = self.face_between_vertedge(bmv0, bme)
+            if bmf:
+                # edge and vert share face
+                # split this face!
+                bmv1,bmv2 = bme.verts
+                bmesh.utils.face_split(bmf, bmv0, bmv1)
+                bmf = self.face_between_verts(bmv0, bmv2)
+                bmesh.utils.face_split(bmf, bmv0, bmv2)
+                self.select(bmv0)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
+            # bridge
+            bmv1,bmv2 = bme.verts
+            bmf = self.create_face([bmv0,bmv1,bmv2])
+            self.select(bmv0, bmf)
+            return 'move vert'
+        
+        if self.hover_edge():
+            bme1 = self.hover_edge()
+            if bme1 in self.selected_bmedges:
+                _,bmv = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
+                lbme = bmv.link_edges
+                bmv.co = p3d
+                self.set_selection(lbmv=[bmv],lbme=lbme)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
+            lbmf = [self.face_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
+            lbmf = [bmf for bmf in lbmf if bmf]
+            bmf = lbmf[0] if lbmf else None
+            if bmf:
+                # edges share face
+                # split this face!
+                # XXXXXX TODO!!
+                self.select(bme1)
+                return ''
+            lbmv = [self.vert_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
+            lbmv = [bmv for bmv in lbmv if bmv]
+            bmv0 = lbmv[0] if lbmv else None
+            if bmv0:
+                # edges share a vert
+                bme0 = [bme0 for bme0 in self.selected_bmedges if bmv0 in bme0.verts][0]
+                bmv1 = bme0.other_vert(bmv0)
+                bmv2 = bme1.other_vert(bmv0)
+                bmf = self.create_face([bmv0,bmv1,bmv2])
+                return ''
+            # bridge
+            p3d = (bme1.verts[0].co + bme1.verts[1].co)/2
+            p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+            bme0,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+            bmv0,bmv1 = bme0.verts
+            bmv2,bmv3 = bme1.verts
+            bmf = self.create_face([bmv0,bmv1,bmv2,bmv3])
+            lbme = [bme for bme in bmf.edges if bme!=bme0 and bme!=bme1]
+            self.select(*lbme)
+            return ''
+        
+        if self.hover_face():
+            bmf = self.hover_face()
+            lbme = [bme for bme in self.selected_bmedges if bme in bmf.edges]
+            if lbme:
+                # edge belongs to face
+                ##### find nearest edge of face to selected face in lbme
+                ##### if same edge, insert vert
+                ##### elif bridge
+                # XXXXXX TODO!!
+                self.select(bmf)
+                return ''
+            # bridge closest edges, careful when selected edge shares vert with bmf
+            # XXXXXX TODO!!
+            return ''
+        
+        return ''
+    
+    def handle_action_selface(self, context, eventd):
+        return ''
+    
+    
+    ######################################
+    # action handler helpers
+    
+    def handle_extrude_edge(self, context, eventd):
+        self.create_undo()
+        p3d = self.mouse_downp3d
+        bme = self.selected_bmedges[0]
+        bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.create_vert(p3d)
+        bmf = self.create_face([bmv0, bmv1, bmv2])
+        self.set_selection(lbmv=[bmv2],lbmf=[bmf])
+        return 'move vert'
+    
+    def handle_insert_vert(self, context, eventd):
+        self.create_undo()
+        p3d = self.mouse_downp3d
+        bme = self.selected_bmedges[0]
+        bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+        lbme = bmv.link_edges
+        bmv.co = p3d
+        self.set_selection(lbmv=[bmv],lbme=lbme)
+        self.tar_bmeshrender.dirty()
+        return 'move vert'
+    
+    def handle_collapse_bmedge(self, bme):
+        bmv0,bmv1 = bme.verts
+        llbmv = [[bmv for bmv in bmf.verts if bmv != bmv0] for bmf in bme.link_faces]
+        self.tar_bmesh.edges.remove(bme)
+        bmesh.utils.vert_splice(bmv0, bmv1)
+        for lbmv in llbmv:
+            if len(lbmv) > 2:
+                self.tar_bmesh.faces.new(lbmv)
+        self.clean_bmesh()
         self.clear_nearest()
-    
-    
-    def create_vert(self, co):
-        bmv = self.tar_bmesh.verts.new(co)
-        self.set_selection(lbmv=[bmv])
+        self.set_selection(lbmv=[bmv1])
         self.tar_bmeshrender.dirty()
-        return bmv
+        return ''
     
-    def create_edge(self, lbmv):
-        bme = self.tar_bmesh.edges.new(lbmv)
-        self.set_selection(lbme=[bme])
-        self.tar_bmeshrender.dirty()
-        return bme
     
-    def create_face(self, lbmv):
-        c0,c1,c2 = lbmv[0].co,lbmv[1].co,lbmv[2].co
-        d10,d12 = c0-c1,c2-c1
-        n = d12.cross(d10)
-        dot = n.dot(self.mouse_curn3d)
-        if dot < 0:
-            lbmv = reversed(lbmv)
-        bmf = self.tar_bmesh.faces.new(lbmv)
-        self.set_selection(lbmf=[bmf])
-        self.tar_bmeshrender.dirty()
-        return bmf
+    
+    ############################
+    # old
     
     def handle_click_edge(self, context, eventd):
         p2d = self.mouse_curp2d
@@ -661,27 +994,6 @@ class CGC_Polypen(ModalOperator):
         
         return ''
     
-    
-    def handle_extrude_edge(self, context, eventd):
-        self.create_undo()
-        p3d = self.mouse_downp3d
-        bme = self.selected_bmedges[0]
-        bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.create_vert(p3d)
-        bmf = self.create_face([bmv0, bmv1, bmv2])
-        self.set_selection(lbmv=[bmv2],lbmf=[bmf])
-        return 'move vert'
-    
-    def handle_insert_vert(self, context, eventd):
-        self.create_undo()
-        p3d = self.mouse_downp3d
-        bme = self.selected_bmedges[0]
-        bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
-        lbme = bmv.link_edges
-        bmv.co = p3d
-        self.set_selection(lbmv=[bmv],lbme=lbme)
-        self.tar_bmeshrender.dirty()
-        return 'move vert'
-        
     
     def handle_click_auto(self, context, eventd, dry_run=False):
         p2d = self.mouse_curp2d
