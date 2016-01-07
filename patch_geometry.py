@@ -4,7 +4,9 @@ Created on Jul 18, 2015
 @author: Patrick
 '''
 from itertools import chain
-from mathutils import Vector
+import math
+
+from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import  intersect_line_line
 from .pat_patch import identify_patch_pattern
 
@@ -374,6 +376,208 @@ def blend_adjacent_sides(SD_nm1, SD_n, SD_np1):
     
     return new_verts
 
+def rot_between_vecs(v1,v2, factor = 1):
+    '''
+    args:
+    v1 - Vector Init
+    v2 - Vector Final
+    
+    factor - will interpolate between them.  [0,1]
+    
+    returns the quaternion representing rotation between v1 to v2
+    
+    v2 = quat * v1
+    
+    notes: doesn't test for parallel vecs
+    '''
+    v1.normalize()
+    v2.normalize()
+    
+    if 1 - abs(v1.dot(v2)) < .0000001:
+        print('parallel vecs')
+        mx = Matrix.Identity(3)
+        return mx.to_quaternion()
+    
+    angle = factor * v1.angle(v2)
+    axis = v1.cross(v2)
+    axis.normalize()
+    sin = math.sin(angle/2)
+    cos = math.cos(angle/2)
+    
+    quat = Quaternion((cos, sin*axis[0], sin*axis[1], sin*axis[2]))
+    
+    return quat
+
+def  fit_path_to_endpoints(path,v0,v1):
+    '''
+    will rescale/rotate/tranlsate a path to fit between v0 and v1
+    v0 is starting poin corrseponding to path[0]
+    v1 is endpoint
+    ''' 
+    new_path = path.copy()
+    
+    vi_0 = path[0]
+    vi_1 = path[-1]
+    
+    net_initial = vi_1 - vi_0
+    net_final = v1 - v0
+    
+    
+    dv1 = (v1 - vi_1).length
+    dv0 = (v0 - vi_0).length
+    
+    if dv1 < .0000001 and dv0 < .0000001:
+        print('not really changing endpoints')
+        return path.copy()
+      
+    scale = net_final.length/net_initial.length
+    rot = rot_between_vecs(net_initial,net_final)
+    
+    
+    for i, v in enumerate(new_path):
+        new_path[i] = rot * v - vi_0
+    
+    for i, v in enumerate(new_path):
+        new_path[i] = scale * v
+            
+    trans  = v0 - new_path[0]
+    
+    for i, v in enumerate(new_path):
+        new_path[i] += trans
+        
+    return new_path
+
+def blend_doublet(V_edges, ps = [], side = 'all'):
+    '''
+    args:
+        V_edges = list of [list of verts] along an edge loop which represents a side of the polygon
+                  V_edges[0][-1] = V_edges[1][0]  eg...the corners are duplicated
+                  
+        ps = padding to slice off of each side
+
+    returns dictionary with keys
+      'verts'   list of corner patches of verts.  If a single corner
+                is specified, a single element list containing a list of vertices
+      'dimensions'  list of (x,y) pairs representing the dimensions of the vertex array.  
+                    (L+1, p+1) (one more vert than faces in each direction)
+    
+    '''
+    def n_of_i_j_prev(i,j,X,Y,X_prev, Y_prev):
+        '''
+        takes i,j index in current side
+        X, Y dimensions of current padding
+        X_prev, Y_prev dimensions of previous padding
+        
+        returns n index in previous verts
+        
+        This is different than the other n_of_i_j because in this scenario
+        the verts are stored in rows since they are constructed from the 
+        edge loops defining the boundaries   
+        '''
+        i_nm1 = X_prev - j
+        j_nm1 = i
+        
+        if i > Y_prev-1:#todo, possible Y_prev -1 or >=
+            return -1, -1
+        if i_nm1 < 0:
+            print('we have a problem!, bad indexing somehow')
+        n_nm1 = j_nm1*X_prev + i_nm1 - 1
+        return n_nm1
+    
+    def n_of_i_j_cur(X,Y,i,j):
+        '''
+        given an X x Y grid of verts constructed row by row from x=0 to x=X
+        into a list of length = X*Y
+        '''
+        n = j*X + i
+        return n
+        
+        
+    N = len(V_edges)        
+    L = [len(v_edge)-1 for v_edge in V_edges]  #this is the actual # of edges, or the number of times the patch side is subdivided
+    W = [calc_weights_vert_path(v_edge) for v_edge in V_edges]  #all going same direction around polygon
+
+    if N != len(L) != 2:
+        print('dimensions mismatch')
+        return {}
+    
+    #this determines how far across the patch an edge can be
+    #interpolated.  It is limited by the subdivision of the
+    #opposing sides
+    max_pads = [math.floor(L[1]/2)-1, math.floor(L[0]/2)-1 ]
+
+    #this is the desired padding by the user.  Eventually
+    #this will be a required variable.  For now, if none
+    #specified, just return the max padding
+    if ps == []:
+        pads = max_pads
+    else:
+        pads = [min(p,mp) for p,mp in zip(ps, max_pads)]
+        
+    geom_dict = {}
+    
+    #first round interpolation, use maximum padding across the patch  
+    sides_interp = []
+    for i in range(0,2):
+        interps = []
+        if i == 0:
+            other_path = V_edges[1].copy()
+        else:
+            other_path = V_edges[0].copy()
+        other_path.reverse()
+        
+        for n in range(0, pads[i]+1):
+            l = len(other_path)
+            v0 = other_path[n]
+            v1 = other_path[l-1-n]
+            interps += fit_path_to_endpoints(V_edges[i], v0, v1)
+        
+        sides_interp += [interps]        
+        
+    #blending corner 0
+    for i in range(0, pads[1]+1):
+        for j in range(0, pads[0]+1):
+            
+            n = n_of_i_j_cur(L[0]+1, pads[0]+1, i, j)
+            n_prev = n_of_i_j_prev(i, j, L[0]+1, pads[0]+1, L[1]+1, pads[1]+1)
+            
+            print('i,j,n,n_prev')
+            print((i,j,n,n_prev))
+            
+            print('len sides_interp0 %i' % len(sides_interp[0]))
+            print('len sides_interp1 %i' % len(sides_interp[1]))
+            
+            v = sides_interp[0][n]
+            v2 =sides_interp[1][n_prev]
+            
+            sides_interp[0][n] = .5*v + .5*v2
+            sides_interp[1][n_prev] = .5*v + .5*v2
+            
+    #blendig corner 1        
+    for i in range(0, pads[0]+1):
+        for j in range(0, pads[1]+1):
+            
+            n = n_of_i_j_cur(L[1]+1, pads[1]+1, i, j)
+            n_prev = n_of_i_j_prev(i, j, L[1]+1, pads[1]+1, L[0]+1, pads[0]+1)
+            v = sides_interp[1][n]
+            v2 =sides_interp[0][n_prev]
+            
+            sides_interp[1][n] = .5*v + .5*v2
+            sides_interp[0][n_prev] = .5*v + .5*v2        
+            
+            
+    if side == 'all':
+        geom_dict['verts'] = sides_interp
+        geom_dict['dimensions'] = [(x+1,y+1) for x,y in zip(L,pads)]
+        #print(geom_dict['dimensions'])
+        return geom_dict
+    else:
+        geom_dict['verts'] = [sides_interp[side]]  #+1
+        geom_dict['dimensions'] = [(L[side]+1, pads[side]+1)] #+1?
+        #print(geom_dict['dimensions'])
+        return geom_dict
+    
+    
 def blend_polygon_sides(V_edges, ps = [], side = 'all'):
     '''
     args:
@@ -983,6 +1187,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
     geom_dict['faces'] = faces  
     return geom_dict
 
+    
 def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     '''
     list of patch boundaries in ordered vert chains representing the boundaries
@@ -1034,7 +1239,6 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     
     if mode == 'edges':
         L = [len(v)-1 for v in vs]    
-    
     
     #check that pdding is valid
     N = len(L)
@@ -1334,6 +1538,107 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     geom_dict['faces'] = faces  
     return geom_dict
 
+def bi_pattern_0(vs, ps, x, y):
+    
+    #we cheat with x and p1 to make face generation easier
+    #since they are effectively interchangeable
+    
+    #validate that ps, x, y make sense with perimeter subdivisions
+    Ls = [len(v)-1 for v in vs]
+    
+    valid = True
+    if Ls[0] != 3 + 2*x + y + 2*ps[1]:
+        print('0 side subdiv doesnt match, will try anyway')
+        valid = False    
+    elif Ls[1] != 1 + y + 2*ps[0]:
+        print('1 side deosnt match, but will try anyway')
+        valid = False
+    
+    sides_interp = blend_doublet(vs, ps=[ps[0], ps[1]+x+1], side='all')
+    
+    verts = []
+    faces = []
+    #add 0 side
+    verts += vs[0][0:len(vs[0])-1]
+    #add the 1 side
+    verts += vs[1][0:len(vs[1])-1]
+    
+    #store the perimeter indices
+    perimeter_verts = [i for i in range(0,len(vs[0]) + len(vs[1]) - 2)]
+    
+    #add in all the top side verts
+    for j in range(1, ps[1] + x+2):
+        for i in range(1, len(vs[1])-1):
+            n = j * len(vs[1]) + i
+            verts += [sides_interp['verts'][1][n]]
+    
+    
+    #make faces
+    #make the strip along the top
+    
+    strip0 = [i for i in range(Ls[0], Ls[0]+Ls[1])]
+    strip0.append(0)
+    print('strip 0')
+    print(strip0)
+    
+    for n in range(0, ps[1]+x+1):
+        alpha = Ls[0] + Ls[1] + n*(Ls[1]-1)
+        strip1 = [Ls[0]-(n+1)] + [i for i in range(alpha, alpha + Ls[1]-1)]
+        strip1 += [n+1]
+        faces += face_strip(strip0, strip1)
+        print(strip0)
+        print(strip1)
+        
+        strip0 = strip1
+        
+    
+    #if, for some reason, p0 == 0, do something else
+    
+    alpha = len(verts)  #just record where we are right now
+    
+    print('alpha')
+    print(alpha)
+    for j in range(1, ps[0]):  #<<--- this is really 0 to ps[0] - 1
+        for i in range(ps[1] + x + 2, Ls[0] - ps[1]-2):
+            n = j * len(vs[0]) + i
+            verts += [sides_interp['verts'][0][n]]
+        
+    
+    #this is the bottom strip on the perimeter
+    print('strip along the bottom')
+    strip0 = [i for i in range(ps[1]+x+1, Ls[0]-ps[1]-1)]
+    print(strip0)
+    width = Ls[0] + 1 - 2*ps[1] - 2*x - 4
+    for n in range(0, ps[0]-1):
+        tip = alpha - 1 - n
+        tail = alpha -1 - (Ls[1] - 2) + n
+        strip1 = [tip] + [i for i in range(alpha + n*width, alpha + (n+1)*width)] + [tail]
+        print(strip1)
+        faces += face_strip(strip0, strip1)
+        strip0 = strip1
+    
+    pole0 = alpha - ps[0]
+    pole1 = pole0 - (width+1)
+    print('poles')
+    print((pole0, pole1))
+    
+    
+    print('strip0 should be the bottom of the patch unless p1 and x are both 0')
+    print(strip0)
+    strip1 = [i for i in range(pole0, pole1-1, -1)]
+    
+    faces += face_strip(strip0, strip1)
+                        
+    #record N verts
+    #record any pole positions
+    
+    #LETS GO BABY
+    #add in the 0 side verts
+    #make faces
+    
+    #seal/sew together the individual regions
+    return verts, faces
+    
 def tri_prim_0(vs):
     '''
     args:
