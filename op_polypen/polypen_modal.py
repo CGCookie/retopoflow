@@ -267,9 +267,11 @@ class CGC_Polypen(ModalOperator):
             if self.mouse_down() and len(self.selected_bmedges)==1:
                 if self.mouse_travel > 5:
                     if eventd['ctrl']:
-                        return self.handle_insert_vert(context, eventd)
+                        self.create_undo()
+                        return self.handle_insert_vert_p3d(context, eventd)
                     else:
-                        return self.handle_extrude_edge(context, eventd)
+                        self.create_undo()
+                        return self.handle_bridge_p3d(context, eventd)
             
             #mouse movement/hovering
             if not self.over_source:
@@ -440,7 +442,7 @@ class CGC_Polypen(ModalOperator):
                             share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
                         if share_edge:
                             # collapse edge
-                            self.handle_collapse_bmedge(share_edge[0])
+                            self.handle_collapse_edge(share_edge[0])
                         if not share_edge and not share_face:
                             # merge!!!
                             bmesh.utils.vert_splice(bmv0, bmv1)
@@ -722,7 +724,7 @@ class CGC_Polypen(ModalOperator):
         
         if self.hover_edge():
             self.select_hover()
-            return self.handle_insert_vert(context, eventd)
+            return self.handle_insert_vert_p3d(context, eventd)
         
         if self.hover_face():
             min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=sbmf[0].edges)
@@ -777,7 +779,7 @@ class CGC_Polypen(ModalOperator):
                 # vert belongs to edge
                 # insert vert into edge
                 self.select(bme)
-                return handle_insert_vert(context, eventd)
+                return handle_insert_vert_p3d(context, eventd)
             bmf = self.face_between_vertedge(bmv0, bme)
             if bmf:
                 # vert and edge share face
@@ -905,25 +907,106 @@ class CGC_Polypen(ModalOperator):
         return ''
     
     def handle_action_selface(self, context, eventd):
-        return ''
+        p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        if len(self.selected_bmfaces[0].verts) == 3:
+            if self.hover_source():
+                return self.handle_insert_vert_p3d(context, eventd)
+            if self.hover_vert():
+                return self.handle_insert_vert_nearest(context, eventd)
+        
+        return self.handle_bridge_nearest(context, eventd)
+    
     
     
     ######################################
     # action handler helpers
     
-    def handle_extrude_edge(self, context, eventd):
-        self.create_undo()
-        p3d = self.mouse_downp3d
-        bme = self.selected_bmedges[0]
+    
+    def handle_bridge_nearest(self, context, eventd):
+        """bridge two closest edges, one from selected_bmedges and other from nearest_bmface"""
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        if self.nearest_bmvert:
+            p3d = self.nearest_bmvert.co
+            p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+            if self.selected_bmedges:
+                lbme = self.selected_bmedges
+            elif self.selected_bmfaces:
+                lbme = self.selected_bmfaces[0].edges
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+            bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.self.nearest_bmvert
+            bmf = self.create_face([bmv0, bmv1, bmv2])
+            self.set_selection(lbmv=[bmv2],lbmf=[bmf])
+            return 'move vert'
+        
+        if self.nearest_bmedge:
+            bme0 = self.nearest_bmedge
+            bmv0,bmv1 = bme0.verts
+            p3d = (bmv0.co + bmv1.co) / 2.0
+            p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+            if self.selected_bmedges:
+                lbme1 = self.selected_bmedges
+            elif self.selected_bmfaces:
+                lbme1 = self.selected_bmfaces[0].edges
+            bme1,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1)
+            bmv2,bmv3 = bme1.verts
+            bmf = self.create_face([bmv0, bmv1, bmv2, bmv3])
+            self.set_selection(lbme=[bme for bme in bmf.edges if bme not in {bme0,bme1}])
+            return ''
+        
+        if self.nearest_bmface:
+            # need to find closest edges
+            if self.selected_bmedges:
+                lbme1 = self.selected_bmedges
+            elif self.selected_bmfaces:
+                lbme1 = self.selected_bmfaces[0].edges
+            else:
+                return ''
+            mbme0,mbme1,md3d = None,None,0
+            for bme0 in self.nearest_bmface.edges:
+                p3d = (bme0.verts[0].co + bme0.verts[0].co) / 2.0
+                p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+                bme1,d2d,d3d = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1)
+                if not mbme0 or d3d < md3d:
+                    mbme0 = bme0
+                    mbme1 = bme1
+                    md3d = d3d
+            bmv0,bmv1 = mbme0.verts
+            bmv2,bmv3 = mbme1.verts
+            bmf = self.create_face([bmv0, bmv1, bmv2, bmv3])
+            self.set_selection(lbme=[bme for bme in bmf.edges if bme not in {mbme0,mbme1}])
+            return ''
+        
+        print('ACK!')
+        return ''
+    
+    def handle_bridge_p3d(self, context, eventd):
+        """create vert at p3d and bridge to closest selected bmedge"""
+        p2d,p3d = self.mouse_downp2d,self.mouse_downp3d
+        if self.selected_bmedges:
+            lbme = self.selected_bmedges
+        elif self.selected_bmfaces:
+            lbme = self.selected_bmfaces[0].edges
+        else:
+            return
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
         bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.create_vert(p3d)
         bmf = self.create_face([bmv0, bmv1, bmv2])
         self.set_selection(lbmv=[bmv2],lbmf=[bmf])
         return 'move vert'
     
-    def handle_insert_vert(self, context, eventd):
-        self.create_undo()
-        p3d = self.mouse_downp3d
-        bme = self.selected_bmedges[0]
+    def handle_insert_vert_p3d(self, context, eventd):
+        """invert new vert at p3d into closest selected bmedge"""
+        p2d,p3d = self.mouse_downp2d,self.mouse_downp3d
+        if self.selected_bmedges:
+            lbme = self.selected_bmedges
+        elif self.selected_bmfaces:
+            lbme = self.selected_bmfaces[0].edges
+        else:
+            return ''
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         lbme = bmv.link_edges
         bmv.co = p3d
@@ -931,7 +1014,30 @@ class CGC_Polypen(ModalOperator):
         self.tar_bmeshrender.dirty()
         return 'move vert'
     
-    def handle_collapse_bmedge(self, bme):
+    def handle_insert_vert_nearest(self, context, eventd):
+        """insert nearest vert into closest selected bmedge"""
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        p3d = self.nearest_bmvert.co
+        p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+        
+        if self.selected_bmedges:
+            lbme = self.selected_bmedges
+        elif self.selected_bmfaces:
+            lbme = self.selected_bmfaces[0].edges
+        else:
+            return ''
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+        bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+        lbme = bmv.link_edges
+        bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
+        self.set_selection(lbmv=[self.nearest_bmvert],lbme=lbme)
+        self.clear_nearest()
+        self.clean_bmesh()
+        self.tar_bmeshrender.dirty()
+        return 'move vert'
+    
+    def handle_collapse_edge(self, bme):
         bmv0,bmv1 = bme.verts
         llbmv = [[bmv for bmv in bmf.verts if bmv != bmv0] for bmf in bme.link_faces]
         self.tar_bmesh.edges.remove(bme)
@@ -944,6 +1050,8 @@ class CGC_Polypen(ModalOperator):
         self.set_selection(lbmv=[bmv1])
         self.tar_bmeshrender.dirty()
         return ''
+    
+    
     
     
     
@@ -1011,13 +1119,13 @@ class CGC_Polypen(ModalOperator):
                 if self.nearest_bmedge in sbme:
                     self.set_selection(lbme=[self.nearest_bmedge])
                     if eventd['press'] == 'CTRL+LEFTMOUSE':
-                        return self.handle_insert_vert(context, eventd)
+                        return self.handle_insert_vert_p3d(context, eventd)
                     return ''
                 # check if edges share face
                 if any(self.nearest_bmedge in f.edges for f in sbme[0].link_faces):
                     self.set_selection(lbme=[self.nearest_bmedge])
                     if eventd['press'] == 'CTRL+LEFTMOUSE':
-                        return self.handle_insert_vert(context, eventd)
+                        return self.handle_insert_vert_p3d(context, eventd)
                     return ''
             if self.nearest_bmvert:
                 # check if nearest bmvert belongs to lbme
@@ -1117,7 +1225,7 @@ class CGC_Polypen(ModalOperator):
                     bmf = share_face[0]
                     self.set_selection(lbme=[self.nearest_bmedge])
                     if eventd['press'] == 'CTRL+LEFTMOUSE':
-                        self.handle_insert_vert(context, eventd)
+                        self.handle_insert_vert_p3d(context, eventd)
                         bmv1 = self.selected_bmverts[0]
                         bmesh.utils.face_split(bmf, bmv0, bmv1)
                         self.set_selection(lbmv=[bmv1])
@@ -1169,7 +1277,7 @@ class CGC_Polypen(ModalOperator):
             nbme = self.nearest_bmedge
             self.set_selection(lbme=[nbme])
             if eventd['press'] == 'CTRL+LEFTMOUSE':
-                ret = self.handle_insert_vert(context, eventd)
+                ret = self.handle_insert_vert_p3d(context, eventd)
                 self.set_selection(lbmv=self.selected_bmverts) # select only inserted vert
                 return ret
             return ''
