@@ -15,5 +15,5 @@ CONFIRM / CANCEL:
 - ESC: cancel operation
 
 TIPs:
-- Inserting vertices is dependent on your selection:
+- Creating vertices/edges/faces is dependent on your selection:
 -- select an edge then LMB to create a triangle from that edge, LMB again to turn it into a quad
