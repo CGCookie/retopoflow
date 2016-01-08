@@ -179,7 +179,7 @@ def find_edge_loop(bme, ed, select = False):
     
     
     #reality check
-    if not ed.is_manifold: return [], []
+    if not ed.verts[0].is_manifold and not ed.verts[1].is_manifold: return [], []
     bme.edges.ensure_lookup_table()
     bme.verts.ensure_lookup_table()
     def ed_to_vect(ed):
@@ -192,7 +192,12 @@ def find_edge_loop(bme, ed, select = False):
         
         fset = set([f.index for f in cur_ed.link_faces])
         
-        next_edge = [ed for ed in ledges if not fset & set([f.index for f in ed.link_faces])][0]
+        next_eds = [ed for ed in ledges if not fset & set([f.index for f in ed.link_faces])]
+        
+        if len(next_eds):
+            return next_eds[0]
+        else:
+            return None
         
         #forward = cur_vert.co - cur_ed.other_vert(cur_vert).co
         #forward.normalize()
@@ -209,7 +214,7 @@ def find_edge_loop(bme, ed, select = False):
         #else:
         #    v_left, v_right = side0, side1
 
-        return next_edge#, v_right, v_left
+        #return next_ed, v_right, v_left
     
     def next_vert(cur_ed, cur_vert):
         next_vert = cur_ed.other_vert(cur_vert)
@@ -267,6 +272,7 @@ def find_edge_loop(bme, ed, select = False):
             
             #ed_next, right, left = next_edge(ed_cur, v_cur)
             ed_next = next_edge(ed_cur, v_cur)
+            if not ed_next: break
             eds += [ed_next.index]
             #rights += [right]
             #lefts += [left]
@@ -349,15 +355,22 @@ def find_edge_loops(bme, sel_vert_corners, select = False):
     polygon patch and returns the edges ordered in
     one direction around the loop.  border eds must be non
     manifold.
+    
+    returns 
     '''
     
+    if len(sel_vert_corners) == 0: return [], []
     bme.edges.ensure_lookup_table()
     bme.verts.ensure_lookup_table()
        
     def next_edge(cur_ed, cur_vert):
         ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
-        next_edge = [ed for ed in ledges if not ed.is_manifold][0]
-        return next_edge
+        next_edges = [ed for ed in ledges if not ed.is_manifold]
+        
+        if len(next_edges):
+            return next_edges[0]
+        else:
+            return None
     
     def next_vert(cur_ed, cur_vert):
         next_vert = cur_ed.other_vert(cur_vert)
@@ -370,7 +383,10 @@ def find_edge_loops(bme, sel_vert_corners, select = False):
     max_iters = 1000
      
     v_cur = bme.verts[corner_inds[0]]
-    ed_cur = [ed for ed in v_cur.link_edges if not ed.is_manifold][0]
+    ed_curs = [ed for ed in v_cur.link_edges if not ed.is_manifold]
+    
+    if len(ed_curs) == 0: return [],[]
+    ed_cur = ed_curs[0]
     iters = 0
     while len(corner_inds) and iters < max_iters:
         v_chain = [v_cur.co]
@@ -379,7 +395,8 @@ def find_edge_loops(bme, sel_vert_corners, select = False):
         marching = True
         while marching:
             iters += 1
-            ed_next = next_edge(ed_cur, v_cur) 
+            ed_next = next_edge(ed_cur, v_cur)
+            if not ed_next: break
             v_next = next_vert(ed_next, v_cur)
             
             v_chain += [v_next.co]
