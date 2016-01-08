@@ -145,7 +145,8 @@ def face_strip(vs_0, vs_1):
     returns indexing for 2 parallel and matched vert index strips
     '''
     faces = []
-    for i in range(0,len(vs_1)-1):
+    N = min(len(vs_0)-1, len(vs_1)-1) #allow mismatched vert strips to not crash
+    for i in range(0,N):
         a = vs_0[i]
         b = vs_1[i]
         c = vs_1[i+1]
@@ -541,11 +542,11 @@ def blend_doublet(V_edges, ps = [], side = 'all'):
             n = n_of_i_j_cur(L[0]+1, pads[0]+1, i, j)
             n_prev = n_of_i_j_prev(i, j, L[0]+1, pads[0]+1, L[1]+1, pads[1]+1)
             
-            print('i,j,n,n_prev')
-            print((i,j,n,n_prev))
+            #print('i,j,n,n_prev')
+            #print((i,j,n,n_prev))
             
-            print('len sides_interp0 %i' % len(sides_interp[0]))
-            print('len sides_interp1 %i' % len(sides_interp[1]))
+            #print('len sides_interp0 %i' % len(sides_interp[0]))
+            #print('len sides_interp1 %i' % len(sides_interp[1]))
             
             v = sides_interp[0][n]
             v2 =sides_interp[1][n_prev]
@@ -1566,76 +1567,115 @@ def bi_pattern_0(vs, ps, x, y):
     #store the perimeter indices
     perimeter_verts = [i for i in range(0,len(vs[0]) + len(vs[1]) - 2)]
     
-    #add in all the top side verts
-    for j in range(1, ps[1] + x+2):
-        for i in range(1, len(vs[1])-1):
-            n = j * len(vs[1]) + i
-            verts += [sides_interp['verts'][1][n]]
     
-    
-    #make faces
-    #make the strip along the top
-    
-    strip0 = [i for i in range(Ls[0], Ls[0]+Ls[1])]
-    strip0.append(0)
-    print('strip 0')
-    print(strip0)
-    
-    for n in range(0, ps[1]+x+1):
-        alpha = Ls[0] + Ls[1] + n*(Ls[1]-1)
-        strip1 = [Ls[0]-(n+1)] + [i for i in range(alpha, alpha + Ls[1]-1)]
-        strip1 += [n+1]
-        faces += face_strip(strip0, strip1)
+    #special case, no real padding, just vertical slices through
+    if ps[1] + x == 0 and ps[0] == 0:
+        strip0 = [i for i in range(1,Ls[0])]
+        strip1 = [0] + [i for i in range(Ls[0]+Ls[1]-1, Ls[0]-1, -1)]
+        print('just zip these two boundaries')
         print(strip0)
         print(strip1)
-        
-        strip0 = strip1
-        
-    
-    #if, for some reason, p0 == 0, do something else
-    
-    alpha = len(verts)  #just record where we are right now
-    
-    print('alpha')
-    print(alpha)
-    for j in range(1, ps[0]):  #<<--- this is really 0 to ps[0] - 1
-        for i in range(ps[1] + x + 2, Ls[0] - ps[1]-2):
-            n = j * len(vs[0]) + i
-            verts += [sides_interp['verts'][0][n]]
-        
-    
-    #this is the bottom strip on the perimeter
-    print('strip along the bottom')
-    strip0 = [i for i in range(ps[1]+x+1, Ls[0]-ps[1]-1)]
-    print(strip0)
-    width = Ls[0] + 1 - 2*ps[1] - 2*x - 4
-    for n in range(0, ps[0]-1):
-        tip = alpha - 1 - n
-        tail = alpha -1 - (Ls[1] - 2) + n
-        strip1 = [tip] + [i for i in range(alpha + n*width, alpha + (n+1)*width)] + [tail]
-        print(strip1)
         faces += face_strip(strip0, strip1)
-        strip0 = strip1
-    
-    pole0 = alpha - ps[0]
-    pole1 = pole0 - (width+1)
-    print('poles')
-    print((pole0, pole1))
+        #Done
+        return verts, faces
     
     
-    print('strip0 should be the bottom of the patch unless p1 and x are both 0')
-    print(strip0)
-    strip1 = [i for i in range(pole0, pole1-1, -1)]
+    if ps[0] != 0:
+        #add in all the top side verts
+        for j in range(1, ps[1] + x+2):
+            for i in range(1, len(vs[1])-1):
+                n = j * len(vs[1]) + i
+                verts += [sides_interp['verts'][1][n]]  #<< even if ps[1] == 0, we will interpolate the top side as the bottom of the patch, it looks better, and easier to think about.
     
-    faces += face_strip(strip0, strip1)
-                        
-    #record N verts
-    #record any pole positions
-    
-    #LETS GO BABY
-    #add in the 0 side verts
+    else:
+        #add in all the top side verts, one less strip, because the Side0 is the bottom of the actual minimal patch
+        for j in range(1, ps[1] + x+ 1):
+            for i in range(1, len(vs[1])-1):
+                n = j * len(vs[1]) + i
+                verts += [sides_interp['verts'][1][n]]
     #make faces
+    #make the strip along the top
+    strip0 = [i for i in range(Ls[0], Ls[0]+Ls[1])]
+    strip0.append(0)
+    print('strip along Side 1')
+    print(strip0)
     
+    if ps[0] != 0:
+        for n in range(0, ps[1]+x+1):
+            alpha = Ls[0] + Ls[1] + n*(Ls[1]-1)
+            strip1 = [Ls[0]-(n+1)] + [i for i in range(alpha, alpha + Ls[1]-1)]
+            strip1 += [n+1]
+            faces += face_strip(strip0, strip1)
+            print(strip1)
+            strip0 = strip1
+    else:
+        for n in range(0, ps[1]+x):
+            alpha = Ls[0] + Ls[1] + n*(Ls[1]-1)
+            strip1 = [Ls[0]-(n+1)] + [i for i in range(alpha, alpha + Ls[1]-1)]
+            strip1 += [n+1]
+            faces += face_strip(strip0, strip1)
+            print(strip1)
+            strip0 = strip1    
+    
+    if ps[0] != 0:
+        alpha = len(verts)  #just record where we are right now
+        print('alpha')
+        print(alpha)
+        
+        width = Ls[0] + 1 - 2*ps[1] - 2*x - 4
+        print('width is %i' % width)
+
+        for j in range(0, ps[0]-1):
+            print('ps[1] + x + 2, Ls[0] - ps[1]-2')
+            print((ps[1] + x + 2, Ls[0] - ps[1]-2))
+            for k in range(0, width):
+                
+                i = ps[1] + x + 2 + k
+                print('add in a vert from side0, at index %i' % len(verts))
+                n = (j+1) * len(vs[0]) + i
+                verts += [sides_interp['verts'][0][n]]
+                
+        
+    
+        #this is the bottom strip on the perimeter
+        print('strip along the bottom')
+        strip0 = [i for i in range(ps[1]+x+1, Ls[0]-ps[1])]  #this may need extension with p0 ==1 
+        print(strip0)
+
+        for n in range(0, ps[0]-1):
+            tip = alpha - 1 - n
+            tail = alpha -1 - (Ls[1] - 2) + n
+            strip1 = [tip] + [i for i in range(alpha + n*width, alpha + (n+1)*width)] + [tail]
+            print(strip1)
+            faces += face_strip(strip0, strip1)
+            strip0 = strip1
+        
+        pole0 = alpha - ps[0]
+        pole1 = pole0 - (width+1)
+        print('poles')
+        print((pole0, pole1))
+        
+        
+        print('strip0 should be the bottom of the patch unless p1 and x are both 0')
+        print(strip0)
+        strip1 = [i for i in range(pole0, pole1-1, -1)]
+        print('strip 1 should be something totally different')
+        print(strip1)
+    else:
+        print('the poles are along the bottom existing boundary')
+        pole0 = ps[1] + x + 1
+        pole1 = pole0 + y + 1
+        strip1 = [i for i in range(pole1, pole0-1,-1)]
+        print('poles')
+        print((pole0, pole1))
+        print(strip1)
+    
+    if valid:    
+        faces += face_strip(strip0, strip1)
+                        
+
+    bme_rep = make_bme(verts, faces)
+    relax_bmesh(bme_rep, perimeter_verts, iterations=4, spring_power=.2, quad_power=.2)
     #seal/sew together the individual regions
     return verts, faces
     

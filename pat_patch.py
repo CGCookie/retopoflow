@@ -5,6 +5,7 @@ Created on Jul 15, 2015
 '''
 from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
 import time
+import math
 
 def identify_patch_pattern(edges_reduced, check_pattern = -1):
     '''
@@ -296,6 +297,7 @@ class Patch():
     def permute_and_find_solutions(self):
         
         pat_dict = {}
+        pat_dict[2] = 2
         pat_dict[3] = 2
         pat_dict[4] = 5
         pat_dict[5] = 4
@@ -326,6 +328,11 @@ class Patch():
                 elif N == 3:    
                     sol = PatchSolver3(perm, pat)
                     sleep_time = .2
+                    
+                elif N == 2:
+                    sol = PatchSolver2(perm, pat)
+                    sleep_time = .1
+                    
                 else:
                     return
                 
@@ -709,11 +716,11 @@ class Patch():
 
 #    def rotate_solution(self,direction = 1):
 
-def add_constraitns_2p0(prob, L, p0, p1, x, y):  
+def add_constraints_2p0(prob, L, p0, p1, x, y):  
     prob +=  2*p1 + 2*x + y    == L[0] - 3, "Side 0"
     prob +=  2*p0 + y          == L[1] - 1, "Side 1"
           
-def add_constraitns_2p1(prob, L, p0, p1, x, y):  
+def add_constraints_2p1(prob, L, p0, p1, x, y):  
     prob +=  2*p1 + x + y      == L[0] - 2, "Side 0"
     prob +=  2*p0 + x + y      == L[1] - 2, "Side 1"
     
@@ -1564,4 +1571,136 @@ class PatchAdjuster3():
         print('Status: ' + LpStatus[self.prob.status])
         for v in self.prob.variables():
             print(v.name + ' = ' + str(v.varValue))
-     
+            
+            
+class PatchSolver2():
+    def __init__(self, L, pattern):
+        '''
+        L needs to be a list of edge subdivisions with Alpha being L[0]
+        you may need to rotate or reverse L to adequately represent the patch
+        '''
+        self.prob_type = 'solve'
+        self.prob = LpProblem("N6 Patch", LpMaximize)
+        self.adjust_prob = None
+        
+        self.pattern = pattern
+        self.L = L
+        
+        max_p0 = float(math.floor((L[1]-1)/2))
+        max_p1 = float(math.floor((L[0]-3)/2))
+
+        p0 = LpVariable("p0",0,max_p0,LpInteger)
+        p1 = LpVariable("p1",0,max_p1,LpInteger)
+       
+
+        x = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("x",0,None,LpInteger)
+        
+
+        #first objective, maximize padding
+        self.prob += p0 + p1   
+    
+        if self.pattern == 0:
+            add_constraints_2p0(self.prob, L, p0, p1, x, y)
+        elif self.pattern == 1:
+            add_constraints_2p1(self.prob, L, p0, p1, x, y)
+    
+    def solve(self, report = True):
+        self.prob.solve()
+        
+        if self.prob.status == 1 and report:
+            self.report()
+        
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
+            
+class PatchAdjuster3():
+    def __init__(self, L, pattern, existing_vars, target_vars):
+        '''
+        L needs to be a list of edge subdivisions with Alpha being L[0]
+        you may need to rotate or reverse L to adequately represent the patch
+        '''
+        self.prob_type = 'adjust'
+        self.prob = LpProblem("N3 Patch Adjust", LpMinimize)
+        self.pattern = pattern
+        self.L = L
+        
+        max_p0 = float(min(L[2], L[1]) - 1)
+        max_p1 = float(min(L[0], L[2]) - 1)
+        max_p2 = float(min(L[1], L[0]) - 1)
+
+        p0 = LpVariable("p0",0,max_p0,LpInteger)
+        p1 = LpVariable("p1",0,max_p1,LpInteger)
+        p2 = LpVariable("p2",0,max_p2,LpInteger)
+
+        x = LpVariable("x",0,None,LpInteger)
+        q1 = LpVariable("q1", 0, max_p1, LpInteger)
+        q2 = LpVariable("q2", 0, max_p2, LpInteger)
+
+        changes = []
+        for i, (tv, ev) in enumerate(zip(target_vars,existing_vars)):
+            if ev != tv:
+                changes += [i]
+        
+        if self.pattern == 0:
+            PULP_vars = [p0,p1,p2]
+            
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+            
+            #set the target constraints
+            for i in changes:
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+            #add the normal patch topology constraint    
+            add_constraints_3p0(self.prob, L, p0, p1, p2)
+            
+            
+        elif self.pattern == 1:
+            PULP_vars = [p0,p1,p2,x,q1,q2]
+            #set the objective
+            #new variable for minimization problem
+            min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
+            
+            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            
+            for i, ev in enumerate(existing_vars):
+                self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
+                self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
+                
+            #set the target constraints
+            for i in changes:
+                delta = target_vars[i] - existing_vars[i]
+                if delta > 0:
+                    self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
+                else:
+                    self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
+                    
+            add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
+        
+
+    def solve(self, report = True):
+        self.prob.solve()
+        
+        if self.prob.status == 1 and report:
+            self.report()
+            
+    def report(self):
+        print(self.L)
+        print('%i sided Patch with Pattern: %i' % (len(self.L),self.pattern))
+        print('Status: ' + LpStatus[self.prob.status])
+        for v in self.prob.variables():
+            print(v.name + ' = ' + str(v.varValue))
