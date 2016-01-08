@@ -1,7 +1,7 @@
 Polypen Help (click to hide help):
 
 DRAWING:
-- LMB: insert vertex
+- CTRL+LMB: insert geometry
 - SELECTMOUSE: select vertex, edge, or face
 - A: deselect all
 - TAB: toggle Face / Edge mode
