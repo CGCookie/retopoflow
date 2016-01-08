@@ -26,7 +26,7 @@ def edge_loops_from_bmedges(bmesh, bm_edges):
     """
     Edge loops defined by edges
 
-    Takes [mesh edge indices] or a list of edges and returns the edge loops
+    Takes list of [mesh edge indices] and returns the edge loops
 
     return a list of vertex indices.
     [ [1, 6, 7, 2], ...]
@@ -80,11 +80,275 @@ def edge_loops_from_bmedges(bmesh, bm_edges):
 
     return line_polys
 
+def find_face_loop(bme, ed, select = False):
+    '''
+    takes a bmedge, and walks perpendicular to it
+    returns [face inds], [ed inds]
+    '''
+    #reality check
+    if not len(ed.link_faces): return []
+    
+    def ed_to_vect(ed):
+        vect = ed.verts[1].co - ed.verts[0].co
+        vect.normalize()
+        return vect
+        
+    def next_edge(cur_face, cur_ed):
+        ledges = [ed for ed in cur_face.edges]
+        n = ledges.index(cur_ed)
+        j = (n+2) % 4
+        return cur_face.edges[j]
+    
+    def next_face(cur_face, edge):
+        if len(edge.link_faces) == 1: return None
+        next_face = [f for f in edge.link_faces if f != cur_face][0]
+        return next_face
+    
+    loop_eds = []
+    loop_faces = []
+    loop_revs = []
+    cyclic = False
+    
+    for f in ed.link_faces:
+        if len(f.edges) != 4: continue            
+        eds = [ed.index]
+        fs = [f.index]
+        revs = [False]   
+        
+        f_next = True
+        f_cur = f
+        ed_cur = ed
+        while f_next != f:
+            if select:
+                f_cur.select_set(True) 
+                ed_cur.select_set(True)
+            
+            ed_next = next_edge(f_cur, ed_cur)
+            eds += [ed_next.index]
+            
+            parallel = ed_to_vect(ed_next).dot(ed_to_vect(ed_cur)) > 0
+            prev_rev = revs[-1]
+            rever = parallel == prev_rev                
+            revs += [rever]
+            
+            f_next = next_face(f_cur, ed_next)
+            if not f_next: break
+            
+            fs += [f_next.index]
+            if len(f_next.verts) != 4:
+                break
+            
+            ed_cur = ed_next
+            f_cur = f_next
+            
+        #if we looped
+        if f_next == f:
+            cyclic = True
+            face_loop_fs = fs
+            face_loop_eds = eds[:len(eds)-1]
+            slide_reverse = revs[:len(eds)-1]
+            return face_loop_fs, face_loop_eds
+        else:
+            if len(fs):
+                loop_faces.append(fs)
+                loop_eds.append(eds)
+                loop_revs.append(revs)
+    
+    if len(loop_faces) == 2:    
+        loop_faces[0].reverse()    
+        face_loop_fs = loop_faces[0] +  loop_faces[1]
+        tip = loop_eds[0][1:]
+        tip.reverse()
+        face_loop_eds = tip + loop_eds[1]
+        rev_tip = loop_revs[0][1:]
+        rev_tip.reverse()
+        slide_reverse = rev_tip + loop_revs[1]
+        
+    else:
+        face_loop_fs = loop_faces[0]
+        face_loop_eds = loop_eds[0]
+        slide_reverse = loop_revs[0]
+        
+    return  face_loop_fs, face_loop_eds
+
+def find_edge_loop(bme, ed, select = False):
+    '''
+    takes a bmede and walks parallel to it
+    returns [vert inds], [ed_inds]
+    '''
+    
+    
+    #reality check
+    if not ed.is_manifold: return [], []
+    bme.edges.ensure_lookup_table()
+    bme.verts.ensure_lookup_table()
+    def ed_to_vect(ed):
+        vect = ed.verts[1].co - ed.verts[0].co
+        vect.normalize()
+        return vect
+      
+    def next_edge(cur_ed, cur_vert):
+        ledges = [ed for ed in cur_vert.link_edges if ed != cur_ed]
+        
+        fset = set([f.index for f in cur_ed.link_faces])
+        
+        next_edge = [ed for ed in ledges if not fset & set([f.index for f in ed.link_faces])][0]
+        
+        #forward = cur_vert.co - cur_ed.other_vert(cur_vert).co
+        #forward.normalize()
+        
+        #sides = set(ledges)
+        #sides.remove(next_edge)
+        #esides = list(sides)
+        #side0 = esides[0].other_vert(cur_vert).co - cur_vert.co
+        #side1 = esides[1].other_vert(cur_vert).co - cur_vert.co
+        
+        
+        #if cur_vert.normal.dot(side0.cross(forward)) > 0:
+        #    v_right, v_left = side0, side1
+        #else:
+        #    v_left, v_right = side0, side1
+
+        return next_edge#, v_right, v_left
+    
+    def next_vert(cur_ed, cur_vert):
+        next_vert = cur_ed.other_vert(cur_vert)
+        return next_vert
+    
+    loop_eds = []
+    loop_verts = []
+    loop_rights = []
+    loop_lefts = []
+    
+    cyclic = False
+    pole0 = -1
+    pole1 = -1
+    for i, v in enumerate(ed.verts):
+        if len(v.link_edges) != 4:
+            if all(l_ed.is_manifold for l_ed in v.link_edges) or len(v.link_edges) > 3:  #Pole within mesh
+                if i == 0: pole0 = v.index
+                else: pole1 = v.index
+                continue #this is a pole for sure
+                
+            elif len([l_ed for l_ed in v.link_edges if l_ed.is_manifold]) == 1 and len(v.link_edges) == 3: #End of mesh
+                #forward = v.co - ed.other_vert(v).co
+                #esides = [l_ed for l_ed in v.link_edges if l_ed != ed]
+                #side0 = esides[0].other_vert(v).co - v.co
+                #side1 = esides[1].other_vert(v).co - v.co
+                     
+                #if v.normal.dot(side0.cross(forward)) > 0:
+                #    v_right, v_left = side0, side1
+                #else:
+                #    v_left, v_right = side0, side1
+                loop_eds.append([ed.index])        
+                loop_verts.append([v.index])
+                #loop_rights.append([v_right])
+                #loop_lefts.append([v_left])
+                continue
+        elif len(v.link_edges) == 4 and not all(ed.is_manifold for ed in v.link_edges):  #corner vert
+            if i == 0: pole0 = v.index
+            else: pole1 = v.index
+            continue  #corner!             
+        eds = [ed.index]
+        vs = [v.index]
+        
+        rights = []   
+        lefts = []
+        
+        
+        ed_cur = ed
+        v_cur = v
+        v_next = True
+        while v_next != v:
+            
+            if select:
+                v_cur.select_set(True) 
+                ed_cur.select_set(True)
+            
+            #ed_next, right, left = next_edge(ed_cur, v_cur)
+            ed_next = next_edge(ed_cur, v_cur)
+            eds += [ed_next.index]
+            #rights += [right]
+            #lefts += [left]
+            
+            v_next = next_vert(ed_next, v_cur)
+            
+            if len(v_next.link_edges) != 4:
+                
+                if all(ed.is_manifold for ed in v_next.link_edges):
+                    if i == 0: pole0 = v_next.index
+                    else: pole1 = v_next.index
+                    break #this is a pole for sure
+                
+                elif len([ed for ed in v_next.link_edges if ed.is_manifold]) == 1 and len(v_next.link_edges) == 3:
+                    #forward = v_next.co - ed_next.other_vert(v_next).co
+                    #esides = [ed for ed in v_next.link_edges if ed != ed_next]
+                    #side0 = esides[0].other_vert(v_next).co - v_next.co
+                    #side1 = esides[1].other_vert(v_next).co - v_next.co
+                     
+                    #if v_next.normal.dot(side0.cross(forward)) > 0:
+                    #    v_right, v_left = side0, side1
+                    #else:
+                    #    v_left, v_right = side0, side1
+                        
+                    vs += [v_next.index]
+                    #rights += [v_right]
+                    #lefts += [v_left]
+                    break
+                
+                else: break  #should never get here
+            
+            elif len(v_next.link_edges) == 4 and not all(ed.is_manifold for ed in v_next.link_edges):  
+                if i == 0: pole0 = v_next.index
+                else: pole1 = v_next.index
+                break  #corner!
+             
+            vs += [v_next.index]
+            ed_cur = ed_next
+            v_cur = v_next
+            
+        
+        if v_next == v: #we looped
+            cyclic = True
+            vert_loop_vs = vs[:len(vs)-1]
+            edge_loop_eds = eds[:len(eds)-1] #<--- discard the edge we walked across to get back to start vert
+            #self.edge_loop_right = rights
+            #self.edge_loop_left = lefts
+
+            return vert_loop_vs, edge_loop_eds
+        else:
+            if len(vs):
+                loop_verts.append(vs)
+                loop_eds.append(eds)
+                #loop_rights.append(rights)
+                #loop_lefts.append(lefts)
+    
+    if len(loop_verts) == 2:    
+        loop_verts[0].reverse()    
+        vert_loop_vs = loop_verts[0] +  loop_verts[1]
+        tip = loop_eds[0][1:]
+        tip.reverse()
+        edge_loop_eds = tip + loop_eds[1]
+        
+        #loop_rights[0].reverse()
+        #loop_lefts[0].reverse()
+        
+        #self.edge_loop_right = loop_lefts[0] + loop_rights[1]
+        #self.edge_loop_left = loop_rights[0] + loop_lefts[1]
+        
+    else:
+        vert_loop_vs = loop_verts[0]
+        edge_loop_eds = loop_eds[0]
+        #edge_loop_right = loop_rights[0]
+        #edge_loop_left = loop_lefts[0]
+        
+    return vert_loop_vs, edge_loop_eds
+
 def find_edge_loops(bme, sel_vert_corners, select = False):
     '''takes N verts which define the corners of a
     polygon patch and returns the edges ordered in
-    one direction around the loop.  Eds must be non
-    manifold
+    one direction around the loop.  border eds must be non
+    manifold.
     '''
     
     bme.edges.ensure_lookup_table()
