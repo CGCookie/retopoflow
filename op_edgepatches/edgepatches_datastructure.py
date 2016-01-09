@@ -369,7 +369,10 @@ class EPPatch:
     def hovered_2d(self,context,mouse_x,mouse_y):
         reg = context.region
         rv3d = context.space_data.region_3d
-        loop = [epv.snap_pos for epv in self.get_epverts()]
+        if len(self.lepedges) == 2: #expensive, test all the verts
+            loop = chain(*self.get_edge_loops())
+        else: #Cheap, test the corners
+            loop = [epv.snap_pos for epv in self.get_epverts()]
         loop_2d = [location_3d_to_region_2d(reg, rv3d, pt) for pt in loop if pt]
         
         return point_inside_loop2d(loop_2d, (mouse_x, mouse_y))
