@@ -873,6 +873,7 @@ class CGC_Polypen(ModalOperator):
         if self.hover_edge():
             bme1 = self.hover_edge()
             if bme1 in self.selected_bmedges:
+                # hovered edge is a selected edge
                 _,bmv = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
                 lbme = bmv.link_edges
                 bmv.co = p3d
@@ -886,9 +887,39 @@ class CGC_Polypen(ModalOperator):
             if bmf:
                 # edges share face
                 # split this face!
-                # XXXXXX TODO!!
+                if self.selected_bmverts:
+                    # insert new vert in clicked edge, split face by adding edge between selected and new verts
+                    bmv0 = self.selected_bmverts[0]
+                    _,bmv1 = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
+                    bmesh.utils.face_split(bmf, bmv0, bmv1)
+                    lbme1 = bmv1.link_edges
+                    bmv1.co = p3d
+                    self.select(bmv1, *lbme1)
+                    self.clear_nearest()
+                    self.tar_bmeshrender.dirty()
+                    return 'move vert'
+                # split face by adding edges between verts of two edges
+                bme0 = self.selected_bmedges[0]
+                bmv00,bmv01 = bme0.verts
+                bmv10,bmv11 = bme1.verts
+                if (bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co) < 0:
+                    bmv10,bmv11 = bmv11,bmv10
+                if bmv00 != bmv10:
+                    bmeA = self.edge_between_verts(bmv00, bmv10)
+                    if not bmeA:
+                        bmesh.utils.face_split(bmf, bmv00, bmv10)
+                        bmeA = self.edge_between_verts(bmv00, bmv10)
+                        bmf = [bmf for bmf in bmeA.link_faces if bmv01 in bmf.verts][0]
+                if bmv01 != bmv11:
+                    bmeB = self.edge_between_verts(bmv01, bmv11)
+                    if not bmeB:
+                        bmesh.utils.face_split(bmf, bmv01, bmv11)
+                        bmeB = self.edge_between_verts(bmv01, bmv11)
+                        bmf = [bmf for bmf in bmeB.link_faces if bmv00 in bmf.verts][0]
                 self.select(bme1)
-                return ''
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
             lbmv = [self.vert_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
             lbmv = [bmv for bmv in lbmv if bmv]
             bmv0 = lbmv[0] if lbmv else None
