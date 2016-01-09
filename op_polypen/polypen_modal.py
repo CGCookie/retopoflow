@@ -298,10 +298,7 @@ class CGC_Polypen(ModalOperator):
         
         if eventd['press'] in selection_mouse():
             # Select element
-            if   self.nearest_bmvert: self.set_selection(lbmv=[self.nearest_bmvert])
-            elif self.nearest_bmedge: self.set_selection(lbme=[self.nearest_bmedge])
-            elif self.nearest_bmface: self.set_selection(lbmf=[self.nearest_bmface])
-            else: self.set_selection()
+            self.select(self.nearest_bmvert, self.nearest_bmedge, self.nearest_bmface)
             return 'move vert'
         
         if eventd['press'] in self.keymap['select all']:
@@ -960,7 +957,7 @@ class CGC_Polypen(ModalOperator):
             elif self.selected_bmfaces:
                 lbme = self.selected_bmfaces[0].edges
             bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
-            bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.self.nearest_bmvert
+            bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.nearest_bmvert
             bmf = self.create_face([bmv0, bmv1, bmv2])
             self.set_selection(lbmv=[bmv2],lbmf=[bmf])
             return 'move vert'
