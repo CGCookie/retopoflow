@@ -264,14 +264,14 @@ class CGC_Polypen(ModalOperator):
             return ''
         
         if eventd['type'] == 'MOUSEMOVE':
-            if self.mouse_down() and len(self.selected_bmedges)==1:
-                if self.mouse_travel > 5:
-                    if eventd['ctrl']:
-                        self.create_undo()
-                        return self.handle_insert_vert_p3d(context, eventd)
-                    else:
-                        self.create_undo()
-                        return self.handle_bridge_p3d(context, eventd)
+            # if self.mouse_down() and len(self.selected_bmedges)==1:
+            #     if self.mouse_travel > 5:
+            #         if eventd['ctrl']:
+            #             self.create_undo()
+            #             return self.handle_insert_vert_p3d(context, eventd)
+            #         else:
+            #             self.create_undo()
+            #             return self.handle_bridge_p3d(context, eventd)
             
             #mouse movement/hovering
             if not self.over_source:
@@ -309,10 +309,12 @@ class CGC_Polypen(ModalOperator):
         # COMMANDS
         
         if eventd['press'] in self.keymap['translate']:
+            self.create_undo()
             self.mouse_downp2d = self.mouse_curp2d
             return 'move vert'
         
         if eventd['press'] in self.keymap['delete']:
+            self.create_undo()
             if self.selected_bmfaces:
                 for bmf in self.selected_bmfaces:
                     self.tar_bmesh.faces.remove(bmf)
@@ -463,19 +465,6 @@ class CGC_Polypen(ModalOperator):
         return ''
     
     def clean_bmesh(self):
-        # faces_seen = set()
-        # faces_rem = list()
-        # for bmf in self.tar_bmesh.faces:
-        #     spi = frozenset(v.index for v in bmf.verts)
-        #     if spi in faces_seen:
-        #         faces_rem.append(bmf)
-        #     else:
-        #         faces_seen.add(spi)
-        # if faces_rem:
-        #     for f in faces_rem:
-        #         self.tar_bmesh.faces.remove(f)
-        #     self.tar_bmeshrender.dirty()
-        
         # make sure we don't have duplicate bmedges (same verts)
         edges_seen = set()
         edges_rem = list()
@@ -743,7 +732,8 @@ class CGC_Polypen(ModalOperator):
             return self.handle_insert_vert_p3d(context, eventd)
         
         if self.hover_face():
-            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=sbmf[0].edges)
+            bmf = self.nearest_bmface
+            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges)
             _,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             lbme = bmv.link_edges
             bmv.co = p3d
@@ -871,90 +861,22 @@ class CGC_Polypen(ModalOperator):
             return 'move vert'
         
         if self.hover_edge():
-            bme1 = self.hover_edge()
-            if bme1 in self.selected_bmedges:
-                # hovered edge is a selected edge
-                _,bmv = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
-                lbme = bmv.link_edges
-                bmv.co = p3d
-                self.set_selection(lbmv=[bmv],lbme=lbme)
-                self.clear_nearest()
-                self.tar_bmeshrender.dirty()
-                return 'move vert'
-            lbmf = [self.face_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
-            lbmf = [bmf for bmf in lbmf if bmf]
-            bmf = lbmf[0] if lbmf else None
-            if bmf:
-                # edges share face
-                # split this face!
-                if self.selected_bmverts:
-                    # insert new vert in clicked edge, split face by adding edge between selected and new verts
-                    bmv0 = self.selected_bmverts[0]
-                    _,bmv1 = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
-                    bmesh.utils.face_split(bmf, bmv0, bmv1)
-                    lbme1 = bmv1.link_edges
-                    bmv1.co = p3d
-                    self.select(bmv1, *lbme1)
-                    self.clear_nearest()
-                    self.tar_bmeshrender.dirty()
-                    return 'move vert'
-                # split face by adding edges between verts of two edges
-                bme0 = self.selected_bmedges[0]
-                bmv00,bmv01 = bme0.verts
-                bmv10,bmv11 = bme1.verts
-                if (bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co) < 0:
-                    bmv10,bmv11 = bmv11,bmv10
-                if bmv00 != bmv10:
-                    bmeA = self.edge_between_verts(bmv00, bmv10)
-                    if not bmeA:
-                        bmesh.utils.face_split(bmf, bmv00, bmv10)
-                        bmeA = self.edge_between_verts(bmv00, bmv10)
-                        bmf = [bmf for bmf in bmeA.link_faces if bmv01 in bmf.verts][0]
-                if bmv01 != bmv11:
-                    bmeB = self.edge_between_verts(bmv01, bmv11)
-                    if not bmeB:
-                        bmesh.utils.face_split(bmf, bmv01, bmv11)
-                        bmeB = self.edge_between_verts(bmv01, bmv11)
-                        bmf = [bmf for bmf in bmeB.link_faces if bmv00 in bmf.verts][0]
-                self.select(bme1)
-                self.clear_nearest()
-                self.tar_bmeshrender.dirty()
-                return 'move vert'
-            lbmv = [self.vert_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
-            lbmv = [bmv for bmv in lbmv if bmv]
-            bmv0 = lbmv[0] if lbmv else None
-            if bmv0:
-                # edges share a vert
-                bme0 = [bme0 for bme0 in self.selected_bmedges if bmv0 in bme0.verts][0]
-                bmv1 = bme0.other_vert(bmv0)
-                bmv2 = bme1.other_vert(bmv0)
-                bmf = self.create_face([bmv0,bmv1,bmv2])
-                return ''
-            # bridge
-            p3d = (bme1.verts[0].co + bme1.verts[1].co)/2
-            p2d = location_3d_to_region_2d(rgn, r3d, p3d)
-            bme0,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
-            bmv0,bmv1 = bme0.verts
-            bmv2,bmv3 = bme1.verts
-            bmf = self.create_face([bmv0,bmv1,bmv2,bmv3])
-            lbme = [bme for bme in bmf.edges if bme!=bme0 and bme!=bme1]
-            self.select(*lbme)
-            return ''
+            return self.handle_edges_edge(context, eventd)
         
         if self.hover_face():
-            bmf = self.hover_face()
-            lbme = [bme for bme in self.selected_bmedges if bme in bmf.edges]
-            if lbme:
-                # edge belongs to face
-                ##### find nearest edge of face to selected face in lbme
-                ##### if same edge, insert vert
-                ##### elif bridge
-                # XXXXXX TODO!!
-                self.select(bmf)
-                return ''
-            # bridge closest edges, careful when selected edge shares vert with bmf
-            # XXXXXX TODO!!
-            return ''
+            bme0,bme1,md = None,None,0
+            for _bme0 in self.selected_bmedges:
+                bmv0 = (_bme0.verts[0].co + _bme0.verts[1].co)/2.0
+                for _bme1 in self.nearest_bmface.edges:
+                    _,d = closest_t_and_distance_point_to_line_segment(bmv0, _bme1.verts[0].co, _bme1.verts[1].co)
+                    if not bme0 or d < md:
+                        bme0 = _bme0
+                        bme1 = _bme1
+                        md = d
+            self.select(bme0)
+            self.nearest_bmedge = bme1
+            self.nearest_bmface = None
+            return self.handle_edges_edge(context, eventd)
         
         return ''
     
@@ -962,11 +884,21 @@ class CGC_Polypen(ModalOperator):
         p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
         rgn,r3d = context.region,context.space_data.region_3d
         
-        if len(self.selected_bmfaces[0].verts) == 3:
+        bmf = self.selected_bmfaces[0]
+        
+        if len(bmf.verts) == 3:
             if self.hover_source():
                 return self.handle_insert_vert_p3d(context, eventd)
             if self.hover_vert():
                 return self.handle_insert_vert_nearest(context, eventd)
+        if self.hover_edge():
+            if self.nearest_bmedge in bmf.edges:
+                self.select()
+                return self.handle_action_selnothing(context, eventd)
+        if self.hover_face():
+            if self.nearest_bmface == bmf:
+                self.select()
+                return self.handle_action_selnothing(context, eventd)
         
         return self.handle_bridge_nearest(context, eventd)
     
@@ -975,6 +907,79 @@ class CGC_Polypen(ModalOperator):
     ######################################
     # action handler helpers
     
+    def handle_edges_edge(self, context, eventd):
+        p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
+        rgn,r3d = context.region,context.space_data.region_3d
+        
+        bme1 = self.hover_edge()
+        if bme1 in self.selected_bmedges:
+            # hovered edge is a selected edge
+            _,bmv = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
+            lbme = bmv.link_edges
+            bmv.co = p3d
+            self.set_selection(lbmv=[bmv],lbme=lbme)
+            self.clear_nearest()
+            self.tar_bmeshrender.dirty()
+            return 'move vert'
+        lbmf = [self.face_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
+        lbmf = [bmf for bmf in lbmf if bmf]
+        bmf = lbmf[0] if lbmf else None
+        if bmf:
+            # edges share face
+            # split this face!
+            if self.selected_bmverts:
+                # insert new vert in clicked edge, split face by adding edge between selected and new verts
+                bmv0 = self.selected_bmverts[0]
+                _,bmv1 = bmesh.utils.edge_split(bme1, bme1.verts[0], 0.5)
+                bmesh.utils.face_split(bmf, bmv0, bmv1)
+                lbme1 = bmv1.link_edges
+                bmv1.co = p3d
+                self.select(bmv1, *lbme1)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
+            # split face by adding edges between verts of two edges
+            bme0 = self.selected_bmedges[0]
+            bmv00,bmv01 = bme0.verts
+            bmv10,bmv11 = bme1.verts
+            if (bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co) < 0:
+                bmv10,bmv11 = bmv11,bmv10
+            if bmv00 != bmv10:
+                bmeA = self.edge_between_verts(bmv00, bmv10)
+                if not bmeA:
+                    bmesh.utils.face_split(bmf, bmv00, bmv10)
+                    bmeA = self.edge_between_verts(bmv00, bmv10)
+                    bmf = [bmf for bmf in bmeA.link_faces if bmv01 in bmf.verts][0]
+            if bmv01 != bmv11:
+                bmeB = self.edge_between_verts(bmv01, bmv11)
+                if not bmeB:
+                    bmesh.utils.face_split(bmf, bmv01, bmv11)
+                    bmeB = self.edge_between_verts(bmv01, bmv11)
+                    bmf = [bmf for bmf in bmeB.link_faces if bmv00 in bmf.verts][0]
+            self.select(bme1)
+            self.clear_nearest()
+            self.tar_bmeshrender.dirty()
+            return 'move vert'
+        lbmv = [self.vert_between_edges(bme0,bme1) for bme0 in self.selected_bmedges]
+        lbmv = [bmv for bmv in lbmv if bmv]
+        bmv0 = lbmv[0] if lbmv else None
+        if bmv0:
+            # edges share a vert
+            bme0 = [bme0 for bme0 in self.selected_bmedges if bmv0 in bme0.verts][0]
+            bmv1 = bme0.other_vert(bmv0)
+            bmv2 = bme1.other_vert(bmv0)
+            bmf = self.create_face([bmv0,bmv1,bmv2])
+            return ''
+        # bridge
+        p3d = (bme1.verts[0].co + bme1.verts[1].co)/2
+        p2d = location_3d_to_region_2d(rgn, r3d, p3d)
+        bme0,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+        bmv0,bmv1 = bme0.verts
+        bmv2,bmv3 = bme1.verts
+        bmf = self.create_face([bmv0,bmv1,bmv2,bmv3])
+        lbme = [bme for bme in bmf.edges if bme!=bme0 and bme!=bme1]
+        self.select(*lbme)
+        return ''
     
     def handle_bridge_nearest(self, context, eventd):
         """bridge two closest edges, one from selected_bmedges and other from nearest_bmface"""
@@ -1010,6 +1015,9 @@ class CGC_Polypen(ModalOperator):
         
         if self.nearest_bmface:
             # need to find closest edges
+            
+            # TODO: check if edges are roughly parallel??
+            
             if self.selected_bmedges:
                 lbme1 = self.selected_bmedges
             elif self.selected_bmfaces:
