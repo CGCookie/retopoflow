@@ -369,10 +369,10 @@ class EPPatch:
     def hovered_2d(self,context,mouse_x,mouse_y):
         reg = context.region
         rv3d = context.space_data.region_3d
-        if len(self.lepedges) == 2: #expensive, test all the verts
-            loop = chain(*self.get_edge_loops())
-        else: #Cheap, test the corners
-            loop = [epv.snap_pos for epv in self.get_epverts()]
+        #if len(self.lepedges) == 2: #expensive, test all the verts
+        loop = chain(*self.get_edge_loops())
+        #else: #Cheap, test the corners
+        #    loop = [epv.snap_pos for epv in self.get_epverts()]
         loop_2d = [location_3d_to_region_2d(reg, rv3d, pt) for pt in loop if pt]
         
         return point_inside_loop2d(loop_2d, (mouse_x, mouse_y))
@@ -494,9 +494,25 @@ class EPPatch:
                 #vars += [0,0]  q1 and q2 vars now included in ILP problem
                 patch_fn = tri_prim_1#(vs,L,ps,*vars[3:])
 
+        elif N == 2:
+            ps = vars[:2]
+            if pat == 0:
+                patch_fn = bi_prim_0
+            elif pat == 1:
+                patch_fn = bi_prim_1
+            
         #All information collected, now generate the patch
         
         #First, slice off the padding from each side
+        if N == 2:
+            geom_dict = patch_fn(vs, ps, *vars[N:])
+            self.verts, self.faces, self.gdict = geom_dict['verts'], geom_dict['faces'], geom_dict
+            self.gdict['patch perimeter verts'] = geom_dict['perimeter verts']
+            self.bmesh = geom_dict['bme']
+            self.bmesh.to_mesh(self.me)
+            return
+        
+            
         pad_geom_dict = pad_patch_sides_method(vs, ps, L, pat)
         if not pad_geom_dict:
             print('padding failure!!')
@@ -605,7 +621,8 @@ class EPPatch:
         
         self.bmesh = pad_bme
         self.bmesh.to_mesh(self.me)
-    
+        
+        return
             
     def rotate_solution(self,step):
         if not self.patch: return

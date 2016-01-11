@@ -447,7 +447,17 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
         #print(tuple(src_to_trg_ind(v) for v in f.verts))
     new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
     target.faces.ensure_lookup_table()
-
+    target.verts.ensure_lookup_table()
+    
+    #throw away the loose verts...not very elegant with edges and what not
+    
+    for vert in new_bmverts:
+        if (vert.index - L) in src_trg_map: #these are verts that are not needed
+            target.verts.remove(vert) 
+            
+    target.verts.ensure_lookup_table()
+    target.verts.index_update()
+            
 def find_perimeter_verts(bme):
     '''
     returns a list of vert indices, in order

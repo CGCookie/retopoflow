@@ -117,19 +117,59 @@ def quadrangulate_verts(c0,c1,c2,c3,x,y, x_off = 0, y_off = 0):
     first column goes from C0 to C3
     final column goes from C1 to C2
     
+    the width of the array is y + 2 - y_off
+    the height of the array is x + 2 - x_off
+    
+    
     '''
+    bottom = []
+    right_side = []
+    top = []
+    left_side = []
+    
     verts = []
-    for i in range(x_off,y+2):
+    faces = []
+    for i in range(x_off,y+2): #iterates across the row
         A= i/(y+1)
         B = 1- A
         
-        for j in range(y_off,x+2):
+        for j in range(y_off,x+2):  #iterates up the column
+            
+            
             C = j/(x+1)
             D = 1-C
             v = B*D*c0 + A*D*c1 + A*C*c2 + B*C*c3
             verts += [v]
 
-    return verts
+            
+            if i != y+1 and j == y_off:
+                bottom += [len(verts) -1]
+            elif i == x_off and j != y_off:
+                left_side += [len(verts) -1]
+            elif i == y + 1 and j != x+1:
+                right_side += [len(verts)-1]
+            elif j == x + 1 and i != x_off:
+                top += [len(verts) - 1]
+            
+    top.reverse()
+    left_side.reverse()
+    print((bottom, right_side, top, left_side))
+    
+    for i in range(0, y+1-y_off):
+        for j in range(0,x+1-x_off):
+            A = i*(x+2) + j
+            B = (i+1)*(x+2) + j
+            C = B + 1
+            D = A + 1
+            faces += [(A,B,C,D)]
+    
+    print(faces)
+    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
+    geom_dict['perimeter'] = bottom + right_side + top + left_side     
+    return geom_dict
 
 def subdivide_edge(v0,v1,N):
     '''
@@ -394,6 +434,16 @@ def rot_between_vecs(v1,v2, factor = 1):
     v1.normalize()
     v2.normalize()
     
+    if v1.length < .00000001:
+        print('0 length vecs')
+        mx = Matrix.Identity(3)
+        return mx.to_quaternion()
+    
+    if v2.length < .000000001:
+        print('parallel vecs')
+        mx = Matrix.Identity(3)
+        return mx.to_quaternion()
+    
     if 1 - abs(v1.dot(v2)) < .0000001:
         print('parallel vecs')
         mx = Matrix.Identity(3)
@@ -428,7 +478,7 @@ def  fit_path_to_endpoints(path,v0,v1):
     dv0 = (v0 - vi_0).length
     
     if dv1 < .0000001 and dv0 < .0000001:
-        print('not really changing endpoints')
+        #print('not really changing endpoints')
         return path.copy()
       
     scale = net_final.length/net_initial.length
@@ -505,7 +555,7 @@ def blend_doublet(V_edges, ps = [], side = 'all'):
     #this determines how far across the patch an edge can be
     #interpolated.  It is limited by the subdivision of the
     #opposing sides
-    max_pads = [math.floor(L[1]/2)-1, math.floor(L[0]/2)-1 ]
+    max_pads = [math.floor((L[1]-1)/2), math.floor((L[0]-1/2))]
 
     #this is the desired padding by the user.  Eventually
     #this will be a required variable.  For now, if none
@@ -989,7 +1039,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
             
             v_inner_corner = .5*((1- p_m1/l)*v_ed_m1 + p_m1/l*v_ed_p11 + (1-p/l_m1)*v_ed_p1 + p/l_m1*v_ed_m11)
             
-            corner_quad_verts2 = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)
+            corner_quad_verts2 = quadrangulate_verts(v, v_ed_p1, v_inner_corner, v_ed_m1, p-1, p_m1-1, x_off=1, y_off=1)['verts']
             x_dim, y_dim = c_blend_dims[i]
             corner_quad_verts = slice_corner(c_blend_verts[i], x_dim, y_dim, p_m1+1, p+1)
             #print('ready for new corner blending')
@@ -1049,7 +1099,7 @@ def pad_patch(vs, ps, L, pattern, mode = 'edges'):
             
         
         N_now = len(verts)
-        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
+        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)['verts']
         verts += middle_verts[0:len(middle_verts)-p]
         inner_verts += [inner_corners[i]]
         
@@ -1391,7 +1441,7 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
             
         
         N_now = len(verts)
-        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)
+        middle_verts = quadrangulate_verts(verts[a], verts[b], verts[c], verts[d], p-1, l-p_m1 - p_p1-1, x_off=1, y_off=1)['verts']
         
         x_dim, y_dim = c_blend_dims[i]
         width = l - p_m1 - p_p1-1
@@ -1539,23 +1589,28 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     geom_dict['faces'] = faces  
     return geom_dict
 
-def bi_pattern_0(vs, ps, x, y):
+def bi_prim_0(vs, ps, x, y):
     
     #we cheat with x and p1 to make face generation easier
     #since they are effectively interchangeable
     
     #validate that ps, x, y make sense with perimeter subdivisions
     Ls = [len(v)-1 for v in vs]
-    
+    print('Subdivs provided to the primitive')
+    print(Ls)
     valid = True
     if Ls[0] != 3 + 2*x + y + 2*ps[1]:
         print('0 side subdiv doesnt match, will try anyway')
+        print(Ls[0])
+        print(3 + 2*x + y + 2*ps[1])
         valid = False    
     elif Ls[1] != 1 + y + 2*ps[0]:
         print('1 side deosnt match, but will try anyway')
+        print(Ls[1])
+        print(1 + y + 2*ps[0])
         valid = False
     
-    sides_interp = blend_doublet(vs, ps=[ps[0], ps[1]+x+1], side='all')
+    sides_interp = blend_doublet(vs, ps=[ps[0], ps[1]+x+1], side='all') #change 2 back to 1
     
     verts = []
     faces = []
@@ -1567,7 +1622,6 @@ def bi_pattern_0(vs, ps, x, y):
     #store the perimeter indices
     perimeter_verts = [i for i in range(0,len(vs[0]) + len(vs[1]) - 2)]
     
-    
     #special case, no real padding, just vertical slices through
     if ps[1] + x == 0 and ps[0] == 0:
         strip0 = [i for i in range(1,Ls[0])]
@@ -1577,19 +1631,28 @@ def bi_pattern_0(vs, ps, x, y):
         print(strip1)
         faces += face_strip(strip0, strip1)
         #Done
-        return verts, faces
+        geom_dict = {}
+        geom_dict['verts'] = verts
+        geom_dict['faces'] = faces
+        return geom_dict
     
     
     if ps[0] != 0:
         #add in all the top side verts
+        print('len of sides interp')
+        print(len(sides_interp['verts'][1]))
+        print('max n expected')
+        print((ps[1]+x+1)*len(vs[1]))
         for j in range(1, ps[1] + x+2):
             for i in range(1, len(vs[1])-1):
                 n = j * len(vs[1]) + i
+                print(n)
                 verts += [sides_interp['verts'][1][n]]  #<< even if ps[1] == 0, we will interpolate the top side as the bottom of the patch, it looks better, and easier to think about.
     
     else:
         #add in all the top side verts, one less strip, because the Side0 is the bottom of the actual minimal patch
         for j in range(1, ps[1] + x+ 1):
+            print('jth row to interp %i' % j)
             for i in range(1, len(vs[1])-1):
                 n = j * len(vs[1]) + i
                 verts += [sides_interp['verts'][1][n]]
@@ -1626,27 +1689,26 @@ def bi_pattern_0(vs, ps, x, y):
         print('width is %i' % width)
 
         for j in range(0, ps[0]-1):
-            print('ps[1] + x + 2, Ls[0] - ps[1]-2')
-            print((ps[1] + x + 2, Ls[0] - ps[1]-2))
+            #print('ps[1] + x + 2, Ls[0] - ps[1]-2')
+            #print((ps[1] + x + 2, Ls[0] - ps[1]-2))
             for k in range(0, width):
                 
                 i = ps[1] + x + 2 + k
-                print('add in a vert from side0, at index %i' % len(verts))
+                #print('add in a vert from side0, at index %i' % len(verts))
                 n = (j+1) * len(vs[0]) + i
                 verts += [sides_interp['verts'][0][n]]
                 
-        
-    
+
         #this is the bottom strip on the perimeter
         print('strip along the bottom')
         strip0 = [i for i in range(ps[1]+x+1, Ls[0]-ps[1])]  #this may need extension with p0 ==1 
-        print(strip0)
+        #print(strip0)
 
         for n in range(0, ps[0]-1):
             tip = alpha - 1 - n
             tail = alpha -1 - (Ls[1] - 2) + n
             strip1 = [tip] + [i for i in range(alpha + n*width, alpha + (n+1)*width)] + [tail]
-            print(strip1)
+            #print(strip1)
             faces += face_strip(strip0, strip1)
             strip0 = strip1
         
@@ -1657,10 +1719,10 @@ def bi_pattern_0(vs, ps, x, y):
         
         
         print('strip0 should be the bottom of the patch unless p1 and x are both 0')
-        print(strip0)
+        #print(strip0)
         strip1 = [i for i in range(pole0, pole1-1, -1)]
         print('strip 1 should be something totally different')
-        print(strip1)
+        #print(strip1)
     else:
         print('the poles are along the bottom existing boundary')
         pole0 = ps[1] + x + 1
@@ -1668,7 +1730,7 @@ def bi_pattern_0(vs, ps, x, y):
         strip1 = [i for i in range(pole1, pole0-1,-1)]
         print('poles')
         print((pole0, pole1))
-        print(strip1)
+        #print(strip1)
     
     if valid:    
         faces += face_strip(strip0, strip1)
@@ -1676,8 +1738,185 @@ def bi_pattern_0(vs, ps, x, y):
 
     bme_rep = make_bme(verts, faces)
     relax_bmesh(bme_rep, perimeter_verts, iterations=4, spring_power=.2, quad_power=.2)
+    
+    verts = [v.co for v in bme_rep.verts]
+    faces = [[v.index for v in f.verts] for f in bme_rep.faces]
+    
+    
+    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
+    geom_dict['bme'] = bme_rep
+    geom_dict['perimeter verts'] = perimeter_verts
     #seal/sew together the individual regions
-    return verts, faces
+    return geom_dict
+
+def bi_prim_1(vs, ps, x, y):
+    
+    #we cheat with x and p1 to make face generation easier
+    #since they are effectively interchangeable
+    
+    #validate that ps, x, y make sense with perimeter subdivisions
+    Ls = [len(v)-1 for v in vs]
+    
+    valid = True
+    if Ls[0] != 2 + x + y + 2*ps[1]:
+        print('0 side subdiv doesnt match, will try anyway')
+        print('actual subdiv %i' % Ls[0])
+        print('estimated subdiv %i' % (2 + x + y + 2*ps[1]))
+         
+        valid = False    
+    elif Ls[1] != 2 + x + y + 2*ps[0]:
+        print('1 side deosnt match, but will try anyway')
+        print('0 side subdiv doesnt match, will try anyway')
+        print('actual subdiv %i' % Ls[1])
+        print('estimated subdiv %i' % (2 + x + y + 2*ps[0]))
+        valid = False
+    
+    sides_interp = blend_doublet(vs, ps=[ps[0], ps[1]+x+1], side='all')
+    
+    verts = []
+    faces = []
+    #add 0 side
+    verts += vs[0][0:len(vs[0])-1]
+    #add the 1 side
+    verts += vs[1][0:len(vs[1])-1]
+    
+    #store the perimeter indices
+    perimeter_verts = [i for i in range(0,len(vs[0]) + len(vs[1]) - 2)]
+    inner_verts = []
+    if ps[0] == 0:
+        corner0 = ps[1]
+        pole0 = ps[1] + x + 1
+        corner1 = Ls[0]-1-ps[1]
+        print((corner0, corner1, pole0))
+        inner_verts += [i for i in range(corner0,corner1+1)]
+        print('inner verts')
+        print(inner_verts)
+        
+    if ps[1] == 0:
+        corner0 = Ls[0] + Ls[1] - 1 - ps[0]
+        corner1 = Ls[0] + ps[0]
+        pole1 = Ls[0] + ps[0] + x + 1
+        print((corner0, corner1, pole1))
+        inner_verts += [i for i in range(corner1, corner0+1)]
+        print('inner verts')
+        print(inner_verts)
+    
+    if ps[0] != 0:
+        #add in all the top side verts
+        for j in range(1, ps[1]+1):
+            for i in range(1, len(vs[1])-1):
+                n = j * len(vs[1]) + i
+                verts += [sides_interp['verts'][1][n]]  #<< even if ps[1] == 0, we will interpolate the top side as the bottom of the patch, it looks better, and easier to think about.
+    
+                if i == ps[1] and j == ps[1]:
+                    print('corner0, pole0, corner1')
+                    corner0 = len(verts)-1
+                    pole1 = corner0 + x + 1
+                    corner1 = pole1 + y + 1
+                    print((corner0, pole1, corner1))
+                    inner_verts += [m for m in range(corner0, corner1+1)]
+                    print('inner verts')
+                    print(inner_verts)
+                    
+    #make the strip along the top
+    strip0 = [i for i in range(Ls[0], Ls[0]+Ls[1])]
+    strip0.append(0)
+    print('strip along Side 1')
+    #print(strip0)
+    
+    for n in range(0, ps[1]):
+        alpha = Ls[0] + Ls[1] + n*(Ls[1]-1)
+        strip1 = [Ls[0]-(n+1)] + [i for i in range(alpha, alpha + Ls[1]-1)]
+        strip1 += [n+1]
+        faces += face_strip(strip1, strip0)
+        #print(strip1)
+        strip0 = strip1
+
+    alpha = len(verts)  #just record where we are right now
+    print('alpha')
+    print(alpha)
+    
+    #width = x + y + 1  #the strict way which necessitates x and y being correct
+    width = Ls[0] - 2*ps[1]-1
+    print('width is %i' % width)
+
+    for j in range(0, ps[0]):
+        
+        for k in range(0, width):
+            
+            i = ps[1] + 1 + k
+            #print('add in a vert from side0, at index %i' % len(verts))
+            n = (j+1) * len(vs[0]) + i
+            verts += [sides_interp['verts'][0][n]]
+                
+            if j == ps[0] -1:
+                inner_verts += [len(verts) -1]
+                if i == ps[1] + y + 1:
+                    print('pole0')
+                    print(len(verts)-1)
+                    pole0 = len(verts) - 1
+    
+    #this is the bottom strip on the perimeter
+    print('strip along the bottom')
+    strip0 = [i for i in range(ps[1], Ls[0]+1-ps[1])]
+    #print(strip0)
+
+    for n in range(0, ps[0]):
+        tip = alpha - 1 - n
+        tail = alpha -1 - (Ls[1] - 2) + n
+        strip1 = [tip] + [i for i in range(alpha + n*width, alpha + (n+1)*width)] + [tail]
+        #print(strip1)
+        faces += face_strip(strip1, strip0)
+        strip0 = strip1
+        
+    
+    print(inner_verts)
+    bme_rep = make_bme(verts, faces)
+    relax_bmesh(bme_rep, perimeter_verts, iterations=5, spring_power=.2, quad_power=.2)
+    
+    if not valid:
+        verts = [v.co for v in bme_rep.verts]
+        faces = [[v.index for v in f.verts] for f in bme_rep.faces]
+        geom_dict = {}
+        geom_dict['verts'] = verts
+        geom_dict['faces'] = faces
+        geom_dict['poles'] = [pole0, pole1]
+        geom_dict['bme'] = bme_rep
+        geom_dict['perimeter verts'] = perimeter_verts
+        return geom_dict
+                        
+    #fill in the middle
+    #verts += quadrangulate_verts(corner0, pole0, corner1, pole1, x, y)
+    beta = len(verts)
+    middle = quadrangulate_verts(verts[corner0], 
+                                 verts[pole1],
+                                 verts[corner1],
+                                 verts[pole0],
+                                 y, x)
+    
+    middle_map = {}
+    for n,m in zip(inner_verts, middle['perimeter']):
+        middle_map[m] = n
+        
+    middle_bme = make_bme(middle['verts'],middle['faces'])
+    
+    join_bmesh(middle_bme, bme_rep, middle_map)
+    middle_bme.free()
+    relax_bmesh(bme_rep, perimeter_verts, iterations=5, spring_power=.2, quad_power=.2)
+    
+    verts = [v.co for v in bme_rep.verts]
+    faces = [[v.index for v in f.verts] for f in bme_rep.faces]
+    
+    geom_dict = {}
+    geom_dict['verts'] = verts
+    geom_dict['faces'] = faces
+    geom_dict['poles'] = [pole0, pole1]
+    geom_dict['bme'] = bme_rep
+    geom_dict['perimeter verts'] = perimeter_verts
+    return geom_dict
     
 def tri_prim_0(vs):
     '''
@@ -1706,6 +1945,7 @@ def tri_prim_0(vs):
     geom_dict = {}
     geom_dict['faces'] = faces
     geom_dict['verts'] = verts
+    geom_dict['poles'] = [1]
     
     return geom_dict
     
@@ -1741,15 +1981,16 @@ def tri_prim_1(vs, q1, q2, x):
     #        (1,2,3,6),
     #        (3,4,5,6)]
     
-    V00 = quadrangulate_verts(v0, c00, p1, v2, q1, x)
-    V01 = quadrangulate_verts(v2, p1, c01, v1, q2, x, y_off =1)
+    V00geom = quadrangulate_verts(v0, c00, p1, v2, q1, x)
+    V00 = V00geom['verts'] 
+    V01 = quadrangulate_verts(v2, p1, c01, v1, q2, x, y_off =1)['verts']
     
     verts= []
     for i in range(0,x+2):
         verts += chain(V00[i*(q1+2):i*(q1+2)+q1+2], V01[i*(q2+1):i*(q2+1)+q2+1])
     
     #add in the bottom verts
-    vs = quadrangulate_verts(p1, c00, p0, c01,q2,q1, x_off=1, y_off=1)
+    vs = quadrangulate_verts(p1, c00, p0, c01,q2,q1, x_off=1, y_off=1)['verts']
     verts += vs
     
     faces = []
@@ -2136,10 +2377,10 @@ def pent_prim_2(vs, q0, q1, q4, x):
     p1 = .75*p0 + .25*v3
     cp0 = .5*p1 + .5*v3
     
-    V00 = quadrangulate_verts(v4, v0, cp0, v3, q4, q0)
-    V01 = quadrangulate_verts(v3, cp0, v1, v2, q1, q0, y_off = 1)
-    V10 = quadrangulate_verts(v0, c00, p1, cp0, q4, x, x_off = 1)
-    V11 = quadrangulate_verts(cp0, p1, c01, v1, q1, x, x_off =1, y_off =1)
+    V00 = quadrangulate_verts(v4, v0, cp0, v3, q4, q0)['verts']
+    V01 = quadrangulate_verts(v3, cp0, v1, v2, q1, q0, y_off = 1)['verts']
+    V10 = quadrangulate_verts(v0, c00, p1, cp0, q4, x, x_off = 1)['verts']
+    V11 = quadrangulate_verts(cp0, p1, c01, v1, q1, x, x_off =1, y_off =1)['verts']
     
     verts= []
     #slice these lists together so the verts are coherent for making faces
@@ -2151,7 +2392,7 @@ def pent_prim_2(vs, q0, q1, q4, x):
     
     
     #add in the bottom verts
-    vs = quadrangulate_verts(p1, c00, p0, c01,q1,q4, x_off=1, y_off=1)
+    vs = quadrangulate_verts(p1, c00, p0, c01,q1,q4, x_off=1, y_off=1)['verts']
     verts += vs
     
     faces = []
@@ -2211,11 +2452,11 @@ def pent_prim_3(vs, q1, q4, x, y):
     p1 = .7 * c03 + .3*(.67*v2 + .33*v3)
     
     
-    V00 = quadrangulate_verts(v0, c00, p0, v4, 0,  x,y_off = 0)
-    V01 = quadrangulate_verts(v4, p0, cp0, v3, q4, x,y_off = 1)
-    V02 = quadrangulate_verts(v3, cp0,cp1, v2, q1, x,y_off = 1)
-    V03 = quadrangulate_verts(v2, cp1, p1, c10, y,  x, y_off = 1)
-    V04 = quadrangulate_verts(c10, p1, c03, v1, 0,  x, y_off = 1)
+    V00 = quadrangulate_verts(v0, c00, p0, v4, 0,  x,y_off = 0)['verts']
+    V01 = quadrangulate_verts(v4, p0, cp0, v3, q4, x,y_off = 1)['verts']
+    V02 = quadrangulate_verts(v3, cp0,cp1, v2, q1, x,y_off = 1)['verts']
+    V03 = quadrangulate_verts(v2, cp1, p1, c10, y,  x, y_off = 1)['verts']
+    V04 = quadrangulate_verts(c10, p1, c03, v1, 0,  x, y_off = 1)['verts']
     
     verts = []
     for i in range(0,x+2):
@@ -2225,9 +2466,9 @@ def pent_prim_3(vs, q1, q4, x, y):
                        V03[i*(y+1):i*(y+1)+y+1],
                        V04[i:i+1])
 
-    V10 = quadrangulate_verts(p1, cp1, c02, c03, 0, y, x_off=1, y_off=1)
-    V11 = quadrangulate_verts(cp1, cp0, c01, c02, 0, q1, x_off=1, y_off=1)
-    V12 = quadrangulate_verts(cp0, p0, c00, c01, 0, q4, x_off=1, y_off=1)
+    V10 = quadrangulate_verts(p1, cp1, c02, c03, 0, y, x_off=1, y_off=1)['verts']
+    V11 = quadrangulate_verts(cp1, cp0, c01, c02, 0, q1, x_off=1, y_off=1)['verts']
+    V12 = quadrangulate_verts(cp0, p0, c00, c01, 0, q4, x_off=1, y_off=1)['verts']
     V12.pop()  #duplicate of the corner where it meets.
     
     verts += V10 + V11 + V12
@@ -2273,8 +2514,8 @@ def hex_prim_0(vs, x):
     verts = []
     faces = []
     
-    V00 = quadrangulate_verts(v0, v1, v2, v5, 0, x, x_off = 0, y_off = 0)
-    V01 = quadrangulate_verts(v5, v2, v3, v4, 0, x, x_off = 0, y_off = 1)
+    V00 = quadrangulate_verts(v0, v1, v2, v5, 0, x, x_off = 0, y_off = 0)['verts']
+    V01 = quadrangulate_verts(v5, v2, v3, v4, 0, x, x_off = 0, y_off = 1)['verts']
     
     #verts = V00 + V01
     for i in range(0,x+2): #TODO, better to slice other direction fewer iterations of loop
@@ -2314,10 +2555,10 @@ def hex_prim_1(vs, w, x, y, z):
     #         (4,5,6,8),
     #         (6,7,0,8)]
     
-    V00 = quadrangulate_verts(v5, v0, cp0, v4, z, w)
-    V01 = quadrangulate_verts(v4, cp0, v2, v3, y, w, y_off = 1)
-    V10 = quadrangulate_verts(v0, c0, p0, cp0, z, x, x_off = 1)
-    V11 = quadrangulate_verts(cp0, p0, c1, v2, y, x, x_off =1, y_off =1)
+    V00 = quadrangulate_verts(v5, v0, cp0, v4, z, w)['verts']
+    V01 = quadrangulate_verts(v4, cp0, v2, v3, y, w, y_off = 1)['verts']
+    V10 = quadrangulate_verts(v0, c0, p0, cp0, z, x, x_off = 1)['verts']
+    V11 = quadrangulate_verts(cp0, p0, c1, v2, y, x, x_off =1, y_off =1)['verts']
     
     verts= []
     #slice these lists together so the verts are coherent for making faces
@@ -2329,7 +2570,7 @@ def hex_prim_1(vs, w, x, y, z):
     
     
     #add in the bottom verts 
-    vs = quadrangulate_verts(p0, c0, v1, c1,y,z, x_off=1, y_off=1)
+    vs = quadrangulate_verts(p0, c0, v1, c1,y,z, x_off=1, y_off=1)['verts']
     verts += vs
     
     faces = []
@@ -2397,12 +2638,12 @@ def hex_prim_2(vs, q0, q3, x, y):
     
     
     verts = []
-    V00 = quadrangulate_verts(v5, v0, cp0, v4, q3, q0, x_off = 0, y_off = 0)
-    V01 = quadrangulate_verts(v4, cp0, cp1, v3, y, q0, x_off = 0, y_off = 1)
-    V02 = quadrangulate_verts(v3, cp1, v1, v2, q3, q0, x_off = 0, y_off = 1)
-    V10 = quadrangulate_verts(v0, c00, p0, cp0, q3, x, x_off = 1, y_off = 0)
-    V11 = quadrangulate_verts(cp0, p0, p1, cp1, y, x, x_off = 1, y_off = 1)
-    V12 = quadrangulate_verts(cp1, p1, c01, v1, q3, x, x_off = 1, y_off = 1)
+    V00 = quadrangulate_verts(v5, v0, cp0, v4, q3, q0, x_off = 0, y_off = 0)['verts']
+    V01 = quadrangulate_verts(v4, cp0, cp1, v3, y, q0, x_off = 0, y_off = 1)['verts']
+    V02 = quadrangulate_verts(v3, cp1, v1, v2, q3, q0, x_off = 0, y_off = 1)['verts']
+    V10 = quadrangulate_verts(v0, c00, p0, cp0, q3, x, x_off = 1, y_off = 0)['verts']
+    V11 = quadrangulate_verts(cp0, p0, p1, cp1, y, x, x_off = 1, y_off = 1)['verts']
+    V12 = quadrangulate_verts(cp1, p1, c01, v1, q3, x, x_off = 1, y_off = 1)['verts']
     
     for i in range(0,q0+2):
         verts += chain(V00[i*(q3+2):i*(q3+2)+q3+2],V01[i*(y+1):i*(y+1)+y+1], V02[i*(q3+1):i*(q3+1)+q3+1])
@@ -2411,7 +2652,7 @@ def hex_prim_2(vs, q0, q3, x, y):
         verts += chain(V10[i*(q3+2):i*(q3+2)+q3+2],V11[i*(y+1):i*(y+1)+y+1], V12[i*(q3+1):i*(q3+1)+q3+1])
     
     #fill in q3/y patch
-    V20 = quadrangulate_verts(p1, p0, c00, c01, q3, y, x_off = 1, y_off = 1)
+    V20 = quadrangulate_verts(p1, p0, c00, c01, q3, y, x_off = 1, y_off = 1)['verts']
 
     verts += V20[0:len(V20) - (q3 +1)]
     faces = []
@@ -2497,17 +2738,17 @@ def hex_prim_3(vs,q3,x,y,z):
     verts = []
     faces = []
     
-    V00 = quadrangulate_verts(v0, c00, cp0, v5, 0, x, x_off=0, y_off=0)
-    V01 = quadrangulate_verts(v5, cp0, p0,  v4, q3, x, x_off=0, y_off=1)
-    V02 = quadrangulate_verts(v4, p0,  p1,  v3, z, x, x_off=0, y_off=1)
-    V03 = quadrangulate_verts(v3, p1,  p2,  v2, q3, x, x_off=0, y_off=1)
-    V04 = quadrangulate_verts(v2, p2,  p3, c10, y, x, x_off=0, y_off=1)
-    V05 = quadrangulate_verts(c10, p3,  c02, v1, 0, x, x_off=0, y_off=1)
+    V00 = quadrangulate_verts(v0, c00, cp0, v5, 0, x, x_off=0, y_off=0)['verts']
+    V01 = quadrangulate_verts(v5, cp0, p0,  v4, q3, x, x_off=0, y_off=1)['verts']
+    V02 = quadrangulate_verts(v4, p0,  p1,  v3, z, x, x_off=0, y_off=1)['verts']
+    V03 = quadrangulate_verts(v3, p1,  p2,  v2, q3, x, x_off=0, y_off=1)['verts']
+    V04 = quadrangulate_verts(v2, p2,  p3, c10, y, x, x_off=0, y_off=1)['verts']
+    V05 = quadrangulate_verts(c10, p3,  c02, v1, 0, x, x_off=0, y_off=1)['verts']
     
-    V10 = quadrangulate_verts(p1, p0,  cp0, p2, q3, z, x_off=1, y_off=1)
-    V11 = quadrangulate_verts(p2, cp0,  c00, c01, 0, z, x_off=1, y_off=1)
+    V10 = quadrangulate_verts(p1, p0,  cp0, p2, q3, z, x_off=1, y_off=1)['verts']
+    V11 = quadrangulate_verts(p2, cp0,  c00, c01, 0, z, x_off=1, y_off=1)['verts']
     
-    V21 = quadrangulate_verts(p3, p2, c01, c02, 0, y, x_off =1, y_off =1 )
+    V21 = quadrangulate_verts(p3, p2, c01, c02, 0, y, x_off =1, y_off =1 )['verts']
     
     #verts = V00 + V01 + V02 + V03 + V04 + V05 + V10 + V11 + V21
     

@@ -289,7 +289,7 @@ class Patch():
         
     def validate(self):
         self.valid = False
-        self.valid |= len(self.corner) == len(self.sides)
+        self.valid |= len(self.corners) == len(self.sides)
         self.valid |= (sum(self.edge_subdivision) % 2) == 0  #even subdiv
         
         return self.valid
@@ -330,15 +330,16 @@ class Patch():
                     sleep_time = .2
                     
                 elif N == 2:
+                    print('attempting doublet solver')
                     sol = PatchSolver2(perm, pat)
-                    sleep_time = .1
+                    sleep_time = .2
                     
                 else:
                     return
                 
                 print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
-                
+                time.sleep(sleep_time)
                 #time.sleep(sleep_time)
                 if sol.prob.status == 1:
                     self.valid_perms += [perm]
@@ -489,6 +490,8 @@ class Patch():
             new_sol = PatchAdjuster4(L, pat, existing_vars, new_vars)
         elif N == 3:    
             new_sol = PatchAdjuster3(L, pat, existing_vars, new_vars)
+        elif N == 2:    
+            new_sol = PatchAdjuster2(L, pat, existing_vars, new_vars)
         else:
             return False
         
@@ -716,11 +719,13 @@ class Patch():
 
 #    def rotate_solution(self,direction = 1):
 
-def add_constraints_2p0(prob, L, p0, p1, x, y):  
+def add_constraints_2p0(prob, L, p0, p1, x, y):
+    print('constraints added for doublet pattern 0')
     prob +=  2*p1 + 2*x + y    == L[0] - 3, "Side 0"
     prob +=  2*p0 + y          == L[1] - 1, "Side 1"
           
-def add_constraints_2p1(prob, L, p0, p1, x, y):  
+def add_constraints_2p1(prob, L, p0, p1, x, y):
+    print('constraints added for doublet pattern 1') 
     prob +=  2*p1 + x + y      == L[0] - 2, "Side 0"
     prob +=  2*p0 + x + y      == L[1] - 2, "Side 1"
     
@@ -1580,21 +1585,21 @@ class PatchSolver2():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'solve'
-        self.prob = LpProblem("N6 Patch", LpMaximize)
+        self.prob = LpProblem("N2 Patch", LpMaximize)
         self.adjust_prob = None
         
         self.pattern = pattern
         self.L = L
         
-        max_p0 = float(math.floor((L[1]-1)/2))
-        max_p1 = float(math.floor((L[0]-3)/2))
-
+        max_p0 = float(math.floor(L[1]/2))
+        max_p1 = float(math.floor(L[0]/2))
+        
         p0 = LpVariable("p0",0,max_p0,LpInteger)
         p1 = LpVariable("p1",0,max_p1,LpInteger)
        
 
         x = LpVariable("x",0,None,LpInteger)
-        y = LpVariable("x",0,None,LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
         
 
         #first objective, maximize padding
@@ -1618,28 +1623,26 @@ class PatchSolver2():
         for v in self.prob.variables():
             print(v.name + ' = ' + str(v.varValue))
             
-class PatchAdjuster3():
+class PatchAdjuster2():
     def __init__(self, L, pattern, existing_vars, target_vars):
         '''
         L needs to be a list of edge subdivisions with Alpha being L[0]
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N3 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N2 Patch Adjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
-        max_p0 = float(min(L[2], L[1]) - 1)
-        max_p1 = float(min(L[0], L[2]) - 1)
-        max_p2 = float(min(L[1], L[0]) - 1)
-
+        max_p0 = float(math.floor(L[1]/2))
+        max_p1 = float(math.floor(L[0]/2))
+        
         p0 = LpVariable("p0",0,max_p0,LpInteger)
         p1 = LpVariable("p1",0,max_p1,LpInteger)
-        p2 = LpVariable("p2",0,max_p2,LpInteger)
 
         x = LpVariable("x",0,None,LpInteger)
-        q1 = LpVariable("q1", 0, max_p1, LpInteger)
-        q2 = LpVariable("q2", 0, max_p2, LpInteger)
+        y = LpVariable("y",0,None,LpInteger)
+        
 
         changes = []
         for i, (tv, ev) in enumerate(zip(target_vars,existing_vars)):
@@ -1647,7 +1650,7 @@ class PatchAdjuster3():
                 changes += [i]
         
         if self.pattern == 0:
-            PULP_vars = [p0,p1,p2]
+            PULP_vars = [p0,p1,x,y]
             
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1666,11 +1669,11 @@ class PatchAdjuster3():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             #add the normal patch topology constraint    
-            add_constraints_3p0(self.prob, L, p0, p1, p2)
+            add_constraints_2p0(self.prob, L, p0, p1, x, y)
             
             
         elif self.pattern == 1:
-            PULP_vars = [p0,p1,p2,x,q1,q2]
+            PULP_vars = [p0,p1,x,y]
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
@@ -1689,7 +1692,7 @@ class PatchAdjuster3():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
+            add_constraints_2p1(self.prob, L, p0, p1, x,y)
         
 
     def solve(self, report = True):
