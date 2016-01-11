@@ -1618,9 +1618,10 @@ class GPatch:
         sz0,sz1,sz2 = [len(ges.cache_igverts) for ges in self.gedgeseries]
         
         # defer update for a bit (counts don't match up!)
-        if sz0 != sz1 or sz1 != sz2:
+        if sz0 != sz1 or sz1 != sz2 or ((sz0-1)//2)%2 == 0:
             self.count_error = True
-            return
+        else:
+            self.count_error = False
         
         mx = self.mx
         imx = mx.inverted()
@@ -1628,25 +1629,34 @@ class GPatch:
         mx3x3 = mx.to_3x3()
         
         lc0 = list(ges0.iter_segments())
+        lc1 = list(ges1.iter_segments())
+        lc2 = list(ges2.iter_segments())
+        sz012 = min(len(lc0),len(lc1),len(lc2))
+        sz012 -= sz012 % 2 # make even
+        lc0 = list(lc0[:sz012])
+        lc1 = list(lc1[:sz012])
+        lc2 = list(lc2[:sz012])
+        
+        if sz012 == 0:
+            lgv = self.get_gverts()
+            lp = [Vector(lgv[0].snap_pos), Vector(lgv[1].snap_pos), Vector(lgv[2].snap_pos), (lgv[2].snap_pos+lgv[0].snap_pos)/2]
+            self.pts = [(p,True,None) for p in lp]
+            self.quads = [(0,1,2,3)]
+            return
+        
         idx0 =  (0,1) if rev0 else (3,2)
         lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
         if rev0: lc0.reverse()
         
-        lc1 = list(ges1.iter_segments())
         idx1 =  (0,1) if rev1 else (3,2)
         lc1 = [lc1[0][idx1[0]]] + list(_c[idx1[1]] for _c in lc1)
         if rev1: lc1.reverse()
         
-        lc2 = list(ges2.iter_segments())
         idx2 =  (0,1) if rev2 else (3,2)
         lc2 = [lc2[0][idx2[0]]] + list(_c[idx2[1]] for _c in lc2)
         if not rev2: lc2.reverse()
         
         wid = len(lc0)
-        if wid%2==0:
-            self.count_error = True
-            return
-        self.count_error = False
         w2 = (wid-1) // 2
         
         self.pts = []
@@ -1721,7 +1731,6 @@ class GPatch:
         # defer update for a bit (counts don't match up!)
         if sz0 != sz2 or sz1 != sz3:
             self.count_error = True
-            #return
         else:
             self.count_error = False
         
@@ -1814,8 +1823,8 @@ class GPatch:
         # defer update for a bit (counts don't match up!)
         if sz0 != sz2*2 or sz0 != sz3*2 or sz1 != sz4:
             self.count_error = True
-            return
-        self.count_error = False
+        else:
+            self.count_error = False
         
         mx = self.mx
         imx = mx.inverted()
@@ -1826,26 +1835,42 @@ class GPatch:
         self.quads = []
         
         lc0 = list(ges0.iter_segments())
+        lc1 = list(ges1.iter_segments())
+        lc2 = list(ges2.iter_segments())
+        lc3 = list(ges3.iter_segments())
+        lc4 = list(ges4.iter_segments())
+        sz23 = min(len(lc0)//2,len(lc2),len(lc3))
+        sz14 = min(len(lc1),len(lc4))
+        sz0 = sz23*2
+        lc0 = list(lc0[:sz0])
+        lc1 = list(lc1[:sz14])
+        lc2 = list(lc2[:sz23])
+        lc3 = list(lc3[:sz23])
+        lc4 = list(lc4[:sz14])
+        
+        if sz0 == 0:
+            lgv = self.get_gverts()
+            lp = [Vector(lgv[0].snap_pos), Vector(lgv[1].snap_pos), Vector(lgv[2].snap_pos), Vector(lgv[3].snap_pos)]
+            self.pts = [(p,True,None) for p in lp]
+            self.quads = [(0,1,2,3)]
+            return
+        
         idx0 =  (0,1) if rev0 else (3,2)
         lc0 = [lc0[0][idx0[0]]] + list(_c[idx0[1]] for _c in lc0)
         if rev0: lc0.reverse()
         
-        lc1 = list(ges1.iter_segments())
         idx1 =  (0,1) if rev1 else (3,2)
         lc1 = [lc1[0][idx1[0]]] + list(_c[idx1[1]] for _c in lc1)
         if rev1: lc1.reverse()
         
-        lc2 = list(ges2.iter_segments())
         idx2 =  (0,1) if rev2 else (3,2)
         lc2 = [lc2[0][idx2[0]]] + list(_c[idx2[1]] for _c in lc2)
         if not rev2: lc2.reverse()
         
-        lc3 = list(ges3.iter_segments())
         idx3 =  (0,1) if rev3 else (3,2)
         lc3 = [lc3[0][idx3[0]]] + list(_c[idx3[1]] for _c in lc3)
         if not rev3: lc3.reverse()
         
-        lc4 = list(ges4.iter_segments())
         idx4 =  (0,1) if rev4 else (3,2)
         lc4 = [lc4[0][idx4[0]]] + list(_c[idx4[1]] for _c in lc4)
         if not rev4: lc4.reverse()
