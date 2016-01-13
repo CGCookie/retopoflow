@@ -84,7 +84,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
 
         # Setup target for BmeshRender drawing of existing geometry
         self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
-        self.tar_bmeshrender = BMeshRender(self.tar_bmesh)
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, context.object.matrix_world)
 
         # Hide any existing geometry
         bpy.ops.mesh.hide(unselected=True)

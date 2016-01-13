@@ -109,8 +109,15 @@ def glDrawBMVerts(lbmv, opts=None):
 
 
 class BMeshRender():
-    def __init__(self, bmesh):
+    def __init__(self, bmesh, mx=None):
+        self.calllist = None
         self.bmesh = bmesh
+        self.mx = mx
+        if mx:
+            self.bglMatrix = bgl.Buffer(bgl.GL_FLOAT, [16])
+            for i,v in enumerate([v for r in self.mx.transposed() for v in r]):
+                self.bglMatrix[i] = v
+            
         self.is_dirty = True
         self.calllist = bgl.glGenLists(1)
     
@@ -119,8 +126,9 @@ class BMeshRender():
         self.is_dirty = True
     
     def __del__(self):
-        bgl.glDeleteLists(self.calllist, 1)
-        self.calllist = None
+        if self.calllist:
+            bgl.glDeleteLists(self.calllist, 1)
+            self.calllist = None
     
     def dirty(self):
         self.is_dirty = True
@@ -133,10 +141,15 @@ class BMeshRender():
             bgl.glNewList(self.calllist, bgl.GL_COMPILE)
             # do not change attribs if they're not set
             glSetDefaultOptions(opts=opts)
+            if self.mx:
+                bgl.glPushMatrix()
+                bgl.glMultMatrixf(self.bglMatrix)
             glDrawBMFaces(self.bmesh.faces, opts=opts)
             glDrawBMEdges(self.bmesh.edges, opts=opts)
             glDrawBMVerts(self.bmesh.verts, opts=opts)
             bgl.glDepthRange(0, 1)
+            if self.mx:
+                bgl.glPopMatrix()
             bgl.glEndList()
         
         bgl.glCallList(self.calllist)
