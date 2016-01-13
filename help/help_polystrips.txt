@@ -16,6 +16,7 @@ TRANSFORM:
 MERGE / DELETE / CONVERT:
 - CTRL+D: dissolve junction
 - CTRL+C: convert selected junction type
+- CTRL+T: unfreeze selected tweaked element
 - K: cut new junction under mouse on selected strip
 - M: merge selected junction to hovered
 - X: delete
