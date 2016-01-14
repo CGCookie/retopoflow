@@ -139,6 +139,20 @@ class Polystrips_UI_Tools():
         
         ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],mx, settings)
         hit_p3d,hit_norm,hit_idx = hit
+        if not hit_p3d:
+            self.tweak_data = {
+                'mouse': eventd['mouse'],
+                'lgvmove': [],
+                'lgvextmove': [],
+                'lgemove': [],
+                'lgpmove': [],
+                'lmverts': [],
+                'supdate': set(),
+                'mx': mx,
+                'mx3x3': mx3x3,
+                'imx': imx,
+            }
+            return
         
         hit_p3d = mx * hit_p3d
         
@@ -240,8 +254,6 @@ class Polystrips_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        #print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
-        
         if eventd['press'] == 'LEFTMOUSE':
             self.create_undo_snapshot('tweak')
             self.modal_tweak_setup(context, eventd)
@@ -269,8 +281,6 @@ class Polystrips_UI_Tools():
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
                 vertices[i_v].co = imx * nc
-                #print('update_edit_mesh')
-                
             
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
