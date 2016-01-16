@@ -139,6 +139,20 @@ class Polystrips_UI_Tools():
         
         ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],mx, settings)
         hit_p3d,hit_norm,hit_idx = hit
+        if not hit_p3d:
+            self.tweak_data = {
+                'mouse': eventd['mouse'],
+                'lgvmove': [],
+                'lgvextmove': [],
+                'lgemove': [],
+                'lgpmove': [],
+                'lmverts': [],
+                'supdate': set(),
+                'mx': mx,
+                'mx3x3': mx3x3,
+                'imx': imx,
+            }
+            return
         
         hit_p3d = mx * hit_p3d
         
@@ -171,8 +185,9 @@ class Polystrips_UI_Tools():
             supdate.add(gv)
             for ge in gv.get_gedges_notnone():
                 supdate.add(ge)
-                for gp in ge.gpatches:
-                    supdate.add(gp)
+                for ges in ge.gedgeseries:
+                    if ges.gpatch:
+                        supdate.add(ges.gpatch)
         
         for gv in self.polystrips.extension_geometry:
             lcorners = gv.get_corners()
@@ -199,8 +214,9 @@ class Polystrips_UI_Tools():
                 supdate.add(ge)
                 supdate.add(ge.gvert0)
                 supdate.add(ge.gvert3)
-                for gp in ge.gpatches:
-                    supdate.add(gp)
+                for ges in ge.gedgeseries:
+                    if ges.gpatch:
+                        supdate.add(ges.gpatch)
         
         for gp in self.polystrips.gpatches:
             freeze = False
@@ -238,8 +254,6 @@ class Polystrips_UI_Tools():
         region = eventd['region']
         r3d = eventd['r3d']
         
-        print('moving: ' + str(eventd['type']) + ', ' + str(eventd['press']) + ', ' + str(eventd['release']))
-        
         if eventd['press'] == 'LEFTMOUSE':
             self.create_undo_snapshot('tweak')
             self.modal_tweak_setup(context, eventd)
@@ -267,8 +281,6 @@ class Polystrips_UI_Tools():
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
                 vertices[i_v].co = imx * nc
-                #print('update_edit_mesh')
-                
             
             for gv,ic,c,d in self.tweak_data['lgvextmove']:
                 if ic == 0:
@@ -304,6 +316,8 @@ class Polystrips_UI_Tools():
                 p,v,k = gp.pts[i_pt]
                 nc = update(c,d)
                 gp.pts[i_pt] = (nc,v,k)
+            
+            self.tar_bmeshrender.dirty()
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:
@@ -387,7 +401,8 @@ class Polystrips_UI_Tools():
                 nc = update(c,d)
                 gp.pts = [(_0,_1,_p) if _0!=i0 or _1!=i1 else (_0,_1,nc) for _0,_1,_p in gp.pts]
                 gp.map_pts[(i0,i1)] = nc
-                
+            
+            self.tar_bmeshrender.dirty()
             
             if eventd['release'] == 'LEFTMOUSE':
                 for u in self.tweak_data['supdate']:

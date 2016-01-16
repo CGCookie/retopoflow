@@ -39,6 +39,7 @@ from ..lib import common_utilities
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
+from ..lib.common_drawing_view import draw3d_arrow
 from ..lib.classes.profiler import profiler
 
 from ..cache import mesh_cache
@@ -125,7 +126,28 @@ class Polystrips_UI_Draw():
         else:
             n_quads = 3
         self.draw_gedge_text(gedge, context, str(n_quads))
-
+    
+    
+    def draw_gpatch_info(self, gpatch, context):
+        cp,cnt = Vector(),0
+        for p,_,_ in gpatch.pts:
+            cp += p
+            cnt += 1
+        cp /= max(1,cnt)
+        for i_ges,ges in enumerate(gpatch.gedgeseries):
+            l = ges.n_quads
+            p,c = Vector(),0
+            for gvert in ges.cache_igverts:
+                p += gvert.snap_pos
+                c += 1
+            p /= c
+            txt = '%d' % l # '%d %d' % (i_ges,l)
+            p2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, cp*0.2+p*0.8)
+            txt_width, txt_height = blf.dimensions(0, txt)
+            blf.position(0, p2d[0]-(txt_width/2), p2d[1]-(txt_height/2), 0)
+            blf.draw(0, txt)
+            
+    
     def draw_3d(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
@@ -145,6 +167,7 @@ class Polystrips_UI_Draw():
         color_mirror = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
         
         bgl.glDepthRange(0.0, 0.999)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
         
         def draw3d_polyline(context, points, color, thickness, LINE_TYPE):
             if LINE_TYPE == "GL_LINE_STIPPLE":
@@ -237,11 +260,18 @@ class Polystrips_UI_Draw():
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly depth': (0, 0.999),
+            'poly mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
+            'poly mirror depth': (0, 0.999),
             
-            'line depth': (0, 0.997),
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line depth': (0, 0.997),
+            'line mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
+            'line mirror depth': (0, 0.997),
+            'line mirror stipple': True,
+            
+            'mirror x': self.settings.symmetry_plane == 'x',
         }
-        self.tar_bmeshrender.draw(opts)
+        self.tar_bmeshrender.draw(opts=opts)
 
         ### Patches ###
         for gpatch in self.polystrips.gpatches:
@@ -257,7 +287,10 @@ class Polystrips_UI_Draw():
             elif gpatch.is_frozen():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
-            if gpatch.count_error:
+            if gpatch.count_error and gpatch == self.act_gpatch:
+                color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
+                color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
+            elif gpatch.count_error:
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
                 color_fill   = (color_warning[0], color_warning[1], color_warning[2], 0.10)
             
@@ -281,7 +314,7 @@ class Polystrips_UI_Draw():
                 color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
                 color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
             
-            if gedge.is_frozen() and gedge == self.act_gedge:
+            if gedge.is_frozen() and gedge in self.sel_gedges:
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_active[0], color_active[1], color_active[2], 0.20)
             elif gedge.is_frozen():
@@ -296,6 +329,15 @@ class Polystrips_UI_Draw():
                 p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
+        
+        if settings.debug >= 2:
+            for gp in self.polystrips.gpatches:
+                for rev,gedgeseries in zip(gp.rev, gp.gedgeseries):
+                    for revge,ge in zip(gedgeseries.rev, gedgeseries.gedges):
+                        color = (0.25,0.5,0.25,0.9) if not revge else (0.5,0.25,0.25,0.9)
+                        draw3d_arrow(context, ge.gvert0.snap_pos, ge.gvert3.snap_pos, ge.gvert0.snap_norm, color, 2, '')
+                    color = (0.5,1.0,0.5,0.5) if not rev else (1,0.5,0.5,0.5)
+                    draw3d_arrow(context, gedgeseries.gvert0.snap_pos, gedgeseries.gvert3.snap_pos, gedgeseries.gvert0.snap_norm, color, 2, '')
 
         ### Verts ###
         for gv in self.polystrips.gverts:
@@ -361,7 +403,6 @@ class Polystrips_UI_Draw():
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
                 draw3d_points(context, p3d, color_handle, 8)
-            
             else:
                 p3d = [gv.position for gv in ge.gverts()]
                 draw3d_points(context, p3d, color_handle, 8)
@@ -371,10 +412,7 @@ class Polystrips_UI_Draw():
                     # draw each normal of each gvert
                     for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
                         draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH")
-
-            if settings.show_segment_count:
-                self.draw_gedge_info(self.act_gedge, context)
-                
+        
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
             color_fill   = (color_selection[0], color_selection[1], color_selection[2], 0.20)
@@ -467,8 +505,26 @@ class Polystrips_UI_Draw():
                 bgl.glColor4f(*color_active)
                 self.draw_gedge_info(self.act_gedge, context)
         
+        if self.act_gpatch:
+            if settings.show_segment_count:
+                bgl.glColor4f(*color_active)
+                self.draw_gpatch_info(self.act_gpatch, context)
+        
         if True:
-            bgl.glColor4f(1,1,1,0.5)
+            txt = 'v:%d e:%d s:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gedgeseries), len(self.polystrips.gpatches))
+            txt_width, txt_height = blf.dimensions(0, txt)
+            
+            bgl.glEnable(bgl.GL_BLEND)
+            
+            bgl.glColor4f(0,0,0,0.8)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(0, 0)
+            bgl.glVertex2f(10+txt_width, 0)
+            bgl.glVertex2f(10+txt_width, 10+txt_height)
+            bgl.glVertex2f(0, 10+txt_height)
+            bgl.glEnd()
+            
+            bgl.glColor4f(1,1,1,1)
             blf.position(0, 5, 5, 0)
-            blf.draw(0, 'v:%d e:%d p:%d' % (len(self.polystrips.gverts), len(self.polystrips.gedges), len(self.polystrips.gpatches)))
+            blf.draw(0, txt)
         

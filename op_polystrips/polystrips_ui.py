@@ -158,6 +158,9 @@ class Polystrips_UI:
             bpy.ops.mesh.hide(unselected=True)
             bpy.ops.mesh.hide(unselected=False)
 
+        #for bmv in self.dest_bme.verts:
+        #    bmv.co = self.mx * bmv.co
+
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
@@ -188,7 +191,7 @@ class Polystrips_UI:
             self.is_fullscreen = True
 
         # Draw the existing bmesh geometry in our own style
-        self.tar_bmeshrender = BMeshRender(self.dest_bme)
+        self.tar_bmeshrender = BMeshRender(self.dest_bme, self.mx)
 
         context.area.header_text_set('Polystrips')
     

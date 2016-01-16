@@ -96,7 +96,10 @@ def print_exception():
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     
     print(errormsg)
-    showErrorMessage(errormsg, wrap=240)
+    print_exception.count += 1
+    if print_exception.count < 10:
+        showErrorMessage(errormsg, wrap=240)
+print_exception.count = 0
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -118,7 +121,6 @@ def print_exception2():
     print("*** format_tb:")
     print(repr(traceback.format_tb(exc_traceback)))
     print("*** tb_lineno:", exc_traceback.tb_lineno)
-    
 
 @persistent
 def check_source_target_objects(scene):
@@ -230,6 +232,22 @@ def showErrorMessage(message, wrap=80):
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
 
+
+def register():
+    bpy.utils.register_class(SimpleOperator)
+
+
+def unregister():
+    bpy.utils.unregister_class(SimpleOperator)
+
+
+if __name__ == "__main__":
+    register()
+
+    # test call
+    #bpy.ops.object.simple_operator()
+
+
 def callback_register(self, context):
         #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
     self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
@@ -320,7 +338,6 @@ def ray_cast_path(context, ob, screen_coords):
     return world_coords
 
 def ray_cast_path_bvh(context, bvh, mx, screen_coords):
-    
     rgn  = context.region
     rv3d = context.space_data.region_3d
     imx  = mx.inverted()
@@ -338,6 +355,23 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
     return world_coords
+
+def ray_cast_point_bvh(context, bvh, mx, screen_coord):
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx  = mx.inverted()
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rayo,rayd = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn,rv3d, screen_coord).normalized()
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100
+    st,en = imx*(rayo-back*mult*rayd), imx*(rayo+mult*rayd)
+    hit = bvh.ray_cast(st, en-st)
+    if hit[2] == None: return None
+    world_coord = mx*hit[0]
+    world_norm  = imx.transposed()*hit[1]
+    return (world_coord, world_norm)
 
 def ray_cast_stroke(context, ob, stroke):
     '''

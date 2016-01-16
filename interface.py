@@ -123,6 +123,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             col.label("POLYSTRIPS:")
             col.prop(settings, "symmetry_plane", text ="Symmetry Plane")
 
+        col = layout.column(align=True)
+        col.operator("wm.open_log", "Open Error Log")
+
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
@@ -137,9 +140,11 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         contours_icon = icons.get("rf_contours_icon")
         polystrips_icon = icons.get("rf_polystrips_icon")
         layout.operator("cgcookie.edgepatches", icon="OUTLINER_OB_MESH")
+        polypen_icon = icons.get("rf_polypen_icon")
 
         layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
         layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        layout.operator("cgcookie.polypen", icon_value=polypen_icon.icon_id)
 
 
         if context.mode =='EDIT_MESH':

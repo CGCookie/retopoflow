@@ -85,6 +85,10 @@ def_rf_key_map['zip up'] = {'CTRL+NUMPAD_MINUS'}
 def_rf_key_map['tweak tool move'] = {'LEFTMOUSE'}
 def_rf_key_map['tweak tool relax'] = {'SHIFT+LEFTMOUSE'}
 
+#POLYPEN UNIQUE KEYS
+def_rf_key_map['polypen action'] = {'CTRL+LEFTMOUSE'}
+def_rf_key_map['polypen alt action'] = {'CTRL+ALT+LEFTMOUSE'}
+
 navigation_events = {
     'Rotate View': 'view3d.rotate',
     'Move View': 'view3d.move',
@@ -121,8 +125,9 @@ def kmi_details(kmi):
         kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
         kmi_shift   = 'SHIFT+' if kmi.shift else ''
         kmi_alt     = 'ALT+'   if kmi.alt   else ''
+        kmi_os      = 'OSKEY+'  if kmi.oskey else ''
         
-        kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt
+        kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi_os
         if kmi.type == 'WHEELINMOUSE':
             dprint('WHEELUPMOUSE substituted for WHEELINMOUSE')
             kmi_ftype += 'WHEELUPMOUSE'

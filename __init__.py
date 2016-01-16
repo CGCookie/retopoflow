@@ -47,6 +47,8 @@ from .lib.common_utilities import bversion, check_source_target_objects
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
+from .lib.classes.logging.logging import OpenLog
+
 if bversion() >= '002.076.000':
     from .icons import clear_icons
     import bpy.utils.previews
@@ -81,6 +83,8 @@ def register():
         bpy.utils.register_class(CGC_EdgeSlide)
         bpy.utils.register_class(CGC_Polypen)
     
+    bpy.utils.register_class(OpenLog)
+
     # Create the addon hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
    
@@ -108,6 +112,8 @@ def unregister():
     bpy.utils.unregister_class(RetopoFlowPreferences)
     
     clear_icons()
+
+    bpy.utils.unregister_class(OpenLog)
     
     # Remove addon hotkeys
     for km, kmi in addon_keymaps:

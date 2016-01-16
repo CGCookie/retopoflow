@@ -146,6 +146,7 @@ class Polystrips_UI_ModalWait():
                 self.settings.symmetry_plane = 'x'
             else:
                 self.settings.symmetry_plane = 'none'
+            self.tar_bmeshrender.dirty()
 
         ###################################
         # Selected gpatch commands
