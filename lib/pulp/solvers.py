@@ -33,7 +33,10 @@ the current version
 import os
 import subprocess
 import sys
-from time import clock
+import time
+from time import clock, sleep
+
+
 try:
     import configparser
 except ImportError:
@@ -1359,7 +1362,16 @@ class COIN_CMD(LpSolver_CMD):
         log.debug(self.path + cmds)
         cbc = subprocess.Popen((self.path + cmds).split(), stdout = pipe,
                              stderr = pipe)
+        sleep(.05)
+        #print('what is the poll value?')
+        #print(cbc.poll())
+          
         if cbc.wait() != 0:
+        #if cbc.communicate() != (None, None):
+            print('cbc wait problem')
+            print(cbc.wait())
+            #print('cbc comminicate problem')
+            #print(cbc.communicate())
             raise PulpSolverError("Pulp: Error while trying to execute " +  \
                                     self.path)
         if not os.path.exists(tmpSol):

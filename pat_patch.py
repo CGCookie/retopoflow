@@ -3,7 +3,7 @@ Created on Jul 15, 2015
 
 @author: Patrick
 '''
-from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus
+from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus, lpSum, LpSolverDefault
 import time
 import math
 
@@ -339,7 +339,7 @@ class Patch():
                 
                 print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
-                time.sleep(sleep_time)
+                #time.sleep(sleep_time)
                 #time.sleep(sleep_time)
                 if sol.prob.status == 1:
                     self.valid_perms += [perm]
@@ -835,10 +835,10 @@ def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y, q0, q3):
     '''
     q3 + p3 = constant, q0 + p0 = constant
     '''
-    prob +=  p5 + p1 + 2*x + y  == L[0] - 3, "Side 0"
-    prob +=  p0 + p2 + q0            == L[1] - 1, "Side 1"
+    prob +=  p5 + p1 + 2*x + y      == L[0] - 3, "Side 0"
+    prob +=  p0 + p2 + q0           == L[1] - 1, "Side 1"
     prob +=  p1 + p3 + q3           == L[2] - 1, "Side 2"
-    prob +=  p2 + p4 + y        == L[3] - 1, "Side 3"
+    prob +=  p2 + p4 + y            == L[3] - 1, "Side 3"
     prob +=  p3 + p5 + q3           == L[4] - 1, "Side 4"
     prob +=  p4 + p0 + q0           == L[5] - 1, "Side 5"
     
@@ -896,6 +896,7 @@ class PatchSolver6(object):
             add_constraints_6p3(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z,q3)
     
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -952,7 +953,7 @@ class PatchAdjuster6():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -976,7 +977,7 @@ class PatchAdjuster6():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars): #I may need to re-eval this statement
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -998,7 +999,7 @@ class PatchAdjuster6():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1019,7 +1020,7 @@ class PatchAdjuster6():
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
@@ -1031,9 +1032,10 @@ class PatchAdjuster6():
                     self.prob += PULP_vars[i] >= target_vars[i], "Soft Constraint" + str(i)
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
-            add_constraints_6p3(self.prob, L, p0,p1,p2,p3,p4,p5,x,y,z)
+            add_constraints_6p3(self.prob, L, p0,p1,p2,p3,p4,p5,x,y,z,q3)
         
     def solve(self, report = True):
+        ##LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1092,6 +1094,7 @@ class PatchSolver5():
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
             
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1148,7 +1151,7 @@ class PatchAdjuster5():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1172,7 +1175,7 @@ class PatchAdjuster5():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1194,7 +1197,7 @@ class PatchAdjuster5():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1215,7 +1218,7 @@ class PatchAdjuster5():
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
@@ -1230,6 +1233,7 @@ class PatchAdjuster5():
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
         
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1282,6 +1286,7 @@ class PatchSolver4():
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1330,7 +1335,7 @@ class PatchAdjuster4():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1354,7 +1359,7 @@ class PatchAdjuster4():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1374,7 +1379,7 @@ class PatchAdjuster4():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1394,7 +1399,7 @@ class PatchAdjuster4():
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
@@ -1413,7 +1418,7 @@ class PatchAdjuster4():
             #set the objective
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
                 self.prob += min_vars[i] >= (PULP_vars[i] - ev), 'abs val pos contstaint ' + str(i)
@@ -1429,6 +1434,7 @@ class PatchAdjuster4():
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1478,6 +1484,7 @@ class PatchSolver3():
             add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
     
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1524,7 +1531,7 @@ class PatchAdjuster3():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1547,7 +1554,7 @@ class PatchAdjuster3():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1565,6 +1572,7 @@ class PatchAdjuster3():
         
 
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1611,6 +1619,7 @@ class PatchSolver2():
             add_constraints_2p1(self.prob, L, p0, p1, x, y)
     
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
@@ -1655,7 +1664,7 @@ class PatchAdjuster2():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1678,7 +1687,7 @@ class PatchAdjuster2():
             #new variable for minimization problem
             min_vars = [LpVariable("min_" +v.name,0,None,LpInteger) for v in PULP_vars]
             
-            self.prob += sum(min_vars), "Minimize the sum of differences in variables"
+            self.prob += lpSum(min_vars), "Minimize the sum of differences in variables"
             
             for i, ev in enumerate(existing_vars):
                 self.prob += min_vars[i] >= -(PULP_vars[i] - ev), 'abs val neg contstaint ' + str(i)
@@ -1696,6 +1705,7 @@ class PatchAdjuster2():
         
 
     def solve(self, report = True):
+        #LpSolverDefault.msg = 1
         self.prob.solve()
         
         if self.prob.status == 1 and report:
