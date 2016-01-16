@@ -1289,7 +1289,12 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     #validate padding. By definition, padding can not change the number of sides
     
     if mode == 'edges':
-        L = [len(v)-1 for v in vs]    
+        new_L = [len(v)-1 for v in vs]
+        print('Subdiv provided by vert lists')
+        print(new_L)
+        print('Subdiv provided by input')
+        print(L)
+        L = new_L 
     
     #check that pdding is valid
     N = len(L)
@@ -1306,7 +1311,7 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         p_min_1 = ps[k_min_1]
         p_plu_1 = ps[k_plu_1]
         if  p_min_1 + p_plu_1 > L_k - 1:
-            print('Invalid because of p-1: %i p+1: %i greater than Ln-1: %i' % (p_min_1, p_plu_1, L_k))
+            print('Invalid because of p-1: %i p+1: %i greater than Ln - 1: %i' % (p_min_1, p_plu_1, L_k))
             return
     
     geom_dict = {}

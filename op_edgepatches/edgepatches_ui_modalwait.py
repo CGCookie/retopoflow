@@ -218,8 +218,8 @@ class EdgePatches_UI_ModalWait():
                 self.act_epedge.subdivision = max(1, cur_sub-1)
                 return ''
         if eventd['press'] in {'p','P'}:
-            self.edgepatches.update_eppatches()
-            self.edgepatches.debug()
+            self.edgepatches.smart_update_eppatches_network()
+            #self.edgepatches.debug()
             return ''
         
         if self.act_eppatch:

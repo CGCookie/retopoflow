@@ -72,8 +72,6 @@ class EPVert:
         if do_edges:
             self.doing_update = True
             self.update_epedges()
-            for epedge in self.epedges:
-                epedge.update()
             self.doing_update = False
         
         if do_faces:
@@ -88,13 +86,13 @@ class EPVert:
             l_vecs = [epe.get_outer_vector_at(self) for epe in self.epedges]
             self.epedges = sort_objects_by_angles(-self.snap_norm, self.epedges, l_vecs)  # positive snap_norm to sort clockwise
         for epe in self.epedges:
-            epe.update()
+            epe.update(shape = True, subdiv = True, patches = False)
     
     def update_eppatches(self):
         if len(self.eppatches)>2:
             ''' sort the eppatches about normal '''
             l_vecs = [epp.info_display_pt()-self.snap_pos for epp in self.eppatches]
-            self.epedges = sort_objects_by_angles(-self.snap_norm, self.eppatches, l_vecs)  # positive snap_norm to sort clockwise
+            self.eppatces = sort_objects_by_angles(-self.snap_norm, self.eppatches, l_vecs)  # positive snap_norm to sort clockwise
         for epp in self.eppatches:
             epp.update()
             
@@ -166,7 +164,7 @@ class EPEdge:
         
         if tess > 5:
             self.tessellation_count = tess
-        self.update()
+        self.update(shape = True, subdiv = True, patches = False)
     
     def epverts(self): return (self.epvert0, self.epvert1, self.epvert2, self.epvert3)
     def epverts_pos(self): return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
@@ -184,38 +182,53 @@ class EPEdge:
         info_pt = pt + len_off*dir_off
         return info_pt
     
-    def update(self):
-        #pr = profiler.start()
+    def update_subdiv(self):
+        getClosestPoint = EdgePatches.getClosestPoint
+        p0,p1,p2,p3 = self.get_positions()
+        e_v_pos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(self.subdivision)) for i in range(self.subdivision+1)]
+        
+        self.edge_verts = []  #comment me out for cool looking stuff
+        self.edge_vert_norms = []
+        
+        for pos in e_v_pos:
+            p,n,i = getClosestPoint(pos)
+            self.edge_verts.append(p)
+            self.edge_vert_norms.append(n)
+            
+    
+    def update_shape(self):
         getClosestPoint = EdgePatches.getClosestPoint
         tessellation_count = EPEdge.tessellation_count
         p0,p1,p2,p3 = self.get_positions()
-        
-        #pr2 = profiler.start()
         lpos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(tessellation_count)) for i in range(tessellation_count+1)]
-        e_v_pos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(self.subdivision)) for i in range(self.subdivision+1)]
-        #pr2.done()
-
+        
         self.curve_verts = []
         self.curve_norms = []
-        self.edge_verts = []  #comment me out for cool looking stuff
-        self.edge_vert_norms = []  
-        #pr2 = profiler.start()
+        
         for pos in lpos:
             #pr3 = profiler.start()
             p,n,i = getClosestPoint(pos)
             self.curve_verts.append(p)
-            self.curve_norms.append(n)
-            #pr3.done()
-        
-        for pos in e_v_pos:
-            #pr3 = profiler.start()
-            p,n,i = getClosestPoint(pos)
-            self.edge_verts.append(p)
-            self.edge_vert_norms.append(n)
-        #pr2.done()
-
-        #pr.done()
+            self.curve_norms.append(n)        
     
+    def update(self, shape = True, subdiv = True, patches = True):
+        
+        if shape:
+            self.update_shape()
+            
+        if subdiv:
+            self.update_subdiv()
+            
+        if patches and shape:
+            for epp in self.eppatches:
+                epp.generate_geometry()
+    
+        elif patches and subdiv:
+            for epp in self.eppatches:
+                epp.ILP_intitial_solve()
+                epp.generate_geometry()        
+        
+        
     def get_positions(self):
         return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
     
@@ -380,8 +393,9 @@ class EPPatch:
     def ILP_initial_solve(self):
         if not self.validate_patch_for_ILP(): return
         self.patch = Patch()
+        self.L_sub = [ep.subdivision for ep in self.lepedges] 
         self.patch.edge_subdivision = self.L_sub
-        self.patch.permute_and_find_solutions()
+        self.patch.permute_and_find_first_solution()
         #sleep occasionally needed
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
@@ -769,6 +783,8 @@ class EdgePatches:
         
         self.eppatches      = set()
         self.epedge_eppatch = dict()
+        
+        self.update_schedule = []
     
     @classmethod
     def getSrcObject(cls):
@@ -845,6 +861,72 @@ class EdgePatches:
         
         return loop
     
+    
+    def smart_update_eppatches_network(self):
+        '''
+        when new epverts or new epedges have been inserted
+        when any epv, epe or epp have been deleted
+        '''
+        
+        for epe in self.epedges:
+            epe.update(shape = True, subdiv = True, patches = False)
+            
+        epp_update = set() #new and modified patches,need new solutions and new geom
+        epp_remove = set() #sliced or diced patches, or epe deleted
+        
+        #walk around all the loops, perhaps this can even get more clever 
+        loops = set()
+        for epe in self.epedges:
+            l0 = self.get_loop(epe, forward=True)
+            if l0: loops.add(tuple(rotate_items(l0)))
+            l1 = self.get_loop(epe, forward=False)
+            if l1: loops.add(tuple(rotate_items(l1)))
+        
+        print('Found  %d loops' % len(loops)) 
+        
+        
+        #compare found loops to existing loops, 
+        for epp in self.eppatches:
+            loop = tuple(epp.lepedges)
+            if loop not in loops:
+                epp_remove.add(epp)
+                for epe in epp.lepedges:
+                    if epe in self.epedge_eppatch:
+                        if epp in self.epedge_eppatch[epe]:
+                            self.epedge_eppatch[epe].remove(epp)
+                continue
+            
+            l_sub = [epe.subdivision for epe in epp.lepedges]
+            if l_sub != epp.L_sub:
+                print('update this patch')
+                print((l_sub,epp.L_sub))
+                epp_update.add(epp)
+                loops.remove(loop) #no longer needed to make new one, just update subdiv
+        
+            elif l_sub == epp.L_sub:
+                print('keep this patch the same')
+                loops.remove(loop) #no need to update or make new
+                
+        print('removing %d no longer existing patches' % len(epp_remove))
+        for epp in epp_remove:
+            self.eppatches.remove(epp)
+            
+            
+        print('Created %d new patches' % len(loops))        
+        for loop in loops:
+            epp = EPPatch(loop)
+            self.eppatches.add(epp)
+            epp_update.add(epp)
+            for epe in loop:
+                if epe not in self.epedge_eppatch: self.epedge_eppatch[epe] = set()
+                self.epedge_eppatch[epe].add(epp)
+        
+        print('Updated %d new patches' % len(epp_update))  
+        for epp in epp_update:
+            epp.ILP_initial_solve()
+            epp.generate_geometry()
+            
+                       
     def update_eppatches(self):
         for epv in self.epverts:
             epv.update_epedges()
