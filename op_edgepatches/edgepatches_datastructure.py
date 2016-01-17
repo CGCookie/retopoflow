@@ -143,7 +143,7 @@ class EPVert:
 class EPEdge:
     tessellation_count = 20
     #subdivision = 8 #@JonDenning  Why are some things defined up here for the class vs the instance?
-    def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20):
+    def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20, rad = None, subdiv = None):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
         self.epvert2 = epvert2
@@ -156,7 +156,23 @@ class EPEdge:
         self.curve_norms = []
         self.edge_verts = [] #these are for patch making
         self.edge_vert_norms = []
-        self.subdivision = 8
+        
+        #these are set depending on what variables are passed
+        self.quad_size = None
+        self.subdivision = None
+        
+        if rad:
+            self.quad_size = rad
+            self.set_quad_size()
+            
+        elif subdiv and not rad:
+            self.subdivision = subdiv
+            self.get_quad_size()
+        else:
+            self.subdivision = 6
+            self.get_quad_size()
+        
+        
         epvert0.connect_epedge(self)
         epvert1.connect_epedge_inner(self)
         epvert2.connect_epedge_inner(self)
@@ -215,20 +231,41 @@ class EPEdge:
         
         if shape:
             self.update_shape()
-            
-        if subdiv:
-            self.update_subdiv()
-            
-        if patches and shape:
             for epp in self.eppatches:
                 epp.generate_geometry()
+            
+        if subdiv:
+            self.update_subdiv()  
     
         elif patches and subdiv:
             for epp in self.eppatches:
                 epp.ILP_intitial_solve()
                 epp.generate_geometry()        
         
+    def set_quad_size(self):
+        '''
+        sets the subdivision to a target quad size
+        '''
+        if len(self.curve_verts) == 0:
+            self.update(shape=True, subdiv=False, patches=False)
+        L = common_utilities.get_path_length(self.curve_verts)
+        print('The path length is %f' % L)
+        print('The quad size is %f' % self.quad_size)
         
+        n = math.floor(L/self.quad_size)
+        print('meaning subdivisions are %d' % n)
+        
+        self.subdivision = max(n,4)
+        self.update(shape = False, subdiv = True, patches = False)
+        self.quad_size = self.get_quad_size()
+        print('Now the quad size is %f' % self.quad_size)
+        
+    def get_quad_size(self):
+        L = common_utilities.get_path_length(self.curve_verts)
+        n = self.subdivision
+        quad_size = L/n
+        return quad_size
+                
     def get_positions(self):
         return (self.epvert0.snap_pos, self.epvert1.snap_pos, self.epvert2.snap_pos, self.epvert3.snap_pos)
     
@@ -309,11 +346,6 @@ class EPPatch:
         
         self.bmesh = bmesh.new()
         self.patch = None
-        
-        #add a mesh and object to the scene #TODO...don't do this
-        self.me = bpy.data.meshes.new('Patch')
-        self.ob = bpy.data.objects.new('Patch', self.me)
-        bpy.context.scene.objects.link(self.ob)
         
         self.update()
         
@@ -403,6 +435,10 @@ class EPPatch:
         
         return
     def generate_geometry(self):
+        '''
+        this creates/refreshes a bmesh which exists
+        in world coords
+        '''
         
         self.bmesh.free()
         
@@ -523,7 +559,7 @@ class EPPatch:
             self.verts, self.faces, self.gdict = geom_dict['verts'], geom_dict['faces'], geom_dict
             self.gdict['patch perimeter verts'] = geom_dict['perimeter verts']
             self.bmesh = geom_dict['bme']
-            self.bmesh.to_mesh(self.me)
+            
             return
         
             
@@ -634,8 +670,6 @@ class EPPatch:
         #print(self.gdict['reduced subdivision'])
         
         self.bmesh = pad_bme
-        self.bmesh.to_mesh(self.me)
-        
         return
             
     def rotate_solution(self,step):
@@ -676,8 +710,6 @@ class EPPatch:
         self.bmesh.verts.ensure_lookup_table()
         self.bmesh.faces.ensure_lookup_table()
         
-        self.bmesh.to_mesh(self.me)
-        
         
     def bmesh_to_patch(self):
         
@@ -696,7 +728,6 @@ class EPPatch:
         for i, v in enumerate(self.verts):
             self.bmesh.verts[i].co = v
         
-        self.bmesh.to_mesh(self.me)
             
     def relax_patch(self):
         bmmesh = self.bmesh
@@ -751,9 +782,7 @@ class EPPatch:
                 deltas[bmf.verts[1].index] += .3 * d1 * dia1
             if bmf.verts[3].index in relax_verts:
                 deltas[bmf.verts[3].index] += -.3 * d1 * dia1
-                
-                
-                  
+                    
         for i in deltas:
             bmmesh.verts[i].co += deltas[i]    
         
@@ -761,7 +790,6 @@ class EPPatch:
             p, _, _ = EdgePatches.getClosestPoint(bmmesh.verts[i].co, meth = 'BVH')
             bmmesh.verts[i].co = p
         
-        self.bmesh.to_mesh(self.me)
         #TODOD, link bmesh to scene, update edit mesh all that shit!!!
             
                                              
@@ -900,7 +928,6 @@ class EdgePatches:
             l_sub = [epe.subdivision for epe in epp.lepedges]
             if l_sub != epp.L_sub:
                 print('update this patch')
-                print((l_sub,epp.L_sub))
                 epp_update.add(epp)
                 loops.remove(loop) #no longer needed to make new one, just update subdiv
         
@@ -956,10 +983,11 @@ class EdgePatches:
         
         
         for epp in self.eppatches:
+            if epp.patch == None: continue
             if not epp.patch.all_solved:
                 epp.patch.find_next_solution()
                 break
-        totally_solved = [epp.patch.all_solved for epp in self.eppatches]
+        totally_solved = [epp.patch.all_solved for epp in self.eppatches if epp.patch]
         if all(totally_solved):
             print('network totally solved!')
             self.update_complete = True
@@ -971,8 +999,8 @@ class EdgePatches:
         self.epverts.append(epv)
         return epv
     
-    def create_epedge(self, epv0, epv1, epv2, epv3, tess = 20):
-        epe = EPEdge(epv0, epv1, epv2, epv3, tess = tess)
+    def create_epedge(self, epv0, epv1, epv2, epv3, rad = None, tess = 20):
+        epe = EPEdge(epv0, epv1, epv2, epv3, tess = tess, rad = rad)
         self.epedges.append(epe)
         return epe
     
@@ -1022,9 +1050,9 @@ class EdgePatches:
         lepv3epe = epv1_3.get_epedges()
         
         self.disconnect_epedge(epedge)
-        new_tess = math.ceil(epedge.tessellation_count/2)
-        epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3, tess = new_tess)
-        epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3, tess = new_tess)
+
+        epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3,rad = epedge.quad_size)
+        epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3,rad = epedge.quad_size)
         
         #lgv0ge = [ge0 if ge==epedge else ge for ge in lgv0ge]
         #lgv3ge = [ge1 if ge==epedge else ge for ge in lgv3ge]
@@ -1041,11 +1069,22 @@ class EdgePatches:
     def insert_epedge_between_epverts(self, epv0, epv3):
         epv1 = self.create_epvert(epv0.position*0.7 + epv3.position*0.3, radius=epv0.radius*0.7 + epv3.radius*0.3)
         epv2 = self.create_epvert(epv0.position*0.3 + epv3.position*0.7, radius=epv0.radius*0.3 + epv3.radius*0.7)
-        return self.create_epedge(epv0,epv1,epv2,epv3)
+        
+        rad = None
+        if len(epv0.get_epedges()):
+            rad = sum([epe.quad_zize for epe in epv0.get_epedges()])/len(epv0.get_epedges())
+        elif len(epv0.get_epedges()):
+            rad = sum([epe.quad_zize for epe in epv1.get_epedges()])/len(epv1.get_epedges())
+        
+        return self.create_epedge(epv0,epv1,epv2,epv3, rad= rad) #default to 6 subdivs
     
     
     def insert_epedge_from_stroke(self, stroke, error_scale=0.01, maxdist=0.05, sepv0=None, sepv3=None, depth=0):
         pts = [p for p,_ in stroke]
+        radius = 2*stroke[0][1] #screw the pressure stuff for now
+        
+        print('the radius is %f' % radius)
+        
         # check if stroke swings by any corner/end epverts
         #pr = profiler.start()
         
@@ -1069,12 +1108,12 @@ class EdgePatches:
                     if sepv0:
                         epv1 = self.create_epvert(sepv0.position * 0.75 + epv.position * 0.25)
                         epv2 = self.create_epvert(sepv0.position * 0.25 + epv.position * 0.75)
-                        self.create_epedge(sepv0, epv1, epv2, epv)
+                        self.create_epedge(sepv0, epv1, epv2, epv,rad = radius)
                     self.insert_epedge_from_stroke(stroke[i1:], error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
                 elif sepv0 and sepv3:
                     epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
                     epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
-                    self.create_epedge(sepv0, epv1, epv2, sepv3)
+                    self.create_epedge(sepv0, epv1, epv2, sepv3, rad = radius)
             else:
                 self.insert_epedge_from_stroke(stroke[:i0], error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
                 if i1!=-1:
@@ -1115,7 +1154,7 @@ class EdgePatches:
             if not sepv0 or not sepv3: return
             epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
             epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
-            self.create_epedge(sepv0, epv1, epv2, sepv3)
+            self.create_epedge(sepv0, epv1, epv2, sepv3, rad = radius)
             return
         
         #pr = profiler.start()
@@ -1136,7 +1175,7 @@ class EdgePatches:
             epv1 = self.create_epvert(p1)
             epv2 = self.create_epvert(p2)
             epv3 = self.create_epvert(p3)
-            epe = self.create_epedge(epv0, epv1, epv2, epv3)
+            epe = self.create_epedge(epv0, epv1, epv2, epv3, rad = radius)
         if sepv3:
             epe.replace_epvert(epv3, sepv3)
             self.remove_unconnected_epverts()
@@ -1212,7 +1251,8 @@ class EdgePatches:
         
         self.disconnect_epedge(epedge0)
         self.disconnect_epedge(epedge1)
-        self.create_epedge(epv0,epv1,epv2,epv3)
+        rad = .5 * (epedge0.quad_size + epedge1.quad_size)
+        self.create_epedge(epv0,epv1,epv2,epv3, rad = rad)
         epv0.update()
         epv0.update_epedges()
         epv3.update()
@@ -1264,7 +1304,43 @@ class EdgePatches:
         
         return (verts,edges,ngons)
 
+    def push_into_bmesh(self,context):
+        '''
+        TODO this just puts all the patches together
+        '''
+        
+        if EdgePatches.tar_name:
+            me = bpy.data.objects[EdgePatches.tar_name].data
+            if bpy.context.mode == 'OBJECT':
+                bme = bmesh.new()
+                bme.from_mesh(me)
+            else:
+                bme = bmesh.from_edit_mesh(me)
+            
+        #src_mx = bpy.data.objects[EdgePatches.src_name].matrix_world
+        src_mx = None
+        
+        if self.tar_name:
+            trg_mx = bpy.data.objects[EdgePatches.tar_name].matrix_world
+        else:
+            trg_mx = None
+            
+        for epp in self.eppatches:
+            if epp.bmesh:
+                #join_bmesh(source, target....)
+                #src bmeshes in this case, do not match the "source" or reference
+                #object of operatory. The individual bmesh patches, all exist in world
+                #coordinates, and they are the source for this joining operation.
+                #th
+                join_bmesh(epp.bmesh, bme, src_mx = src_mx, trg_mx = trg_mx)
 
 
+        if context.mode == 'OBJECT':
+            bme.to_mesh(me)
+        else:
+            bmesh.update_edit_mesh(me)
+            
+        bme.free()
+            
 
-
+                

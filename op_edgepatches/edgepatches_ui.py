@@ -269,8 +269,10 @@ class EdgePatches_UI:
     # mesh creation
     
     def create_mesh(self, context):
+        
+        self.edgepatches.push_into_bmesh(context)
+        '''
         verts,edges,ngons = self.edgepatches.create_mesh(self.dest_bme)
-
         #bm = bmesh.new()  #now new bmesh is created at the start
         mx2 = Matrix.Identity(4)
         imx = Matrix.Identity(4)
@@ -298,4 +300,5 @@ class EdgePatches_UI:
         
         self.dest_bme.free()
         container_bme.free()
+        '''
     

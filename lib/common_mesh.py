@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 # Blender imports
 import bmesh
+from mathutils import Matrix
 
 def edge_loops_from_bmedges(bmesh, bm_edges):
     """
@@ -428,8 +429,18 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
     '''
     L = len(target.verts)
     
+    if not src_mx:
+        src_mx = Matrix.Identity(4)
+    
+    if not trg_mx:
+        trg_mx = Matrix.Identity(4)
+        i_trg_mx = Matrix.Identity(4)
+    else:
+        i_trg_mx = trg_mx.inverted()
+        
+        
     #TDOD  matrix math stuff
-    new_bmverts = [target.verts.new(v.co) for v in source.verts]# if v.index not in src_trg_map]
+    new_bmverts = [target.verts.new(i_trg_mx * src_mx * v.co) for v in source.verts]# if v.index not in src_trg_map]
     
     def src_to_trg_ind(v):
         if v.index in src_trg_map:

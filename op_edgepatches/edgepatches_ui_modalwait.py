@@ -137,6 +137,7 @@ class EdgePatches_UI_ModalWait():
                     self.create_undo_snapshot('merge')
                     self.edgepatches.merge_epverts(self.act_epvert, epv)
                     self.act_epvert = epv
+                    self.edgepatches.smart_update_patch_network()
                     break
                 return ''
 
@@ -174,6 +175,7 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.dissolve_epvert(self.act_epvert)
                 self.act_epvert = None
                 self.edgepatches.remove_unconnected_epverts()
+                self.edgepatches.smart_update_eppatches_network()
                 return ''
             
             if eventd['press'] in self.keymap['knife'] and not self.act_epvert.is_inner():
@@ -191,6 +193,7 @@ class EdgePatches_UI_ModalWait():
                     self.sel_epedges.clear()
                     self.act_epvert = epv
                     self.act_epvert = epv
+                    self.edgepatches.smart_update_eppatches_network()
                     return ''
                 return ''
         
@@ -200,6 +203,7 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.disconnect_epedge(self.act_epedge)
                 self.act_epedge = None
                 self.edgepatches.remove_unconnected_epverts()
+                self.edgepatches.smart_update_eppatches_network()
                 return ''
             
             if eventd['press'] in self.keymap['knife']:
@@ -213,14 +217,17 @@ class EdgePatches_UI_ModalWait():
                 self.sel_epedges.clear()
                 self.act_epvert = epv
                 self.act_epvert = epv
+                self.edgepatches.smart_update_eppatches_network()
                 return ''
 
             if eventd['press'] in self.keymap['up count']:
                 self.act_epedge.subdivision += 1
+                self.edgepatches.smart_update_eppatches_network()
                 return ''
             if eventd['press'] in self.keymap['dn count']:
                 cur_sub = self.act_epedge.subdivision
-                self.act_epedge.subdivision = max(1, cur_sub-1)
+                self.act_epedge.subdivision = max(2, cur_sub-1)
+                self.edgepatches.smart_update_eppatches_network()
                 return ''
         if eventd['press'] in {'p','P'}:
             self.edgepatches.smart_update_eppatches_network()
