@@ -134,7 +134,7 @@ class EdgePatches_UI_Tools:
             self.act_epedge = None
             self.sel_epedges = set()
             self.sel_epverts = set()
-
+            self.edgepatches.smart_update_eppatches_network()
             return 'main'
 
         return ''

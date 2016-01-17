@@ -222,14 +222,17 @@ class EdgePatches_UI_ModalWait():
 
             if eventd['press'] in self.keymap['up count']:
                 self.act_epedge.subdivision += 1
+                self.act_epedge.update(shape = False, subdiv = True, patches = False)
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
             if eventd['press'] in self.keymap['dn count']:
                 cur_sub = self.act_epedge.subdivision
                 self.act_epedge.subdivision = max(2, cur_sub-1)
+                self.act_epedge.update(shape = False, subdiv = True, patches = False)
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
         if eventd['press'] in {'p','P'}:
+            self.edgepatches.live = self.edgepatches.live != True
             self.edgepatches.smart_update_eppatches_network()
             #self.edgepatches.debug()
             return ''

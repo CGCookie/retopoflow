@@ -1362,7 +1362,7 @@ class COIN_CMD(LpSolver_CMD):
         log.debug(self.path + cmds)
         cbc = subprocess.Popen((self.path + cmds).split(), stdout = pipe,
                              stderr = pipe)
-        sleep(.05)
+        sleep(.14)
         #print('what is the poll value?')
         #print(cbc.poll())
           

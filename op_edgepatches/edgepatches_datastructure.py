@@ -346,6 +346,7 @@ class EPPatch:
         
         self.bmesh = bmesh.new()
         self.patch = None
+        self.live = False
         
         self.update()
         
@@ -369,7 +370,7 @@ class EPPatch:
         
         
         self.L_sub = [ep.subdivision for ep in self.lepedges]
-        if self.patch and self.patch.active_solution_index != -1:
+        if self.patch and self.patch.active_solution_index != -1 and self.live:
             self.generate_geometry()
         else:
             self.faces, self.verts = [], []
@@ -567,6 +568,7 @@ class EPPatch:
         if not pad_geom_dict:
             print('padding failure!!')
             self.verts, self.faces, self.gdict = [], [], {}
+            return
             
         #make a bmesh of the padding
         pad_bme = make_bme(pad_geom_dict['verts'], pad_geom_dict['faces'])
@@ -814,7 +816,8 @@ class EdgePatches:
         
         self.update_schedule = []
         self.update_complete = False
-    
+        self.live = False
+        
     @classmethod
     def getSrcObject(cls):
         return bpy.data.objects[EdgePatches.src_name]
@@ -890,18 +893,29 @@ class EdgePatches:
         
         return loop
     
-    
+    def clear_patches(self):
+        
+        for epp in self.eppatches:
+            epp.verts = []
+            epp.faces = []
+            epp.live = False
+        
     def smart_update_eppatches_network(self):
         '''
         when new epverts or new epedges have been inserted
         when any epv, epe or epp have been deleted
         '''
         
+        if not self.live: 
+            self.clear_patches() #simply turns off geometry
+            return
+        
         for epe in self.epedges:
             epe.update(shape = True, subdiv = True, patches = False)
             
         epp_update = set() #new and modified patches,need new solutions and new geom
         epp_remove = set() #sliced or diced patches, or epe deleted
+        epp_geom = set()
         
         #walk around all the loops, perhaps this can even get more clever 
         loops = set()
@@ -916,6 +930,7 @@ class EdgePatches:
         
         #compare found loops to existing loops, 
         for epp in self.eppatches:
+             
             loop = tuple(epp.lepedges)
             if loop not in loops:
                 epp_remove.add(epp)
@@ -934,6 +949,9 @@ class EdgePatches:
             elif l_sub == epp.L_sub:
                 print('keep this patch the same')
                 loops.remove(loop) #no need to update or make new
+                if epp.live == False:
+                    epp.live = True
+                    epp_geom.add(epp)
                 
         print('removing %d no longer existing patches' % len(epp_remove))
         for epp in epp_remove:
@@ -957,7 +975,11 @@ class EdgePatches:
         if len(epp_update) or len(loops):
             print('patches need updating')
             self.update_complete = False
-                           
+        
+        print('turning geom back on for some')
+        for epp in epp_geom:
+            epp.generate_geometry()
+                               
     def update_eppatches(self):
         for epv in self.epverts:
             epv.update_epedges()
