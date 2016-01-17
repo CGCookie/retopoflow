@@ -53,9 +53,14 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
         FSM['rotate tool']      = self.modal_rotate_tool
         FSM['scale tool']       = self.modal_scale_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
+        
+        wm = bpy.context.window_manager
+        self._timer = wm.event_timer_add(0.06, bpy.context.window)
+        
         self.initialize('help_edgepatches.txt', FSM)
         self.initialize_ui()
     
+        
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
         
@@ -75,15 +80,21 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
     
     def end(self, context):
         ''' Called when tool is ending modal '''
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
         pass
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
         self.create_mesh(context)
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
         pass
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
         pass
     
     def update(self, context):

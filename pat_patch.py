@@ -279,6 +279,8 @@ class Patch():
         self.edges_reduced = []
         
         self.perm_index = -1 #step through all the permutations
+        self.pat_index = 0  #step through each pattern for all permutations
+        
         self.active_solution_index = -1
         self.valid_perms = []
         self.valid_rot_dirs = []
@@ -309,47 +311,50 @@ class Patch():
         #SPEED UP only test reasonable permutatins
         #To do this...will need to iterate patterns first
         #and only test reasonably rotations/reversals
-        perms, rot_dirs = permute_subdivs(self.edge_subdivision)
-        
-
         N = len(self.edge_subdivision)
         
-        if self.perm_index == -1:
+        if self.all_solved:
             print('already solved all of the permutations')
-            return -1
+            return
+        elif not self.any_solved:
+            print('have not found initial solution')
+            return
         
-        for i in range(self.perm_index, len(perms)):
-            perm = perms[i]
-            for pat in range(0,pat_dict[N]):
-                if N == 6:
-                    sol = PatchSolver6(perm, pat)
-                elif N == 5:
-                    sol = PatchSolver5(perm, pat)
-                elif N == 4:    
-                    sol = PatchSolver4(perm, pat)
-                elif N == 3:    
-                    sol = PatchSolver3(perm, pat)
-                elif N == 2:
-                    print('attempting doublet solver')
-                    sol = PatchSolver2(perm, pat)  
-                else:
-                    return False
-                
-                print('solving permutation %i for pattern %i' % (i, pat))
-                sol.solve(report = False)
-    
-                if sol.prob.status == 1:
-                    self.perm_index = i
-                    self.valid_perms += [perm]
-                    self.valid_rot_dirs += [rot_dirs[i]]
-                    self.valid_patterns += [pat]
-                    self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
+        perm = self.perms[self.perm_index]
+        pat = self.pat_index
+        
+        if N == 6:
+            sol = PatchSolver6(perm, pat)
+        elif N == 5:
+            sol = PatchSolver5(perm, pat)
+        elif N == 4:    
+            sol = PatchSolver4(perm, pat)
+        elif N == 3:    
+            sol = PatchSolver3(perm, pat)
+        elif N == 2:
+            print('attempting doublet solver')
+            sol = PatchSolver2(perm, pat)  
+        else:
+            return
+            
+        print('solving permutation %i for pattern %i' % (self.perm_index, pat))
+        sol.solve(report = False)
 
-                    if i == len(perms) -1:
-                        self.perm_index = -1
-                        self.all_solved = True
-                    return  True  
-    
+        if sol.prob.status == 1:
+            self.valid_perms += [perm]
+            self.valid_rot_dirs += [self.rot_dirs[self.perm_index]]
+            self.valid_patterns += [pat]
+            self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
+
+        #check if we are done
+        if self.perm_index == len(self.perms)-1 and self.pat_index == pat_dict[N]-1:
+            self.all_solved = True
+            return
+            
+        self.pat_index = (self.pat_index + 1) % pat_dict[N]
+        if self.pat_index == 0:
+            self.perm_index += 1
+        
     def permute_and_find_first_solution(self):
         pat_dict = {}
         pat_dict[2] = 2
@@ -361,7 +366,7 @@ class Patch():
         #SPEED UP only test reasonable permutatins
         #To do this...will need to iterate patterns first
         #and only test reasonably rotations/reversals
-        perms, rot_dirs = permute_subdivs(self.edge_subdivision)
+        self.perms, self.rot_dirs = permute_subdivs(self.edge_subdivision)
         
         self.active_solution_index = -1
         self.perm_index = 0
@@ -371,7 +376,7 @@ class Patch():
         self.valid_solutions = []
         N = len(self.edge_subdivision)
         
-        for i, perm in enumerate(perms):
+        for i, perm in enumerate(self.perms):
             for pat in range(0,pat_dict[N]):
                 if N == 6:
                     sol = PatchSolver6(perm, pat)
@@ -391,13 +396,32 @@ class Patch():
                 #time.sleep(sleep_time)
                 #time.sleep(sleep_time)
                 if sol.prob.status == 1:
-                    self.perm_index = i
                     self.valid_perms += [perm]
-                    self.valid_rot_dirs += [rot_dirs[i]]
+                    self.valid_rot_dirs += [self.rot_dirs[i]]
                     self.valid_patterns += [pat]
                     self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
                     self.active_solution_index = 0
                     self.any_solved = True
+                    
+                    
+                    if i == len(self.perms)-1 and pat == pat_dict[N]-1:
+                        print('crazy that last permutaion and last pattern only fit')
+                        self.all_solved = True
+                        self.any_solved = True
+                        return
+                        
+                    elif pat == pat_dict[N]-1:
+                        print('increment pattern and perm')
+                        self.pat_index = 0
+                        self.perm_index += 1
+                    else:
+                        print('just increment pattern')
+                        self.pat_index += 1
+                        
+
+                    if i == len(self.perms) -1:
+                        self.all_solved = True
+                        self.perm_index = -1
                     return
 
         if len(self.valid_patterns):

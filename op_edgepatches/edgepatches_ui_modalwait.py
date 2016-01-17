@@ -38,6 +38,11 @@ class EdgePatches_UI_ModalWait():
 
         self.footer = 'LMB: draw, RMB: select, G: grab, R: rotate, S: scale, F: brush size, K: knife, M: merge, X: delete, CTRL+D: dissolve, SHIFT+Wheel Up/Down or SHIFT+ +/-: adjust segments, CTRL+C: change selected junction type'
 
+        if eventd['type'] == 'TIMER':
+            if len(self.edgepatches.eppatches):
+                self.edgepatches.solve_next()
+            return ''
+            
         ########################################
         # accept / cancel
         if eventd['press'] in self.keymap['help']:

@@ -785,6 +785,7 @@ class EdgePatches:
         self.epedge_eppatch = dict()
         
         self.update_schedule = []
+        self.update_complete = False
     
     @classmethod
     def getSrcObject(cls):
@@ -926,7 +927,10 @@ class EdgePatches:
             epp.ILP_initial_solve()
             epp.generate_geometry()
             
-                       
+        if len(epp_update) or len(loops):
+            print('patches need updating')
+            self.update_complete = False
+                           
     def update_eppatches(self):
         for epv in self.epverts:
             epv.update_epedges()
@@ -947,6 +951,21 @@ class EdgePatches:
                 self.epedge_eppatch[epe].add(epp)
         
     
+    def solve_next(self):
+        if self.update_complete: return
+        
+        
+        for epp in self.eppatches:
+            if not epp.patch.all_solved:
+                epp.patch.find_next_solution()
+                break
+        totally_solved = [epp.patch.all_solved for epp in self.eppatches]
+        if all(totally_solved):
+            print('network totally solved!')
+            self.update_complete = True
+            return        
+        return
+        
     def create_epvert(self, pos):
         epv = EPVert(pos)
         self.epverts.append(epv)
