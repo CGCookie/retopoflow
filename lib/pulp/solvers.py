@@ -1362,14 +1362,18 @@ class COIN_CMD(LpSolver_CMD):
         log.debug(self.path + cmds)
         cbc = subprocess.Popen((self.path + cmds).split(), stdout = pipe,
                              stderr = pipe)
-        sleep(.14)
+        sleep_time = .03
+        sleep(sleep_time)
+        
         #print('what is the poll value?')
         #print(cbc.poll())
-          
-        if cbc.wait() != 0:
-        #if cbc.communicate() != (None, None):
-            print('cbc wait problem')
-            print(cbc.wait())
+        #output, errors = cbc.communicate()
+        #print ([cbc.returncode, errors, output])
+        #if cbc.returncode or errors:
+        #    print('something went wrong...')
+        if cbc.wait(timeout = 5) != 0:
+        #    print('cbc wait problem')
+        #    print(cbc.wait())
             #print('cbc comminicate problem')
             #print(cbc.communicate())
             raise PulpSolverError("Pulp: Error while trying to execute " +  \
