@@ -937,7 +937,7 @@ class PatchSolver6(object):
         self.pattern = pattern
         self.L = L
         self.prob_type = 'solve'
-        self.prob = LpProblem("N6 Patch", LpMaximize)
+        self.prob = LpProblem("N6Patch", LpMaximize)
 
         max_p0 = float(min(L[1], L[5]) - 1)
         max_p1 = float(min(L[0], L[2]) - 1)
@@ -994,7 +994,7 @@ class PatchAdjuster6():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N6 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N6PatchAdjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
@@ -1136,7 +1136,7 @@ class PatchSolver5():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'solve'
-        self.prob = LpProblem("N5 Patch", LpMaximize)
+        self.prob = LpProblem("N5Patch", LpMaximize)
         self.pattern = pattern
         self.L = L
         
@@ -1195,7 +1195,7 @@ class PatchAdjuster5():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N5 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N5PatchAdjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
@@ -1331,7 +1331,7 @@ class PatchSolver4():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'solve'
-        self.prob = LpProblem("N4 Patch", LpMaximize)
+        self.prob = LpProblem("N4Patch", LpMaximize)
         self.pattern = pattern
         self.L = L
         
@@ -1384,7 +1384,7 @@ class PatchAdjuster4():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N4 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N4PatchAdjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
@@ -1533,7 +1533,7 @@ class PatchSolver3():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'solve'
-        self.prob = LpProblem("N6 Patch", LpMaximize)
+        self.prob = LpProblem("N3Patch", LpMaximize)
         self.adjust_prob = None
         
         self.pattern = pattern
@@ -1582,7 +1582,7 @@ class PatchAdjuster3():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N3 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N3PatchAdjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
@@ -1671,7 +1671,7 @@ class PatchSolver2():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'solve'
-        self.prob = LpProblem("N2 Patch", LpMaximize)
+        self.prob = LpProblem("N2Patch", LpMaximize)
         self.adjust_prob = None
         
         self.pattern = pattern
@@ -1717,7 +1717,7 @@ class PatchAdjuster2():
         you may need to rotate or reverse L to adequately represent the patch
         '''
         self.prob_type = 'adjust'
-        self.prob = LpProblem("N2 Patch Adjust", LpMinimize)
+        self.prob = LpProblem("N2PatchAdjust", LpMinimize)
         self.pattern = pattern
         self.L = L
         
