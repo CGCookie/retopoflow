@@ -1362,7 +1362,7 @@ class COIN_CMD(LpSolver_CMD):
         log.debug(self.path + cmds)
         cbc = subprocess.Popen((self.path + cmds).split(), stdout = pipe,
                              stderr = pipe)
-        sleep_time = .03
+        sleep_time = .04
         sleep(sleep_time)
         
         #print('what is the poll value?')
@@ -1371,7 +1371,7 @@ class COIN_CMD(LpSolver_CMD):
         #print ([cbc.returncode, errors, output])
         #if cbc.returncode or errors:
         #    print('something went wrong...')
-        if cbc.wait(timeout = 5) != 0:
+        if cbc.wait(timeout = 3) != 0:
         #    print('cbc wait problem')
         #    print(cbc.wait())
             #print('cbc comminicate problem')
