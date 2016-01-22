@@ -4,9 +4,33 @@ Created on Jul 15, 2015
 @author: Patrick
 '''
 from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus, lpSum, LpSolverDefault, LpAffineExpression, LpConstraint
+
+from .patterns import *
 import time
 import math
 
+
+def PuLP_to_dict(lp_prob):
+    '''
+    extracts dictionary of variables from class PuLp LpProblem
+    customized to ignore minimzation variables that are not
+    relevatnt to patch geometry.  Returned sorted hopefully
+    '''
+    sol_dict_raw  = {}
+    sol_dict = {}
+    for v in lp_prob.variables():
+        if "min" not in v.name:
+            sol_dict_raw[v.name] = int(v.varValue)
+    
+    #make sure they are alphabetized
+    keys = [vname for vname in sol_dict_raw.keys()]
+    keys.sort()
+    for vname in keys:
+        sol_dict[vname] = sol_dict_raw[vname]
+        
+    return sol_dict
+    
+    
 def identify_patch_pattern(edges_reduced, check_pattern = -1):
     '''
     takes reduced edges, identifies pattern, identifies rotation/order
@@ -338,14 +362,20 @@ class Patch():
             return
             
         print('solving permutation %i for pattern %i' % (self.perm_index, pat))
+        print(perm)
         sol.solve(report = False)
 
         if sol.prob.status == 1:
+            sol_dict = PuLP_to_dict(sol.prob)
             self.valid_perms += [perm]
             self.valid_rot_dirs += [self.rot_dirs[self.perm_index]]
             self.valid_patterns += [pat]
-            self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
-
+            self.valid_solutions += [sol_dict]
+        
+        #clean up PuLp and CBC instances, feeble effor to prevent crashes
+        del sol.prob
+        del sol  
+          
         #check if we are done
         if self.perm_index == len(self.perms)-1 and self.pat_index == pat_dict[N]-1:
             self.all_solved = True
@@ -393,17 +423,23 @@ class Patch():
                 
                 print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
+                
+                
                 #time.sleep(sleep_time)
                 #time.sleep(sleep_time)
                 if sol.prob.status == 1:
+                    sol_dict = PuLP_to_dict(sol.prob)
                     self.valid_perms += [perm]
                     self.valid_rot_dirs += [self.rot_dirs[i]]
                     self.valid_patterns += [pat]
-                    self.valid_solutions += [sol] #<----wonder if this is ok to have a bunch of these instances around
+                    self.valid_solutions += [sol_dict] #<----wonder if this is ok to have a bunch of these instances around
                     self.active_solution_index = 0
                     self.any_solved = True
                     
-                    
+                    #clean up these to maybe help CBC?
+                    del sol.prob
+                    del sol
+                                        
                     if i == len(self.perms)-1 and pat == pat_dict[N]-1:
                         print('crazy that last permutaion and last pattern only fit')
                         self.all_solved = True
@@ -423,6 +459,10 @@ class Patch():
                         self.all_solved = True
                         self.perm_index = -1
                     return
+                
+                else:
+                    del sol.prob
+                    del sol
 
         if len(self.valid_patterns):
             self.active_solution_index = 0
@@ -444,35 +484,37 @@ class Patch():
             print('no valid solutions')
             return
         
-        L, rot_dir, pat, sol = self.valid_perms[n], self.valid_rot_dirs[n], self.valid_patterns[n], self.valid_solutions[n]
+        L, rot_dir, pat, sol_dict = self.valid_perms[n], self.valid_rot_dirs[n], self.valid_patterns[n], self.valid_solutions[n]
         
-        return L, rot_dir, pat, sol
+        return L, rot_dir, pat, sol_dict
     
     def get_active_solution_variables(self):
+        '''
+        gets the varibales, in alphabetical order from the stored
+        solution dictionary, returns just a list of those variables
+        '''
         if self.active_solution_index == -1:
             print('no solution, permute and find solutions first')
-            return
+            return []
         
+        #solutions are stored as dictionary now
+        soldict = self.valid_solutions[self.active_solution_index]
         
-        sol = self.valid_solutions[self.active_solution_index]
-        
-        if sol.prob_type == 'adjust':
-            existing_vars = [int(v.varValue) for v in sol.prob.variables() if "min" not in v.name]
-        else:
-            existing_vars = [int(v.varValue) for v in sol.prob.variables()]
-        return existing_vars
+        keys = [k for k in soldict.keys()]
+        keys.sort()
+        e_vars = [soldict[k] for k in keys]
+        return e_vars
     
+
     def get_adjust_variable_name(self):
         if self.active_solution_index == -1: return None
         
-        sol = self.valid_solutions[self.active_solution_index]
+        sol_dict = self.valid_solutions[self.active_solution_index]
         n = self.param_index
+        keys = [v for v in sol_dict.keys()]
+        keys.sort()
         
-        if sol.prob_type == 'adjust':
-            var_names = [v.name for v in sol.prob.variables() if "min" not in v.name]
-        else:
-            var_names = [v.name for v in sol.prob.variables()]
-        return var_names[n]
+        return keys[n]
          
     def rotate_solution(self,step):
         #look for same pattern, with different rotation
@@ -540,8 +582,7 @@ class Patch():
                                    
                 self.active_solution_index = i
                 print('found a solution with pattern:%i' % pat_id)
-                return True
-                    
+                return True          
         return False
     
     def adjust_patch(self):
@@ -585,13 +626,19 @@ class Patch():
             self.valid_perms += [L]
             self.valid_rot_dirs += [rot_dir]
             self.valid_patterns += [pat]
-            self.valid_solutions += [new_sol]
+            
+            self.valid_solutions += [PuLP_to_dict(new_sol.prob)]
             self.active_solution_index = len(self.valid_perms) -1
             print('the adjusted variables') 
             new_vars = self.get_active_solution_variables()
             print(new_vars)
+            
+            del new_sol.prob
+            del new_sol
             return True
         else:
+            del new_sol.prob
+            del new_sol
             print('desired adjustment not possible')
             return False
     def report(self):
@@ -599,7 +646,10 @@ class Patch():
             print('no active soluton')
             return
         
-        self.valid_solutions[self.active_solution_index].report()
+        sol_dict = self.valid_solutions[self.active_solution_index]
+        
+        for var_name in sol_dict:
+            print(var_name + ": " + str(sol_dict[var_name]))
         
         
     ######### DEPRICATED AND ONLY USEFUL FOR DEMO/UNDERSTANDING##########
@@ -797,193 +847,13 @@ class Patch():
 
 #    def rotate_solution(self,direction = 1):
 
-def add_constraints_2p0(prob, L, p0, p1, x, y):
-    print('constraints added for doublet pattern 0')
-    
-    #prob +=  2*p1 + 2*x + y    == L[0] - 3, "Side 0"  old way
-    aff0 = LpAffineExpression([(p1,2),(x,2),(y,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-3)
-    prob += cons0
-    
-    #prob +=  2*p0 + y          == L[1] - 1, "Side 1"
-    aff1 = LpAffineExpression([(p0,2),(y,1)])
-    cons1 = LpConstraint(e = aff1, sense = 0, name = "Side1", rhs = L[1]-1)
-    prob += cons1
-    
-    
-          
-def add_constraints_2p1(prob, L, p0, p1, x, y):
-    print('constraints added for doublet pattern 1') 
-    #prob +=  2*p1 + x + y      == L[0] - 2, "Side 0"
-    aff0 = LpAffineExpression([(p1,2),(x,1),(y,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-2)
-    prob += cons0
-    
-    #prob +=  2*p0 + x + y      == L[1] - 2, "Side 1"
-    aff1 = LpAffineExpression([(p0,2),(x,1),(y,1)])
-    cons1 = LpConstraint(e = aff0, sense = 0, name = "Side1", rhs = L[1]-2)
-    prob += cons1
-    
-    
-def add_constraints_3p0(prob, L, p0, p1, p2):
-    prob +=  p2 + p1            == L[0] - 2, "Side0"
-    prob +=  p0 + p2            == L[1] - 1, "Side1"
-    prob +=  p1 + p0            == L[2] - 1, "Side2"
-
-def add_constraints_3p1(prob, L, p0, p1, p2, x, q1, q2):
-    #prob +=  p2 + p1 +2*x + q1 + q2    == L[0] - 4, "Side 0"
-    aff0 = LpAffineExpression([(p2,1),(p1,1),(x,2),(q1,1),(q2,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-4 )
-    prob += cons0
-    
-    prob +=  p0 + p2 + q2              == L[1] - 1, "Side1"
-    prob +=  p1 + p0 + q1              == L[2] - 1, "Side2"
-    
-def add_constraints_4p0(prob, L, p0, p1, p2, p3):
-    prob +=  p3 + p1            == L[0] - 1, "Side0"
-    prob +=  p0 + p2            == L[1] - 1, "Side1"
-    prob +=  p1 + p3            == L[2] - 1, "Side2"
-    prob +=  p2 + p0            == L[3] - 1, "Side3"
-
-def add_constraints_4p1(prob, L, p0, p1, p2, p3, x):
-    prob +=  p3 + p1 + x        == L[0] - 2, "Side0"
-    prob +=  p0 + p2 + x        == L[1] - 2, "Side1"
-    prob +=  p1 + p3            == L[2] - 1, "Side2"
-    prob +=  p2 + p0            == L[3] - 1, "Side3"
-    
-def add_constraints_4p2(prob, L, p0, p1, p2, p3, x, y):
-    prob +=  p3 + p1 + x + y    == L[0] - 3, "Side0"
-    prob +=  p0 + p2 + x        == L[1] - 1, "Side1"
-    prob +=  p1 + p3            == L[2] - 1, "Side2"
-    prob +=  p2 + p0 + y        == L[3] - 1, "Side3"
-
-def add_constraints_4p3(prob, L, p0, p1, p2, p3, x, q1):
-    '''
-    p1 + q1 = constant
-    '''
-    #prob +=  p3 + p1 + 2*x +q1    == L[0] - 3, "Side 0"
-    aff0 = LpAffineExpression([(p3,1),(p1,1),(x,2),(q1,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-3)
-    prob += cons0
-    
-    
-    prob +=  p0 + p2              == L[1] - 1, "Side1"
-    prob +=  p1 + p3 + q1         == L[2] - 1, "Side2"
-    prob +=  p2 + p0              == L[3] - 1, "Side3"
-   
-def add_constraints_4p4(prob, L, p0, p1, p2, p3, x, y, q1):
-    '''
-    p0 + q0 = constant
-    '''
-    #prob +=  p1 + p3 + 2*x + y +q1  == L[0] - 4, "Side 0"
-    aff0 = LpAffineExpression([(p1,1),(p3,1),(x,2),(y,1),(q1,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-4)
-    prob += cons0
-    
-    prob +=  p0 + p2 + y            == L[1] - 2, "Side1"
-    prob +=  p1 + p3  +q1           == L[2] - 1, "Side2"
-    prob +=  p2 + p0                == L[3] - 1, "Side3"
-
-def add_constraints_5p0(prob, L, p0, p1, p2, p3, p4):
-    prob +=  p4 + p1            == L[0] - 2, "Side0"
-    prob +=  p0 + p2            == L[1] - 1, "Side1"
-    prob +=  p1 + p3            == L[2] - 1, "Side2"
-    prob +=  p2 + p4            == L[3] - 1, "Side3"
-    prob +=  p3 + p0            == L[4] - 1, "Side4"
-   
-def add_constraints_5p1(prob, L, p0, p1, p2, p3, p4, x, q4): 
-    '''
-    q4 + p4 = constant
-    '''
-    prob +=  p4 + p1 + x + q4       == L[0] - 2, "Side0"
-    prob +=  p0 + p2 + x            == L[1] - 1, "Side1"
-    prob +=  p1 + p3                == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + q4           == L[3] - 1, "Side3"
-    prob +=  p3 + p0                == L[4] - 1, "Side4"
-    
-def add_constraints_5p2(prob, L, p0, p1, p2, p3, p4, x, q0, q1, q4):
-    '''
-    p0 + q0 = constant
-    p1 + q1 = constant
-    '''
-    #prob +=  p4 + p1 + 2*x + q1 + q4  == L[0] - 4, "Side 0"
-    aff0 = LpAffineExpression([(p4,1),(p1,1),(x,2),(q1,1),(q4,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-4)
-    prob += cons0
-    
-    prob +=  p0 + p2  + q0            == L[1] - 1, "Side1"
-    prob +=  p1 + p3 + q1             == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + q4             == L[3] - 1, "Side3"
-    prob +=  p3 + p0 + q0             == L[4] - 1, "Side4"
-  
-def add_constraints_5p3(prob, L, p0, p1, p2, p3, p4, x, y, q1, q4):
-    '''
-    p0 + q1 = constant
-    p4 + q4 = constant
-    '''
-    #prob +=  p4 + p1 + 2*x + y + q1 + q4  == L[0] - 5, "Side 0"
-    aff0 = LpAffineExpression([(p4,1),(p1,1),(x,2),(y,1),(q1,1),(q4,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-5 )
-    prob += cons0
-    
-    prob +=  p0 + p2 + y                  == L[1] - 2, "Side 1"
-    prob +=  p1 + p3 + q1                 == L[2] - 1, "Side 2"
-    prob +=  p2 + p4 + q4                 == L[3] - 1, "Side 3"
-    prob +=  p3 + p0                      == L[4] - 1, "Side 4"
                 
-def add_constraints_6p0(prob, L, p0, p1, p2, p3, p4, p5, x): 
-    prob +=  p5 + p1 + x        == L[0] - 1, "Side0"
-    prob +=  p0 + p2            == L[1] - 1, "Side1"
-    prob +=  p1 + p3            == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + x        == L[3] - 1, "Side3"
-    prob +=  p3 + p5            == L[4] - 1, "Side4"
-    prob +=  p4 + p0            == L[5] - 1, "Side5"
-    
-def add_constraints_6p1(prob, L, p0, p1, p2, p3, p4, p5, x, y, z, w): 
-    prob +=  p5 + p1 + x + y       == L[0] - 2, "Side0"
-    prob +=  p0 + p2 + x + z       == L[1] - 2, "Side1"
-    prob +=  p1 + p3 + w           == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + y           == L[3] - 1, "Side3"
-    prob +=  p3 + p5 + z           == L[4] - 1, "Side4"
-    prob +=  p4 + p0 + w           == L[5] - 1, "Side5"
-    
-def add_constraints_6p2(prob, L, p0, p1, p2, p3, p4, p5, x, y, q0, q3):  
-    '''
-    q3 + p3 = constant, q0 + p0 = constant
-    '''
-    #prob +=  p5 + p1 + 2*x + y      == L[0] - 3, "Side 0"
-    aff0 = LpAffineExpression([(p5,1),(p1,1),(x,2),(y,1)])
-    cons0 = LpConstraint(e = aff0, sense = 0, name = "Side0", rhs = L[0]-3)
-    prob += cons0
-    
-    prob +=  p0 + p2 + q0           == L[1] - 1, "Side1"
-    prob +=  p1 + p3 + q3           == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + y            == L[3] - 1, "Side3"
-    prob +=  p3 + p5 + q3           == L[4] - 1, "Side4"
-    prob +=  p4 + p0 + q0           == L[5] - 1, "Side5"
-    
-def add_constraints_6p3(prob, L, p0, p1, p2, p3, p4, p5, x, y, z, q3):
-    '''
-    q3 + p3 = constant
-    '''
-    #prob +=  p5 + p1 + 2*x + y + z  == L[0] - 4, "Side 0"
-    aff0 = LpAffineExpression([(p5,1),(p1,1),(x,2),(y,1),(z,1)])
-    cons0 = LpConstraint(e=aff0, sense =1, name = "SideZero", rhs = L[0]-4)
-    prob += cons0
-    
-    prob +=  p0 + p2 + y            == L[1] - 2, "Side1"
-    prob +=  p1 + p3 + q3           == L[2] - 1, "Side2"
-    prob +=  p2 + p4 + z            == L[3] - 1, "Side3"
-    prob +=  p3 + p5 + q3           == L[4] - 1, "Side4"
-    prob +=  p4 + p0                == L[5] - 1, "Side5"
-    
-                  
 class PatchSolver6(object):
     def __init__(self, L, pattern):
         self.pattern = pattern
         self.L = L
         self.prob_type = 'solve'
-        self.prob = LpProblem("N6Patch", LpMaximize)
+        self.prob = LpProblem("NSixPatch", LpMaximize)
 
         max_p0 = float(min(L[1], L[5]) - 1)
         max_p1 = float(min(L[0], L[2]) - 1)
@@ -1607,9 +1477,9 @@ class PatchSolver3():
         elif self.pattern == 1:
             add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
     
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = True):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
