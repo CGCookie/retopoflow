@@ -432,8 +432,7 @@ class EPPatch:
         #sleep occasionally needed
         self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
-        sol.report()
-        
+        print(sol)
         return
     def generate_geometry(self):
         '''
