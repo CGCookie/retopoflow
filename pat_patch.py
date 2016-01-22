@@ -889,9 +889,9 @@ class PatchSolver6(object):
         elif self.pattern == 3:
             add_constraints_6p3(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,z,q3)
     
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1028,9 +1028,9 @@ class PatchAdjuster6():
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_6p3(self.prob, L, p0,p1,p2,p3,p4,p5,x,y,z,q3)
         
-    def solve(self, report = True):
-        ##LpSolverDefault.msg = 1
-        self.prob.solve()
+    def solve(self, report = True, MPS = False):
+        #LpSolverDefault.msg = 1
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1087,9 +1087,9 @@ class PatchSolver5():
         elif self.pattern == 3:
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
             
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1226,9 +1226,9 @@ class PatchAdjuster5():
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
             add_constraints_5p3(self.prob, L, p0, p1, p2, p3, p4, x, y, q1, q4)
         
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1279,9 +1279,9 @@ class PatchSolver4():
         elif self.pattern == 4:
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1427,9 +1427,9 @@ class PatchAdjuster4():
                     
             add_constraints_4p4(self.prob, L, p0, p1, p2, p3, x, y, q1)
 
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1477,7 +1477,7 @@ class PatchSolver3():
         elif self.pattern == 1:
             add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
     
-    def solve(self, report = True, MPS = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
         self.prob.solve(use_mps = MPS)
         
@@ -1565,9 +1565,9 @@ class PatchAdjuster3():
             add_constraints_3p1(self.prob, L, p0, p1, p2, x, q1, q2)
         
 
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1612,9 +1612,9 @@ class PatchSolver2():
         elif self.pattern == 1:
             add_constraints_2p1(self.prob, L, p0, p1, x, y)
     
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
@@ -1698,9 +1698,9 @@ class PatchAdjuster2():
             add_constraints_2p1(self.prob, L, p0, p1, x,y)
         
 
-    def solve(self, report = True):
+    def solve(self, report = True, MPS = False):
         #LpSolverDefault.msg = 1
-        self.prob.solve()
+        self.prob.solve(use_mps = MPS)
         
         if self.prob.status == 1 and report:
             self.report()
