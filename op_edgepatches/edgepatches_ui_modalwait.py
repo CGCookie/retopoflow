@@ -270,7 +270,7 @@ class EdgePatches_UI_ModalWait():
                 n = self.act_eppatch.patch.param_index
                 N = len(self.act_eppatch.patch.get_active_solution_variables())
                 
-                new_index = (n + 1) % (N-1)
+                new_index = (n + 1) % N
                 
                 self.act_eppatch.patch.param_index = new_index
                 self.act_eppatch.patch.delta = 0
