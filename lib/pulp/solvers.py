@@ -1309,7 +1309,7 @@ class COIN_CMD(LpSolver_CMD):
         """True if the solver is available"""
         return self.executable(self.path)
 
-    def solve_CBC(self, lp, use_mps=False):
+    def solve_CBC(self, lp, use_mps=True):
         """Solve a MIP problem using CBC"""
         if not self.executable(self.path):
             raise PulpSolverError("Pulp: cannot execute %s cwd: %s"%(self.path,
@@ -1362,20 +1362,7 @@ class COIN_CMD(LpSolver_CMD):
         log.debug(self.path + cmds)
         cbc = subprocess.Popen((self.path + cmds).split(), stdout = pipe,
                              stderr = pipe)
-        sleep_time = .05
-        sleep(sleep_time)
-        
-        #print('what is the poll value?')
-        #print(cbc.poll())
-        #output, errors = cbc.communicate()
-        #print ([cbc.returncode, errors, output])
-        #if cbc.returncode or errors:
-        #    print('something went wrong...')
         if cbc.wait() != 0:
-        #    print('cbc wait problem')
-        #    print(cbc.wait())
-            #print('cbc comminicate problem')
-            #print(cbc.communicate())
             raise PulpSolverError("Pulp: Error while trying to execute " +  \
                                     self.path)
         if not os.path.exists(tmpSol):
