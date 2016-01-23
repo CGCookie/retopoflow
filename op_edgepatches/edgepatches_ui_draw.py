@@ -284,14 +284,34 @@ class EdgePatches_UI_Draw():
         
         
         
-        #draw edge subdivisions
-        for epedge in self.edgepatches.epedges:
-            info_pt = epedge.info_display_pt()
+        #draw edge subdivisions around act_eppatch
+        if self.act_eppatch:
+            for epedge in self.act_eppatch.lepedges:
+                info_pt = epedge.info_display_pt()
+                screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
+                if not screen_loc: continue
+                info = str(epedge.subdivision)
+                blf.position(0, screen_loc[0], screen_loc[1], 0)
+                blf.draw(0, info)
+        
+        if self.act_epedge:
+            info_pt = self.act_epedge.info_display_pt()
             screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
-            info = str(epedge.subdivision)
-            blf.position(0, screen_loc[0], screen_loc[1], 0)
-            blf.draw(0, info)
+            if screen_loc: 
+                info = str(self.act_epedge.subdivision)
+                blf.position(0, screen_loc[0], screen_loc[1], 0)
+                blf.draw(0, info)
             
+            for epp in self.act_epedge.eppatches:
+                for epe in epp.lepedges:
+                    if epe == self.act_epedge: continue
+                    info_pt = epe.info_display_pt()
+                    screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
+                    if not screen_loc[0]: continue
+                    info = str(epe.subdivision)
+                    blf.position(0, screen_loc[0], screen_loc[1], 0)
+                    blf.draw(0, info)
+              
         #draw eppatch vertex indices
         #for epatch in self.edgepatches.eppatches:
         #    for i, epv in enumerate(epatch.get_epverts()):
