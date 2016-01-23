@@ -29,7 +29,7 @@ import bpy
 import bmesh
 import blf, bgl
 
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, kdtree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
@@ -959,6 +959,7 @@ class EdgePatches:
             
         print('Created %d new patches' % len(loops))        
         for loop in loops:
+            if len(loop) < 2 or len(loop) > 6: continue
             epp = EPPatch(loop)
             self.eppatches.add(epp)
             epp_update.add(epp)
@@ -1202,8 +1203,260 @@ class EdgePatches:
             self.remove_unconnected_epverts()
         #pr.done()
     
-    
-    
+    def insert_epedge_from_stroke_kd(self, stroke, only_ends=False, error_scale=0.01, maxdist=0.05, sepv0=None, sepv3=None, depth=0):
+        if not len(stroke):
+            print('nothing to work with')
+            return
+        
+        r0,r3 = stroke[0][1],stroke[-1][1]
+        threshold_tooshort     = (r0+r3)/2
+
+        #todo, what does this mean
+        assert depth < 10
+        spc = '  '*depth + '- '
+        
+        #did we actually do anything?
+        if len(stroke) <= 1:
+            print(spc+'Too few samples in stroke to subsample')
+            return
+
+        print('our stroke started with %i points' % len(stroke))
+        # uniform subsampling
+        while len(stroke) <= 40:
+            stroke = [stroke[0]] + [nptpr for ptpr0,ptpr1 in zip(stroke[:-1],stroke[1:]) for nptpr in [((ptpr0[0]+ptpr1[0])/2,(ptpr0[1]+ptpr1[1])/2), ptpr1]]
+        
+        print('After uniform sampling, it has %i points' % len(stroke))
+        # non-uniform/detail subsampling
+        start = time.time()
+        done = False
+        iters = 0
+        while not done and iters < 40:
+            iters += 1
+            done = True
+            nstroke = [stroke[0]]
+            
+            eds = list(zip(stroke[:-1],stroke[1:]))
+            n = 0
+            while n <= len(eds)-1:
+                (ptpr0, ptpr1) = eds[n]
+                pt0,pr0 = ptpr0
+                pt1,pr1 = ptpr1
+                if (pt0-pt1).length > (pr0+pr1)/10:
+                    nstroke += [((pt0+pt1)/2, (pr0+pr1)/2)]
+                    
+                elif (pt0-pt1).length < (pr0+pr1)/12:
+                    s = (pt0-pt1).length
+                    while s < (pr0+pr1)/10 and n < len(eds)-1:
+                        n += 1
+                        (ptpr0, ptpr1) = eds[n]
+                        pt0,pr0 = ptpr0
+                        pt1,pr1 = ptpr1
+                        s += (pt0-pt1).length
+                n += 1        
+                nstroke += [ptpr1]
+            done = (len(stroke) == len(nstroke))
+            stroke = nstroke
+        done = time.time()    
+        print('After detail up/dn sampling stroke now has %i points' % len(stroke))
+        
+        print('took %f sec to sample the stroke' % (done-start))
+        #make sure we traveled at least the minimum distance brush length
+        tot_length = sum((s0[0]-s1[0]).length for s0,s1 in zip(stroke[:-1],stroke[1:]))
+        print(spc+'stroke cnt: %i, len: %f; sepv0: %s; sepv3: %s; only_ends: %s' % (len(stroke),tot_length,'t' if sepv0 else 'f', 't' if sepv3 else 'f', 't' if only_ends else 'f'))
+        if tot_length < threshold_tooshort and not (sepv0 and sepv3):
+            print(spc+'Stroke too short (%f)' % tot_length)
+            return
+        
+        
+        # self intersection test
+        start = time.time()
+        # ignore_lists is the set of neighboring points each point on the list has.
+        # These points are 'near' but are not 'intersecting'
+        ignore_lists = [set() for _ in range( len( stroke ) )]
+
+        # Initialize the kd-tree that will be used to find intersecting points
+        kd = kdtree.KDTree( len(stroke) )
+
+        # fill in the ignore lists and kd-tree
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+
+            # insert into kdtree
+            kd.insert( pt0, i )
+
+            # Add this point to its own ignore list
+            ignore_lists[i].add(i)
+
+            # add neighboring points to the ignore list
+            for j in range( i + 1, len( stroke ) ):
+                pt1,pr1 = stroke[j]
+
+                # If the points are 'near' then add them to eachothers ignore list
+                if (pt0-pt1).length <= min( pr0, pr1 ):
+                    ignore_lists[i].add(j)
+                    ignore_lists[j].add(i)
+                else:
+                    break
+
+        # finalize the kd-tree
+        kd.balance()
+        
+        
+        # find intersections
+        min_i0,min_i1,min_dist = -1,-1,float('inf')
+        for i in range( len( stroke ) ):
+            pt0,pr0 = stroke[i]
+            # find all points touching the given point that are not in the ignore list
+            nearby_results = kd.find_range( pt0, pr0 )
+            _, nearby_indexes, _ = zip(*nearby_results)
+            # XOR the nearby list and the ignore list to get non-ignored intersecting points
+            intersecting_indexes = set(nearby_indexes)^ignore_lists[i]
+            # track the closest two points
+            for j in intersecting_indexes:
+                pt1,pr1 = stroke[j]
+                dist = (pt0-pt1).length - min(pr0,pr1)
+                if dist < min_dist:
+                    min_i0 = i
+                    min_i1 = j
+                    min_dist = dist
+        
+        if min_dist < 0:
+            i0 = min_i0
+            i1 = min_i1
+            
+            pt0,pr0 = stroke[i0]
+            pt1,pr1 = stroke[i1]
+            
+            # create gvert at intersecting points and recurse!
+            epv_intersect = self.create_epvert(pt0)
+            def find_not_picking(i_start, i_direction):
+                i = i_start
+                while i >= 0 and i < len(stroke):
+                    if not epv_intersect.is_picked(stroke[i][0]): return i
+                    i += i_direction
+                return -1
+            i00 = find_not_picking(i0,-1)
+            i01 = find_not_picking(i0, 1)
+            i10 = find_not_picking(i1,-1)
+            i11 = find_not_picking(i1, 1)
+            dprint(spc+'stroke self intersection %i,%i => %i,%i,%i,%i' % (i0,i1,i00,i01,i10,i11))
+            if i00 != -1:
+                dprint(spc+'seg 0')
+                self.insert_epedge_from_stroke_kd(stroke[:i00], only_ends=False, sepv0=sepv0, sepv3=epv_intersect, depth=depth+1)
+            if i01 != -1 and i10 != -1:
+                dprint(spc+'seg 1')
+                self.insert_epedge_from_stroke_kd(stroke[i01:i10], only_ends=False, sepv0=epv_intersect, sepv3=epv_intersect, depth=depth+1)
+            if i11 != -1:
+                dprint(spc+'seg 2')
+                self.insert_epedge_from_stroke_kd(stroke[i11:], only_ends=False, sepv0=epv_intersect, sepv3=sepv3, depth=depth+1)
+            return
+        
+        done = time.time()
+        print('took %f seconds to do self intersection' % (done-start))
+        
+        pts = [p for p,_ in stroke]
+        radius = 2*stroke[0][1] #The seg length is diameter of brush
+        # check if stroke swings by any corner/end epverts
+        #pr = profiler.start()
+        start = time.time()
+        for epv in self.epverts:
+            if epv.isinner: continue
+            i0,i1 = -1,-1
+            for i,pt in enumerate(pts):
+                dist = (pt-epv.snap_pos).length
+                if i0==-1:
+                    if dist > maxdist: continue
+                    i0 = i #index of first point near an existing EPV
+                
+                else:#have already found a swing by vert
+                    if dist < maxdist: continue
+                    i1 = i #first vert that is further away than intersection, so we can clip it here
+                    break
+            if i0==-1: continue  #didnt find any swing bys
+            
+            if i0==0:
+                print('first vert is near an EPVert')
+                if i1!=-1:
+                    if sepv0:
+                        epv1 = self.create_epvert(sepv0.position * 0.75 + epv.position * 0.25)
+                        epv2 = self.create_epvert(sepv0.position * 0.25 + epv.position * 0.75)
+                        self.create_epedge(sepv0, epv1, epv2, epv,rad = radius)
+                    self.insert_epedge_from_stroke_kd(stroke[i1:], only_ends = False, error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+                elif sepv0 and sepv3:
+                    epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
+                    epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
+                    self.create_epedge(sepv0, epv1, epv2, sepv3, rad = radius)
+                    
+                else:
+                    print('all of the stroke was within radius of swing by point so its a little tippy tail')
+            else:
+                self.insert_epedge_from_stroke_kd(stroke[:i0], only_ends = False, error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=epv, depth=depth+1)
+                if i1!=-1:
+                    self.insert_epedge_from_stroke_kd(stroke[i1:], only_ends = False, error_scale=error_scale, maxdist=maxdist, sepv0=epv, sepv3=sepv3, depth=depth+1)
+            
+            return
+        #pr.done()
+        
+        # check if stroke crosses any epedges
+        #pr = profiler.start()
+        for epe in self.epedges:
+            c = len(epe.curve_verts)
+            cp_first = epe.curve_verts[0]
+            cp_last = epe.curve_verts[-1]
+            for p0,p1 in zip(pts[:-1],pts[1:]):
+                for i0 in range(c-1):
+                    cp0,z = epe.curve_verts[i0],epe.curve_norms[i0]
+                    cp1 = epe.curve_verts[i0+1]
+                    #if (cp0-cp_first).length < maxdist: continue
+                    #if (cp1-cp_last).length < maxdist: continue
+                    if (cp0-p0).length > maxdist: continue
+                    x = (cp1-cp0).normalized()
+                    y = z.cross(x).normalized()
+                    a = (p0-cp0).dot(y)
+                    b = (p1-cp0).dot(y)
+                    if a*b >= 0: continue                           # p0-p1 segment does not cross cp0,cp1 line
+                    v = (p1-p0).normalized()
+                    d = p0 + v * abs(a) / v.dot(y)                  # d is crossing position
+                    if (cp0-d).length > (cp1-cp0).length: continue  # p0-p1 segment does not cross cp0,cp1 segment
+                    
+                    _,_,epv = self.split_epedge_at_pt(epe, d)
+                    self.insert_epedge_from_stroke_kd(stroke, only_ends = False, error_scale=error_scale, maxdist=maxdist, sepv0=sepv0, sepv3=sepv3, depth=depth+1)
+                    #pr.done()
+                    return
+        #pr.done()
+        
+        if len(pts) < 6:
+            if not sepv0 or not sepv3: return
+            epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)
+            epv2 = self.create_epvert(sepv0.position * 0.25 + sepv3.position * 0.75)
+            self.create_epedge(sepv0, epv1, epv2, sepv3, rad = radius)
+            return
+        
+        #pr = profiler.start()
+        start = time.time()
+        lbez = cubic_bezier_fit_points(pts, error_scale)
+        finish = time.time()
+        print('Took %f seconds to fit bezier to the  new stroke' % (finish - start))
+            
+        #pr.done()
+        
+        #pr = profiler.start()
+        epv0 = None
+        for t0,t3,p0,p1,p2,p3 in lbez:
+            if epv0 is None:
+                epv0 = sepv0 if sepv0 else self.create_epvert(p0)
+            else:
+                epv0 = sepv3
+            epv1 = self.create_epvert(p1)
+            epv2 = self.create_epvert(p2)
+            epv3 = self.create_epvert(p3)
+            epe = self.create_epedge(epv0, epv1, epv2, epv3, rad = radius)
+        if sepv3:
+            epe.replace_epvert(epv3, sepv3)
+            self.remove_unconnected_epverts()
+        #pr.done()    
+        
+        
     def merge_epverts(self, epvert0, epvert1):
         ''' merge epvert0 into epvert1 '''
         l_epe = list(epvert0.epedges)

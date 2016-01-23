@@ -312,7 +312,8 @@ class EdgePatches_UI_Draw():
         #            blf.position(0, screen_loc[0]+5, screen_loc[1]+5, 0)
         #            blf.draw(0, info)           
         
-        if self.fsm_mode == 'sketch':
+        if self.fsm_mode == 'sketch' and len(self.sketch):
+            
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
 
@@ -346,7 +347,7 @@ class EdgePatches_UI_Draw():
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
-            if self.fsm_mode == 'sketch':
+            if self.fsm_mode == 'sketch' and len(self.sketch):
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj_orig, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != -1:

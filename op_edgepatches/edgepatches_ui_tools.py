@@ -125,7 +125,7 @@ class EdgePatches_UI_Tools:
             
             start = time.time()
             #pr = profiler.start()
-            self.edgepatches.insert_epedge_from_stroke(p3d, error_scale=self.stroke_radius/3.0, maxdist=self.stroke_radius)
+            self.edgepatches.insert_epedge_from_stroke_kd(p3d, only_ends = False, error_scale=self.stroke_radius/3.0, maxdist=self.stroke_radius)
             #pr.done()
             finish = time.time()
             print('Took %f seconds to insert the whole new stroke' % (finish - start))
