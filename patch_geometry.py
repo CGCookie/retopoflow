@@ -1290,10 +1290,10 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
     
     if mode == 'edges':
         new_L = [len(v)-1 for v in vs]
-        print('Subdiv provided by vert lists')
-        print(new_L)
-        print('Subdiv provided by input')
-        print(L)
+        #print('Subdiv provided by vert lists')
+        #print(new_L)
+        #print('Subdiv provided by input')
+        #print(L)
         L = new_L 
     
     #check that pdding is valid

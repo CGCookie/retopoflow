@@ -226,8 +226,8 @@ def permute_subdivs(L, reverse = True):
     shift_dir = []
     N = len(L)
     
-    print('this is the raw subdivision fed into the permutations')
-    print(L)
+    #print('this is the raw subdivision fed into the permutations')
+    #print(L)
     for i in range(0, N):  #N - 1
         p = L[i:] + L[:i]
         perms += [p]
@@ -240,9 +240,9 @@ def permute_subdivs(L, reverse = True):
             perms += [pr]
             #shift_dir += [((i+N-1) % N, -1)] #this may be totally wrong, seems like it is
             shift_dir += [(i, -1)]
-    print('these are the supplied permutations')
-    for p, sd in zip(perms, shift_dir):
-        print((p, sd))
+    #print('these are the supplied permutations')
+    #for p, sd in zip(perms, shift_dir):
+    #    print((p, sd))
     return perms, shift_dir
     
 def reducible(edge_subdivs):
@@ -373,8 +373,8 @@ class Patch():
         else:
             return
             
-        print('solving permutation %i for pattern %i' % (self.perm_index, pat))
-        print(perm)
+        #print('solving permutation %i for pattern %i' % (self.perm_index, pat))
+        #print(perm)
         sol.solve(report = False)
 
         if sol.prob.status == 1:
@@ -434,7 +434,7 @@ class Patch():
                 else:
                     return
                 
-                print('solving permutation %i for pattern %i' % (i, pat))
+                #print('solving permutation %i for pattern %i' % (i, pat))
                 sol.solve(report = False)
                 
                 
@@ -460,11 +460,11 @@ class Patch():
                         return
                         
                     elif pat == pat_dict[N]-1:
-                        print('increment pattern and perm')
+                        #print('increment pattern and perm')
                         self.pat_index = 0
                         self.perm_index += 1
                     else:
-                        print('just increment pattern')
+                        #print('just increment pattern')
                         self.pat_index += 1
                         
 

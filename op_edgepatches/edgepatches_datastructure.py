@@ -249,16 +249,16 @@ class EPEdge:
         if len(self.curve_verts) == 0:
             self.update(shape=True, subdiv=False, patches=False)
         L = common_utilities.get_path_length(self.curve_verts)
-        print('The path length is %f' % L)
-        print('The quad size is %f' % self.quad_size)
+        #print('The path length is %f' % L)
+        #print('The quad size is %f' % self.quad_size)
         
         n = math.floor(L/self.quad_size)
-        print('meaning subdivisions are %d' % n)
+        #print('meaning subdivisions are %d' % n)
         
         self.subdivision = max(n,4)
         self.update(shape = False, subdiv = True, patches = False)
         self.quad_size = self.get_quad_size()
-        print('Now the quad size is %f' % self.quad_size)
+        #print('Now the quad size is %f' % self.quad_size)
         
     def get_quad_size(self):
         L = common_utilities.get_path_length(self.curve_verts)
@@ -1105,7 +1105,7 @@ class EdgePatches:
         pts = [p for p,_ in stroke]
         radius = 2*stroke[0][1] #screw the pressure stuff for now
         
-        print('the radius is %f' % radius)
+        #print('the radius is %f' % radius)
         
         # check if stroke swings by any corner/end epverts
         #pr = profiler.start()
@@ -1183,7 +1183,7 @@ class EdgePatches:
         start = time.time()
         lbez = cubic_bezier_fit_points(pts, error_scale)
         finish = time.time()
-        print('Took %f seconds to fit bezier to the  new stroke' % (finish - start))
+        #print('Took %f seconds to fit bezier to the  new stroke' % (finish - start))
             
         #pr.done()
         
@@ -1217,15 +1217,15 @@ class EdgePatches:
         
         #did we actually do anything?
         if len(stroke) <= 1:
-            print(spc+'Too few samples in stroke to subsample')
+            #print(spc+'Too few samples in stroke to subsample')
             return
 
-        print('our stroke started with %i points' % len(stroke))
+        #print('our stroke started with %i points' % len(stroke))
         # uniform subsampling
         while len(stroke) <= 40:
             stroke = [stroke[0]] + [nptpr for ptpr0,ptpr1 in zip(stroke[:-1],stroke[1:]) for nptpr in [((ptpr0[0]+ptpr1[0])/2,(ptpr0[1]+ptpr1[1])/2), ptpr1]]
         
-        print('After uniform sampling, it has %i points' % len(stroke))
+        #print('After uniform sampling, it has %i points' % len(stroke))
         # non-uniform/detail subsampling
         start = time.time()
         done = False
@@ -1257,7 +1257,7 @@ class EdgePatches:
             done = (len(stroke) == len(nstroke))
             stroke = nstroke
         done = time.time()    
-        print('After detail up/dn sampling stroke now has %i points' % len(stroke))
+        #print('After detail up/dn sampling stroke now has %i points' % len(stroke))
         
         print('took %f sec to sample the stroke' % (done-start))
         #make sure we traveled at least the minimum distance brush length
@@ -1399,6 +1399,7 @@ class EdgePatches:
         
         # check if stroke crosses any epedges
         #pr = profiler.start()
+        start = time.time()
         for epe in self.epedges:
             c = len(epe.curve_verts)
             cp_first = epe.curve_verts[0]
@@ -1424,7 +1425,7 @@ class EdgePatches:
                     #pr.done()
                     return
         #pr.done()
-        
+        print('took %f seconds to check path crossings' % (time.time() - start))
         if len(pts) < 6:
             if not sepv0 or not sepv3: return
             epv1 = self.create_epvert(sepv0.position * 0.75 + sepv3.position * 0.25)

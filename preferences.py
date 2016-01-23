@@ -49,8 +49,8 @@ class RetopoFlowPreferences(AddonPreferences):
         r = mix * color1[0] + (1-mix)*color2[0]
         g = mix * color1[1] + (1-mix)*color2[1]
         b = mix * color1[2] + (1-mix)*color2[2]
-        a = color1[3]
-        print('alpha %f' % a)
+        a = mix * color1[3] + (1-mix)*color2[3]
+        
         return (r,g,b,a)
            
     theme_colors_active = {
