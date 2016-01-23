@@ -38,11 +38,34 @@ class RetopoFlowPreferences(AddonPreferences):
     def rgba_to_float(r, g, b, a):
         return (r/255.0, g/255.0, b/255.0, a/255.0)
 
+    def float_to_rgba(r,g,b,a):
+        return (int(r*255), int(g*255),int(b*255), int(a*255))
+        
+    def invert_rgba_color(r,g,b,a):
+        return (255-r, 255-g, 255-b, a)
+        
+    
+    def blend_rgba_color(color1, color2, mix):
+        r = mix * color1[0] + (1-mix)*color2[0]
+        g = mix * color1[1] + (1-mix)*color2[1]
+        b = mix * color1[2] + (1-mix)*color2[2]
+        a = color1[3]
+        print('alpha %f' % a)
+        return (r,g,b,a)
+           
     theme_colors_active = {
         'blue': rgba_to_float(78, 207, 81, 255),
         'green': rgba_to_float(26, 111, 255, 255),
         'orange': rgba_to_float(207, 135, 78, 255)
     }
+    
+    theme_colors_gedge = {
+        'blue': rgba_to_float(180, 10, 150, 255),
+        'green': rgba_to_float(225, 50, 10, 255),
+        'orange': rgba_to_float(20, 200, 200, 255)
+    }
+    
+    
     theme_colors_selection = {
         'blue': rgba_to_float(78, 207, 81, 255),
         'green': rgba_to_float(26, 111, 255, 255),

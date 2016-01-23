@@ -55,7 +55,7 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
         
         wm = bpy.context.window_manager
-        self._timer = wm.event_timer_add(0.15, bpy.context.window)
+        self._timer = wm.event_timer_add(0.05, bpy.context.window)
         
         self.initialize('help_edgepatches.txt', FSM)
         self.initialize_ui()

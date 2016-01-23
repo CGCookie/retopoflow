@@ -302,6 +302,7 @@ class Patch():
         self.reductions = {}
         self.edges_reduced = []
         
+        self.perms = []
         self.perm_index = -1 #step through all the permutations
         self.pat_index = 0  #step through each pattern for all permutations
         
@@ -323,6 +324,17 @@ class Patch():
         self.valid |= (sum(self.edge_subdivision) % 2) == 0  #even subdiv
         
         return self.valid
+    
+    def n_patterns(self):
+        N = len(self.edge_subdivision)
+        pat_dict = {}
+        pat_dict[2] = 2
+        pat_dict[3] = 2
+        pat_dict[4] = 5
+        pat_dict[5] = 4
+        pat_dict[6] = 4
+        
+        return pat_dict[N]
     
     def find_next_solution(self):
         pat_dict = {}
@@ -384,6 +396,7 @@ class Patch():
         self.pat_index = (self.pat_index + 1) % pat_dict[N]
         if self.pat_index == 0:
             self.perm_index += 1
+    
         
     def permute_and_find_first_solution(self):
         pat_dict = {}
@@ -469,6 +482,18 @@ class Patch():
         else:
             self.active_solution_index = -1          
     
+    def progress(self):
+        
+        if self.perm_index == -1: return 0
+        
+        N_perms = len(self.edge_subdivision)
+        n_pats = self.n_patterns()
+        total_solves = 2*N_perms * n_pats
+        
+        prog = ((self.perm_index * n_pats) + (self.pat_index))/ total_solves
+        
+        return prog
+        
     def get_active_solution(self):
         
         n = self.active_solution_index

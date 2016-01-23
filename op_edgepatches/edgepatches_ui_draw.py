@@ -71,7 +71,7 @@ class EdgePatches_UI_Draw():
         color_inactive = RetopoFlowPreferences.theme_colors_mesh[settings.theme]
         color_selection = RetopoFlowPreferences.theme_colors_selection[settings.theme]
         color_active = RetopoFlowPreferences.theme_colors_active[settings.theme]
-
+        color_gedge = RetopoFlowPreferences.theme_colors_gedge[settings.theme]
         color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
         color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
@@ -82,6 +82,7 @@ class EdgePatches_UI_Draw():
         color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
         color_mirror = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
+        color_calc = (1-color_fill[1], 1-color_fill[1], 1-color_fill[2], 0.30)
         
         bgl.glDepthRange(0.0, 0.999)
         
@@ -181,20 +182,37 @@ class EdgePatches_UI_Draw():
             
             draw3d_points([epvert.snap_pos], color, 8)
         
-        ### EPEdges ###
-        for epedge in self.edgepatches.epedges:
-            if epedge == self.act_epedge:
-                color = (color_active[0], color_active[1], color_active[2], 0.50)
-            else:
-                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
-            draw3d_polyline(epedge.curve_verts, color, 4, 'GL_LINE_SMOOTH')
-            draw3d_points(epedge.edge_verts, color, 8)
+        
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
             
             if eppatch == self.act_eppatch:
-                color = (color_active[0], color_active[1], color_active[2], 0.20)
+                
+                if not eppatch.patch:
+                    color = (color_warning[0], color_warning[1], color_warning[2], 0.15)
+                elif not eppatch.patch.any_solved:
+                    color = (color_warning[0], color_warning[1], color_warning[2], 0.10)
+                elif eppatch.patch.all_solved:
+                    color = (color_active[0], color_active[1], color_active[2], 0.20)
+                else:
+                    p = eppatch.patch.progress()
+                    
+                    progress_color = RetopoFlowPreferences.blend_rgba_color(color_active, color_calc, p)
+                    color  = (progress_color[0], progress_color[1],progress_color[2],0.2)
+                
+                color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
+            
+            elif not eppatch.patch:
+                color = (color_warning[0], color_warning[1], color_warning[2], 0.10)
+                color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
+            elif not eppatch.patch.all_solved:   
+                if not eppatch.patch.any_solved:
+                    color = (color_warning[0], color_warning[1], color_warning[2], 0.20)
+                else:
+                    p = eppatch.patch.progress()
+                    progress_color = RetopoFlowPreferences.blend_rgba_color(color_inactive, color_calc, p)
+                    color  = (progress_color[0], progress_color[1],progress_color[2],0.2)
                 color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
             else:
                 color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
@@ -205,7 +223,7 @@ class EdgePatches_UI_Draw():
                 for f in eppatch.faces:
                     pts = [eppatch.verts[i] for i in f]
                     draw3d_quad(pts, color)
-                    draw3d_closed_polylines([pts], color_line, 2, 'GL_LINE')
+                    draw3d_closed_polylines([pts], color_line, 1.5, 'GL_LINE')
                     
                 draw3d_points(eppatch.verts, color_line, 3)
             else:
@@ -225,6 +243,16 @@ class EdgePatches_UI_Draw():
                     draw3d_points([epv1.snap_pos], color, 8)
                     draw3d_polyline([epv0.snap_pos,epv1.snap_pos], color, 2, 'GL_LINE_SMOOTH', far=0.995)
         
+        ### EPEdges ###
+        for epedge in self.edgepatches.epedges:
+            if epedge == self.act_epedge:
+                color = (color_active[0], color_active[1], color_active[2], 0.50)
+            else:
+                color = (color_gedge[0], color_gedge[1], color_gedge[2], 0.50)
+                
+            draw3d_polyline(epedge.curve_verts, color, 3.5, 'GL_LINE_SMOOTH')
+            draw3d_points(epedge.edge_verts, color, 6)
+            
         if self.act_epedge:
             p0,p1,p2,p3 = self.act_epedge.epverts_pos()
             color = (color_active[0], color_active[1], color_active[2], 0.80)
@@ -247,11 +275,14 @@ class EdgePatches_UI_Draw():
         color_frozen = RetopoFlowPreferences.theme_colors_frozen[settings.theme]
         color_warning = RetopoFlowPreferences.theme_colors_warning[settings.theme]
 
+        
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         color_handle = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_border = (color_inactive[0], color_inactive[1], color_inactive[2], 1.00)
         color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
+        
+        
         
         #draw edge subdivisions
         for epedge in self.edgepatches.epedges:

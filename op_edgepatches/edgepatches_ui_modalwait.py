@@ -137,7 +137,7 @@ class EdgePatches_UI_ModalWait():
                     self.create_undo_snapshot('merge')
                     self.edgepatches.merge_epverts(self.act_epvert, epv)
                     self.act_epvert = epv
-                    self.edgepatches.smart_update_patch_network()
+                    self.edgepatches.smart_update_eppatches_network()
                     break
                 return ''
 
