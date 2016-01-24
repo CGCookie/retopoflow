@@ -320,7 +320,7 @@ class Patch():
         
     def validate(self):
         self.valid = False
-        self.valid |= len(self.corners) == len(self.sides)
+        self.valid |= len(self.corners) == len(self.edges_reduced)
         self.valid |= (sum(self.edge_subdivision) % 2) == 0  #even subdiv
         
         return self.valid
@@ -399,6 +399,8 @@ class Patch():
     
         
     def permute_and_find_first_solution(self):
+        
+        self.validate()
         pat_dict = {}
         pat_dict[2] = 2
         pat_dict[3] = 2

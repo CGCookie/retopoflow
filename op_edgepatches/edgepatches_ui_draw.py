@@ -207,7 +207,7 @@ class EdgePatches_UI_Draw():
                 color = (color_warning[0], color_warning[1], color_warning[2], 0.10)
                 color_line = (color_inactive[0], color_inactive[1], color_inactive[2], 0.80)
             elif not eppatch.patch.all_solved:   
-                if not eppatch.patch.any_solved:
+                if not eppatch.patch.any_solved or not eppatch.validate_patch_for_ILP():
                     color = (color_warning[0], color_warning[1], color_warning[2], 0.20)
                 else:
                     p = eppatch.patch.progress()

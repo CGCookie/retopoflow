@@ -228,7 +228,6 @@ class EPEdge:
             self.curve_norms.append(n)        
     
     def update(self, shape = True, subdiv = True, patches = True):
-        
         if shape:
             self.update_shape()
             for epp in self.eppatches:
