@@ -178,6 +178,7 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
             
+            #this ...rips a single EPV apart?
             if eventd['press'] in self.keymap['knife'] and not self.act_epvert.is_inner():
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
@@ -211,8 +212,8 @@ class EdgePatches_UI_ModalWait():
                 x,y = eventd['mouse']
                 pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
                 if not pts: return ''
-                t,_ = self.act_epedge.get_closest_point(pts[0])
-                _,_,epv = self.edgepatches.split_epedge_at_t(self.act_epedge, t)
+                
+                _,_,epv = self.edgepatches.split_epedge_at_pt(self.act_epedge, pts[0], connect_epvert = None)
                 self.act_epedge = None
                 self.sel_epedges.clear()
                 self.act_epvert = epv
@@ -221,11 +222,13 @@ class EdgePatches_UI_ModalWait():
                 return ''
 
             if eventd['press'] in self.keymap['up count']:
+                if self.act_epedge.from_bme: return ''
                 self.act_epedge.subdivision += 1
                 self.act_epedge.update(shape = False, subdiv = True, patches = False)
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
             if eventd['press'] in self.keymap['dn count']:
+                if self.act_epedge.from_bme: return ''
                 cur_sub = self.act_epedge.subdivision
                 self.act_epedge.subdivision = max(2, cur_sub-1)
                 self.act_epedge.update(shape = False, subdiv = True, patches = False)

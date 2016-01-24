@@ -58,7 +58,9 @@ class EPVert:
         self.isinner = False
         self.doing_update = False
         self.update()
-    
+        
+        self.bmvert = None  #TODO...index or actual vert?
+        
     def snap(self):
         p,n,_ = EdgePatches.getClosestPoint(self.position)
         self.snap_pos  = p
@@ -143,7 +145,7 @@ class EPVert:
 class EPEdge:
     tessellation_count = 20
     #subdivision = 8 #@JonDenning  Why are some things defined up here for the class vs the instance?
-    def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20, rad = None, subdiv = None):
+    def __init__(self, epvert0, epvert1, epvert2, epvert3, tess = 20, rad = None, subdiv = None, from_bme = False):
         self.epvert0 = epvert0
         self.epvert1 = epvert1
         self.epvert2 = epvert2
@@ -155,7 +157,10 @@ class EPEdge:
         self.curve_verts = []  #these are mainly used for drawing at this point
         self.curve_norms = []
         self.edge_verts = [] #these are for patch making
+        self.edge_bmverts = [] #these are for interfacing with existing and new bmesh
         self.edge_vert_norms = []
+        
+        self.from_bme = from_bme
         
         #these are set depending on what variables are passed
         self.quad_size = None
@@ -187,9 +192,20 @@ class EPEdge:
     
     def info_display_pt(self):
         if len(self.curve_verts) == 0: return Vector((0,0,0))
-        if len(self.curve_verts) < 3: return self.curve_verts[0]
-        mid = math.ceil(self.tessellation_count/2)
-        pt = self.curve_verts[mid]
+        elif len(self.curve_verts) == 1: return self.curve_verts[0]
+       
+        mid = math.ceil((len(self.curve_verts)-1)/2)
+        
+        
+        if not len(self.curve_norms):
+            self.update_shape()
+            return self.curve_verts[mid]
+        
+        if len(self.curve_verts) % 2 == 0:
+            pt = .5 * self.curve_verts[mid] + .5 * self.curve_verts[mid-1]
+        else:
+            pt = self.curve_verts[mid]
+            
         no = self.curve_norms[mid]
         dir_off = no.cross(self.curve_verts[mid+1]-self.curve_verts[mid])
         dir_off.normalize()
@@ -199,6 +215,9 @@ class EPEdge:
         return info_pt
     
     def update_subdiv(self):
+        if self.from_bme:
+            self.subdivision = len(self.edge_verts) - 1
+            return
         getClosestPoint = EdgePatches.getClosestPoint
         p0,p1,p2,p3 = self.get_positions()
         e_v_pos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(self.subdivision)) for i in range(self.subdivision+1)]
@@ -214,6 +233,15 @@ class EPEdge:
     
     def update_shape(self):
         getClosestPoint = EdgePatches.getClosestPoint
+        if self.from_bme:
+            self.curve_norms = []
+            self.edge_vert_norms = [] 
+            for pos in self.curve_verts:
+                p,n,i = getClosestPoint(pos)
+                self.edge_vert_norms.append(n)
+                self.curve_norms.append(n)     
+            return
+        
         tessellation_count = EPEdge.tessellation_count
         p0,p1,p2,p3 = self.get_positions()
         lpos = [cubic_bezier_blend_t(p0,p1,p2,p3,i/float(tessellation_count)) for i in range(tessellation_count+1)]
@@ -643,9 +671,9 @@ class EPPatch:
         
         
         #finally, snap everything
-        for v in pad_bme.verts:
-            p, _, _ = EdgePatches.getClosestPoint(v.co, meth = 'BVH')
-            v.co = p
+        #for v in pad_bme.verts:
+            #p, _, _ = EdgePatches.getClosestPoint(v.co, meth = 'BVH')
+            #v.co = p
         
         geom_dict = {}
         geom_dict['bme'] = pad_bme
@@ -811,10 +839,12 @@ class EdgePatches:
         
         self.eppatches      = set()
         self.epedge_eppatch = dict()
+        self.bmv_epv_map = dict()
         
         self.update_schedule = []
         self.update_complete = False
         self.live = False
+        
         
     @classmethod
     def getSrcObject(cls):
@@ -897,7 +927,68 @@ class EdgePatches:
             epp.verts = []
             epp.faces = []
             epp.live = False
+    
+    
+    def create_epv_from_bmvert(self,bmvert):
         
+        mx = bpy.data.objects[self.tar_name].matrix_world
+        epv = self.create_epvert(mx * bmvert.co)
+        epv.bmvert = bmvert.index  #keepa reference to it
+        self.bmv_epv_map[bmvert.index] = epv
+        
+        return epv
+        
+        
+    def extension_geometry_from_bme(self, bme):
+        
+        bme.faces.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.verts.ensure_lookup_table()
+        
+        
+        mx = bpy.data.objects[self.tar_name].matrix_world
+        #first, check for selected verts that are part of non man edges
+        #sel_bmverts = [v for v in bme.verts if v.select and any([not e.is_manifold for e in v.link_edges])]
+        sel_vert_corners = [v for v in bme.verts if v.select]
+        v_loops = find_edge_loops(bme, sel_vert_corners, select = False)    
+    
+    
+        
+        real_corners = set()
+        for vloop in v_loops:
+            pts, inds, corners = vloop
+            print(inds)
+            real_corners.update(corners)
+        
+        #add an EPVert for all the corners
+        corner_bmvs = list(real_corners) 
+        corner_epvs = {}  
+        for v_ind in corner_bmvs:
+            v = bme.verts[v_ind]
+            epv = self.create_epv_from_bmvert(v)
+            
+            
+        for vloop in v_loops:
+            pt_chains, ind_chains, corners = vloop
+            for pts, inds in zip(pt_chains, ind_chains):
+                if len(inds) < 2: continue
+                pts_wrld = [mx * v for v in pts]
+                epv0 = self.bmv_epv_map[inds[0]]
+                epv1 = self.create_epvert(.75*pts_wrld[0] + .25*pts_wrld[-1])
+                epv2 = self.create_epvert(.25*pts_wrld[0] + .75*pts_wrld[-1])
+                epv3 = self.bmv_epv_map[inds[-1]]
+                
+                rad = (pts_wrld[1]-pts_wrld[0]).length
+                epe = self.create_epedge(epv0, epv1, epv2, epv3, rad = rad, from_bme = True)
+                epe.edge_verts = pts_wrld
+                epe.curve_verts = pts_wrld
+                epe.edge_bmverts = inds
+                epe.subdivision = len(pts_wrld) - 1
+                epe.from_bme = True
+            
+    
+    
+    
     def smart_update_eppatches_network(self):
         '''
         when new epverts or new epedges have been inserted
@@ -959,6 +1050,7 @@ class EdgePatches:
         print('Created %d new patches' % len(loops))        
         for loop in loops:
             if len(loop) < 2 or len(loop) > 6: continue
+            elif all([epp.from_bme for epp in loop]): continue  #for now, don't repatch loops
             epp = EPPatch(loop)
             self.eppatches.add(epp)
             epp_update.add(epp)
@@ -1020,8 +1112,8 @@ class EdgePatches:
         self.epverts.append(epv)
         return epv
     
-    def create_epedge(self, epv0, epv1, epv2, epv3, rad = None, tess = 20):
-        epe = EPEdge(epv0, epv1, epv2, epv3, tess = tess, rad = rad)
+    def create_epedge(self, epv0, epv1, epv2, epv3, rad = None, tess = 20, from_bme = False):
+        epe = EPEdge(epv0, epv1, epv2, epv3, tess = tess, rad = rad, from_bme = from_bme)
         self.epedges.append(epe)
         return epe
     
@@ -1038,7 +1130,83 @@ class EdgePatches:
             self.disconnect_epedge(epe)
         self.epverts.remove(epvert)
     
+    def split_bme_epedge_at_pt(self, epedge, pt, connect_epvert = None):
+        
+        if len(epedge.edge_bmverts) == 0:
+            print('No edge bmverts')
+            return
+        
+        def dist_fn(v):
+            d = (v-pt).length
+            return d
+        
+        best_pt = min(epedge.curve_verts, key = dist_fn)
+        
+        ind = epedge.curve_verts.index(best_pt)
+        bmv_ind = epedge.edge_bmverts[ind]
+        
+        if ind == 0 or ind == len(epedge.curve_verts) -1:  return
+        
+        epv_split = self.create_epvert(best_pt)
+        #map them to each other
+        epv_split.bmvert = bmv_ind
+        self.bmv_epv_map[bmv_ind] = epv_split
+        
+        epv0_0 = epedge.epvert0
+        epv0_1 = self.create_epvert(epv0_0.position * 0.75 + epv_split.position * 0.25)
+        epv0_2 = self.create_epvert(epv0_0.position * 0.25 + epv_split.position * 0.75)
+        epv0_3 = epv_split
+        
+        epv1_0 = epv_split
+        epv1_3 = epedge.epvert3
+        epv1_1 = self.create_epvert(epv1_3.position * 0.25 + epv_split.position * 0.75)
+        epv1_2 = self.create_epvert(epv1_3.position * 0.75 + epv_split.position * 0.25)
+        
+        bmvs = epedge.edge_bmverts
+        crv_vs = epedge.curve_verts
+        crv_ns = epedge.curve_norms
+        ed_vs = epedge.edge_verts
+        ed_ns = epedge.edge_vert_norms
+        
+        # want to *replace* epedge with new epedges
+        lepv0epe = epv0_0.get_epedges()
+        lepv3epe = epv1_3.get_epedges()
+        self.disconnect_epedge(epedge)
+        epe0 = self.create_epedge(epv0_0,epv0_1,epv0_2,epv0_3,rad = epedge.quad_size)
+        epe0.edge_bmverts = bmvs[:ind+1]
+        epe0.curve_verts = crv_vs[:ind+1]
+        epe0.curve_norms = crv_ns[:ind+1]
+        epe0.edge_verts = ed_vs[:ind+1]
+        epe0.edge_vert_norms = ed_ns[:ind+1]
+        epe0.from_bme = True
+        
+        
+        
+        epe1 = self.create_epedge(epv1_0,epv1_1,epv1_2,epv1_3,rad = epedge.quad_size)
+        epe1.edge_bmverts = bmvs[ind:]
+        epe1.curve_verts = crv_vs[ind:]
+        epe1.curve_norms = crv_ns[ind:]
+        epe1.edge_verts = ed_vs[ind:]
+        epe1.edge_vert_norms = ed_ns[ind:]
+        epe1.from_bme = True
+        
+        
+        
+        #lgv0ge = [ge0 if ge==epedge else ge for ge in lgv0ge]
+        #lgv3ge = [ge1 if ge==epedge else ge for ge in lgv3ge]
+        #gv0_0.epedge0,gv0_0.epedge1,gv0_0.epedge2,gv0_0.epedge3 = lgv0ge
+        #gv1_3.epedge0,gv1_3.epedge1,gv1_3.epedge2,gv1_3.epedge3 = lgv3ge
+        epv0_0.update()
+        epv1_3.update()
+        epv_split.update()
+        epv_split.update_epedges()
+        return (epe0,epe1,epv_split)
+
     def split_epedge_at_pt(self, epedge, pt, connect_epvert=None):
+        
+        if epedge.from_bme:
+            return self.split_bme_epedge_at_pt(epedge, pt, connect_epvert=connect_epvert)
+       
         t,_ = epedge.get_closest_point(pt)
         return self.split_epedge_at_t(epedge, t)
         
@@ -1401,6 +1569,10 @@ class EdgePatches:
         start = time.time()
         for epe in self.epedges:
             c = len(epe.curve_verts)
+            print('curve verts %i' % c)
+            if not len(epe.curve_norms) == c:
+                print('why!?')
+                epe.update_shape()
             cp_first = epe.curve_verts[0]
             cp_last = epe.curve_verts[-1]
             for p0,p1 in zip(pts[:-1],pts[1:]):
@@ -1499,7 +1671,7 @@ class EdgePatches:
         return sorted(l, key=lambda v:v[1])
 
     def remove_unconnected_epverts(self):
-        self.epverts = [epv for epv in self.epverts if not epv.is_unconnected()]
+        self.epverts = [epv for epv in self.epverts if  (not epv.is_unconnected() or epv.bmvert)]
 
     def dissolve_epvert(self, epvert, tessellation=20):
         assert not epvert.isinner, 'Attempting to dissolve an inner EPVert'

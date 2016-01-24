@@ -34,12 +34,13 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
 from ..lib.common_utilities import point_inside_loop2d, get_source_object
 from ..lib.classes.profiler.profiler import profiler
 from ..lib.classes.textbox.textbox import TextBox
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
-from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid
+from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid, edgepatches_undo_cache
 
 from .edgepatches_datastructure import EdgePatches, EPVert, EPEdge, EPPatch
 
@@ -65,36 +66,73 @@ class EdgePatches_UI:
 
         self.post_update = True
         
-        # Debug level 2: time start
-        #check_time = profiler.start()
-        self.obj_orig = get_source_object()
-        self.mx = self.obj_orig.matrix_world
-       
-        is_valid = is_object_valid(self.obj_orig)
-        if not is_valid:
-            clear_mesh_cache()           
-            me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
-            me.update()
-            bme = bmesh.new()
-            bme.from_mesh(me)
-            bvh = BVHTree.FromBMesh(bme)
-            write_mesh_cache(self.obj_orig, bme, bvh)
-        # Debug level 2: time end
-        #check_time.done()
-
-
-        #Create a new empty destination object for new retopo mesh
-        nm_polystrips = self.obj_orig.name + "_edgepatches"
-        self.dest_bme = bmesh.new()
-        dest_me  = bpy.data.meshes.new(nm_polystrips)
-        self.dest_obj = bpy.data.objects.new(nm_polystrips, dest_me)
-        self.dest_obj.matrix_world = self.obj_orig.matrix_world
-        context.scene.objects.link(self.dest_obj)
         
-        self.extension_geometry = []
-        self.snap_eds = []
-        self.snap_eds_vis = []
-        self.hover_ed = None
+        if context.mode == 'OBJECT':
+            # Debug level 2: time start
+            #check_time = profiler.start()
+            self.obj_orig = get_source_object()
+            self.mx = self.obj_orig.matrix_world
+            is_valid = is_object_valid(self.obj_orig)
+            if not is_valid:
+                clear_mesh_cache()
+                edgepatches_undo_cahce = []           
+                me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                me.update()
+                bme = bmesh.new()
+                bme.from_mesh(me)
+                bvh = BVHTree.FromBMesh(bme)
+                write_mesh_cache(self.obj_orig, bme, bvh)
+                # Debug level 2: time end
+                #check_time.done()
+
+
+            #Create a new empty destination object for new retopo mesh
+            nm_edgepatches= self.obj_orig.name + "_edgepatches"
+            self.dest_bme = bmesh.new()
+            self.dest_obj = setup_target_object(nm_edgepatches, self.obj_orig, self.dest_bme )
+        
+            self.extension_geometry = []
+            self.snap_eds = []
+            self.snap_eds_vis = []
+            self.hover_ed = None
+        
+        elif context.mode == 'EDIT_MESH':
+            self.obj_orig = get_source_object()
+            self.mx = self.obj_orig.matrix_world
+            is_valid = is_object_valid(self.obj_orig)
+    
+            if is_valid:
+                pass
+                #self.bme = mesh_cache['bme']            
+                #self.bvh = mesh_cache['bvh']
+            
+            else:
+                clear_mesh_cache()
+                edgepatches_undo_cahce = []
+                me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
+                me.update()
+            
+                bme = bmesh.new()
+                bme.from_mesh(me)
+                bvh = BVHTree.FromBMesh(bme)
+                write_mesh_cache(self.obj_orig, bme, bvh)
+            
+            self.dest_obj = get_target_object()
+            self.dest_bme = bmesh.from_edit_mesh(context.object.data)
+            self.snap_eds = [] #EXTEND
+                   
+            #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
+            region, r3d = context.region, context.space_data.region_3d
+            dest_mx = self.dest_obj.matrix_world
+            rv3d = context.space_data.region_3d
+            
+            #TODO snap_eds_vis?  #careful with the 2 matrices. One is the source object mx, the other is the target object mx
+            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
+            self.hover_ed = None
+
+            # Hide any existng geometry so as to draw nicely via BmeshRender
+            #bpy.ops.mesh.hide(unselected=True)
+            #bpy.ops.mesh.hide(unselected=False)
         
         
         self.scale = self.obj_orig.scale[0]
@@ -112,9 +150,9 @@ class EdgePatches_UI:
                                         mesh_cache['bvh'], self.mx,
                                         self.obj_orig.dimensions.length)
 
-        self.undo_cache = []            # Clear the cache in case any is left over
-        
         self.edgepatches = EdgePatches(context, self.obj_orig, self.dest_obj)
+        self.edgepatches.extension_geometry_from_bme(self.dest_bme)
+        
         
         context.area.header_text_set('Edge-Patches')
         

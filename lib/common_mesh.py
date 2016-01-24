@@ -351,16 +351,22 @@ def find_edge_loop(bme, ed, select = False):
         
     return vert_loop_vs, edge_loop_eds
 
-def find_edge_loops(bme, sel_vert_corners, select = False):
+def find_edge_loops(bme, sel_vert_corners, select = False, max_chain = 20, max_iters = 1000):
     '''takes N verts which define the corners of a
     polygon patch and returns the edges ordered in
-    one direction around the loop.  border eds must be non
-    manifold.
+    one direction around the loop.  
+    
+    border eds must be non manifold.
+    
+    corner verts should only have 2 non man edges,
+    eg, no edge_net networks are supported yet
+    
+    
     
     returns 
     '''
     
-    if len(sel_vert_corners) == 0: return [], []
+    if len(sel_vert_corners) == 0: return []
     bme.edges.ensure_lookup_table()
     bme.verts.ensure_lookup_table()
        
@@ -377,41 +383,89 @@ def find_edge_loops(bme, sel_vert_corners, select = False):
         next_vert = cur_ed.other_vert(cur_vert)
         return next_vert
     
-    vert_chains_co = []
-    vert_chains_ind = []
+    
+    
     
     corner_inds = [v.index for v in sel_vert_corners]
-    max_iters = 1000
-     
+    
+    
+    #start with the first one! 
     v_cur = bme.verts[corner_inds[0]]
     ed_curs = [ed for ed in v_cur.link_edges if not ed.is_manifold]
+    
     
     if len(ed_curs) == 0: return [],[]
     ed_cur = ed_curs[0]
     iters = 0
-    while len(corner_inds) and iters < max_iters:
+    
+    seen = set()
+    seen.add(v_cur.index)
+    
+    vert_chains_co = []
+    vert_chains_ind = []
+    confirmed_corners = [v_cur.index]
+    
+    
+    loops = []
+    
+    
+    #the first v_cur is left in the corner_inds, so it will get popped off when looped back around
+    while len(corner_inds) and iters < max_iters:  
         v_chain = [v_cur.co]
         v_chain_ind = [v_cur.index]
         print('starting at current v index: %i' % v_cur.index)
         marching = True
-        while marching:
+        steps = 0
+        while marching and steps < max_chain:
+            steps += 1
             iters += 1
             ed_next = next_edge(ed_cur, v_cur)
             if not ed_next: break
             v_next = next_vert(ed_next, v_cur)
             
             v_chain += [v_next.co]
+            v_chain_ind += [v_next.index]
             ed_cur = ed_next
             v_cur = v_next
             if v_next.index in corner_inds:
                 print('Stopping: found a corner %i' % v_next.index)
+                
                 corner_inds.pop(corner_inds.index(v_next.index))
                 vert_chains_co.append(v_chain)
                 vert_chains_ind.append(v_chain_ind)
                 marching = False
+                if v_next.index in seen:
+                    loops += [(vert_chains_co, vert_chains_ind, confirmed_corners)]
+                    vert_chains_co = []
+                    vert_chains_ind = []
+                    
+                    if len(corner_inds): #another loop may exist, start over
+                        v_cur = bme.verts[corner_inds[0]]
+                        confirmed_corners = [v_cur.index]
+                        seen.add(v_cur.index)
+                        ed_curs = [ed for ed in v_cur.link_edges if not ed.is_manifold]
+                        if not len(ed_curs):
+                            return loops
+                        ed_cur = ed_curs[0]
+                else:
+                    confirmed_corners += [v_next.index]
+                
     
-    return vert_chains_co, vert_chains_ind
+    return loops
 
+
+
+def loops_from_edge_net(bme):
+    ''' not implemented yet'''
+    
+    #find nodes
+    
+    #walk around those nodes
+    
+    #return the loops
+    return None
+    
+    
 def make_bme(verts, faces):
     bme = bmesh.new()
     bmverts = [bme.verts.new(v) for v in verts]  #TODO, matrix stuff

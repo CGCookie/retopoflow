@@ -127,9 +127,7 @@ class Polystrips_UI:
     
             if is_valid:
                 pass
-                #self.bme = mesh_cache['bme']            
-                #self.bvh = mesh_cache['bvh']
-            
+
             else:
                 clear_mesh_cache()
                 polystrips_undo_cahce = []
