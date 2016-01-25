@@ -142,22 +142,26 @@ class EdgePatches_UI_ModalWait():
                 return ''
 
             if eventd['press'] in self.keymap['translate']:
+                if self.act_epvert.from_bmesh: return ''
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_epvert_neighbors)
                 return 'grab tool'
 
             if eventd['press'] in self.keymap['rotate'] and not self.act_epvert.is_inner():
+                if self.act_epvert.from_bmesh: return ''
                 self.create_undo_snapshot('rotate')
                 self.ready_tool(eventd, self.rotate_tool_epvert_neighbors)
                 return 'rotate tool'
 
             if eventd['press'] in self.keymap['scale handles'] and not self.act_epvert.is_inner():
+                if self.act_epvert.from_bmesh: return ''
                 self.create_undo_snapshot('scale')
                 self.ready_tool(eventd, self.scale_tool_epvert)
                 return 'scale tool'
 
             if eventd['press'] in self.keymap['delete']:
                 if self.act_epvert.is_inner(): return ''
+                elif self.act_epvert.from_bmesh: return ''
                 self.create_undo_snapshot('delete')
                 self.edgepatches.disconnect_epvert(self.act_epvert)
                 self.act_epvert = None
@@ -222,13 +226,13 @@ class EdgePatches_UI_ModalWait():
                 return ''
 
             if eventd['press'] in self.keymap['up count']:
-                if self.act_epedge.from_bme: return ''
+                if self.act_epedge.from_bmesh: return ''
                 self.act_epedge.subdivision += 1
                 self.act_epedge.update(shape = False, subdiv = True, patches = False)
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
             if eventd['press'] in self.keymap['dn count']:
-                if self.act_epedge.from_bme: return ''
+                if self.act_epedge.from_bmesh: return ''
                 cur_sub = self.act_epedge.subdivision
                 self.act_epedge.subdivision = max(2, cur_sub-1)
                 self.act_epedge.update(shape = False, subdiv = True, patches = False)

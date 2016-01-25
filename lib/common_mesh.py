@@ -482,7 +482,7 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
     
     '''
     L = len(target.verts)
-    
+    l = len(src_trg_map)
     if not src_mx:
         src_mx = Matrix.Identity(4)
     
@@ -494,34 +494,79 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
         
         
     #TDOD  matrix math stuff
-    new_bmverts = [target.verts.new(i_trg_mx * src_mx * v.co) for v in source.verts]# if v.index not in src_trg_map]
+    new_bmverts = []
     
-    def src_to_trg_ind(v):
-        if v.index in src_trg_map:
-            new_ind = src_trg_map[v.index]
-        else:
-            new_ind = v.index + L  #TODO, this takes the actual versts from sources, these verts are in target
+    source.verts.ensure_lookup_table()
+    
+    added = 0
+    for v in source.verts:
+        if v.index not in src_trg_map:
+            new_ind = len(target.verts)
+            print('adding a vert %i in origina, now %i in target' % (v.index, new_ind))
+            new_bv = target.verts.new(i_trg_mx * src_mx * v.co)
+            print('the real index before updating %i ' % new_bv.index)
+            new_bmverts.append(new_bv)
+            new_bv.index = new_ind
+            src_trg_map[v.index] = new_ind
+    
+    #new_bmverts = [target.verts.new(i_trg_mx * src_mx * v.co) for v in source.verts]# if v.index not in src_trg_map]
+
+    #def src_to_trg_ind(v):
+    #    subbed = False
+    #    if v.index in src_trg_map:
+
+    #       new_ind = src_trg_map[v.index]
+    #        subbed = True
+    #    else:
+    #        new_ind = v.index + L  #TODO, this takes the actual versts from sources, these verts are in target
             
-        return new_ind
+    #    return new_ind, subbed
     
     #new_bmfaces = [target.faces.new(tuple(new_bmverts[v.index] for v in face.verts)) for face in source.faces]
-    target.verts.index_update()  #does this still work?
+    target.verts.index_update()
+    target.verts.sort()  #does this still work?
     target.verts.ensure_lookup_table()
     #print('new faces')
     #for f in source.faces:
         #print(tuple(src_to_trg_ind(v) for v in f.verts))
-    new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
+    
+    #subbed = set()
+    new_bmfaces = []
+    for f in source.faces:
+        v_inds = []
+        for v in f.verts:
+            new_ind = src_trg_map[v.index]
+            v_inds.append(new_ind)
+            
+        new_bmfaces += [target.faces.new(tuple(target.verts[i] for i in v_inds))]
+    
+    #new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
     target.faces.ensure_lookup_table()
     target.verts.ensure_lookup_table()
+    target.verts.index_update()
     
     #throw away the loose verts...not very elegant with edges and what not
+    #n_removed = 0
+    #for vert in new_bmverts:
+    #    if (vert.index - L) in src_trg_map: #these are verts that are not needed
+    #        target.verts.remove(vert)
+    #        n_removed += 1
     
-    for vert in new_bmverts:
-        if (vert.index - L) in src_trg_map: #these are verts that are not needed
-            target.verts.remove(vert) 
+    #bmesh.ops.delete(target, geom=del_verts, context=1)
             
+    target.verts.index_update()        
     target.verts.ensure_lookup_table()
-    target.verts.index_update()
+    target.faces.ensure_lookup_table()
+    
+    new_L = len(target.verts)
+    
+    if src_trg_map:
+        if new_L != L + len(source.verts) -l:
+            
+            print('seems some verts were left in that should not have been %i' % diff)
+            print('%i were in src_trg_map and and %i got substituted' % (len(src_trg_map),len(subbed)))
+            invalid = [v.index for v in target.verts if not v.is_valid]
+            print(invalid)
             
 def find_perimeter_verts(bme):
     '''

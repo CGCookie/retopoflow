@@ -59,7 +59,9 @@ class EPVert:
         self.doing_update = False
         self.update()
         
-        self.bmvert = None  #TODO...index or actual vert?
+        
+        self.from_bmesh = False
+        self.bmesh_ind = -1  
         
     def snap(self):
         p,n,_ = EdgePatches.getClosestPoint(self.position)
@@ -157,10 +159,10 @@ class EPEdge:
         self.curve_verts = []  #these are mainly used for drawing at this point
         self.curve_norms = []
         self.edge_verts = [] #these are for patch making
-        self.edge_bmverts = [] #these are for interfacing with existing and new bmesh
         self.edge_vert_norms = []
         
-        self.from_bme = from_bme
+        self.from_bmesh = from_bme
+        self.edge_bmverts = [] #these are for interfacing with existing and new bmesh
         
         #these are set depending on what variables are passed
         self.quad_size = None
@@ -215,7 +217,7 @@ class EPEdge:
         return info_pt
     
     def update_subdiv(self):
-        if self.from_bme:
+        if self.from_bmesh:
             self.subdivision = len(self.edge_verts) - 1
             return
         getClosestPoint = EdgePatches.getClosestPoint
@@ -233,7 +235,7 @@ class EPEdge:
     
     def update_shape(self):
         getClosestPoint = EdgePatches.getClosestPoint
-        if self.from_bme:
+        if self.from_bmesh:
             self.curve_norms = []
             self.edge_vert_norms = [] 
             for pos in self.curve_verts:
@@ -419,6 +421,14 @@ class EPPatch:
             ed_verts.reverse()
             return ed_verts
         return [get_verts(epe,fwd) for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
+    
+    def get_bme_vert_loop(self):
+        def get_verts(epe,fwd):
+            if fwd: return epe.edge_bmverts[0:len(epe.edge_bmverts)-1]
+            ed_bmverts = epe.edge_bmverts.copy()
+            ed_bmverts.reverse()
+            return ed_bmverts[0:len(ed_bmverts)-1]
+        return list(itertools.chain(*[get_verts(epe,fwd) for epe,fwd in zip(self.lepedges,self.epedge_fwd)]))
         
     def get_corner_locations(self):
         epvs = self.get_epverts()
@@ -671,9 +681,9 @@ class EPPatch:
         
         
         #finally, snap everything
-        #for v in pad_bme.verts:
-            #p, _, _ = EdgePatches.getClosestPoint(v.co, meth = 'BVH')
-            #v.co = p
+        for v in pad_bme.verts:
+            p, _, _ = EdgePatches.getClosestPoint(v.co, meth = 'BVH')
+            v.co = p
         
         geom_dict = {}
         geom_dict['bme'] = pad_bme
@@ -933,7 +943,8 @@ class EdgePatches:
         
         mx = bpy.data.objects[self.tar_name].matrix_world
         epv = self.create_epvert(mx * bmvert.co)
-        epv.bmvert = bmvert.index  #keepa reference to it
+        epv.from_bmesh = True
+        epv.bmesh_ind = bmvert.index  #keepa reference to it
         self.bmv_epv_map[bmvert.index] = epv
         
         return epv
@@ -984,7 +995,8 @@ class EdgePatches:
                 epe.curve_verts = pts_wrld
                 epe.edge_bmverts = inds
                 epe.subdivision = len(pts_wrld) - 1
-                epe.from_bme = True
+                epe.quad_size = epe.get_quad_size()
+                epe.from_bmesh = True
             
     
     
@@ -1050,7 +1062,7 @@ class EdgePatches:
         print('Created %d new patches' % len(loops))        
         for loop in loops:
             if len(loop) < 2 or len(loop) > 6: continue
-            elif all([epp.from_bme for epp in loop]): continue  #for now, don't repatch loops
+            elif all([epe.from_bmesh for epe in loop]): continue  #for now, don't repatch loops
             epp = EPPatch(loop)
             self.eppatches.add(epp)
             epp_update.add(epp)
@@ -1178,7 +1190,7 @@ class EdgePatches:
         epe0.curve_norms = crv_ns[:ind+1]
         epe0.edge_verts = ed_vs[:ind+1]
         epe0.edge_vert_norms = ed_ns[:ind+1]
-        epe0.from_bme = True
+        epe0.from_bmesh = True
         
         
         
@@ -1188,7 +1200,7 @@ class EdgePatches:
         epe1.curve_norms = crv_ns[ind:]
         epe1.edge_verts = ed_vs[ind:]
         epe1.edge_vert_norms = ed_ns[ind:]
-        epe1.from_bme = True
+        epe1.from_bmesh = True
         
         
         
@@ -1204,7 +1216,7 @@ class EdgePatches:
 
     def split_epedge_at_pt(self, epedge, pt, connect_epvert=None):
         
-        if epedge.from_bme:
+        if epedge.from_bmesh:
             return self.split_bme_epedge_at_pt(epedge, pt, connect_epvert=connect_epvert)
        
         t,_ = epedge.get_closest_point(pt)
@@ -1671,7 +1683,7 @@ class EdgePatches:
         return sorted(l, key=lambda v:v[1])
 
     def remove_unconnected_epverts(self):
-        self.epverts = [epv for epv in self.epverts if  (not epv.is_unconnected() or epv.bmvert)]
+        self.epverts = [epv for epv in self.epverts if  (not epv.is_unconnected() or epv.from_bmesh)]
 
     def dissolve_epvert(self, epvert, tessellation=20):
         assert not epvert.isinner, 'Attempting to dissolve an inner EPVert'
@@ -1679,17 +1691,46 @@ class EdgePatches:
         
         epedge0,epedge1 = epvert.epedges
         
-        p00,p01,p02,p03 = epedge0.get_positions()
-        p10,p11,p12,p13 = epedge1.get_positions()
+        if epedge0.from_bmesh and epedge1.from_bmesh:
+            pts0 = epedge0.edge_verts
+            pts1 = epedge1.edge_verts
+
+            bmvs0 = epedge0.edge_bmverts
+            bmvs1 = epedge1.edge_bmverts
+            
+            ns0 = epedge0.edge_vert_norms
+            ns1 = epedge1.edge_vert_norms
+            
+            if epedge0.epvert0 == epvert: pts0.reverse(), bmvs0.reverse(), ns0.reverse()
+            if epedge1.epvert3 == epvert: pts1.reverse(), bmvs1.reverse(), ns1.reverse()
         
-        pts0 = [cubic_bezier_blend_t(p00,p01,p02,p03,i/tessellation) for i in range(tessellation+1)]
-        pts1 = [cubic_bezier_blend_t(p10,p11,p12,p13,i/tessellation) for i in range(tessellation+1)]
-        if epedge0.epvert0 == epvert: pts0.reverse()
-        if epedge1.epvert3 == epvert: pts1.reverse()
-        pts = pts0 + pts1
+            pts = pts0 + pts1[1:]
+            print(pts)
+            bmvs = bmvs0 + bmvs1[1:]
+            ns = ns0 + ns1[1:]
+            
+            p1 = .75*pts[0] + 0.25*pts[-1]
+            p2 = .25*pts[0] + 0.75*pts[-1]
+            
+            from_bme = True
+        elif (epedge0.from_bmesh or epedge1.from_bmesh):
+            print('cant dissolve a vert that links existing mesh to new mesh')
+            return
         
-        t0,t3,p0,p1,p2,p3 = cubic_bezier_fit_points(pts, self.length_scale, allow_split=False)[0]
+        else:    
+            p00,p01,p02,p03 = epedge0.get_positions()
+            p10,p11,p12,p13 = epedge1.get_positions()
+            
+            pts0 = [cubic_bezier_blend_t(p00,p01,p02,p03,i/tessellation) for i in range(tessellation+1)]
+            pts1 = [cubic_bezier_blend_t(p10,p11,p12,p13,i/tessellation) for i in range(tessellation+1)]
+            if epedge0.epvert0 == epvert: pts0.reverse()
+            if epedge1.epvert3 == epvert: pts1.reverse()
+            pts = pts0 + pts1
+            
+            t0,t3,p0,p1,p2,p3 = cubic_bezier_fit_points(pts, self.length_scale, allow_split=False)[0]
         
+            from_bme = False
+            
         epv0 = epedge0.epvert3 if epedge0.epvert0 == epvert else epedge0.epvert0
         epv1 = self.create_epvert(p1)
         epv2 = self.create_epvert(p2)
@@ -1698,7 +1739,18 @@ class EdgePatches:
         self.disconnect_epedge(epedge0)
         self.disconnect_epedge(epedge1)
         rad = .5 * (epedge0.quad_size + epedge1.quad_size)
-        self.create_epedge(epv0,epv1,epv2,epv3, rad = rad)
+        
+        
+        epe = self.create_epedge(epv0,epv1,epv2,epv3, rad = rad, from_bme = from_bme)
+        
+        if from_bme:
+            epe.edge_verts = pts
+            epe.edge_vert_norms = ns
+            epe.curve_verts = pts
+            epe.curve_norms = ns
+            epe.edge_bmverts = bmvs
+            
+            
         epv0.update()
         epv0.update_epedges()
         epv3.update()
@@ -1708,68 +1760,49 @@ class EdgePatches:
         pass
     
     
-    def create_mesh(self, bme):
-        mx = bpy.data.objects[EdgePatches.src_name].matrix_world
-        imx = mx.inverted()
-        
-        verts = []
-        edges = []
-        ngons = []
-        d_epv_v = {}
-        d_epe_e = {}
-        d_epp_n = {}
-        
-        def insert_vert(p):
-            verts.append(imx*p)
-            return len(verts)-1
-        def insert_epvert(epv):
-            if epv not in d_epv_v: d_epv_v[epv] = insert_vert(epv.snap_pos)
-            return d_epv_v[epv]
-        
-        def insert_edge(ip0,ip1):
-            edges.append((ip0,ip1))
-            return len(edges)-1
-        def insert_epedge(epe):
-            if epe not in d_epe_e: d_epe_e[epe] = insert_edge(insert_epvert(epe.epvert0), insert_epvert(epe.epvert3))
-            return d_epe_e[epe]
-        
-        def insert_ngon(lip):
-            ngons.append(tuple(reversed(tuple(lip))))
-            return len(ngons)-1
-        def insert_eppatch(epp):
-            if epp not in d_epp_n:
-                d_epp_n[epp] = insert_ngon(insert_epvert(epv) for epv in epp.get_epverts())
-            return d_epp_n[epp]
-        
-        for epv in self.epverts:
-            if not epv.isinner: insert_epvert(epv)
-        for epe in self.epedges:
-            insert_epedge(epe)
-        for epp in self.eppatches:
-            insert_eppatch(epp)
-        
-        return (verts,edges,ngons)
-
-    def push_into_bmesh(self,context):
+    def push_into_bmesh(self,context, bme):
         '''
         TODO this just puts all the patches together
+        and inserts them into bme
+        
+        It is IMPERATIVE that this is the same unmodified
+        bme since Edge Patches was started since there are
+        mappings to existing geometry.  Or later, if the
+        fidelity of those mappings has not changed
+        
         '''
         
-        if EdgePatches.tar_name:
-            me = bpy.data.objects[EdgePatches.tar_name].data
-            if bpy.context.mode == 'OBJECT':
-                bme = bmesh.new()
-                bme.from_mesh(me)
-            else:
-                bme = bmesh.from_edit_mesh(me)
-            
-        #src_mx = bpy.data.objects[EdgePatches.src_name].matrix_world
-        src_mx = None
+        tmx = bpy.data.objects[EdgePatches.tar_name].matrix_world
+        me = bpy.data.objects[EdgePatches.tar_name].data
         
-        if self.tar_name:
-            trg_mx = bpy.data.objects[EdgePatches.tar_name].matrix_world
-        else:
-            trg_mx = None
+        itmx = tmx.inverted()
+    
+        L = len(bme.verts)
+        new_bmverts = []
+        #add in the EPVert verts as nodes
+        for epv in self.epverts:
+            if epv.from_bmesh: continue #alrady in there
+            elif epv.is_inner(): continue  #fake, not really needed
+            
+            self.bmv_epv_map[L+len(new_bmverts)] = epv
+            epv.bmesh_ind = L + len(new_bmverts)
+            new_bmverts += [bme.verts.new(itmx * epv.snap_pos)]
+            
+        bme.verts.index_update()
+        bme.verts.ensure_lookup_table()
+            
+        for epe in self.epedges:
+            if epe.from_bmesh: continue
+            
+            epe.edge_bmverts = [epe.epvert0.bmesh_ind]
+            for v in epe.edge_verts[1:len(epe.edge_verts)-1]:
+                epe.edge_bmverts += [L + len(new_bmverts)]
+                new_bmverts += [bme.verts.new(itmx * v)]
+            epe.edge_bmverts += [epe.epvert3.bmesh_ind]
+            
+            
+        bme.verts.index_update()
+        bme.verts.ensure_lookup_table()
             
         for epp in self.eppatches:
             if epp.bmesh:
@@ -1778,8 +1811,37 @@ class EdgePatches:
                 #object of operatory. The individual bmesh patches, all exist in world
                 #coordinates, and they are the source for this joining operation.
                 #th
-                join_bmesh(epp.bmesh, bme, src_mx = src_mx, trg_mx = trg_mx)
-
+                
+                perim_loop = epp.get_bme_vert_loop()
+                print(perim_loop)
+                perim_vs = [tmx*bme.verts[i].co for i in perim_loop]
+                
+                patch_outer_inds = find_perimeter_verts(epp.bmesh)
+                
+                v0 = find_coord(epp.bmesh, perim_vs[0], patch_outer_inds) 
+                i0 = patch_outer_inds.index(v0)
+                
+                patch_outer_inds = patch_outer_inds[i0:] + patch_outer_inds[:i0]
+                
+                v1 = find_coord(epp.bmesh, perim_vs[1], patch_outer_inds)
+                i1 = patch_outer_inds.index(v1)
+                print('i1 is %i' % i1)
+                if i1 != 1:
+                    if i1 == len(patch_outer_inds) -1:
+                        print('i1 != 1, and is == len(outer_inds) -1')
+                    print('reversing')
+                    patch_outer_inds.reverse()
+                    patch_outer_inds = [patch_outer_inds[-1]] + patch_outer_inds[0:len(patch_outer_inds)-1]
+                
+                perimeter_map = {}
+                print('Are these even %i,  %i' % (len(patch_outer_inds),len(perim_loop)))    
+                for n, m in zip(patch_outer_inds, perim_loop):
+                    perimeter_map[n] = m
+                
+                
+                print(perimeter_map)
+                join_bmesh(epp.bmesh, bme, perimeter_map, src_mx = None, trg_mx = tmx)
+                epp.bmesh.free()
 
         if context.mode == 'OBJECT':
             bme.to_mesh(me)
@@ -1787,6 +1849,6 @@ class EdgePatches:
             bmesh.update_edit_mesh(me)
             
         bme.free()
-            
+        bpy.app.debug = True    
 
                 

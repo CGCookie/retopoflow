@@ -91,10 +91,6 @@ class EdgePatches_UI:
             self.dest_bme = bmesh.new()
             self.dest_obj = setup_target_object(nm_edgepatches, self.obj_orig, self.dest_bme )
         
-            self.extension_geometry = []
-            self.snap_eds = []
-            self.snap_eds_vis = []
-            self.hover_ed = None
         
         elif context.mode == 'EDIT_MESH':
             self.obj_orig = get_source_object()
@@ -119,17 +115,13 @@ class EdgePatches_UI:
             
             self.dest_obj = get_target_object()
             self.dest_bme = bmesh.from_edit_mesh(context.object.data)
-            self.snap_eds = [] #EXTEND
+
                    
             #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
             region, r3d = context.region, context.space_data.region_3d
             dest_mx = self.dest_obj.matrix_world
             rv3d = context.space_data.region_3d
             
-            #TODO snap_eds_vis?  #careful with the 2 matrices. One is the source object mx, the other is the target object mx
-            self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
-            self.hover_ed = None
-
             # Hide any existng geometry so as to draw nicely via BmeshRender
             #bpy.ops.mesh.hide(unselected=True)
             #bpy.ops.mesh.hide(unselected=False)
@@ -308,7 +300,7 @@ class EdgePatches_UI:
     
     def create_mesh(self, context):
         
-        self.edgepatches.push_into_bmesh(context)
+        self.edgepatches.push_into_bmesh(context, self.dest_bme)
         '''
         verts,edges,ngons = self.edgepatches.create_mesh(self.dest_bme)
         #bm = bmesh.new()  #now new bmesh is created at the start
