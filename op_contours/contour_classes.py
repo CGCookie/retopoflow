@@ -170,7 +170,7 @@ class Contours(object):
         
         self.existing_loops = []
         if len(ed_inds):
-            vert_loops = edge_loops_from_bmedges(self.dest_bme, ed_inds)
+            vert_loops = edge_loops_from_bmedges(self.dest_bme, ed_inds)['VERTS']
 
             if len(vert_loops) > 1:
                 print('there are %i edge loops selected' % len(vert_loops))
