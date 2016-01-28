@@ -336,20 +336,28 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, expansion = 'EDGES'):
                            a single edge loop around the single loop
                            only use with strict = False
     
-    returns a list of dictionaries.  A dictionary for each loop within edge_loop
+    returns a dictionary  with keys 'VERTS' 'EDGES' 'FACES'.  geom_dict
+    
+    the 'VERTS' and 'EDGES' lists are correlated.
+    Eg geom_dict['VERTS'][0] and geom_dict['EDGES'][0] are corresponding vert and edge loops
+    However geom_dict['FACES'][0] may correlate with geom_dict['EDGES'][1]
+    
+    
     '''
     
     
     ed_loops = edge_loops_from_bmedges(bme, edge_loop, ret = {'VERTS','EDGES'})
-    print(ed_loops)
     
-    neighbors = []
+    geom_dict = dict()
+    geom_dict['VERTS'] = []
+    geom_dict['EDGES'] = []
+    geom_dict['FACES'] = []
+    
     for v_inds, ed_inds in zip(ed_loops['VERTS'],ed_loops['EDGES']):
         
         v0 = bme.verts[v_inds[0]]
         e0 = bme.edges[ed_inds[0]]
         v1 = e0.other_vert(v0)
-        e1 = bme.edges[ed_inds[1]]
         
         orig_eds = set(ed_inds)
         #find all the faces directly attached to this edge loop
@@ -375,23 +383,41 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, expansion = 'EDGES'):
         #sort them!    
         parallel_loops =  edge_loops_from_bmedges(bme, parallel_eds, ret = {'VERTS','EDGES'})   
         
+        #get the face loops, a little differently, just walk from 2 perpendicular edges
+
+        for ed in v1.link_edges:
+            if ed.index not in perp_eds: continue
+            f_inds, _e_inds = find_face_loop(bme, ed, select=False)
+            print(f_inds)
+            #keep only the part of face loop direclty next door
+            if strict:
+                f_inds = [f for f in f_inds if f in all_faces]
+            geom_dict['FACES'] += [f_inds]
+        
         if strict:
             if all([len(e_loop) == len(ed_inds) for e_loop in parallel_loops['EDGES']]):
-                neighbors.append(parallel_loops)
+                for v_loop in parallel_loops['VERTS']:
+                    geom_dict['VERTS'] += [v_loop]
+                for e_loop in parallel_loops['EDGES']:
+                    geom_dict['EDGES'] += [e_loop]
+                
+                
             elif any([len(e_loop) == len(ed_inds) for e_loop in parallel_loops['EDGES']]):
-                sifted = dict()
-                sifted['VERTS'] = []
-                sifted['EDGES'] = []
+
                 for pvs, peds in zip(parallel_loops['VERTS'],parallel_loops['EDGES']):
                     if len(peds) == len(ed_inds):
-                        sifted['VERTS'] += [pvs]
-                        sifted['EDGES'] += [peds]
+                        geom_dict['VERTS'] += [pvs]
+                        geom_dict['EDGES'] += [peds]
                 
-                neighbors.append(sifted)
+
         else:
-            neighbors.append(parallel_loops)
+            for v_loop in parallel_loops['VERTS']:
+                geom_dict['VERTS'] += [v_loop]
+            for e_loop in parallel_loops['EDGES']:
+                geom_dict['EDGES'] += [e_loop]
+    
                       
-    return neighbors
+    return geom_dict
                 
 def find_edge_loops(bme, sel_vert_corners, select = False, max_chain = 20, max_iters = 1000):
     '''takes N verts which define the corners of a
