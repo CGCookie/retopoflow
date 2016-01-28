@@ -317,10 +317,7 @@ def find_edge_loop(bme, ed, select = False):
         
     return vert_loop_vs, edge_loop_eds
 
-
-
-
-def edge_loop_neighbors(bme, edge_loop, strict = False, expansion = 'EDGES'):
+def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expansion = 'EDGES'):
     '''
     bme - the bmesh which the edges belongs to
     edge_loop - list of BMEdge indices.  Not necessarily in order, possibly multiple edge loops
@@ -329,6 +326,7 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, expansion = 'EDGES'):
            True  ,  loops must be connected by quads only
         Only returns  if the parallel loops are exactly the same length as original loop
         
+    trim_tails - will trim p shaped loops or figure 8 loops
     
     expansion - 'EDGES'  - a single edge loop within a mesh will return 
                            2 parallel and equal length edge loops
@@ -377,7 +375,9 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, expansion = 'EDGES'):
         
         parallel_eds = []
         for f_ind in all_faces:
-            parallel_eds += [ed.index for ed in bme.faces[f_ind].edges if ed.index not in perp_eds and ed.index not in orig_eds]
+            parallel_eds += [ed.index for ed in bme.faces[f_ind].edges if 
+                             ed.index not in perp_eds and ed.index not in orig_eds
+                             and not (all([f.index in all_faces for f in ed.link_faces]) and trim_tails)]
         
         
         #sort them!    
@@ -521,8 +521,6 @@ def find_edge_loops(bme, sel_vert_corners, select = False, max_chain = 20, max_i
     
     return loops
 
-
-
 def loops_from_edge_net(bme):
     ''' not implemented yet'''
     
@@ -532,8 +530,7 @@ def loops_from_edge_net(bme):
     
     #return the loops
     return None
-    
-    
+        
 def make_bme(verts, faces):
     bme = bmesh.new()
     bmverts = [bme.verts.new(v) for v in verts]  #TODO, matrix stuff
@@ -628,8 +625,7 @@ def join_bmesh(source, target, src_trg_map = dict(), src_mx = None, trg_mx = Non
     if src_trg_map:
         if new_L != L + len(source.verts) -l:
             print('seems some verts were left in that should not have been')
-            
-            
+                       
 def find_perimeter_verts(bme):
     '''
     returns a list of vert indices, in order
@@ -652,3 +648,61 @@ def find_perimeter_verts(bme):
         perim.pop()
         n = perim.index(min(perim))
         return perim[n:] + perim[:n]
+
+
+def face_neighbors_by_edge(bmface):
+    neighbors = []
+    for ed in bmface.edges:
+        neighbors += [f for f in ed.link_faces if f != bmface]
+        
+    return neighbors
+
+def face_neighbors_by_vert(bmface):
+    neighbors = []
+    for v in bmface.verts:
+        neighbors += [f for f in v.link_faces if f != bmface]
+        
+    return neighbors
+def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
+    '''
+    bme - bmesh
+    edge_loop - should create a closed edge loop to contain "flooded" selection
+    if an empty set, selection will grow to non manifold boundaries
+    seed_face - a face within/out selected_faces loop
+    max_iters - maximum recursions to select_neightbors
+    
+    return - set of faces
+    '''
+    total_selection = set()
+    total_selection.add(seed_face)
+    
+    face_levy = set()
+    for e in edge_loop:
+        face_levy.update([f for f in e.link_faces])  #it's funny because it stops the flood :-)
+
+    edge_levy = set([e for e in edge_loop])
+    
+    new_faces = set(face_neighbors_by_edge(seed_face)) - face_levy
+    iters = 0
+    while iters < max_iters and new_faces:
+        iters += 1
+        new_candidates = set()
+        for f in new_faces:
+            new_candidates.update(face_neighbors_by_edge(f))
+            
+        new_faces = (new_candidates - total_selection)
+        #remove = set()
+        #for f in new_faces:
+        #    if any([e for e in f.edges if e in edge_levy]):
+        #        remove.add(f)
+                
+        
+        
+        if new_faces:
+            total_selection |= new_faces
+            new_faces -= face_levy    
+    if iters == max_iters:
+        print('max iterations reached')   
+        
+
+    return total_selection
