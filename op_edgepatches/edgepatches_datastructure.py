@@ -58,8 +58,7 @@ class EPVert:
         self.isinner = False
         self.doing_update = False
         self.update()
-        
-        
+
         self.from_bmesh = False
         self.bmesh_ind = -1  
         
@@ -368,7 +367,18 @@ class EPPatch:
         self.center = Vector()
         self.normal = Vector()
 
-        self.L_sub = [ep.subdivision for ep in self.lepedges] #this may be problem.  self.lepedges not in same order as get_edge loops
+        self.L_sub_raw = [ep.subdivision for ep in self.lepedges] #this may be problem.  self.lepedges not in same order as get_edge loops
+        
+        
+        self.t_override = dict()  #use to overide only changed through UI
+        self.t_junctions = set()  #updated every time patch is updated
+        
+        self.concave = set()
+        
+        self.check_ts()
+        self.L_sub_eff = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
+        
+        
         self.patch_solution = []
         self.verts = []
         self.faces = []
@@ -378,7 +388,53 @@ class EPPatch:
         self.live = False
         
         self.update()
+    
+    def check_ts(self):
+        print('CHECKING T JUNCTIONS AND CONCAVIIES')
+        self.t_junctions.clear()
+        self.concave.clear()
         
+        for i, (epe,fwd) in enumerate(zip(self.lepedges,self.epedge_fwd)):
+
+            epe_prev = self.lepedges[i-1]
+            
+            epv_prev = epe_prev.epvert2 if self.epedge_fwd[i-1] else epe_prev.epvert1
+            epv_now = epe.epvert0 if fwd else epe.epvert3
+            epv_next = epe.epvert1 if fwd else epe.epvert2
+        
+            if epv_now in self.t_override:
+                if self.t_override[epv_now]:
+                    print('found override t')
+                    self.t_junctions.add(epv_now)
+                    
+                continue
+            
+            v0 = epv_prev.position - epv_now.position
+            v1 = epv_next.position - epv_now.position
+            vec_about = -epv_now.snap_norm  
+            inner_angle = vector_angle_between(v0,v1,vec_about)
+            raw_angle = v0.angle(v1)
+            
+            v0.normalize()
+            v1.normalize()
+            
+            parallel = abs(v0.dot(v1))
+            
+            print('inner angle at this gvert is %f' % (180*inner_angle/math.pi))  
+            print('the raw angle at this gvert is %f'% raw_angle)
+            print('the dot product is %f' % parallel)     
+            #if abs(inner_angle) > .8 * math.pi and abs(inner_angle) < 5/4* math.pi:
+            if parallel > .68:
+                print('adding to T junctions')#:  %f' % (180*inner_angle/math.pi))
+                self.t_junctions.add(epv_now)
+            #elif abs(inner_angle) >=  5/4* math.pi:
+                #print('adding to  Concave Junctions')#, angle is:  %f' % (180*inner_angle/math.pi))
+                #self.concave.add(epv_now)   
+        if all([epv in self.t_junctions for epv in self.get_epverts()]):
+            print('all verts t_junctions, need to override some')   
+    
+        print(len(self.t_junctions))
+          
     def update(self):
         ctr = Vector((0,0,0))
         cnt = 0
@@ -398,31 +454,63 @@ class EPPatch:
             self.normal = Vector()
         
         
-        self.L_sub = [ep.subdivision for ep in self.lepedges]
+        self.L_sub_raw = [ep.subdivision for ep in self.lepedges]
+        self.check_ts()
+        self.L_sub_eff = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
         if self.patch and self.patch.active_solution_index != -1 and self.live:
             self.generate_geometry()
         else:
             self.faces, self.verts = [], []
             
             
-    def get_outer_points(self):
+    def get_outer_points(self):  #TODO, check where this is used
         def get_verts(epe,fwd):
             if fwd: return epe.curve_verts
             return reversed(epe.curve_verts)
         return [p for epe,fwd in zip(self.lepedges,self.epedge_fwd) for p in get_verts(epe,fwd)]
     
-    def get_epverts(self):
+    def get_epverts(self):  #T-Junction agnostic
         return [epe.epvert0 if fwd else epe.epvert3 for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
 
-    def get_edge_loops(self):
+    def get_edge_loops(self):  #TODO update for T-junctions, DONE (not tested)
+        
         def get_verts(epe,fwd):
-            if fwd: return epe.edge_verts
+            if fwd: return epe.edge_verts.copy()
             ed_verts = epe.edge_verts.copy()
             ed_verts.reverse()
             return ed_verts
-        return [get_verts(epe,fwd) for epe,fwd in zip(self.lepedges,self.epedge_fwd)]
+        
+        loops = [[]]
+        for i, (epe,fwd) in enumerate(zip(self.lepedges,self.epedge_fwd)):
+
+            
+            epv_now = epe.epvert0 if fwd else epe.epvert3
+            epv_next = epe.epvert3 if fwd else epe.epvert0
+            vs = get_verts(epe, fwd)
+            
+            if epv_now in self.t_junctions:
+                if i == 0:
+                    #initialize an empty element
+                    loops = [[]]
+                    
+
+                loops[-1] += vs[1:]
+                if i == len(self.lepedges) - 1 and epv_next in self.t_junctions:
+                    
+                    loops[0] = loops[-1] + loops[0]
+                    loops.pop()
+            elif i == 0:
+
+                loops = [vs]
+            else:
+
+                loops += [vs]
+                
+            
+        print([len(lp)-1 for lp in loops])
+        return loops
     
-    def get_bme_vert_loop(self):
+    def get_bme_vert_loop(self): #TODO update for T-junctions, DONE, agnostic of T-junctinos
         def get_verts(epe,fwd):
             if fwd: return epe.edge_bmverts[0:len(epe.edge_bmverts)-1]
             ed_bmverts = epe.edge_bmverts.copy()
@@ -430,9 +518,9 @@ class EPPatch:
             return ed_bmverts[0:len(ed_bmverts)-1]
         return list(itertools.chain(*[get_verts(epe,fwd) for epe,fwd in zip(self.lepedges,self.epedge_fwd)]))
         
-    def get_corner_locations(self):
+    def get_corner_locations(self):#TODO update for T-junctions, DONE
         epvs = self.get_epverts()
-        return [epv.snap_pos for epv in epvs]
+        return [epv.snap_pos for epv in epvs if epv not in self.t_junctions]
     
     def info_display_pt(self):
         pts = self.get_epverts()
@@ -441,12 +529,16 @@ class EPPatch:
             center += 1/len(pts) * pt.snap_pos
         return center
     
-    def validate_patch_for_ILP(self):
+    def validate_patch_for_ILP(self): #TODO: Update for T-Junctions: DONE
         '''
         just check that the perimter is even
         '''
         perim_sum = sum([epe.subdivision for epe in self.lepedges])
+        N = len(self.get_edge_loops())
         if perim_sum % 2: return False
+        if N < 2: return False
+        if N > 6: return False
+        
         return True
     
     def hovered_2d(self,context,mouse_x,mouse_y):
@@ -463,14 +555,22 @@ class EPPatch:
     def ILP_initial_solve(self):
         if not self.validate_patch_for_ILP(): return
         self.patch = Patch()
-        self.L_sub = [ep.subdivision for ep in self.lepedges] 
-        self.patch.edge_subdivision = self.L_sub
+        self.L_sub_raw = [ep.subdivision for ep in self.lepedges] 
+        self.check_ts()
+        self.L_sub_eff = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
+        
+        
+        #TODO, check for T-Junctions!
+        self.patch.edge_subdivision = self.L_sub_eff
+        print('Effective subdivision is ' + str(self.L_sub_eff))
+        print('Raw subdivision is ' + str(self.L_sub_raw))
         self.patch.permute_and_find_first_solution()
         #sleep occasionally needed
-        self.patch.active_solution_index = 0
         L, rot_dir, pat, sol = self.patch.get_active_solution()
         print(sol)
         return
+    
+    
     def generate_geometry(self):
         '''
         this creates/refreshes a bmesh which exists
@@ -481,10 +581,11 @@ class EPPatch:
         
         if self.patch == None: return
         
-        N = len(self.get_corner_locations())
+        
         L, (n, fwd), pat, sol = self.patch.get_active_solution()
-        c_vs = self.get_corner_locations()
-        ed_loops = self.get_edge_loops()
+        c_vs = self.get_corner_locations() #TODO T-Junctions
+        N = len(c_vs)
+        ed_loops = self.get_edge_loops()  #TODO T-Junctions
         
         print('%i Sided Patch' % N)
         print('Solved by pattern # %i' % pat)
@@ -494,8 +595,8 @@ class EPPatch:
         print('Subdivisions by active solution')
         print(L)
         
-        #print('Subdivision by self.L_sub (lepedges)')
-        #print(self.L_sub)
+        print('Subdivision by self.L_sub_effective (lepedges)')
+        print(self.L_sub_eff)
         
         #print('Pre Corrected Subdivisions, derived from len(edge loops)')
         #print([len(loop)-1 for loop in ed_loops])
@@ -927,7 +1028,9 @@ class EdgePatches:
         
         epv0,epv1,epv2 = lepv[(ip1+c-1) % c], lepv[ip1], lepv[(ip1+1) % c]
         nl = (epv0.snap_pos - epv1.snap_pos).cross(epv2.snap_pos - epv1.snap_pos)
-        if epv1.snap_norm.dot(nl) < 0: return None
+        if epv1.snap_norm.dot(nl) < 0: 
+            print('snap_norm problem')
+            return None
         
         return loop
     
@@ -1042,12 +1145,12 @@ class EdgePatches:
                 continue
             
             l_sub = [epe.subdivision for epe in epp.lepedges]
-            if l_sub != epp.L_sub:  #TODO, this will reflect T junctions, but we need to find better marker
+            if l_sub != epp.L_sub_raw:  #TODO, this will reflect T junctions, but we need to find better marker for unchanged patches
                 print('update this patch')
                 epp_update.add(epp)
                 loops.remove(loop) #no longer needed to make new one, just update subdiv
         
-            elif l_sub == epp.L_sub:
+            elif l_sub == epp.L_sub_raw:
                 print('keep this patch the same')
                 loops.remove(loop) #no need to update or make new
                 if epp.live == False:
@@ -1061,7 +1164,7 @@ class EdgePatches:
             
         print('Created %d new patches' % len(loops))        
         for loop in loops:
-            if len(loop) < 2 or len(loop) > 6: continue
+            if len(loop) < 2 or len(loop) > 10: continue
             elif all([epe.from_bmesh for epe in loop]): continue  #for now, don't repatch loops
             epp = EPPatch(loop)
             self.eppatches.add(epp)
@@ -1109,7 +1212,7 @@ class EdgePatches:
         
         for epp in self.eppatches:
             if epp.patch == None: continue
-            if not epp.patch.all_solved:
+            if not epp.patch.all_solved and epp.patch.any_solved:
                 epp.patch.find_next_solution()
                 break
         totally_solved = [epp.patch.all_solved for epp in self.eppatches if epp.patch]

@@ -171,18 +171,7 @@ class EdgePatches_UI_Draw():
                 bgl.glVertex3f(*p1)
             bgl.glEnd()
 
-        ### EPVerts ###
-        for epvert in self.edgepatches.epverts:
-            if epvert.is_inner(): continue
-            
-            if epvert == self.act_epvert:
-                color = (color_active[0], color_active[1], color_active[2], 0.50)
-            else:
-                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
-            
-            draw3d_points([epvert.snap_pos], color, 8)
-        
-        
+       
         
         ### EPPatches ###
         for eppatch in self.edgepatches.eppatches:
@@ -260,6 +249,20 @@ class EdgePatches_UI_Draw():
             draw3d_polyline([p0,p1], color, 2, 'GL_LINE_SMOOTH', far=0.995)
             draw3d_polyline([p3,p2], color, 2, 'GL_LINE_SMOOTH', far=0.995)
 
+         ### EPVerts ###
+        for epvert in self.edgepatches.epverts:
+            if epvert.is_inner(): continue
+            
+            if epvert == self.act_epvert:
+                color = (color_active[0], color_active[1], color_active[2], 0.50)
+            
+            elif self.act_eppatch and epvert in self.act_eppatch.t_junctions:
+                color = (.9, .9, .2, 0.50)
+            else:
+                color = (color_inactive[0], color_inactive[1], color_inactive[2], 0.50)
+            
+            draw3d_points([epvert.snap_pos], color, 8)
+            
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
     

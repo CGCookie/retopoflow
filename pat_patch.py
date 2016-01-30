@@ -434,6 +434,7 @@ class Patch():
                 elif N == 2:
                     sol = PatchSolver2(perm, pat)
                 else:
+                    print('N is not valid')
                     return
                 
                 #print('solving permutation %i for pattern %i' % (i, pat))
@@ -506,10 +507,10 @@ class Patch():
             for perm in self.valid_perms:
                 print(perm)
             
-            return
+            return None, (None, None), None, None
         if n == -1:
             print('no valid solutions')
-            return
+            return None, (None, None), None, None
         
         L, rot_dir, pat, sol_dict = self.valid_perms[n], self.valid_rot_dirs[n], self.valid_patterns[n], self.valid_solutions[n]
         
