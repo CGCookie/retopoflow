@@ -1035,7 +1035,7 @@ class PatchAdjuster6():
                 else:
                     self.prob += PULP_vars[i] <= target_vars[i], "Soft Constraint" + str(i)
                     
-            add_constraints_6p2(self.prob, L, p0,p1,p2,p3,p4,p5,x,y)
+            add_constraints_6p2(self.prob, L,p0,p1,p2,p3,p4,p5,x,y,q0,q3)
         
         elif self.pattern == 3:
             PULP_vars = [p0,p1,p2,p3,p4,p5,x,y,z,q3]

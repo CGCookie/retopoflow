@@ -307,4 +307,17 @@ class EdgePatches_UI_ModalWait():
                 self.act_eppatch.patch.report()
                 return ''
             
+            elif eventd['press'] in {'T'}:
+                self.create_undo_snapshot('t_junction')
+                x,y = eventd['mouse']
+                self.sketch_brush.get_brush_world_size(eventd['context'])
+                if not self.sketch_brush.world_width: return ''
+                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                if not pts: return ''
+                
+                epv = self.edgepatches.toggle_t(self.act_eppatch, pts[0], self.sketch_brush.world_width)
+                self.edgepatches.smart_update_eppatches_network()
+                
+                return ''
+            
         return ''

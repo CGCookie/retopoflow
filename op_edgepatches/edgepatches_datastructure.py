@@ -283,7 +283,7 @@ class EPEdge:
         n = math.floor(L/self.quad_size)
         #print('meaning subdivisions are %d' % n)
         
-        self.subdivision = max(n,4)
+        self.subdivision = max(n,2)
         self.update(shape = False, subdiv = True, patches = False)
         self.quad_size = self.get_quad_size()
         #print('Now the quad size is %f' % self.quad_size)
@@ -418,7 +418,7 @@ class EPPatch:
             v0.normalize()
             v1.normalize()
             
-            parallel = abs(v0.dot(v1))
+            parallel = -v0.dot(v1)
             
             print('inner angle at this gvert is %f' % (180*inner_angle/math.pi))  
             print('the raw angle at this gvert is %f'% raw_angle)
@@ -456,7 +456,10 @@ class EPPatch:
         
         self.L_sub_raw = [ep.subdivision for ep in self.lepedges]
         self.check_ts()
-        self.L_sub_eff = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
+        new_lsub = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
+        if self.L_sub_eff != new_lsub:
+            self.ILP_initial_solve()
+        
         if self.patch and self.patch.active_solution_index != -1 and self.live:
             self.generate_geometry()
         else:
@@ -495,10 +498,7 @@ class EPPatch:
                     
 
                 loops[-1] += vs[1:]
-                if i == len(self.lepedges) - 1 and epv_next in self.t_junctions:
-                    
-                    loops[0] = loops[-1] + loops[0]
-                    loops.pop()
+
             elif i == 0:
 
                 loops = [vs]
@@ -507,6 +507,11 @@ class EPPatch:
                 loops += [vs]
                 
             
+            if i == len(self.lepedges) - 1 and epv_next in self.t_junctions:
+                    
+                loops[0] = loops[-1] + loops[0]
+                loops.pop()
+        
         print([len(lp)-1 for lp in loops])
         return loops
     
@@ -533,8 +538,9 @@ class EPPatch:
         '''
         just check that the perimter is even
         '''
-        perim_sum = sum([epe.subdivision for epe in self.lepedges])
-        N = len(self.get_edge_loops())
+        raw_subdiv = [epe.subdivision for epe in self.lepedges]
+        perim_sum = sum(raw_subdiv)
+        N = len(raw_subdiv) - len(self.t_junctions)
         if perim_sum % 2: return False
         if N < 2: return False
         if N > 6: return False
@@ -545,7 +551,8 @@ class EPPatch:
         reg = context.region
         rv3d = context.space_data.region_3d
         #if len(self.lepedges) == 2: #expensive, test all the verts
-        loop = chain(*self.get_edge_loops())
+        
+        loop = self.get_outer_points()
         #else: #Cheap, test the corners
         #    loop = [epv.snap_pos for epv in self.get_epverts()]
         loop_2d = [location_3d_to_region_2d(reg, rv3d, pt) for pt in loop if pt]
@@ -554,13 +561,11 @@ class EPPatch:
 
     def ILP_initial_solve(self):
         if not self.validate_patch_for_ILP(): return
-        self.patch = Patch()
-        self.L_sub_raw = [ep.subdivision for ep in self.lepedges] 
-        self.check_ts()
-        self.L_sub_eff = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
-        
+        self.patch = Patch()  #new patch starts off as not all solved
         
         #TODO, check for T-Junctions!
+        self.check_ts()
+        self.L_sub_eff = [len(loop) - 1 for loop in self.get_edge_loops()]
         self.patch.edge_subdivision = self.L_sub_eff
         print('Effective subdivision is ' + str(self.L_sub_eff))
         print('Raw subdivision is ' + str(self.L_sub_raw))
@@ -583,6 +588,11 @@ class EPPatch:
         
         
         L, (n, fwd), pat, sol = self.patch.get_active_solution()
+        
+        if sol == None:
+            print('no solution yet')
+            self.verts, self.faces, self.gdict = [], [], {}
+            return
         c_vs = self.get_corner_locations() #TODO T-Junctions
         N = len(c_vs)
         ed_loops = self.get_edge_loops()  #TODO T-Junctions
@@ -1317,6 +1327,34 @@ class EdgePatches:
         epv_split.update_epedges()
         return (epe0,epe1,epv_split)
 
+    def toggle_t(self, eppatch, pt, brush_width):
+        
+        def dist_fn(epv):
+            d = (epv.snap_pos-pt).length
+            return d
+        
+        best_epv = min(eppatch.get_epverts(), key = dist_fn)
+        
+        if dist_fn(best_epv) < brush_width:
+
+            if best_epv in eppatch.t_override:
+                eppatch.t_override[best_epv] = eppatch.t_override[best_epv] == False
+                if best_epv in eppatch.t_junctions:
+                    eppatch.t_junctions.remove(best_epv)
+                else:
+                    eppatch.t_junctions.add(best_epv)   
+            else:
+                if best_epv in eppatch.t_junctions:
+                    eppatch.t_junctions.remove(best_epv)
+                    eppatch.t_override[best_epv] = False
+                else:
+                    eppatch.t_override[best_epv] = True
+                    eppatch.t_junctions.add(best_epv)
+            
+            eppatch.update()
+        return ''
+    
+        
     def split_epedge_at_pt(self, epedge, pt, connect_epvert=None):
         
         if epedge.from_bmesh:
