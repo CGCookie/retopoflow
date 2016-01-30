@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from ..lib import common_utilities
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, closest_t_and_distance_point_to_line_segment
-from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between, rotate_items, point_inside_loop2d
+from ..lib.common_utilities import sort_objects_by_angles, delta_angles, vector_angle_between, rotate_items, point_inside_loop2d
 from ..lib.classes.profiler.profiler import profiler
 from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 
@@ -1042,7 +1042,7 @@ class EdgePatches:
                 continue
             
             l_sub = [epe.subdivision for epe in epp.lepedges]
-            if l_sub != epp.L_sub:
+            if l_sub != epp.L_sub:  #TODO, this will reflect T junctions, but we need to find better marker
                 print('update this patch')
                 epp_update.add(epp)
                 loops.remove(loop) #no longer needed to make new one, just update subdiv

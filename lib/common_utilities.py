@@ -783,6 +783,16 @@ def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
     return [l_objs[i] for i in l_inds]
 
+def delta_angles(vec_about, l_vecs):
+    '''
+    will find the difference betwen each element and the next element in the list
+    '''
+    
+    l_angles = [vector_angle_between(v0,v1,vec_about) for v0, v1 in zip(l_vecs[:-1] + [l_vecs[-1]],
+                                                                        l_vecs[1:]+[l_vecs[0]])]
+    return l_angles
+
+
 def rotate_items(loop):
     ''' rotates items in loop such that id(loop[0]) is the min '''
     im = loop.index(min(loop, key=lambda it:id(it)))
