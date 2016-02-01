@@ -23,6 +23,22 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bmesh
 from mathutils import Matrix
 
+#### Small Utils###
+def face_neighbors_by_edge(bmface):
+    neighbors = []
+    for ed in bmface.edges:
+        neighbors += [f for f in ed.link_faces if f != bmface]
+        
+    return neighbors
+
+def face_neighbors_by_vert(bmface):
+    neighbors = []
+    for v in bmface.verts:
+        neighbors += [f for f in v.link_faces if f != bmface]
+        
+    return neighbors
+
+
 def edge_loops_from_bmedges(bmesh, bm_edges, ret = {'VERTS'}):
     """
     args:
@@ -186,11 +202,13 @@ def find_face_loop(bme, ed, select = False):
         rev_tip.reverse()
 
         
-    else:
+    elif len(loop_faces) == 1:
         face_loop_fs = loop_faces[0]
         face_loop_eds = loop_eds[0]
 
-        
+    else:
+        face_loop_fs, face_loop_eds = [], []
+            
     return  face_loop_fs, face_loop_eds
 
 def find_edge_loop(bme, ed, select = False):
@@ -317,14 +335,14 @@ def find_edge_loop(bme, ed, select = False):
         
     return vert_loop_vs, edge_loop_eds
 
-def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expansion = 'EDGES'):
+def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expansion = 'EDGES', quad_only = True):
     '''
     bme - the bmesh which the edges belongs to
     edge_loop - list of BMEdge indices.  Not necessarily in order, possibly multiple edge loops
     strict - Bool
            False , not strict, returns all loops regardless of topology
            True  ,  loops must be connected by quads only
-        Only returns  if the parallel loops are exactly the same length as original loop
+            Only returns  if the parallel loops are exactly the same length as original loop
         
     trim_tails - will trim p shaped loops or figure 8 loops
     
@@ -333,6 +351,8 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expan
                 'VERTS'  - a single edge loop within a mesh will return
                            a single edge loop around the single loop
                            only use with strict = False
+    
+    quad_only  - Allow for generic edge loop expansion in triangle meshes if False
     
     returns a dictionary  with keys 'VERTS' 'EDGES' 'FACES'.  geom_dict
     
@@ -360,12 +380,20 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expan
         orig_eds = set(ed_inds)
         #find all the faces directly attached to this edge loop
         all_faces = set()
-        if expansion == 'EDGES':
+        
+        if quad_only:
+            if expansion == 'EDGES':
+                for e_ind in ed_inds:
+                    all_faces.update([f.index for f in bme.edges[e_ind].link_faces if len(f.verts) == 4])
+                
+            elif expansion == 'VERTS':
+                for v_ind in v_inds:
+                    all_faces.update([f.index for f in bme.verts[v_ind].link_faces if len(f.verts) == 4])
+                
+        else:
             for e_ind in ed_inds:
-                all_faces.update([f.index for f in bme.edges[e_ind].link_faces if len(f.verts) == 4])
-        elif expansion == 'VERTS':
-            for v_ind in v_inds:
-                all_faces.update([f.index for f in bme.verts[v_ind].link_faces if len(f.verts) == 4])
+                for v in bme.edges[e_ind].verts:            
+                    all_faces.update([f.index for f in v.link_faces])
         
         #find all the edges perpendicular to this edge loop
         perp_eds = set()
@@ -374,12 +402,20 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expan
         
         
         parallel_eds = []
-        for f_ind in all_faces:
-            parallel_eds += [ed.index for ed in bme.faces[f_ind].edges if 
+        
+        if quad_only:
+            for f_ind in all_faces:
+                parallel_eds += [ed.index for ed in bme.faces[f_ind].edges if 
                              ed.index not in perp_eds and ed.index not in orig_eds
                              and not (all([f.index in all_faces for f in ed.link_faces]) and trim_tails)]
+        else:
+            for f_ind in all_faces:
+                parallel_eds += [ed.index for ed in bme.faces[f_ind].edges if
+                                 ed.index not in orig_eds
+                                 and not all([f.index in all_faces for f in ed.link_faces])]
         
-        
+            print('Triangle Problems ')
+            print(parallel_eds)
         #sort them!    
         parallel_loops =  edge_loops_from_bmedges(bme, parallel_eds, ret = {'VERTS','EDGES'})   
         
@@ -521,6 +557,167 @@ def find_edge_loops(bme, sel_vert_corners, select = False, max_chain = 20, max_i
     
     return loops
 
+def face_region_boundary_loops(bme, sel_faces):
+    '''
+    bme - BMesh object
+    sel_faces:  list of face indices
+    
+    '''
+    face_set = set(sel_faces)
+    edges_raw = [ed.index for ed in bme.edges if ed.select and len([f.index for f in ed.link_faces if f.index in face_set]) == 1]
+    
+    geom_dict = edge_loops_from_bmedges(bme, edges_raw, ret={'VERTS','EDGES'})
+    
+    return geom_dict
+     
+def grow_selection_between_faces(bme, start_face, stop_face, max_iters = 1000, reverse = False):
+    '''
+    Takes a face pair, expands topologically from start_face untilthe stop_face is reached.
+    
+    if reverse, it will do the search in reverse, to trimm off excess faces which expanded
+    the other direction.
+    '''
+
+    total_selection = set([start_face])
+    new_faces = set(face_neighbors_by_vert(start_face))
+    
+    if stop_face in new_faces:
+        total_selection |= new_faces
+        return total_selection
+    
+    iters = 0
+    while iters < max_iters and stop_face not in new_faces:
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors_by_vert(f))
+        
+        new_faces = candidates - total_selection   
+        if new_faces:
+            total_selection |= new_faces
+             
+    if iters == max_iters:
+        print('max iterations reached in initial growing')   
+        return total_selection
+    
+    if not reverse:
+        return total_selection
+
+
+    overlapped_selection = set([stop_face])
+    new_faces = set(face_neighbors_by_vert(stop_face)) & total_selection
+    overlapped_selection |= new_faces
+    
+    iters = 0
+    while iters < max_iters and start_face not in new_faces:
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors_by_vert(f))
+        
+        new_faces = (candidates & total_selection) - overlapped_selection 
+        if new_faces:
+            overlapped_selection |= new_faces
+             
+    if iters == max_iters:
+        print('max iterations reached in trim operation')   
+        return overlapped_selection
+    
+    return overlapped_selection
+
+
+def grow_selection_between_faces2(bme, face1, face2, max_iters = 1000, trim = True):
+    '''
+    Takes a face pair, expands topologically from both faces until the the two regions meet
+    
+    
+    if trim, it will do the search in from one to the other, to trim off excess faces.
+    '''
+
+    
+    
+    set1 = set([face1])
+    set2 = set([face2])
+    
+    
+    new_faces1 = set(face_neighbors_by_vert(face1))
+    new_faces2 = set(face_neighbors_by_vert(face2))
+    
+    if new_faces1 & new_faces2:
+        return new_faces1 | new_faces2 
+    
+    iters = 0
+    while iters < max_iters and (new_faces1 or new_faces2):
+        iters += 1
+        candidates1 = set()
+        candidates2 = set()
+        
+        for f in new_faces1:
+            candidates1.update(face_neighbors_by_vert(f))
+        
+        new_faces1 = candidates1 - set1   
+        if new_faces1:
+            set1 |= new_faces1
+        
+        for f in new_faces2:
+            candidates2.update(face_neighbors_by_vert(f))
+        
+        new_faces2 = candidates2 - set2   
+        if new_faces2:
+            set2 |= new_faces2
+            
+        if new_faces1 & new_faces2:
+            print('overlap found')
+            set1 |= set2
+            break
+             
+    if iters == max_iters:
+        print('max iterations reached')   
+        return set1 | set2
+    
+    if not trim:
+        return set1
+
+
+    overlapped_selection = set([face1])
+    new_faces = set(face_neighbors_by_vert(face1)) & set1
+    overlapped_selection |= new_faces
+    
+    iters = 0
+    while iters < max_iters and face2 not in new_faces:
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors_by_vert(f))
+        
+        new_faces = (candidates & set1) - overlapped_selection 
+        if new_faces:
+            overlapped_selection |= new_faces
+             
+    if iters == max_iters:
+        print('max iterations reached in trim1')   
+        return overlapped_selection
+    
+    final_selection = set([face2])
+    new_faces = set(face_neighbors_by_vert(face2)) & overlapped_selection
+    iters = 0
+    while iters < max_iters and face1 not in new_faces:
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors_by_vert(f))
+        
+        new_faces = (candidates & overlapped_selection) - final_selection 
+        if new_faces:
+            final_selection |= new_faces
+             
+    if iters == max_iters:
+        print('max iterations reached in trim1')   
+        return overlapped_selection
+    
+    return final_selection
+
+
 def loops_from_edge_net(bme):
     ''' not implemented yet'''
     
@@ -650,19 +847,7 @@ def find_perimeter_verts(bme):
         return perim[n:] + perim[:n]
 
 
-def face_neighbors_by_edge(bmface):
-    neighbors = []
-    for ed in bmface.edges:
-        neighbors += [f for f in ed.link_faces if f != bmface]
-        
-    return neighbors
 
-def face_neighbors_by_vert(bmface):
-    neighbors = []
-    for v in bmface.verts:
-        neighbors += [f for f in v.link_faces if f != bmface]
-        
-    return neighbors
 def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
     '''
     bme - bmesh
