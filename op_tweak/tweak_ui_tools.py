@@ -180,7 +180,7 @@ class Tweak_UI_Tools():
                     divco[bmv.index] += diff * m
         
         for i in divco:
-            bmverts[i].co = mx * bvh.find(imx*divco[i])[0]
+            bmverts[i].co = mx * bvh.find_nearest(imx*divco[i])[0]
         
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         

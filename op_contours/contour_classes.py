@@ -1046,7 +1046,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 if bvh:
                     imx = mx.inverted()
                     for i, vert in enumerate(segment):
-                        snap = bvh.find(imx * vert)
+                        snap = bvh.find_nearest(imx * vert)
                         segment[i] = mx * snap[0]
             
             self.world_path.extend(segment)
@@ -1061,14 +1061,14 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         imx = mx.inverted()
         if raw and len(self.raw_world):
             for i, vert in enumerate(self.raw_world):
-                snap = bvh.find(imx * vert)
+                snap = bvh.find_nearest(imx * vert)
                 self.raw_world[i] = mx * snap[0]
                    
         if world and len(self.world_path):
             #self.path_normals = []
             #self.path_seeds = []
             for i, vert in enumerate(self.world_path):
-                snap = bvh.find(imx * vert)
+                snap = bvh.find_nearest(imx * vert)
                 self.world_path[i] = mx * snap[0]
                 #self.path_normals.append(mx.to_3x3() * snap[1])
                 #self.path_seeds.append(snap[2])
@@ -1077,7 +1077,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             self.cut_point_normals = []
             self.cut_point_seeds = []
             for i, vert in enumerate(self.cut_points):
-                snap = bvh.find(imx * vert)
+                snap = bvh.find_nearest(imx * vert)
                 self.cut_points[i] = mx * snap[0]
                 self.cut_point_normals.append(mx.to_3x3() * snap[1])
                 self.cut_point_seeds.append(snap[2])
@@ -1264,7 +1264,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         for i, cut in enumerate(self.cuts):
             
             pt = cut.verts_simple[0]
-            snap = bvh.find(imx * pt)
+            snap = bvh.find_nearest(imx * pt)
             seed = snap[2]
             surface_no = imx.transposed() * snap[1]
             
@@ -1289,7 +1289,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = bvh.find(imx * cast_point)[0]
+                    cast_sfc = bvh.find_nearest(imx * cast_point)[0]
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -1314,7 +1314,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = bvh.find(imx * cast_point)[0]
+                    cast_sfc = bvh.find_nearest(imx * cast_point)[0]
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -1357,7 +1357,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             diag = contour_utilities.diagonal_verts(cut.verts_simple)
     
             cast_point = cut.verts_simple[0] + diag * cut.plane_no
-            cast_sfc = bvh.find(imx * cast_point)[0]
+            cast_sfc = bvh.find_nearest(imx * cast_point)[0]
             vertebra3d = [cast_sfc, cut.verts_simple[0]]
         
         self.backbone.append(vertebra3d)
@@ -1373,7 +1373,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         imx = mx.inverted()
         ind = self.cuts.index(cut)
         pt = cut.verts_simple[0]
-        snap = bvh.find(imx * pt)
+        snap = bvh.find_nearest(imx * pt)
         seed = snap[2]
         surface_no = imx.transposed() * snap[1]
         
@@ -1393,7 +1393,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 diag = contour_utilities.diagonal_verts(self.cuts[0].verts_simple)
         
                 cast_point = self.cuts[0].verts_simple[0] - diag * self.cuts[0].plane_no
-                cast_sfc = bvh.find(imx * cast_point)[0]
+                cast_sfc = bvh.find_nearest(imx * cast_point)[0]
                 vertebra3d = [cast_sfc, self.cuts[0].verts_simple[0]]
             
             self.backbone.pop(0)
@@ -1456,7 +1456,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             else:
                 diag = contour_utilities.diagonal_verts(cut.verts_simple)
                 cast_point = cut.verts_simple[0] + diag * cut.plane_no
-                cast_sfc = bvh.find(imx * cast_point)[0]
+                cast_sfc = bvh.find_nearest(imx * cast_point)[0]
                 vertebra3d = [cast_sfc, cut.verts_simple[0]]
             
             if not insert:

@@ -243,10 +243,10 @@ class GVert:
             self.corner2.x = max(0.0, self.corner2.x)
             self.corner3.x = max(0.0, self.corner3.x)
         
-        self.corner0 = mx * bvh.find(imx*self.corner0)[0]  #todo...error?
-        self.corner1 = mx * bvh.find(imx*self.corner1)[0]
-        self.corner2 = mx * bvh.find(imx*self.corner2)[0]
-        self.corner3 = mx * bvh.find(imx*self.corner3)[0]
+        self.corner0 = mx * bvh.find_nearest(imx*self.corner0)[0]  #todo...error?
+        self.corner1 = mx * bvh.find_nearest(imx*self.corner1)[0]
+        self.corner2 = mx * bvh.find_nearest(imx*self.corner2)[0]
+        self.corner3 = mx * bvh.find_nearest(imx*self.corner3)[0]
         
         if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
@@ -273,7 +273,7 @@ class GVert:
         mx3x3 = mx.to_3x3()
         
         if not self.frozen:
-            l,n,i, d = bvh.find(imx*self.position)
+            l,n,i, d = bvh.find_nearest(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
             self.position = self.snap_pos
@@ -803,7 +803,7 @@ class GEdge:
         bvh = mesh_cache['bvh']
         imx = mx.inverted()
         p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/precision) for t in range(precision+1)]
-        p3d = [mx*bvh.find(imx * p)[0] for p in p3d]
+        p3d = [mx*bvh.find_nearest(imx * p)[0] for p in p3d]
         return sum((p1-p0).length for p0,p1 in zip(p3d[:-1],p3d[1:]))
         #return cubic_bezier_length(p0,p1,p2,p3)
     
@@ -942,13 +942,13 @@ class GEdge:
             mx3x3  = mx.to_3x3()
             imx    = mx.inverted()
             p3d      = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
-            snap     = [bvh.find(imx*p) for p in p3d]
+            snap     = [bvh.find_nearest(imx*p) for p in p3d]
             snap_pos = [mx*pos for pos,norm,idx,d in snap]
             bez = cubic_bezier_fit_points(snap_pos, min(r0,r3)/20, allow_split=False)
             if bez:
                 _,_,p0,p1,p2,p3 = bez[0]
-                _,n1,_,_ = bvh.find(imx*p1)
-                _,n2,_,_ = bvh.find(imx*p2)
+                _,n1,_,_ = bvh.find_nearest(imx*p1)
+                _,n2,_,_ = bvh.find_nearest(imx*p2)
                 n1 = mxnorm*n1
                 n2 = mxnorm*n2
         
@@ -1082,7 +1082,7 @@ class GEdge:
         imx = mx.inverted()
         
         for igv in self.cache_igverts:
-            l,n,i,d = bvh.find(imx * igv.position)
+            l,n,i,d = bvh.find_nearest(imx * igv.position)
             igv.position = mx * l
             
             if Polystrips.settings.symmetry_plane == 'x':
@@ -1291,7 +1291,7 @@ class GPatch:
         ge0,ge1,ge2 = self.gedges
         rev0,rev1,rev2 = self.rev
         bvh = mesh_cache['bvh']
-        closest_point_on_mesh = bvh.find
+        closest_point_on_mesh = bvh.find_nearest
         sz0,sz1,sz2 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -1392,7 +1392,7 @@ class GPatch:
         bvh = mesh_cache['bvh']
         ge0,ge1,ge2,ge3 = self.gedges
         rev0,rev1,rev2,rev3 = self.rev
-        closest_point_on_mesh = bvh.find
+        closest_point_on_mesh = bvh.find_nearest
         sz0,sz1,sz2,sz3 = [len(ge.cache_igverts) for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -1478,7 +1478,7 @@ class GPatch:
         bvh = mesh_cache['bvh']
         ge0,ge1,ge2,ge3,ge4 = self.gedges
         rev0,rev1,rev2,rev3,rev4 = self.rev
-        closest_point_on_mesh = bvh.find
+        closest_point_on_mesh = bvh.find_nearest
         sz0,sz1,sz2,sz3,sz4 = [(len(ge.cache_igverts)-1)//2 -1 for ge in self.gedges]
         
         # defer update for a bit (counts don't match up!)
@@ -2324,8 +2324,8 @@ class Polystrips(object):
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-                                p2 = mx * bvh.find(imx*p2)[0]
-                                p3 = mx * bvh.find(imx*p3)[0]
+                                p2 = mx * bvh.find_nearest(imx*p2)[0]
+                                p3 = mx * bvh.find_nearest(imx*p3)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = insert_vert(p3)
                             
@@ -2369,12 +2369,12 @@ class Polystrips(object):
                         else:
                             if ge.zip_side*ge.zip_dir == 1:
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-                                p3 = mx * bvh.find(imx*p3)[0]
+                                p3 = mx * bvh.find_nearest(imx*p3)[0]
                                 cc3 = insert_vert(p3)
                                 cc2 = lzvind[i_z]
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
-                                p2 = mx * bvh.find(imx*p2)[0]
+                                p2 = mx * bvh.find_nearest(imx*p2)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = lzvind[i_z]
                         

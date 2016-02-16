@@ -158,7 +158,7 @@ class LoopCut(object):
                 self.vert_snaps_local += [v]
                 self.vert_snaps_world += [mx_trg * v]
             else:
-                loc, no, indx, d = self.src_bvh.find(imx_src * mx_trg * v)
+                loc, no, indx, d = self.src_bvh.find_nearest(imx_src * mx_trg * v)
                 self.vert_snaps_local += [imx_trg * mx_src * loc]
                 self.vert_snaps_world += [mx_src * loc]
        
