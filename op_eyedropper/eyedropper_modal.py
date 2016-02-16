@@ -103,7 +103,7 @@ class  CGC_EyeDropper(ModalOperator):
         view_vector = region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * ray_max)
-        result, ob, mx, loc, normal = scene.ray_cast(ray_origin, ray_target)
+        result, loc, normal, idx, ob, mx = scene.ray_cast(ray_origin, ray_target)
         
         if result:
             self.ob = ob
