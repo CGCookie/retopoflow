@@ -97,8 +97,13 @@ def print_exception():
     
     print(errormsg)
     print_exception.count += 1
+
+    # write error to log text object
+    bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
+
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
+
 print_exception.count = 0
 
 def print_exception2():
