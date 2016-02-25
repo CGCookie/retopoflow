@@ -216,6 +216,8 @@ class Polystrips_UI:
                 self.dest_obj.data.user_clear()
                 bpy.data.meshes.remove(self.dest_obj.data)
                 bpy.data.objects.remove(self.dest_obj)
+            elif context.mode == 'EDIT_MESH':
+                bpy.ops.mesh.reveal()
 
     ###############################
     # undo functions
