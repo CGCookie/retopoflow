@@ -1,6 +1,6 @@
 
 '''
-Copyright (C) 2015 CG Cookie
+Copyright (C) 2016 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
