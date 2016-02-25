@@ -32,6 +32,16 @@ The tool works by hand-drawing strokes on to the high-resolution object. The str
  - 3, 4, and 5-sided patch creation from connected polystrips
    - Automatic segment updating with corresponding polystrips
 
+## Polypen ~[Polypen Icon](/icons/polypen_32.png)
+The Polypen tool is for when you need absolute control over geometry positioning, enabling you to create triangles, quads, and NGons quickly. The tool is selection aware, making it very quick to create new geometry without having to constantly adjust your selection or tool.
+
+### Polypen Features:
+ - Insert new vertices with single click
+ - Create a face from selected edge in single click
+ - Insert vertices into existing edges
+ - Dissolve edges
+ - Tweak vertices, edges, or faces with click+drag
+
 ## Tweak ![Tweak Icon](/icons/tweak_32.png)
 The Tweak tool enables easy, brush-based geometry tweaking; enabling the artist to manipulate vertices of a mesh with an adjustable brush (much like sculpting). This yields very fast, and intutitive mesh adjustments that don't require any selection.
 
