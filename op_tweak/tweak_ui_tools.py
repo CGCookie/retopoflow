@@ -182,8 +182,11 @@ class Tweak_UI_Tools():
                     divco[bmv.index] += diff * m
         
         for i in divco:
-            bmverts[i].co = bvh.find(divco[i])[0]
-        
+            if bversion() <= '002.076.000':
+                bmverts[i].co = bvh.find(divco[i])[0]
+            else:
+                bmverts[i].co = bvh.find_nearest(divco[i])[0]
+
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         self.tar_bmeshrender.dirty()
         
