@@ -895,6 +895,28 @@ class CGC_Polypen(ModalOperator):
             if self.nearest_bmedge in bmf.edges:
                 self.select()
                 return self.handle_action_selnothing(context, eventd)
+            lbmv_common = [v for v in self.nearest_bmedge.verts if v in bmf.verts]
+            if len(lbmv_common) == 1:
+                # lbmv_common is list of shared verts between the selected face
+                # and the hovered edge.  since 1 is shared, then we need to bridge
+                # between face and hovered edge
+                bmv_shared = lbmv_common[0]
+                bmv_opposite = self.nearest_bmedge.other_vert(bmv_shared)
+                
+                # find which edge to split
+                lbme = [bme for bme in bmf.edges if bmv_shared in bme.verts]
+                bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+                
+                # split edge
+                _,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+                
+                # merge new bmvert into bmv_opposite
+                bmesh.utils.vert_splice(bmv, bmv_opposite)
+                lbme = [bme for bme in bmv_opposite.link_edges if bme != self.nearest_bmedge]
+                self.set_selection(lbmv=[bmv_opposite],lbme=lbme)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
         if self.hover_face():
             if self.nearest_bmface == bmf:
                 self.select()
@@ -1124,6 +1146,7 @@ class CGC_Polypen(ModalOperator):
     
     def handle_insert_vert_nearest(self, context, eventd):
         """insert nearest vert into closest selected bmedge"""
+        
         rgn,r3d = context.region,context.space_data.region_3d
         
         p3d = self.nearest_bmvert.co
