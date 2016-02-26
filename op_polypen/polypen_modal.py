@@ -895,6 +895,7 @@ class CGC_Polypen(ModalOperator):
             if self.nearest_bmedge in bmf.edges:
                 self.select()
                 return self.handle_action_selnothing(context, eventd)
+            
             lbmv_common = [v for v in self.nearest_bmedge.verts if v in bmf.verts]
             if len(lbmv_common) == 1:
                 # lbmv_common is list of shared verts between the selected face
@@ -909,14 +910,17 @@ class CGC_Polypen(ModalOperator):
                 
                 # split edge
                 _,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+                bmv_other = [bmv_ for bme_ in bmv.link_edges for bmv_ in bme_.verts if bmv_ != bmv_shared and bmv_ != bmv][0]
                 
                 # merge new bmvert into bmv_opposite
                 bmesh.utils.vert_splice(bmv, bmv_opposite)
-                lbme = [bme for bme in bmv_opposite.link_edges if bme != self.nearest_bmedge]
+                lbme = [bme_ for bme_ in bmv_opposite.link_edges if bme_.other_vert(bmv_opposite) == bmv_other]
+                #lbme = [bme for bme in bmv_opposite.link_edges if bme != self.nearest_bmedge]
                 self.set_selection(lbmv=[bmv_opposite],lbme=lbme)
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
                 return 'move vert'
+                
         if self.hover_face():
             if self.nearest_bmface == bmf:
                 self.select()
