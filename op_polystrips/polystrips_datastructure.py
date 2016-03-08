@@ -1248,11 +1248,13 @@ class GEdge:
                 hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
                 if hit:
                     lr,nr,_,dr = hit
-                    d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
-                    dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
-                    if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
-                        # seems reasonable enough
-                        l,n = lr,nr
+                    if nr:
+                        dprint('nr not None')
+                        d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
+                        dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
+                        if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
+                            # seems reasonable enough
+                            l,n = lr,nr
             
             igv.position = mx * l
             

@@ -446,7 +446,7 @@ class Polystrips_UI_Draw():
         color_fill = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
         
 
-        if self.fsm_mode == 'sketch':
+        if self.fsm_mode == 'sketch' and self.sketch:
             # Draw smoothing line (end of sketch to current mouse position)
             common_drawing_px.draw_polyline_from_points(context, [self.sketch_curpos, self.sketch[-1][0]], color_active, 1, "GL_LINE_SMOOTH")
 
@@ -483,7 +483,7 @@ class Polystrips_UI_Draw():
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 else:
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
-            if self.fsm_mode == 'sketch':
+            if self.fsm_mode == 'sketch' and self.sketch:
                 ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != None:

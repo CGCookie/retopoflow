@@ -104,6 +104,8 @@ def print_exception():
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
 
+    return errormsg
+
 print_exception.count = 0
 
 def print_exception2():
