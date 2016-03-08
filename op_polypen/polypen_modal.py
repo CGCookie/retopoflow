@@ -445,6 +445,7 @@ class CGC_Polypen(ModalOperator):
                         if not share_edge and not share_face:
                             # merge!!!
                             bmesh.utils.vert_splice(bmv0, bmv1)
+                            self.clean_duplicate_bmedges(bmv1)
                             self.set_selection(lbmv=[bmv1])
                             self.clear_nearest()
                             self.clean_bmesh()
@@ -895,6 +896,33 @@ class CGC_Polypen(ModalOperator):
             if self.nearest_bmedge in bmf.edges:
                 self.select()
                 return self.handle_action_selnothing(context, eventd)
+            
+            lbmv_common = [v for v in self.nearest_bmedge.verts if v in bmf.verts]
+            if len(lbmv_common) == 1:
+                # lbmv_common is list of shared verts between the selected face
+                # and the hovered edge.  since 1 is shared, then we need to bridge
+                # between face and hovered edge
+                bmv_shared = lbmv_common[0]
+                bmv_opposite = self.nearest_bmedge.other_vert(bmv_shared)
+                
+                # find which edge to split
+                lbme = [bme for bme in bmf.edges if bmv_shared in bme.verts]
+                bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+                
+                # split edge
+                _,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+                bmv_other = [bmv_ for bme_ in bmv.link_edges for bmv_ in bme_.verts if bmv_ != bmv_shared and bmv_ != bmv][0]
+                
+                # merge new bmvert into bmv_opposite
+                bmesh.utils.vert_splice(bmv, bmv_opposite)
+                #lbme = [bme for bme in bmv_opposite.link_edges if bme != self.nearest_bmedge]
+                self.clean_duplicate_bmedges(bmv_opposite)
+                lbme = [bme_ for bme_ in bmv_opposite.link_edges if bme_.other_vert(bmv_opposite) == bmv_other]
+                self.set_selection(lbmv=[bmv_opposite],lbme=lbme)
+                self.clear_nearest()
+                self.tar_bmeshrender.dirty()
+                return 'move vert'
+                
         if self.hover_face():
             if self.nearest_bmface == bmf:
                 self.select()
@@ -903,6 +931,23 @@ class CGC_Polypen(ModalOperator):
         return self.handle_bridge_nearest(context, eventd)
     
     
+    
+    def clean_duplicate_bmedges(self, bmv):
+        # search for two edges between the same pair of verts
+        lbme = list(bmv.link_edges)
+        lbme_dup = []
+        for i0,bme0 in enumerate(lbme):
+            for i1,bme1 in enumerate(lbme):
+                if i1 <= i0: continue
+                if bme0.other_vert(bmv) == bme1.other_vert(bmv):
+                    lbme_dup += [(bme0,bme1)]
+        for bme0,bme1 in lbme_dup:
+            #if not bme0.is_valid or bme1.is_valid: continue
+            # remove bme1 and recreate attached faces
+            assert len(bme0.link_faces) == 1 or len(bme1.link_faces) == 1, 'unhandled count of linked faces %d, %d'%(len(bme0.link_faces),len(bme1.link_faces))
+            lbmv = list(bme1.link_faces[0].verts)
+            self.tar_bmesh.edges.remove(bme1)
+            self.create_face(lbmv)
     
     ######################################
     # action handler helpers
@@ -1124,6 +1169,7 @@ class CGC_Polypen(ModalOperator):
     
     def handle_insert_vert_nearest(self, context, eventd):
         """insert nearest vert into closest selected bmedge"""
+        
         rgn,r3d = context.region,context.space_data.region_3d
         
         p3d = self.nearest_bmvert.co
@@ -1139,6 +1185,7 @@ class CGC_Polypen(ModalOperator):
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         lbme = bmv.link_edges
         bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
+        self.clean_duplicate_bmedges(self.nearest_bmvert)
         self.set_selection(lbmv=[self.nearest_bmvert],lbme=lbme)
         self.clear_nearest()
         self.clean_bmesh()
@@ -1150,6 +1197,7 @@ class CGC_Polypen(ModalOperator):
         llbmv = [[bmv for bmv in bmf.verts if bmv != bmv0] for bmf in bme.link_faces]
         self.tar_bmesh.edges.remove(bme)
         bmesh.utils.vert_splice(bmv0, bmv1)
+        #self.clean_duplicate_bmedges(bmv1)
         for lbmv in llbmv:
             if len(lbmv) > 2:
                 self.tar_bmesh.faces.new(lbmv)
@@ -1302,6 +1350,7 @@ class CGC_Polypen(ModalOperator):
             if self.nearest_bmvert:
                 # merge bmv into nearest_bmvert
                 bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
+                self.clean_duplicate_bmedges(self.nearest_bmvert)
                 bmv = self.nearest_bmvert
                 lbme = [e for e in sbmf[0].edges if bmv in e.verts and len(e.link_faces) != 2]
             else:
