@@ -6,7 +6,7 @@ DRAWING:
 - A: deselect all
 
 MERGE / DELETE / DISSOLVE:
-- D: dissolve selected edge
+- CTRL+D: dissolve selected edge
 - X: delete selection
 
 CONFIRM / CANCEL:
