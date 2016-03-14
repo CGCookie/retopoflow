@@ -67,5 +67,6 @@ print("(Currently only checks if different, not if one greater than another)")
 
 print("----------- test getting a local copy of repo")
 my_updater.stage_repository(link) # improvements still to be made
+print("(created new staging folder, at location: ",my_updater._stage_path,")")
 # at the moment, just downloads as zip, doesnt' extract just yet
 

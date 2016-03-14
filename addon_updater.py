@@ -227,7 +227,7 @@ class Updater(object):
 		if os.path.isdir(local) == True:
 			# try/except for permission errors or other OS errors!
 			try:
-				# shutil.rmtree(local)
+				shutil.rmtree(local)
 				print("remove?")
 			except:
 				print("Error, couldn't remove existing staging directory")
