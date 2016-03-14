@@ -12,8 +12,8 @@ verison file to compare.
 
 # current status
 - [x] get list of tags
-- [ ] get pretend comparison string/tuple (as if loaded in addon, but now just CMI)
-- [ ] download update (into another folder for now)
+- [x] get pretend comparison string/tuple (as if loaded in addon, but now just CMI)
+- [x] download update (into another folder for now)
 - [ ] GitHub: check for when we are getting too many request per hour (60?)
 --  > it gets blocked, so detec that specific html error/response
 
