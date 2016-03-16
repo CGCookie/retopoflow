@@ -5,6 +5,7 @@ Created on Jul 11, 2015
 '''
 
 from ..lib import common_utilities
+from ..lib.common_utilities import bversion
 from ..modaloperator import ModalOperator
 from ..preferences import RetopoFlowPreferences
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d, region_2d_to_vector_3d
@@ -103,8 +104,12 @@ class  CGC_EyeDropper(ModalOperator):
         view_vector = region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * ray_max)
-        result, ob, mx, loc, normal = scene.ray_cast(ray_origin, ray_target)
-        
+
+        if bversion() <= '002.076.000':
+            result, ob, mx, loc, normal = scene.ray_cast(ray_origin, ray_target)
+        else:
+            result, loc, normal, idx, ob, mx = scene.ray_cast(ray_origin, ray_target)
+
         if result:
             self.ob = ob
             self.ob_preview = ob.name

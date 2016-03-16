@@ -97,7 +97,6 @@ class Tweak_UI:
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
-        self.stroke_radius_pressure = 0.01 * self.length_scale
         # Screen_stroke_radius
         self.screen_stroke_radius = 20  # TODO, hood to settings
 

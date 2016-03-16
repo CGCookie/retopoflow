@@ -1,6 +1,6 @@
 
 '''
-Copyright (C) 2015 CG Cookie
+Copyright (C) 2016 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -24,10 +24,10 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 1, 3),
+    "version":     (1, 2, 0),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
-    "warning":     "",  # used for warning icon and text in addons panel
+    "warning":     "Beta",  # used for warning icon and text in addons panel
     "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"

@@ -453,14 +453,6 @@ class Polystrips_UI_Draw():
             # Draw sketching stroke
             common_drawing_px.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
 
-            # Report pressure reading
-            if settings.use_pressure:
-                info = str(round(self.sketch_pressure,3))
-                txt_width, txt_height = blf.dimensions(0, info)
-                d = self.sketch_brush.pxl_rad
-                blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
-                blf.draw(0, info)
-
         if self.fsm_mode in {'scale tool','rotate tool'}:
             # Draw a scale/rotate line from tool origin to current mouse position
             common_drawing_px.draw_polyline_from_points(context, [self.action_center, self.mode_pos], (0, 0, 0, 0.5), 1, "GL_LINE_STIPPLE")
@@ -479,10 +471,8 @@ class Polystrips_UI_Draw():
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
-                if settings.use_pressure:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-                else:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+
             if self.fsm_mode == 'sketch':
                 ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
@@ -491,10 +481,7 @@ class Polystrips_UI_Draw():
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
-                    if settings.use_pressure:
-                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-                    else:
-                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if self.hover_ed and False:  #EXTEND  to display hoverable edges
             color = (color_selection[0], color_selection[1], color_selection[2], 1.00)

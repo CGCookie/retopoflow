@@ -97,8 +97,13 @@ def print_exception():
     
     print(errormsg)
     print_exception.count += 1
+
+    # write error to log text object
+    bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
+
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
+
 print_exception.count = 0
 
 def print_exception2():
@@ -334,7 +339,12 @@ def ray_cast_path(context, ob, screen_coords):
         rays = [(get_ray_origin(ray_o, ray_v, ob),get_ray_origin(ray_o, -ray_v, ob)) for ray_o,ray_v in rays]
     
     hits = [ob.ray_cast(imx * ray_o, imx * ray_v) for ray_o,ray_v in rays]
-    world_coords = [mx*co for co,no,face in hits if face != -1]
+
+    if bversion() <= '002.076.000':
+        world_coords = [mx*co for co,no,face in hits if face != -1]
+    else:
+        world_coords = [mx*co for ok,co,no,face in hits if ok]
+
     return world_coords
 
 def ray_cast_path_bvh(context, bvh, mx, screen_coords):
@@ -375,9 +385,9 @@ def ray_cast_point_bvh(context, bvh, mx, screen_coord):
 
 def ray_cast_stroke(context, ob, stroke):
     '''
-    strokes have form [((x,y),p)] with a pressure or radius value
+    strokes have form [((x,y),p)] with a radius value
     
-    returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
+    returns list [Vector(x,y,z), p] leaving the radius value untouched
     does drop any values that do not successfully ray_cast
     '''
     rgn  = context.region
@@ -397,15 +407,19 @@ def ray_cast_stroke(context, ob, stroke):
     
     sten = [(imx*(o-mult*back*d), imx*(o+mult*d)) for o,d in rays]
     hits = [ob.ray_cast(st,st+(en-st)*1000) for st,en in sten]
-    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
-    
+
+    if bversion() <= '002.076.000':
+        world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != -1]
+    else:
+        world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[0]]
+
     return world_stroke
 
 def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     '''
-    strokes have form [((x,y),p)] with a pressure or radius value
+    strokes have form [((x,y),p)] with a radius value
     
-    returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
+    returns list [Vector(x,y,z), p] leaving the radius value untouched
     drops any values that do not successfully ray_cast
     '''
     rgn  = context.region
@@ -419,8 +433,8 @@ def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     
     back = 0 if rv3d.is_perspective else 1
     mult = 100 #* (1 if rv3d.is_perspective else -1)
-    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
+
+    if (bversion() < '002.072.000') and not rv3d.is_perspective: mult *= -1
     
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
@@ -538,9 +552,14 @@ def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
     
     ray_start_local  = imx * ray_origin
     ray_target_local = imx * ray_target
-    pt_local,no,idx  = ob.ray_cast(ray_start_local, ray_target_local)
-    if idx == -1: return float('inf')
-    
+
+    if bversion() <= '002.076.000':
+        pt_local,no,idx  = ob.ray_cast(ray_start_local, ray_target_local)
+        if idx == -1: return float('inf')
+    else:
+        ok, pt_local,no,idx  = ob.ray_cast(ray_start_local, ray_target_local)
+        if ok: return float('inf')
+
     pt = mx * pt_local
     
     screen_coord_offset = (screen_coord[0]+screen_size, screen_coord[1])

@@ -38,7 +38,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from . import contour_utilities
 from ..lib import common_utilities, common_drawing_px, common_drawing_view
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object, showErrorMessage
-from ..lib.common_utilities import simple_circle
+from ..lib.common_utilities import bversion, simple_circle
 from ..lib.common_mesh import edge_loops_from_bmedges
 from ..cache import mesh_cache, contour_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
@@ -1045,9 +1045,13 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 if bvh:
                     imx = mx.inverted()
                     for i, vert in enumerate(segment):
-                        snap = bvh.find(imx * vert)
+                        if bversion() <= '002.076.000':
+                            snap = bvh.find(imx * vert)
+                        else:
+                            snap = bvh.find_nearest(imx * vert)
+
                         segment[i] = mx * snap[0]
-            
+
             self.world_path.extend(segment)
 
         #resnap everthing we can to get normals an stuff
@@ -1060,14 +1064,22 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         imx = mx.inverted()
         if raw and len(self.raw_world):
             for i, vert in enumerate(self.raw_world):
-                snap = bvh.find(imx * vert)
+                if bversion() <= '002.076.000':
+                    snap = bvh.find(imx * vert)
+                else:
+                    snap = bvh.find_nearest(imx * vert)
+
                 self.raw_world[i] = mx * snap[0]
-                   
+
         if world and len(self.world_path):
             #self.path_normals = []
             #self.path_seeds = []
             for i, vert in enumerate(self.world_path):
-                snap = bvh.find(imx * vert)
+                if bversion() <= '002.076.000':
+                    snap = bvh.find(imx * vert)
+                else:
+                    snap = bvh.find_nearest(imx * vert)
+
                 self.world_path[i] = mx * snap[0]
                 #self.path_normals.append(mx.to_3x3() * snap[1])
                 #self.path_seeds.append(snap[2])
@@ -1076,7 +1088,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             self.cut_point_normals = []
             self.cut_point_seeds = []
             for i, vert in enumerate(self.cut_points):
-                snap = bvh.find(imx * vert)
+                if bversion() <= '002.076.000':
+                    snap = bvh.find(imx * vert)
+                else:
+                    snap = bvh.find_nearest(imx * vert)
+
                 self.cut_points[i] = mx * snap[0]
                 self.cut_point_normals.append(mx.to_3x3() * snap[1])
                 self.cut_point_seeds.append(snap[2])
@@ -1263,7 +1279,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         for i, cut in enumerate(self.cuts):
             
             pt = cut.verts_simple[0]
-            snap = bvh.find(imx * pt)
+            if bversion() <= '002.076.000':
+                snap = bvh.find(imx * pt)
+            else:
+                snap = bvh.find_nearest(imx * pt)
+
             seed = snap[2]
             surface_no = imx.transposed() * snap[1]
             
@@ -1288,7 +1308,12 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = bvh.find(imx * cast_point)[0]
+
+                    if bversion() <= '002.076.000':
+                        cast_sfc = bvh.find(imx * cast_point)[0]
+                    else:
+                        cast_sfc = bvh.find_nearest(imx * cast_point)[0]
+
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -1313,7 +1338,12 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 else:
                     diag = contour_utilities.diagonal_verts(cut.verts_simple)
                     cast_point = cut.verts_simple[0] - diag * cut.plane_no
-                    cast_sfc = bvh.find(imx * cast_point)[0]
+
+                    if bversion() <= '002.076.000':
+                        cast_sfc = bvh.find(imx * cast_point)[0]
+                    else:
+                        cast_sfc = bvh.find_nearest(imx * cast_point)[0]
+
                     vertebra3d = [cut.verts_simple[0], cast_sfc]
                 
                 self.backbone.append(vertebra3d)
@@ -1356,7 +1386,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             diag = contour_utilities.diagonal_verts(cut.verts_simple)
     
             cast_point = cut.verts_simple[0] + diag * cut.plane_no
-            cast_sfc = bvh.find(imx * cast_point)[0]
+            if bversion() <= '002.076.000':
+                cast_sfc = bvh.find(imx * cast_point)[0]
+            else:
+                cast_sfc = bvh.find_nearest(imx * cast_point)[0]
+
             vertebra3d = [cast_sfc, cut.verts_simple[0]]
         
         self.backbone.append(vertebra3d)
@@ -1372,7 +1406,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
         imx = mx.inverted()
         ind = self.cuts.index(cut)
         pt = cut.verts_simple[0]
-        snap = bvh.find(imx * pt)
+        if bversion() <= '002.076.000':
+            snap = bvh.find(imx * pt)
+        else:
+            snap = bvh.find_nearest(imx * pt)
+
         seed = snap[2]
         surface_no = imx.transposed() * snap[1]
         
@@ -1392,7 +1430,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
                 diag = contour_utilities.diagonal_verts(self.cuts[0].verts_simple)
         
                 cast_point = self.cuts[0].verts_simple[0] - diag * self.cuts[0].plane_no
-                cast_sfc = bvh.find(imx * cast_point)[0]
+                if bversion() <= '002.076.000':
+                    cast_sfc = bvh.find(imx * cast_point)[0]
+                else:
+                    cast_sfc = bvh.find_nearest(imx * cast_point)[0]
+
                 vertebra3d = [cast_sfc, self.cuts[0].verts_simple[0]]
             
             self.backbone.pop(0)
@@ -1455,7 +1497,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             else:
                 diag = contour_utilities.diagonal_verts(cut.verts_simple)
                 cast_point = cut.verts_simple[0] + diag * cut.plane_no
-                cast_sfc = bvh.find(imx * cast_point)[0]
+                if bversion() <= '002.076.000':
+                    cast_sfc = bvh.find(imx * cast_point)[0]
+                else:
+                    cast_sfc = bvh.find_nearest(imx * cast_point)[0]
+
                 vertebra3d = [cast_sfc, cut.verts_simple[0]]
             
             if not insert:
@@ -3495,7 +3541,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3510,7 +3559,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3548,7 +3600,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, new_com, inter_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3562,7 +3617,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_ahead, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3580,7 +3638,10 @@ class CutLineManipulatorWidget(object):
                     
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                 if proposed_point:        
-                    snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    if bversion() <= '002.076.000':
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    else:
+                        snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                     self.cut_line.plane_pt = self.mx * snap[0]
                     self.cut_line.seed_face_index = snap[2]
                 else:
@@ -3656,7 +3717,10 @@ class CutLineManipulatorWidget(object):
                 new_pt = contour_utilities.intersect_path_plane(self.path_behind, self.initial_com, new_no, mode = 'FIRST')
             
             if new_pt[0]:
-                snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                if bversion() <= '002.076.000':
+                    snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                else:
+                    snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * new_pt[0])
                 self.cut_line.plane_pt = self.mx * snap[0]
                 self.cut_line.seed_face_index = snap[2] 
             else:

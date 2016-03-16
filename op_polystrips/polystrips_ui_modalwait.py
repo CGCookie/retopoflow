@@ -69,7 +69,6 @@ class Polystrips_UI_ModalWait():
 
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
-                self.stroke_radius_pressure = self.sketch_brush.world_width
 
             self.hover_geom(eventd)
 
@@ -111,12 +110,8 @@ class Polystrips_UI_ModalWait():
             self.footer = 'Sketching'
             x,y = eventd['mouse']
 
-            if settings.use_pressure:
-                p = eventd['pressure']
-                r = eventd['mradius']
-            else:
-                p = 1
-                r = self.stroke_radius
+            p = 1
+            r = self.stroke_radius
 
             self.sketch_curpos = (x,y)
 
