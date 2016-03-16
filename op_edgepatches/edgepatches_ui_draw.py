@@ -344,12 +344,12 @@ class EdgePatches_UI_Draw():
             common_drawing_px.draw_polyline_from_points(context, [co[0] for co in self.sketch], color_selection, 2, "GL_LINE_STIPPLE")
 
             # Report pressure reading
-            if settings.use_pressure:
-                info = str(round(self.sketch_pressure,3))
-                txt_width, txt_height = blf.dimensions(0, info)
-                d = self.sketch_brush.pxl_rad
-                blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
-                blf.draw(0, info)
+            #if settings.use_pressure:
+            #    info = str(round(self.sketch_pressure,3))
+            #    txt_width, txt_height = blf.dimensions(0, info)
+            #    d = self.sketch_brush.pxl_rad
+            #    blf.position(0, self.sketch_curpos[0] - txt_width/2, self.sketch_curpos[1] + d + txt_height, 0)
+            #    blf.draw(0, info)
 
 
         bgl.glLineWidth(1)
@@ -366,10 +366,13 @@ class EdgePatches_UI_Draw():
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
-                if settings.use_pressure:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-                else:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                #if settings.use_pressure:
+                #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                #else:
+                #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+            
+            
             if self.fsm_mode == 'sketch' and len(self.sketch):
                 ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj_orig, settings)
                 hit_p3d,hit_norm,hit_idx = hit
@@ -378,12 +381,12 @@ class EdgePatches_UI_Draw():
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
-                    if settings.use_pressure:
-                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-                    else:
-                        common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
-
-
+                    #if settings.use_pressure:
+                    #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
+                    #else:
+                    #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                    
         if settings.show_help:
             self.help_box.draw()
     

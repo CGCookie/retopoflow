@@ -38,13 +38,14 @@ class EdgePatches_UI_Tools:
         settings = common_utilities.get_settings()
 
         x,y = eventd['mouse']
-        if settings.use_pressure:
-            p = eventd['pressure']
-            r = eventd['mradius']
-        else:
-            p = 1
-            r = self.stroke_radius
-        
+        #if settings.use_pressure:
+        #    p = eventd['pressure']
+        #    r = eventd['mradius']
+        #else:
+        #    p = 1
+        #    r = self.stroke_radius
+        p = 1
+        r = self.stroke_radius
         if eventd['type'] == 'MOUSEMOVE':
             stroke_point = self.sketch[-1]
 
@@ -56,10 +57,11 @@ class EdgePatches_UI_Tools:
             ss0,ss1 = self.stroke_smoothing,1-self.stroke_smoothing
             # Smooth radii
             self.stroke_radius_pressure = lr*ss0 + r*ss1
-            if settings.use_pressure:
-                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
-            else:
-                self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
+            #if settings.use_pressure:
+            #    self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius_pressure)]
+            #else:
+            #    self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
+            self.sketch += [((lx*ss0+x*ss1, ly*ss0+y*ss1), self.stroke_radius)]
 
             #return ''
 
@@ -69,10 +71,12 @@ class EdgePatches_UI_Tools:
             if self.sketch[-1][1] == 0:
                 self.sketch[-1] = self.sketch[-2]
 
-            if settings.use_pressure:
-                self.sketch += [((x,y), self.stroke_radius_pressure)]
-            else:
-                self.sketch += [((x,y), self.stroke_radius)]
+            #if settings.use_pressure:
+            #    self.sketch += [((x,y), self.stroke_radius_pressure)]
+            #else:
+            #    self.sketch += [((x,y), self.stroke_radius)]
+            
+            self.sketch += [((x,y), self.stroke_radius)]
             
             # if is selection mouse, check distance
             if 'LEFTMOUSE' in selection_mouse():

@@ -101,13 +101,14 @@ class EdgePatches_UI_ModalWait():
             self.footer = 'Sketching'
             x,y = eventd['mouse']
 
-            if settings.use_pressure:
-                p = eventd['pressure']
-                r = eventd['mradius']
-            else:
-                p = 1
-                r = self.stroke_radius
-
+            #if settings.use_pressure:
+            #    p = eventd['pressure']
+            #    r = eventd['mradius']
+            #else:
+            #    p = 1
+            #    r = self.stroke_radius
+            p = 1
+            r = self.stroke_radius
             self.sketch_curpos = (x,y)
             self.sketch = [((x,y),r)]
             
