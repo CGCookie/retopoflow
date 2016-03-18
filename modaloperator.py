@@ -134,7 +134,6 @@ class ModalOperator(Operator):
         event_oskey = 'OSKEY+' if event.oskey else ''
         event_ftype = event_ctrl + event_shift + event_alt + event_oskey + event.type
 
-        event_pressure = 1 if not hasattr(event, 'pressure') else event.pressure
 
         return {
             'context': context,
@@ -151,7 +150,6 @@ class ModalOperator(Operator):
             'release': event_ftype if event.value=='RELEASE' else None,
 
             'mouse':   (float(event.mouse_region_x), float(event.mouse_region_y)),
-            'pressure': event_pressure,
             }
 
     ####################################################################

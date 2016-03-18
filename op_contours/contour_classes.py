@@ -3541,7 +3541,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3556,7 +3559,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3594,7 +3600,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, new_com, inter_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3608,7 +3617,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_ahead, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3626,7 +3638,10 @@ class CutLineManipulatorWidget(object):
                     
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                 if proposed_point:        
-                    snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    if bversion() <= '002.076.000':
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    else:
+                        snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                     self.cut_line.plane_pt = self.mx * snap[0]
                     self.cut_line.seed_face_index = snap[2]
                 else:
@@ -3702,7 +3717,10 @@ class CutLineManipulatorWidget(object):
                 new_pt = contour_utilities.intersect_path_plane(self.path_behind, self.initial_com, new_no, mode = 'FIRST')
             
             if new_pt[0]:
-                snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                if bversion() <= '002.076.000':
+                    snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                else:
+                    snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * new_pt[0])
                 self.cut_line.plane_pt = self.mx * snap[0]
                 self.cut_line.seed_face_index = snap[2] 
             else:

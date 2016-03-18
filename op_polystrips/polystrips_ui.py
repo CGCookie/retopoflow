@@ -67,7 +67,6 @@ class Polystrips_UI:
         self.action_radius   = 0
         self.is_navigating   = False
         self.sketch_curpos   = (0, 0)
-        self.sketch_pressure = 1
         self.sketch          = []
         
         self.act_gvert  = None      # active gvert (operated upon)
@@ -165,7 +164,6 @@ class Polystrips_UI:
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
-        self.stroke_radius_pressure = 0.01 * self.length_scale
         # Screen_stroke_radius
         self.screen_stroke_radius = 20  # TODO, hook to settings
 

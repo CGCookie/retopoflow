@@ -2201,8 +2201,6 @@ class Polystrips(object):
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
-        yikes....pressure and radius need to be reconciled!
-        for now, assumes 
         '''
         if depth == 0:
             gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0])]

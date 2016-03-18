@@ -164,10 +164,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
-                if settings.use_pressure:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
-                else:
-                    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
+                common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
     
     def modal_wait(self, context, eventd):
         settings = common_utilities.get_settings()
@@ -197,8 +194,6 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
 
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
-                self.stroke_radius_pressure = self.sketch_brush.world_width
-
 
         if eventd['press'] in self.keymap['undo']:
             self.undo_action()

@@ -366,9 +366,9 @@ def ray_cast_point_bvh(context, bvh, mx, screen_coord):
 
 def ray_cast_stroke(context, ob, stroke):
     '''
-    strokes have form [((x,y),p)] with a pressure or radius value
+    strokes have form [((x,y),p)] with a radius value
     
-    returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
+    returns list [Vector(x,y,z), p] leaving the radius value untouched
     does drop any values that do not successfully ray_cast
     '''
     rgn  = context.region
@@ -398,9 +398,9 @@ def ray_cast_stroke(context, ob, stroke):
 
 def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     '''
-    strokes have form [((x,y),p)] with a pressure or radius value
+    strokes have form [((x,y),p)] with a radius value
     
-    returns list [Vector(x,y,z), p] leaving the pressure/radius value untouched
+    returns list [Vector(x,y,z), p] leaving the radius value untouched
     drops any values that do not successfully ray_cast
     '''
     rgn  = context.region
