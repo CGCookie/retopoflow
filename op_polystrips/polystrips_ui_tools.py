@@ -643,7 +643,14 @@ class Polystrips_UI_Tools():
     def grab_tool_gedge(self, command, eventd):
         if command == 'init':
             sge = self.act_gedge
-            lgv = [sge.gvert0, sge.gvert3]
+            lgv = []
+            
+            if not sge.gvert0.from_mesh:
+                lgv += [sge.gvert0]
+                
+            if not sge.gvert3.from_mesh:
+                lgv += [sge.gvert3]
+                
             lgv += [ge.get_inner_gvert_at(gv) for gv in lgv for ge in gv.get_gedges_notnone()]
         else:
             lgv = None
