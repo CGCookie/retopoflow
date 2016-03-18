@@ -328,7 +328,10 @@ def ray_cast_path(context, ob, screen_coords):
 
     return world_coords
 
-def ray_cast_path_bvh(context, bvh, mx, screen_coords):
+def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
+    '''
+    trim will only return ray cast values up to the first missed point
+    '''
     rgn  = context.region
     rv3d = context.space_data.region_3d
     imx  = mx.inverted()
@@ -343,7 +346,16 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
+    
+    if trim:
+        world_coords = []
+        for hit in hits:
+            if hit[2] != None:
+                world_coords += [mx*hit[0]]
+            else:
+                break
+    else:
+        world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
     return world_coords
 
