@@ -2227,11 +2227,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     
         self.create_cut_nodes(context, knots = False)
         
-        
-                
-        
         self.snap_to_object(bvh,mx, raw = False, world = False, cuts = True)
         self.cuts_on_path(context,bme,bvh,mx)
+        
+        if len(self.cuts) == 0: return
+        
         self.cuts.pop(0)
         
         #if one existing cut....can go either way

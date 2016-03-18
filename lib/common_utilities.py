@@ -347,7 +347,7 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
     
-    if trim:
+    if trim:  #will return list up to the first missed ray cast
         world_coords = []
         for hit in hits:
             if hit[2] != None:
