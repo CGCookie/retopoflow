@@ -2113,6 +2113,9 @@ class Polystrips(object):
         cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
         rm = cubic_bezier_blend_t(r0,r1,r2,r3, t)
         
+        gv1_del = gedge.gvert1
+        gv2_del = gedge.gvert2
+        
         if connect_gvert:
             gv_split = connect_gvert
             trans = cb0[3] - gv_split.position
@@ -2151,6 +2154,12 @@ class Polystrips(object):
         gv_split.update()
         gv_split.update_gedges()
         
+        #delete the loose ones
+        if gv1_del in self.gverts:
+            self.gverts.remove(gv1_del)
+        if gv2_del in self.gverts:
+            self.gverts.remove(gv2_del)
+            
         return (ge0,ge1,gv_split)
 
     def insert_gedge_between_gverts(self, gv0, gv3):
