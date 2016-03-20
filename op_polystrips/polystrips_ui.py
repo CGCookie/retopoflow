@@ -235,23 +235,10 @@ class Polystrips_UI:
                 return
 
         p_data = copy.deepcopy(self.polystrips)
-
-        if self.act_gedge:
-            act_gedge = self.polystrips.gedges.index(self.act_gedge)
-        else:
-            act_gedge = None
-
-        if self.act_gvert:
-            act_gvert = self.polystrips.gverts.index(self.act_gvert)
-        else:
-            act_gvert = None
-
-        if self.act_gvert:
-            act_gvert = self.polystrips.gverts.index(self.act_gvert)
-        else:
-            act_gvert = None
-
-        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
+        act_gvert  = self.polystrips.gverts.index(self.act_gvert) if self.act_gvert else None
+        act_gedge  = self.polystrips.gedges.index(self.act_gedge) if self.act_gedge else None
+        act_gpatch = self.polystrips.gpatches.index(self.act_gpatch) if self.act_gpatch else None
+        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gpatch], action))
 
         if len(polystrips_undo_cache) > self.settings.undo_depth:
             polystrips_undo_cache.pop(0)
@@ -261,24 +248,11 @@ class Polystrips_UI:
         '''
         if len(polystrips_undo_cache) > 0:
             data, action = polystrips_undo_cache.pop()
-
             self.polystrips = data[0]
-
-            if data[1]:
-                self.act_gvert = self.polystrips.gverts[data[1]]
-            else:
-                self.act_gvert = None
-
-            if data[2]:
-                self.sel_gedge = self.polystrips.gedges[data[2]]
-            else:
-                self.sel_gedge = None
-
-            if data[3]:
-                self.act_gvert = self.polystrips.gverts[data[3]]
-            else:
-                self.act_gvert = None
-    
+            self.act_gvert  = None if data[1] is None else self.polystrips.gverts[data[1]]
+            self.act_gedge  = None if data[2] is None else self.polystrips.gedges[data[2]]
+            self.act_gpatch = None if data[3] is None else self.polystrips.gpatches[data[3]]
+            self.hov_gvert = None
 
     
     ###########################
