@@ -848,9 +848,11 @@ class CGC_Polypen(ModalOperator):
                 # edge and vert share face
                 # split this face!
                 bmv1,bmv2 = bme.verts
-                bmesh.utils.face_split(bmf, bmv0, bmv1)
-                bmf = self.face_between_verts(bmv0, bmv2)
-                bmesh.utils.face_split(bmf, bmv0, bmv2)
+                if not any(bme for bme in bmv0.link_edges if bme in bmv1.link_edges):
+                    bmesh.utils.face_split(bmf, bmv0, bmv1)
+                    bmf = self.face_between_verts(bmv0, bmv2)
+                if not any(bme for bme in bmv0.link_edges if bme in bmv2.link_edges):
+                    bmesh.utils.face_split(bmf, bmv0, bmv2)
                 self.select(bmv0)
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
