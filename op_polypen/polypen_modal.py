@@ -943,11 +943,21 @@ class CGC_Polypen(ModalOperator):
                     lbme_dup += [(bme0,bme1)]
         for bme0,bme1 in lbme_dup:
             #if not bme0.is_valid or bme1.is_valid: continue
-            # remove bme1 and recreate attached faces
-            assert len(bme0.link_faces) == 1 or len(bme1.link_faces) == 1, 'unhandled count of linked faces %d, %d'%(len(bme0.link_faces),len(bme1.link_faces))
-            lbmv = list(bme1.link_faces[0].verts)
-            self.tar_bmesh.edges.remove(bme1)
-            self.create_face(lbmv)
+            l0,l1 = len(bme0.link_faces), len(bme1.link_faces)
+            handled = False
+            if l0 == 0:
+                self.tar_bmesh.edges.remove(bme0)
+                handled = True
+            if l1 == 0:
+                self.tar_bmesh.edges.remove(bme1)
+                handled = True
+            if l0 == 1 and l1 == 1:
+                # remove bme1 and recreate attached faces
+                lbmv = list(bme1.link_faces[0].verts)
+                self.tar_bmesh.edges.remove(bme1)
+                self.create_face(lbmv)
+                handled = True
+            assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
     
     ######################################
     # action handler helpers
