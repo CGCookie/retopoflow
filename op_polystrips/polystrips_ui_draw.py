@@ -372,6 +372,22 @@ class Polystrips_UI_Draw():
             draw3d_quads(context, [[p0,p1,p2,p3]], color_fill, color_mirror)
             draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
 
+        if False:
+            color_tanx   = (1.0, 0.0, 0.0, 1.00)
+            color_tany   = (0.0, 1.0, 0.0, 1.00)
+            color_normal = (0.0, 0.0, 1.0, 1.00)
+            for ge in self.polystrips.gedges:
+                for gv in ge.cache_igverts:
+                    p,n,x,y = gv.position,gv.snap_norm,gv.snap_tanx,gv.snap_tany
+                    draw3d_polyline(context, [p,p+n*0.1], color_normal, 1, "GL_LINE_SMOOTH")
+                    draw3d_polyline(context, [p,p+x*0.1], color_tanx, 1, "GL_LINE_SMOOTH")
+                    draw3d_polyline(context, [p,p+y*0.1], color_tany, 1, "GL_LINE_SMOOTH")
+            for gv in self.polystrips.gverts:
+                p,n,x,y = gv.position,gv.snap_norm,gv.snap_tanx,gv.snap_tany
+                draw3d_polyline(context, [p,p+n*0.05], color_normal, 3, "GL_LINE_SMOOTH")
+                draw3d_polyline(context, [p,p+x*0.05], color_tanx, 3, "GL_LINE_SMOOTH")
+                draw3d_polyline(context, [p,p+y*0.05], color_tany, 3, "GL_LINE_SMOOTH")
+
         # Draw inner gvert handles (dots) on each gedge
         p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected()]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)

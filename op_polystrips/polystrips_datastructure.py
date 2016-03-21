@@ -35,6 +35,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import bversion, iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
+from ..lib.common_utilities import ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
@@ -900,6 +901,13 @@ class GEdge:
             self.gvert2.normal,
             self.gvert3.normal
             )
+    def get_snap_normals(self):
+        return (
+            self.gvert0.snap_norm,
+            self.gvert1.snap_norm,
+            self.gvert2.snap_norm,
+            self.gvert3.snap_norm
+            )
     def get_radii(self):
         return (
             self.gvert0.radius,
@@ -1046,7 +1054,7 @@ class GEdge:
     def update_nozip(self, debug=False):
         p0,p1,p2,p3 = self.get_positions()
         r0,r1,r2,r3 = self.get_radii()
-        n0,n1,n2,n3 = self.get_normals()
+        n0,n1,n2,n3 = self.get_snap_normals()
         
         if False:
             # attempting to smooth snapped igverts
@@ -1141,7 +1149,7 @@ class GEdge:
         #print('R0 %f, R3 %f, r0 %f, r3 %f ' % (r0,r3,l_radii[0],l_radii[-1]))
         l_norms = [cubic_bezier_blend_t(n0,n1,n2,n3,t).normalized() for t in l_ts]
         l_tanx  = [cubic_bezier_derivative(p0,p1,p2,p3,t).normalized() for t in l_ts]
-        l_tany  = [t.cross(n).normalized() for t,n in zip(l_tanx,l_norms)]
+        l_tany  = [n.cross(tx).normalized() for tx,n in zip(l_tanx,l_norms)]
         
         # create igverts!
         self.cache_igverts = [GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
@@ -1151,6 +1159,17 @@ class GEdge:
         self.l_ts = l_ts
 
         self.snap_igverts()
+        # for igv,n,tx,ty in zip(self.cache_igverts,l_norms,l_tanx,l_tany):
+        #     #igv.snap_tanx = tx
+        #     #igv.snap_tany = ty
+        #     #print(igv.snap_norm, n, igv.snap_norm.dot(n))
+        #     #if igv.snap_norm.dot(n) < 0:
+        #     #    igv.snap_norm *= -1.0
+        #     #    igv.snap_tany *= -1.0
+        #     #igv.snap_norm = igv.snap_tanx.cross(igv.snap_tany).normalized()
+        #     igv.snap_norm = n
+        #     igv.snap_tanx = tx
+        #     igv.snap_tany = ty
         
         self.gvert0.update(do_edges=False)
         self.gvert1.update(do_edges=False)
@@ -1217,8 +1236,8 @@ class GEdge:
         snaps already computed igverts to surface of object ob
         '''
         
-        thinSurface_maxDist = 0.05
-        thinSurface_offset = 0.005
+        thinSurface_maxDist  =  0.35
+        thinSurface_offset   =  0.0001
         thinSurface_opposite = -0.4
         
         bvh = mesh_cache['bvh']
@@ -1254,6 +1273,7 @@ class GEdge:
                         dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
                         if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
                             # seems reasonable enough
+                            dprint('l,n = ' + str(lr) + ',' + str(nr))
                             l,n = lr,nr
             
             igv.position = mx * l
@@ -2066,9 +2086,11 @@ class Polystrips(object):
         #if type(co) is not Vector: co = Vector(co)
         p0  = co
         r0  = radius
-        n0  = Vector((0,0,1))
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
+        n0  = Vector((0,0,1))
+        screen_coord = location_3d_to_region_2d(bpy.context.region, bpy.context.space_data.region_3d, co)
+        p0,n0 = ray_cast_point_bvh(bpy.context, mesh_cache['bvh'], self.mx, screen_coord)
         gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
         self.gverts += [gv]
         return gv

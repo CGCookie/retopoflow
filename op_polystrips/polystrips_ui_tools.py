@@ -616,6 +616,10 @@ class Polystrips_UI_Tools():
                 d[0].position = p2d
             for gv,_,_ in self.tool_data:
                 gv.update()
+                # if not gv.is_inner():
+                #     for gv_inner in gv.get_inner_gverts():
+                #         gv_inner.snap_norm = gv.snap_norm
+                #         gv_inner.normal = gv.normal
                 # gv.update_visibility(eventd['r3d'], update_gedges=True)
 
     def grab_tool_gvert(self, command, eventd):
