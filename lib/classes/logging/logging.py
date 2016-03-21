@@ -1,18 +1,23 @@
+import os
 import bpy
 #from ...common_utilities import showErrorMessage
 
-def getLog():
-    if 'RetopoFlow_log' not in bpy.data.texts:
-        # log file does not exist; create!
-        bpy.ops.text.new()
-        bpy.data.texts[-1].name = 'RetopoFlow_log'
-    return bpy.data.texts['RetopoFlow_log']
+def logPath():
+    # TODO: what if we don't have write privileges?
+    pathLog = os.path.abspath(bpy.data.filepath)
+    if pathLog.endswith('.blend'):
+        pathLog = '%s.RetopoFlow_log' % pathLog
+    else:
+        pathLog = '%s/RetopoFlow_log' % pathLog
+    if not os.path.exists(pathLog):
+        # touch file
+        with open(pathLog, 'wt') as f:
+            f.write('')
+    return pathLog
 
 def logPrint(s):
-    log = getLog()
-    log.current_line_index = len(log.lines) - 1     # move cursor to last line
-    log.write('')                                   # position cursor at end of line
-    log.write('%s\n' % s)
+    with open(logPath(), 'at') as log:
+        log.write('%s\n' % s)
 
 class OpenLog(bpy.types.Operator):
     """Open log text files in new window"""
@@ -20,27 +25,38 @@ class OpenLog(bpy.types.Operator):
     bl_label = "Open Log in Text Editor"
 
     def execute(self, context):
-
-        self.openTextFile('RetopoFlow_log')
-
+        self.openTextFile(logPath())
         return {'FINISHED'}
 
     def openTextFile(self, filename):
+        if 'RetopoFlow_log' in bpy.data.texts:
+            # clear out previous log text block
+            bpy.data.texts.remove(bpy.data.texts['RetopoFlow_log'])
+        # create new text block by opening log file and rename text block to RetopoFlow_log
+        before = set(bpy.data.texts.keys())
+        bpy.ops.text.open(filepath=logPath())
+        after = set(bpy.data.texts.keys())
+        logname = (after - before).pop()
+        bpy.data.texts[logname].name = 'RetopoFlow_log'
+        log = bpy.data.texts['RetopoFlow_log']
+        ## TODO: these two lines don't work correctly (new window does not refresh properly... why?)
+        # log.current_line_index = len(log.lines) - 1     # move cursor to last line
+        # log.write('')                                   # move cursor to end of line
 
-        # play it safe!
-        if filename not in bpy.data.texts:
-            #showErrorMessage('Log file not found')
-            return
-
-        # duplicate the current area then change it to a text edito
+        # duplicate the current area then change it to a text editor
         area_dupli = bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
         win = bpy.context.window_manager.windows[-1]
         area = win.screen.areas[-1]
         area.type = 'TEXT_EDITOR'
 
         # load the text file into the correct space
+        found = False
         for space in area.spaces:
             if space.type == 'TEXT_EDITOR':
-                space.text = bpy.data.texts[filename]
+                space.text = log
+                found = True
+        if not found:
+            # TODO: fix!
+            pass
 
 

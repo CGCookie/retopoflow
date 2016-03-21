@@ -37,7 +37,6 @@ from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
 from .lib import common_utilities
 from .lib.common_utilities import print_exception, showErrorMessage
-from .lib.classes.logging.logging import getLog
 
 class ModalOperator(Operator):
 
@@ -45,14 +44,15 @@ class ModalOperator(Operator):
     
     def initialize(self, helpText=None, FSM=None):
         # create a log file for error writing
-        self.log = getLog()
         self.settings = common_utilities.get_settings()
-        self.keymap = key_maps.rtflow_default_keymap_generate()
-
-        # check keymap against system language
-        key_maps.navigation_language()
-
-        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+        try:
+            self.keymap = key_maps.rtflow_default_keymap_generate()
+            # check keymap against system language
+            key_maps.navigation_language()
+            self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+        except:
+            self.handle_exception()
+            return
 
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
@@ -92,7 +92,6 @@ class ModalOperator(Operator):
             self.help_box = None
         
         self.exceptions_caught = []
-        self.exception_quit = False
         
         self.initialized = True
 
@@ -151,6 +150,7 @@ class ModalOperator(Operator):
     # Draw handler function
 
     def draw_callback_postview(self, context):
+        if self.exception_quit: return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:
             self.draw_postview(context)
@@ -159,6 +159,7 @@ class ModalOperator(Operator):
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
+        if self.exception_quit: return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:
             self.draw_postpixel(context)
@@ -177,7 +178,9 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
- 
+        
+        if self.exception_quit: return
+
         handle_nav = False
         handle_nav |= eventd['ftype'] in self.events_nav
         
@@ -196,6 +199,8 @@ class ModalOperator(Operator):
         This state calls auxiliary wait state to see into which state we transition.
         '''
 
+        if self.exception_quit: return
+        
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
         try:
             nmode = self.FSM['nav'](context, eventd)
@@ -259,6 +264,8 @@ class ModalOperator(Operator):
         self.footer = ''
         self.footer_last = ''
         
+        self.exception_quit = False
+        
         try:
             self.start(context)
         except:
@@ -281,7 +288,17 @@ class ModalOperator(Operator):
         This is the heart of the finite state machine.
         '''
 
-        if self.exception_quit: return {'CANCELLED'}
+        if self.exception_quit:
+            try:
+                SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
+            except:
+                pass
+            try:
+                SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
+            except:
+                pass
+            context.area.header_text_set()
+            return {'CANCELLED'}
 
         if not context.area: return {'RUNNING_MODAL'}
 
@@ -332,7 +349,9 @@ class ModalOperator(Operator):
         '''
         called by Blender when the user invokes (calls/runs) our tool
         '''
-        assert self.initialized, 'Must initialize operator before invoking'
+        if not self.initialized:
+            showErrorMessage('Operator was not initialized before invoking.')
+            return {'CANCELLED'}
         
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
