@@ -1196,9 +1196,9 @@ class CGC_Polypen(ModalOperator):
             return ''
         bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
-        lbme = bmv.link_edges
         bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
         self.clean_duplicate_bmedges(self.nearest_bmvert)
+        lbme = [bme for bme in self.nearest_bmvert.link_edges if len(bme.link_faces) == 1 and self.selected_bmfaces[0] in bme.link_faces]
         self.set_selection(lbmv=[self.nearest_bmvert],lbme=lbme)
         self.clear_nearest()
         self.clean_bmesh()
