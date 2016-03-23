@@ -586,12 +586,23 @@ class CGC_Polypen(ModalOperator):
         return bme
     
     def create_face(self, lbmv):
-        c0,c1,c2 = lbmv[0].co,lbmv[1].co,lbmv[2].co
-        d10,d12 = c0-c1,c2-c1
-        n = d12.cross(d10)
-        dot = n.dot(self.mouse_curn3d)
-        if dot < 0:
-            lbmv = reversed(lbmv)
+        # check for crisscrossing and for flipped
+        l = len(lbmv)
+        repeat,iters = True,0
+        while repeat:
+            repeat,iters = False,iters+1
+            assert iters < pow(l,l/1.5), 'Could not eliminate crisscrossing'
+            for i0 in range(l):
+                i1,i2 = (i0+1)%l,(i0+2)%l
+                c0,c1,c2 = lbmv[i0].co,lbmv[i1].co,lbmv[i2].co
+                d10,d12 = c0-c1,c2-c1
+                n = d12.cross(d10)
+                dot = n.dot(self.mouse_curn3d)
+                if dot < 0:
+                    # wrong direction, swap!
+                    lbmv[i1],lbmv[i2] = lbmv[i2],lbmv[i1]
+                    repeat = True
+                    break
         bmf = self.tar_bmesh.faces.new(lbmv)
         self.select(bmf)
         self.tar_bmeshrender.dirty()
@@ -897,11 +908,11 @@ class CGC_Polypen(ModalOperator):
                 self.select()
                 return self.handle_action_selnothing(context, eventd)
             
+            # get a list of shared verts between the selected face and the
+            # hovered edge.  if one vert is shared, then we need to bridge
+            # between face and hovered edge
             lbmv_common = [v for v in self.nearest_bmedge.verts if v in bmf.verts]
             if len(lbmv_common) == 1:
-                # lbmv_common is list of shared verts between the selected face
-                # and the hovered edge.  since 1 is shared, then we need to bridge
-                # between face and hovered edge
                 bmv_shared = lbmv_common[0]
                 bmv_opposite = self.nearest_bmedge.other_vert(bmv_shared)
                 
