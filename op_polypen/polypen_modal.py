@@ -589,9 +589,9 @@ class CGC_Polypen(ModalOperator):
         # check for crisscrossing and for flipped
         l = len(lbmv)
         repeat,iters = True,0
-        while repeat:
+        while repeat and iters < pow(l,l/1.5):
             repeat,iters = False,iters+1
-            assert iters < pow(l,l/1.5), 'Could not eliminate crisscrossing'
+            #assert iters < pow(l,l/1.5), 'Could not eliminate crisscrossing'
             for i0 in range(l):
                 i1,i2 = (i0+1)%l,(i0+2)%l
                 c0,c1,c2 = lbmv[i0].co,lbmv[i1].co,lbmv[i2].co
