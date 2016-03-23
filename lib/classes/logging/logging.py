@@ -6,13 +6,27 @@ def logPath():
     # TODO: what if we don't have write privileges?
     pathLog = os.path.abspath(bpy.data.filepath)
     if pathLog.endswith('.blend'):
-        pathLog = '%s.RetopoFlow_log' % pathLog
+        pathLog = '%s.RetopoFlow_log.txt' % os.path.splitext(pathLog)[0]
     else:
-        pathLog = '%s/RetopoFlow_log' % pathLog
+        pathLog = os.path.join(bpy.app.tempdir, 'RetopoFlow_log.txt')
     if not os.path.exists(pathLog):
-        # touch file
+        # create file with build details
         with open(pathLog, 'wt') as f:
-            f.write('')
+            f.write('branch: %s\n' % str(bpy.app.build_branch))
+            f.write('cflags: %s\n' % str(bpy.app.build_cflags))
+            f.write('commit_date: %s\n' % str(bpy.app.build_commit_date))
+            f.write('commit_time: %s\n' % str(bpy.app.build_commit_time))
+            f.write('commit_timestamp: %s\n' % str(bpy.app.build_commit_timestamp))
+            f.write('cxxflags: %s\n' % str(bpy.app.build_cxxflags))
+            f.write('date: %s\n' % str(bpy.app.build_date))
+            f.write('hash: %s\n' % str(bpy.app.build_hash))
+            f.write('linkflags: %s\n' % str(bpy.app.build_linkflags))
+            f.write('options: %s\n' % str(bpy.app.build_options))
+            f.write('platform: %s\n' % str(bpy.app.build_platform))
+            f.write('system: %s\n' % str(bpy.app.build_system))
+            f.write('time: %s\n' % str(bpy.app.build_time))
+            f.write('type: %s\n' % str(bpy.app.build_type))
+            f.write('==============================\n\n')
     return pathLog
 
 def logPrint(s):
