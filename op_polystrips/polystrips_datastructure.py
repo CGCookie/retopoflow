@@ -35,6 +35,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import bversion, iter_running_sum, dprint, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
+from ..lib.common_utilities import ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
@@ -672,6 +673,11 @@ class GEdge:
                 # we reached q1 by walking the loop!
                 if bseq == None or len(lseq) < len(bseq):
                     bseq = lseq
+                    # reposition inner gverts so that they behave better
+                    self.gvert1.position = (self.gvert0.position+self.gvert3.position)/2
+                    self.gvert2.position = (self.gvert0.position+self.gvert3.position)/2
+                    self.gvert1.update()
+                    self.gvert2.update()
         
         if bseq == None:
             dprint('gedge not from mesh')
@@ -1198,6 +1204,8 @@ class GEdge:
                     if i % 2 == 0: continue
                     liv = self.from_edges[int((i-1)/2)]
                     p0,p1 = m.vertices[liv[0]].co,m.vertices[liv[1]].co
+                    p0 = self.mx * p0
+                    p1 = self.mx * p1
                     igv.position = (p0+p1) / 2.0
                     igv.radius = (p0-p1).length / 2.0
                     igv.tangent_y = (p1-p0).normalized()
@@ -2066,9 +2074,13 @@ class Polystrips(object):
         #if type(co) is not Vector: co = Vector(co)
         p0  = co
         r0  = radius
-        n0  = Vector((0,0,1))
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
+        n0  = Vector((0,0,1))
+        screen_coord = location_3d_to_region_2d(bpy.context.region, bpy.context.space_data.region_3d, co)
+        hit = ray_cast_point_bvh(bpy.context, mesh_cache['bvh'], self.mx, screen_coord)
+        if not hit: return
+        p0,n0 = hit
         gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
         self.gverts += [gv]
         return gv
@@ -2219,10 +2231,12 @@ class Polystrips(object):
                 self.extension_geometry.remove(gv0[0])
                 self.gverts.append(gv0[0])
                 sgv0 = gv0[0]
+                dprint('Stroke segment started on existing geometry')
             if len(gv3):
                 self.extension_geometry.remove(gv3[0])
                 self.gverts.append(gv3[0])
                 sgv3 = gv3[0]
+                dprint('Stroke segment ended on existing geometry')
             
         assert depth < 10
         
@@ -2583,10 +2597,11 @@ class Polystrips(object):
                 dprint(spc+(str(sgv0.position) if sgv0 else 'None'))
                 dprint(spc+(str(sgv3.position) if sgv3 else 'None'))
             elif (gv1.position-gv0.position).length == 0:
-                dprint('gv01.der = 0')
+                dprint(spc+'gv01.der = 0')
             elif (gv2.position-gv3.position).length == 0:
-                dprint('gv32.der = 0')
+                dprint(spc+'gv32.der = 0')
             else:
+                dprint(spc+'created!')
                 self.create_gedge(gv0,gv1,gv2,gv3)
             pregv = gv3
             gv0.update()
