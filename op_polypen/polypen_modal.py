@@ -724,7 +724,7 @@ class CGC_Polypen(ModalOperator):
             return self.handle_action_seledge(context, eventd)
         if self.selected_bmverts:
             return self.handle_insert_vert_and_bridge(context, eventd)
-            return self.handle_action_selvert(context, eventd)
+            return self.handle_action_selvert(context, eventd)          # <== not used??
         return self.handle_action_selnothing(context, eventd)
     
     def handle_action_selnothing(self, context, eventd):
@@ -1169,7 +1169,10 @@ class CGC_Polypen(ModalOperator):
             self.tar_bmeshrender.dirty()
             return 'move vert'
         bme = self.tar_bmesh.edges.new([bmv0,bmv1])
-        self.select(bmv1,bme)
+        if eventd['press'] in self.keymap['polypen alt action']:
+            self.select(bmv1)
+        else:
+            self.select(bmv1,bme)
         self.tar_bmeshrender.dirty()
         return 'move vert'
     
