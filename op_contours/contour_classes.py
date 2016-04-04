@@ -1667,7 +1667,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print('waiting on other cut lines')
             self.verts = []
             self.edges = []
-            self.face = []
+            self.faces = []
             self.follow_lines = []
             return
         
