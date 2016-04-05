@@ -31,11 +31,12 @@ from mathutils import Vector, Matrix, Euler
 import sys
 import math
 import os
+import time
 
 from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
 from .lib import common_utilities
-from .lib.common_utilities import print_exception
+from .lib.common_utilities import print_exception, showErrorMessage
 
 class ModalOperator(Operator):
 
@@ -95,8 +96,30 @@ class ModalOperator(Operator):
         else:
             self.help_box = None
         
+        self.exceptions_caught = []
+        self.exception_quit = False
+        
         self.initialized = True
 
+
+    def handle_exception(self):
+        errormsg = print_exception()
+        # if max number of exceptions occur within threshold of time, abort!
+        curtime = time.time()
+        self.exceptions_caught += [(errormsg, curtime)]
+        # keep exceptions that have occurred within the last 5 seconds
+        self.exceptions_caught = [(m,t) for m,t in self.exceptions_caught if curtime-t < 5]
+        # if we've seen the same message before (within last 5 seconds), assume
+        # that something has gone badly wrong
+        c = sum(1 for m,t in self.exceptions_caught if m == errormsg)
+        if c > 1:
+            print('\n'*5)
+            print('-'*100)
+            print('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
+            print('-'*100)
+            print('\n'*5)
+            showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
+            self.exception_quit = True
 
     def get_event_details(self, context, event):
         '''
@@ -137,7 +160,7 @@ class ModalOperator(Operator):
         try:
             self.draw_postview(context)
         except:
-            print_exception()
+            self.handle_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
@@ -145,7 +168,7 @@ class ModalOperator(Operator):
         try:
             self.draw_postpixel(context)
         except:
-            print_exception()
+            self.handle_exception()
         if self.settings.show_help and self.help_box:
             self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
@@ -182,7 +205,7 @@ class ModalOperator(Operator):
         try:
             nmode = self.FSM['nav'](context, eventd)
         except:
-            print_exception()
+            self.handle_exception()
             return ''
         if nmode:
             return nmode
@@ -244,8 +267,7 @@ class ModalOperator(Operator):
         try:
             self.start(context)
         except:
-            print_exception()
-
+            self.handle_exception()
     def modal_end(self, context):
         '''
         finish up stuff, as our tool is leaving modal mode
@@ -253,7 +275,7 @@ class ModalOperator(Operator):
         try:
             self.end(context)
         except:
-            print_exception()
+            self.handle_exception()
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
         context.area.header_text_set()
@@ -263,6 +285,9 @@ class ModalOperator(Operator):
         Called by Blender while our tool is running modal.
         This is the heart of the finite state machine.
         '''
+
+        if self.exception_quit: return {'CANCELLED'}
+
         if not context.area: return {'RUNNING_MODAL'}
 
         context.area.tag_redraw()       # force redraw
@@ -273,7 +298,7 @@ class ModalOperator(Operator):
         try:
             nmode = self.FSM[self.fsm_mode](context, eventd)
         except:
-            print_exception()
+            self.handle_exception()
             nmode = ''
         self.mode_pos = eventd['mouse']
 
@@ -288,19 +313,19 @@ class ModalOperator(Operator):
                 try:
                     self.end_commit(context)
                 except:
-                    print_exception()
+                    self.handle_exception()
                     return {'RUNNING_MODAL'}
             else:
                 try:
                     self.end_cancel(context)
                 except:
-                    print_exception()
+                    self.handle_exception()
                     return {'RUNNING_MODAL'}
             
             try:
                 self.modal_end(context)
             except:
-                print_exception()
+                self.handle_exception()
             
             return {'FINISHED'} if nmode == 'finish' else {'CANCELLED'}
 

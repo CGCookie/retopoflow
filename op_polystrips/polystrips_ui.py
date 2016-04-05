@@ -302,17 +302,27 @@ class Polystrips_UI:
             self.dest_obj.show_all_edges = True
             self.dest_obj.show_wire      = True
             self.dest_obj.show_x_ray     = self.settings.use_x_ray
-         
+
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
 
-            # check for symmetry and then add a mirror if needed
-            if self.settings.symmetry_plane == 'x':
+            common_utilities.default_target_object_to_active()
+
+        # check for symmetry and then add a mirror if needed
+        if self.settings.symmetry_plane == 'x':
+            if not self.dest_obj.modifiers:
                 self.dest_obj.modifiers.new(type='MIRROR', name='Polystrips-Symmetry')
                 self.dest_obj.modifiers['Polystrips-Symmetry'].use_clip = True
+            else:
+                for mod in self.dest_obj.modifiers:
+                    if mod.type == 'MIRROR':
+                        print('Mirror found! Skipping')
+                        break
+                    else:
+                        print("Let's add a new mirror mod")
+                        self.dest_obj.modifiers.new(type='MIRROR', name='Polystrips-Symmetry')
+                        self.dest_obj.modifiers['Polystrips-Symmetry'].use_clip = True
 
-            common_utilities.default_target_object_to_active()
-        
         container_bme = bmesh.new()
         
         bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]

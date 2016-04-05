@@ -1018,7 +1018,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     def ray_cast_path(self,context, mx):
         bvh = mesh_cache['bvh']
         settings = common_utilities.get_settings()
-        self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen)
+        self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen, trim = True)
         if settings.debug > 1:
             print('ray_cast_path missed %d/%d points' % (len(self.raw_screen) - len(self.raw_world), len(self.raw_screen)))
         
@@ -1667,7 +1667,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print('waiting on other cut lines')
             self.verts = []
             self.edges = []
-            self.face = []
+            self.faces = []
             self.follow_lines = []
             return
         
@@ -2227,11 +2227,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     
         self.create_cut_nodes(context, knots = False)
         
-        
-                
-        
         self.snap_to_object(bvh,mx, raw = False, world = False, cuts = True)
         self.cuts_on_path(context,bme,bvh,mx)
+        
+        if len(self.cuts) == 0: return
+        
         self.cuts.pop(0)
         
         #if one existing cut....can go either way

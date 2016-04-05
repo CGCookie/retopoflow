@@ -104,6 +104,8 @@ def print_exception():
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
 
+    return errormsg
+
 print_exception.count = 0
 
 def print_exception2():
@@ -347,7 +349,10 @@ def ray_cast_path(context, ob, screen_coords):
 
     return world_coords
 
-def ray_cast_path_bvh(context, bvh, mx, screen_coords):
+def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
+    '''
+    trim will only return ray cast values up to the first missed point
+    '''
     rgn  = context.region
     rv3d = context.space_data.region_3d
     imx  = mx.inverted()
@@ -362,7 +367,16 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords):
     
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
+    
+    if trim:  #will return list up to the first missed ray cast
+        world_coords = []
+        for hit in hits:
+            if hit[2] != None:
+                world_coords += [mx*hit[0]]
+            else:
+                break
+    else:
+        world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
     
     return world_coords
 
@@ -622,6 +636,7 @@ def get_ray_origin(ray_origin, ray_direction, ob):
 
 def closest_t_and_distance_point_to_line_segment(p, p0, p1):
     v0p,v1p,v01 = p-p0, p-p1, p1-p0
+    if v01.length == 0: return (0.0, v0p.length)
     if v01.dot(v0p) < 0: return (0.0, v0p.length)
     if v01.dot(v1p) > 0: return (1.0, v1p.length)
     v01n = v01.normalized()

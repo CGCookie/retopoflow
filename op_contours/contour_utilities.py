@@ -1460,13 +1460,17 @@ def  fit_path_to_endpoints(path,v0,v1):
     v1 is endpoint
     ''' 
     new_path = path.copy()
+    if len(new_path) < 3: return new_path
+    
     
     vi_0 = path[0]
     vi_1 = path[-1]
     
     net_initial = vi_1 - vi_0
     net_final = v1 - v0
-        
+    
+    if net_initial.length < .0000001: return new_path
+    
     scale = net_final.length/net_initial.length
     rot = rot_between_vecs(net_initial,net_final)
     
