@@ -12,7 +12,7 @@ Purchasing a license entitles you to tool support and helps ensure RetopoFlows c
 
 
 ## Getting Support
-You can get support for tools by reading the [documentation](http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs) or posting on the [forums](http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=support).
+You can get support for tools by reading the [documentation](http://docs.retopoflow.com) or posting on the [forums](http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=support).
 
 Support is granted to all customers whom have purchased a license.
 
