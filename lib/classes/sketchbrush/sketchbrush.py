@@ -147,12 +147,7 @@ class SketchBrush(object):
         self.new_rad = None
         self.screen_hand_reverse = False
         context.window.cursor_warp(context.region.x + self.init_x, context.region.y + self.init_y)
-    
-    def brush_pix_size_pressure(self, mouse_x, mouse_y, pressure):
-        'assume pressure from -1 to 1 with 0 being the midpoint'
-        
-        print('not implemented')
-    
+
     def draw(self, context, color=(.7,.1,.8,.8), linewidth=2, color_size=(.8,.8,.8,.8)):
         #TODO color and size
         

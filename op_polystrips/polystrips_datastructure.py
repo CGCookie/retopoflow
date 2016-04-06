@@ -1248,11 +1248,13 @@ class GEdge:
                 hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
                 if hit:
                     lr,nr,_,dr = hit
-                    d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
-                    dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
-                    if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
-                        # seems reasonable enough
-                        l,n = lr,nr
+                    if nr:
+                        dprint('nr not None')
+                        d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
+                        dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
+                        if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
+                            # seems reasonable enough
+                            l,n = lr,nr
             
             igv.position = mx * l
             
@@ -2111,6 +2113,9 @@ class Polystrips(object):
         cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
         rm = cubic_bezier_blend_t(r0,r1,r2,r3, t)
         
+        gv1_del = gedge.gvert1
+        gv2_del = gedge.gvert2
+        
         if connect_gvert:
             gv_split = connect_gvert
             trans = cb0[3] - gv_split.position
@@ -2149,6 +2154,12 @@ class Polystrips(object):
         gv_split.update()
         gv_split.update_gedges()
         
+        #delete the loose ones
+        if gv1_del in self.gverts:
+            self.gverts.remove(gv1_del)
+        if gv2_del in self.gverts:
+            self.gverts.remove(gv2_del)
+            
         return (ge0,ge1,gv_split)
 
     def insert_gedge_between_gverts(self, gv0, gv3):
@@ -2199,8 +2210,6 @@ class Polystrips(object):
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
-        yikes....pressure and radius need to be reconciled!
-        for now, assumes 
         '''
         if depth == 0:
             gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0])]
