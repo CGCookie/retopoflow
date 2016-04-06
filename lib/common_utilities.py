@@ -615,6 +615,7 @@ def get_ray_origin(ray_origin, ray_direction, ob):
 
 def closest_t_and_distance_point_to_line_segment(p, p0, p1):
     v0p,v1p,v01 = p-p0, p-p1, p1-p0
+    if v01.length == 0: return (0.0, v0p.length)
     if v01.dot(v0p) < 0: return (0.0, v0p.length)
     if v01.dot(v1p) > 0: return (1.0, v1p.length)
     v01n = v01.normalized()
