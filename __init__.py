@@ -24,7 +24,7 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 2, 0),
+    "version":     (1, 1, 9), # artificially changed from (1, 2, 0)
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
@@ -63,6 +63,11 @@ if bversion() >= '002.076.000':
     from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
     from .op_polypen.polypen_modal import CGC_Polypen
 
+# updater import
+from .addon_updater import Updater as updater
+import os
+
+
 # Used to store keymaps for addon
 addon_keymaps = []
 
@@ -93,6 +98,11 @@ def register():
     kmi.active = True
     addon_keymaps.append((km, kmi))
 
+    # addon updater code and configurations
+    register_updader()
+
+
+
 def unregister():
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
@@ -116,4 +126,29 @@ def unregister():
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
+
+
+def register_updader():
+    ""
+    updater.user = "cgcookie"
+    updater.repo = "retopoflow"
+    updater.use_releases = False
+    npath = os.path.join(os.path.dirname(__file__), bl_info["name"]+"_update_staging")
+    print(npath)
+    updater.stage_path = npath
+    updater.current_version = bl_info["version"]
+    #updater.set_check_frequency(enable=False,months=0,weeks=0,days=0,minutes=5)
+    updater.verbose = True
+
+    # this should NOT BE RUN in register; though it works, it 
+    # delays blender startup due to retreiving updates online
+    # better to use it just before a tool is used for exmaple,
+    # or when the menu is ran for the first time.
+    # Or, make it asynchronous. 
+    (update_ready, version, link) = updater.check_for_update()
+    print(update_ready, version, link)
+
+    # **definitely** shouldn't do this, ask permission first e.g. in popup.
+    # but, no values need to be passed in.. all stored in the class.
+    updater.run_update(force=False)
 
