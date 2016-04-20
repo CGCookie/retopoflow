@@ -37,7 +37,7 @@ verison file to compare.
 # here test benching the actual module we are writing
 
 print("----------- testing module")
-import addon_updater
+import addon_updater # outdated
 
 print("----------- creating instance")
 my_updater = addon_updater.Updater("cgcookie","helloworld",use_releases=False)
@@ -70,3 +70,4 @@ my_updater.stage_repository(link) # improvements still to be made
 print("(created new staging folder, at location: ",my_updater._stage_path,")")
 # at the moment, just downloads as zip, doesnt' extract just yet
 
+# staging link, just folder.. by defautl, shoudl be addon's BL_NAME.cache to avoid conflicts

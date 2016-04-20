@@ -42,6 +42,9 @@ import json
 import zipfile
 import shutil
 
+# blender imports, used in limited cases
+import bpy
+import addon_utils
 
 # -----------------------------------------------------------------------------
 # Define error messages/notices & hard coded globals
@@ -88,7 +91,7 @@ class Singleton_updater(object):
 		self._tag_names = []
 		self._releases = []
 		self._release_latest = None
-		self._stage_path = None # "" # assume specific cachename, use addon?.cache
+		 # "" # assume specific cachename, use addon?.cache
 		#self._check_frequency = 0 # how often to auto-check for update, 0=never
 		self._check_frequency_enable = False
 		self._check_frequency_month = 0
@@ -101,6 +104,15 @@ class Singleton_updater(object):
 		self._update_ready = None
 		self._update_link = None
 		self._update_version = None
+		self._source_zip = None
+
+		# get from module data
+		self._addon = __name__
+		if "." in self._addon:
+			self._addon = self._addon[0:self._addon.index(".")]
+		self._stage_path = os.path.join(os.path.dirname(__file__),
+							self._addon+"_update_staging")
+		
 
 
 
@@ -108,6 +120,13 @@ class Singleton_updater(object):
 	# -------------------------------------------------------------------------
 	# Getters and setters
 	# -------------------------------------------------------------------------
+
+	@property
+	def addon(self):
+		return self._addon
+	@addon.setter
+	def addon(self, value):
+		self._addon = str(value)
 
 	@property
 	def verbose(self):
@@ -153,8 +172,8 @@ class Singleton_updater(object):
 			print("Aborting assigning stage_path, it's null")
 			return
 		elif value != None and not os.path.exists(value):
-		    os.makedirs(value)
-		    # definitely check for errors here, user issues
+			os.makedirs(value)
+			# definitely check for errors here, user issues
 		self._stage_path = value
 
 
@@ -192,6 +211,18 @@ class Singleton_updater(object):
 	@property
 	def current_version(self):
 		return self._current_version
+
+	@property
+	def update_ready(self):
+		return self._update_ready
+
+	@property
+	def update_version(self):
+		return self._update_version
+
+	@property
+	def update_link(self):
+		return self._update_link
 
 	@current_version.setter
 	def current_version(self,tuple_values):
@@ -324,39 +355,114 @@ class Singleton_updater(object):
 		# first make/clear the staging folder
 		# ensure our folder is always "clean"
 		local = self._stage_path
-		# if local == "//":
-		# 	local = os.path.dirname(os.path.realpath(__file__))
-		if os.z
 
 		#local = os.path.join(local, "update_staging")
 		error = False
 
 		# no, really should just remove eveyrthing but the cache if found
 		# or use same as folder name but plus extension.. that could work
+		print("localdir:",local)
 		if os.path.isdir(local) == True:
 			# try/except for permission errors or other OS errors!
 			try:
 				shutil.rmtree(local) 
 				print("remove?")
+				os.makedirs(local)
+				print("re-added?")
 			except:
 				print("Error, couldn't remove existing staging directory")
 				error = True
 		else:
-			raise ValueError("Staging folder not created")
-		try:
-			os.makedirs(local)
-		except:
-			print("Error, couldn't make staging directory")
-			error = True
+			try:
+				print("os local dir:",local)
+				os.makedirs(local)
+			except:
+				print("Error, couldn't make staging directory")
+				error = True
 		
 		if error == True:
 			print("Aborting update") # return error instead, with text standard
 			return -1
 
+		if self.verbose:print("Todo: create backup zip of current addon now")
 
 		if self.verbose:print("Now retreiving the source zip")
-		urllib.request.urlretrieve(url, os.path.join(local,"source.zip"))
+		# really should have better error handling here..
+		# also, jsut use FancyURLopener.. it's the same module, literally
+		# try:
+		self._source_zip = os.path.join(local,"source.zip")
+		urllib.request.urlretrieve(url, self._source_zip)
+		# except:
+
+
 		return 0
+
+	def upack_staged_zip(self):
+
+		if os.path.isfile(self._source_zip) == False:
+			print("Error, file not found")
+			return -1
+
+		if zipfile.is_zipfile(self._source_zip):
+			with zipfile.ZipFile(self._source_zip) as zf:
+				zf.extractall(os.path.join(self._stage_path,"source"))
+		else:
+			print("Not a zip file, future add support for just .py files")
+			raise ValueError("Resulting file is not a zip")
+		if self.verbose:print("Extracted source")
+
+		# either directly in root of zip, or one folder level deep
+		unpath = os.path.join(self._stage_path,"source")
+		if os.path.isfile(os.path.join(unpath,"__init__.py")) == False:
+			dirlist = os.listdir(unpath)
+			if len(dirlist)>0:
+				unpath = os.path.join(unpath,dirlist[0])
+
+			if os.path.isfile(os.path.join(unpath,"__init__.py")) == False:
+				print("not a valid addon found")
+				raise ValueError("__init__ file not found in new source")
+
+		# now commence merging in the two locations:
+		# hard coded for now... should get from __file__?
+		print("UNZSTAGE, unpath:",unpath,"  \n> origpath:",__file__)
+		origpath = "/Users/patrickcrawford/Library/Application Support/Blender/2.76/scripts/addons/retopoflow/"
+		self.deepMergeDirectory(origpath,unpath)
+		self.reload_addon()
+
+
+	# merge contents of folder 'merger' into folder 'base', without deleting existing
+	def deepMergeDirectory(self,base,merger):
+		if not os.path.exists(base):
+			print("Base path does not exist")
+			return -1
+		elif not os.path.exists(merger):
+			print("Merger path does not exist")
+			return -1
+
+		for path, dirs, files in os.walk(merger):
+			relPath = os.path.relpath(path, merger)
+			destPath = os.path.join(base, relPath)
+			if not os.path.exists(destPath):
+				os.makedirs(destPath)
+			for file in files:
+				destFile = os.path.join(destPath, file)
+				if os.path.isfile(destFile):
+					os.remove(destFile)
+				srcFile = os.path.join(path, file)
+				os.rename(srcFile, destFile)
+	
+	def reload_addon(self):
+		print("reloading addon...") # remove: __pycache__ ?
+		addon_utils.modules(refresh=True)
+		bpy.utils.refresh_script_paths()
+
+		# not allowed in restricted context, such as register module
+		#bpy.ops.script.reload()
+
+		# toggle to refresh
+		bpy.ops.wm.addon_disable(module=self._addon)
+		bpy.ops.wm.addon_enable(module=self._addon)
+
 
 
 	# -------------------------------------------------------------------------
@@ -387,7 +493,7 @@ class Singleton_updater(object):
 		return tuple(segments) # turn into a tuple
 
 
-	def check_for_update(self, force=False):
+	def check_for_update(self, now=False):
 		if self._current_version == None:
 			raise ValueError("No current_version property set for comparison")
 		if self._repo == None:
@@ -396,7 +502,7 @@ class Singleton_updater(object):
 			raise ValueError("No repo username defined")
 			# fail silently?
 
-		if force == False and self.past_interval_timestamp()==False:
+		if now == False and self.past_interval_timestamp()==False:
 			if self.verbose:print("Aborting check for updated, check interval not reached")
 			return (False, None, None)
 
@@ -426,7 +532,7 @@ class Singleton_updater(object):
 		# clean: ie fully remove folder and re-add addon
 		# (not literally since the code is running from here & we want a revertable copy)
 
-		if self.verbose:print("Running update")
+		if self.verbose:print("Running updates")
 
 		if force==False:
 			# should we not check for this here?
@@ -442,7 +548,13 @@ class Singleton_updater(object):
 				return 1 # stopped
 
 			if self.verbose:print("Staging update")
-			self.stage_repository(self._update_link)
+			result = self.stage_repository(self._update_link)
+			if result == 0:
+				# everythign worked fine
+				self.upack_staged_zip()
+			else:
+				print("Error with stage_repository:",result)
+				
 
 
 		else:
