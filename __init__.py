@@ -27,7 +27,7 @@ bl_info = {
     "version":     (1, 2, 0),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
-    "warning":     "Beta",  # used for warning icon and text in addons panel
+    "warning":     "",  # used for warning icon and text in addons panel
     "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
@@ -61,7 +61,7 @@ if bversion() >= '002.076.000':
     from .op_tweak.tweak_modal import CGC_Tweak
     from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
     from .op_loopcut.loopcut_modal import CGC_LoopCut
-    from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
+    from .op_loopslide.loopslide_modal import CGC_loopslide
     from .op_polypen.polypen_modal import CGC_Polypen
 
 # Used to store keymaps for addon
@@ -80,7 +80,7 @@ def register():
         bpy.utils.register_class(CGC_EyeDropper)
         bpy.utils.register_class(CGC_EdgePatches)
         bpy.utils.register_class(CGC_LoopCut)
-        bpy.utils.register_class(CGC_EdgeSlide)
+        bpy.utils.register_class(CGC_loopslide)
         bpy.utils.register_class(CGC_Polypen)
     
     bpy.utils.register_class(OpenLog)
@@ -103,7 +103,7 @@ def unregister():
         bpy.utils.unregister_class(CGC_EyeDropper)
         bpy.utils.unregister_class(CGC_EdgePatches)
         bpy.utils.unregister_class(CGC_LoopCut)
-        bpy.utils.unregister_class(CGC_EdgeSlide)
+        bpy.utils.unregister_class(CGC_loopslide)
         bpy.utils.unregister_class(CGC_Polypen)
 
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)

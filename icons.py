@@ -21,7 +21,7 @@ def load_icons():
 	rf_icons.load( "rf_tweak_icon", os.path.join(icons_dir, "tweak_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopcut_icon", os.path.join(icons_dir, "loop_cut_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopdelete_icon", os.path.join(icons_dir, "loop_delete_32.png"), 'IMAGE')
-	rf_icons.load( "rf_edgeslide_icon", os.path.join(icons_dir, "edge_slide_32.png"), 'IMAGE')
+	rf_icons.load( "rf_loopslide_icon", os.path.join(icons_dir, "loop_slide_32.png"), 'IMAGE')
 
 	icon_collections["main"] = rf_icons
 	icons_loaded = True
