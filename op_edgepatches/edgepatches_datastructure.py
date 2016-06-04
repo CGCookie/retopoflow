@@ -416,7 +416,7 @@ class EPPatch:
     
     def detach(self):
         for epv in self.get_epverts():
-            epv.remove(self)
+            epv.eppatches.remove(self)
         for epe in self.lepedges:
             epe.eppatches.remove(self)
             
@@ -456,7 +456,7 @@ class EPPatch:
             #print('the raw angle at this gvert is %f'% raw_angle)
             #print('the dot product is %f' % parallel)     
             #if abs(inner_angle) > .8 * math.pi and abs(inner_angle) < 5/4* math.pi:
-            if parallel > .68:
+            if parallel > .8:
                 print('adding to T junctions')#:  %f' % (180*inner_angle/math.pi))
                 self.t_junctions.add(epv_now)
             #elif abs(inner_angle) >=  5/4* math.pi:
@@ -465,7 +465,7 @@ class EPPatch:
         if all([epv in self.t_junctions for epv in self.get_epverts()]):
             print('all verts t_junctions, need to override some')   
     
-        print(len(self.t_junctions))
+       
           
     def update(self):
         ctr = Vector((0,0,0))

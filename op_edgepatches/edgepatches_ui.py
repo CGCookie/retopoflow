@@ -65,7 +65,11 @@ class EdgePatches_UI:
         self.is_navigating   = False
 
         self.post_update = True
-        
+        self.act_epvert = None
+        self.act_epedge = None
+        self.act_eppatch = None
+        self.sel_epverts = set()
+        self.sel_epedges = set()
         
         if context.mode == 'OBJECT':
             # Debug level 2: time start
@@ -148,11 +152,7 @@ class EdgePatches_UI:
         
         context.area.header_text_set('Edge-Patches')
         
-        self.act_epvert = None
-        self.act_epedge = None
-        self.act_eppatch = None
-        self.sel_epverts = set()
-        self.sel_epedges = set()
+
     
     def end_ui(self, context):
         pass
