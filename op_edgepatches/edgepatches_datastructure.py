@@ -489,7 +489,7 @@ class EPPatch:
         self.L_sub_raw = [epe.subdivision for epe in self.lepedges]
         self.check_ts()
         new_lsub = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
-        if self.L_sub_eff != new_lsub:
+        if self.L_sub_eff != new_lsub or self.patch == None or (self.patch and self.patch.active_solution_index == -1):
             self.ILP_initial_solve()
         
         if self.patch and self.patch.active_solution_index != -1 and self.live:
@@ -1102,6 +1102,8 @@ class EdgePatches:
         #first, check for selected verts that are part of non man edges
         #sel_bmverts = [v for v in bme.verts if v.select and any([not e.is_manifold for e in v.link_edges])]
         sel_vert_corners = [v for v in bme.verts if v.select]
+        
+        if len(sel_vert_corners) < 2: return
         v_loops = find_edge_loops(bme, sel_vert_corners, select = False)    
     
     
