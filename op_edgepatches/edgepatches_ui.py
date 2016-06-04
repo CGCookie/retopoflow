@@ -239,8 +239,8 @@ class EdgePatches_UI:
 
     def pick(self, eventd):
         x,y = eventd['mouse']
-        pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
-        #pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
+        #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)]) 
+        pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
         if not pts:
             # user did not click on the object
             if not eventd['shift']:
@@ -254,6 +254,8 @@ class EdgePatches_UI:
         # Select EPVert
         for epv,_ in self.edgepatches.pick_epverts(pt, maxdist=self.stroke_radius):
             if epv.is_inner():
+                print('inner epv find the edge it belongs too?')
+                print('len of edges %i' % len(epv.epedges))
                 if self.act_epvert:
                     if epv != self.act_epvert and epv not in self.act_epvert.get_inner_epverts():
                         continue
@@ -277,6 +279,9 @@ class EdgePatches_UI:
             self.sel_epedges.clear()
             self.sel_epedges.add(epe)
             self.sel_epverts.clear()
+            
+            
+            print('EPEdge has %i faces' % len(epe.eppatches))
             return ''
         
         

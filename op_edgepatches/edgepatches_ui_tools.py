@@ -227,12 +227,14 @@ class EdgePatches_UI_Tools:
             dv = Vector(command) * (factor_slow if eventd['shift'] else factor_fast)
             s2d = l3dr2d(self.tool_data[0][0].position)
             lgv2d = [s2d+relp+dv for _,_,relp in self.tool_data]
-            pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, lgv2d)
-            #pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, lgv2d)
+            #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, lgv2d)
+            pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, lgv2d)
             if len(pts) != len(lgv2d): return ''
             for d,p2d in zip(self.tool_data, pts):
                 d[0].position = p2d
             for epv,_,_ in self.tool_data:
+                if epv.is_inner():
+                    print('translating inner epvert')
                 epv.update()
                 #epv.update_visibility(eventd['r3d'], update_gedges=True)
 
@@ -244,7 +246,7 @@ class EdgePatches_UI_Tools:
             lepv = [self.act_epvert]
         else:
             lepv = None
-        self.grab_tool_gvert_list(command, eventd, lgv)
+        self.grab_tool_gvert_list(command, eventd, lepv)
 
     def grab_tool_epvert_neighbors(self, command, eventd):
         '''

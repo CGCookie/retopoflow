@@ -32,6 +32,8 @@ from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
 from ..lib.classes.profiler.profiler import profiler
 
+from ..cache import mesh_cache
+
 class EdgePatches_UI_ModalWait():
     def modal_wait(self, context, eventd):
         settings = common_utilities.get_settings()
@@ -126,7 +128,8 @@ class EdgePatches_UI_ModalWait():
                     showErrorMessage('Cannot merge inner EPVert')
                     return ''
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
                 if not pts: return ''
                 pt = pts[0]
                 
@@ -186,7 +189,8 @@ class EdgePatches_UI_ModalWait():
             #this ...rips a single EPV apart?
             if eventd['press'] in self.keymap['knife'] and not self.act_epvert.is_inner():
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
                 if not pts: return ''
                 pt = pts[0]
                 
@@ -215,7 +219,8 @@ class EdgePatches_UI_ModalWait():
             if eventd['press'] in self.keymap['knife']:
                 self.create_undo_snapshot('knife')
                 x,y = eventd['mouse']
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
                 if not pts: return ''
                 
                 _,_,epv = self.edgepatches.split_epedge_at_pt(self.act_epedge, pts[0], connect_epvert = None)
@@ -240,7 +245,17 @@ class EdgePatches_UI_ModalWait():
                 self.edgepatches.smart_update_eppatches_network()
                 return ''
         if eventd['press'] in {'p','P'}:
-            self.edgepatches.live = self.edgepatches.live != True
+            
+            print('Edge patches updating was ' + str(self.edgepatches.live))
+            new_live = self.edgepatches.live != True
+            self.edgepatches.live = new_live
+            print('Edge patches updating is now ' + str(self.edgepatches.live))
+            
+            for i, ep in enumerate(self.edgepatches.eppatches):
+                print('patch %i is now live' % i)
+                print(new_live)
+                ep.live = new_live
+            
             self.edgepatches.smart_update_eppatches_network()
             #self.edgepatches.debug()
             return ''
@@ -313,7 +328,8 @@ class EdgePatches_UI_ModalWait():
                 x,y = eventd['mouse']
                 self.sketch_brush.get_brush_world_size(eventd['context'])
                 if not self.sketch_brush.world_width: return ''
-                pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                #pts = common_utilities.ray_cast_path(eventd['context'], self.obj_orig, [(x,y)])
+                pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
                 if not pts: return ''
                 
                 epv = self.edgepatches.toggle_t(self.act_eppatch, pts[0], self.sketch_brush.world_width)

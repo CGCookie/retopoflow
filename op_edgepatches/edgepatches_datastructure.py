@@ -63,7 +63,7 @@ class EPVert:
         self.bmesh_ind = -1  
         
     def snap(self):
-        p,n,_ = EdgePatches.getClosestPoint(self.position)
+        p,n,_ = EdgePatches.getClosestPoint(self.position, meth = 'BVH')
         self.snap_pos  = p
         self.snap_norm = n
     
@@ -81,6 +81,15 @@ class EPVert:
             self.doing_update = True
             self.update_eppatches()
             self.doing_update = False
+            
+        if self.is_inner():
+            self.doing_update = True
+            for epe in self.epedges:
+                for epp in epe.eppatches:
+                    print('generating geometry for adjacent patches by edge')
+                    epp.generate_geometry()
+            
+            self.doing_update = False
         #pr.done()
     
     def update_epedges(self):
@@ -89,6 +98,11 @@ class EPVert:
             l_vecs = [epe.get_outer_vector_at(self) for epe in self.epedges]
             self.epedges = sort_objects_by_angles(-self.snap_norm, self.epedges, l_vecs)  # positive snap_norm to sort clockwise
         for epe in self.epedges:
+            
+            if self.is_inner():
+                print('updating edge for an inner vert!!')
+            else:
+                print('updating edge for outer vert')
             epe.update(shape = True, subdiv = True, patches = False)
     
     def update_eppatches(self):
@@ -97,6 +111,7 @@ class EPVert:
             l_vecs = [epp.info_display_pt()-self.snap_pos for epp in self.eppatches]
             self.eppatces = sort_objects_by_angles(-self.snap_norm, self.eppatches, l_vecs)  # positive snap_norm to sort clockwise
         for epp in self.eppatches:
+            print('updating patch around EPVert')
             epp.update()
             
     def connect_epedge(self, epedge):
@@ -227,7 +242,7 @@ class EPEdge:
         self.edge_vert_norms = []
         
         for pos in e_v_pos:
-            p,n,i = getClosestPoint(pos)
+            p,n,i = getClosestPoint(pos, meth = 'BVH')
             self.edge_verts.append(p)
             self.edge_vert_norms.append(n)
             
@@ -238,7 +253,7 @@ class EPEdge:
             self.curve_norms = []
             self.edge_vert_norms = [] 
             for pos in self.curve_verts:
-                p,n,i = getClosestPoint(pos)
+                p,n,i = getClosestPoint(pos, meth = 'BVH')
                 self.edge_vert_norms.append(n)
                 self.curve_norms.append(n)     
             return
@@ -252,15 +267,24 @@ class EPEdge:
         
         for pos in lpos:
             #pr3 = profiler.start()
-            p,n,i = getClosestPoint(pos)
+            p,n,i = getClosestPoint(pos, meth = 'BVH')
             self.curve_verts.append(p)
             self.curve_norms.append(n)        
     
     def update(self, shape = True, subdiv = True, patches = True):
+        '''
+        shape:  This will re-interpolate the bezier and create a vert chain
+        subdivision:  only use if number of segments has been changes (eg, wheel up mouse)
+        patches:  if subdivision is changed, the patch solution by definition must change.
+        '''
+        print(len(self.eppatches))
         if shape:
             self.update_shape()
-            for epp in self.eppatches:
-                epp.generate_geometry()
+            
+            #this now hapens at the inner gvert level because of duplicate updating
+            #for epp in self.eppatches:
+            #    print('generating geometry for adjacent patches by edge')
+            #    epp.generate_geometry()
             
         if subdiv:
             self.update_subdiv()  
@@ -362,7 +386,8 @@ class EPPatch:
         self.epedge_fwd = [e1.has_epvert(e0.epvert3) for e0,e1 in zip_pairs(self.lepedges)]
         for epv in self.get_epverts():
             epv.eppatches += [self]
-        
+        for epe in self.lepedges:
+            epe.eppatches += [self]
         
         self.center = Vector()
         self.normal = Vector()
@@ -385,12 +410,19 @@ class EPPatch:
         
         self.bmesh = bmesh.new()
         self.patch = None
-        self.live = False
+        self.live = True
         
         self.update()
     
+    def detach(self):
+        for epv in self.get_epverts():
+            epv.remove(self)
+        for epe in self.lepedges:
+            epe.eppatches.remove(self)
+            
+            
     def check_ts(self):
-        print('CHECKING T JUNCTIONS AND CONCAVIIES')
+        #print('CHECKING T JUNCTIONS AND CONCAVIIES')
         self.t_junctions.clear()
         self.concave.clear()
         
@@ -420,9 +452,9 @@ class EPPatch:
             
             parallel = -v0.dot(v1)
             
-            print('inner angle at this gvert is %f' % (180*inner_angle/math.pi))  
-            print('the raw angle at this gvert is %f'% raw_angle)
-            print('the dot product is %f' % parallel)     
+            #print('inner angle at this gvert is %f' % (180*inner_angle/math.pi))  
+            #print('the raw angle at this gvert is %f'% raw_angle)
+            #print('the dot product is %f' % parallel)     
             #if abs(inner_angle) > .8 * math.pi and abs(inner_angle) < 5/4* math.pi:
             if parallel > .68:
                 print('adding to T junctions')#:  %f' % (180*inner_angle/math.pi))
@@ -446,7 +478,7 @@ class EPPatch:
             mx  = EdgePatches.matrix
             imx = EdgePatches.matrixinv
             mxn = EdgePatches.matrixnorm
-            p,n,_ = EdgePatches.getClosestPoint(ctr/float(cnt))
+            p,n,_ = EdgePatches.getClosestPoint(ctr/float(cnt), meth = 'BVH')
             self.center =  p
             self.normal =  n
         else:
@@ -454,7 +486,7 @@ class EPPatch:
             self.normal = Vector()
         
         
-        self.L_sub_raw = [ep.subdivision for ep in self.lepedges]
+        self.L_sub_raw = [epe.subdivision for epe in self.lepedges]
         self.check_ts()
         new_lsub = [len(ed_l)-1 for ed_l in self.get_edge_loops()]
         if self.L_sub_eff != new_lsub:
@@ -464,8 +496,7 @@ class EPPatch:
             self.generate_geometry()
         else:
             self.faces, self.verts = [], []
-            
-            
+                        
     def get_outer_points(self):  #TODO, check where this is used
         def get_verts(epe,fwd):
             if fwd: return epe.curve_verts
@@ -574,8 +605,7 @@ class EPPatch:
         L, rot_dir, pat, sol = self.patch.get_active_solution()
         print(sol)
         return
-    
-    
+      
     def generate_geometry(self):
         '''
         this creates/refreshes a bmesh which exists
@@ -597,16 +627,16 @@ class EPPatch:
         N = len(c_vs)
         ed_loops = self.get_edge_loops()  #TODO T-Junctions
         
-        print('%i Sided Patch' % N)
-        print('Solved by pattern # %i' % pat)
+        #print('%i Sided Patch' % N)
+        #print('Solved by pattern # %i' % pat)
         #print('%i side is now the 0 side' % n)
         #print('%i direction around path' % fwd)
         
-        print('Subdivisions by active solution')
-        print(L)
+        #print('Subdivisions by active solution')
+        #print(L)
         
-        print('Subdivision by self.L_sub_effective (lepedges)')
-        print(self.L_sub_eff)
+        #print('Subdivision by self.L_sub_effective (lepedges)')
+        #print(self.L_sub_eff)
         
         #print('Pre Corrected Subdivisions, derived from len(edge loops)')
         #print([len(loop)-1 for loop in ed_loops])
@@ -846,8 +876,7 @@ class EPPatch:
         
         if success:
             self.generate_geometry()
-       
-       
+      
     def generate_bmesh(self):
         self.bmesh = bmesh.new()
         bmverts = [self.bmesh.verts.new(v) for v in self.verts]  #TODO, matrix stuff
@@ -858,8 +887,7 @@ class EPPatch:
         
         self.bmesh.verts.ensure_lookup_table()
         self.bmesh.faces.ensure_lookup_table()
-        
-        
+          
     def bmesh_to_patch(self):
         
         if not self.bmesh: return
@@ -981,11 +1009,11 @@ class EdgePatches:
         
         if meth == 'OBJ':
             obj = EdgePatches.getSrcObject()
-            c,n,i = obj.closest_point_on_mesh(imx * p)
+            result,c,n,i = obj.closest_point_on_mesh(imx * p)
             
         else:
             bvh = mesh_cache['bvh']
-            c,n,i,d = bvh.find(imx*p)
+            c,n,i,d = bvh.find_nearest(imx*p)
         
         ret = (mx*c,mxn*n,i)    
         #pr.done()
@@ -1157,6 +1185,8 @@ class EdgePatches:
             l_sub = [epe.subdivision for epe in epp.lepedges]
             if l_sub != epp.L_sub_raw:  #TODO, this will reflect T junctions, but we need to find better marker for unchanged patches
                 print('update this patch')
+                print(l_sub, epp.L_sub_raw)
+                print(l_sub, epp.L_sub_eff)
                 epp_update.add(epp)
                 loops.remove(loop) #no longer needed to make new one, just update subdiv
         
@@ -1169,6 +1199,7 @@ class EdgePatches:
                 
         print('removing %d no longer existing patches' % len(epp_remove))
         for epp in epp_remove:
+            epp.detach()
             self.eppatches.remove(epp)
             
             
@@ -1183,10 +1214,11 @@ class EdgePatches:
                 if epe not in self.epedge_eppatch: self.epedge_eppatch[epe] = set()
                 self.epedge_eppatch[epe].add(epp)
         
-        print('Updated %d new patches' % len(epp_update))  
+        print('Updated %d existing patches' % len(epp_update))  
         for epp in epp_update:
-            epp.ILP_initial_solve()
-            epp.generate_geometry()
+            epp.update()
+            #epp.ILP_initial_solve()
+            #epp.generate_geometry()
             
         if len(epp_update) or len(loops):
             print('patches need updating')

@@ -41,6 +41,8 @@ from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_s
 from ..lib.classes.profiler.profiler import profiler
 from ..preferences import RetopoFlowPreferences
 
+from ..cache import mesh_cache
+
 
 class EdgePatches_UI_Draw():
     
@@ -359,9 +361,13 @@ class EdgePatches_UI_Draw():
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif not self.is_navigating:
             # draw the brush oriented to surface
-            ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.cur_pos, self.obj_orig, settings)
+            ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, 
+                                                             mesh_cache['bvh'], 
+                                                             self.mx, settings)
+            
             hit_p3d,hit_norm,hit_idx = hit
-            if hit_idx != -1: # and not self.hover_ed:
+            
+            if hit_idx != None: # and not self.hover_ed:
                 mx = self.obj_orig.matrix_world
                 mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
@@ -374,9 +380,11 @@ class EdgePatches_UI_Draw():
             
             
             if self.fsm_mode == 'sketch' and len(self.sketch):
-                ray,hit = common_utilities.ray_cast_region2d(region, r3d, self.sketch[0][0], self.obj_orig, settings)
+                ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], 
+                                                                 mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
-                if hit_idx != -1:
+                #result, hit_p3d,hit_norm,hit_idx = hit
+                if hit_idx != None:
                     mx = self.obj_orig.matrix_world
                     mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d

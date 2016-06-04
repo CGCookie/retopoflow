@@ -12,6 +12,7 @@ from .pat_patch import identify_patch_pattern
 
 import bmesh
 from .lib.common_mesh import edge_loops_from_bmedges, find_edge_loops, make_bme, find_perimeter_verts, join_bmesh
+from .lib.common_utilities import dprint
 
 def find_coord(bme, v_search, vert_list = []):
     '''
@@ -1503,10 +1504,10 @@ def pad_patch_sides_method(vs, ps, L, pattern, mode = 'edges'):
         
         inner_verts += [N_now -1 + k for k in range(p,len(middle_verts),p)]
         
-        if l - p_m1 == 1: print('Side %i: prev adjacent padding 1 less than this subdiv' % i)
-        if l - p_p1 == 1: print('Side %i: next adjacent padding 1 less than this subdiv'% i)
-        if l_m1 - p == 1 and p != 0: print('Side %i: Previously disallowed case, may cause rare bad outcomes'% i)
-        if l_m1 - p_m11 == 1 and p_m11 != 0 and p != 0: print('Side %i: no corner verts on previous side because m11 side padding'% i)
+        if l - p_m1 == 1: dprint('Side %i: prev adjacent padding 1 less than this subdiv' % i)
+        if l - p_p1 == 1: dprint('Side %i: next adjacent padding 1 less than this subdiv'% i)
+        if l_m1 - p == 1 and p != 0: dprint('Side %i: Previously disallowed case, may cause rare bad outcomes'% i)
+        if l_m1 - p_m11 == 1 and p_m11 != 0 and p != 0: dprint('Side %i: no corner verts on previous side because m11 side padding'% i)
         
         
         if p_m1 != 0 and not (#(l_m1 - p == 1 and p != 0) or 
