@@ -53,7 +53,7 @@ class CGC_EdgePatches(ModalOperator, EdgePatches_UI, EdgePatches_UI_Draw, EdgePa
         FSM['rotate tool']      = self.modal_rotate_tool
         FSM['scale tool']       = self.modal_scale_tool
         FSM['brush scale tool'] = self.modal_scale_brush_pixel_tool
-        
+        FSM['widget']           = self.modal_widget
         wm = bpy.context.window_manager
         self._timer = wm.event_timer_add(0.05, bpy.context.window)
         

@@ -43,8 +43,8 @@ from ..lib.common_bezier import cubic_bezier_find_closest_t_approx
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
-from ..pat_patch import Patch
-from ..patch_geometry import *
+from .patch_math import Patch
+from .patch_geometry import *
 from ..lib.common_mesh import join_bmesh, find_perimeter_verts
 
 class EPVert:
@@ -212,7 +212,6 @@ class EPEdge:
        
         mid = math.ceil((len(self.curve_verts)-1)/2)
         
-        
         if not len(self.curve_norms):
             self.update_shape()
             return self.curve_verts[mid]
@@ -223,7 +222,7 @@ class EPEdge:
             pt = self.curve_verts[mid]
             
         no = self.curve_norms[mid]
-        dir_off = no.cross(self.curve_verts[mid+1]-self.curve_verts[mid])
+        dir_off = no.cross(self.curve_verts[mid]-self.curve_verts[mid-1])
         dir_off.normalize()
         len_off = .1 * (self.curve_verts[-1] - self.curve_verts[0]).length
         
@@ -543,7 +542,7 @@ class EPPatch:
                 loops[0] = loops[-1] + loops[0]
                 loops.pop()
         
-        print([len(lp)-1 for lp in loops])
+        #print([len(lp)-1 for lp in loops])
         return loops
     
     def get_bme_vert_loop(self): #TODO update for T-junctions, DONE, agnostic of T-junctinos
@@ -623,9 +622,9 @@ class EPPatch:
             print('no solution yet')
             self.verts, self.faces, self.gdict = [], [], {}
             return
-        c_vs = self.get_corner_locations() #TODO T-Junctions
+        c_vs = self.get_corner_locations() #TODO T-Junctions #Done
         N = len(c_vs)
-        ed_loops = self.get_edge_loops()  #TODO T-Junctions
+        ed_loops = self.get_edge_loops()  #TODO T-Junctions #Done
         
         #print('%i Sided Patch' % N)
         #print('Solved by pattern # %i' % pat)
@@ -1106,8 +1105,7 @@ class EdgePatches:
         if len(sel_vert_corners) < 2: return
         v_loops = find_edge_loops(bme, sel_vert_corners, select = False)    
     
-    
-        
+
         real_corners = set()
         for vloop in v_loops:
             pts, inds, corners = vloop

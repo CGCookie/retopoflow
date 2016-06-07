@@ -33,6 +33,8 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, fr
 from ..lib.classes.profiler.profiler import profiler
 from ..cache import mesh_cache
 
+from .patch_widget import PatchEditorWidget
+
 class EdgePatches_UI_Tools:
     def modal_sketching(self, context, eventd):
         settings = common_utilities.get_settings()
@@ -147,6 +149,79 @@ class EdgePatches_UI_Tools:
 
     ##############################
     # tools
+    
+    def modal_widget(self, context, eventd):
+        if eventd['press'] in {'TAB', 'ESC'}:
+            self.patch_widget = None
+            return 'main'
+        
+        if eventd['press'] == 'LEFTMOUSE':
+            x, y = eventd['mouse']
+            param, val = self.patch_widget.pick(context, x, y)
+            print((param, val))
+
+            if param == None: return ''
+            
+            elif param == 'Pattern':
+                self.act_eppatch.change_pattern(val)
+                #self.patch_widget = PatchEditorWidget(self.act_eppatch)
+                self.patch_widget.p_locs_get()
+                self.patch_widget.pole_inds_get()
+                self.patch_widget.valid_patterns_get()
+            else:
+                #set the pattern adjuster index
+                self.act_eppatch.patch.param_index = val
+                self.act_eppatch.patch.delta = 0
+                name = self.act_eppatch.patch.get_adjust_variable_name()
+                print('adjust parameter %s' % name)
+        
+        elif eventd['press'] in {'M'}:
+            self.act_eppatch.mirror_solution()
+            self.patch_widget.p_locs_get()
+            self.patch_widget.pole_inds_get()
+            self.patch_widget.valid_patterns_get()
+            return ''
+        
+        elif eventd['press'] in {'RIGHT_ARROW'}:
+            self.act_eppatch.rotate_solution(1)
+            self.patch_widget.p_locs_get()
+            self.patch_widget.pole_inds_get()
+            self.patch_widget.valid_patterns_get()    
+            return ''
+        
+        elif eventd['press'] in {'LEFT_ARROW'}:
+            self.act_eppatch.rotate_solution(-1)
+            self.patch_widget.p_locs_get()
+            self.patch_widget.pole_inds_get()
+            self.patch_widget.valid_patterns_get()
+            return ''
+        
+        elif eventd['press'] in {'UP_ARROW'}:
+                self.act_eppatch.patch.delta += 1
+                if self.act_eppatch.patch.adjust_patch():
+                    self.act_eppatch.patch.delta = 0
+                    self.act_eppatch.generate_geometry()
+                    self.patch_widget.p_locs_get()
+                    self.patch_widget.pole_inds_get()
+                    self.patch_widget.valid_patterns_get()
+                    return ''
+                
+        elif eventd['press'] in {'DOWN_ARROW'}:
+            self.act_eppatch.patch.delta -= 1
+            if self.act_eppatch.patch.adjust_patch():
+                self.act_eppatch.patch.delta = 0
+                self.act_eppatch.generate_geometry()
+                self.patch_widget.p_locs_get()
+                self.patch_widget.pole_inds_get()
+                self.patch_widget.valid_patterns_get()
+                return ''
+            
+        elif eventd['press'] in {'J'}:
+            self.act_eppatch.relax_patch()
+            self.act_eppatch.bmesh_to_patch()       
+            return ''
+        
+        return ''
     
     def ready_tool(self, eventd, tool_fn):
         rgn   = eventd['context'].region

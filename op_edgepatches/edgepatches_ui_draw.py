@@ -290,7 +290,7 @@ class EdgePatches_UI_Draw():
         
         
         #draw edge subdivisions around act_eppatch
-        if self.act_eppatch:
+        if self.act_eppatch and self.patch_widget == None:
             for epedge in self.act_eppatch.lepedges:
                 info_pt = epedge.info_display_pt()
                 screen_loc = location_3d_to_region_2d(context.region, context.space_data.region_3d, info_pt)
@@ -307,6 +307,8 @@ class EdgePatches_UI_Draw():
                 blf.position(0, screen_loc[0], screen_loc[1], 0)
                 blf.draw(0, info)
             
+            #visualize subdivision around both patches adjacent
+            #to active epedge
             for epp in self.act_epedge.eppatches:
                 for epe in epp.lepedges:
                     if epe == self.act_epedge: continue
@@ -397,4 +399,7 @@ class EdgePatches_UI_Draw():
                     
         if settings.show_help:
             self.help_box.draw()
+            
+        if self.patch_widget != None:
+            self.patch_widget.draw2D(context)
     

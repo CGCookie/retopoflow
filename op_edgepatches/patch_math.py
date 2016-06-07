@@ -3,7 +3,7 @@ Created on Jul 15, 2015
 
 @author: Patrick
 '''
-from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus, lpSum, LpSolverDefault, LpAffineExpression, LpConstraint
+from ..lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus, lpSum, LpSolverDefault, LpAffineExpression, LpConstraint
 
 from .patterns import *
 import time

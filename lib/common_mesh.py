@@ -38,7 +38,6 @@ def face_neighbors_by_vert(bmface):
         
     return neighbors
 
-
 def edge_loops_from_bmedges(bmesh, bm_edges, ret = {'VERTS'}):
     """
     args:
@@ -342,7 +341,7 @@ def edge_loop_neighbors(bme, edge_loop, strict = False, trim_tails = True, expan
     strict - Bool
            False , not strict, returns all loops regardless of topology
            True  ,  loops must be connected by quads only
-            Only returns  if the parallel loops are exactly the same length as original loop
+                    Only returns  if the parallel loops are exactly the same length as original loop
         
     trim_tails - will trim p shaped loops or figure 8 loops
     
@@ -625,7 +624,6 @@ def grow_selection_between_faces(bme, start_face, stop_face, max_iters = 1000, r
     
     return overlapped_selection
 
-
 def grow_selection_between_faces2(bme, face1, face2, max_iters = 1000, trim = True):
     '''
     Takes a face pair, expands topologically from both faces until the the two regions meet
@@ -716,7 +714,6 @@ def grow_selection_between_faces2(bme, face1, face2, max_iters = 1000, trim = Tr
         return overlapped_selection
     
     return final_selection
-
 
 def loops_from_edge_net(bme):
     ''' not implemented yet'''
@@ -845,8 +842,6 @@ def find_perimeter_verts(bme):
         perim.pop()
         n = perim.index(min(perim))
         return perim[n:] + perim[:n]
-
-
 
 def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
     '''

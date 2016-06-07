@@ -8,11 +8,10 @@ import math
 
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import  intersect_line_line
-from .pat_patch import identify_patch_pattern
 
 import bmesh
-from .lib.common_mesh import edge_loops_from_bmedges, find_edge_loops, make_bme, find_perimeter_verts, join_bmesh
-from .lib.common_utilities import dprint
+from ..lib.common_mesh import edge_loops_from_bmedges, find_edge_loops, make_bme, find_perimeter_verts, join_bmesh
+from ..lib.common_utilities import dprint
 
 def find_coord(bme, v_search, vert_list = []):
     '''

@@ -3,8 +3,7 @@ Created on Jan 22, 2016
 
 @author: Patrick
 '''
-from .lib.pulp import LpVariable, LpProblem, LpMinimize, LpMaximize, LpInteger, LpStatus, lpSum, LpSolverDefault, LpAffineExpression, LpConstraint
-
+from ..lib.pulp import LpAffineExpression, LpConstraint, lpSum
 
 def verify_L_2p0(L):
     valid = False

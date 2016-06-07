@@ -33,6 +33,7 @@ from ..lib.common_utilities import bversion, get_object_length_scale, dprint, fr
 from ..lib.classes.profiler.profiler import profiler
 
 from ..cache import mesh_cache
+from .patch_widget import PatchEditorWidget
 
 class EdgePatches_UI_ModalWait():
     def modal_wait(self, context, eventd):
@@ -120,6 +121,9 @@ class EdgePatches_UI_ModalWait():
         if eventd['press'] in {'RIGHTMOUSE', 'SHIFT+RIGHTMOUSE'}:
             if 'LEFTMOUSE' not in selection_mouse():
                 self.pick(eventd)
+                if self.patch_widget != None:
+                    x, y = eventd['mouse']
+                    print(self.patch_widget.pick(eventd['context'], x, y))
             return ''
 
         if self.act_epvert:
@@ -261,6 +265,17 @@ class EdgePatches_UI_ModalWait():
             return ''
         
         if self.act_eppatch:
+            if eventd['press'] in {'TAB'}:
+                #if self.patch_widget != None:
+                    #del self.patch_widget
+                    #self.patch_widget = None
+                #else:
+                self.patch_widget = PatchEditorWidget(self.act_eppatch)
+                self.patch_widget.p_locs_get()
+                self.patch_widget.pole_inds_get()
+                self.patch_widget.valid_patterns_get()
+                return 'widget'
+            
             if eventd['press'] in {'L'}:
                 self.act_eppatch.ILP_initial_solve()
                 #sleep needed?

@@ -43,7 +43,7 @@ from .. import key_maps
 from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid, edgepatches_undo_cache
 
 from .edgepatches_datastructure import EdgePatches, EPVert, EPEdge, EPPatch
-
+from .patch_widget import PatchEditorWidget
 
 
 class EdgePatches_UI:
@@ -68,6 +68,7 @@ class EdgePatches_UI:
         self.act_epvert = None
         self.act_epedge = None
         self.act_eppatch = None
+        self.patch_widget = None
         self.sel_epverts = set()
         self.sel_epedges = set()
         
@@ -149,6 +150,7 @@ class EdgePatches_UI:
         self.edgepatches = EdgePatches(context, self.obj_orig, self.dest_obj)
         self.edgepatches.extension_geometry_from_bme(self.dest_bme)
         
+        self.patch_widget = None
         
         context.area.header_text_set('Edge-Patches')
         
@@ -267,6 +269,7 @@ class EdgePatches_UI:
             self.act_epvert = epv
             self.act_epedge = None
             self.act_eppatch = None
+            self.patch_widget = None
             self.sel_epedges.clear()
             self.sel_epverts.clear()
             return ''
@@ -274,6 +277,7 @@ class EdgePatches_UI:
         # Select EPEdge
         for epe,_ in self.edgepatches.pick_epedges(pt, maxdist=self.stroke_radius):
             self.act_epvert = None
+            self.act_eppatch = None
             self.act_eppatch = None
             self.act_epedge = epe
             self.sel_epedges.clear()
@@ -290,6 +294,9 @@ class EdgePatches_UI:
         if len(lsepp):
             epp, d = lsepp[0]
             self.act_eppatch = epp
+            #self.patch_widget = PatchEditorWidget(epp)
+            #self.patch_widget.p_locs_get()
+            #self.patch_widget.pole_inds_get()
             self.act_epvert = None
             self.act_epedge = None
             self.sel_epedges.clear()
