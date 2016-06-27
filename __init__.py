@@ -24,7 +24,7 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 2, 0),
+    "version":     (1, 1, 9),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
@@ -41,6 +41,7 @@ import bpy
 
 #CGCookie imports
 from .lib.common_utilities import bversion, check_source_target_objects
+from .lib import common_utilities # this makes the above redundant
 
 
 #Menus, Panels, Interface and Icon 
@@ -64,16 +65,19 @@ if bversion() >= '002.076.000':
     from .op_polypen.polypen_modal import CGC_Polypen
 
 # updater import
-from .addon_updater import Updater as updater
-from .addon_updater_ops import addon_updater_install_popup
+# from .addon_updater import Updater as updater
+from . import addon_updater_ops
 
 # Used to store keymaps for addon
 addon_keymaps = []
 
 def register():
 
+    # ensure utilities global vars are set/reset on enable
+    common_utilities.register()
+
     bpy.utils.register_class(RetopoFlowPreferences)
-    # bpy.app.handlers.scene_update_post.append(check_source_target_objects)
+    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
@@ -99,12 +103,13 @@ def register():
     addon_keymaps.append((km, kmi))
 
     # addon updater code and configurations
-    bpy.utils.register_class(addon_updater_install_popup)
-    register_updater()
+    addon_updater_ops.register(bl_info)
+    
 
 
 
 def unregister():
+
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
         bpy.utils.unregister_class(CGC_Tweak)
@@ -116,8 +121,13 @@ def unregister():
 
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    #bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
+    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
+
+    # addon updater unregister
+    addon_updater_ops.unregister()
+    
+
     
     clear_icons()
 
@@ -128,32 +138,6 @@ def unregister():
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
-    bpy.utils.unregister_class(addon_updater_install_popup)
 
 
-def register_updater():
-    
-    updater.user = "TeamDeverse" # "cgcookie"
-    updater.repo = "retopoflow"
-    updater.use_releases = False
-    updater.current_version = bl_info["version"]
-    #updater.set_check_frequency(enable=False,months=0,weeks=0,days=0,minutes=5)
-    updater.verbose = True
-    updater.backup_current = True # True by DEFAULT
 
-    # # this should NOT BE RUN in register; though it works, it 
-    # # delays blender startup due to retreiving updates online
-    # # better to use it just before a tool is used for exmaple,
-    # # or when the menu is ran for the first time.
-    # # Or, make it asynchronous. 
-    
-    (update_ready, version, link) = updater.check_for_update()
-    # print("linear before")
-    # updater.testasync()
-    # print("linear past")
-    print(update_ready, version, link)
-
-    # # **definitely** shouldn't do this, ask permission first e.g. in popup.
-    # # but, no values need to be passed in.. all stored in the class.
-    # # In fact, cannot run this here.. context is prevented. 
-    # updater.run_update(force=False)

@@ -71,7 +71,7 @@ def get_settings():
         get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
-get_settings.cached_settings = None
+
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
@@ -104,7 +104,7 @@ def print_exception():
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
 
-print_exception.count = 0
+
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -237,20 +237,6 @@ def showErrorMessage(message, wrap=80):
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
 
-
-def register():
-    bpy.utils.register_class(SimpleOperator)
-
-
-def unregister():
-    bpy.utils.unregister_class(SimpleOperator)
-
-
-if __name__ == "__main__":
-    register()
-
-    # test call
-    #bpy.ops.object.simple_operator()
 
 
 def callback_register(self, context):
@@ -841,3 +827,26 @@ def outside_loop_2d(loop):
     maxy = max(ys)    
     bound = (1.1*maxx, 1.1*maxy)
     return bound
+
+
+def register():
+    global get_settings#.cached_settings
+    get_settings.cached_settings = None
+
+    global print_exception#.count
+    print_exception.count = 0
+
+    # bpy.utils.register_class(SimpleOperator)
+
+
+def unregister():
+    # bpy.utils.unregister_class(SimpleOperator)
+    ""
+
+
+if __name__ == "__main__":
+    register()
+
+    # test call
+    #bpy.ops.object.simple_operator()
+

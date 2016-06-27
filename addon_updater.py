@@ -26,7 +26,7 @@ myUpdater.repo = "repository_name"
 myUpdater.user = "username"
 myUpdater.stage_path = "//"
 myUpdater.current_version = "v1.1.0"
-myUpdater.set_check_frequency(months=0,weeks=0,days=0,minutes=5) # optional
+myUpdater.set_check_interval(months=0,days=14,minutes=5) # optional
 (update_ready, version, link) = myUpdater.check_for_update(force=false)
 myUpdater.update_appropriately() # only update if time & new version
 myUpdater.update_now() # force update regardless
@@ -41,6 +41,8 @@ import os
 import json
 import zipfile
 import shutil
+import asyncio # for async processing
+from datetime import datetime
 
 # blender imports, used in limited cases
 import bpy
@@ -65,15 +67,13 @@ ERRORS ={
 
 class Singleton_updater(object):
 	"""
-	This is the singleton class to reference a copy from
+	This is the singleton class to reference a copy from, 
+	it is the shared module level class
 	"""
-
-	# constructor
-	#def __init__(self, user, repo, api_url=DEFAULT_API_URL, timeout=DEFAULT_TIMEOUT, 
-	#			use_releases=True, current_version = None, stage_path="//"):
 	
 	def __init__(self):
 		"""
+		#UPDATE
 		:param user: string # name of the user owning the repository
 		:param repo: string # name of the repository
 		:param api_url: string # should just be the github api link
@@ -84,37 +84,36 @@ class Singleton_updater(object):
 
 		self._user = None
 		self._repo = None
+		self._website = None
 		self._api_url = DEFAULT_API_URL
 		self._current_version = None
 		self._tags = []
 		self._tag_latest = None
 		self._tag_names = []
 		self._releases = []
-		self._release_latest = None
+		self._latest_release = None
+		self._backup_current = True # by default, backup current addon if new is being loaded
 		 # "" # assume specific cachename, use addon?.cache
-		#self._check_frequency = 0 # how often to auto-check for update, 0=never
-		self._check_frequency_enable = False
-		self._check_frequency_month = 0
-		self._check_frequency_weeks = 2
-		self._check_frequency_days = 0
-		self._check_frequency_hours = 0
-		self._check_frequency_minutes = 0
+		self._check_interval_enable = False
+		self._check_interval_months = 0
+		self._check_interval_days = 14
+		self._check_interval_hours = 0
+		self._check_interval_minutes = 0
 
+		# runtime variables, initial conditions
 		self._verbose = False
+		self._async_checking = False # only true when async daemon started
 		self._update_ready = None
 		self._update_link = None
 		self._update_version = None
 		self._source_zip = None
 
 		# get from module data
-		self._addon = __name__
-		if "." in self._addon:
-			self._addon = self._addon[0:self._addon.index(".")]
-		self._stage_path = os.path.join(os.path.dirname(__file__),
-							self._addon+"_update_staging")
-		
-
-
+		self._addon = __package__
+		self._updater_path = os.path.join(os.path.dirname(__file__),
+							self._addon+"_updater")
+		self._addon_root = os.path.dirname(__file__)
+		self._json = {}
 
 
 	# -------------------------------------------------------------------------
@@ -147,6 +146,12 @@ class Singleton_updater(object):
 		self._user = value
 
 	@property
+	def json(self):
+		if self._json == {}:
+			self.set_updater_json()
+		return self._json
+
+	@property
 	def repo(self):
 		return self._repo
 	@repo.setter
@@ -154,8 +159,21 @@ class Singleton_updater(object):
 		self._repo = value
 
 	@property
+	def website(self):
+		return self._website
+	@website.setter
+	def website(self, value):
+		if self.check_is_url(value) == False:
+			raise ValueError("Not a valid URL: " + value)
+		self._website = value
+
+	@property
+	def async_checking(self):
+		return self._async_checking
+
+	@property
 	def api_url(self):
-		return self._pai_url
+		return self._api_url
 	@api_url.setter
 	def api_url(self, value):
 		if self.check_is_url(value) == False:
@@ -164,17 +182,20 @@ class Singleton_updater(object):
 
 	@property
 	def stage_path(self):
-		return self._stage_path
+		return self._updater_path
 	@stage_path.setter
 	def stage_path(self, value):
-		print("NEW STAGE_PATH:",value)
 		if value == None:
-			print("Aborting assigning stage_path, it's null")
+			if self._verbose:print("Aborting assigning stage_path, it's null")
 			return
 		elif value != None and not os.path.exists(value):
-			os.makedirs(value)
+			try:
+				os.makedirs(value)
+			except:
+				if self._verbose:print("Error trying to staging path")
+				return
 			# definitely check for errors here, user issues
-		self._stage_path = value
+		self._updater_path = value
 
 
 	@property
@@ -201,12 +222,12 @@ class Singleton_updater(object):
 		return self._releases
 
 	@property
-	def release_latest(self):
+	def latest_release(self):
 		if self._releases_latest == None:
 			# ie we haven't parsed the server yet, do it now
 			self._releases = self.get_releases()
-			self._release_latest = self._releases[0]
-		return self._release_latest
+			self._latest_release = self._releases[0]
+		return self._latest_release
 
 	@property
 	def current_version(self):
@@ -233,7 +254,7 @@ class Singleton_updater(object):
 				raise ValueError("Not an integer! current_version must be a tuple of integers")
 		self._current_version = tuple_values
 
-	def set_check_frequency(enable=False, months=0, weeks=2, days=0, hours=0, minutes=0):
+	def set_check_interval(self,enable=False, months=0, days=14, hours=0, minutes=0):
 		# enabled = False, default initially will not check against frequency
 		# if enabled, default is then 2 weeks
 
@@ -241,8 +262,6 @@ class Singleton_updater(object):
 			raise ValueError("Enable must be a boolean value")
 		if type(months) is not int:
 			raise ValueError("Months must be an integer value")
-		if type(weeks) is not int:
-			raise ValueError("Weeks must be an integer value")
 		if type(days) is not int:
 			raise ValueError("Days must be an integer value")
 		if type(hours) is not int:
@@ -250,36 +269,36 @@ class Singleton_updater(object):
 		if type(minutes) is not int:
 			raise ValueError("Minutes must be an integer value")
 
-
-		# ensure they are integers
 		if enable==False:
-			self._check_frequency_enable = False
-			if self._verbose:print("Auto-checking has been disabled")
+			self._check_interval_enable = False
+			if self._verbose:print("Auto-checking is disabled")
 		else:
-			self._check_frequency_enable = True
-			if self._verbose:print("Auto-checking has been enabled")
-		
-		self._check_frequency_enable,
-		self._check_frequency_month,
-		self._check_frequency_weeks,
-		self._check_frequency_days,
-		self._check_frequency_hours,
-		self._check_frequency_minutes
+			self._check_interval_enable = True
+			if self._verbose:print("Auto-checking is enabled")
 
-		if self._verbose:print("updating frequency of checking")
+			# create conf file if not already present
+		
+		self._check_interval_months = months
+		self._check_interval_days = days
+		self._check_interval_hours = hours
+		self._check_interval_minutes = minutes
+
+		if self._verbose:
+			print("Set interval check of: {x}months, {y}d {z}:{a}".format(
+					x=months,y=days,z=hours,a=minutes))
 
 	@property
-	def check_frequency(self):
-		return (self._check_frequency_enable,
-				self._check_frequency_month,
-				self._check_frequency_weeks,
-				self._check_frequency_days,
-				self._check_frequency_hours,
-				self._check_frequency_minutes)
+	def check_interval(self):
+		return (self._check_interval_enable,
+				self._check_interval_months,
+				self._check_interval_days,
+				self._check_interval_hours,
+				self._check_interval_minutes)
 
 	@user.setter
-	def check_frequency(self, value):
+	def check_interval(self, value):
 		raise ValueError("Check frequency is read-only")
+
 
 	# -------------------------------------------------------------------------
 	# Paramater validation related functions
@@ -287,7 +306,7 @@ class Singleton_updater(object):
 
 
 	def check_is_url(self,url):
-		if "http://" not in url:
+		if not ("http://" in url or "https://" in url):
 			return False
 		if "." not in url:
 			return False
@@ -299,7 +318,7 @@ class Singleton_updater(object):
 			tag_names.append(tag["name"])
 		return tag_names
 
-	# other class stuff
+	# declare how the class gets printed
 
 	def __repr__(self):
 		return "<Module updater from {a}>".format(a=__file__)
@@ -314,7 +333,7 @@ class Singleton_updater(object):
 	# -------------------------------------------------------------------------
 
 	def form_repo_url(self):
-		return DEFAULT_API_URL+"/repos/"+self.user+"/"+self.repo
+		return self._api_url+"/repos/"+self.user+"/"+self.repo
 
 
 	def get_tags(self):
@@ -325,7 +344,7 @@ class Singleton_updater(object):
 
 	# all API calls to base url
 	def get_api_raw(self, url):
-		request = urllib.request.Request(DEFAULT_API_URL + url)
+		request = urllib.request.Request(self._api_url + url)
 		try:
 			result = urllib.request.urlopen(request)
 		except urllib.error.HTTPError as e:
@@ -353,66 +372,76 @@ class Singleton_updater(object):
 	def stage_repository(self, url):
 
 		# first make/clear the staging folder
-		# ensure our folder is always "clean"
-		local = self._stage_path
+		# ensure the folder is always "clean"
+		local = os.path.join(self._updater_path,"update_staging")
 
-		#local = os.path.join(local, "update_staging")
-		error = False
+		error = None
 
 		# no, really should just remove eveyrthing but the cache if found
 		# or use same as folder name but plus extension.. that could work
-		print("localdir:",local)
+		if self._verbose:print("Preparing staging folder for download:\n",local)
 		if os.path.isdir(local) == True:
-			# try/except for permission errors or other OS errors!
+			# improve try/except for permission errors or other OS errors
 			try:
 				shutil.rmtree(local) 
-				print("remove?")
 				os.makedirs(local)
-				print("re-added?")
 			except:
-				print("Error, couldn't remove existing staging directory")
-				error = True
+				error = "failed to remove existing staging directory"
 		else:
 			try:
-				print("os local dir:",local)
 				os.makedirs(local)
 			except:
-				print("Error, couldn't make staging directory")
-				error = True
+				error = "failed to make staging directory"
 		
-		if error == True:
-			print("Aborting update") # return error instead, with text standard
-			return -1
+		if error != None:
+			if self._verbose: print("Error: Aborting update, "+error)
+			raise ValueError("Aborting update, "+error)
 
-		if self.verbose:print("Todo: create backup zip of current addon now")
+		if self._verbose:print("Todo: create backup zip of current addon now")
+		if self._backup_current==True:
+			self.create_backup()
+		if self._verbose:print("Now retreiving the new source zip")
 
-		if self.verbose:print("Now retreiving the source zip")
-		# really should have better error handling here..
-		# also, jsut use FancyURLopener.. it's the same module, literally
-		# try:
 		self._source_zip = os.path.join(local,"source.zip")
+		
+		if self._verbose:print("Starting download update zip")
 		urllib.request.urlretrieve(url, self._source_zip)
-		# except:
+		if self._verbose:print("Successfully downloaded update zip")
 
+	def create_backup(self):
+		if self._verbose:print("Backing up current addon folder")
+		local = os.path.join(self._updater_path,"backup")
+		tempdest = os.path.join(self._addon_root,
+						os.pardir,
+						self._addon+"_updater_backup_temp")
+		if os.path.isdir(local) == True:
+			shutil.rmtree(local)
+		if self._verbose:print("Backup temp path: ",tempdest)
+		if self._verbose:print("Backup dest path: ",local)
 
-		return 0
+		# make the copy
+		shutil.copytree(self._addon_root,tempdest)
+		shutil.move(tempdest,local)
+
 
 	def upack_staged_zip(self):
 
 		if os.path.isfile(self._source_zip) == False:
-			print("Error, file not found")
+			print("Error, update zip not found")
 			return -1
 
+		if self.verbose:print("Begin extracting source")
 		if zipfile.is_zipfile(self._source_zip):
 			with zipfile.ZipFile(self._source_zip) as zf:
-				zf.extractall(os.path.join(self._stage_path,"source"))
+				# extractall is no longer a security hazard
+				zf.extractall(os.path.join(self._updater_path,"source"))
 		else:
 			print("Not a zip file, future add support for just .py files")
 			raise ValueError("Resulting file is not a zip")
 		if self.verbose:print("Extracted source")
 
 		# either directly in root of zip, or one folder level deep
-		unpath = os.path.join(self._stage_path,"source")
+		unpath = os.path.join(self._updater_path,"source")
 		if os.path.isfile(os.path.join(unpath,"__init__.py")) == False:
 			dirlist = os.listdir(unpath)
 			if len(dirlist)>0:
@@ -423,22 +452,33 @@ class Singleton_updater(object):
 				raise ValueError("__init__ file not found in new source")
 
 		# now commence merging in the two locations:
-		# hard coded for now... should get from __file__?
-		print("UNZSTAGE, unpath:",unpath,"  \n> origpath:",__file__)
-		origpath = "/Users/patrickcrawford/Library/Application Support/Blender/2.76/scripts/addons/retopoflow/"
-		self.deepMergeDirectory(origpath,unpath)
+		
+		origpath = os.path.dirname(__file__) # CHECK that this is appropriate... not necessairly true..?
+		#"/Users/patrickcrawford/Library/Application Support/Blender/2.76/scripts/addons/retopoflow/"
+		print("UNZSTAGE, unpath:",unpath,"  \nOrigpath:",origpath)
+
+
+		self.deepMergeDirectory(origpath,unpath) ## SKIPPING THIS STEP FOR CHECKING
+		# now save the json state
+
+		# change to True, to trigger the handler on other side
+		self._json["just_updated"] = True
+		self.save_updater_json()
 		self.reload_addon()
 
 
 	# merge contents of folder 'merger' into folder 'base', without deleting existing
 	def deepMergeDirectory(self,base,merger):
 		if not os.path.exists(base):
-			print("Base path does not exist")
+			if self._verbose:print("Base path does not exist")
 			return -1
 		elif not os.path.exists(merger):
-			print("Merger path does not exist")
+			if self._verbose:print("Merger path does not exist")
 			return -1
 
+		# this should have better error handling
+		# and also avoid the addon dir
+		# or do error handling outside this function?
 		for path, dirs, files in os.walk(merger):
 			relPath = os.path.relpath(path, merger)
 			destPath = os.path.join(base, relPath)
@@ -451,16 +491,19 @@ class Singleton_updater(object):
 				srcFile = os.path.join(path, file)
 				os.rename(srcFile, destFile)
 	
+
 	def reload_addon(self):
-		print("reloading addon...") # remove: __pycache__ ?
+		if self._verbose:print("Reloading addon...")
 		addon_utils.modules(refresh=True)
 		bpy.utils.refresh_script_paths()
 
 		# not allowed in restricted context, such as register module
-		#bpy.ops.script.reload()
-
 		# toggle to refresh
 		bpy.ops.wm.addon_disable(module=self._addon)
+		# consider removing cached files
+		# __pycache__
+		# try:
+		# 	shutil//
 		bpy.ops.wm.addon_enable(module=self._addon)
 
 
@@ -492,24 +535,52 @@ class Singleton_updater(object):
 
 		return tuple(segments) # turn into a tuple
 
+	# called for running check in a background thread
+	def check_for_update_async(self):
+		# do the threading madness, call this on the other thread
+		if self._check_interval_enable == False:
+			return
+		elif self._async_checking == True:
+			if self._verbose:print("Skipping async check, already started")
+			return # already running the bg thread
+		elif self._update_ready == None:
+			# return (self._update_ready,self._update_version,self._update_link)
+			if self._verbose:print("BG: Checking for update now in background")
+			self.check_for_update(now=False)
 
+
+
+	# this function is not async, will always return in sequential fashion
+	# but should have a parent which calls it in another thread
 	def check_for_update(self, now=False):
+		if self._verbose:print("Checking for update function")
+
+		# avoid running again in if already run once in BG, just return past result
+		# but if force now check, then still do it
+		if self._update_ready != None and now == False:
+			return (self._update_ready,self._update_version,self._update_link)
+
 		if self._current_version == None:
-			raise ValueError("No current_version property set for comparison")
+			raise ValueError("current_version not yet defined")
 		if self._repo == None:
-			raise ValueError("No repo defined")
+			raise ValueError("repo not yet defined")
 		if self._user == None:
-			raise ValueError("No repo username defined")
-			# fail silently?
+			raise ValueError("username not yet defined")
+
+		self.set_updater_json() # self._json
 
 		if now == False and self.past_interval_timestamp()==False:
 			if self.verbose:print("Aborting check for updated, check interval not reached")
 			return (False, None, None)
+			
 
 		# check if using tags or releases
 		# note that if called the first time, this will pull tags
 		# override with force?
 		new_version = self.version_tuple_from_text(self.tag_latest)
+		self._json["last_check"] = str(datetime.now())
+		self.save_updater_json()
+
 		link = self._tags[0]["zipball_url"] # best way?
 		if new_version != self._current_version:
 			self._update_ready = True
@@ -538,7 +609,7 @@ class Singleton_updater(object):
 			# should we not check for this here?
 			if self.past_interval_timestamp()==False:
 				if self.verbose:print("Update stopped, not past interval date")
-				return 1 # stopped
+				return {"CANCELLED"} # stopped
 			elif self._update_ready != True:
 				if self.verbose:print("Update stopped, new version not ready")
 				return 1 # stopped
@@ -548,14 +619,8 @@ class Singleton_updater(object):
 				return 1 # stopped
 
 			if self.verbose:print("Staging update")
-			result = self.stage_repository(self._update_link)
-			if result == 0:
-				# everythign worked fine
-				self.upack_staged_zip()
-			else:
-				print("Error with stage_repository:",result)
-				
-
+			self.stage_repository(self._update_link)
+			self.upack_staged_zip()
 
 		else:
 			if self._update_link == None:
@@ -569,14 +634,95 @@ class Singleton_updater(object):
 
 
 	def past_interval_timestamp(self):
-		if self._check_frequency_enable == False:
+		if self._check_interval_enable == False:
 			return True # ie this exact feature is disabled, allow as if interval passed
-		if self._stage_path == None:
-			return True # not setup, so just return true and allow update
+		
+		if "last_check" not in self._json or self._json["last_check"] == "":
+			return True
+		else:
+			now = datetime.now()
+			last_check = datetime.strptime(self._json["last_check"],
+										"%Y-%m-%d %H:%M:%S.%f")
+			next_check = last_check
+			next_check = datetime(
+				year=last_check.year,
+				month=last_check.month+self._check_interval_months,
+				day=last_check.day+self._check_interval_days,
+				minute=last_check.minute+self._check_interval_hours,
+				second=last_check.second+self._check_interval_minutes
+				)
 
-		# then look for cache file... read.. etc
-		# only if read in file says datestamp is in future of current time return false
-		return True # for now, always be true
+			delta = last_check-next_check
+			if delta.total_seconds() > 0:
+				if self._verbose:print("Determined it's time to check for udpates")
+				return True
+			else:
+				if self._verbose:print("Determined it's not yet time to check for udpates")
+				return False
+
+
+	def set_updater_json(self):
+		if self._updater_path == None:
+			raise ValueError("updater_path is not defined")
+		elif os.path.isdir(self._updater_path) == False:
+			os.makedirs(self._updater_path)
+
+		jpath = os.path.join(self._updater_path,"updater_status.json")
+		if os.path.isfile(jpath):
+			with open(jpath) as data_file:
+				self._json = json.load(data_file)
+				if self._verbose:print("Read in json settings from file")
+		else:
+			# set data structure
+			self._json = {
+				"last_check":"",
+				"backup_date":"",
+				"just_updated":False,
+				"version_text":{}
+			}
+			self.save_updater_json()
+
+
+	def save_updater_json(self):
+		jpath = os.path.join(self._updater_path,"updater_status.json")
+		outf = open(jpath,'w')
+		data_out = json.dumps(self._json,indent=4)
+		outf.write(data_out)
+		outf.close()
+		if self._verbose:
+			print("Wrote out json settings to file, with the contents:")
+			print(self._json)
+
+
+	# -------------------------------------------------------------------------
+	# ASYNC stuff...
+	# EDIT: needs to be threaded unfortunately.
+	# Come back to later.
+	# -------------------------------------------------------------------------
+
+	async def testasync(self):
+		print("doing async start?")
+
+		loop = asyncio.get_event_loop()  
+		loop.run_until_complete(sendasynctest())   # blocking
+		loop.close() 
+		print("fined doing async?")
+
+	async def sendasynctest(self):
+		print("sending async....")
+		return await testingasyncawait()
+
+	def sendasynctestawait(self):
+		print("ASYNC START")
+		import time
+		time.sleep(2.5)
+		print("ASYNC POST SLEEP")
+
+		self.check_for_update() # not forced now
+		print("ASYNC CHECK DONE")
+
+		return "completedddd" # this how this works?
+
 
 
 
