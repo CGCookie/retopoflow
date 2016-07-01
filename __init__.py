@@ -24,7 +24,7 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 1, 9),
+    "version":     (1, 1, 10),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
@@ -41,7 +41,8 @@ import bpy
 
 #CGCookie imports
 from .lib.common_utilities import bversion, check_source_target_objects
-from .lib import common_utilities # this makes the above redundant
+from .lib.common_utilities import register as register_common_utilities
+from .lib.common_utilities import unregister as unregister_common_utilities
 
 
 #Menus, Panels, Interface and Icon 
@@ -74,7 +75,7 @@ addon_keymaps = []
 def register():
 
     # ensure utilities global vars are set/reset on enable
-    common_utilities.register()
+    register_common_utilities()
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.app.handlers.scene_update_post.append(check_source_target_objects)
@@ -104,11 +105,12 @@ def register():
 
     # addon updater code and configurations
     addon_updater_ops.register(bl_info)
-    
 
 
 
 def unregister():
+
+    unregister_common_utilities()
 
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
@@ -126,7 +128,6 @@ def unregister():
 
     # addon updater unregister
     addon_updater_ops.unregister()
-    
 
     
     clear_icons()
