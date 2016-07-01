@@ -41,6 +41,7 @@ import bpy
 
 #CGCookie imports
 from .lib.common_utilities import bversion, check_source_target_objects
+from .lib.common_utilities import register as register_common_utilities
 
 
 #Menus, Panels, Interface and Icon 
@@ -67,6 +68,8 @@ if bversion() >= '002.076.000':
 addon_keymaps = []
 
 def register():
+    register_common_utilities()
+
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.app.handlers.scene_update_post.append(check_source_target_objects)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
