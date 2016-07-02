@@ -27,10 +27,20 @@ myUpdater.user = "username"
 myUpdater.stage_path = "//"
 myUpdater.current_version = "v1.1.0"
 myUpdater.set_check_interval(months=0,days=14,minutes=5) # optional
-(update_ready, version, link) = myUpdater.check_for_update(force=false)
-myUpdater.update_appropriately() # only update if time & new version
-myUpdater.update_now() # force update regardless
 
+
+# Check for existing updates or any past versions
+# option 1: backgorund, async check with callback function input
+myUpdater.check_for_update_async(callback=None) # input callback function
+# option 2: immediate, thread-blocking
+(update_ready, version, link) = myUpdater.check_for_update()
+
+# run the update
+run_update(revert_tag=None)
+# or, select a verion to install
+tags = myUpdater.get_tag_names()
+latest_tag = tags[0] # equivalent to using revert_tag = None
+myUpdater.run_update(revert_tag=latest_tag) # e.g. latest_tag = "v1.0.0"
 
 
 """
@@ -44,7 +54,7 @@ import shutil
 import asyncio # for async processing
 import threading
 import time
-from datetime import datetime
+from datetime import datetime,timedelta
 
 # blender imports, used in limited cases
 import bpy
@@ -57,10 +67,6 @@ import addon_utils
 DEFAULT_API_URL = "https://api.github.com" # plausibly could be some other system
 DEFAULT_TIMEOUT = 10
 DEFAULT_PER_PAGE = 30
-
-ERRORS ={
-	1:"Unknown error"
-}
 
 
 # -----------------------------------------------------------------------------
@@ -107,6 +113,7 @@ class Singleton_updater(object):
 		self._fake_install = False
 		self._async_checking = False # only true when async daemon started
 		self._update_ready = None
+		self._connection_failed = False
 		self._update_link = None
 		self._update_version = None
 		self._source_zip = None
@@ -166,6 +173,10 @@ class Singleton_updater(object):
 		if self._json == {}:
 			self.set_updater_json()
 		return self._json
+
+	@property
+	def connection_failed(self):
+		return self._connection_failed
 
 	@property
 	def repo(self):
@@ -362,8 +373,12 @@ class Singleton_updater(object):
 		# print("Request url: ",request)
 		if self.verbose:print("Grabbing tags from server")
 		self._tags = self.get_api(request)
-		self._tag_latest = self._tags[0]
-		if self.verbose:print("Most recent tag found:",self._tags[0])
+		if len(self._tags) == 0:
+			self._tag_latest = None
+			if self.verbose:print("No tags found on this repositoru")
+		else:
+			self._tag_latest = self._tags[0]
+			if self.verbose:print("Most recent tag found:",self._tags[0])
 
 
 	# all API calls to base url
@@ -594,7 +609,17 @@ class Singleton_updater(object):
 
 	# called for running check in a background thread
 	def check_for_update_async(self, callback=None):
-		# do the threading madness, call this on the other thread
+
+		if self._json != None and "update_ready" in self._json:
+			if self._json["update_ready"] == True:
+				self._update_ready = True
+				self._update_link = self._json["version_text"]["link"]
+				self._update_version = str(self._json["version_text"]["version"])
+				# cached update
+				callback(True)
+				return
+
+		# do the threading
 		if self._check_interval_enable == False:
 			return
 		elif self._async_checking == True:
@@ -602,7 +627,7 @@ class Singleton_updater(object):
 			return # already running the bg thread
 		elif self._update_ready == None:
 			# return (self._update_ready,self._update_version,self._update_link)
-			self.start_async(callback)
+			self.start_async_check_update(False, callback)
 
 	def check_for_update_now(self, callback=None):
 		if self._async_checking == True:
@@ -610,7 +635,7 @@ class Singleton_updater(object):
 			return # already running the bg thread
 		elif self._update_ready == None:
 			# return (self._update_ready,self._update_version,self._update_link)
-			self.start_async(callback)
+			self.start_async_check_update(True, callback)
 
 
 	# this function is not async, will always return in sequential fashion
@@ -648,13 +673,21 @@ class Singleton_updater(object):
 		self.get_tags() # sets self._tags and self._tag_latest
 		self._json["last_check"] = str(datetime.now())
 		self.save_updater_json()
+
+		if len(self._tags) == 0:
+			if self._verbose:print("No tag found on this repository")
+			self._update_ready = False
+			self._connection_failed = True
+			return (False, None, None)
 		new_version = self.version_tuple_from_text(self.tag_latest)
+
 
 		link = self._tags[0]["zipball_url"] # best way?
 		if new_version != self._current_version:
 			self._update_ready = True
 			self._update_version = new_version
 			self._update_link = link
+			self.save_updater_json()
 			return (True, new_version, link)
 
 		# need to make clean version of git tag/release name.
@@ -685,6 +718,8 @@ class Singleton_updater(object):
 		# different versions of the addon to revert back to
 		# clean: ie fully remove folder and re-add addon
 		# (not literally since the code is running from here & we want a revertable copy)
+		self._json["update_ready"] = False
+		self._json["version_text"] = {}
 
 		if revert_tag != None:
 			self.set_tag(revert_tag)
@@ -746,15 +781,13 @@ class Singleton_updater(object):
 			last_check = datetime.strptime(self._json["last_check"],
 										"%Y-%m-%d %H:%M:%S.%f")
 			next_check = last_check
-			next_check = datetime(
-				year=last_check.year,
-				month=last_check.month+self._check_interval_months,
-				day=last_check.day+self._check_interval_days,
-				minute=last_check.minute+self._check_interval_hours,
-				second=last_check.second+self._check_interval_minutes
+			offset = timedelta(
+				days=self._check_interval_days + 30*self._check_interval_months,
+				hours=self._check_interval_hours,
+				minutes=self._check_interval_minutes
 				)
 
-			delta = last_check-next_check
+			delta = (now - offset) - last_check
 			if delta.total_seconds() > 0:
 				if self._verbose:print("Determined it's time to check for udpates")
 				return True
@@ -779,6 +812,7 @@ class Singleton_updater(object):
 			self._json = {
 				"last_check":"",
 				"backup_date":"",
+				"update_ready":False,
 				"just_restored":False,
 				"just_updated":False,
 				"version_text":{}
@@ -787,6 +821,16 @@ class Singleton_updater(object):
 
 
 	def save_updater_json(self):
+
+		# first save the state
+		if self._update_ready == True:
+			self._json["update_ready"] = True
+			self._json["version_text"]["link"]=self._update_link
+			self._json["version_text"]["version"]=self._update_version
+		else:
+			self._json["update_ready"] = False
+			self._json["version_text"] = {}
+
 		jpath = os.path.join(self._updater_path,"updater_status.json")
 		outf = open(jpath,'w')
 		data_out = json.dumps(self._json,indent=4)
@@ -798,9 +842,13 @@ class Singleton_updater(object):
 
 	def json_reset_postupdate(self):
 		self._json["just_updated"] = False
+		self._json["update_ready"] = False
+		self._json["version_text"] = {}
 		self.save_updater_json()
 	def json_reset_restore(self):
 		self._json["just_restored"] = False
+		self._json["update_ready"] = False
+		self._json["version_text"] = {}
 		self.save_updater_json()
 
 	# -------------------------------------------------------------------------
@@ -809,32 +857,29 @@ class Singleton_updater(object):
 	# Come back to later.
 	# -------------------------------------------------------------------------
 
-	def start_async(self, callback=None):
+	def start_async_check_update(self, now=False,callback=None):
 		if self._async_checking == True:
 			return
 		
-		check_thread = threading.Thread(target=self.test_asyn_delay, args=(callback,))
+		check_thread = threading.Thread(target=self.async_check_update, args=(now,callback,))
 		check_thread.daemon = True
 		check_thread.start()
 		
 		return True
 
-	def test_asyn_delay(self, callback=None):
+	def async_check_update(self, now, callback=None):
 		self._async_checking = True
 		if self._verbose:print("BG: Checking for update now in background")
 		# time.sleep(3) # to test background, in case internet too fast to tell
 		self.check_for_update(now=False)
 		if self._verbose:print("BG: Finished checking for update, doing callback")
-		callback(self._update_ready)
+		if callback != None:callback(self._update_ready)
 		self._async_checking = False
 
-	def end_async():
+	def end_async_check_update():
 		# could return popup if condition met
 		
 		return True
-
-
-
 
 
 # -----------------------------------------------------------------------------

@@ -278,6 +278,9 @@ class addon_updater_restore_backup(bpy.types.Operator):
 ran_autocheck_install_popup = False
 ran_update_sucess_popup = False
 
+# global var for preventing successive calls 
+ran_background_check = False
+
 @persistent
 def updater_run_success_popup_handler(scene):
 	global ran_update_sucess_popup
@@ -320,7 +323,12 @@ def background_update_callback(update_ready):
 # function for asynchronous background check, which *could* be called on register
 def check_for_update_background(context):
 
-	if updater.update_ready != None or updater.async_checking == True:
+	
+	global ran_background_check
+	if ran_background_check == True:
+		# Global var ensures check only happens once
+		return
+	elif updater.update_ready != None or updater.async_checking == True:
 		# Check already happened
 		# Used here to just avoid constant applying settings below
 		return 
@@ -338,6 +346,7 @@ def check_for_update_background(context):
 	# this function should take a bool input, if true: update ready
 	# if false, no update ready
 	updater.check_for_update_async(background_update_callback)
+	ran_background_check = True
 
 
 # a function that can be placed in front of other operators to launch when pressed
@@ -517,6 +526,9 @@ def unregister():
 	bpy.utils.unregister_class(addon_updater_install_manually)
 	bpy.utils.unregister_class(addon_updater_updated_successful)
 	bpy.utils.unregister_class(addon_updater_restore_backup)
+
+	global ran_background_check
+	ran_background_check = False
 
 	# bpy.utils.unregister_class(UpdaterPreferences) # used in actual prefs place
 
