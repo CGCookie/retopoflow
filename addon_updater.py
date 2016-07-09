@@ -372,6 +372,8 @@ class Singleton_updater(object):
 		request = "/repos/"+self.user+"/"+self.repo+"/tags"
 		# print("Request url: ",request)
 		if self.verbose:print("Grabbing tags from server")
+
+		# do more error checking e.g. no connection here, and relay back up
 		self._tags = self.get_api(request)
 		if len(self._tags) == 0:
 			self._tag_latest = None
