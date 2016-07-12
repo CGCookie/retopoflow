@@ -95,7 +95,13 @@ class CGC_Polypen(ModalOperator):
             self.tar_object = setup_target_object( nm_polypen, self.src_object, bmesh.new() )
             self.tar_object.select = True
             bpy.context.scene.objects.active = self.tar_object
-            bpy.ops.object.mode_set(mode='EDIT')
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+            except TypeError:
+                # in local view????
+                bpy.ops.view3d.localview()
+                bpy.ops.view3d.localview()
+                bpy.ops.object.mode_set(mode='EDIT')
             self.was_objectmode = True
         else:
             self.was_objectmode = False
