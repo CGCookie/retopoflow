@@ -1230,7 +1230,7 @@ class GEdge:
 
         for ges in self.gedgeseries:
             ges.update()
-        
+    
     def snap_igverts(self):
         '''
         snaps already computed igverts to surface of object ob
@@ -1248,7 +1248,7 @@ class GEdge:
         
         
         dprint('\nsnapping igverts')
-        for igv in self.cache_igverts:
+        for idx,igv in enumerate(self.cache_igverts):
             if igv.is_inner(): continue
 
             if bversion() <= '002.076.000':
@@ -1261,20 +1261,26 @@ class GEdge:
             # of outer control points of gedge then we've likely snapped to the
             # wrong side of a thin surface.
             d0,d3 = n.dot(self.gvert0.snap_norm),n.dot(self.gvert3.snap_norm)
-            dprint('n.dot(gv0.n) = %f, n.dot(gv3.n) = %f' % (d0, d3))
+            dprint('%d: n.dot(gv0.n) = %f, n.dot(gv3.n) = %f' % (idx, d0, d3), l=2)
             if d0 < thinSurface_opposite or d3 < thinSurface_opposite:
-                dprint('possible thin surface detected. casting ray backwards')
+                dprint('  possible thin surface detected. casting ray backwards', l=2)
+                dprint('  mx=%s, imx=%s' % (str(mx),str(imx)), l=2)
                 hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
                 if hit:
                     lr,nr,_,dr = hit
                     if nr:
-                        dprint('nr not None')
                         d0,d3 = nr.dot(self.gvert0.snap_norm),nr.dot(self.gvert3.snap_norm)
-                        dprint('nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr))
+                        dprint('  nr.dot(gv0.n) = %f, nr.dot(gv3.n) = %f, d = %f' % (d0, d3, dr), l=2)
                         if d0 >= thinSurface_opposite or d3 >= thinSurface_opposite:
                             # seems reasonable enough
-                            dprint('l,n = ' + str(lr) + ',' + str(nr))
+                            dprint('  l,n = ' + str(lr) + ',' + str(nr), l=2)
                             l,n = lr,nr
+                        else:
+                            dprint('  too far', l=2)
+                    else:
+                        dprint('  no normal?', l=2)
+                else:
+                    dprint('  no intersection', l=2)
             
             igv.position = mx * l
             
@@ -2089,8 +2095,14 @@ class Polystrips(object):
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
         n0  = Vector((0,0,1))
+        # reprojecting co to snap it to surface
         screen_coord = location_3d_to_region_2d(bpy.context.region, bpy.context.space_data.region_3d, co)
-        p0,n0 = ray_cast_point_bvh(bpy.context, mesh_cache['bvh'], self.mx, screen_coord)
+        hit = ray_cast_point_bvh(bpy.context, mesh_cache['bvh'], self.mx, screen_coord)
+        if hit:
+            p0,n0 = hit
+        else:
+            # could not reproject to surface.  try snapping to closest point, then!
+            p0,n0,_,_ = mesh_cache['bvh'].find_nearest(self.mx.inverted()*co)
         gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
         self.gverts += [gv]
         return gv
@@ -2585,6 +2597,9 @@ class Polystrips(object):
         pregv,fgv = None,None
         for i,bpts in enumerate(l_bpts):
             t0,t3,bpt0,bpt1,bpt2,bpt3 = bpts
+            
+            # make sure all bpts can hit the surface!
+            
             if i == 0:
                 gv0 = self.create_gvert(bpt0, radius=r0) if not sgv0 else sgv0
                 fgv = gv0
