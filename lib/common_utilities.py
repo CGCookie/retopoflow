@@ -344,10 +344,11 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
     
     return world_coords
 
-def ray_cast_point_bvh(context, bvh, mx, screen_coord):
+def ray_cast_point_bvh(context, bvh, mx, screen_coord, imx=None):
     rgn  = context.region
     rv3d = context.space_data.region_3d
-    imx  = mx.inverted()
+    if not imx:
+        imx  = mx.inverted()
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
     
@@ -417,6 +418,33 @@ def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
     world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
+    
+    return world_stroke
+
+def ray_cast_stroke_norm_bvh(context, bvh, mx, stroke):
+    '''
+    strokes have form [((x,y),p)] with a radius value
+    
+    returns list [Vector(x,y,z), p] leaving the radius value untouched
+    drops any values that do not successfully ray_cast
+    '''
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx  = mx.inverted()
+    
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
+    
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+
+    if (bversion() < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
+    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
+    world_stroke = [(mx*hit[0], mx*hit[1], stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
     
     return world_stroke
 

@@ -89,6 +89,7 @@ class Polystrips_UI:
 
             self.obj_orig = get_source_object()
             self.mx = self.obj_orig.matrix_world
+            self.imx = self.mx.inverted()
             is_valid = is_object_valid(self.obj_orig)
             if is_valid:
                 pass
@@ -412,6 +413,8 @@ class Polystrips_UI:
         mx,my = eventd['mouse']
         for gv in self.polystrips.extension_geometry + self.polystrips.gverts:
             if gv.is_inner(): continue
+            hit = common_utilities.ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, eventd['mouse'], imx=self.imx)
+            if not hit or gv.snap_norm.dot(hit[1]) < 0.0: continue
             c0 = location_3d_to_region_2d(rgn, r3d, gv.corner0)
             c1 = location_3d_to_region_2d(rgn, r3d, gv.corner1)
             c2 = location_3d_to_region_2d(rgn, r3d, gv.corner2)

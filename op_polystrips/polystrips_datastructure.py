@@ -405,8 +405,9 @@ class GVert:
     def get_corner_inds(self):
         return (self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind)
     
-    def is_picked(self, pt):
+    def is_picked(self, pt, norm=None):
         if not self.visible: return False
+        if norm and norm.dot(self.snap_norm) < 0.0: return False
         c0 = self.corner0 - pt
         c1 = self.corner1 - pt
         c2 = self.corner2 - pt
@@ -2243,11 +2244,11 @@ class Polystrips(object):
         
     def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
-        stroke: list of tuples (3d location, radius)
+        stroke: list of tuples (3d location, 3d normal, radius)
         '''
         if depth == 0:
-            gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0])]
-            gv3 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[-1][0])]
+            gv0 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[0][0], norm=stroke[0][1])]
+            gv3 = [gv for gv in self.extension_geometry if gv.is_picked(stroke[-1][0], norm=stroke[-1][1])]
             
             if len(gv0):
                 self.extension_geometry.remove(gv0[0])
@@ -2268,17 +2269,17 @@ class Polystrips(object):
             return
         # uniform subsampling
         while len(stroke) <= 40:
-            stroke = [stroke[0]] + [nptpr for ptpr0,ptpr1 in zip(stroke[:-1],stroke[1:]) for nptpr in [((ptpr0[0]+ptpr1[0])/2,(ptpr0[1]+ptpr1[1])/2), ptpr1]]
+            stroke = [stroke[0]] + [nptpr for ptpr0,ptpr1 in zip(stroke[:-1],stroke[1:]) for nptpr in [((ptpr0[0]+ptpr1[0])/2, (ptpr0[1]+ptpr1[1]).normalized(), (ptpr0[2]+ptpr1[2])/2), ptpr1]]
         # non-uniform/detail subsampling
         done = False
         while not done:
             done = True
             nstroke = [stroke[0]]
             for ptpr0,ptpr1 in zip(stroke[:-1],stroke[1:]):
-                pt0,pr0 = ptpr0
-                pt1,pr1 = ptpr1
+                pt0,pn0,pr0 = ptpr0
+                pt1,pn1,pr1 = ptpr1
                 if (pt0-pt1).length > (pr0+pr1)/20:
-                    nstroke += [((pt0+pt1)/2, (pr0+pr1)/2)]
+                    nstroke += [((pt0+pt1)/2, (pn0+pn1)/2, (pr0+pr1)/2)]
                 nstroke += [ptpr1]
             done = (len(stroke) == len(nstroke))
             stroke = nstroke
@@ -2287,7 +2288,8 @@ class Polystrips(object):
             dprint(spc+'cannot connect stroke to same gvert (too many gedges)')
             sgv3 = None
         
-        r0,r3 = stroke[0][1],stroke[-1][1]
+        n0,n3 = stroke[0][1],stroke[-1][1]
+        r0,r3 = stroke[0][2],stroke[-1][2]
         
         threshold_tooshort     = (r0+r3)/2 / 4
         threshold_junctiondist = (r0+r3)/2 * 2
@@ -2311,7 +2313,7 @@ class Polystrips(object):
 
         # fill in the ignore lists and kd-tree
         for i in range( len( stroke ) ):
-            pt0,pr0 = stroke[i]
+            pt0,pn0,pr0 = stroke[i]
 
             # insert into kdtree
             kd.insert( pt0, i )
@@ -2321,7 +2323,7 @@ class Polystrips(object):
 
             # add neighboring points to the ignore list
             for j in range( i + 1, len( stroke ) ):
-                pt1,pr1 = stroke[j]
+                pt1,pn1,pr1 = stroke[j]
 
                 # If the points are 'near' then add them to eachothers ignore list
                 if (pt0-pt1).length <= min( pr0, pr1 ):
@@ -2336,7 +2338,7 @@ class Polystrips(object):
         # find intersections
         min_i0,min_i1,min_dist = -1,-1,float('inf')
         for i in range( len( stroke ) ):
-            pt0,pr0 = stroke[i]
+            pt0,pn0,pr0 = stroke[i]
             # find all points touching the given point that are not in the ignore list
             nearby_results = kd.find_range( pt0, pr0 )
             _, nearby_indexes, _ = zip(*nearby_results)
@@ -2344,7 +2346,7 @@ class Polystrips(object):
             intersecting_indexes = set(nearby_indexes)^ignore_lists[i]
             # track the closest two points
             for j in intersecting_indexes:
-                pt1,pr1 = stroke[j]
+                pt1,pn1,pr1 = stroke[j]
                 dist = (pt0-pt1).length - min(pr0,pr1)
                 if dist < min_dist:
                     min_i0 = i
@@ -2355,15 +2357,15 @@ class Polystrips(object):
             i0 = min_i0
             i1 = min_i1
             
-            pt0,pr0 = stroke[i0]
-            pt1,pr1 = stroke[i1]
+            pt0,pn0,pr0 = stroke[i0]
+            pt1,pn1,pr1 = stroke[i1]
             
             # create gvert at intersecting points and recurse!
             gv_intersect = self.create_gvert(pt0, radius=pr0)
             def find_not_picking(i_start, i_direction):
                 i = i_start
                 while i >= 0 and i < len(stroke):
-                    if not gv_intersect.is_picked(stroke[i][0]): return i
+                    if not gv_intersect.is_picked(stroke[i][0], norm=stroke[i][1]): return i
                     i += i_direction
                 return -1
             i00 = find_not_picking(i0,-1)
@@ -2411,8 +2413,8 @@ class Polystrips(object):
             min_i0,min_i1 = -1,-1
             was_close = False
             for i,info in enumerate(stroke):
-                pt,pr = info
-                is_close = gvert.is_picked(pt)
+                pt,pn,pr = info
+                is_close = gvert.is_picked(pt, norm=pn)
                 if i == 0: was_close = is_close
                 if not was_close and is_close:
                     min_i0 = i
@@ -2470,8 +2472,8 @@ class Polystrips(object):
                 tot = sum((i0[0]-i1[0]).length for i0,i1 in zip(lps[:-1],lps[1:]))
                 t = 0
                 for i0,i1 in zip(lps[:-1],lps[1:]):
-                    p0,r0,y0 = i0
-                    p1,r1,y1 = i1
+                    p0,r0,n0,y0 = i0
+                    p1,r1,n1,y1 = i1
                     if r0 == 0: r0 = r1
                     
                     p0 = p0 + y0 * r0
@@ -2480,8 +2482,10 @@ class Polystrips(object):
                     z = (p1-p0).cross(y0).normalized()
                     
                     for i,strokeseg in enumerate(strokesegs):
-                        pt0,pr0 = strokeseg[0]
-                        pt1,pr1 = strokeseg[1]
+                        pt0,pn0,pr0 = strokeseg[0]
+                        pt1,pn1,pr1 = strokeseg[1]
+                        
+                        if (n0+n1).dot(pn0+pn1) < 0.0: continue
                         
                         cross = line_segment_intersection(pt0,pt1, p0,p1, z)
                         if not cross: continue
@@ -2497,8 +2501,8 @@ class Polystrips(object):
                 return None
             
             odds = [gv for i,gv in enumerate(gedge.cache_igverts) if i%2==1]
-            cross0 = find_crossing([(gv.position,gv.radius, gv.tangent_y) for gv in odds])
-            cross1 = find_crossing([(gv.position,gv.radius,-gv.tangent_y) for gv in odds])
+            cross0 = find_crossing([(gv.position,gv.radius,gv.normal, gv.tangent_y) for gv in odds])
+            cross1 = find_crossing([(gv.position,gv.radius,gv.normal,-gv.tangent_y) for gv in odds])
             
             return sorted([x for x in [cross0,cross1] if x], key=lambda x: x[0])
         
@@ -2593,7 +2597,7 @@ class Polystrips(object):
             
         
         dprint(spc+'creating gedge!')
-        l_bpts = cubic_bezier_fit_points([pt for pt,pr in stroke], min(r0,r3) / 20, force_split=(sgv0==sgv3 and sgv0))
+        l_bpts = cubic_bezier_fit_points([pt for pt,pn,pr in stroke], min(r0,r3) / 20, force_split=(sgv0==sgv3 and sgv0))
         pregv,fgv = None,None
         for i,bpts in enumerate(l_bpts):
             t0,t3,bpt0,bpt1,bpt2,bpt3 = bpts

@@ -73,7 +73,7 @@ class Polystrips_UI_Tools():
                     self.sketch = []
                     return 'main'
 
-            p3d = common_utilities.ray_cast_stroke_bvh(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
+            p3d = common_utilities.ray_cast_stroke_norm_bvh(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
             # tessellate stroke (if needed) so we have good stroke sampling
