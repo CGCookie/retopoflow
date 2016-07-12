@@ -99,8 +99,18 @@ class CGC_Polypen(ModalOperator):
                 bpy.ops.object.mode_set(mode='EDIT')
             except TypeError:
                 # in local view????
+                # store view properties
+                region3d = context.space_data.region_3d
+                distance = region3d.view_distance
+                location = region3d.view_location
+                rotation = region3d.view_rotation
+                perspective = region3d.view_perspective
                 bpy.ops.view3d.localview()
                 bpy.ops.view3d.localview()
+                region3d.view_distance = distance
+                region3d.view_location = location
+                region3d.view_rotation = rotation
+                region3d.view_perspective = perspective
                 bpy.ops.object.mode_set(mode='EDIT')
             self.was_objectmode = True
         else:
