@@ -104,13 +104,23 @@ class CGC_Polypen(ModalOperator):
                 distance = region3d.view_distance
                 location = region3d.view_location
                 rotation = region3d.view_rotation
+                mx = region3d.view_matrix.copy()
+                
+                print(region3d.view_matrix)
                 perspective = region3d.view_perspective
+                
+                old_smooth = context.user_preferences.view.smooth_view
+                context.user_preferences.view.smooth_view = 0
                 bpy.ops.view3d.localview()
                 bpy.ops.view3d.localview()
+                region3d = context.space_data.region_3d  #perhaps a new region3d was created?
                 region3d.view_distance = distance
                 region3d.view_location = location
                 region3d.view_rotation = rotation
                 region3d.view_perspective = perspective
+                region3d.view_matrix = mx
+                print(region3d.view_matrix)
+                context.user_preferences.view.smooth_view = old_smooth
                 bpy.ops.object.mode_set(mode='EDIT')
             self.was_objectmode = True
         else:
