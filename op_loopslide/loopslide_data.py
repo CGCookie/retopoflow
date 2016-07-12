@@ -9,7 +9,7 @@ from mathutils import Matrix
 from mathutils.bvhtree import BVHTree
 from ..lib.common_utilities import bversion
 
-class EdgeSlide(object):
+class loopslide(object):
     
     def __init__(self, context, targ_obj, trg_bvh, source_obj = None, source_bvh = None):
         self.target_name =targ_obj.name

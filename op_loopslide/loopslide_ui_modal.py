@@ -30,7 +30,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
 from ..lib.classes.profiler.profiler import Profiler
 
-class EdgeSlide_UI_Modal():
+class loopslide_UI_Modal():
 
     def modal_wait(self, context, eventd):
         settings = common_utilities.get_settings()
@@ -45,7 +45,7 @@ class EdgeSlide_UI_Modal():
         # General
 
         if eventd['press'] == 'LEFTMOUSE':
-            if len(self.edgeslide.vert_loop_vs) > 0:
+            if len(self.loopslide.vert_loop_vs) > 0:
                 #print('SLIDE')
                 return 'slide'
             
@@ -58,13 +58,13 @@ class EdgeSlide_UI_Modal():
     def modal_slide(self,context,eventd):
         settings = common_utilities.get_settings()
         if eventd['press'] in self.keymap['action'] or eventd['press'] in self.keymap['confirm']:
-            self.edgeslide.calc_snaps(self.trg_bme, snap = True)
-            self.edgeslide.move_loop(self.trg_bme)
-            self.edgeslide.clear()
+            self.loopslide.calc_snaps(self.trg_bme, snap = True)
+            self.loopslide.move_loop(self.trg_bme)
+            self.loopslide.clear()
             return 'main'
         
         elif eventd['type'] in self.keymap['cancel'] | self.keymap['modal cancel']:
-            self.edgeslide.clear()
+            self.loopslide.clear()
             return 'main'
         
         elif eventd['type'] == 'MOUSEMOVE':

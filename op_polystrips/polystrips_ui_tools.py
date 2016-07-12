@@ -626,7 +626,7 @@ class Polystrips_UI_Tools():
         '''
         translates selected gvert
         '''
-        if command == 'init':
+        if command == 'init' and not self.act_gvert.from_mesh:
             lgv = [self.act_gvert]
         else:
             lgv = None
@@ -639,7 +639,10 @@ class Polystrips_UI_Tools():
         '''
         if command == 'init':
             sgv = self.act_gvert
-            lgv = [sgv] + [ge.get_inner_gvert_at(sgv) for ge in sgv.get_gedges_notnone()]
+            lgv = []
+            if not sgv.from_mesh:
+                lgv += [sgv]
+            lgv += [ge.get_inner_gvert_at(sgv) for ge in sgv.get_gedges_notnone()]
         else:
             lgv = None
         self.grab_tool_gvert_list(command, eventd, lgv)

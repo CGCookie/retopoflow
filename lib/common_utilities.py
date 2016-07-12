@@ -71,7 +71,7 @@ def get_settings():
         get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
-get_settings.cached_settings = None
+
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
@@ -106,7 +106,7 @@ def print_exception():
 
     return errormsg
 
-print_exception.count = 0
+
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -238,21 +238,6 @@ def showErrorMessage(message, wrap=80):
             self.layout.label(line)
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
-
-
-def register():
-    bpy.utils.register_class(SimpleOperator)
-
-
-def unregister():
-    bpy.utils.unregister_class(SimpleOperator)
-
-
-if __name__ == "__main__":
-    register()
-
-    # test call
-    #bpy.ops.object.simple_operator()
 
 
 def callback_register(self, context):
@@ -615,6 +600,7 @@ def get_ray_origin(ray_origin, ray_direction, ob):
 
 def closest_t_and_distance_point_to_line_segment(p, p0, p1):
     v0p,v1p,v01 = p-p0, p-p1, p1-p0
+    if v01.length == 0: return (0.0, v0p.length)
     if v01.dot(v0p) < 0: return (0.0, v0p.length)
     if v01.dot(v1p) > 0: return (1.0, v1p.length)
     v01n = v01.normalized()
@@ -855,3 +841,15 @@ def outside_loop_2d(loop):
     maxy = max(ys)    
     bound = (1.1*maxx, 1.1*maxy)
     return bound
+
+# ensure initial conditions are the same when re-enabling the addon
+def register():
+    get_settings.cached_settings = None
+    print_exception.count = 0   
+
+def unregister():
+    pass
+
+
+if __name__ == "__main__":
+    register()

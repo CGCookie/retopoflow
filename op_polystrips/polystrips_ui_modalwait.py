@@ -322,6 +322,9 @@ class Polystrips_UI_ModalWait():
                 return 'scale tool'
 
             if eventd['press'] in self.keymap['translate']:
+                if self.act_gvert.from_mesh: 
+                    showErrorMessage('Cannot translate GVert from existing geometry')
+                    return ''
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                 return 'grab tool'

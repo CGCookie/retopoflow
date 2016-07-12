@@ -586,12 +586,23 @@ class CGC_Polypen(ModalOperator):
         return bme
     
     def create_face(self, lbmv):
-        c0,c1,c2 = lbmv[0].co,lbmv[1].co,lbmv[2].co
-        d10,d12 = c0-c1,c2-c1
-        n = d12.cross(d10)
-        dot = n.dot(self.mouse_curn3d)
-        if dot < 0:
-            lbmv = reversed(lbmv)
+        # check for crisscrossing and for flipped
+        l = len(lbmv)
+        repeat,iters = True,0
+        while repeat:
+            repeat,iters = False,iters+1
+            assert iters < pow(l,l/1.5), 'Could not eliminate crisscrossing'
+            for i0 in range(l):
+                i1,i2 = (i0+1)%l,(i0+2)%l
+                c0,c1,c2 = lbmv[i0].co,lbmv[i1].co,lbmv[i2].co
+                d10,d12 = c0-c1,c2-c1
+                n = d12.cross(d10)
+                dot = n.dot(self.mouse_curn3d)
+                if dot < 0:
+                    # wrong direction, swap!
+                    lbmv[i1],lbmv[i2] = lbmv[i2],lbmv[i1]
+                    repeat = True
+                    break
         bmf = self.tar_bmesh.faces.new(lbmv)
         self.select(bmf)
         self.tar_bmeshrender.dirty()
@@ -713,7 +724,7 @@ class CGC_Polypen(ModalOperator):
             return self.handle_action_seledge(context, eventd)
         if self.selected_bmverts:
             return self.handle_insert_vert_and_bridge(context, eventd)
-            return self.handle_action_selvert(context, eventd)
+            return self.handle_action_selvert(context, eventd)          # <== not used??
         return self.handle_action_selnothing(context, eventd)
     
     def handle_action_selnothing(self, context, eventd):
@@ -848,9 +859,11 @@ class CGC_Polypen(ModalOperator):
                 # edge and vert share face
                 # split this face!
                 bmv1,bmv2 = bme.verts
-                bmesh.utils.face_split(bmf, bmv0, bmv1)
-                bmf = self.face_between_verts(bmv0, bmv2)
-                bmesh.utils.face_split(bmf, bmv0, bmv2)
+                if not any(bme.other_vert(bmv0) == bmv1 for bme in bmv0.link_edges):
+                    bmesh.utils.face_split(bmf, bmv0, bmv1)
+                    bmf = self.face_between_verts(bmv0, bmv2)
+                if not any(bme.other_vert(bmv0) == bmv2 for bme in bmv0.link_edges):
+                    bmesh.utils.face_split(bmf, bmv0, bmv2)
                 self.select(bmv0)
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
@@ -897,11 +910,11 @@ class CGC_Polypen(ModalOperator):
                 self.select()
                 return self.handle_action_selnothing(context, eventd)
             
+            # get a list of shared verts between the selected face and the
+            # hovered edge.  if one vert is shared, then we need to bridge
+            # between face and hovered edge
             lbmv_common = [v for v in self.nearest_bmedge.verts if v in bmf.verts]
             if len(lbmv_common) == 1:
-                # lbmv_common is list of shared verts between the selected face
-                # and the hovered edge.  since 1 is shared, then we need to bridge
-                # between face and hovered edge
                 bmv_shared = lbmv_common[0]
                 bmv_opposite = self.nearest_bmedge.other_vert(bmv_shared)
                 
@@ -943,11 +956,21 @@ class CGC_Polypen(ModalOperator):
                     lbme_dup += [(bme0,bme1)]
         for bme0,bme1 in lbme_dup:
             #if not bme0.is_valid or bme1.is_valid: continue
-            # remove bme1 and recreate attached faces
-            assert len(bme0.link_faces) == 1 or len(bme1.link_faces) == 1, 'unhandled count of linked faces %d, %d'%(len(bme0.link_faces),len(bme1.link_faces))
-            lbmv = list(bme1.link_faces[0].verts)
-            self.tar_bmesh.edges.remove(bme1)
-            self.create_face(lbmv)
+            l0,l1 = len(bme0.link_faces), len(bme1.link_faces)
+            handled = False
+            if l0 == 0:
+                self.tar_bmesh.edges.remove(bme0)
+                handled = True
+            if l1 == 0:
+                self.tar_bmesh.edges.remove(bme1)
+                handled = True
+            if l0 == 1 and l1 == 1:
+                # remove bme1 and recreate attached faces
+                lbmv = list(bme1.link_faces[0].verts)
+                self.tar_bmesh.edges.remove(bme1)
+                self.create_face(lbmv)
+                handled = True
+            assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
     
     ######################################
     # action handler helpers
@@ -1146,7 +1169,10 @@ class CGC_Polypen(ModalOperator):
             self.tar_bmeshrender.dirty()
             return 'move vert'
         bme = self.tar_bmesh.edges.new([bmv0,bmv1])
-        self.select(bmv1,bme)
+        if eventd['press'] in self.keymap['polypen alt action']:
+            self.select(bmv1)
+        else:
+            self.select(bmv1,bme)
         self.tar_bmeshrender.dirty()
         return 'move vert'
     
@@ -1183,9 +1209,9 @@ class CGC_Polypen(ModalOperator):
             return ''
         bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
-        lbme = bmv.link_edges
         bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
         self.clean_duplicate_bmedges(self.nearest_bmvert)
+        lbme = [bme for bme in self.nearest_bmvert.link_edges if len(bme.link_faces) == 1 and self.selected_bmfaces[0] in bme.link_faces]
         self.set_selection(lbmv=[self.nearest_bmvert],lbme=lbme)
         self.clear_nearest()
         self.clean_bmesh()

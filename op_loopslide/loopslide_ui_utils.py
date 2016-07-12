@@ -8,7 +8,7 @@ import bmesh
 from mathutils.geometry import intersect_point_line
 from ..lib import common_utilities
 
-class EdgeSlide_UI_fns():
+class loopslide_UI_fns():
 
     def slide_cancel(self,context,eventd, settings):
         return
@@ -35,12 +35,12 @@ class EdgeSlide_UI_fns():
             eds = [ed for ed in f.edges]
             test_edge = min(eds, key = ed_dist)
 
-            self.edgeslide.find_edge_loop(self.trg_bme,test_edge)
-            self.edgeslide.pct = 0
-            self.edgeslide.right = True
-            self.edgeslide.calc_snaps(self.trg_bme, snap = False)
+            self.loopslide.find_edge_loop(self.trg_bme,test_edge)
+            self.loopslide.pct = 0
+            self.loopslide.right = True
+            self.loopslide.calc_snaps(self.trg_bme, snap = False)
         else:
-            self.edgeslide.clear()
+            self.loopslide.clear()
 
     def slide_update(self,context,eventd,settings):
         x,y = eventd['mouse']
@@ -56,21 +56,21 @@ class EdgeSlide_UI_fns():
                 l = v.co - pt
                 return l.length
 
-            v_ind = min(self.edgeslide.vert_loop_vs, key = dist)  #<  The closest edgeloop point to the mouse
-            n = self.edgeslide.vert_loop_vs.index(v_ind)
+            v_ind = min(self.loopslide.vert_loop_vs, key = dist)  #<  The closest edgeloop point to the mouse
+            n = self.loopslide.vert_loop_vs.index(v_ind)
             v_pt = self.trg_bme.verts[v_ind].co
             
-            p_right, pct_right = intersect_point_line(pt, v_pt, v_pt + self.edgeslide.edge_loop_right[n])
-            p_left, pct_left = intersect_point_line(pt, v_pt, v_pt + self.edgeslide.edge_loop_left[n])
+            p_right, pct_right = intersect_point_line(pt, v_pt, v_pt + self.loopslide.edge_loop_right[n])
+            p_left, pct_left = intersect_point_line(pt, v_pt, v_pt + self.loopslide.edge_loop_left[n])
 
             if pct_right > 0:
-                self.edgeslide.pct = min(1, pct_right)
-                self.edgeslide.right = True
+                self.loopslide.pct = min(1, pct_right)
+                self.loopslide.right = True
             else:
-                self.edgeslide.right = False
-                self.edgeslide.pct = min(1, pct_left)
+                self.loopslide.right = False
+                self.loopslide.pct = min(1, pct_left)
 
 
-            self.edgeslide.calc_snaps(self.trg_bme, snap = False)
+            self.loopslide.calc_snaps(self.trg_bme, snap = False)
 
         return

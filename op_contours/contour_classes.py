@@ -850,7 +850,7 @@ class Contours(object):
         TODO path from selected loop
         '''
         if undo:
-            self.create_undo_snapshot('EDGE_SLIDE')
+            self.create_undo_snapshot('LOOP_SLIDE')
         
         x,y = eventd['mouse']
         self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
@@ -859,7 +859,7 @@ class Contours(object):
                                                         self.sel_path,
                                                         x,y,
                                                         hotkey = True)
-        self.cut_line_widget.transform_mode = 'EDGE_SLIDE'    
+        self.cut_line_widget.transform_mode = 'LOOP_SLIDE'    
         self.cut_line_widget.initial_x = x
         self.cut_line_widget.initial_y = y
         self.cut_line_widget.derive_screen(context)
@@ -1667,7 +1667,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print('waiting on other cut lines')
             self.verts = []
             self.edges = []
-            self.face = []
+            self.faces = []
             self.follow_lines = []
             return
         
@@ -3479,11 +3479,11 @@ class CutLineManipulatorWidget(object):
                 
                 if loc_angle >= 1/4 * math.pi and loc_angle < 3/4 * math.pi:
                     #we are in the  left quadrant...which is perpendicular
-                    self.transform_mode = 'EDGE_SLIDE'
+                    self.transform_mode = 'LOOP_SLIDE'
                 elif loc_angle >= 3/4 * math.pi and loc_angle < 5/4 * math.pi:
                     self.transform_mode = 'ROTATE_VIEW'
                 elif loc_angle >= 5/4 * math.pi and loc_angle < 7/4 * math.pi:
-                    self.transform_mode = 'EDGE_SLIDE'
+                    self.transform_mode = 'LOOP_SLIDE'
                 else:
                     self.transform_mode = 'ROTATE_VIEW_PERPENDICULAR'
                     
@@ -3501,7 +3501,7 @@ class CutLineManipulatorWidget(object):
             return {'RECUT'}
             
         
-        if self.transform_mode == 'EDGE_SLIDE':
+        if self.transform_mode == 'LOOP_SLIDE':
             
             world_vec = world_mouse - world_widget
             screen_dist = mouse_wrt_widget.length - self.inner_radius
@@ -3869,7 +3869,7 @@ class CutLineManipulatorWidget(object):
             
             
             if not settings.live_update:
-                if self.transform_mode in {"NORMAL_TRANSLATE", "EDGE_SLIDE"}:
+                if self.transform_mode in {"NORMAL_TRANSLATE", "LOOP_SLIDE"}:
                     #draw a line representing the COM translation
                     points = [self.initial_com, self.cut_line.plane_com]
                     common_drawing_px.draw_3d_points(context, points, self.color3, 4)
