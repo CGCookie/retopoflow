@@ -97,7 +97,7 @@ class Polystrips_UI:
                 
             else:
                 clear_mesh_cache()
-                polystrips_undo_cache = []         
+                polystrips_undo_cache = []
                 me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 me.update()
                 bme = bmesh.new()
@@ -230,54 +230,34 @@ class Polystrips_UI:
         repeated_actions = {'count', 'zip count'}
 
         if action in repeated_actions and len(polystrips_undo_cache):
-            if action == polystrips_undo_cache[-1][1]:
+            if action == polystrips_undo_cache[-1]['action']:
                 dprint('repeatable...dont take snapshot')
                 return
 
-        p_data = copy.deepcopy(self.polystrips)
-
-        if self.act_gedge:
-            act_gedge = self.polystrips.gedges.index(self.act_gedge)
-        else:
-            act_gedge = None
-
-        if self.act_gvert:
-            act_gvert = self.polystrips.gverts.index(self.act_gvert)
-        else:
-            act_gvert = None
-
-        if self.act_gvert:
-            act_gvert = self.polystrips.gverts.index(self.act_gvert)
-        else:
-            act_gvert = None
-
-        polystrips_undo_cache.append(([p_data, act_gvert, act_gedge, act_gvert], action))
+        polystrips_undo_cache.append({
+            'action': action,
+            'polystrips data': copy.deepcopy(self.polystrips),
+            'act_gvert': self.polystrips.gverts.index(self.act_gvert) if self.act_gvert else None,
+            'act_gedge': self.polystrips.gedges.index(self.act_gedge) if self.act_gedge else None,
+            'act_gpatch': self.polystrips.gpatches.index(self.act_gpatch) if self.act_gpatch else None,
+            'sel_gverts': [self.polystrips.gverts.index(gv) for gv in self.sel_gverts],
+            'sel_gedges': [self.polystrips.gedges.index(ge) for ge in self.sel_gedges],
+        })
 
         if len(polystrips_undo_cache) > self.settings.undo_depth:
             polystrips_undo_cache.pop(0)
 
     def undo_action(self):
-        '''
-        '''
-        if len(polystrips_undo_cache) > 0:
-            data, action = polystrips_undo_cache.pop()
-
-            self.polystrips = data[0]
-
-            if data[1]:
-                self.act_gvert = self.polystrips.gverts[data[1]]
-            else:
-                self.act_gvert = None
-
-            if data[2]:
-                self.sel_gedge = self.polystrips.gedges[data[2]]
-            else:
-                self.sel_gedge = None
-
-            if data[3]:
-                self.act_gvert = self.polystrips.gverts[data[3]]
-            else:
-                self.act_gvert = None
+        if len(polystrips_undo_cache) == 0:
+            return
+        data = polystrips_undo_cache.pop()
+        self.polystrips = data['polystrips data']
+        self.act_gvert = self.polystrips.gverts[data['act_gvert']] if data['act_gvert'] is not None else None
+        self.act_gedge = self.polystrips.gedges[data['act_gedge']] if data['act_gedge'] is not None else None
+        self.act_gpatch = self.polystrips.gpatches[data['act_gpatch']] if data['act_gpatch'] is not None else None
+        self.sel_gverts = set(self.polystrips.gverts[i] for i in data['sel_gverts'])
+        self.sel_gedges = set(self.polystrips.gedges[i] for i in data['sel_gedges'])
+        self.hov_gvert = None
     
 
     
