@@ -385,6 +385,7 @@ class CGC_Polypen(ModalOperator):
             else: return 'main'
             self.vert_pos = {bmv:Vector(bmv.co) for bmv in lbmv}
             self.move_cancel_right = not self.mouse_down_right
+            self.mouse_startp2d = Vector(self.mouse_downp2d)
             context.area.header_text_set('Polypen: Grab')
         
         self.update_mouse(eventd)
@@ -396,7 +397,7 @@ class CGC_Polypen(ModalOperator):
             for bmv in self.vert_pos:
                 bmvco = self.vert_pos[bmv]
                 p2d = location_3d_to_region_2d(rgn, r3d, bmvco)
-                p2d = p2d + self.mouse_curp2d - self.mouse_downp2d
+                p2d = p2d + self.mouse_curp2d - self.mouse_startp2d
                 hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, p2d)
                 if not hit: return ''
                 p3d = hit[0]
