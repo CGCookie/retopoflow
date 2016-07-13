@@ -20,9 +20,11 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 # System imports
+import sys
 import math
 import itertools
 import time
+import types
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 
@@ -151,6 +153,8 @@ class Polystrips_UI_Draw():
     def draw_3d(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
+        view_dir = r3d.view_rotation * Vector((0,0,1))
+        view_loc = r3d.view_location + view_dir * r3d.view_distance
         
         color_inactive = settings.theme_colors_mesh[settings.theme]
         color_selection = settings.theme_colors_selection[settings.theme]
@@ -166,17 +170,32 @@ class Polystrips_UI_Draw():
         color_fill   = (color_inactive[0], color_inactive[1], color_inactive[2], 0.20)
         color_mirror = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
         
-        bgl.glDepthRange(0.0, 0.999)
+        #bgl.glDepthRange(0.0, 0.999)
+        bgl.glDepthRange(0.0, 1.0)
         bgl.glEnable(bgl.GL_DEPTH_TEST)
         
+        def set_depthrange(near=0.0, far=1.0, points=None):
+            if points and len(points):
+                d2 = min((view_loc-p).length_squared for p in points)
+                d = math.sqrt(d2)
+                d2 /= 10.0
+                near = near / d2
+                far = 1.0 - ((1.0 - far) / d2)
+            near = max(0.0, min(1.0, near))
+            far = max(near, min(1.0, far))
+            bgl.glDepthRange(near, far)
+            #bgl.glDepthRange(0.0, 0.5)
+        
         def draw3d_polyline(context, points, color, thickness, LINE_TYPE):
+            if type(points) is types.GeneratorType:
+                points = list(points)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*color)
             bgl.glLineWidth(thickness)
-            bgl.glDepthRange(0.0, 0.997)
+            set_depthrange(0.0, 0.997, points)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
@@ -185,15 +204,17 @@ class Polystrips_UI_Draw():
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
         def draw3d_closed_polylines(context, lpoints, color, thickness, LINE_TYPE):
-            lpoints = list(lpoints)
+            if type(lpoints) is types.GeneratorType:
+                lpoints = list(lpoints)
+            if len(lpoints) == 0: return
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glLineWidth(thickness)
-            bgl.glDepthRange(0.0, 0.997)
             bgl.glColor4f(*color)
             for points in lpoints:
+                set_depthrange(0.0, 0.997, points)
                 bgl.glBegin(bgl.GL_LINE_STRIP)
                 for coord in points:
                     bgl.glVertex3f(*coord)
@@ -213,8 +234,11 @@ class Polystrips_UI_Draw():
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
         def draw3d_quad(context, points, color):
+            if type(points) is types.GeneratorType:
+                points = list(points)
+            if len(points) == 0: return
             bgl.glEnable(bgl.GL_BLEND)
-            bgl.glDepthRange(0.0, 0.999)
+            set_depthrange(0.0, 0.998, points)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
             for coord in points:
@@ -225,9 +249,10 @@ class Polystrips_UI_Draw():
                     bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
         def draw3d_quads(context, lpoints, color, color_mirror):
-            lpoints = list(lpoints)
+            if type(lpoints) is types.GeneratorType:
+                lpoints = list(lpoints)
             bgl.glEnable(bgl.GL_BLEND)
-            bgl.glDepthRange(0.0, 0.999)
+            set_depthrange(0.0, 0.998, [p for pts in lpoints for p in pts])
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
             for points in lpoints:
@@ -240,9 +265,11 @@ class Polystrips_UI_Draw():
                         bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
         def draw3d_points(context, points, color, size):
+            if type(points) is types.GeneratorType:
+                points = list(points)
             bgl.glColor4f(*color)
             bgl.glPointSize(size)
-            bgl.glDepthRange(0.0, 0.997)
+            set_depthrange(0.0, 0.997, points)
             bgl.glBegin(bgl.GL_POINTS)
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
@@ -294,9 +321,9 @@ class Polystrips_UI_Draw():
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
                 color_fill   = (color_warning[0], color_warning[1], color_warning[2], 0.10)
             
-            draw3d_quads(context, gpatch.iter_segments(), color_fill, color_mirror)
-            draw3d_closed_polylines(context, gpatch.iter_segments(), color_border, 1, "GL_LINE_STIPPLE")
-            draw3d_points(context, [p for p,v,k in gpatch.pts if v], color_border, 3)
+            draw3d_quads(context, gpatch.iter_segments(view_loc), color_fill, color_mirror)
+            draw3d_closed_polylines(context, gpatch.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE")
+            draw3d_points(context, gpatch.iter_pts(view_loc), color_border, 3)
             
 
         ### Edges ###
@@ -321,8 +348,8 @@ class Polystrips_UI_Draw():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
-            draw3d_quads(context, gedge.iter_segments(), color_fill, color_mirror)
-            draw3d_closed_polylines(context, gedge.iter_segments(), color_border, 1, "GL_LINE_STIPPLE")
+            draw3d_quads(context, gedge.iter_segments(view_loc), color_fill, color_mirror)
+            draw3d_closed_polylines(context, gedge.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE")
 
             if settings.debug >= 2:
                 # draw bezier
@@ -341,6 +368,7 @@ class Polystrips_UI_Draw():
 
         ### Verts ###
         for gv in self.polystrips.gverts:
+            if gv.snap_norm.dot(view_loc-gv.snap_pos) < 0.0: continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
@@ -390,7 +418,7 @@ class Polystrips_UI_Draw():
                 draw3d_polyline(context, [p,p+y*0.05*scale], color_tany, 3, "GL_LINE_SMOOTH")
 
         # Draw inner gvert handles (dots) on each gedge
-        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected()]
+        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.snap_norm.dot(view_loc-gvert.snap_pos) > 0.0]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
         draw3d_points(context, p3d, color_handle, 4)
 

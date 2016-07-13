@@ -1312,7 +1312,7 @@ class GEdge:
                 return True
         return False
     
-    def iter_segments(self):
+    def iter_segments(self, view_loc=None):
         l = len(self.cache_igverts)
         if l == 0:
             cur0,cur1 = self.gvert0.get_corners_of(self)
@@ -1335,7 +1335,8 @@ class GEdge:
                 cur1 = gvert.position-gvert.tangent_y*gvert.radius
             
             if prev0 and prev1:
-                yield (prev0,cur0,cur1,prev1)
+                if not view_loc or gvert.normal.dot(view_loc-gvert.position) > 0.0:
+                    yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
     
     def iter_igverts(self):
@@ -1482,7 +1483,7 @@ class GEdgeSeries:
         self.cache_igverts = []
         self.ngedges = 0
     
-    def iter_segments(self):
+    def iter_segments(self, view_dir=None):
         l = len(self.cache_igverts)
         if l == 0:
             cur0,cur1 = self.gvert0.get_corners_of(self.gedges[0])
@@ -1507,7 +1508,8 @@ class GEdgeSeries:
             
             
             if prev0 and prev1:
-                yield (prev0,cur0,cur1,prev1)
+                if not view_dir or view_dir.dot(gvert.snap_norm) > 0.0:
+                    yield (prev0,cur0,cur1,prev1)
             prev0,prev1 = cur0,cur1
     
     def get_gedge_info(self, i_quad, rev):
@@ -1527,6 +1529,7 @@ class GPatch:
         self.o_name = obj.name
         self.frozen = False
         self.mx = obj.matrix_world
+        self.imx = self.mx.inverted()
         
         self.gedgeseries = gedgeseries
         self.nsides = len(gedgeseries)
@@ -1662,6 +1665,8 @@ class GPatch:
     def update(self):
         if self.frozen: return
         
+        self.norm_avg = sum(((ges.gvert0.snap_norm + ges.gvert3.snap_norm) for ges in self.gedgeseries), Vector()) / (2.0 * len(self.gedgeseries))
+        
         if self.nsides == 3:
             self._update_tri()
         elif self.nsides == 4:
@@ -1669,20 +1674,44 @@ class GPatch:
         elif self.nsides == 5:
             self._update_pent()
     
+    def _snap_pt(self, pt):
+        thinSurface_maxDist = 0.05
+        thinSurface_offset = 0.005
+        thinSurface_opposite = -0.4
+        
+        norm_good = self.norm_avg
+        
+        bvh = mesh_cache['bvh']
+        find = bvh.find if bversion() <= '002.076.000' else bvh.find_nearest
+        
+        l,n,_,_ = find(self.imx * pt)
+        
+        # assume that if the snapped norm is pointing opposite to the norms
+        # of outer control points of gedge then we've likely snapped to the
+        # wrong side of a thin surface.
+        if norm_good.dot(n) < thinSurface_opposite:
+            hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
+            if hit:
+                lr,nr,_,dr = hit
+                if nr and norm_good.dot(nr) >= thinSurface_opposite:
+                    # seems reasonable enough
+                    l,n = lr,nr
+        
+        return (self.mx*l, self.mx*n)
+    
+    def _gen_pt(self, pt, idx=None):
+        p,n = self._snap_pt(pt)
+        return (p,n,idx)
+    
     def _update_tri(self):
         ges0,ges1,ges2 = self.gedgeseries
         rev0,rev1,rev2 = self.rev
         bvh = mesh_cache['bvh']
 
-        if bversion() <= '002.076.000':
-            closest_point_on_mesh = bvh.find
-        else:
-            closest_point_on_mesh = bvh.find_nearest
-        
         sz0,sz1,sz2 = [len(ges.cache_igverts) for ges in self.gedgeseries]
         
-        # defer update for a bit (counts don't match up!)
         if sz0 != sz1 or sz1 != sz2 or ((sz0-1)//2)%2 == 0:
+            # error: edge lengths don't match up
             self.count_error = True
         else:
             self.count_error = False
@@ -1704,7 +1733,8 @@ class GPatch:
         if sz012 == 0:
             lgv = self.get_gverts()
             lp = [Vector(lgv[0].snap_pos), Vector(lgv[1].snap_pos), Vector(lgv[2].snap_pos), (lgv[2].snap_pos+lgv[0].snap_pos)/2]
-            self.pts = [(p,True,None) for p in lp]
+            ln = [Vector(lgv[0].snap_norm), Vector(lgv[1].snap_norm), Vector(lgv[2].snap_norm), (lgv[2].snap_norm+lgv[0].snap_norm).normalized()]
+            self.pts = [(p,n,None) for p,n in zip(lp,ln)]
             self.quads = [(0,1,2,3)]
             return
         
@@ -1730,10 +1760,10 @@ class GPatch:
         center = (c0+c1+c2)/3.0
         
         # add pts along ge0
-        self.pts += [(c,True,(0,i_c)) for i_c,c in enumerate(lc0)]
+        self.pts += [self._gen_pt(c,(0,i_c)) for i_c,c in enumerate(lc0)]
         for i in range(1,w2+1):
             pi = i/w2
-            self.pts += [(lc2[i],True,(2,wid-1-i))]
+            self.pts += [self._gen_pt(lc2[i],(2,wid-1-i))]
             cc0 = center*pi + c0*(1-pi)
             for j in range(1,wid-1):
                 if j < w2:
@@ -1742,23 +1772,21 @@ class GPatch:
                 else:
                     pj = (j-w2)/w2
                     p = lc1[i]*pj + cc0*(1-pj)
-                p = mx * closest_point_on_mesh(imx * p)[0]
-                self.pts += [(p,True,None)]
-            self.pts += [(lc1[i],True,(1,i))]
+                self.pts += [self._gen_pt(p)]
+            self.pts += [self._gen_pt(lc1[i],(1,i))]
         
         # add pts in corner of ge1 and ge2
         chalf = len(self.pts)
         for i in range(w2+1,wid-1):
             pi = (i-w2)/w2
-            self.pts += [(lc2[i],True,(2,wid-1-i))]
+            self.pts += [self._gen_pt(lc2[i],(2,wid-1-i))]
             cc1 = c1*pi + center*(1-pi)
             for j in range(1,w2):
                 pj = j/w2
                 p = cc1*pj + lc2[i]*(1-pj)
-                p = mx * closest_point_on_mesh(imx * p)[0]
-                self.pts += [(p,True,None)]
+                self.pts += [self._gen_pt(p)]
         for j in range(0,w2):
-            self.pts += [(lc1[wid-1-j],True,(1,wid-1-j))]
+            self.pts += [self._gen_pt(lc1[wid-1-j],(1,wid-1-j))]
         
         
         for i in range(w2):
@@ -1790,15 +1818,10 @@ class GPatch:
         ges0,ges1,ges2,ges3 = self.gedgeseries
         rev0,rev1,rev2,rev3 = self.rev
 
-        if bversion() <= '002.076.000':
-            closest_point_on_mesh = bvh.find
-        else:
-            closest_point_on_mesh = bvh.find_nearest
-
         sz0,sz1,sz2,sz3 = [len(ges.cache_igverts) for ges in self.gedgeseries]
         
-        # defer update for a bit (counts don't match up!)
         if sz0 != sz2 or sz1 != sz3:
+            # error: edge lengths don't match up
             self.count_error = True
         else:
             self.count_error = False
@@ -1850,16 +1873,16 @@ class GPatch:
                 w0 = 1.0 - w2
                 
                 if i1 == 0:
-                    self.pts += [(p0, True, (0,i0))]
+                    self.pts += [self._gen_pt(p0, (0,i0))]
                     continue
                 if i0 == len(lc0)-1:
-                    self.pts += [(p1, True, (1,i1))]
+                    self.pts += [self._gen_pt(p1, (1,i1))]
                     continue
                 if i1 == len(lc1)-1:
-                    self.pts += [(p2, True, (2,wid-1-i0))]
+                    self.pts += [self._gen_pt(p2, (2,wid-1-i0))]
                     continue
                 if i0 == 0:
-                    self.pts += [(p3, True, (3,hei-1-i1))]
+                    self.pts += [self._gen_pt(p3, (3,hei-1-i1))]
                     continue
                 
                 p02 = p0*w0 + p2*w2
@@ -1874,9 +1897,7 @@ class GPatch:
                     w02 = 1.0 - w13
                 
                 p = p02*w02 + p13*w13
-                p = mx * closest_point_on_mesh(imx * p)[0]
-                
-                self.pts += [(p, True, None)]
+                self.pts += [self._gen_pt(p)]
         
         for i0 in range(wid-1):
             for i1 in range(hei-1):
@@ -1887,15 +1908,10 @@ class GPatch:
         ges0,ges1,ges2,ges3,ges4 = self.gedgeseries
         rev0,rev1,rev2,rev3,rev4 = self.rev
 
-        if bversion() <= '002.076.000':
-            closest_point_on_mesh = bvh.find
-        else:
-            closest_point_on_mesh = bvh.find_nearest
-
         sz0,sz1,sz2,sz3,sz4 = [(len(ges.cache_igverts)-1)//2 -1 for ges in self.gedgeseries]
         
-        # defer update for a bit (counts don't match up!)
         if sz0 != sz2*2 or sz0 != sz3*2 or sz1 != sz4:
+            # error: edge lengths don't match up
             self.count_error = True
         else:
             self.count_error = False
@@ -1925,7 +1941,7 @@ class GPatch:
         if sz0 == 0:
             lgv = self.get_gverts()
             lp = [Vector(lgv[0].snap_pos), Vector(lgv[1].snap_pos), Vector(lgv[2].snap_pos), Vector(lgv[3].snap_pos)]
-            self.pts = [(p,True,None) for p in lp]
+            self.pts = [self._gen_pt(p) for p in lp]
             self.quads = [(0,1,2,3)]
             return
         
@@ -1962,19 +1978,19 @@ class GPatch:
                 w0 = 1.0 - w23
                 
                 if i1 == 0:
-                    self.pts += [(p0, True, (0,i0))]
+                    self.pts += [self._gen_pt(p0, (0,i0))]
                     continue
                 if i0 == 0:
-                    self.pts += [(p4, True, (4,hei-1-i1))]
+                    self.pts += [self._gen_pt(p4, (4,hei-1-i1))]
                     continue
                 if i0 == len(lc0)-1:
-                    self.pts += [(p1, True, (1,i1))]
+                    self.pts += [self._gen_pt(p1, (1,i1))]
                     continue
                 if i1 == len(lc1)-1:
                     if i0 < w2:
-                        self.pts += [(p23, True, (3,w2-i0))]
+                        self.pts += [self._gen_pt(p23, (3,w2-i0))]
                     else:
-                        self.pts += [(p23, True, (2,wid-1-i0))]
+                        self.pts += [self._gen_pt(p23, (2,wid-1-i0))]
                     continue
                 
                 p023 = p0*w0 + p23*w23
@@ -1989,9 +2005,7 @@ class GPatch:
                     w023 = 1.0 - w14
                 
                 p = p023*w023 + p14*w14
-                p = mx * closest_point_on_mesh(imx * p)[0]
-                
-                self.pts += [(p, True, None)]
+                self.pts += [self._gen_pt(p)]
         
         for i0 in range(wid-1):
             for i1 in range(hei-1):
@@ -2011,10 +2025,16 @@ class GPatch:
                 return True
         return False
     
-    def iter_segments(self):
+    def iter_segments(self, view_pos=None):
         for i0,i1,i2,i3 in self.quads:
             pt0,pt1,pt2,pt3 = self.pts[i0],self.pts[i1],self.pts[i2],self.pts[i3]
-            yield (pt0[0],pt1[0],pt2[0],pt3[0])
+            if not view_pos or max(n.dot(view_pos-p) for p,n,_ in [pt0,pt1,pt2,pt3]) > 0.0:
+                yield (pt0[0],pt1[0],pt2[0],pt3[0])
+    
+    def iter_pts(self, view_pos=None):
+        for p,n,_ in self.pts:
+            if not view_pos or n.dot(view_pos-p) > 0.0:
+                yield p
     
     def normal(self):
         n = Vector()
