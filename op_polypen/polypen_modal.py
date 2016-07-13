@@ -92,9 +92,10 @@ class CGC_Polypen(ModalOperator):
         if context.mode == 'OBJECT':
             self.src_object = get_source_object()
             nm_polypen = self.src_object.name + "_polypen"
-            self.tar_object = setup_target_object( nm_polypen, self.src_object, bmesh.new() )
+            self.tar_object = setup_target_object(nm_polypen, self.src_object, bmesh.new())
             self.tar_object.select = True
             bpy.context.scene.objects.active = self.tar_object
+                
             bpy.ops.object.mode_set(mode='EDIT')
             self.was_objectmode = True
         else:
@@ -280,15 +281,12 @@ class CGC_Polypen(ModalOperator):
                 p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
                 res = self.closest_bmvert(context, p2d, p3d, 5, 0.05)
                 min_bmv = res[0] if res else None
+                min_bme,min_bmf = None,None
                 if not min_bmv:
                     res = self.closest_bmedge(context, p2d, p3d, 5, 0.05)
                     min_bme = res[0] if res else None
-                else:
-                    min_bme = None
                 if not min_bme and not min_bmv:
-                    min_bmf = self.closest_bmface(p3d)
-                else:
-                    min_bmf = None
+                    min_bmf = self.closest_bmface(p3d, 0.05)
                 self.nearest_bmvert = min_bmv
                 self.nearest_bmedge = min_bme
                 self.nearest_bmface = min_bmf
@@ -684,11 +682,12 @@ class CGC_Polypen(ModalOperator):
         theta1 = abs(p10p.dot(p101))
         return (lbme[0] if theta0 < theta1 else lbme[1],0,0)
     
-    def closest_bmface(self, p3d):
+    def closest_bmface(self, p3d, max_dist3d):
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
             for bmv1,bmv2 in zip(bmf.verts[1:-1], bmf.verts[2:]):
-                if intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co):
+                pt = intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co)
+                if pt and (pt-p3d).length < max_dist3d:
                     return bmf
         return None
     
