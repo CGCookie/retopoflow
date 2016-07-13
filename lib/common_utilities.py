@@ -71,7 +71,7 @@ def get_settings():
         get_settings.cached_settings = addons[foldername].preferences
    
     return get_settings.cached_settings
-get_settings.cached_settings = None
+
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
@@ -106,7 +106,7 @@ def print_exception():
 
     return errormsg
 
-print_exception.count = 0
+
 
 def print_exception2():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -179,6 +179,41 @@ def update_target_object(dest_obj):
     settings = get_settings()
     settings.target_object = dest_obj.name
 
+def toggle_localview():
+    # special case handling if in local view
+
+    if bpy.context.space_data is None:
+        # no need to toggle!
+        return
+
+    # in local view!
+    # store view properties
+    region3d = bpy.context.space_data.region_3d
+    distance = region3d.view_distance
+    location = region3d.view_location
+    rotation = region3d.view_rotation
+    mx = region3d.view_matrix.copy()
+    perspective = region3d.view_perspective
+    
+    # turn off smooth view to prevent Blender repositioning
+    # camera when entering local view again
+    smooth = bpy.context.user_preferences.view.smooth_view
+    bpy.context.user_preferences.view.smooth_view = 0
+    
+    # toggle local view
+    bpy.ops.view3d.localview()
+    bpy.ops.view3d.localview()
+    
+    # restore view properties
+    region3d = bpy.context.space_data.region_3d  #perhaps a new region3d was created?
+    region3d.view_distance = distance
+    region3d.view_location = location
+    region3d.view_rotation = rotation
+    region3d.view_perspective = perspective
+    region3d.view_matrix = mx
+    bpy.context.user_preferences.view.smooth_view = smooth
+
+
 def setup_target_object( new_object, original_object, bmesh ):
     settings = get_settings()
     obj_orig = original_object
@@ -201,6 +236,11 @@ def setup_target_object( new_object, original_object, bmesh ):
         bpy.context.scene.objects.link(dest_obj)
         update_target_object(dest_obj)
 
+    dest_obj.select = True
+    bpy.context.scene.objects.active = dest_obj
+    
+    toggle_localview()
+    
     return dest_obj
 
 def dprint(s, l=2):
@@ -238,21 +278,6 @@ def showErrorMessage(message, wrap=80):
             self.layout.label(line)
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
-
-
-def register():
-    bpy.utils.register_class(SimpleOperator)
-
-
-def unregister():
-    bpy.utils.unregister_class(SimpleOperator)
-
-
-if __name__ == "__main__":
-    register()
-
-    # test call
-    #bpy.ops.object.simple_operator()
 
 
 def callback_register(self, context):
@@ -856,3 +881,15 @@ def outside_loop_2d(loop):
     maxy = max(ys)    
     bound = (1.1*maxx, 1.1*maxy)
     return bound
+
+# ensure initial conditions are the same when re-enabling the addon
+def register():
+    get_settings.cached_settings = None
+    print_exception.count = 0   
+
+def unregister():
+    pass
+
+
+if __name__ == "__main__":
+    register()

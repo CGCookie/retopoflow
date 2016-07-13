@@ -34,18 +34,18 @@ from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, showErrorMessage
 from .. import key_maps
 
-from .edgeslide_data import EdgeSlide
-from .edgeslide_ui_modal import EdgeSlide_UI_Modal
-from .edgeslide_ui_draw import EdgeSlide_UI_Draw
-from .edgeslide_ui_utils import EdgeSlide_UI_fns
+from .loopslide_data import loopslide
+from .loopslide_ui_modal import loopslide_UI_Modal
+from .loopslide_ui_draw import loopslide_UI_Draw
+from .loopslide_ui_utils import loopslide_UI_fns
 
 
 
-class CGC_EdgeSlide(ModalOperator, EdgeSlide_UI_fns, EdgeSlide_UI_Modal, EdgeSlide_UI_Draw):
-    ''' Edge Slide Modal Op '''
+class CGC_loopslide(ModalOperator, loopslide_UI_fns, loopslide_UI_Modal, loopslide_UI_Draw):
+    ''' Loop Slide Modal Op '''
     bl_category = "Retopology"
-    bl_idname = "cgcookie.edge_slide"        # unique identifier for buttons and menu items to reference
-    bl_label = "RetopoFlow Edge Slide"       # display name in the interface
+    bl_idname = "cgcookie.loop_slide"        # unique identifier for buttons and menu items to reference
+    bl_label = "RetopoFlow Loop Slide"       # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
@@ -96,10 +96,10 @@ class CGC_EdgeSlide(ModalOperator, EdgeSlide_UI_fns, EdgeSlide_UI_Modal, EdgeSli
         self.trg_bvh = BVHTree.FromBMesh(self.trg_bme)
         
         
-        self.edgeslide = EdgeSlide(context, self.trg_obj, self.trg_bvh, source_obj = self.src_obj, source_bvh = self.src_bvh)
+        self.loopslide = loopslide(context, self.trg_obj, self.trg_bvh, source_obj = self.src_obj, source_bvh = self.src_bvh)
 
 
-        context.area.header_text_set('EDGE SLIDE')
+        context.area.header_text_set('LOOP SLIDE')
         
         
     def end(self, context):
@@ -128,8 +128,8 @@ class CGC_EdgeSlide(ModalOperator, EdgeSlide_UI_fns, EdgeSlide_UI_Modal, EdgeSli
     
     def update(self,context, eventd):
         '''Place update stuff here'''
-        self.edgeslide.move_loop(self.bme, select=True)
-        self.trg_bvh = self.edge_slide.update_trg_bvh(self.trg_bme)
+        self.loopslide.move_loop(self.bme, select=True)
+        self.trg_bvh = self.loop_slide.update_trg_bvh(self.trg_bme)
         self.loopcut.push_to_edit_mesh(self.bme)
         self.loopcut.clear()
         return ''

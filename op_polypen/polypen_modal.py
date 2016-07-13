@@ -92,9 +92,10 @@ class CGC_Polypen(ModalOperator):
         if context.mode == 'OBJECT':
             self.src_object = get_source_object()
             nm_polypen = self.src_object.name + "_polypen"
-            self.tar_object = setup_target_object( nm_polypen, self.src_object, bmesh.new() )
+            self.tar_object = setup_target_object(nm_polypen, self.src_object, bmesh.new())
             self.tar_object.select = True
             bpy.context.scene.objects.active = self.tar_object
+                
             bpy.ops.object.mode_set(mode='EDIT')
             self.was_objectmode = True
         else:
