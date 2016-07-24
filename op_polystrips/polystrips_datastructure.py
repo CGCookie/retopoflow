@@ -2105,7 +2105,7 @@ class Polystrips(object):
         
         self.gverts = [gv for gv in self.gverts if gv not in gvs]
     
-    def create_gvert(self, co, norm=None, radius=0.005):
+    def create_gvert(self, co, radius=0.005, norm=None):
         #if type(co) is not Vector: co = Vector(co)
         p0  = co
         r0  = radius
