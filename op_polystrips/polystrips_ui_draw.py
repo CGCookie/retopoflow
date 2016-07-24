@@ -145,6 +145,7 @@ class Polystrips_UI_Draw():
             p /= c
             txt = '%d' % l # '%d %d' % (i_ges,l)
             p2d = location_3d_to_region_2d(context.region, context.space_data.region_3d, cp*0.2+p*0.8)
+            if p2d is None: continue
             txt_width, txt_height = blf.dimensions(0, txt)
             blf.position(0, p2d[0]-(txt_width/2), p2d[1]-(txt_height/2), 0)
             blf.draw(0, txt)
