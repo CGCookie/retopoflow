@@ -40,7 +40,7 @@ from ..modaloperator import ModalOperator
 
 from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
-from ..lib.common_utilities import setup_target_object
+from ..lib.common_utilities import setup_target_object, invert_matrix
 from ..lib.common_utilities import bversion, selection_mouse
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
@@ -103,7 +103,7 @@ class CGC_Polypen(ModalOperator):
         
         self.src_object = get_source_object()
         self.mx = self.src_object.matrix_world
-        self.imx = self.mx.inverted()
+        self.imx = invert_matrix(self.mx)
         is_valid = is_object_valid(self.src_object)
 
         if not is_valid:

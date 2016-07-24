@@ -29,6 +29,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import invert_matrix, matrix_normal
 from ..lib.classes.profiler import profiler
 from ..cache import mesh_cache
 
@@ -44,7 +45,7 @@ class Tweak_UI_Tools():
         
         mx = self.obj_orig.matrix_world
         mx3x3 = mx.to_3x3()
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         
         ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],self.mx, settings)
         hit_p3d,hit_norm,hit_idx = hit

@@ -29,6 +29,7 @@ import math
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import invert_matrix, matrix_normal
 from ..lib.classes.profiler import profiler
 from ..cache import mesh_cache
 
@@ -73,7 +74,7 @@ class Polystrips_UI_Tools():
                     self.sketch = []
                     return 'main'
 
-            p3d = common_utilities.ray_cast_stroke_bvh(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
+            p3d = common_utilities.raycast_stroke_bvh_norm(eventd['context'], mesh_cache['bvh'], self.mx, self.sketch) if len(self.sketch) > 1 else []
             if len(p3d) <= 1: return 'main'
 
             # tessellate stroke (if needed) so we have good stroke sampling
@@ -81,7 +82,6 @@ class Polystrips_UI_Tools():
             # p3d = [(p0+(p1-p0).normalized()*x) for p0,p1 in zip(p3d[:-1],p3d[1:]) for x in frange(0,(p0-p1).length,length_tess)] + [p3d[-1]]
             # stroke = [(p,self.stroke_radius) for i,p in enumerate(p3d)]
 
-            self.sketch = []
             
             if settings.symmetry_plane == 'x':
                 while p3d:
@@ -90,7 +90,7 @@ class Polystrips_UI_Tools():
                         if p[0].x < 0.0:
                             next_i_p = i_p
                             break
-                    self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p], False)
+                    self.polystrips.insert_gedge_from_stroke(p3d[:next_i_p])
                     p3d = p3d[next_i_p:]
                     next_i_p = len(p3d)
                     for i_p,p in enumerate(p3d):
@@ -99,11 +99,12 @@ class Polystrips_UI_Tools():
                             break
                     p3d = p3d[next_i_p:]
             else:
-                self.polystrips.insert_gedge_from_stroke(p3d, False)
+                self.polystrips.insert_gedge_from_stroke(p3d)
             
             self.polystrips.remove_unconnected_gverts()
             #self.polystrips.update_visibility(eventd['r3d'])
 
+            self.sketch = []
             self.act_gvert = None
             self.act_gedge = None
             self.act_gpatch = None
@@ -126,7 +127,7 @@ class Polystrips_UI_Tools():
         
         mx = self.obj_orig.matrix_world
         mx3x3 = mx.to_3x3()
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         
         ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],mx, settings)
         hit_p3d,hit_norm,hit_idx = hit

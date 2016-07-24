@@ -29,6 +29,7 @@ import math
 
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
+from ..lib.common_utilities import invert_matrix, matrix_normal
 from ..lib.common_utilities import showErrorMessage
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler import profiler
@@ -161,7 +162,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             hit_p3d,hit_norm,hit_idx = hit
             if hit_p3d != None:
                 mx = self.mx
-                mxnorm = mx.transposed().inverted().to_3x3()
+                mxnorm = matrix_normal(mx)
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))

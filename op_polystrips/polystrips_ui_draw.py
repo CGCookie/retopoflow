@@ -39,7 +39,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
+from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, invert_matrix, matrix_normal
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 from ..lib.common_drawing_view import draw3d_arrow
 from ..lib.classes.profiler import profiler
@@ -153,8 +153,10 @@ class Polystrips_UI_Draw():
     def draw_3d(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
-        view_dir = r3d.view_rotation * Vector((0,0,1))
-        view_loc = r3d.view_location + view_dir * r3d.view_distance
+        view_dir = r3d.view_rotation * Vector((0,0,-1))
+        view_loc = r3d.view_location - view_dir * r3d.view_distance
+        if r3d.view_perspective == 'ORTHO':
+            view_loc -= view_dir * 1000.0
         
         color_inactive = settings.theme_colors_mesh[settings.theme]
         color_selection = settings.theme_colors_selection[settings.theme]
@@ -175,7 +177,7 @@ class Polystrips_UI_Draw():
         bgl.glEnable(bgl.GL_DEPTH_TEST)
         
         def set_depthrange(near=0.0, far=1.0, points=None):
-            if points and len(points):
+            if points and len(points) and view_loc:
                 d2 = min((view_loc-p).length_squared for p in points)
                 d = math.sqrt(d2)
                 d2 /= 10.0
@@ -368,7 +370,7 @@ class Polystrips_UI_Draw():
 
         ### Verts ###
         for gv in self.polystrips.gverts:
-            if gv.snap_norm.dot(view_loc-gv.snap_pos) < 0.0: continue
+            if not gv.is_visible(r3d): continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
@@ -399,9 +401,20 @@ class Polystrips_UI_Draw():
             p3d = [p0,p1,p2,p3,p0]
             draw3d_quads(context, [[p0,p1,p2,p3]], color_fill, color_mirror)
             draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+            
+            if settings.debug >= 1:
+                l = 0.1
+                sp,sn,sx,sy = gv.snap_pos,gv.snap_norm,gv.snap_tanx,gv.snap_tany
+                draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.5), 1, "")
+                draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.5), 1, "")
+                draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.5), 1, "")
+                sp,sn,sx,sy = gv.position,gv.normal,gv.tangent_x,gv.tangent_y
+                draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.25), 1, "")
+                draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.25), 1, "")
+                draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.25), 1, "")
 
         # Draw inner gvert handles (dots) on each gedge
-        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.snap_norm.dot(view_loc-gvert.snap_pos) > 0.0]
+        p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible(r3d)]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
         draw3d_points(context, p3d, color_handle, 4)
 
@@ -459,6 +472,8 @@ class Polystrips_UI_Draw():
     def draw_2D(self, context):
         settings = common_utilities.get_settings()
         region,r3d = context.region,context.space_data.region_3d
+        mx = self.mx
+        mxnorm = matrix_normal(mx)
         
         color_inactive = settings.theme_colors_mesh[settings.theme]
         color_selection = settings.theme_colors_selection[settings.theme]
@@ -495,8 +510,6 @@ class Polystrips_UI_Draw():
             ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
             hit_p3d,hit_norm,hit_idx = hit
             if hit_idx != None: # and not self.hover_ed:
-                mx = self.mx
-                mxnorm = mx.transposed().inverted().to_3x3()
                 hit_p3d = mx * hit_p3d
                 hit_norm = mxnorm * hit_norm
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
@@ -505,8 +518,6 @@ class Polystrips_UI_Draw():
                 ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != None:
-                    mx = self.mx
-                    mxnorm = mx.transposed().inverted().to_3x3()
                     hit_p3d = mx * hit_p3d
                     hit_norm = mxnorm * hit_norm
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))

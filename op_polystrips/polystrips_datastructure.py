@@ -33,7 +33,7 @@ import itertools
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, iter_running_sum, dprint, get_object_length_scale,frange
-from ..lib.common_utilities import zip_pairs, closest_t_of_s
+from ..lib.common_utilities import zip_pairs, closest_t_of_s, invert_matrix
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 from ..lib.classes.profiler.profiler import Profiler
 
@@ -242,7 +242,7 @@ class GVert:
         
         mx = self.mx
         mx3x3 = mx.to_3x3()
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         bvh = mesh_cache['bvh']  #any reason not to grab this from our cache, which should always be current.
         
         if Polystrips.settings.symmetry_plane == 'x':
@@ -282,7 +282,7 @@ class GVert:
         
         bvh = mesh_cache['bvh']
         mx = self.mx
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
@@ -404,13 +404,14 @@ class GVert:
     def get_corner_inds(self):
         return (self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind)
     
-    def is_picked(self, pt):
+    def is_picked(self, pt, norm=None):
         if not self.visible: return False
+        n = self.snap_norm
+        if norm and n.dot(norm) < 0: return False
         c0 = self.corner0 - pt
         c1 = self.corner1 - pt
         c2 = self.corner2 - pt
         c3 = self.corner3 - pt
-        n = self.snap_norm
         d0 = c1.cross(c0).dot(n)
         d1 = c2.cross(c1).dot(n)
         d2 = c3.cross(c2).dot(n)
@@ -552,6 +553,13 @@ class GVert:
         if self.gedge1 == gedge: return self.gedge3
         if self.gedge2 == gedge: return self.gedge0
         if self.gedge3 == gedge: return self.gedge1
+    
+    def is_visible(self, r3d):
+        view_dir = r3d.view_rotation * Vector((0,0,-1))
+        view_loc = r3d.view_location - view_dir * r3d.view_distance
+        if r3d.view_perspective == 'ORTHO':
+            view_loc -= view_dir * 1000.0
+        return self.snap_norm.dot(view_loc - self.snap_pos) > 0.0
 
 
 
@@ -912,7 +920,7 @@ class GEdge:
         p0,p1,p2,p3 = self.get_positions()
         mx = self.mx
         bvh = mesh_cache['bvh']
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/precision) for t in range(precision+1)]
         if bversion() <= '002.076.000':
             p3d = [mx*bvh.find(imx * p)[0] for p in p3d]
@@ -1052,9 +1060,9 @@ class GEdge:
             # attempting to smooth snapped igverts
             bvh = mesh_cache['bvh']
             mx     = self.mx
-            mxnorm = mx.transposed().inverted().to_3x3()
+            imx    = invert_matrix(mx)
+            mxnorm = imx.transposed().to_3x3()
             mx3x3  = mx.to_3x3()
-            imx    = mx.inverted()
             p3d    = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
 
             if bversion() <= '002.076.000':
@@ -1223,9 +1231,9 @@ class GEdge:
         
         bvh = mesh_cache['bvh']
         mx = self.mx
-        mxnorm = mx.transposed().inverted().to_3x3()
+        imx = invert_matrix(mx)
+        mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
-        imx = mx.inverted()
         
         
         dprint('\nsnapping igverts')
@@ -1275,15 +1283,18 @@ class GEdge:
             igv.snap_tanx = igv.tangent_x
             igv.snap_tany = igv.tangent_y
     
-    
-    def is_picked(self, pt):
-        for p0,p1,p2,p3 in self.iter_segments():
-        #for p0,p1,p2,p3 in self.iter_segments():
+    def is_picked(self, pt, norm=None):
+        #if norm and not any(norm.dot(gv.snap_norm)>0 for gv in self.gverts()): return False
+        def is_quad_picked(p0,p1,p2,p3):
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
-            if c1.cross(c0).dot(n)>0 and c2.cross(c1).dot(n)>0 and c3.cross(c2).dot(n)>0 and c0.cross(c3).dot(n)>0:
-                return True
-        return False
+            crosses = [c1.cross(c0),c2.cross(c1),c3.cross(c2),c0.cross(c3)]
+            if any(c.dot(n)<=0 for c in crosses): return False
+            qnorm = (p3-p0).cross(p1-p0).normalized()
+            if norm and qnorm.dot(norm) < 0: return False
+            if abs((pt-p0).dot(qnorm)) > (p2-p0).length: return False
+            return True
+        return any(is_quad_picked(p0,p1,p2,p3) for p0,p1,p2,p3 in self.iter_segments())
     
     def iter_segments(self, view_loc=None):
         l = len(self.cache_igverts)
@@ -1502,7 +1513,7 @@ class GPatch:
         self.o_name = obj.name
         self.frozen = False
         self.mx = obj.matrix_world
-        self.imx = self.mx.inverted()
+        self.imx = invert_matrix(self.mx)
         
         self.gedgeseries = gedgeseries
         self.nsides = len(gedgeseries)
@@ -1690,7 +1701,7 @@ class GPatch:
             self.count_error = False
         
         mx = self.mx
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
@@ -1800,7 +1811,7 @@ class GPatch:
             self.count_error = False
         
         mx = self.mx
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
@@ -1890,7 +1901,7 @@ class GPatch:
             self.count_error = False
         
         mx = self.mx
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         mxnorm = imx.transposed().to_3x3()
         mx3x3 = mx.to_3x3()
         
@@ -1989,7 +2000,7 @@ class GPatch:
         rev = self.rev[i_gedgeseries]
         return ges.get_gedge_info(i_quad, rev)
     
-    def is_picked(self, pt):
+    def is_picked(self, pt, norm=None):
         for (p0,p1,p2,p3) in self.iter_segments():
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
@@ -2082,11 +2093,11 @@ class Polystrips(object):
         
         self.gverts = [gv for gv in self.gverts if gv not in gvs]
     
-    def create_gvert(self, co, radius=0.005):
+    def create_gvert(self, co, norm=None, radius=0.005):
         #if type(co) is not Vector: co = Vector(co)
         p0  = co
         r0  = radius
-        n0  = Vector((0,0,1))
+        n0  = norm.normalized() if norm else Vector((0,0,1))
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
         gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
@@ -2100,6 +2111,14 @@ class Polystrips(object):
         ge.update()
         self.gedges += [ge]
         return ge
+    
+    def create_gedge_fromends(self, gv0, gv3, per=0.65):
+        p0,r0 = gv0.position,gv0.radius
+        p3,r3 = gv3.position,gv3.radius
+        t0,t1 = per,1.0-per
+        gv1 = self.create_gvert(p0*t0 + p3*t1, r0*t0 + r3*t1)
+        gv2 = self.create_gvert(p0*t1 + p3*t0, r0*t1 + r3*t0)
+        return self.create_gedge(gv0, gv1, gv2, gv3)
     
     def create_gedgeseries(self, *gedges):
         ges = GEdgeSeries(bpy.data.objects[self.o_name], *gedges)
@@ -2130,7 +2149,10 @@ class Polystrips(object):
         
         p0,p1,p2,p3 = gedge.get_positions()
         r0,r1,r2,r3 = gedge.get_radii()
+        n0,n1,n2,n3 = gedge.get_normals()
         cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
+        cn0 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [0.0,t*0.33,t*0.66,t]]
+        cn1 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [t,1.0-(1.0-t)*0.66,1.0-(1.0-t)*0.33,1.0]]
         rm = cubic_bezier_blend_t(r0,r1,r2,r3, t)
         
         gv1_del = gedge.gvert1
@@ -2144,16 +2166,16 @@ class Polystrips(object):
             gv_split.position += trans
             gv_split.radius = rm
         else:
-            gv_split = self.create_gvert(cb0[3], radius=rm)
+            gv_split = self.create_gvert(cb0[3], norm=cn0[3], radius=rm)
         
         gv0_0 = gedge.gvert0
-        gv0_1 = self.create_gvert(cb0[1], radius=rm)
-        gv0_2 = self.create_gvert(cb0[2], radius=rm)
+        gv0_1 = self.create_gvert(cb0[1], norm=cn0[1], radius=rm)
+        gv0_2 = self.create_gvert(cb0[2], norm=cn0[2], radius=rm)
         gv0_3 = gv_split
         
         gv1_0 = gv_split
-        gv1_1 = self.create_gvert(cb1[1], radius=rm)
-        gv1_2 = self.create_gvert(cb1[2], radius=rm)
+        gv1_1 = self.create_gvert(cb1[1], norm=cn1[1], radius=rm)
+        gv1_2 = self.create_gvert(cb1[2], norm=cn1[2], radius=rm)
         gv1_3 = gedge.gvert3
         
         # want to *replace* gedge with new gedges
@@ -2192,13 +2214,15 @@ class Polystrips(object):
         bme.verts.ensure_lookup_table()
         self.extension_geometry = []
         mx = bpy.data.objects[self.targ_o_name].matrix_world
+        imx = invert_matrix(mx)
+        nmx = imx.transposed().to_3x3()
         for f in bme.faces:
             if len(f.edges) != 4:
                 continue
             for ed in f.edges:
                 if len(ed.link_faces) < 2:
                     pos = mx * f.calc_center_median()
-                    no = mx.transposed().inverted().to_3x3() * f.normal  #TEST THIS....can it be right?
+                    no = nmx * f.normal  #TEST THIS....can it be right?
                     no.normalize()
                     rad = 1/3 * 1/8 * sum(mx.to_scale()) * f.calc_perimeter()  #HACK...better way to estimate rad?
                     tan_x = mx * f.verts[1].co - mx * f.verts[0].co
@@ -2226,8 +2250,172 @@ class Polystrips(object):
                     gv.from_mesh_ind = f.index
                     self.extension_geometry.append(gv)
                     break
+    
+    def insert_gedge_from_stroke(self, stroke, sgv0=None, sgv3=None, depth=0):
+        '''
+        TODO:
+        - update gpatches (splitting gedge => gedgeseries)
+        - gracefully handle when gvert has 4 connected gedges (cannot add another gedge)
+        - check self-crossing stroke
+        '''
         
-    def insert_gedge_from_stroke(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
+        # magical constants
+        threshold_minstrokelen = 1
+        threshold_mintesscount = 10
+        max_depth = 100
+        
+        # helper function to find gvert (extension or from gverts list)
+        def find_gvert_for_stpos(st):
+            pos,norm,rad = st
+            def first(l):
+                l = list(l)
+                return l[0] if l else None
+            # check extension geometry
+            gv = first(gv for gv in self.extension_geometry if gv.is_picked(pos,norm))
+            if gv:
+                self.extension_geometry.remove(gv)
+                self.gverts.append(gv)
+                return gv
+            # check gverts
+            return first(gv for gv in self.gverts if not gv.is_inner() and gv.is_picked(pos,norm))
+        
+        # lerp tessellate stroke pts if pts are too far apart
+        def tessellate(st0,st1):
+            p0,n0,r0 = st0
+            p1,n1,r1 = st1
+            maxdist = min(r0,r1) / threshold_mintesscount
+            dist = max(0.001, (p0-p1).length)
+            per = 0.0
+            while per < 1.0:
+                per0,per1 = 1.0-per,per
+                yield (p0*per0+p1*per1,(n0*per0+n1*per1).normalized(),r0*per0+r1*per1)
+                per += maxdist / dist
+        
+        # are we too deep already?
+        if depth >= max_depth:
+            # can we create a gedge between the two endpoints?
+            if sgv0 and sgv3 and sgv0 != sgv3:
+                if sgv0.count_gedges() < 4 and sgv3.count_gedges() < 4:
+                    self.create_gedge_fromends(sgv0, sgv3)
+            return
+        
+        # is stroke too short to do much more?
+        if len(stroke) <= threshold_minstrokelen:
+            # can we create a gedge between the two endpoints?
+            if sgv0 and sgv3 and sgv0 != sgv3:
+                if sgv0.count_gedges() < 4 and sgv3.count_gedges() < 4:
+                    self.create_gedge_fromends(sgv0, sgv3)
+            return
+        
+        # need to tessellate the stroke a bit?
+        print('tessellating... %d' % len(stroke))
+        stroke = [st for st0,st1 in zip(stroke[:-1],stroke[1:]) for st in tessellate(st0,st1)] + [stroke[-1]]
+        print('done %d' % len(stroke))
+        
+        # find possible gvert for end of stroke if none are specified
+        if not sgv0:
+            sgv0 = find_gvert_for_stpos(stroke[0])
+        if not sgv3:
+            sgv3 = find_gvert_for_stpos(stroke[-1])
+        
+        # trim off stroke inside sgv0 and sgv3
+        lsgv = [sgv for sgv in [sgv0,sgv3] if sgv]
+        stroke = [(p,n,r) for (p,n,r) in stroke if not any(gv.is_picked(p,n) for gv in lsgv)]
+        
+        # is stroke too short to do much more?
+        if len(stroke) <= threshold_minstrokelen:
+            # can we create a gedge between the two endpoints?
+            if sgv0 and sgv3 and sgv0 != sgv3:
+                if sgv0.count_gedges() < 4 and sgv3.count_gedges() < 4:
+                    self.create_gedge_fromends(sgv0, sgv3)
+            return
+        
+        # does stroke cross any gverts?
+        for i_st,st in enumerate(stroke):
+            gv = find_gvert_for_stpos(st)
+            if not gv: continue     # does not cross!
+            
+            # cross!!!
+            self.insert_gedge_from_stroke(stroke[:i_st], sgv0=sgv0, sgv3=gv, depth=depth+1)
+            self.insert_gedge_from_stroke(stroke[i_st:], sgv0=gv, sgv3=sgv3, depth=depth+1)
+            return
+        
+        # does stroke cross any gedge?
+        for i_gedge,gedge in enumerate(self.gedges):
+            if gedge.zip_to_gedge: continue     # do not split zippered gedges!
+            if gedge.zip_attached: continue     # do not split zippered gedges!
+            i_st_enter,i_st_exit = -1,len(stroke)
+            avg_pos,avg_count = Vector((0,0,0)),0
+            for i_st,st in enumerate(stroke):
+                st_pos,st_norm,st_rad = st
+                picked = gedge.is_picked(st_pos, st_norm)
+                if picked:
+                    avg_pos += st_pos
+                    avg_count += 1
+                if i_st_enter == -1:
+                    if not picked: continue    # does not cross!
+                    i_st_enter = i_st
+                else:
+                    if picked: continue
+                    i_st_exit = i_st
+                    break
+            
+            # if no crossing, carry on
+            if i_st_enter == -1: continue
+            
+            # cross!!!
+            avg_pos /= avg_count
+            
+            # create gvert at crossing (avg_pos)
+            t,_     = gedge.get_closest_point(avg_pos)
+            _,_,sgv = self.split_gedge_at_t(gedge, t)
+            sgv.update()
+            print(sgv.snap_norm.dot(sgv.normal))
+            
+            self.insert_gedge_from_stroke(stroke[:i_st_enter], sgv0=sgv0, sgv3=sgv, depth=depth+1)
+            self.insert_gedge_from_stroke(stroke[i_st_exit:], sgv0=sgv, sgv3=sgv3, depth=depth+1)
+            return
+        
+        # create gedge
+        r0,r3 = stroke[0][2],stroke[-1][2]
+        l_bpts = cubic_bezier_fit_points([pt for pt,pn,pr in stroke], min(r0,r3) / 20, force_split=(sgv0==sgv3 and sgv0))
+        pregv,fgv = None,None
+        for i,bpts in enumerate(l_bpts):
+            t0,t3,bpt0,bpt1,bpt2,bpt3 = bpts
+            if i == 0:
+                gv0 = self.create_gvert(bpt0, radius=r0) if not sgv0 else sgv0
+                fgv = gv0
+            else:
+                gv0 = pregv
+            
+            gv1 = self.create_gvert(bpt1,radius=(r0+r3)/2)
+            gv2 = self.create_gvert(bpt2,radius=(r0+r3)/2)
+            
+            if i == len(l_bpts)-1:
+                gv3 = self.create_gvert(bpt3, radius=r3) if not sgv3 else sgv3
+            else:
+                gv3 = self.create_gvert(bpt3, radius=r3)
+            
+            if (gv0.position-gv3.position).length == 0:
+                dprint(spc+'gv03.der = 0')
+                dprint(spc+str(l_bpts))
+                dprint(spc+(str(sgv0.position) if sgv0 else 'None'))
+                dprint(spc+(str(sgv3.position) if sgv3 else 'None'))
+            elif (gv1.position-gv0.position).length == 0:
+                dprint('gv01.der = 0')
+            elif (gv2.position-gv3.position).length == 0:
+                dprint('gv32.der = 0')
+            else:
+                if gv0.count_gedges() < 4 and gv3.count_gedges() < 4:
+                    self.create_gedge(gv0,gv1,gv2,gv3)
+            pregv = gv3
+            gv0.update()
+            gv0.update_gedges()
+        gv3.update()
+        gv3.update_gedges()
+            
+    
+    def insert_gedge_from_stroke_old(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
         stroke: list of tuples (3d location, radius)
         '''
@@ -2622,6 +2810,16 @@ class Polystrips(object):
         gedge0 = gvert.gedge0
         gedge1 = gvert.gedge1 if gvert.gedge1 else gvert.gedge2
         
+        gv0 = gedge0.get_other_end(gvert)
+        gv3 = gedge1.get_other_end(gvert)
+        
+        if gv0 == gv3:
+            self.disconnect_gedge(gedge0)
+            self.disconnect_gedge(gedge1)
+            gv0.update()
+            gv0.update_gedges()
+            return
+        
         p00,p01,p02,p03 = gedge0.get_positions()
         p10,p11,p12,p13 = gedge1.get_positions()
         
@@ -2633,10 +2831,10 @@ class Polystrips(object):
         
         t0,t3,p0,p1,p2,p3 = cubic_bezier_fit_points(pts, self.length_scale, allow_split=False)[0]
         
-        gv0 = gedge0.gvert3 if gedge0.gvert0 == gvert else gedge0.gvert0
+        #gv0 = gedge0.gvert3 if gedge0.gvert0 == gvert else gedge0.gvert0
         gv1 = self.create_gvert(p1, gvert.radius)
         gv2 = self.create_gvert(p2, gvert.radius)
-        gv3 = gedge1.gvert3 if gedge1.gvert0 == gvert else gedge1.gvert0
+        #gv3 = gedge1.gvert3 if gedge1.gvert0 == gvert else gedge1.gvert0
         
         self.disconnect_gedge(gedge0)
         self.disconnect_gedge(gedge1)
@@ -2649,7 +2847,7 @@ class Polystrips(object):
     def create_mesh(self, bme):
         bvh = mesh_cache['bvh']
         mx = self.mx
-        imx = mx.inverted()
+        imx = invert_matrix(mx)
         
         verts = []
         quads = []

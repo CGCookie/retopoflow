@@ -305,6 +305,18 @@ def iter_running_sum(lw):
         yield (w,s)
 
 
+def invert_matrix(mat):
+    smat,d = str(mat),invert_matrix.__dict__
+    if smat not in d:
+        d[smat] = mat.inverted()
+    return d[smat]
+
+def matrix_normal(mat):
+    smat,d = str(mat),matrix_normal.__dict__
+    if smat not in d:
+        d[smat] = invert_matrix(mat).transposed().to_3x3()
+    return d[smat]
+
 
 def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     '''
@@ -313,7 +325,7 @@ def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     '''
 
     rgn = region
-    imx = mx.inverted()
+    imx = invert_matrix(mx)
     
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
@@ -332,7 +344,7 @@ def ray_cast_path(context, ob, screen_coords):
     rgn  = context.region
     rv3d = context.space_data.region_3d
     mx   = ob.matrix_world
-    imx  = mx.inverted()
+    imx = invert_matrix(mx)
     
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
@@ -359,7 +371,7 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
     '''
     rgn  = context.region
     rv3d = context.space_data.region_3d
-    imx  = mx.inverted()
+    imx = invert_matrix(mx)
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
     
@@ -387,7 +399,7 @@ def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
 def ray_cast_point_bvh(context, bvh, mx, screen_coord):
     rgn  = context.region
     rv3d = context.space_data.region_3d
-    imx  = mx.inverted()
+    imx = invert_matrix(mx)
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
     
@@ -411,7 +423,7 @@ def ray_cast_stroke(context, ob, stroke):
     rgn  = context.region
     rv3d = context.space_data.region_3d
     mx   = ob.matrix_world
-    imx  = mx.inverted()
+    imx = invert_matrix(mx)
     
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
@@ -442,7 +454,7 @@ def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     '''
     rgn  = context.region
     rv3d = context.space_data.region_3d
-    imx  = mx.inverted()
+    imx = invert_matrix(mx)
     
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
@@ -457,6 +469,36 @@ def ray_cast_stroke_bvh(context, bvh, mx, stroke):
     sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
     hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
     world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
+    
+    return world_stroke
+
+def vec3_to_vec4(vec3, w=0.0): return Vector((vec3.x,vec3.y,vec3.z,w))
+
+def raycast_stroke_bvh_norm(context, bvh, mx, stroke):
+    '''
+    strokes have form [((x,y),p)] with a radius value
+    
+    returns list [Vector(x,y,z), Vector(nx,ny,nz), p] leaving the radius value untouched
+    drops any values that do not successfully ray_cast
+    '''
+    rgn  = context.region
+    rv3d = context.space_data.region_3d
+    imx = invert_matrix(mx)
+    timx = imx.transposed()
+    
+    r2d_origin = region_2d_to_origin_3d
+    r2d_vector = region_2d_to_vector_3d
+    
+    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
+    
+    back = 0 if rv3d.is_perspective else 1
+    mult = 100 #* (1 if rv3d.is_perspective else -1)
+
+    if (bversion() < '002.072.000') and not rv3d.is_perspective: mult *= -1
+    
+    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
+    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
+    world_stroke = [(mx*hit[0],(timx*vec3_to_vec4(hit[1])).to_3d(),stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
     
     return world_stroke
 
@@ -504,7 +546,7 @@ def ray_cast_visible(verts, ob, rv3d):
     is visible (not occluded by object) in region associated with rv3d
     '''
     view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
-    imx = ob.matrix_world.inverted()
+    imx = invert_matrix(ob.matrix_world)
     
     if rv3d.is_perspective:
         eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
@@ -524,7 +566,7 @@ def ray_cast_visible_bvh(verts, bvh, mx, rv3d):
     is visible (not occluded by object) in region associated with rv3d
     '''
     view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
-    imx = mx.inverted()
+    imx = invert_matrix(mx)
     
     if rv3d.is_perspective:
         eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
@@ -563,7 +605,7 @@ def get_ray_origin_target(region, rv3d, screen_coord, ob):
 
 def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
     mx  = ob.matrix_world
-    imx = mx.inverted()
+    imx = invert_matrix(mx)
     
     ray_origin,ray_target = get_ray_origin_target(region, rv3d, screen_coord, ob)
     ray_direction         = (ray_target - ray_origin).normalized()
@@ -591,7 +633,7 @@ def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
 
 def ray_cast_world_size_bvh(region, rv3d, screen_coord, screen_size, bvh, mx, settings):
 
-    imx = mx.inverted()
+    imx = invert_matrix(mx)
     rgn = region
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d

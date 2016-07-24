@@ -31,11 +31,13 @@ from mathutils.bvhtree import BVHTree
 import math
 import os
 import copy
+from itertools import chain
 
 from ..lib import common_utilities
 from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
 from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
+from ..lib.common_utilities import ray_cast_region2d_bvh, invert_matrix
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
@@ -270,10 +272,10 @@ class Polystrips_UI:
 
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
             mx = self.dest_obj.matrix_world
-            imx = mx.inverted()
+            imx = invert_matrix(mx)
 
             mx2 = self.obj_orig.matrix_world
-            imx2 = mx2.inverted()
+            imx2 = invert_matrix(mx2)
 
         else:
             #bm = bmesh.new()  #now new bmesh is created at the start
@@ -384,19 +386,22 @@ class Polystrips_UI:
 
     def hover_geom(self,eventd):
         mx,my = eventd['mouse'] 
+        rgn   = eventd['context'].region
+        r3d   = eventd['context'].space_data.region_3d
+        
         self.help_box.hover(mx, my)
         
         self.hov_gvert = None
-        rgn   = eventd['context'].region
-        r3d   = eventd['context'].space_data.region_3d
-        mx,my = eventd['mouse']
-        for gv in self.polystrips.extension_geometry + self.polystrips.gverts:
+        _,hit = ray_cast_region2d_bvh(rgn, r3d, (mx,my), mesh_cache['bvh'], self.mx, self.settings)
+        hit_pos,hit_norm,_ = hit
+        for gv in chain(self.polystrips.extension_geometry, self.polystrips.gverts):
             if gv.is_inner(): continue
             c0 = location_3d_to_region_2d(rgn, r3d, gv.corner0)
             c1 = location_3d_to_region_2d(rgn, r3d, gv.corner1)
             c2 = location_3d_to_region_2d(rgn, r3d, gv.corner2)
             c3 = location_3d_to_region_2d(rgn, r3d, gv.corner3)
             inside = point_inside_loop2d([c0,c1,c2,c3],Vector((mx,my)))
+            if hit_pos: inside &= gv.is_picked(hit_pos, hit_norm)
             if inside:
                 self.hov_gvert = gv
                 break
@@ -407,9 +412,12 @@ class Polystrips_UI:
     # picking function
 
     def pick(self, eventd):
-        x,y = eventd['mouse']
-        pts = common_utilities.ray_cast_path_bvh(eventd['context'], mesh_cache['bvh'],self.mx, [(x,y)])
-        if not pts:
+        mx,my = eventd['mouse']
+        rgn   = eventd['context'].region
+        r3d   = eventd['context'].space_data.region_3d
+        _,hit = ray_cast_region2d_bvh(rgn, r3d, (mx,my), mesh_cache['bvh'], self.mx, self.settings)
+        hit_pos,hit_norm,_ = hit
+        if not hit_pos:
             # user did not click on the object
             if not eventd['shift']:
                 # clear selection if shift is not held
@@ -417,7 +425,6 @@ class Polystrips_UI:
                 self.sel_gedges.clear()
                 self.sel_gverts.clear()
             return ''
-        pt = pts[0]
 
         if self.act_gvert or self.act_gedge:
             # check if user is picking an inner control point
@@ -431,7 +438,7 @@ class Polystrips_UI:
                 lcpts = []
 
             for cpt in lcpts:
-                if not cpt.is_picked(pt): continue
+                if not cpt.is_picked(hit_pos,hit_norm): continue
                 self.act_gedge = None
                 self.sel_gedges.clear()
                 self.act_gvert = cpt
@@ -442,7 +449,7 @@ class Polystrips_UI:
         # select gvert?
         for gv in self.polystrips.gverts:
             if gv.is_unconnected(): continue
-            if not gv.is_picked(pt): continue
+            if not gv.is_picked(hit_pos,hit_norm): continue
             self.act_gedge = None
             self.sel_gedges.clear()
             self.sel_gverts.clear()
@@ -452,7 +459,7 @@ class Polystrips_UI:
 
         # select gedge?
         for ge in self.polystrips.gedges:
-            if not ge.is_picked(pt): continue
+            if not ge.is_picked(hit_pos,hit_norm): continue
             self.act_gvert = None
             self.act_gedge = ge
             if not eventd['shift']:
@@ -470,7 +477,7 @@ class Polystrips_UI:
         
         # Select patch
         for gp in self.polystrips.gpatches:
-            if not gp.is_picked(pt): continue
+            if not gp.is_picked(hit_pos,hit_norm): continue
             self.act_gvert = None
             self.act_gedge = None
             self.sel_gedges.clear()
