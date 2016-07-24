@@ -528,7 +528,6 @@ class RetopoFlowPreferences(AddonPreferences):
 
         # just to help show changed module
         row = layout.row()
-        row.label("Test label: Updater module for v1.1.12")
 
         # updater draw function
         addon_updater_ops.update_settings_ui(self,context)
