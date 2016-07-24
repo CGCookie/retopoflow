@@ -101,6 +101,7 @@ class Singleton_updater(object):
 		self._releases = []
 		self._latest_release = None
 		self._backup_current = True # by default, backup current addon if new is being loaded
+		self._auto_reload_post_update = False # by defautl, enable/disable the addon.. but less safe.
 		 # "" # assume specific cachename, use addon?.cache
 		self._check_interval_enable = False
 		self._check_interval_months = 0
@@ -120,6 +121,7 @@ class Singleton_updater(object):
 
 		# get from module data
 		self._addon = __package__
+		self._addon_package = __package__ # must not change
 		self._updater_path = os.path.join(os.path.dirname(__file__),
 							self._addon+"_updater")
 		self._addon_root = os.path.dirname(__file__)
@@ -147,6 +149,16 @@ class Singleton_updater(object):
 			if self._verbose == True:print("Updater verbose is enabled")
 		except:
 			raise ValueError("Verbose must be a boolean value")
+
+	@property
+	def auto_reload_post_update(self):
+		return self._auto_reload_post_update
+	@auto_reload_post_update.setter
+	def auto_reload_post_update(self, value):
+		try:
+			self._auto_reload_post_update = bool(value)
+		except:
+			raise ValueError("Must be a boolean value")
 
 	@property
 	def fake_install(self):
@@ -503,6 +515,16 @@ class Singleton_updater(object):
 			print("Error, update zip not found")
 			return -1
 
+		# clear the existing source folder in case previous files remain
+		try:
+			shutil.rmtree( os.path.join(self._updater_path,"source") )
+			os.makedirs( os.path.join(self._updater_path,"source") )
+			print("Source folder cleared and recreated")
+		except:
+			pass
+		
+
+
 		if self.verbose:print("Begin extracting source")
 		if zipfile.is_zipfile(self._source_zip):
 			with zipfile.ZipFile(self._source_zip) as zf:
@@ -522,13 +544,16 @@ class Singleton_updater(object):
 
 			if os.path.isfile(os.path.join(unpath,"__init__.py")) == False:
 				print("not a valid addon found")
+				print("Paths:")
+				print(dirlist)
+
 				raise ValueError("__init__ file not found in new source")
 
 		# now commence merging in the two locations:
 		
 		origpath = os.path.dirname(__file__) # CHECK that this is appropriate... not necessairly true..?
 		#"/Users/patrickcrawford/Library/Application Support/Blender/2.76/scripts/addons/retopoflow/"
-		print("UNZSTAGE, unpath:",unpath,"  \nOrigpath:",origpath)
+		print("Unstaging: unpath:",unpath,"  \nOrigpath:",origpath)
 
 
 		self.deepMergeDirectory(origpath,unpath) ## SKIPPING THIS STEP FOR CHECKING
@@ -567,18 +592,26 @@ class Singleton_updater(object):
 	
 
 	def reload_addon(self):
+		if self._auto_reload_post_update == False:
+			print("Restart blender to reload")
+			return
+
+
+
 		if self._verbose:print("Reloading addon...")
 		addon_utils.modules(refresh=True)
 		bpy.utils.refresh_script_paths()
 
 		# not allowed in restricted context, such as register module
 		# toggle to refresh
-		bpy.ops.wm.addon_disable(module=self._addon)
+		bpy.ops.wm.addon_disable(module=self._addon_package)
+
+		bpy.ops.wm.addon_refresh()
 		# consider removing cached files
 		# __pycache__
 		# try:
 		# 	shutil//
-		bpy.ops.wm.addon_enable(module=self._addon)
+		bpy.ops.wm.addon_enable(module=self._addon_package)
 
 
 
@@ -632,11 +665,15 @@ class Singleton_updater(object):
 			self.start_async_check_update(False, callback)
 
 	def check_for_update_now(self, callback=None):
+		if self._verbose: print("Check update pressed, first getting current status")
 		if self._async_checking == True:
 			if self._verbose:print("Skipping async check, already started")
 			return # already running the bg thread
 		elif self._update_ready == None:
 			# return (self._update_ready,self._update_version,self._update_link)
+			self.start_async_check_update(True, callback)
+		else:
+			self._update_ready = None
 			self.start_async_check_update(True, callback)
 
 
@@ -714,7 +751,7 @@ class Singleton_updater(object):
 
 	# consider if update available and it's been long enough since last check
 
-	def run_update(self, force=False, revert_tag=None, clean=False):
+	def run_update(self, force=False, revert_tag=None, clean=False, callback=None):
 		
 		# revert_tag: could e.g. get from dropdown list
 		# different versions of the addon to revert back to
@@ -768,6 +805,9 @@ class Singleton_updater(object):
 			self.upack_staged_zip()
 			# would need to compare against other versions held in tags
 
+		# run the user's callback if provided
+		if callback != None:callback()
+
 		# return something meaningful, 0 means it worked
 		return 0
 
@@ -815,6 +855,7 @@ class Singleton_updater(object):
 				"last_check":"",
 				"backup_date":"",
 				"update_ready":False,
+				"ignore":False,
 				"just_restored":False,
 				"just_updated":False,
 				"version_text":{}
@@ -852,6 +893,11 @@ class Singleton_updater(object):
 		self._json["update_ready"] = False
 		self._json["version_text"] = {}
 		self.save_updater_json()
+		updater.update_ready = None # reset so you could check update again
+
+	def ignore_update(self):
+		self._json["ignore"] = True
+		self.save_updater_json()
 
 	# -------------------------------------------------------------------------
 	# ASYNC stuff...
@@ -862,7 +908,7 @@ class Singleton_updater(object):
 	def start_async_check_update(self, now=False,callback=None):
 		if self._async_checking == True:
 			return
-		
+		if self._verbose: print("Starting background checking thread")
 		check_thread = threading.Thread(target=self.async_check_update, args=(now,callback,))
 		check_thread.daemon = True
 		check_thread.start()
@@ -873,7 +919,7 @@ class Singleton_updater(object):
 		self._async_checking = True
 		if self._verbose:print("BG: Checking for update now in background")
 		# time.sleep(3) # to test background, in case internet too fast to tell
-		self.check_for_update(now=False)
+		self.check_for_update(now=now)
 		if self._verbose:print("BG: Finished checking for update, doing callback")
 		if callback != None:callback(self._update_ready)
 		self._async_checking = False
