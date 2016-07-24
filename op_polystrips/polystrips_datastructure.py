@@ -566,11 +566,12 @@ class GVert:
         if self.gedge2 == gedge: return self.gedge0
         if self.gedge3 == gedge: return self.gedge1
     
-    def is_visible(self, r3d):
+    def is_visible(self, r3d, mirror_x=False):
         view_dir = r3d.view_rotation * Vector((0,0,-1))
         view_loc = r3d.view_location - view_dir * r3d.view_distance
         if r3d.view_perspective == 'ORTHO':
             view_loc -= view_dir * 1000.0
+        if mirror_x: view_loc.x = -view_loc.x
         return self.snap_norm.dot(view_loc - self.snap_pos) > 0.0
 
 

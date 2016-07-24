@@ -25,6 +25,7 @@ import math
 import itertools
 import time
 import types
+from itertools import chain
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 
@@ -45,6 +46,9 @@ from ..lib.common_drawing_view import draw3d_arrow
 from ..lib.classes.profiler import profiler
 
 from ..cache import mesh_cache
+
+def vector_mirror_0(v): return v
+def vector_mirror_x(v): return Vector((-v.x,v.y,v.z))
 
 class Polystrips_UI_Draw():
     
@@ -156,8 +160,8 @@ class Polystrips_UI_Draw():
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
         view_loc = r3d.view_location - view_dir * r3d.view_distance
-        if r3d.view_perspective == 'ORTHO':
-            view_loc -= view_dir * 1000.0
+        if r3d.view_perspective == 'ORTHO': view_loc -= view_dir * 1000.0
+        view_loc_x = vector_mirror_x(view_loc)
         
         color_inactive = settings.theme_colors_mesh[settings.theme]
         color_selection = settings.theme_colors_selection[settings.theme]
@@ -189,9 +193,11 @@ class Polystrips_UI_Draw():
             bgl.glDepthRange(near, far)
             #bgl.glDepthRange(0.0, 0.5)
         
-        def draw3d_polyline(context, points, color, thickness, LINE_TYPE):
-            if type(points) is types.GeneratorType:
-                points = list(points)
+        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, mirror):
+            points = [mirror(pt) for pt in points]
+            if len(points) == 0: return
+            # if type(points) is types.GeneratorType:
+            #     points = list(points)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)  
@@ -205,10 +211,12 @@ class Polystrips_UI_Draw():
             bgl.glLineWidth(1)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
-                bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
-        def draw3d_closed_polylines(context, lpoints, color, thickness, LINE_TYPE):
-            if type(lpoints) is types.GeneratorType:
-                lpoints = list(lpoints)
+                bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
+        
+        def draw3d_closed_polylines(context, lpoints, color, thickness, LINE_TYPE, mirror):
+            #if type(lpoints) is types.GeneratorType:
+            #    lpoints = list(lpoints)
+            lpoints = [[mirror(pt) for pt in points] for points in lpoints]
             if len(lpoints) == 0: return
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
@@ -219,41 +227,44 @@ class Polystrips_UI_Draw():
             for points in lpoints:
                 set_depthrange(0.0, 0.997, points)
                 bgl.glBegin(bgl.GL_LINE_STRIP)
-                for coord in points:
+                for coord in chain(points,points[:1]):
                     bgl.glVertex3f(*coord)
-                bgl.glVertex3f(*points[0])
                 bgl.glEnd()
-            if settings.symmetry_plane == 'x':
-                bgl.glColor4f(*color_mirror)
-                for points in lpoints:
-                    bgl.glBegin(bgl.GL_LINE_STRIP)
-                    for coord in points:
-                        bgl.glVertex3f(-coord.x, coord.y, coord.z)
-                    bgl.glVertex3f(-points[0].x, points[0].y, points[0].z)
-                    bgl.glEnd()
+            # if settings.symmetry_plane == 'x':
+            #     bgl.glColor4f(*color_mirror)
+            #     for points in lpoints:
+            #         bgl.glBegin(bgl.GL_LINE_STRIP)
+            #         for coord in points:
+            #             bgl.glVertex3f(-coord.x, coord.y, coord.z)
+            #         bgl.glVertex3f(-points[0].x, points[0].y, points[0].z)
+            #         bgl.glEnd()
                 
             bgl.glLineWidth(1)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
-        def draw3d_quad(context, points, color):
-            if type(points) is types.GeneratorType:
-                points = list(points)
+        
+        def draw3d_quad(context, points, color, mirror):
+            #if type(points) is types.GeneratorType:
+            #    points = list(points)
+            points = [mirror(pt) for pt in points]
             if len(points) == 0: return
             bgl.glEnable(bgl.GL_BLEND)
             set_depthrange(0.0, 0.998, points)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
-            for coord in points:
-                bgl.glVertex3f(*coord)
-            if settings.symmetry_plane == 'x':
-                bgl.glColor4f(*color_mirror)
-                for coord in points:
-                    bgl.glVertex3f(-coord.x,coord.y,coord.z)
+            for coord in points: bgl.glVertex3f(*coord)
+            # if settings.symmetry_plane == 'x':
+            #     bgl.glColor4f(*color_mirror)
+            #     for coord in points:
+            #         bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
-        def draw3d_quads(context, lpoints, color, color_mirror):
-            if type(lpoints) is types.GeneratorType:
-                lpoints = list(lpoints)
+        
+        def draw3d_quads(context, lpoints, color, mirror):
+            #if type(lpoints) is types.GeneratorType:
+            #    lpoints = list(lpoints)
+            lpoints = [[mirror(pt) for pt in points] for points in lpoints]
+            if len(lpoints) == 0: return
             bgl.glEnable(bgl.GL_BLEND)
             set_depthrange(0.0, 0.998, [p for pts in lpoints for p in pts])
             bgl.glBegin(bgl.GL_QUADS)
@@ -261,15 +272,18 @@ class Polystrips_UI_Draw():
             for points in lpoints:
                 for coord in points:
                     bgl.glVertex3f(*coord)
-            if settings.symmetry_plane == 'x':
-                bgl.glColor4f(*color_mirror)
-                for points in lpoints:
-                    for coord in points:
-                        bgl.glVertex3f(-coord.x,coord.y,coord.z)
+            # if settings.symmetry_plane == 'x':
+            #     bgl.glColor4f(*color_mirror)
+            #     for points in lpoints:
+            #         for coord in points:
+            #             bgl.glVertex3f(-coord.x,coord.y,coord.z)
             bgl.glEnd()
-        def draw3d_points(context, points, color, size):
-            if type(points) is types.GeneratorType:
-                points = list(points)
+        
+        def draw3d_points(context, points, color, size, mirror):
+            #if type(points) is types.GeneratorType:
+            #    points = list(points)
+            points = [mirror(pt) for pt in points]
+            if len(points) == 0: return
             bgl.glColor4f(*color)
             bgl.glPointSize(size)
             set_depthrange(0.0, 0.997, points)
@@ -324,9 +338,13 @@ class Polystrips_UI_Draw():
                 color_border = (color_warning[0], color_warning[1], color_warning[2], 0.50)
                 color_fill   = (color_warning[0], color_warning[1], color_warning[2], 0.10)
             
-            draw3d_quads(context, gpatch.iter_segments(view_loc), color_fill, color_mirror)
-            draw3d_closed_polylines(context, gpatch.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE")
-            draw3d_points(context, gpatch.iter_pts(view_loc), color_border, 3)
+            draw3d_quads(context, gpatch.iter_segments(view_loc), color_fill, vector_mirror_0)
+            draw3d_closed_polylines(context, gpatch.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE", vector_mirror_0)
+            draw3d_points(context, gpatch.iter_pts(view_loc), color_border, 3, vector_mirror_0)
+            if settings.symmetry_plane == 'x':
+                draw3d_quads(context, gpatch.iter_segments(view_loc_x), color_mirror, vector_mirror_x)
+                draw3d_closed_polylines(context, gpatch.iter_segments(view_loc_x), color_mirror, 1, "GL_LINE_STIPPLE", vector_mirror_x)
+                #draw3d_points(context, gpatch.iter_pts(view_loc_x), color_border, 3, vector_mirror_x)
             
 
         ### Edges ###
@@ -351,14 +369,17 @@ class Polystrips_UI_Draw():
                 color_border = (color_frozen[0], color_frozen[1], color_frozen[2], 1.00)
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
             
-            draw3d_quads(context, gedge.iter_segments(view_loc), color_fill, color_mirror)
-            draw3d_closed_polylines(context, gedge.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE")
+            draw3d_quads(context, gedge.iter_segments(view_loc), color_fill, vector_mirror_0)
+            draw3d_closed_polylines(context, gedge.iter_segments(view_loc), color_border, 1, "GL_LINE_STIPPLE", vector_mirror_0)
+            if settings.symmetry_plane == 'x':
+                draw3d_quads(context, gedge.iter_segments(view_loc_x), color_mirror, vector_mirror_x)
+                draw3d_closed_polylines(context, gedge.iter_segments(view_loc_x), color_mirror, 1, "GL_LINE_STIPPLE", vector_mirror_x)
 
             if settings.debug >= 2:
                 # draw bezier
                 p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
-                draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE")
+                draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE", vector_mirror_0)
         
         if settings.debug >= 2:
             for gp in self.polystrips.gpatches:
@@ -371,7 +392,6 @@ class Polystrips_UI_Draw():
 
         ### Verts ###
         for gv in self.polystrips.gverts:
-            if not gv.is_visible(r3d): continue
             p0,p1,p2,p3 = gv.get_corners()
 
             if gv.is_unconnected() and not gv.from_mesh: continue
@@ -400,39 +420,43 @@ class Polystrips_UI_Draw():
                 color_fill   = (color_frozen[0], color_frozen[1], color_frozen[2], 0.20)
 
             p3d = [p0,p1,p2,p3,p0]
-            draw3d_quads(context, [[p0,p1,p2,p3]], color_fill, color_mirror)
-            draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+            if gv.is_visible(r3d):
+                draw3d_quads(context, [[p0,p1,p2,p3]], color_fill, vector_mirror_0)
+                draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE", vector_mirror_0)
+            if settings.symmetry_plane == 'x' and gv.is_visible(r3d, mirror_x=True):
+                draw3d_quads(context, [[p0,p1,p2,p3]], color_mirror, vector_mirror_x)
+                draw3d_polyline(context, p3d, color_mirror, 1, "GL_LINE_STIPPLE", vector_mirror_x)
             
-            if settings.debug >= 1:
+            if settings.debug >= 2:
                 l = 0.1
                 sp,sn,sx,sy = gv.snap_pos,gv.snap_norm,gv.snap_tanx,gv.snap_tany
-                draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.5), 1, "")
-                draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.5), 1, "")
-                draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.5), 1, "")
+                draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.5), 1, "", vector_mirror_0)
+                draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.5), 1, "", vector_mirror_0)
+                draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.5), 1, "", vector_mirror_0)
 
         # Draw inner gvert handles (dots) on each gedge
         p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible(r3d)]
         # color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
-        draw3d_points(context, p3d, color_handle, 4)
+        draw3d_points(context, p3d, color_handle, 4, vector_mirror_0)
 
         ### Vert Handles ###
         if self.act_gvert:
             color_handle = (color_active[0], color_active[1], color_active[2], 1.00)
             gv = self.act_gvert
             p0 = gv.position
-            draw3d_points(context, [p0], color_handle, 8)
+            draw3d_points(context, [p0], color_handle, 8, vector_mirror_0)
             
             if gv.is_inner():
                 # Draw inner handle when selected
                 p1 = gv.gedge_inner.get_outer_gvert_at(gv).position
-                draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
+                draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
             else:
                 # Draw both handles when gvert is selected
                 p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered() and not ge.is_frozen()]
-                draw3d_points(context, p3d, color_handle, 8)
+                draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
                 # Draw connecting line between handles
                 for p1 in p3d:
-                    draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH")
+                    draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
 
         # Draw gvert handles on active gedge
         if self.act_gedge and not self.act_gedge.is_frozen():
@@ -440,16 +464,16 @@ class Polystrips_UI_Draw():
             ge = self.act_gedge
             if self.act_gedge.is_zippered():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
-                draw3d_points(context, p3d, color_handle, 8)
+                draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
             else:
                 p3d = [gv.position for gv in ge.gverts()]
-                draw3d_points(context, p3d, color_handle, 8)
-                draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH")
-                draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH")
+                draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
+                draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
+                draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
                 if False:
                     # draw each normal of each gvert
                     for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
-                        draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH")
+                        draw3d_polyline(context, [p,p+n*0.1], color_handle, 1, "GL_LINE_SMOOTH", vector_mirror_0)
         
         if self.hov_gvert:  #TODO, hover color
             color_border = (color_selection[0], color_selection[1], color_selection[2], 1.00)
@@ -458,8 +482,8 @@ class Polystrips_UI_Draw():
             gv = self.hov_gvert
             p0,p1,p2,p3 = gv.get_corners()
             p3d = [p0,p1,p2,p3,p0]
-            draw3d_quad(context, [p0,p1,p2,p3], color_fill)
-            draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE")
+            draw3d_quad(context, [p0,p1,p2,p3], color_fill, vector_mirror_0)
+            draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE", vector_mirror_0)
             
 
         bgl.glLineWidth(1)
