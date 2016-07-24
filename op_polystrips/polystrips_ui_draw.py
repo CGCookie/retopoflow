@@ -510,16 +510,16 @@ class Polystrips_UI_Draw():
             ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
             hit_p3d,hit_norm,hit_idx = hit
             if hit_idx != None: # and not self.hover_ed:
-                hit_p3d = mx * hit_p3d
-                hit_norm = mxnorm * hit_norm
+                #hit_p3d = mx * hit_p3d
+                #hit_norm = mxnorm * hit_norm
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
             if self.fsm_mode == 'sketch' and self.sketch:
                 ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.sketch[0][0], mesh_cache['bvh'],self.mx, settings)
                 hit_p3d,hit_norm,hit_idx = hit
                 if hit_idx != None:
-                    hit_p3d = mx * hit_p3d
-                    hit_norm = mxnorm * hit_norm
+                    #hit_p3d = mx * hit_p3d
+                    #hit_norm = mxnorm * hit_norm
                     common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
 
         if self.hover_ed and False:  #EXTEND  to display hoverable edges

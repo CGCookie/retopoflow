@@ -326,6 +326,7 @@ def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
 
     rgn = region
     imx = invert_matrix(mx)
+    nmx = matrix_normal(mx)
     
     r2d_origin = region_2d_to_origin_3d
     r2d_vector = region_2d_to_vector_3d
@@ -338,7 +339,9 @@ def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     
     st, en = imx*(o-mult*back*d), imx*(o+mult*d)
     hit = bvh.ray_cast(st,(en-st))
-    return (d, hit[0:3])
+    if hit[2] == None:
+        return (d, hit[0:3])
+    return (d, (mx*hit[0],nmx*hit[1],hit[2]))
 
 def ray_cast_path(context, ob, screen_coords):
     rgn  = context.region
