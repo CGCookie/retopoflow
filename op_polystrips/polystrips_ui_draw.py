@@ -408,10 +408,6 @@ class Polystrips_UI_Draw():
                 draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.5), 1, "")
                 draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.5), 1, "")
                 draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.5), 1, "")
-                sp,sn,sx,sy = gv.position,gv.normal,gv.tangent_x,gv.tangent_y
-                draw3d_polyline(context, [sp,sp+sn*l], (0,0,1,0.25), 1, "")
-                draw3d_polyline(context, [sp,sp+sx*l], (1,0,0,0.25), 1, "")
-                draw3d_polyline(context, [sp,sp+sy*l], (0,1,0,0.25), 1, "")
 
         # Draw inner gvert handles (dots) on each gedge
         p3d = [gvert.position for gvert in self.polystrips.gverts if not gvert.is_unconnected() and gvert.is_visible(r3d)]

@@ -452,7 +452,7 @@ class Contours(object):
         rv3d = context.space_data.region_3d
         d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
-            loc = self.mx * hit[0] #< it's ok if this is none
+            loc = hit[0] # self.mx * hit[0] #< it's ok if this is none
         else:
             loc = None
             
@@ -556,7 +556,7 @@ class Contours(object):
         rv3d = context.space_data.region_3d
         d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
-            loc = self.mx * hit[0] #< it's ok if this is none
+            loc = hit[0] # self.mx * hit[0] #< it's ok if this is none
         else:
             loc = None
         #identify hover target for highlighting
@@ -2820,7 +2820,7 @@ class ContourCutLine(object):
                 self.head.world_position = region_2d_to_location_3d(region, rv3d, (self.head.x, self.head.y), mx * hit[0])
                 self.tail.world_position = region_2d_to_location_3d(region, rv3d, (self.tail.x, self.tail.y), mx * hit[0])
                 
-                self.plane_pt = mx * hit[0]
+                self.plane_pt = hit[0] # mx * hit[0]
                 self.seed_face_index = hit[2]
 
                 if settings.use_perspective:

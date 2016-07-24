@@ -161,10 +161,10 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             
             hit_p3d,hit_norm,hit_idx = hit
             if hit_p3d != None:
-                mx = self.mx
-                mxnorm = matrix_normal(mx)
-                hit_p3d = mx * hit_p3d
-                hit_norm = mxnorm * hit_norm
+                #mx = self.mx
+                #mxnorm = matrix_normal(mx)
+                #hit_p3d = mx * hit_p3d
+                #hit_norm = mxnorm * hit_norm
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
     
     def modal_wait(self, context, eventd):
