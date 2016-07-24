@@ -137,6 +137,18 @@ class GVert:
         return sum([self.has_0(),self.has_1(),self.has_2(),self.has_3()])
     def get_gedges_notnone(self): return [ge for ge in self.get_gedges() if ge]
     
+    def get_gpatches_notcorner(self):
+        '''returns connected gpatches where self is not a corner'''
+        if self.is_tjunction():
+            # 1 and 3
+            sgp = set(self.gedge1.get_gpatches()) & set(self.gedge3.get_gpatches())
+            return sgp
+        if self.is_endtoend():
+            # 0 and 2
+            sgp = set(self.gedge0.get_gpatches()) & set(self.gedge2.get_gpatches())
+            return sgp
+        return set()
+    
     def get_inner_gverts(self): return [ge.get_inner_gvert_at(self) for ge in self.get_gedges_notnone()]
     
     def get_zip_pair(self):
@@ -2396,12 +2408,12 @@ class Polystrips(object):
         
         # check if we are attempting to split a gpatch
         if sgv0 and sgv3:
-            lgp0 = set(gp for ge in sgv0.get_gedges_notnone() for gp in ge.get_gpatches())
-            lgp3 = set(gp for ge in sgv3.get_gedges_notnone() for gp in ge.get_gpatches())
-            lgp03 = lgp0 & lgp3
-            for gp in lgp03:
+            sgp0 = sgv0.get_gpatches_notcorner()
+            sgp3 = sgv3.get_gpatches_notcorner()
+            sgp03 = sgp0 & sgp3
+            for gp in sgp03:
                 self.disconnect_gpatch(gp)
-            gpatch_recreate = len(lgp03)>0
+            gpatch_recreate = len(sgp03)>0
         else:
             gpatch_recreate = False
         
