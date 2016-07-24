@@ -2001,13 +2001,25 @@ class GPatch:
         return ges.get_gedge_info(i_quad, rev)
     
     def is_picked(self, pt, norm=None):
-        for (p0,p1,p2,p3) in self.iter_segments():
+        #if norm and not any(norm.dot(gv.snap_norm)>0 for gv in self.gverts()): return False
+        def is_quad_picked(p0,p1,p2,p3):
             c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
             n = (c0-c1).cross(c2-c1)
-            d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
-            if d0>0 and d1>0 and d2>0 and d3>0:
-                return True
-        return False
+            crosses = [c1.cross(c0),c2.cross(c1),c3.cross(c2),c0.cross(c3)]
+            if any(c.dot(n)<=0 for c in crosses): return False
+            qnorm = (p1-p0).cross(p3-p0).normalized()      # backwards???
+            if norm and qnorm.dot(norm) < 0: return False
+            if abs((pt-p0).dot(qnorm)) > (p2-p0).length: return False
+            return True
+        return any(is_quad_picked(p0,p1,p2,p3) for p0,p1,p2,p3 in self.iter_segments())
+    # def is_picked(self, pt, norm=None):
+    #     for (p0,p1,p2,p3) in self.iter_segments():
+    #         c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
+    #         n = (c0-c1).cross(c2-c1)
+    #         d0,d1,d2,d3 = c1.cross(c0).dot(n),c2.cross(c1).dot(n),c3.cross(c2).dot(n),c0.cross(c3).dot(n)
+    #         if d0>0 and d1>0 and d2>0 and d3>0:
+    #             return True
+    #     return False
     
     def iter_segments(self, view_pos=None):
         for i0,i1,i2,i3 in self.quads:
