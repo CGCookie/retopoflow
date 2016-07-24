@@ -2378,20 +2378,38 @@ class Polystrips(object):
             # cross!!!
             avg_pos /= avg_count
             
+            # record the patches that exist so we can recreate them
+            llge = [[ge for ge in gp.get_gedges() if ge != gedge] for gp in gedge.get_gpatches()]
+            
             # create gvert at crossing (avg_pos)
             t,_     = gedge.get_closest_point(avg_pos)
-            _,_,sgv = self.split_gedge_at_t(gedge, t)
+            ge0,ge1,sgv = self.split_gedge_at_t(gedge, t)
             sgv.update()
-            print(sgv.snap_norm.dot(sgv.normal))
+            
+            # attempt to recreate gpatches
+            for lge in llge:
+                self.attempt_gpatch(lge + [ge0,ge1])
             
             self.insert_gedge_from_stroke(stroke[:i_st_enter], sgv0=sgv0, sgv3=sgv, depth=depth+1)
             self.insert_gedge_from_stroke(stroke[i_st_exit:], sgv0=sgv, sgv3=sgv3, depth=depth+1)
             return
         
+        # check if we are attempting to split a gpatch
+        if sgv0 and sgv3:
+            lgp0 = set(gp for ge in sgv0.get_gedges_notnone() for gp in ge.get_gpatches())
+            lgp3 = set(gp for ge in sgv3.get_gedges_notnone() for gp in ge.get_gpatches())
+            lgp03 = lgp0 & lgp3
+            for gp in lgp03:
+                self.disconnect_gpatch(gp)
+            gpatch_recreate = len(lgp03)>0
+        else:
+            gpatch_recreate = False
+        
         # create gedge
         r0,r3 = stroke[0][2],stroke[-1][2]
         l_bpts = cubic_bezier_fit_points([pt for pt,pn,pr in stroke], min(r0,r3) / 20, force_split=(sgv0==sgv3 and sgv0))
         pregv,fgv = None,None
+        lge = []
         for i,bpts in enumerate(l_bpts):
             t0,t3,bpt0,bpt1,bpt2,bpt3 = bpts
             if i == 0:
@@ -2419,13 +2437,15 @@ class Polystrips(object):
                 dprint('gv32.der = 0')
             else:
                 if gv0.count_gedges() < 4 and gv3.count_gedges() < 4:
-                    self.create_gedge(gv0,gv1,gv2,gv3)
+                    lge += [self.create_gedge(gv0,gv1,gv2,gv3)]
             pregv = gv3
             gv0.update()
             gv0.update_gedges()
         gv3.update()
         gv3.update_gedges()
-            
+        
+        if gpatch_recreate:
+            self.attempt_gpatch(lge)
     
     def insert_gedge_from_stroke_old(self, stroke, only_ends, sgv0=None, sgv3=None, depth=0):
         '''
