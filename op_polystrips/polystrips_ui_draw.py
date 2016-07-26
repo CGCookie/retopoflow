@@ -105,6 +105,7 @@ class Polystrips_UI_Draw():
             position_3d = (gedge.gvert0.position + gedge.gvert3.position)/2
         
         position_2d = location_3d_to_region_2d(context.region, context.space_data.region_3d,position_3d)
+        if position_2d is None: return
         txt_width, txt_height = blf.dimensions(0, text)
         blf.position(0, position_2d[0]-(txt_width/2), position_2d[1]-(txt_height/2), 0)
         blf.draw(0, text)
