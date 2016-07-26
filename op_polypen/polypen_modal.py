@@ -798,22 +798,19 @@ class CGC_Polypen(ModalOperator):
                 self.select(bme)
                 return handle_insert_vert_p3d(context, eventd)
             
-            
-            
-            
             bmf = self.face_between_vertedge(bmv0, bme)
             if bmf:
                 # vert and edge share face
                 # insert vert and split this face!
-                
-                bmv1,bmv2 = bme.verts
+                _,bmv1 = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
                 bmesh.utils.face_split(bmf, bmv0, bmv1)
-                bmf = self.face_between_verts(bmv0, bmv2)
-                bmesh.utils.face_split(bmf, bmv0, bmv2)
-                self.select(self.edge_between_verts(bmv0, bmv1), self.edge_between_verts(bmv0, bmv2))
+                lbme1 = bmv1.link_edges
+                bmv1.co = p3d
+                self.select(bmv1, *lbme1)
                 self.clear_nearest()
                 self.tar_bmeshrender.dirty()
-                return ''
+                return 'move vert'
+            
             # bridge
             bmv1 = self.nearest_bmedge.verts[0]
             bmv2 = self.nearest_bmedge.verts[1]
