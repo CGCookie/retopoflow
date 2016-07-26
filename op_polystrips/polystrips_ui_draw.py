@@ -79,39 +79,6 @@ class Polystrips_UI_Draw():
     
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''
-        
-        settings = common_utilities.get_settings()
-        region,r3d = context.region,context.space_data.region_3d
-
-        new_matrix = [v for l in r3d.view_matrix for v in l]
-        if self.post_update or self.last_matrix != new_matrix:
-            '''
-            for gv in self.polystrips.gverts:
-                gv.update_visibility(r3d)
-                
-            for gv in self.polystrips.extension_geometry:
-                gv.update_visibility(r3d)
-                
-            for ge in self.polystrips.gedges:
-                ge.update_visibility(r3d)
-            for gp in self.polystrips.gpatches:
-                gp.update_visibility(r3d)
-            if self.act_gedge:
-                for gv in [self.act_gedge.gvert1, self.act_gedge.gvert2]:
-                    gv.update_visibility(r3d)
-            if self.act_gvert:
-                for gv in self.act_gvert.get_inner_gverts():
-                    gv.update_visibility(r3d)
-
-            if len(self.snap_eds):
-                print('snap eds are used! but probably not')
-                mx = self.mx
-                self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([mx * ed.verts[0].co, mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, r3d) for ed in self.snap_eds]
-
-            self.post_update = False
-            '''
-            self.last_matrix = new_matrix
-
         self.draw_2D(context)
 
     def draw_gedge_direction(self, context, gedge, color):
