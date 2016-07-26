@@ -417,18 +417,16 @@ class GVert:
         return (self.corner0_ind, self.corner1_ind, self.corner2_ind, self.corner3_ind)
     
     def is_picked(self, pt, norm=None):
-        if not self.visible: return False
-        n = self.snap_norm
-        if norm and n.dot(norm) < 0: return False
-        c0 = self.corner0 - pt
-        c1 = self.corner1 - pt
-        c2 = self.corner2 - pt
-        c3 = self.corner3 - pt
-        d0 = c1.cross(c0).dot(n)
-        d1 = c2.cross(c1).dot(n)
-        d2 = c3.cross(c2).dot(n)
-        d3 = c0.cross(c3).dot(n)
-        return d0>0 and d1>0 and d2>0 and d3>0
+        def is_quad_picked(p0,p1,p2,p3):
+            c0,c1,c2,c3 = p0-pt,p1-pt,p2-pt,p3-pt
+            n = (c0-c1).cross(c2-c1)
+            crosses = [c1.cross(c0),c2.cross(c1),c3.cross(c2),c0.cross(c3)]
+            if any(c.dot(n)<=0 for c in crosses): return False
+            qnorm = (p3-p0).cross(p1-p0).normalized()
+            if norm and qnorm.dot(norm) < 0: return False
+            if abs((pt-p0).dot(qnorm)) > (p2-p0).length: return False
+            return True
+        return is_quad_picked(self.corner0, self.corner1, self.corner2, self.corner3)
     
     def get_corners_of(self, gedge):
         if gedge == self.gedge0: return (self.corner0, self.corner1)
