@@ -80,7 +80,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Source must be a mesh object')
             return False
 
-        if get_target_object().type != 'MESH':
+        if get_target_object() is not None and get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')
             return False
 
