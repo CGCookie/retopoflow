@@ -40,6 +40,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 # Common imports
 from ..lib import common_utilities
 from ..lib import common_drawing_px
+from ..lib.common_shader import shader_helper
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, invert_matrix, matrix_normal
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 from ..lib.common_drawing_view import draw3d_arrow
@@ -51,11 +52,30 @@ def vector_mirror_0(v): return v
 def vector_mirror_x(v): return Vector((-v.x,v.y,v.z))
 
 class Polystrips_UI_Draw():
+    def initialize_draw(self):
+        shaderVertSource = '''
+        void main() {
+            gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+            gl_FrontColor = gl_Color;
+        }
+        '''
+        shaderFragSource = '''
+        void main() {
+            gl_FragColor = gl_Color;
+        }
+        '''
+        self.shaderProg = shader_helper(shaderVertSource, shaderFragSource)
+        
     
     def draw_postview(self, context):
         ''' Place post view drawing code in here '''
-        self.draw_3d(context)
-        pass
+        try:
+            bgl.glUseProgram(self.shaderProg)
+            self.draw_3d(context)
+        except:
+            pass
+        finally:
+            bgl.glUseProgram(0)
     
     def draw_postpixel(self, context):
         ''' Place post pixel drawing code in here '''

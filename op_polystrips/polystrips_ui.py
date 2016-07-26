@@ -51,11 +51,9 @@ class Polystrips_UI:
     def initialize_ui(self):
         self.is_fullscreen  = False
         self.was_fullscreen = False
-        
         if 'brush_radius' not in dir(Polystrips_UI):
             Polystrips_UI.brush_radius = 15
-    
-    
+        
     def start_ui(self, context):
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
