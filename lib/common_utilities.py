@@ -188,12 +188,14 @@ def toggle_localview():
 
     # in local view!
     # store view properties
-    region3d = bpy.context.space_data.region_3d
+    space = bpy.context.space_data
+    region3d = space.region_3d
     distance = region3d.view_distance
     location = region3d.view_location
     rotation = region3d.view_rotation
     mx = region3d.view_matrix.copy()
     perspective = region3d.view_perspective
+    shade = space.viewport_shade
     
     # turn off smooth view to prevent Blender repositioning
     # camera when entering local view again
@@ -205,13 +207,15 @@ def toggle_localview():
     bpy.ops.view3d.localview()
     
     # restore view properties
-    region3d = bpy.context.space_data.region_3d  #perhaps a new region3d was created?
+    space = bpy.context.space_data
+    region3d = space.region_3d  #perhaps a new region3d was created?
     region3d.view_distance = distance
     region3d.view_location = location
     region3d.view_rotation = rotation
     region3d.view_perspective = perspective
     region3d.view_matrix = mx
     bpy.context.user_preferences.view.smooth_view = smooth
+    space.viewport_shade = shade
 
 
 def setup_target_object( new_object, original_object, bmesh ):
