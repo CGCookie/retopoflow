@@ -649,7 +649,7 @@ class GEdge:
         
         # build walking data struct
         bm = bmesh.new()
-        bm.from_mesh(bpy.data.meshes[self.targ_o_name])
+        bm.from_mesh(bpy.data.objects[self.targ_o_name].data)
         bm.faces.ensure_lookup_table()
         q0,q1 = bm.faces[self.gvert0.from_mesh_ind],bm.faces[self.gvert3.from_mesh_ind]
         
@@ -1213,12 +1213,13 @@ class GEdge:
         
         elif self.from_mesh:
             if self.from_build:
-                m = bpy.data.meshes[self.targ_o_name]
+                m = bpy.data.objects[self.targ_o_name].data
+                mx = self.mx
                 self.update_nozip(debug=debug)
                 for i,igv in enumerate(self.cache_igverts):
                     if i % 2 == 0: continue
                     liv = self.from_edges[int((i-1)/2)]
-                    p0,p1 = m.vertices[liv[0]].co,m.vertices[liv[1]].co
+                    p0,p1 = mx*m.vertices[liv[0]].co,mx*m.vertices[liv[1]].co
                     igv.position = (p0+p1) / 2.0
                     igv.radius = (p0-p1).length / 2.0
                     igv.tangent_y = (p1-p0).normalized()
