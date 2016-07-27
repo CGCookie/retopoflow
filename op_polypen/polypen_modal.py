@@ -279,11 +279,11 @@ class CGC_Polypen(ModalOperator):
                 self.clear_nearest()
             else:
                 p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05)
+                res = self.closest_bmvert(context, p2d, p3d, 5, 0.5)
                 min_bmv = res[0] if res else None
                 min_bme,min_bmf = None,None
                 if not min_bmv:
-                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.05)
+                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
                     min_bme = res[0] if res else None
                 if not min_bme and not min_bmv:
                     min_bmf = self.closest_bmface(p3d, 0.05)
