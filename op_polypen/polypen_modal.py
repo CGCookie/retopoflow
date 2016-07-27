@@ -45,7 +45,7 @@ from ..lib.common_utilities import bversion, selection_mouse
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
-from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
+from ..cache import mesh_cache, polypen_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib import common_drawing_bmesh
@@ -196,8 +196,6 @@ class CGC_Polypen(ModalOperator):
         self.vert_pos = None        # used for move vert tool
         
         self.mode = 'auto'
-        
-        self.undo_stack = []
         
         context.area.header_text_set('Polypen')
     
@@ -549,13 +547,13 @@ class CGC_Polypen(ModalOperator):
         liv = [v.index for v in self.selected_bmverts]
         lie = [e.index for e in self.selected_bmedges]
         lif = [f.index for f in self.selected_bmfaces]
-        self.undo_stack += [(self.tar_bmesh.copy(),liv,lie,lif)]
-        if len(self.undo_stack) > self.settings.undo_depth:
-            self.undo_stack.pop(0)
+        polypen_undo_cache.append((self.tar_bmesh.copy(),liv,lie,lif))
+        if len(polypen_undo_cache) > self.settings.undo_depth:
+            polypen_undo_cache.pop(0)
     
     def undo(self, context):
-        if not self.undo_stack: return
-        bme,liv,lie,lif = self.undo_stack.pop()
+        if not polypen_undo_cache: return
+        bme,liv,lie,lif = polypen_undo_cache.pop()
         bme = bme.copy()
         bme.verts.ensure_lookup_table()
         bme.edges.ensure_lookup_table()
