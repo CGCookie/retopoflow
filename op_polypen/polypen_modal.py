@@ -344,9 +344,10 @@ class CGC_Polypen(ModalOperator):
                     self.tar_bmeshrender.dirty()
             elif self.selected_bmverts:
                 bmv = self.selected_bmverts[0]
-                if len(bmv.link_edges) == 2 and len(bmv.link_faces) == 0:
+                if len(bmv.link_edges) == 2: # and len(bmv.link_faces) == 0:
                     self.create_undo()
-                    bmesh.utils.vert_dissolve(bmv)
+                    #bmesh.utils.vert_dissolve(bmv)
+                    self.handle_collapse_edge(bmv.link_edges[0])
                     self.set_selection()
                     self.clear_nearest()
                     self.tar_bmeshrender.dirty()
