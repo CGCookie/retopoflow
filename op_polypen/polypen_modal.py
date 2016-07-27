@@ -683,13 +683,17 @@ class CGC_Polypen(ModalOperator):
         return (lbme[0] if theta0 < theta1 else lbme[1],0,0)
     
     def closest_bmface(self, p3d, max_dist3d):
+        min_dist3d,min_bmf = max_dist3d,None
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
             for bmv1,bmv2 in zip(bmf.verts[1:-1], bmf.verts[2:]):
                 pt = intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co)
-                if pt and (pt-p3d).length < max_dist3d:
-                    return bmf
-        return None
+                if pt:
+                    dist = (pt-p3d).length
+                    if dist < min_dist3d:
+                        min_dist3d = dist
+                        min_bmf = bmf
+        return min_bmf
     
     def edge_between_verts(self, bmv0, bmv1):
         lbme = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
