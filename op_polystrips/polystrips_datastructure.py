@@ -919,6 +919,20 @@ class GEdge:
             self.gvert2.normal,
             self.gvert3.normal
             )
+    def get_snappositions(self):
+        return (
+            self.gvert0.snap_pos,
+            self.gvert1.snap_pos,
+            self.gvert2.snap_pos,
+            self.gvert3.snap_pos
+            )
+    def get_snapnormals(self):
+        return (
+            self.gvert0.snap_norm,
+            self.gvert1.snap_norm,
+            self.gvert2.snap_norm,
+            self.gvert3.snap_norm
+            )
     def get_radii(self):
         return (
             self.gvert0.radius,
@@ -1063,9 +1077,9 @@ class GEdge:
             if ge != self: ge.update(debug=debug)
     
     def update_nozip(self, debug=False):
-        p0,p1,p2,p3 = self.get_positions()
+        p0,p1,p2,p3 = self.get_snappositions()
+        n0,n1,n2,n3 = self.get_snapnormals()
         r0,r1,r2,r3 = self.get_radii()
-        n0,n1,n2,n3 = self.get_normals()
         
         if False:
             # attempting to smooth snapped igverts
@@ -1102,7 +1116,12 @@ class GEdge:
             step = 20* self.n_quads
         else:
             step = 100
-            
+        
+        # thin surface hack: push inner gverts out along normal
+        # DO NOT USE += HERE!!!
+        thin_push = max(0.0, -n0.dot(n2))
+        p1 = p1 + (n1 * (r0 * thin_push))
+        p2 = p2 + (n2 * (r3 * thin_push))
         s_t_map = cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
         
         #l = self.get_length()  <-this is more accurate, but we need consistency
