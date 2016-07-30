@@ -783,11 +783,7 @@ class EPPatch:
         #use patch corners to get outer verts in correct orientations
         ind0 = outer_verts.index(patch_corners[0])
         outer_verts = outer_verts[ind0:] + outer_verts[:ind0]
-        
-        #print('line up the 0 corner by shifting %i' % ind0)
-        #print(outer_verts)
-        
-        #print('reverse the order?')
+
         ind1patch = outer_verts.index(patch_corners[1])
         ind1pad = pad_geom_dict['inner verts'].index(pad_geom_dict['inner corners'][1])
         
