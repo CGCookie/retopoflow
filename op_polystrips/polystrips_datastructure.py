@@ -310,6 +310,7 @@ class GVert:
 
         self.snap_tanx = self.tangent_x.normalized()
         self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
+        self.snap_tanx = self.snap_tany.cross(self.snap_norm).normalized()
         # NOTE! DO NOT UPDATE NORMAL, TANGENT_X, AND TANGENT_Y
         if do_edges:
             self.doing_update = True
@@ -320,6 +321,7 @@ class GVert:
         
         self.snap_tanx = (Vector((0.2,0.1,0.5)) if not self.gedge0 else self.gedge0.get_derivative_at(self)).normalized()
         self.snap_tany = self.snap_norm.cross(self.snap_tanx).normalized()
+        self.snap_tanx = self.snap_tany.cross(self.snap_norm).normalized()
         if self.frozen and self.gedge0:
             vy = self.corner0 - self.corner1
             vy.normalize()
@@ -1119,9 +1121,9 @@ class GEdge:
         
         # thin surface hack: push inner gverts out along normal
         # DO NOT USE += HERE!!!
-        thin_push = max(0.0, -n0.dot(n2))
-        p1 = p1 + (n1 * (r0 * thin_push))
-        p2 = p2 + (n2 * (r3 * thin_push))
+        push = max(0.0, 4.0 * (1.0 - n0.dot(n3)))
+        p1 = p1 + (n1 * (r0 * push))
+        p2 = p2 + (n2 * (r3 * push))
         s_t_map = cubic_bezier_t_of_s_dynamic(p0, p1, p2, p3, initial_step = step )
         
         #l = self.get_length()  <-this is more accurate, but we need consistency
@@ -1545,6 +1547,7 @@ class GPatch:
         self.frozen = False
         self.mx = obj.matrix_world
         self.imx = invert_matrix(self.mx)
+        self.mxnorm = self.imx.transposed().to_3x3()
         
         self.gedgeseries = gedgeseries
         self.nsides = len(gedgeseries)
@@ -1681,6 +1684,7 @@ class GPatch:
         if self.frozen: return
         
         self.norm_avg = sum(((ges.gvert0.snap_norm + ges.gvert3.snap_norm) for ges in self.gedgeseries), Vector()) / (2.0 * len(self.gedgeseries))
+        self.rad_avg = sum(((ges.gvert0.radius + ges.gvert3.radius) for ges in self.gedgeseries)) / (2.0 * len(self.gedgeseries))
         
         if self.nsides == 3:
             self._update_tri()
@@ -1689,7 +1693,7 @@ class GPatch:
         elif self.nsides == 5:
             self._update_pent()
     
-    def _snap_pt(self, pt):
+    def _snap_pt(self, pt, idx=None):
         thinSurface_maxDist = 0.05
         thinSurface_offset = 0.005
         thinSurface_opposite = -0.4
@@ -1699,23 +1703,27 @@ class GPatch:
         bvh = mesh_cache['bvh']
         find = bvh.find if bversion() <= '002.076.000' else bvh.find_nearest
         
-        l,n,_,_ = find(self.imx * pt)
-        
-        # assume that if the snapped norm is pointing opposite to the norms
-        # of outer control points of gedge then we've likely snapped to the
-        # wrong side of a thin surface.
-        if norm_good.dot(n) < thinSurface_opposite:
-            hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
-            if hit:
-                lr,nr,_,dr = hit
-                if nr and norm_good.dot(nr) >= thinSurface_opposite:
-                    # seems reasonable enough
-                    l,n = lr,nr
-        
-        return (self.mx*l, self.mx*n)
+        if 1:
+            l,n,_,_ = find(self.imx * pt)
+            if idx is None:
+                l,n = self.mx * l,self.mxnorm * n
+                l,n,_,_ = find(self.imx * (l + self.norm_avg * (self.rad_avg * max(0.0, 1.0-self.norm_avg.dot(n)))))
+        else:
+            # assume that if the snapped norm is pointing opposite to the norms
+            # of outer control points of gedge then we've likely snapped to the
+            # wrong side of a thin surface.
+            if norm_good.dot(n) < thinSurface_opposite:
+                hit = bvh.ray_cast(l - n * thinSurface_offset, -n, thinSurface_maxDist)
+                if hit:
+                    lr,nr,_,dr = hit
+                    if nr and norm_good.dot(nr) >= thinSurface_opposite:
+                        # seems reasonable enough
+                        l,n = lr,nr
+            
+        return (self.mx*l, self.mxnorm*n)
     
     def _gen_pt(self, pt, idx=None):
-        p,n = self._snap_pt(pt)
+        p,n = self._snap_pt(pt, idx=idx)
         return (p,n,idx)
     
     def _update_tri(self):
@@ -2190,36 +2198,81 @@ class Polystrips(object):
     def split_gedge_at_t(self, gedge, t, connect_gvert=None):
         if gedge.zip_to_gedge or gedge.zip_attached: return
         
-        p0,p1,p2,p3 = gedge.get_positions()
-        r0,r1,r2,r3 = gedge.get_radii()
-        n0,n1,n2,n3 = gedge.get_normals()
-        cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
-        cn0 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [0.0,t*0.33,t*0.66,t]]
-        cn1 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [t,1.0-(1.0-t)*0.66,1.0-(1.0-t)*0.33,1.0]]
-        rm = cubic_bezier_blend_t(r0,r1,r2,r3, t)
-        
         gv1_del = gedge.gvert1
         gv2_del = gedge.gvert2
         
-        if connect_gvert:
-            gv_split = connect_gvert
-            trans = cb0[3] - gv_split.position
-            for ge in gv_split.get_gedges_notnone():
-                ge.get_inner_gvert_at(gv_split).position += trans
-            gv_split.position += trans
-            gv_split.radius = rm
+        if 1:
+            l = len(gedge.cache_igverts)
+            idx = int(t * l)
+            if idx % 2 == 1:
+                if t*l-idx > 0.5:
+                    idx += 1
+                else:
+                    idx -= 1
+            idx = max(2,idx)
+            #print('t=%f, l=%d  =>  idx=%d' % (t,l,idx))
+            
+            gvc = gedge.cache_igverts[idx]
+            pos = gvc.snap_pos
+            norm = gvc.snap_norm
+            rad = gvc.radius
+            if connect_gvert:
+                gv_split = connect_gvert
+                trans = pos - gv_split.position
+                for ge in gv_split.get_gedges_notnone():
+                    ge.get_inner_gvert_at(gv_split).position += trans
+                gv_split.position += trans
+                gv_split.radius = rad
+                gv_split.norm = norm
+            else:
+                gv_split = self.create_gvert(pos, norm=norm, radius=rad)
+            
+            #cubic_bezier_fit_points(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=True, force_split=False)
+            #list of tuples of (t0,t3,p0,p1,p2,p3)
+            lp0 = [gv.snap_pos for gv in gedge.cache_igverts[:idx]]
+            lp1 = [gv.snap_pos for gv in gedge.cache_igverts[idx+1:]]
+            _,_,p0_0,p0_1,p0_2,p0_3 = cubic_bezier_fit_points(lp0, 0.0, allow_split=False)[0]
+            _,_,p1_0,p1_1,p1_2,p1_3 = cubic_bezier_fit_points(lp1, 0.0, allow_split=False)[0]
+            
+            gv0_0 = gedge.gvert0
+            gv0_1 = self.create_gvert(p0_1, norm=gedge.gvert0.snap_norm, radius=rad)
+            gv0_2 = self.create_gvert(p0_2, norm=gv_split.snap_norm, radius=rad)
+            gv0_3 = gv_split
+            
+            gv1_0 = gv_split
+            gv1_1 = self.create_gvert(p1_1, norm=gv_split.snap_norm, radius=rad)
+            gv1_2 = self.create_gvert(p1_2, norm=gedge.gvert3.snap_norm, radius=rad)
+            gv1_3 = gedge.gvert3
+        
         else:
-            gv_split = self.create_gvert(cb0[3], norm=cn0[3], radius=rm)
-        
-        gv0_0 = gedge.gvert0
-        gv0_1 = self.create_gvert(cb0[1], norm=cn0[1], radius=rm)
-        gv0_2 = self.create_gvert(cb0[2], norm=cn0[2], radius=rm)
-        gv0_3 = gv_split
-        
-        gv1_0 = gv_split
-        gv1_1 = self.create_gvert(cb1[1], norm=cn1[1], radius=rm)
-        gv1_2 = self.create_gvert(cb1[2], norm=cn1[2], radius=rm)
-        gv1_3 = gedge.gvert3
+            p0,p1,p2,p3 = gedge.get_positions()
+            r0,r1,r2,r3 = gedge.get_radii()
+            n0,n1,n2,n3 = gedge.get_normals()
+            cb0,cb1 = cubic_bezier_split(p0,p1,p2,p3, t, self.length_scale)
+            cn0 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [0.0,t*0.33,t*0.66,t]]
+            cn1 = [cubic_bezier_blend_t(n0,n1,n2,n3,t_) for t_ in [t,1.0-(1.0-t)*0.66,1.0-(1.0-t)*0.33,1.0]]
+            rm = cubic_bezier_blend_t(r0,r1,r2,r3, t)
+            
+            
+            if connect_gvert:
+                gv_split = connect_gvert
+                trans = cb0[3] - gv_split.position
+                for ge in gv_split.get_gedges_notnone():
+                    ge.get_inner_gvert_at(gv_split).position += trans
+                gv_split.position += trans
+                gv_split.radius = rm
+            else:
+                gv_split = self.create_gvert(cb0[3], norm=cn0[3], radius=rm)
+            
+            gv0_0 = gedge.gvert0
+            gv0_1 = self.create_gvert(cb0[1], norm=cn0[1], radius=rm)
+            gv0_2 = self.create_gvert(cb0[2], norm=cn0[2], radius=rm)
+            gv0_3 = gv_split
+            
+            gv1_0 = gv_split
+            gv1_1 = self.create_gvert(cb1[1], norm=cn1[1], radius=rm)
+            gv1_2 = self.create_gvert(cb1[2], norm=cn1[2], radius=rm)
+            gv1_3 = gedge.gvert3
         
         # want to *replace* gedge with new gedges
         lgv0ge = gv0_0.get_gedges()
@@ -2351,9 +2404,9 @@ class Polystrips(object):
             return
         
         # need to tessellate the stroke a bit?
-        print('tessellating... %d' % len(stroke))
+        dprint('tessellating... %d' % len(stroke))
         stroke = [st for st0,st1 in zip(stroke[:-1],stroke[1:]) for st in tessellate(st0,st1)] + [stroke[-1]]
-        print('done %d' % len(stroke))
+        dprint('done %d' % len(stroke))
         
         # find possible gvert for end of stroke if none are specified
         if not sgv0:

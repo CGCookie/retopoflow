@@ -365,7 +365,11 @@ class Polystrips_UI_Draw():
 
             if settings.debug >= 2:
                 # draw bezier
-                p0,p1,p2,p3 = gedge.gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
+                p0,p1,p2,p3 = gedge.get_snappositions() #gvert0.snap_pos, gedge.gvert1.snap_pos, gedge.gvert2.snap_pos, gedge.gvert3.snap_pos
+                n0,n1,n2,n3 = gedge.get_snapnormals()
+                r0,r1,r2,r3 = gedge.get_radii()
+                p1 = p1 + (n1 * (r0 * max(0.0, (1.0 - n0.dot(n3)) + (1.0 - n0.dot(n1))) ))
+                p2 = p2 + (n2 * (r3 * max(0.0, (1.0 - n0.dot(n3)) + (1.0 - n3.dot(n2))) ))
                 p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
                 draw3d_polyline(context, p3d, (1,1,1,0.5),1, "GL_LINE_STIPPLE", vector_mirror_0)
         
