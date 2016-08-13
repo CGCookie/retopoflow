@@ -189,7 +189,8 @@ class Polystrips_UI:
             self.is_fullscreen = True
 
         # Draw the existing bmesh geometry in our own style
-        self.tar_bmeshrender = BMeshRender(self.dest_bme, self.mx)
+        #target_bmesh, target_mx, source_bvh, source_mx
+        self.tar_bmeshrender = BMeshRender(self.dest_bme, self.dest_obj.matrix_world, mesh_cache['bvh'], self.mx)
 
         context.area.header_text_set('Polystrips')
     
