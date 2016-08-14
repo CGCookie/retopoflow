@@ -1141,6 +1141,7 @@ class CGC_Polypen(ModalOperator):
                 self.tar_bmeshrender.dirty()
                 return 'move vert'
             _,bmv1 = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+            bmv1.co = self.mouse_downp3d
         elif self.hover_face():
             # find closest edge to selected vert
             p3d = bmv0.co
@@ -1152,6 +1153,7 @@ class CGC_Polypen(ModalOperator):
             bmv1 = self.nearest_bmvert
         else:
             bmv1 = self.create_vert(self.mouse_downp3d)
+        # find edges between new vert (bmv1) and previously selected vert (bmv0)
         lbme = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
         if lbme:
             # verts share an edge
