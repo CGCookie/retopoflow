@@ -105,7 +105,10 @@ class CGC_Polypen(ModalOperator):
         self.mx = self.src_object.matrix_world
         self.imx = invert_matrix(self.mx)
         is_valid = is_object_valid(self.src_object)
-
+        
+        self.vis_objects = [] # [o for o in bpy.data.objects if o.type == 'MESH' and o.is_visible(context.scene)]
+        self.vis_bmrender = [BMeshRender(o) for o in self.vis_objects]
+        
         if not is_valid:
             clear_mesh_cache()
             polypen_undo_cache = []
@@ -139,17 +142,14 @@ class CGC_Polypen(ModalOperator):
         
         self.render_normal = {
             'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
-            'poly depth': (0, 0.999),
             'poly offset': 0.00001,
             
             'line width': 2.0,
             'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
-            'line depth': (0, 0.997),
             'line offset': 0.00002,
             
             'point size':  4.0,
             'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.4),
-            'point depth': (0, 0.996),
             'point offset': 0.00003,
             
             #'normal': 0.002,
@@ -157,16 +157,13 @@ class CGC_Polypen(ModalOperator):
         
         self.render_nearest = {
             'poly color': (color_selection[0], color_selection[1], color_selection[2], 0.20),
-            'poly depth': (0, 0.995),
             'poly offset': 0.00004,
             
             'line color': (color_selection[0], color_selection[1], color_selection[2], 0.75),
             'line width': 2.0,
-            'line depth': (0, 0.995),
             'line offset': 0.00004,
             
             'point color': (color_selection[0], color_selection[1], color_selection[2], 0.75),
-            'point depth': (0, 0.995),
             'point size': 5.0,
             'point offset': 0.00004,
             
@@ -175,20 +172,26 @@ class CGC_Polypen(ModalOperator):
         
         self.render_selected = {
             'poly color': (color_selection[0], color_selection[1], color_selection[2], 0.40),
-            'poly depth': (0, 0.995),
             'poly offset': 0.00004,
             
             'line color': (color_selection[0], color_selection[1], color_selection[2], 1.00),
             'line width': 2.0,
-            'line depth': (0, 0.995),
             'line offset': 0.00004,
             
             'point color': (color_selection[0], color_selection[1], color_selection[2], 1.00),
-            'point depth': (0, 0.995),
             'point size': 5.0,
             'point offset': 0.00004,
             
             #'normal': 0.002,
+        }
+        
+        self.render_visible = {
+            'poly color': (0.224, 0.224, 0.224, 0.90), # a color that matches 3d view background
+            'poly offset': 0.000001,
+            'poly dotoffset': 0.0,
+            
+            'line width': 0.0,  # ignore edges
+            'point size': 0.0,  # ignore verts
         }
         
         self.selected_bmverts = []
@@ -253,6 +256,12 @@ class CGC_Polypen(ModalOperator):
             common_drawing_bmesh.glDrawBMEdge(self.nearest_bmedge, opts=self.render_nearest)
         if self.nearest_bmvert:
             common_drawing_bmesh.glDrawBMVert(self.nearest_bmvert, opts=self.render_nearest)
+        
+        for o,r in zip(self.vis_objects, self.vis_bmrender):
+            if o == self.src_object: continue
+            if o == self.tar_object: continue
+            r.draw(opts=self.render_visible)
+            
         
         bgl.glDepthRange(0.0, 1.0)
     

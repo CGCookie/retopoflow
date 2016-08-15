@@ -41,10 +41,12 @@ shaderVertSource = '''
 #version 130
 
 in float offset;
+in float dotoffset;
 
 out vec4 vPosition;
 out vec3 vNormal;
 out float vOffset;
+out float vDotOffset;
 
 void main() {
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -53,6 +55,7 @@ void main() {
     vPosition = gl_ModelViewMatrix * gl_Vertex;
     vNormal = normalize(gl_NormalMatrix * gl_Normal);
     vOffset = offset;
+    vDotOffset = dotoffset;
 }
 '''
 shaderFragSource = '''
@@ -66,6 +69,7 @@ uniform float object_scale;
 in vec4 vPosition;
 in vec3 vNormal;
 in float vOffset;
+in float vDotOffset;
 
 void main() {
     float clip = clip_end - clip_start;
@@ -78,7 +82,7 @@ void main() {
         if(d <= 0.0) discard;
         
         // MAGIC!
-        gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l) - clip*vOffset;
+        gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l)*vDotOffset - clip*vOffset;
     } else {
         // orthographic projection
         vec3 v = vec3(0,0,hclip) + vPosition.xyz / vPosition.w;
@@ -88,7 +92,7 @@ void main() {
         
         // MAGIC!
         //gl_FragDepth = gl_FragCoord.z * (1.0000 + 0.001*d);
-        gl_FragDepth = gl_FragCoord.z - clip*(0.001*vOffset + 0.0000001*(1.0-d));
+        gl_FragDepth = gl_FragCoord.z - clip*(0.001*vOffset + 0.0000001*(1.0-d)*vDotOffset);
     }
     
     gl_FragColor = gl_Color; // vec4(gl_Color.rgb * d, gl_Color.a);
@@ -122,6 +126,8 @@ def glSetOptions(prefix, opts):
     #if '%sdepth'%prefix in opts: bgl.glDepthRange(*opts['%sdepth'%prefix])
     if '%soffset'%prefix in opts:
         bmeshShader.assign('offset', opts['%soffset'%prefix])
+    if '%sdotoffset'%prefix in opts:
+        bmeshShader.assign('dotoffset', opts['%sdotoffset'%prefix])
     if '%scolor'%prefix in opts: glColor(opts['%scolor'%prefix])
     if '%swidth'%prefix in opts: bgl.glLineWidth(opts['%swidth'%prefix])
     if '%ssize'%prefix  in opts: bgl.glPointSize(opts['%ssize'%prefix])
@@ -137,18 +143,18 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     glSetOptions('poly', opts)
     if enableShader: bmeshShader.enable()
     
-    dn = opts['normal'] if 'normal' in opts else 0.0
+    dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_TRIANGLES)
     for bmf in lbmf:
         bgl.glNormal3f(*bmf.normal)
         bmv0 = bmf.verts[0]
         for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
-            bgl.glNormal3f(*bmv0.normal)
-            bgl.glVertex3f(*(bmv0.co+bmv0.normal*dn))
-            bgl.glNormal3f(*bmv1.normal)
-            bgl.glVertex3f(*(bmv1.co+bmv1.normal*dn))
-            bgl.glNormal3f(*bmv2.normal)
-            bgl.glVertex3f(*(bmv2.co+bmv2.normal*dn))
+            if bmf.smooth: bgl.glNormal3f(*bmv0.normal)
+            bgl.glVertex3f(*(bmv0.co)) #+bmv0.normal*dn))
+            if bmf.smooth: bgl.glNormal3f(*bmv1.normal)
+            bgl.glVertex3f(*(bmv1.co)) #+bmv1.normal*dn))
+            if bmf.smooth: bgl.glNormal3f(*bmv2.normal)
+            bgl.glVertex3f(*(bmv2.co)) #+bmv2.normal*dn))
     bgl.glEnd()
     bgl.glDisable(bgl.GL_LINE_STIPPLE)
     if opts and opts.get('mirror x', False):
@@ -158,11 +164,11 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
             bgl.glNormal3f(-bmf.normal.x, bmf.normal.y, bmf.normal.z)
             bmv0 = bmf.verts[0]
             for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
-                bgl.glNormal3f(-bmv0.normal.x, bmv0.normal.y, bmv0.normal.z)
+                if bmf.smooth: bgl.glNormal3f(-bmv0.normal.x, bmv0.normal.y, bmv0.normal.z)
                 bgl.glVertex3f(-bmv0.co.x, bmv0.co.y, bmv0.co.z)
-                bgl.glNormal3f(-bmv1.normal.x, bmv1.normal.y, bmv1.normal.z)
+                if bmf.smooth: bgl.glNormal3f(-bmv1.normal.x, bmv1.normal.y, bmv1.normal.z)
                 bgl.glVertex3f(-bmv1.co.x, bmv1.co.y, bmv1.co.z)
-                bgl.glNormal3f(-bmv2.normal.x, bmv2.normal.y, bmv2.normal.z)
+                if bmf.smooth: bgl.glNormal3f(-bmv2.normal.x, bmv2.normal.y, bmv2.normal.z)
                 bgl.glVertex3f(-bmv2.co.x, bmv2.co.y, bmv2.co.z)
         bgl.glEnd()
         bgl.glDisable(bgl.GL_LINE_STIPPLE)
@@ -179,9 +185,10 @@ def glDrawBMEdge(bme, opts=None, enableShader=True):
     glDrawBMEdges([bme], opts=opts, enableShader=enableShader)
 
 def glDrawBMEdges(lbme, opts=None, enableShader=True):
+    if opts and 'line width' in opts and opts['line width'] <= 0.0: return
     glSetOptions('line', opts)
     if enableShader: bmeshShader.enable()
-    dn = opts['normal'] if 'normal' in opts else 0.0
+    dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_LINES)
     for bme in lbme:
         bmv0,bmv1 = bme.verts
@@ -212,9 +219,10 @@ def glDrawBMVert(bmv, opts=None, enableShader=True):
     glDrawBMVerts([bmv], opts=opts, enableShader=enableShader)
 
 def glDrawBMVerts(lbmv, opts=None, enableShader=True):
+    if opts and 'point size' in opts and opts['point size'] <= 0.0: return
     glSetOptions('point', opts)
     if enableShader: bmeshShader.enable()
-    dn = opts['normal'] if 'normal' in opts else 0.0
+    dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_POINTS)
     for bmv in lbmv:
         bgl.glNormal3f(*bmv.normal)
@@ -233,18 +241,27 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
 
 
 class BMeshRender():
-    def __init__(self, target_bmesh, target_mx, source_bvh, source_mx):
-        self.tar_bmesh = target_bmesh
-        self.tar_mx = target_mx
+    def __init__(self, target_obj, target_mx=None, source_bvh=None, source_mx=None):
+        if type(target_obj) is bpy.types.Object:
+            print('Creating BMeshRender for ' + target_obj.name)
+            self.tar_bmesh = bmesh.new()
+            self.tar_bmesh.from_object(target_obj, bpy.context.scene, deform=True)
+            self.tar_mx = target_mx or target_obj.matrix_world
+        elif type(target_obj) is bmesh.types.BMesh:
+            self.tar_bmesh = target_obj
+            self.tar_mx = target_mx or Matrix()
+        else:
+            assert False, 'Unhandled type: ' + str(type(target_obj))
+        
         self.src_bvh = source_bvh
-        self.src_mx = source_mx
+        self.src_mx = source_mx or Matrix()
         self.src_imx = invert_matrix(self.src_mx)
         self.src_mxnorm = matrix_normal(self.src_mx)
         
         self.bglMatrix = bgl.Buffer(bgl.GL_FLOAT, [16])
         for i,v in enumerate([v for r in self.tar_mx.transposed() for v in r]):
             self.bglMatrix[i] = v
-            
+        
         self.is_dirty = True
         self.calllist = bgl.glGenLists(1)
     
@@ -260,31 +277,35 @@ class BMeshRender():
     def dirty(self):
         self.is_dirty = True
     
-    def draw(self, opts=None):
-        if self.is_dirty:
-            # make not dirty first in case bad things happen while drawing
-            self.is_dirty = False
-            
+    def clean(self, opts=None):
+        if not self.is_dirty: return
+        
+        # make not dirty first in case bad things happen while drawing
+        self.is_dirty = False
+        
+        if self.src_bvh:
             # normal_update() will destroy normals of verts not connected to faces :(
             self.tar_bmesh.normal_update()
             for bmv in self.tar_bmesh.verts:
                 if len(bmv.link_faces) != 0: continue
                 _,n,_,_ = self.src_bvh.find_nearest(self.src_imx * bmv.co)
                 bmv.normal = (self.src_mxnorm * n).normalized()
-            
-            bgl.glNewList(self.calllist, bgl.GL_COMPILE)
-            # do not change attribs if they're not set
-            glSetDefaultOptions(opts=opts)
-            bgl.glPushMatrix()
-            bgl.glMultMatrixf(self.bglMatrix)
-            glDrawBMFaces(self.tar_bmesh.faces, opts=opts, enableShader=False)
-            glDrawBMEdges(self.tar_bmesh.edges, opts=opts, enableShader=False)
-            glDrawBMVerts(self.tar_bmesh.verts, opts=opts, enableShader=False)
-            bgl.glDepthRange(0, 1)
-            bgl.glPopMatrix()
-            bgl.glEndList()
         
+        bgl.glNewList(self.calllist, bgl.GL_COMPILE)
+        # do not change attribs if they're not set
+        glSetDefaultOptions(opts=opts)
+        bgl.glPushMatrix()
+        bgl.glMultMatrixf(self.bglMatrix)
+        glDrawBMFaces(self.tar_bmesh.faces, opts=opts, enableShader=False)
+        glDrawBMEdges(self.tar_bmesh.edges, opts=opts, enableShader=False)
+        glDrawBMVerts(self.tar_bmesh.verts, opts=opts, enableShader=False)
+        bgl.glDepthRange(0, 1)
+        bgl.glPopMatrix()
+        bgl.glEndList()
+    
+    def draw(self, opts=None):
         try:
+            self.clean(opts=opts)
             bmeshShader.enable()
             bgl.glCallList(self.calllist)
         except:
