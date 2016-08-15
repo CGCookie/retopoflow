@@ -38,15 +38,15 @@ import math
 #https://www.blender.org/api/blender_python_api_2_77_1/bgl.html
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
 shaderVertSource = '''
-#version 130
+#version 110
 
-in float offset;
-in float dotoffset;
+attribute float offset;
+attribute float dotoffset;
 
-out vec4 vPosition;
-out vec3 vNormal;
-out float vOffset;
-out float vDotOffset;
+varying vec4 vPosition;
+varying vec3 vNormal;
+varying float vOffset;
+varying float vDotOffset;
 
 void main() {
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -59,17 +59,17 @@ void main() {
 }
 '''
 shaderFragSource = '''
-#version 130
+#version 110
 
 uniform bool perspective;
 uniform float clip_start;
 uniform float clip_end;
 uniform float object_scale;
 
-in vec4 vPosition;
-in vec3 vNormal;
-in float vOffset;
-in float vDotOffset;
+varying vec4 vPosition;
+varying vec3 vNormal;
+varying float vOffset;
+varying float vDotOffset;
 
 void main() {
     float clip = clip_end - clip_start;

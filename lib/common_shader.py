@@ -52,8 +52,10 @@ class Shader():
         logv = self.shader_compile(self.shaderVert)
         logf = self.shader_compile(self.shaderFrag)
         
-        print('  vert log: ' + logv)
-        print('  frag log: ' + logf)
+        if len(logv.strip()):
+            print('  vert log:\n' + '\n'.join(('    '+l) for l in logv.splitlines()))
+        if len(logf.strip()):
+            print('  frag log:\n' + '\n'.join(('    '+l) for l in logf.splitlines()))
         
         bgl.glAttachShader(self.shaderProg, self.shaderVert)
         bgl.glAttachShader(self.shaderProg, self.shaderFrag)
@@ -62,7 +64,7 @@ class Shader():
         
         self.shaderVars = {}
         lvars = [l for l in srcVertex.splitlines() if l.startswith('in ')]
-        lvars += [l for l in srcVertex.splitlines() if l.startswith('attrib ')]
+        lvars += [l for l in srcVertex.splitlines() if l.startswith('attribute ')]
         lvars += [l for l in srcVertex.splitlines() if l.startswith('uniform ')]
         lvars += [l for l in srcFragment.splitlines() if l.startswith('uniform ')]
         for l in lvars:
@@ -70,7 +72,7 @@ class Shader():
             assert m
             m = m.groupdict()
             q,t,n = m['qualifier'],m['type'],m['name']
-            locate = bgl.glGetAttribLocation if q in {'in','attrib'} else bgl.glGetUniformLocation
+            locate = bgl.glGetAttribLocation if q in {'in','attribute'} else bgl.glGetUniformLocation
             if n in self.shaderVars: continue
             self.shaderVars[n] = {
                 'qualifier': q,
@@ -78,7 +80,7 @@ class Shader():
                 'location': locate(self.shaderProg, n),
                 }
         
-        print('  attribs: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attrib'}))
+        print('  attribs: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
         print('  uniforms: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
         
         self.funcStart = funcStart
@@ -90,7 +92,7 @@ class Shader():
         v = self.shaderVars[varName]
         q,l,t = v['qualifier'],v['location'],v['type']
         # print(varName + '=' + str(varValue))
-        if q in {'in','attrib'}:
+        if q in {'in','attribute'}:
             if t == 'float':
                 bgl.glVertexAttrib1f(l, varValue)
             else:
