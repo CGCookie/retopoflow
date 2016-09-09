@@ -526,8 +526,6 @@ class RetopoFlowPreferences(AddonPreferences):
             row.prop(self, "show_nodes", text="Show Cut Nodes")
             row.prop(self, "show_ring_inds", text="Show Ring Indices")
 
-        # just to help show changed module
-        row = layout.row()
 
         # updater draw function
         addon_updater_ops.update_settings_ui(self,context)

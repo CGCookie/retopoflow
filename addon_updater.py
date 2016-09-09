@@ -18,30 +18,8 @@
 
 
 """
-Example base usage:
-
-from addon_updater import Updater as myUpdater
-
-myUpdater.repo = "repository_name"
-myUpdater.user = "username"
-myUpdater.stage_path = "//"
-myUpdater.current_version = "v1.1.0"
-myUpdater.set_check_interval(months=0,days=14,minutes=5) # optional
-
-
-# Check for existing updates or any past versions
-# option 1: backgorund, async check with callback function input
-myUpdater.check_for_update_async(callback=None) # input callback function
-# option 2: immediate, thread-blocking
-(update_ready, version, link) = myUpdater.check_for_update()
-
-# run the update
-run_update(revert_tag=None)
-# or, select a verion to install
-tags = myUpdater.get_tag_names()
-latest_tag = tags[0] # equivalent to using revert_tag = None
-myUpdater.run_update(revert_tag=latest_tag) # e.g. latest_tag = "v1.0.0"
-
+See documentation for usage
+https://github.com/CGCookie/blender-addon-updater
 
 """
 
@@ -101,8 +79,8 @@ class Singleton_updater(object):
 		self._releases = []
 		self._latest_release = None
 		self._backup_current = True # by default, backup current addon if new is being loaded
-		self._auto_reload_post_update = False # by defautl, enable/disable the addon.. but less safe.
-		 # "" # assume specific cachename, use addon?.cache
+		self._auto_reload_post_update = False # by default, enable/disable the addon.. but less safe.
+		 # "" # assume specific cache name, use addon?.cache
 		self._check_interval_enable = False
 		self._check_interval_months = 0
 		self._check_interval_days = 14
@@ -114,18 +92,21 @@ class Singleton_updater(object):
 		self._fake_install = False
 		self._async_checking = False # only true when async daemon started
 		self._update_ready = None
-		self._connection_failed = False
 		self._update_link = None
 		self._update_version = None
 		self._source_zip = None
+		self._check_thread = None
 
 		# get from module data
-		self._addon = __package__
+		self._addon = __package__.lower()
 		self._addon_package = __package__ # must not change
 		self._updater_path = os.path.join(os.path.dirname(__file__),
 							self._addon+"_updater")
 		self._addon_root = os.path.dirname(__file__)
 		self._json = {}
+		self._error = None
+		self._error_msg = None
+		self.skip_tag = None # function for filtering tags to show/update
 
 
 	# -------------------------------------------------------------------------
@@ -185,10 +166,6 @@ class Singleton_updater(object):
 		if self._json == {}:
 			self.set_updater_json()
 		return self._json
-
-	@property
-	def connection_failed(self):
-		return self._connection_failed
 
 	@property
 	def repo(self):
@@ -342,9 +319,17 @@ class Singleton_updater(object):
 	def check_interval(self, value):
 		raise ValueError("Check frequency is read-only")
 
+	@property
+	def error(self):
+		return self._error
+
+	@property
+	def error_msg(self):
+		return self._error_msg
+
 
 	# -------------------------------------------------------------------------
-	# Paramater validation related functions
+	# Parameter validation related functions
 	# -------------------------------------------------------------------------
 
 
@@ -383,13 +368,31 @@ class Singleton_updater(object):
 	def get_tags(self):
 		request = "/repos/"+self.user+"/"+self.repo+"/tags"
 		# print("Request url: ",request)
-		if self.verbose:print("Grabbing tags from server")
+		if self.verbose:print("Getting tags from server")
 
-		# do more error checking e.g. no connection here, and relay back up
-		self._tags = self.get_api(request)
-		if len(self._tags) == 0:
+		# do more error checking e.g. no connection here
+
+		# here do the test
+		#self._tags = self.get_api(request)
+		req = self.get_api(request)
+		#y = [xx for xx in x if xx<4]
+		self._tags = [tg for tg in req if  self.skip_tag(tg['name'])==False]
+		# self._tags = [tg for tg in req if ]
+		print("##################")
+		print(self._tags)
+
+
+		
+		if self._tags == None:
+			# some error occured
 			self._tag_latest = None
-			if self.verbose:print("No tags found on this repositoru")
+			self._tags = []
+			return
+		elif len(self._tags) == 0:
+			self._tag_latest = None
+			self._error = "No releases found"
+			self._error_msg = "No releases or tags found on this repository"
+			if self.verbose:print("No releases or tags found on this repository")
 		else:
 			self._tag_latest = self._tags[0]
 			if self.verbose:print("Most recent tag found:",self._tags[0])
@@ -401,11 +404,14 @@ class Singleton_updater(object):
 		try:
 			result = urllib.request.urlopen(request)
 		except urllib.error.HTTPError as e:
-			raise ValueError("HTTPError, code: ",e.code)
-			# return or raise error?
+			self._error = "HTTP error"
+			self._error_msg = str(e.code)
+			self._update_ready = None 
 		except urllib.error.URLError as e:
-			raise ValueError("URLError, reason: ",e.reason)
-			# return or raise error?
+			self._error = "URL error, check internet connection"
+			self._error_msg = str(e.reason)
+			self._update_ready = None 
+			return None
 		else:
 			result_string = result.read()
 			result.close()
@@ -418,7 +424,10 @@ class Singleton_updater(object):
 		# return the json version
 		get = None
 		get = self.get_api_raw(url) # this can fail by self-created error raising
-		return json.JSONDecoder().decode( get )
+		if get != None:
+			return json.JSONDecoder().decode( get )
+		else:
+			return None
 
 
 	# create a working directory and download the new files
@@ -430,7 +439,7 @@ class Singleton_updater(object):
 
 		error = None
 
-		# no, really should just remove eveyrthing but the cache if found
+		# no, really should just remove everything but the cache if found
 		# or use same as folder name but plus extension.. that could work
 		if self._verbose:print("Preparing staging folder for download:\n",local)
 		if os.path.isdir(local) == True:
@@ -450,7 +459,6 @@ class Singleton_updater(object):
 			if self._verbose: print("Error: Aborting update, "+error)
 			raise ValueError("Aborting update, "+error)
 
-		if self._verbose:print("Todo: create backup zip of current addon now")
 		if self._backup_current==True:
 			self.create_backup()
 		if self._verbose:print("Now retreiving the new source zip")
@@ -547,13 +555,12 @@ class Singleton_updater(object):
 				print("Paths:")
 				print(dirlist)
 
-				raise ValueError("__init__ file not found in new source")
+				raise ValueError("__init__ file not found in new source") # replace with UI error?
+
 
 		# now commence merging in the two locations:
 		
-		origpath = os.path.dirname(__file__) # CHECK that this is appropriate... not necessairly true..?
-		#"/Users/patrickcrawford/Library/Application Support/Blender/2.76/scripts/addons/retopoflow/"
-		print("Unstaging: unpath:",unpath,"  \nOrigpath:",origpath)
+		origpath = os.path.dirname(__file__) # CHECK this is appropriate
 
 
 		self.deepMergeDirectory(origpath,unpath) ## SKIPPING THIS STEP FOR CHECKING
@@ -561,9 +568,10 @@ class Singleton_updater(object):
 
 		# change to True, to trigger the handler on other side
 		self._json["just_updated"] = True
-		self.save_updater_json()
-		self.reload_addon()
 		self._update_ready = False
+		self.save_updater_json() # changed order to change update status first
+		self.reload_addon()
+		
 
 
 	# merge contents of folder 'merger' into folder 'base', without deleting existing
@@ -597,7 +605,6 @@ class Singleton_updater(object):
 			return
 
 
-
 		if self._verbose:print("Reloading addon...")
 		addon_utils.modules(refresh=True)
 		bpy.utils.refresh_script_paths()
@@ -605,12 +612,7 @@ class Singleton_updater(object):
 		# not allowed in restricted context, such as register module
 		# toggle to refresh
 		bpy.ops.wm.addon_disable(module=self._addon_package)
-
 		bpy.ops.wm.addon_refresh()
-		# consider removing cached files
-		# __pycache__
-		# try:
-		# 	shutil//
 		bpy.ops.wm.addon_enable(module=self._addon_package)
 
 
@@ -630,17 +632,17 @@ class Singleton_updater(object):
 		for l in text:
 			if l.isdigit()==False:
 				if len(tmp)>0:
-					segments.append(int(tmp)) # int(tmp)
+					segments.append(int(tmp))
 					tmp = ''
 			else:
 				tmp+=l
 		if len(tmp)>0:
-			segments.append(int(tmp)) # int(tmp)
+			segments.append(int(tmp))
 
 		if len(segments)==0:
 			raise ValueError("Error in parsing version text")
 
-		return tuple(segments) # turn into a tuple
+		return tuple(segments)
 
 	# called for running check in a background thread
 	def check_for_update_async(self, callback=None):
@@ -654,7 +656,7 @@ class Singleton_updater(object):
 				callback(True)
 				return
 
-		# do the threading
+		# do the check
 		if self._check_interval_enable == False:
 			return
 		elif self._async_checking == True:
@@ -665,6 +667,10 @@ class Singleton_updater(object):
 			self.start_async_check_update(False, callback)
 
 	def check_for_update_now(self, callback=None):
+
+		self._error = None
+		self._error_msg = None
+
 		if self._verbose: print("Check update pressed, first getting current status")
 		if self._async_checking == True:
 			if self._verbose:print("Skipping async check, already started")
@@ -674,6 +680,7 @@ class Singleton_updater(object):
 			self.start_async_check_update(True, callback)
 		else:
 			self._update_ready = None
+			self.save_updater_json()
 			self.start_async_check_update(True, callback)
 
 
@@ -681,6 +688,10 @@ class Singleton_updater(object):
 	# but should have a parent which calls it in another thread
 	def check_for_update(self, now=False):
 		if self._verbose:print("Checking for update function")
+
+		# clear the errors if any
+		self._error = None
+		self._error_msg = None
 
 		# avoid running again in if already run once in BG, just return past result
 		# but if force now check, then still do it
@@ -709,31 +720,34 @@ class Singleton_updater(object):
 			self._update_link = "http://127.0.0.1"
 			
 			return (self._update_ready, self._update_version, self._update_link)
+		
+		# primaryb internet call
 		self.get_tags() # sets self._tags and self._tag_latest
+
 		self._json["last_check"] = str(datetime.now())
 		self.save_updater_json()
 
 		if len(self._tags) == 0:
 			if self._verbose:print("No tag found on this repository")
 			self._update_ready = False
-			self._connection_failed = True
 			return (False, None, None)
 		new_version = self.version_tuple_from_text(self.tag_latest)
 
 
 		link = self._tags[0]["zipball_url"] # best way?
-		if new_version != self._current_version:
+		if new_version > self._current_version:
 			self._update_ready = True
 			self._update_version = new_version
 			self._update_link = link
 			self.save_updater_json()
 			return (True, new_version, link)
-
-		# need to make clean version of git tag/release name.
-		self._update_ready = False
-		self._update_version = None
-		self._update_link = None
-		return (False, None, None)
+		else:
+			# need to make clean version of git tag/release name.
+			self._update_ready = False
+			self._update_version = None
+			self._update_link = None
+			self.save_updater_json()
+			return (False, None, None)
 
 	def set_tag(self,name):
 
@@ -743,7 +757,7 @@ class Singleton_updater(object):
 				tg = tag
 				break
 		if tg == None:
-			raise ValueError("Verion tag not found: "+revert_tag)
+			raise ValueError("Version tag not found: "+revert_tag)
 		new_version = self.version_tuple_from_text(self.tag_latest)
 		self._update_version = new_version
 		self._update_link = tg["zipball_url"]
@@ -753,10 +767,10 @@ class Singleton_updater(object):
 
 	def run_update(self, force=False, revert_tag=None, clean=False, callback=None):
 		
-		# revert_tag: could e.g. get from dropdown list
+		# revert_tag: could e.g. get from drop down list
 		# different versions of the addon to revert back to
 		# clean: ie fully remove folder and re-add addon
-		# (not literally since the code is running from here & we want a revertable copy)
+		# (not literally since the code is running from here & we want a revertible copy)
 		self._json["update_ready"] = False
 		self._json["version_text"] = {}
 
@@ -764,11 +778,15 @@ class Singleton_updater(object):
 			self.set_tag(revert_tag)
 			self._update_ready = True
 
+		# clear the errors if any
+		self._error = None
+		self._error_msg = None
+
 
 		if self.verbose:print("Running update")
 
 		if self._fake_install == True:
-			# change to True, to trigger the reload/"update isntalled" handler
+			# change to True, to trigger the reload/"update installed" handler
 			if self._verbose:print("fake_install = True, just reloading and running any trigger")
 			self._json["just_updated"] = True
 			self.save_updater_json()
@@ -800,6 +818,8 @@ class Singleton_updater(object):
 			# first do a check
 			if self._update_link == None:
 				if self.verbose:print("Update stopped, could not get link")
+				updater._error = "Failed to update"
+				updater._error_msg = "Did not retrieve download link"
 				return
 			self.stage_repository(self._update_link)
 			self.upack_staged_zip()
@@ -807,6 +827,9 @@ class Singleton_updater(object):
 
 		# run the user's callback if provided
 		if callback != None:callback()
+
+		# May not be right to place here
+		self.save_updater_json()
 
 		# return something meaningful, 0 means it worked
 		return 0
@@ -831,10 +854,10 @@ class Singleton_updater(object):
 
 			delta = (now - offset) - last_check
 			if delta.total_seconds() > 0:
-				if self._verbose:print("Determined it's time to check for udpates")
+				if self._verbose:print("Determined it's time to check for updates")
 				return True
 			else:
-				if self._verbose:print("Determined it's not yet time to check for udpates")
+				if self._verbose:print("Determined it's not yet time to check for updates")
 				return False
 
 
@@ -900,9 +923,7 @@ class Singleton_updater(object):
 		self.save_updater_json()
 
 	# -------------------------------------------------------------------------
-	# ASYNC stuff...
-	# EDIT: needs to be threaded unfortunately.
-	# Come back to later.
+	# ASYNC stuff
 	# -------------------------------------------------------------------------
 
 	def start_async_check_update(self, now=False,callback=None):
@@ -911,6 +932,7 @@ class Singleton_updater(object):
 		if self._verbose: print("Starting background checking thread")
 		check_thread = threading.Thread(target=self.async_check_update, args=(now,callback,))
 		check_thread.daemon = True
+		self._check_thread = check_thread
 		check_thread.start()
 		
 		return True
@@ -923,11 +945,18 @@ class Singleton_updater(object):
 		if self._verbose:print("BG: Finished checking for update, doing callback")
 		if callback != None:callback(self._update_ready)
 		self._async_checking = False
+		self._check_thread = None
 
-	def end_async_check_update():
-		# could return popup if condition met
-		
-		return True
+
+	def stop_async_check_update(self):
+		if self._check_thread != None:
+			try:
+				print("Thread will end in normal course.")
+				# however, "There is no direct kill method on a thread object."
+				#self._check_thread.stop()
+			except:
+				pass
+		self._async_checking = False
 
 
 # -----------------------------------------------------------------------------
