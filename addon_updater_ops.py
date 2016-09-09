@@ -652,7 +652,7 @@ def register(bl_info):
 	# a way to filter which tags are displayed, custom code
 	# e.g. to limit downgrading too far
 	def skip_tag(tag):
-		if 'beta' in tag.lowercase():
+		if 'beta' in tag.lower():
 			return True
 
 		# function converting string to tuple, ignoring e.g. leading 'v'
