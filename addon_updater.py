@@ -916,7 +916,7 @@ class Singleton_updater(object):
 		self._json["update_ready"] = False
 		self._json["version_text"] = {}
 		self.save_updater_json()
-		updater.update_ready = None # reset so you could check update again
+		self.update_ready = None # reset so you could check update again
 
 	def ignore_update(self):
 		self._json["ignore"] = True
