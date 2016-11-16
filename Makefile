@@ -37,7 +37,7 @@ build:
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
 	# cp -R $(FILES) $(BUILD_DIR)/$(NAME)
-	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude="__pycache__" --exclude=".*/" --exclude="Makefile" --exclude="*.md"
+	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude="__pycache__" --exclude=".*/" --exclude="Makefile" --exclude="*.md" --exclude="*.gitignore"
  
 	@echo
 	@echo $(NAME)" "$(VERSION) " is ready"
