@@ -85,6 +85,7 @@ class GVert:
         #already within a BMesh
         self.from_mesh = from_mesh
         self.from_mesh_ind = -1 # index of face, needs to be set explicitly
+        self.from_mesh_loops = [-1,-1]
         self.corner0_ind = -1
         self.corner1_ind = -1
         self.corner2_ind = -1
@@ -2312,40 +2313,68 @@ class Polystrips(object):
         mx = bpy.data.objects[self.targ_o_name].matrix_world
         imx = invert_matrix(mx)
         nmx = imx.transposed().to_3x3()
+        d_if_gv = {}
         for f in bme.faces:
             if len(f.edges) != 4:
                 continue
-            for ed in f.edges:
-                if len(ed.link_faces) < 2:
-                    pos = mx * f.calc_center_median()
-                    no = nmx * f.normal  #TEST THIS....can it be right?
-                    no.normalize()
-                    rad = 1/3 * 1/8 * sum(mx.to_scale()) * f.calc_perimeter()  #HACK...better way to estimate rad?
-                    tan_x = mx * f.verts[1].co - mx * f.verts[0].co
-                    tan_x.normalize()
-                    tan_y = no.cross(tan_x)
-                    
-                    
-                    gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
-                    #Freeze Corners
-                    #Note, left handed Gvert order wrt to Normal
-                    gv.corner0 = mx * f.verts[0].co 
-                    gv.corner0_ind = f.verts[0].index
-                    gv.corner1 = mx * f.verts[3].co
-                    gv.corner1_ind = f.verts[3].index
-                    gv.corner2 = mx * f.verts[2].co
-                    gv.corner2_ind = f.verts[2].index
-                    gv.corner3 = mx * f.verts[1].co
-                    gv.corner3_ind = f.verts[1].index
-                    
-                    
-                    
-                    gv.snap_pos = gv.position
-                    gv.snap_norm = gv.normal
-                    gv.visible = True
-                    gv.from_mesh_ind = f.index
-                    self.extension_geometry.append(gv)
+            add_ext = any(len(ed.link_faces) < 2 for ed in f.edges)
+            add_ext = True
+            if add_ext:
+                pos = mx * f.calc_center_median()
+                no = nmx * f.normal  #TEST THIS....can it be right?
+                no.normalize()
+                rad = 1/3 * 1/8 * sum(mx.to_scale()) * f.calc_perimeter()  #HACK...better way to estimate rad?
+                tan_x = mx * f.verts[1].co - mx * f.verts[0].co
+                tan_x.normalize()
+                tan_y = no.cross(tan_x)
+                
+                gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
+                #Freeze Corners
+                #Note, left handed Gvert order wrt to Normal
+                gv.corner0 = mx * f.verts[0].co
+                gv.corner0_ind = f.verts[0].index
+                gv.corner1 = mx * f.verts[3].co
+                gv.corner1_ind = f.verts[3].index
+                gv.corner2 = mx * f.verts[2].co
+                gv.corner2_ind = f.verts[2].index
+                gv.corner3 = mx * f.verts[1].co
+                gv.corner3_ind = f.verts[1].index
+                
+                gv.snap_pos = gv.position
+                gv.snap_norm = gv.normal
+                gv.visible = True
+                gv.from_mesh_ind = f.index
+                d_if_gv[f.index] = gv
+                self.extension_geometry.append(gv)
+        
+        def crawldir(loopid, f, direction):
+            d_if_gv[f.index].from_mesh_loops[direction%2] = loopid
+            nle = f.edges[direction]
+            while True:
+                f = next((nf for nf in nle.link_faces if nf != f), None)
+                if not f or len(f.edges) != 4:
+                    # crawl over quads only
                     break
+                ile,nle = next((idx%2,f.edges[(idx+2)%4]) for idx in range(4) if nle == f.edges[idx])
+                d_if_gv[f.index].from_mesh_loops[ile] = loopid
+        def crawl(gv, direction, loopid):
+            #gv.from_mesh_loops[direction] = loopid
+            f = bme.faces[gv.from_mesh_ind]
+            crawldir(loopid, f, direction)
+            crawldir(loopid, f, direction+2)
+        # walk about bmesh to assign loop ids
+        loopid = 0
+        for gv in self.extension_geometry:
+            f = bme.faces[gv.from_mesh_ind]
+            lid0,lid1 = gv.from_mesh_loops
+            if lid0 == -1:
+                # crawl over edges 01 and 23
+                crawl(gv, 0, loopid)
+                loopid += 1
+            if lid1 == -1:
+                # crawl over edges 12 and 30
+                crawl(gv, 1, loopid)
+                loopid += 1
     
     def insert_gedge_from_stroke(self, stroke, sgv0=None, sgv3=None, depth=0):
         '''
@@ -2363,17 +2392,14 @@ class Polystrips(object):
         # helper function to find gvert (extension or from gverts list)
         def find_gvert_for_stpos(st):
             pos,norm,rad = st
-            def first(l):
-                l = list(l)
-                return l[0] if l else None
             # check extension geometry
-            gv = first(gv for gv in self.extension_geometry if gv.is_picked(pos,norm))
+            gv = next((gv for gv in self.extension_geometry if gv.is_picked(pos,norm)), None)
             if gv:
                 self.extension_geometry.remove(gv)
                 self.gverts.append(gv)
                 return gv
             # check gverts
-            return first(gv for gv in self.gverts if not gv.is_inner() and gv.is_picked(pos,norm))
+            return next((gv for gv in self.gverts if not gv.is_inner() and gv.is_picked(pos,norm)), None)
         
         # lerp tessellate stroke pts if pts are too far apart
         def tessellate(st0,st1):
@@ -2491,7 +2517,13 @@ class Polystrips(object):
         
         # create gedge
         r0,r3 = stroke[0][2],stroke[-1][2]
-        l_bpts = cubic_bezier_fit_points([pt for pt,pn,pr in stroke], min(r0,r3) / 20, force_split=(sgv0==sgv3 and sgv0))
+        force_split = (sgv0==sgv3 and sgv0)
+        if sgv0 and sgv3:
+            if sgv0.is_fromMesh() and sgv3.is_fromMesh():
+                # if we can walk from sgv0 to sgv3, then we should force a split!
+                if any(i in sgv0.from_mesh_loops for i in sgv3.from_mesh_loops if i != -1):
+                    force_split = True
+        l_bpts = cubic_bezier_fit_points([pt for pt,pn,pr in stroke], min(r0,r3) / 20, force_split=force_split)
         pregv,fgv = None,None
         lge = []
         for i,bpts in enumerate(l_bpts):
@@ -3477,6 +3509,31 @@ class Polystrips(object):
                 gv2 = sge1.get_other_end(gv1)
                 if gv0 == gv2:
                     return 'Detected loop with end-to-end junction. Cannot create this type of patch. Change junction to L.'
+                if gv0.is_fromMesh() and gv2.is_fromMesh() and not any(i!=-1 and i in gv0.from_mesh_loops for i in gv2.from_mesh_loops):
+                    # possibly attempting to fill in below (x:existing, e:gedge, v:gvert)
+                    # xxxxx
+                    # x   e
+                    # x   e
+                    # xeeev
+                    # need to find existing vert in upper-left corner
+                    lids0 = [i for i in gv0.from_mesh_loops if i != -1]
+                    lids2 = [i for i in gv2.from_mesh_loops if i != -1]
+                    gv3 = next((gv for gv in self.extension_geometry if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids2)), None)
+                    if gv3:
+                        self.extension_geometry.remove(gv3)
+                        self.gverts.append(gv3)
+                    else:
+                        gv3 = next((gv for gv in self.gverts if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids1)), None)
+                    if gv3:
+                        sge2 = self.insert_gedge_between_gverts(gv2, gv3)
+                        sge3 = self.insert_gedge_between_gverts(gv0, gv3)
+                        ges0 = self.create_gedgeseries(sge0)
+                        ges1 = self.create_gedgeseries(sge1)
+                        ges2 = self.create_gedgeseries(sge2)
+                        ges3 = self.create_gedgeseries(sge3)
+                        lgp += [self.create_gpatch(ges0,ges1,ges2,ges3)]
+                        return lgp
+                    
                 sge2 = self.insert_gedge_between_gverts(gv0,gv2)
                 ges0 = self.create_gedgeseries(sge0)
                 ges1 = self.create_gedgeseries(sge1)
