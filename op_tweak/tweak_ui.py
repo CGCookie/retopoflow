@@ -158,10 +158,12 @@ class Tweak_UI:
         dprint('undoing: %s' % action)
         for v,co in zip(self.dest_bme.verts, v_data): v.co = co
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+        self.tar_bmeshrender.dirty()
     
     def undo_all_actions(self):
         if not tweak_undo_cache: return
         while len(tweak_undo_cache) > 1: tweak_undo_cache.pop()
         self.undo_action()
+        self.tar_bmeshrender.dirty()
 
     
