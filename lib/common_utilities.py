@@ -66,7 +66,7 @@ def get_settings():
     else:
         assert False, 'Could not find non-"lib" folder'
 
-    return get_settings = addons[foldername].preferences
+    return addons[foldername].preferences
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
