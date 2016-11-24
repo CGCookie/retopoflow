@@ -95,9 +95,11 @@ class addon_updater_check_now(bpy.types.Operator):
 
 	def execute(self,context):
 
-		if updater.async_checking == True:
+		if updater.async_checking == True and updater.error == None:
 			# Check already happened
 			# Used here to just avoid constant applying settings below
+			# Ignoring if erro, to prevent being stuck on the error screen
+			return {'CANCELLED'}
 			return 
 
 		# apply the UI settings
@@ -326,7 +328,7 @@ class addon_updater_ignore(bpy.types.Operator):
 	
 	def execute(self, context):
 		updater.ignore_update()
-		self.report({"INFO","Open addon preferences for updater options"})
+		self.report({"INFO"},"Open addon preferences for updater options")
 		return {'FINISHED'}
 
 

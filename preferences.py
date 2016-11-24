@@ -450,7 +450,7 @@ class RetopoFlowPreferences(AddonPreferences):
     updater_intrval_days = IntProperty(
         name='Days',
         description = "Number of days between checking for updates",
-        default=14,
+        default=7,
         min=0,
         )
     updater_intrval_hours = IntProperty(
