@@ -72,6 +72,9 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         if context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must specify a source object first')
             return False
+        if context.mode == 'EDIT_MESH' and get_source_object() == context.active_object:
+            showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
+            return False
 
         return True
     

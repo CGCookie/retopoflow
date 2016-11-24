@@ -74,6 +74,9 @@ class CGC_Polypen(ModalOperator):
         if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must specify a source object or select an object')
             return False
+        if context.mode == 'EDIT_MESH' and get_source_object() == context.active_object:
+            showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
+            return False
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False

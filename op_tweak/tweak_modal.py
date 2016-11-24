@@ -30,7 +30,7 @@ import math
 from ..lib import common_drawing_px
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
 from ..lib.common_utilities import invert_matrix, matrix_normal
-from ..lib.common_utilities import showErrorMessage
+from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler import profiler
 from .tweak_ui import Tweak_UI
@@ -69,11 +69,14 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
 
         if context.mode != 'EDIT_MESH':
             showErrorMessage('Must be in Edit Mode')
-
-        if context.mode == 'EDIT_MESH' and not self.settings.source_object:
+        if not self.settings.source_object:
             showErrorMessage('Must specify a Source Object')
             return False
-        
+
+        if get_source_object() == context.active_object:
+            showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
+            return False
+
         if context.object.type != 'MESH':
             showErrorMessage('Must select a mesh object')
             return False
