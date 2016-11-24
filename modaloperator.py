@@ -120,6 +120,7 @@ class ModalOperator(Operator):
             print('\n'*5)
             showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
+        self.fsm_mode = 'main'
 
     def get_event_details(self, context, event):
         '''

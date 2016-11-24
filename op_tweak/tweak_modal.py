@@ -28,12 +28,15 @@ from mathutils import Vector, Matrix, Quaternion
 import math
 
 from ..lib import common_drawing_px
+from ..lib.common_utilities import get_source_object, get_target_object, setup_target_object
 from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale
+from ..lib.common_utilities import invert_matrix, matrix_normal
 from ..lib.common_utilities import showErrorMessage
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler import profiler
 from .tweak_ui import Tweak_UI
 from .tweak_ui_tools import Tweak_UI_Tools
+from mathutils.bvhtree import BVHTree
 
 from ..modaloperator import ModalOperator
 
@@ -84,7 +87,9 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
 
         # Setup target for BmeshRender drawing of existing geometry
         self.tar_bmesh = bmesh.from_edit_mesh(context.object.data)
-        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, context.object.matrix_world)
+        bvh = BVHTree.FromBMesh(self.tar_bmesh)
+        #target_bmesh, target_mx, source_bvh, source_mx
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, get_target_object().matrix_world, bvh, context.object.matrix_world)
 
         # Hide any existing geometry
         bpy.ops.mesh.hide(unselected=True)
@@ -160,10 +165,10 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             
             hit_p3d,hit_norm,hit_idx = hit
             if hit_p3d != None:
-                mx = self.mx
-                mxnorm = mx.transposed().inverted().to_3x3()
-                hit_p3d = mx * hit_p3d
-                hit_norm = mxnorm * hit_norm
+                #mx = self.mx
+                #mxnorm = matrix_normal(mx)
+                #hit_p3d = mx * hit_p3d
+                #hit_norm = mxnorm * hit_norm
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
     
     def modal_wait(self, context, eventd):

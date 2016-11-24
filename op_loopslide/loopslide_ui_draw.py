@@ -43,10 +43,10 @@ class loopslide_UI_Draw():
         else:
             common_drawing_view.draw3d_polyline(context, lpoints, color_border, 2, 'GL_LINES')
             
-            if self.loopslide.pole0 != -1:
+            if self.loopslide.pole0 != -1 and self.loopslide.pole0world:
                 common_drawing_view.draw3d_polyline(context, [self.loopslide.pole0world, lpoints[0]], (1,0,0,1), 2, 'GL_LINES')
                 common_drawing_view.draw3d_points(context, [self.loopslide.pole0world], (1,0,0,1), 2)
-            if self.loopslide.pole1 != -1:
+            if self.loopslide.pole1 != -1 and self.loopslide.pole1world:
                 common_drawing_view.draw3d_polyline(context,[lpoints[-1], self.loopslide.pole1world],(1,0,0,1), 2, 'GL_LINES')
                 common_drawing_view.draw3d_points(context, [self.loopslide.pole1world], (1,0,0,1), 2)
                 

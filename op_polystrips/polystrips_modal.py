@@ -61,6 +61,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
         FSM['tweak relax tool'] = self.modal_tweak_relax_tool
         self.initialize('help_polystrips.txt', FSM)
         self.initialize_ui()
+        self.initialize_draw()
 
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
@@ -79,7 +80,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Source must be a mesh object')
             return False
 
-        if get_target_object().type != 'MESH':
+        if get_target_object() is not None and get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')
             return False
 

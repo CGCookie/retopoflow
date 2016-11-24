@@ -88,7 +88,7 @@ class Polystrips_UI_ModalWait():
             # TODO: only convert gpencil strokes that are visible and prevent duplicate conversion
             for gpl in self.obj_orig.grease_pencil.layers: gpl.hide = True
             for stroke in self.strokes_original:
-                self.polystrips.insert_gedge_from_stroke(stroke, True)
+                self.polystrips.insert_gedge_from_stroke_old(stroke, True)
             self.polystrips.remove_unconnected_gverts()
             #self.polystrips.update_visibility(eventd['r3d'])
             return ''
