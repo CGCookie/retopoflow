@@ -30,7 +30,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
-from mathutils.geometry import intersect_point_tri
+from mathutils.geometry import intersect_point_tri, intersect_point_tri_2d
 
 import math
 import os
@@ -73,6 +73,9 @@ class CGC_Polypen(ModalOperator):
             return False
         if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must specify a source object or select an object')
+            return False
+        if context.mode == 'EDIT_MESH' and get_source_object() == context.active_object:
+            showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
             return False
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
@@ -303,11 +306,10 @@ class CGC_Polypen(ModalOperator):
                     res = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
                     min_bme = res[0] if res else None
                 if not min_bme and not min_bmv:
-                    min_bmf = self.closest_bmface(p3d, 0.05)
+                    min_bmf = self.closest_bmface(context, p2d, p3d, 0.05)
                 self.nearest_bmvert = min_bmv
                 self.nearest_bmedge = min_bme
                 self.nearest_bmface = min_bmf
-        
         
         # SELECTION
         
@@ -631,12 +633,13 @@ class CGC_Polypen(ModalOperator):
     ########################################
     # finder helper functions
     
-    def closest_bmvert(self, context, p2d, p3d, max_dist2d, max_dist3d, exclude=None):
-        rgn = context.region
-        r3d = context.space_data.region_3d
+    def closest_bmvert(self, context, p2d, p3d, max_dist2d, max_dist3d, exclude=None, onlyVisible=True):
+        rgn,r3d = context.region,context.space_data.region_3d
         min_bmv = None
         min_dist2d = 0
         min_dist3d = 0
+        bvh_raycast = mesh_cache['bvh'].ray_cast
+        viewloc = self.imx * region_2d_to_origin_3d(rgn, r3d, p2d)
         for bmv in self.tar_bmesh.verts:
             if exclude and bmv in exclude: continue
             d3d = (bmv.co - p3d).length
@@ -645,20 +648,28 @@ class CGC_Polypen(ModalOperator):
             if not bmv2d: continue
             d2d = (p2d - bmv2d).length
             if d2d > max_dist2d: continue
-            if not min_bmv or (d2d < min_dist2d and d3d < min_dist3d):
-                min_bmv = bmv
-                min_dist2d = d2d
-                min_dist3d = d3d
+            if min_bmv and (d2d >= min_dist2d or d3d >= min_dist3d): continue
+            if onlyVisible:
+                v = self.imx * bmv.co
+                v2v = viewloc - v
+                v2vl = v2v.length
+                v2v /= v2vl
+                if bvh_raycast(v + v2v*0.01, v2v, v2vl-0.01)[0]: continue
+            min_bmv = bmv
+            min_dist2d = d2d
+            min_dist3d = d3d
         if not min_bmv: return None
         return (min_bmv, min_dist2d, min_dist3d)
     
-    def closest_bmedge(self, context, p2d, p3d, max_dist2d, max_dist3d, lbme=None):
+    def closest_bmedge(self, context, p2d, p3d, max_dist2d, max_dist3d, lbme=None, onlyVisible=True):
         rgn = context.region
         r3d = context.space_data.region_3d
         if not lbme: lbme = self.tar_bmesh.edges
         lmin_bme = []
         min_dist2d = 0
         min_dist3d = 0
+        bvh_raycast = mesh_cache['bvh'].ray_cast
+        viewloc = self.imx * region_2d_to_origin_3d(rgn, r3d, p2d)
         for bme in lbme:
             # if len(bme.link_faces) == 2:
             #     # bmedge has two faces, so we cannot add another face
@@ -672,6 +683,12 @@ class CGC_Polypen(ModalOperator):
             if not bmv2d: continue
             d2d = (p2d - bmv2d).length
             if d2d > max_dist2d: continue
+            if onlyVisible:
+                v = self.imx * bmv3d
+                v2v = viewloc - v
+                v2vl = v2v.length
+                v2v /= v2vl
+                if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
             if not lmin_bme or (d3d <= min_dist3d+0.0001):
                 if lmin_bme and (abs(d3d-min_dist3d) <= 0.0001):
                     lmin_bme += [bme]
@@ -704,17 +721,32 @@ class CGC_Polypen(ModalOperator):
         theta1 = abs(p10p.dot(p101))
         return (lbme[0] if theta0 < theta1 else lbme[1],0,0)
     
-    def closest_bmface(self, p3d, max_dist3d):
+    def closest_bmface(self, context, p2d, p3d, max_dist3d, onlyVisible=True):
+        rgn = context.region
+        r3d = context.space_data.region_3d
         min_dist3d,min_bmf = max_dist3d,None
+        bvh_raycast = mesh_cache['bvh'].ray_cast
+        viewloc = self.imx * region_2d_to_origin_3d(rgn, r3d, p2d)
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
+            v02d = location_3d_to_region_2d(rgn,r3d,bmv0.co)
             for bmv1,bmv2 in zip(bmf.verts[1:-1], bmf.verts[2:]):
+                v12d = location_3d_to_region_2d(rgn,r3d,bmv1.co)
+                v22d = location_3d_to_region_2d(rgn,r3d,bmv2.co)
+                if not intersect_point_tri_2d(p2d, v02d, v12d, v22d): continue
                 pt = intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co)
-                if pt:
-                    dist = (pt-p3d).length
-                    if dist < min_dist3d:
-                        min_dist3d = dist
-                        min_bmf = bmf
+                if not pt: continue
+                dist = (pt-p3d).length
+                if dist >= min_dist3d: continue
+                if onlyVisible:
+                    v = self.imx * pt
+                    v2v = viewloc - v
+                    v2vl = v2v.length
+                    v2v /= v2vl
+                    if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
+                
+                min_dist3d = dist
+                min_bmf = bmf
         return min_bmf
     
     def edge_between_verts(self, bmv0, bmv1):
@@ -1164,6 +1196,7 @@ class CGC_Polypen(ModalOperator):
                 self.tar_bmeshrender.dirty()
                 return 'move vert'
             _,bmv1 = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+            bmv1.co = self.mouse_downp3d
         elif self.hover_face():
             # find closest edge to selected vert
             p3d = bmv0.co
@@ -1175,6 +1208,7 @@ class CGC_Polypen(ModalOperator):
             bmv1 = self.nearest_bmvert
         else:
             bmv1 = self.create_vert(self.mouse_downp3d, self.mouse_downn3d)
+        # find edges between new vert (bmv1) and previously selected vert (bmv0)
         lbme = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
         if lbme:
             # verts share an edge

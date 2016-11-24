@@ -56,22 +56,17 @@ def selection_mouse():
     return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
-    if not get_settings.cached_settings:
-        addons = bpy.context.user_preferences.addons
-        #frame = inspect.currentframe()
-        #frame.f_code.co_filename
-        folderpath = os.path.dirname(os.path.abspath(__file__))
-        while folderpath:
-            folderpath,foldername = os.path.split(folderpath)
-            if foldername in {'lib','addons'}: continue
-            if foldername in addons: break
-        else:
-            assert False, 'Could not find non-"lib" folder'
-        
-        get_settings.cached_settings = addons[foldername].preferences
-   
-    return get_settings.cached_settings
+    addons = bpy.context.user_preferences.addons
 
+    folderpath = os.path.dirname(os.path.abspath(__file__))
+    while folderpath:
+        folderpath,foldername = os.path.split(folderpath)
+        if foldername in {'lib','addons'}: continue
+        if foldername in addons: break
+    else:
+        assert False, 'Could not find non-"lib" folder'
+
+    return addons[foldername].preferences
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
