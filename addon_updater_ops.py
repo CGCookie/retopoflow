@@ -82,7 +82,7 @@ class addon_updater_install_popup(bpy.types.Operator):
 			#bpy.ops.retopoflow.updater_install_popup('INVOKE_DEFAULT')
 
 		else:
-			print("Doing nothing, not ready for update")
+			if updater.verbose:print("Doing nothing, not ready for update")
 		return {'FINISHED'}
 
 
@@ -608,9 +608,17 @@ def update_settings_ui(self, context):
 						text = "", icon="X")
 		
 	elif updater.update_ready==True and updater.manual_only==False:
-		col.scale_y = 2
-		col.operator(addon_updater_update_now.bl_idname,
+		subcol = col.row(align=True)
+		subcol.scale_y = 1
+		split = subcol.split(align=True)
+		split.scale_y = 2
+		split.operator(addon_updater_update_now.bl_idname,
 					"Update now to "+str(updater.update_version))
+		split = subcol.split(align=True)
+		split.scale_y = 2
+		split.operator(addon_updater_check_now.bl_idname,
+						text = "", icon="FILE_REFRESH")
+
 	elif updater.update_ready==True and updater.manual_only==True:
 		col.scale_y = 2
 		col.operator("wm.url_open",
@@ -680,13 +688,11 @@ def skip_tag_function(tag):
 	# select the min tag version - change tuple accordingly
 	if updater.version_min_update != None:
 		if tupled < updater.version_min_update:
-			print("skip lo")
 			return True # skip if current version below this
 	
 	# select the max tag version
 	if updater.version_max_update != None:
 		if tupled >= updater.version_max_update:
-			print("skip hi")
 			return True # skip if current version at or above this
 	
 	# in all other cases, allow showing the tag for updating/reverting
@@ -696,7 +702,6 @@ def skip_tag_function(tag):
 # registering the operators in this module
 def register(bl_info):
 
-	print("Running updater reg")
 	updater.clear_state() # clear internal vars, avoids relaoding oddities
 
 	updater.user = "TeamDeverse" # previously "cgcookie"
@@ -753,7 +758,7 @@ def unregister():
 
 	# clear global vars since they may persist if not restarting blender
 	updater.clear_state() # clear internal vars, avoids relaoding oddities
-	
+
 	global ran_autocheck_install_popup
 	ran_autocheck_install_popup = False
 	

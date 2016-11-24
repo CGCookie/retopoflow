@@ -405,7 +405,6 @@ class Singleton_updater(object):
 
 	def get_tags(self):
 		request = "/repos/"+self.user+"/"+self.repo+"/tags"
-		# print("Request url: ",request)
 		if self.verbose:print("Getting tags from server")
 
 		# get all tags, internet call
@@ -564,14 +563,14 @@ class Singleton_updater(object):
 	def upack_staged_zip(self):
 
 		if os.path.isfile(self._source_zip) == False:
-			print("Error, update zip not found")
+			if self._verbose:print("Error, update zip not found")
 			return -1
 
 		# clear the existing source folder in case previous files remain
 		try:
 			shutil.rmtree( os.path.join(self._updater_path,"source") )
 			os.makedirs( os.path.join(self._updater_path,"source") )
-			print("Source folder cleared and recreated")
+			if self._verbose:print("Source folder cleared and recreated")
 		except:
 			pass
 		
@@ -582,7 +581,8 @@ class Singleton_updater(object):
 				# extractall is no longer a security hazard
 				zf.extractall(os.path.join(self._updater_path,"source"))
 		else:
-			print("Not a zip file, future add support for just .py files")
+			if self._verbose:
+				print("Not a zip file, future add support for just .py files")
 			raise ValueError("Resulting file is not a zip")
 		if self.verbose:print("Extracted source")
 
@@ -594,9 +594,9 @@ class Singleton_updater(object):
 				unpath = os.path.join(unpath,dirlist[0])
 
 			if os.path.isfile(os.path.join(unpath,"__init__.py")) == False:
-				print("not a valid addon found")
-				print("Paths:")
-				print(dirlist)
+				if self._verbose:print("not a valid addon found")
+				if self._verbose:print("Paths:")
+				if self._verbose:print(dirlist)
 
 				raise ValueError("__init__ file not found in new source")
 
@@ -643,7 +643,7 @@ class Singleton_updater(object):
 		# if post_update false, skip this function
 		# else, unload/reload addon & trigger popup
 		if self._auto_reload_post_update == False:
-			print("Restart blender to reload")
+			print("Restart blender to reload addon and complete update")
 			return
 
 
@@ -996,7 +996,7 @@ class Singleton_updater(object):
 		self._json["update_ready"] = False
 		self._json["version_text"] = {}
 		self.save_updater_json()
-		updater.update_ready = None # reset so you could check update again
+		self._update_ready = None # reset so you could check update again
 
 	def ignore_update(self):
 		self._json["ignore"] = True
@@ -1043,7 +1043,7 @@ class Singleton_updater(object):
 	def stop_async_check_update(self):
 		if self._check_thread != None:
 			try:
-				print("Thread will end in normal course.")
+				if self._verbose:print("Thread will end in normal course.")
 				# however, "There is no direct kill method on a thread object."
 				# better to let it run its course
 				#self._check_thread.stop()
