@@ -427,12 +427,12 @@ class Polystrips_UI:
 
         if self.act_gvert or self.act_gedge:
             # check if user is picking an inner control point
-            if self.act_gedge and not self.act_gedge.zip_to_gedge and not self.act_gedge.is_fromMesh():
+            if self.act_gedge and not self.act_gedge.zip_to_gedge:
                 lcpts = [self.act_gedge.gvert1,self.act_gedge.gvert2]
             elif self.act_gvert:
                 sgv = self.act_gvert
                 lge = self.act_gvert.get_gedges()
-                lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge and not ge.is_fromMesh()] + [sgv]
+                lcpts = [ge.get_inner_gvert_at(sgv) for ge in lge if ge and not ge.zip_to_gedge] + [sgv]
             else:
                 lcpts = []
 
