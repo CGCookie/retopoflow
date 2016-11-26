@@ -299,12 +299,10 @@ class CGC_Polypen(ModalOperator):
                 self.clear_nearest()
             else:
                 p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.5)
-                min_bmv = res[0] if res else None
+                min_bmv,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.5)
                 min_bme,min_bmf = None,None
                 if not min_bmv:
-                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
-                    min_bme = res[0] if res else None
+                    min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
                 if not min_bme and not min_bmv:
                     min_bmf = self.closest_bmface(context, p2d, p3d, 0.05)
                 self.nearest_bmvert = min_bmv
@@ -419,10 +417,10 @@ class CGC_Polypen(ModalOperator):
                 hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, p2d)
                 if not hit: return ''
                 p3d = hit[0]
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
-                if res:
+                min_bmv,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
+                if min_bmv:
                     # merge-able!
-                    p3d = Vector(res[0].co)
+                    p3d = Vector(min_bmv.co)
                 nbmvco[bmv] = p3d
             for bmv,co in nbmvco.items():
                 bmv.co = co
@@ -447,9 +445,8 @@ class CGC_Polypen(ModalOperator):
                 for bmv0 in self.vert_pos:
                     p3d = bmv0.co
                     p2d = location_3d_to_region_2d(rgn, r3d, p3d)
-                    res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
-                    if res:
-                        bmv1 = res[0]
+                    bmv1,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
+                    if bmv1:
                         # make sure verts don't share an edge
                         share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
                         share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
@@ -658,7 +655,7 @@ class CGC_Polypen(ModalOperator):
             min_bmv = bmv
             min_dist2d = d2d
             min_dist3d = d3d
-        if not min_bmv: return None
+        if not min_bmv: return (None,None,None)
         return (min_bmv, min_dist2d, min_dist3d)
     
     def closest_bmedge(self, context, p2d, p3d, max_dist2d, max_dist3d, lbme=None, onlyVisible=True):
@@ -696,7 +693,7 @@ class CGC_Polypen(ModalOperator):
                     lmin_bme = [bme]
                     min_dist2d = d2d
                     min_dist3d = d3d
-        if not lmin_bme: return None
+        if not lmin_bme: return (None,None,None)
         if len(lmin_bme) >= 2:
             return self.orthogonalest_bmedge(p3d, lmin_bme)
         return (lmin_bme[0], min_dist2d, min_dist3d)
@@ -1207,7 +1204,7 @@ class CGC_Polypen(ModalOperator):
         elif self.hover_vert():
             bmv1 = self.nearest_bmvert
         else:
-            bmv1 = self.create_vert(self.mouse_downp3d)
+            bmv1 = self.create_vert(self.mouse_downp3d, self.mouse_downn3d)
         # find edges between new vert (bmv1) and previously selected vert (bmv0)
         lbme = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
         if lbme:
