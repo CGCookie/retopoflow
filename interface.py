@@ -2,7 +2,6 @@ import bpy
 
 from .lib import common_utilities
 from .lib.common_utilities import bversion
-from bpy.types import AddonPreferences
 from . import addon_updater_ops
 
 if bversion() >= '002.076.000':
