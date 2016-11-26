@@ -278,7 +278,10 @@ def cubic_bezier_fit_value(l_v, l_t):
     A_values = [fn(l_t) for fn in A_fns]
     # fill the A matrix with data
     A_matrix = Matrix(tuple(zip(*[iter(A_values)]*4)))
-    A_inv    = A_matrix.inverted()
+    try:
+        A_inv    = A_matrix.inverted()
+    except:
+        return (float('inf'), l_v[0],l_v[0],l_v[0],l_v[0])
     
     # compute the data we will put into the b vector
     b_values = [fn(l_t, l_v) for fn in b_fns]

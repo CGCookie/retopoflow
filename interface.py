@@ -19,8 +19,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         layout = self.layout
 
         # explicitly call to check for update in background
-        # currently WIP, will lock main thread
-        # note: built-in checks ensure internally it only runs once
+        # note: built-in checks ensure it runs at most once
         addon_updater_ops.check_for_update_background(context)
 
         settings = common_utilities.get_settings()
@@ -85,11 +84,11 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         if context.mode =='EDIT_MESH':
             tweaK_icon = icons.get("rf_tweak_icon")
             loop_cut_icon = icons.get("rf_loopcut_icon")
-            edgeslide_icon = icons.get("rf_edgeslide_icon")
+            loopslide_icon = icons.get("rf_loopslide_icon")
 
             col.operator("cgcookie.tweak", icon_value=tweaK_icon.icon_id)
             col.operator("cgcookie.loop_cut", text='Loop Cut', icon_value=loop_cut_icon.icon_id)
-            col.operator("cgcookie.edge_slide", text='Edge Slide', icon_value=edgeslide_icon.icon_id)
+            col.operator("cgcookie.loop_slide", text='Loop Slide', icon_value=loopslide_icon.icon_id)
 
         col = layout.column(align=True)
         col.label("Tool Settings:")
@@ -126,6 +125,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col.operator("wm.open_log", "Open Error Log")
 
         addon_updater_ops.update_notice_box_ui(self, context)
+        
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"
@@ -150,10 +150,10 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         if context.mode =='EDIT_MESH':
             icons = load_icons()
             loopcut_icon = icons.get("rf_loopcut_icon")
-            edgeslide_icon = icons.get("rf_edgeslide_icon")
+            loopslide_icon = icons.get("rf_loopslide_icon")
             tweak_icon = icons.get("rf_tweak_icon")
 
             layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
             layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
-            layout.operator("cgcookie.edge_slide", text="Edge Slide", icon_value=edgeslide_icon.icon_id)
+            layout.operator("cgcookie.loop_slide", text="Loop Slide", icon_value=loopslide_icon.icon_id)
 

@@ -706,7 +706,7 @@ def register(bl_info):
 
 	updater.clear_state() # clear internal vars, avoids relaoding oddities
 
-	updater.user = "TeamDeverse" # previously "cgcookie"
+	updater.user = "cgcookie"
 	updater.repo = "retopoflow"
 	updater.addon =  "RetopoFlow" # optional, default gets from __package__ name
 	updater.website = "https://cgcookiemarkets.com/all-products/retopoflow/" # optional
@@ -724,7 +724,7 @@ def register(bl_info):
 	# Override with a custom function on what tags
 	# to skip showing for udpater; see code for function above.
 	# Set the min and max versions allowed to install
-	updater.version_min_update = (1,1,10) # min allowed to install, >=
+	updater.version_min_update = (1,3,0) # min allowed to install, >=
 	updater.version_max_update = (2,0,0) # max allowed to install, <
 	updater.skip_tag = skip_tag_function # min and max used in this function
 

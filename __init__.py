@@ -24,11 +24,11 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 1, 17),
+    "version":     (1, 2, 3),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
-    "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
+    "wiki_url":    "https://blendermarket.com/products/retopoflow#documentation",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
     }
@@ -42,7 +42,6 @@ import bpy
 #CGCookie imports
 from .lib.common_utilities import bversion, check_source_target_objects
 from .lib.common_utilities import register as register_common_utilities
-from .lib.common_utilities import unregister as unregister_common_utilities
 
 
 #Menus, Panels, Interface and Icon 
@@ -62,19 +61,16 @@ if bversion() >= '002.076.000':
     from .op_tweak.tweak_modal import CGC_Tweak
     from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
     from .op_loopcut.loopcut_modal import CGC_LoopCut
-    from .op_edgeslide.edgeslide_modal import CGC_EdgeSlide
+    from .op_loopslide.loopslide_modal import CGC_loopslide
     from .op_polypen.polypen_modal import CGC_Polypen
 
 # updater import
-# from .addon_updater import Updater as updater
 from . import addon_updater_ops
 
 # Used to store keymaps for addon
 addon_keymaps = []
 
 def register():
-
-    # ensure utilities global vars are set/reset on enable
     register_common_utilities()
 
     bpy.utils.register_class(RetopoFlowPreferences)
@@ -88,7 +84,7 @@ def register():
         bpy.utils.register_class(CGC_Contours)
         bpy.utils.register_class(CGC_EyeDropper)
         bpy.utils.register_class(CGC_LoopCut)
-        bpy.utils.register_class(CGC_EdgeSlide)
+        bpy.utils.register_class(CGC_loopslide)
         bpy.utils.register_class(CGC_Polypen)
     
     bpy.utils.register_class(OpenLog)
@@ -106,19 +102,14 @@ def register():
     # addon updater code and configurations
     addon_updater_ops.register(bl_info)
 
-
-
 def unregister():
-
-    unregister_common_utilities()
-
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
         bpy.utils.unregister_class(CGC_Tweak)
         bpy.utils.unregister_class(CGC_Contours)
         bpy.utils.unregister_class(CGC_EyeDropper)
         bpy.utils.unregister_class(CGC_LoopCut)
-        bpy.utils.unregister_class(CGC_EdgeSlide)
+        bpy.utils.unregister_class(CGC_loopslide)
         bpy.utils.unregister_class(CGC_Polypen)
 
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
@@ -128,7 +119,6 @@ def unregister():
 
     # addon updater unregister
     addon_updater_ops.unregister()
-
     
     clear_icons()
 
@@ -138,7 +128,4 @@ def unregister():
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
-
-
-
 

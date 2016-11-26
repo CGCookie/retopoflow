@@ -69,11 +69,14 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
             return False
-        elif context.mode == 'EDIT_MESH' and self.settings.source_object == '':
+        if context.mode == 'EDIT_MESH' and self.settings.source_object == '':
             showErrorMessage('Must specify a Source Object')
             return False
+        if context.mode == 'EDIT_MESH' and get_source_object() == context.active_object:
+            showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
+            return False
 
-        elif context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
+        if context.mode == 'OBJECT' and self.settings.source_object == '' and not context.active_object:
             showErrorMessage('Must select an object or specifiy a Source Object')
             return False
 

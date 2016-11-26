@@ -97,7 +97,6 @@ class Tweak_UI:
         self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
         self.stroke_radius = 0.01 * self.length_scale
-        self.stroke_radius_pressure = 0.01 * self.length_scale
         # Screen_stroke_radius
         self.screen_stroke_radius = 20  # TODO, hood to settings
 
@@ -159,10 +158,12 @@ class Tweak_UI:
         dprint('undoing: %s' % action)
         for v,co in zip(self.dest_bme.verts, v_data): v.co = co
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
+        self.tar_bmeshrender.dirty()
     
     def undo_all_actions(self):
         if not tweak_undo_cache: return
         while len(tweak_undo_cache) > 1: tweak_undo_cache.pop()
         self.undo_action()
+        self.tar_bmeshrender.dirty()
 
     

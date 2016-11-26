@@ -69,7 +69,6 @@ class Polystrips_UI_ModalWait():
 
             if self.sketch_brush.world_width:
                 self.stroke_radius = self.sketch_brush.world_width
-                self.stroke_radius_pressure = self.sketch_brush.world_width
 
             self.hover_geom(eventd)
 
@@ -89,7 +88,7 @@ class Polystrips_UI_ModalWait():
             # TODO: only convert gpencil strokes that are visible and prevent duplicate conversion
             for gpl in self.obj_orig.grease_pencil.layers: gpl.hide = True
             for stroke in self.strokes_original:
-                self.polystrips.insert_gedge_from_stroke(stroke, True)
+                self.polystrips.insert_gedge_from_stroke_old(stroke, True)
             self.polystrips.remove_unconnected_gverts()
             #self.polystrips.update_visibility(eventd['r3d'])
             return ''
@@ -111,12 +110,8 @@ class Polystrips_UI_ModalWait():
             self.footer = 'Sketching'
             x,y = eventd['mouse']
 
-            if settings.use_pressure:
-                p = eventd['pressure']
-                r = eventd['mradius']
-            else:
-                p = 1
-                r = self.stroke_radius
+            p = 1
+            r = self.stroke_radius
 
             self.sketch_curpos = (x,y)
 
@@ -327,6 +322,9 @@ class Polystrips_UI_ModalWait():
                 return 'scale tool'
 
             if eventd['press'] in self.keymap['translate']:
+                if self.act_gvert.from_mesh: 
+                    showErrorMessage('Cannot translate GVert from existing geometry')
+                    return ''
                 self.create_undo_snapshot('grab')
                 self.ready_tool(eventd, self.grab_tool_gvert_neighbors)
                 return 'grab tool'

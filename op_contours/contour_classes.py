@@ -231,17 +231,7 @@ class Contours(object):
 
             self.dest_obj.show_x_ray = self.settings.use_x_ray
 
-            if context.space_data.local_view:
-                view_loc = context.space_data.region_3d.view_location.copy()
-                view_rot = context.space_data.region_3d.view_rotation.copy()
-                view_dist = context.space_data.region_3d.view_distance
-                bpy.ops.view3d.localview()
-                bpy.ops.view3d.localview()
-                #context.space_data.region_3d.view_matrix = mx_copy
-                context.space_data.region_3d.view_location = view_loc
-                context.space_data.region_3d.view_rotation = view_rot
-                context.space_data.region_3d.view_distance = view_dist
-                context.space_data.region_3d.update()
+            common_utilities.toggle_localview()
             
             common_utilities.default_target_object_to_active()
     
@@ -462,7 +452,7 @@ class Contours(object):
         rv3d = context.space_data.region_3d
         d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
-            loc = self.mx * hit[0] #< it's ok if this is none
+            loc = hit[0] # self.mx * hit[0] #< it's ok if this is none
         else:
             loc = None
             
@@ -566,7 +556,7 @@ class Contours(object):
         rv3d = context.space_data.region_3d
         d, hit = common_utilities.ray_cast_region2d_bvh(context.region, rv3d, (x,y), mesh_cache['bvh'], self.mx, settings)
         if hit[0]:
-            loc = self.mx * hit[0] #< it's ok if this is none
+            loc = hit[0] # self.mx * hit[0] #< it's ok if this is none
         else:
             loc = None
         #identify hover target for highlighting
@@ -850,7 +840,7 @@ class Contours(object):
         TODO path from selected loop
         '''
         if undo:
-            self.create_undo_snapshot('EDGE_SLIDE')
+            self.create_undo_snapshot('LOOP_SLIDE')
         
         x,y = eventd['mouse']
         self.cut_line_widget = CutLineManipulatorWidget(context, self.settings, 
@@ -859,7 +849,7 @@ class Contours(object):
                                                         self.sel_path,
                                                         x,y,
                                                         hotkey = True)
-        self.cut_line_widget.transform_mode = 'EDGE_SLIDE'    
+        self.cut_line_widget.transform_mode = 'LOOP_SLIDE'    
         self.cut_line_widget.initial_x = x
         self.cut_line_widget.initial_y = y
         self.cut_line_widget.derive_screen(context)
@@ -1018,7 +1008,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     def ray_cast_path(self,context, mx):
         bvh = mesh_cache['bvh']
         settings = common_utilities.get_settings()
-        self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen)
+        self.raw_world = common_utilities.ray_cast_path_bvh(context, bvh, mx, self.raw_screen, trim = True)
         if settings.debug > 1:
             print('ray_cast_path missed %d/%d points' % (len(self.raw_screen) - len(self.raw_world), len(self.raw_screen)))
         
@@ -1667,7 +1657,7 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
             print('waiting on other cut lines')
             self.verts = []
             self.edges = []
-            self.face = []
+            self.faces = []
             self.follow_lines = []
             return
         
@@ -2227,11 +2217,11 @@ class ContourCutSeries(object):  #TODO:  nomenclature consistency. Segment, Segm
     
         self.create_cut_nodes(context, knots = False)
         
-        
-                
-        
         self.snap_to_object(bvh,mx, raw = False, world = False, cuts = True)
         self.cuts_on_path(context,bme,bvh,mx)
+        
+        if len(self.cuts) == 0: return
+        
         self.cuts.pop(0)
         
         #if one existing cut....can go either way
@@ -2830,7 +2820,7 @@ class ContourCutLine(object):
                 self.head.world_position = region_2d_to_location_3d(region, rv3d, (self.head.x, self.head.y), mx * hit[0])
                 self.tail.world_position = region_2d_to_location_3d(region, rv3d, (self.tail.x, self.tail.y), mx * hit[0])
                 
-                self.plane_pt = mx * hit[0]
+                self.plane_pt = hit[0] # mx * hit[0]
                 self.seed_face_index = hit[2]
 
                 if settings.use_perspective:
@@ -3479,11 +3469,11 @@ class CutLineManipulatorWidget(object):
                 
                 if loc_angle >= 1/4 * math.pi and loc_angle < 3/4 * math.pi:
                     #we are in the  left quadrant...which is perpendicular
-                    self.transform_mode = 'EDGE_SLIDE'
+                    self.transform_mode = 'LOOP_SLIDE'
                 elif loc_angle >= 3/4 * math.pi and loc_angle < 5/4 * math.pi:
                     self.transform_mode = 'ROTATE_VIEW'
                 elif loc_angle >= 5/4 * math.pi and loc_angle < 7/4 * math.pi:
-                    self.transform_mode = 'EDGE_SLIDE'
+                    self.transform_mode = 'LOOP_SLIDE'
                 else:
                     self.transform_mode = 'ROTATE_VIEW_PERPENDICULAR'
                     
@@ -3501,7 +3491,7 @@ class CutLineManipulatorWidget(object):
             return {'RECUT'}
             
         
-        if self.transform_mode == 'EDGE_SLIDE':
+        if self.transform_mode == 'LOOP_SLIDE':
             
             world_vec = world_mouse - world_widget
             screen_dist = mouse_wrt_widget.length - self.inner_radius
@@ -3541,7 +3531,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3556,7 +3549,10 @@ class CutLineManipulatorWidget(object):
                     
                     if intersect[0]:
                         proposed_point = intersect[0]
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3594,7 +3590,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, new_com, inter_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3608,7 +3607,10 @@ class CutLineManipulatorWidget(object):
                     proposed_point = contour_utilities.intersect_path_plane(self.path_ahead, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                     
                     if proposed_point:
-                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        if bversion() <= '002.076.000':
+                            snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                        else:
+                            snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                         self.cut_line.plane_pt = self.mx * snap[0]
                         self.cut_line.seed_face_index = snap[2]
                     else:
@@ -3626,7 +3628,10 @@ class CutLineManipulatorWidget(object):
                     
                     proposed_point = contour_utilities.intersect_path_plane(self.path_behind, self.cut_line.plane_com, self.initial_plane_no, mode = 'FIRST')[0]
                 if proposed_point:        
-                    snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    if bversion() <= '002.076.000':
+                        snap = mesh_cache['bvh'].find(self.mx.inverted() * proposed_point)
+                    else:
+                        snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * proposed_point)
                     self.cut_line.plane_pt = self.mx * snap[0]
                     self.cut_line.seed_face_index = snap[2]
                 else:
@@ -3702,7 +3707,10 @@ class CutLineManipulatorWidget(object):
                 new_pt = contour_utilities.intersect_path_plane(self.path_behind, self.initial_com, new_no, mode = 'FIRST')
             
             if new_pt[0]:
-                snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                if bversion() <= '002.076.000':
+                    snap = mesh_cache['bvh'].find(self.mx.inverted() * new_pt[0])
+                else:
+                    snap = mesh_cache['bvh'].find_nearest(self.mx.inverted() * new_pt[0])
                 self.cut_line.plane_pt = self.mx * snap[0]
                 self.cut_line.seed_face_index = snap[2] 
             else:
@@ -3851,7 +3859,7 @@ class CutLineManipulatorWidget(object):
             
             
             if not settings.live_update:
-                if self.transform_mode in {"NORMAL_TRANSLATE", "EDGE_SLIDE"}:
+                if self.transform_mode in {"NORMAL_TRANSLATE", "LOOP_SLIDE"}:
                     #draw a line representing the COM translation
                     points = [self.initial_com, self.cut_line.plane_com]
                     common_drawing_px.draw_3d_points(context, points, self.color3, 4)
