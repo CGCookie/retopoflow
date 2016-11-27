@@ -164,6 +164,8 @@ class Polystrips_UI_Draw():
                 d2 /= 10.0
                 near = near / d2
                 far = 1.0 - ((1.0 - far) / d2)
+            if r3d.view_perspective == 'ORTHO':
+                far *= 0.9999
             near = max(0.0, min(1.0, near))
             far = max(near, min(1.0, far))
             bgl.glDepthRange(near, far)
