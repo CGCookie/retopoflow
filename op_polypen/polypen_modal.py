@@ -667,12 +667,22 @@ class CGC_Polypen(ModalOperator):
         min_dist3d = 0
         bvh_raycast = mesh_cache['bvh'].ray_cast
         viewloc = self.imx * region_2d_to_origin_3d(rgn, r3d, p2d)
+        
+        def isVisible(co):
+            v = self.imx * co
+            v2v = viewloc - v
+            v2vl = v2v.length
+            v2v /= v2vl
+            hit = bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)
+            return not hit[0]
+            
         for bme in lbme:
             # if len(bme.link_faces) == 2:
             #     # bmedge has two faces, so we cannot add another face
             #     # without making non-manifold
             #     continue
             bmv0,bmv1 = bme.verts[0],bme.verts[1]
+            if onlyVisible and not (isVisible(bmv0.co) and isVisible(bmv1.co)): continue
             t,d3d = closest_t_and_distance_point_to_line_segment(p3d, bmv0.co, bmv1.co)
             if d3d > max_dist3d: continue
             bmv3d = bmv1.co * t + bmv0.co * (1-t)
@@ -680,12 +690,12 @@ class CGC_Polypen(ModalOperator):
             if not bmv2d: continue
             d2d = (p2d - bmv2d).length
             if d2d > max_dist2d: continue
-            if onlyVisible:
-                v = self.imx * bmv3d
-                v2v = viewloc - v
-                v2vl = v2v.length
-                v2v /= v2vl
-                if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
+            # if onlyVisible:
+            #     v = self.imx * bmv3d
+            #     v2v = viewloc - v
+            #     v2vl = v2v.length
+            #     v2v /= v2vl
+            #     if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
             if not lmin_bme or (d3d <= min_dist3d+0.0001):
                 if lmin_bme and (abs(d3d-min_dist3d) <= 0.0001):
                     lmin_bme += [bme]
