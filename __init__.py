@@ -64,6 +64,9 @@ if bversion() >= '002.076.000':
     from .op_loopslide.loopslide_modal import CGC_loopslide
     from .op_polypen.polypen_modal import CGC_Polypen
 
+# updater import
+from . import addon_updater_ops
+
 # Used to store keymaps for addon
 addon_keymaps = []
 
@@ -96,6 +99,9 @@ def register():
     kmi.active = True
     addon_keymaps.append((km, kmi))
 
+    # addon updater code and configurations
+    addon_updater_ops.register(bl_info)
+
 def unregister():
     if bversion() >= '002.076.000':
         bpy.utils.unregister_class(CGC_Polystrips)
@@ -110,6 +116,9 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
+
+    # addon updater unregister
+    addon_updater_ops.unregister()
     
     clear_icons()
 
