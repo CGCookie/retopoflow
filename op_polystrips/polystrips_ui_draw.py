@@ -171,7 +171,7 @@ class Polystrips_UI_Draw():
             bgl.glDepthRange(near, far)
             #bgl.glDepthRange(0.0, 0.5)
         
-        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, mirror):
+        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, mirror, zfar=0.997):
             points = [mirror(pt) for pt in points]
             if len(points) == 0: return
             # if type(points) is types.GeneratorType:
@@ -182,7 +182,7 @@ class Polystrips_UI_Draw():
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*color)
             bgl.glLineWidth(thickness)
-            set_depthrange(0.0, 0.997, points)
+            set_depthrange(0.0, zfar, points)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for coord in points: bgl.glVertex3f(*coord)
             bgl.glEnd()
@@ -430,15 +430,27 @@ class Polystrips_UI_Draw():
             
             if gv.is_inner():
                 # Draw inner handle when selected
-                p1 = gv.gedge_inner.get_outer_gvert_at(gv).position
+                innergv = gv.gedge_inner.get_outer_gvert_at(gv)
+                if innergv.is_visible(r3d):
+                    bgl.glDisable(bgl.GL_DEPTH_TEST)
+                p1 = innergv.position
                 draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
             else:
                 # Draw both handles when gvert is selected
-                p3d = [ge.get_inner_gvert_at(gv).position for ge in gv.get_gedges_notnone() if not ge.is_zippered() and not ge.is_frozen()]
-                draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
+                innergvs = [ge.get_inner_gvert_at(gv) for ge in gv.get_gedges_notnone() if not ge.is_zippered() and not ge.is_frozen()]
+                draw3d_points(context, [innergv.position for innergv in innergvs], color_handle, 8, vector_mirror_0)
                 # Draw connecting line between handles
-                for p1 in p3d:
+                p0vis = gv.is_visible(r3d)
+                for innergv in innergvs:
+                    p1 = innergv.position
+                    p1vis = innergv.is_visible(r3d)
+                    if p0vis and p1vis:
+                        bgl.glDisable(bgl.GL_DEPTH_TEST)
+                    else:
+                        bgl.glEnable(bgl.GL_DEPTH_TEST)
                     draw3d_polyline(context, [p0,p1], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
+            
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
 
         # Draw gvert handles on active gedge
         if self.act_gedge and not self.act_gedge.is_frozen():
@@ -448,10 +460,18 @@ class Polystrips_UI_Draw():
                 p3d = [ge.gvert0.position, ge.gvert3.position]
                 draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
             else:
+                vis = [gv.is_visible(r3d) for gv in ge.gverts()]
                 p3d = [gv.position for gv in ge.gverts()]
                 draw3d_points(context, p3d, color_handle, 8, vector_mirror_0)
+                if vis[0] and vis[1]:
+                    bgl.glDisable(bgl.GL_DEPTH_TEST)
                 draw3d_polyline(context, [p3d[0], p3d[1]], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
+                if vis[2] and vis[3]:
+                    bgl.glDisable(bgl.GL_DEPTH_TEST)
+                else:
+                    bgl.glEnable(bgl.GL_DEPTH_TEST)
                 draw3d_polyline(context, [p3d[2], p3d[3]], color_handle, 2, "GL_LINE_SMOOTH", vector_mirror_0)
+                bgl.glEnable(bgl.GL_DEPTH_TEST)
                 if False:
                     # draw each normal of each gvert
                     for p,n in zip(p3d,[gv.snap_norm for gv in ge.gverts()]):
