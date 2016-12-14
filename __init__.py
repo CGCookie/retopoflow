@@ -44,7 +44,7 @@ from .lib.common_utilities import bversion, check_source_target_objects
 from .lib.common_utilities import register as register_common_utilities
 
 
-#Menus, Panels, Interface and Icon 
+#Menus, Panels, Interface and Icons
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
@@ -64,7 +64,7 @@ if bversion() >= '002.076.000':
     from .op_loopslide.loopslide_modal import CGC_loopslide
     from .op_polypen.polypen_modal import CGC_Polypen
 
-# Used to store keymaps for addon
+# Used to store keymaps for add-on
 addon_keymaps = []
 
 def register():
@@ -86,10 +86,10 @@ def register():
     
     bpy.utils.register_class(OpenLog)
 
-    # Create the addon hotkeys
+    # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
    
-    # create the mode switch menu hotkey
+    # Create the retopology menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
     kmi.properties.name = 'object.retopology_menu' 
@@ -115,7 +115,7 @@ def unregister():
 
     bpy.utils.unregister_class(OpenLog)
     
-    # Remove addon hotkeys
+    # Remove add-on hotkeys
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
