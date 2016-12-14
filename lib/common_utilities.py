@@ -151,14 +151,8 @@ def update_source_object():
 def default_source_object_to_active():
     if not bpy.context.active_object: return
     settings = get_settings()
-
-    # if the user changes the active object then they're changing the object to retopologize
-    if settings.source_object != bpy.context.active_object.name:
-        settings.source_object = bpy.context.active_object.name
-    elif settings.source_object:
-        return
-    else:
-        settings.source_object = bpy.context.active_object.name
+    if settings.source_object: return
+    settings.source_object = bpy.context.active_object.name
 
 def default_target_object_to_active():
     if not bpy.context.active_object: return
