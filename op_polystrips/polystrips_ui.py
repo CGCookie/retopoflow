@@ -177,11 +177,6 @@ class Polystrips_UI:
         self.polystrips = Polystrips(context, self.obj_orig, self.dest_obj)
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
         
-        if self.obj_orig.grease_pencil:
-            self.create_polystrips_from_greasepencil()
-        elif 'BezierCurve' in bpy.data.objects:
-            self.create_polystrips_from_bezier(bpy.data.objects['BezierCurve'])
-
         if not self.is_fullscreen:
             was_fullscreen = len(context.screen.areas)==1
             if not was_fullscreen and self.settings.distraction_free:
