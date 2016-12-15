@@ -45,6 +45,7 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from bpy.app.handlers import persistent
+from .classes.logging.logging import logPrint
 
 
 def bversion():
@@ -94,7 +95,7 @@ def print_exception():
     print_exception.count += 1
 
     # write error to log text object
-    bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
+    logPrint(errormsg + '\n')
 
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
@@ -246,6 +247,7 @@ def dprint(s, l=2):
     settings = get_settings()
     if settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
+        logPrint('DEBUG(%i): %s' % (l, s))
 
 def dcallstack(l=2):
     ''' print out the calling stack, skipping the first (call to dcallstack) '''
@@ -276,6 +278,7 @@ def showErrorMessage(message, wrap=80):
         for line in lines:
             self.layout.label(line)
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
+    logPrint('ERRORMESSAGE: %s' % message)
     return
 
 
