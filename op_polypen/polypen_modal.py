@@ -144,15 +144,15 @@ class CGC_Polypen(ModalOperator):
         color_active = self.settings.theme_colors_active[self.settings.theme]
         
         self.render_normal = {
-            'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
+            'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.1),
             'poly offset': 0.00001,
             
             'line width': 2.0,
-            'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
+            'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.3),
             'line offset': 0.00002,
             
-            'point size':  4.0,
-            'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.4),
+            'point size':  5.0,
+            'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.75),
             'point offset': 0.00003,
             
             #'normal': 0.002,

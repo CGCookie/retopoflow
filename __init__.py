@@ -24,7 +24,7 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 2, 4),
+    "version":     (1, 2, 5),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
@@ -44,7 +44,7 @@ from .lib.common_utilities import bversion, check_source_target_objects
 from .lib.common_utilities import register as register_common_utilities
 
 
-#Menus, Panels, Interface and Icon 
+#Menus, Panels, Interface and Icons
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
@@ -89,10 +89,10 @@ def register():
     
     bpy.utils.register_class(OpenLog)
 
-    # Create the addon hotkeys
+    # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
    
-    # create the mode switch menu hotkey
+    # Create the retopology menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
     kmi.properties.name = 'object.retopology_menu' 
@@ -124,7 +124,7 @@ def unregister():
 
     bpy.utils.unregister_class(OpenLog)
     
-    # Remove addon hotkeys
+    # Remove add-on hotkeys
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
