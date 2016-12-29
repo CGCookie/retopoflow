@@ -737,9 +737,11 @@ class CGC_Polypen(ModalOperator):
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
             v02d = location_3d_to_region_2d(rgn,r3d,bmv0.co)
+            if not v02d: continue
             for bmv1,bmv2 in zip(bmf.verts[1:-1], bmf.verts[2:]):
                 v12d = location_3d_to_region_2d(rgn,r3d,bmv1.co)
                 v22d = location_3d_to_region_2d(rgn,r3d,bmv2.co)
+                if not v12d or not v22d: continue
                 if not intersect_point_tri_2d(p2d, v02d, v12d, v22d): continue
                 pt = intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co)
                 if not pt: continue
