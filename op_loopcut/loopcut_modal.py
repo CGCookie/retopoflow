@@ -75,6 +75,12 @@ class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
         if context.mode == 'EDIT_MESH' and get_source_object() == context.active_object:
             showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
             return False
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
 
         return True
     

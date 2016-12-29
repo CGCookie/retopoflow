@@ -87,6 +87,9 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
 
         if get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')

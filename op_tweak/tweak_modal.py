@@ -83,6 +83,13 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             showErrorMessage('Must select a mesh object')
             return False
         
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
+        
         return True
     
     def start(self, context):
