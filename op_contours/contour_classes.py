@@ -882,6 +882,7 @@ class Contours(object):
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
         self.sel_loop.update_com()  
         self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.undo_action()
 
     
     def draw_post_pixel(self,context):
