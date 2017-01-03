@@ -607,7 +607,10 @@ class Contours(object):
                         #c_cut.geom_color = (settings.geom_rgb[0],settings.geom_rgb[1],settings.geom_rgb[2],1)          
             if not target_at_all:
                 self.hover_target = None
-                self.cut_line_widget = None    
+                self.cut_line_widget = None
+        else:
+            self.hover_target = None
+            self.cut_line_widget = None
 
     #### Non Interactive/Non Data Operators###
     
@@ -810,6 +813,8 @@ class Contours(object):
             
         self.sel_path = None
         self.sel_loop = None
+        self.hover_target = None
+        self.cut_line_widget = None
     
     
     ####Interactive/Modal Operators
