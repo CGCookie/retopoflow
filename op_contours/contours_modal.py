@@ -174,7 +174,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
                 return ''
             elif eventd['press'] in self.keymap['up count']:
                 n = len(self.contours.sel_loop.verts_simple)
-                self.contours.loop_nverts_change(context, eventd, n+1)    
+                self.contours.loop_nverts_change(context, eventd, n+1)
                 return ''
             elif eventd['press'] in self.keymap['dn count']:
                 n = len(self.contours.sel_loop.verts_simple)
