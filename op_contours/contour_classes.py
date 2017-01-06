@@ -124,6 +124,7 @@ class Contours(object):
             me.update()
             bme = bmesh.new()
             bme.from_mesh(me)
+            bmesh.ops.triangulate(bme, faces=bme.faces[:])
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig,bme, bvh)
          
@@ -152,6 +153,7 @@ class Contours(object):
             
             bme = bmesh.new()
             bme.from_mesh(me)
+            bmesh.ops.triangulate(bme, faces=bme.faces[:])
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig, bme, bvh)
         
