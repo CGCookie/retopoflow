@@ -2159,6 +2159,8 @@ def cross_section_walker(bme, pt, no, find_from, eind_from, co_from, epsilon):
     if bver > '002.072.000':
         bme.edges.ensure_lookup_table();
 
+    # on following line, next() will return None of not able to find another face to walk
+    # which happens with non-manifold/-watertight meshes
     f_cur = next((f for f in bme.edges[eind_from].link_faces if f.index != find_from), None)
     if not f_cur: return (None, None)
     find_current = f_cur.index
@@ -2252,6 +2254,7 @@ def cross_section_seed_ver1(bme, mx,
     verts0,looped = cross_section_walker(bme, pt, no, seed_index, ei0_max[0].index, ei0_max[1], epsilon)
     
     if not verts0:
+        # could not walk around bmesh (non-manifold surface)
         return (None, None)
     
     if looped:
@@ -2266,6 +2269,7 @@ def cross_section_seed_ver1(bme, mx,
     verts1,looped = cross_section_walker(bme, pt, no, seed_index, ei1_max[0].index, ei1_max[1], epsilon)
     
     if not verts1:
+        # could not walk around bmesh (non-manifold surface)
         return (None, None)
     
     if looped:
