@@ -3523,7 +3523,7 @@ class Polystrips(object):
                         self.extension_geometry.remove(gv3)
                         self.gverts.append(gv3)
                     else:
-                        gv3 = next((gv for gv in self.gverts if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids1)), None)
+                        gv3 = next((gv for gv in self.gverts if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids2)), None)
                     if gv3:
                         sge2 = self.insert_gedge_between_gverts(gv2, gv3)
                         sge3 = self.insert_gedge_between_gverts(gv0, gv3)
