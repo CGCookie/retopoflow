@@ -146,42 +146,47 @@ class Tweak_UI_Tools():
         
         divco = dict()
         dibmf = dict()
+        
+        # collect data for smoothing
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
-            lbme = bmv0.link_edges
+            lbme,lbmf = bmv0.link_edges, bmv0.link_faces
             avgDist += sum(bme.calc_length() for bme in lbme)
             avgCount += len(lbme)
             divco[i] = bmv0.co
             for bme in lbme:
                 bmv1 = bme.other_vert(bmv0)
                 divco[bmv1.index] = bmv1.co
-            for bmf in bmv0.link_faces:
-                if len(bmf.verts) != 4: continue
+            for bmf in lbmf:
                 dibmf[bmf.index] = bmf
                 for bmv in bmf.verts:
                     divco[bmv.index] = bmv.co
         
+        # bail if no data to smooth
         if avgCount == 0: return ''
         
         avgDist /= avgCount
         
+        # perform smoothing
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
-            lbme = bmv0.link_edges
+            lbme,lbmf = bmv0.link_edges, bmv0.link_faces
             if not lbme: continue
             for bme in bmv0.link_edges:
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
                 divco[bmv1.index] += diff * m
-            for bmf in bmv0.link_faces:
-                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
-                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
+            for bmf in lbmf:
+                cnt = len(bmf.verts)
+                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / cnt
+                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0- d) * 0.25
+                    m = (fd - diff.length)* (1.0- d) / cnt
                     divco[bmv.index] += diff * m
         
+        # update
         for i in divco:
             if bversion() <= '002.076.000':
                 bmverts[i].co = bvh.find(divco[i])[0]

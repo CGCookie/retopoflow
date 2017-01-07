@@ -136,10 +136,14 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
         ### Existing Geometry ###
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
-            'poly depth': (0, 0.999),
+            'poly depth': (0, 0.998),
+            'poly offset': 0.000001,
+            'poly dotoffset': 0.001,
 
             'line depth': (0, 0.997),
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line offset': 0.000002,
+            'line dotoffset': 0.002,
         }
         self.tar_bmeshrender.draw(opts)
 

@@ -34,7 +34,7 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d, get_source_object
+from ..lib.common_utilities import point_inside_loop2d, get_source_object, invert_matrix
 from ..lib.classes.profiler import profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from .. import key_maps
@@ -63,6 +63,7 @@ class Tweak_UI:
 
         self.obj_orig = get_source_object()
         self.mx = self.obj_orig.matrix_world
+        self.imx = invert_matrix(self.mx)
         
         is_valid = is_object_valid(self.obj_orig)
         
