@@ -41,6 +41,7 @@ from ..lib.common_utilities import ray_cast_region2d_bvh, invert_matrix
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
+from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from .. import key_maps
 from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
@@ -92,8 +93,6 @@ class Polystrips_UI:
             is_valid = is_object_valid(self.obj_orig)
             if is_valid:
                 pass
-                #self.bme = mesh_cache['bme']            
-                #self.bvh = mesh_cache['bvh']
                 
             else:
                 clear_mesh_cache()
@@ -126,8 +125,6 @@ class Polystrips_UI:
     
             if is_valid:
                 pass
-                #self.bme = mesh_cache['bme']            
-                #self.bvh = mesh_cache['bvh']
             
             else:
                 clear_mesh_cache()
@@ -159,6 +156,8 @@ class Polystrips_UI:
 
         #for bmv in self.dest_bme.verts:
         #    bmv.co = self.mx * bmv.co
+        
+        self.src_bmc = BMeshCache(self.obj_orig)
 
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)

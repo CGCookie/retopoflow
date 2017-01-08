@@ -22,7 +22,7 @@ Created by Jonathan Denning and Jonathan Williamson
 import bpy, blf, bgl, bmesh
 from mathutils.bvhtree import BVHTree
 from ...common_utilities import bversion, invert_matrix, ray_cast_region2d_bvh, get_settings
-
+from ....cache import is_object_valid, clear_mesh_cache, write_mesh_cache, mesh_cache
 
 class BMeshCache():
     '''
@@ -35,31 +35,32 @@ class BMeshCache():
         if type(data) is bpy.types.Object:
             assert data.type == 'MESH', 'Unhandled object type: %s' % data.type
             
-            # TODO: cache bmesh and bvh!
+            if not is_object_valid(data):
+                bme = bmesh.new()
+                bme.from_object(data, bpy.context.scene)
+                # triangulate all faces to ensure planarity and other nice properties
+                bmesh.ops.triangulate(bme, faces=bme.faces[:])
+                # create bvh tree for raycasting and snapping
+                bvh = BVHTree.FromBMesh(bme)
+                clear_mesh_cache()
+                write_mesh_cache(data, bme, bvh)
             
-            # create bmesh of object
-            self.bme = bmesh.new()
-            self.bme.from_object(data, bpy.context.scene)
-            
+            self.bme = mesh_cache['bme']
+            self.bvh = mesh_cache['bvh']
             self.mx = data.matrix_world
         
         elif type(data) is bmesh.types.BMesh:
             assert mx, 'Must specify matrix when data is BMesh!'
+            bmesh.ops.triangulate(data, faces=data.faces[:])
             self.bme = data
+            self.bvh = BVHTree.FromBMesh(self.bme)
             self.mx = mx
         
         else:
             assert False, 'Unknown data type: %s' % str(type(data))
         
-        # triangulate all faces to ensure planarity and other nice properties
-        bmesh.ops.triangulate(self.bme, faces=self.bme.faces[:])
-        
-        # create bvh tree for raycasting and snapping
-        self.bvh = BVHTree.FromBMesh(self.bme)
         self.bvh_nearest = self.bvh.find_nearest if bversion() > '002.076.000' else self.bvh.find
-        
         self.imx = invert_matrix(self.mx)
-        
         self.settings = get_settings()
     
     def raycast_screen(self, loc2d, rgn, r3d):
