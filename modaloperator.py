@@ -174,6 +174,24 @@ class ModalOperator(Operator):
             self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
+    def draw_callback_cover(self, context):
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
+        bgl.glMatrixMode(bgl.GL_PROJECTION)
+        bgl.glPushMatrix()
+        bgl.glLoadIdentity()
+        #bgl.glMatrixMode(bgl.GL_MODELVIEW)
+        #bgl.glLoadIdentity()
+        bgl.glColor4f(0,0,0,0.5)            # TODO: use window background color??
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_DEPTH_TEST)
+        bgl.glBegin(bgl.GL_QUADS)
+        bgl.glVertex2f(-1,-1)
+        bgl.glVertex2f(1,-1)
+        bgl.glVertex2f(1,1)
+        bgl.glVertex2f(-1,1)
+        bgl.glEnd()
+        bgl.glPopMatrix()
+        bgl.glPopAttrib()
 
     ####################################################################
     # FSM modal functions
@@ -257,8 +275,43 @@ class ModalOperator(Operator):
         self.mode_pos      = (0, 0)
         self.cur_pos       = (0, 0)
         self.is_navigating = False
-        self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (context, ), 'WINDOW', 'POST_VIEW')
+        
+        self.spaces = [
+            bpy.types.SpaceClipEditor,
+            bpy.types.SpaceConsole,
+            bpy.types.SpaceDopeSheetEditor,
+            bpy.types.SpaceFileBrowser,
+            bpy.types.SpaceGraphEditor,
+            bpy.types.SpaceImageEditor,
+            bpy.types.SpaceInfo,
+            bpy.types.SpaceLogicEditor,
+            bpy.types.SpaceNLA,
+            bpy.types.SpaceNodeEditor,
+            bpy.types.SpaceOutliner,
+            bpy.types.SpaceProperties,
+            bpy.types.SpaceSequenceEditor,
+            bpy.types.SpaceTextEditor,
+            bpy.types.SpaceTimeline,
+            #bpy.types.SpaceUVEditor,       # <- does not exist?
+            bpy.types.SpaceUserPreferences,
+            #'SpaceView3D',                 # <- specially handled
+        ]
+        self.areas = [ 'WINDOW', 'HEADER' ]
+        # ('WINDOW', 'HEADER', 'CHANNELS', 'TEMPORARY', 'UI', 'TOOLS', 'TOOL_PROPS', 'PREVIEW')
+        self.cb_pp_tools   = SpaceView3D.draw_handler_add(self.draw_callback_cover, (context, ), 'TOOLS',      'POST_PIXEL')
+        self.cb_pp_props   = SpaceView3D.draw_handler_add(self.draw_callback_cover, (context, ), 'TOOL_PROPS', 'POST_PIXEL')
+        self.cb_pp_ui      = SpaceView3D.draw_handler_add(self.draw_callback_cover, (context, ), 'UI',         'POST_PIXEL')
+        self.cb_pp_header  = SpaceView3D.draw_handler_add(self.draw_callback_cover, (context, ), 'HEADER',     'POST_PIXEL')
+        self.cb_pp_all = [
+            (s, a, s.draw_handler_add(self.draw_callback_cover, (context,), a, 'POST_PIXEL'))
+            for s in self.spaces
+            for a in self.areas
+        ]
+        self.tag_redraw_all()
+        
+        self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (context, ), 'WINDOW', 'POST_VIEW')
         self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (context, ), 'WINDOW', 'POST_PIXEL')
+        
         context.window_manager.modal_handler_add(self)
         #context.area.header_text_set(self.bl_label)
 
@@ -269,6 +322,7 @@ class ModalOperator(Operator):
             self.start(context)
         except:
             self.handle_exception()
+    
     def modal_end(self, context):
         '''
         finish up stuff, as our tool is leaving modal mode
@@ -277,10 +331,26 @@ class ModalOperator(Operator):
             self.end(context)
         except:
             self.handle_exception()
+        
+        SpaceView3D.draw_handler_remove(self.cb_pp_tools,  "TOOLS")
+        SpaceView3D.draw_handler_remove(self.cb_pp_props,  "TOOL_PROPS")
+        SpaceView3D.draw_handler_remove(self.cb_pp_ui,     "UI")
+        SpaceView3D.draw_handler_remove(self.cb_pp_header, "HEADER")
+        for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
+        
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
+        
         context.area.header_text_set()
-
+        
+        self.tag_redraw_all()
+    
+    def tag_redraw_all(self):
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                for ar in win.screen.areas:
+                    ar.tag_redraw()
+    
     def modal(self, context, event):
         '''
         Called by Blender while our tool is running modal.
