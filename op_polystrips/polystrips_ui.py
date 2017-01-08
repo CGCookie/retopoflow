@@ -264,17 +264,17 @@ class Polystrips_UI:
         self.settings = common_utilities.get_settings()
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
+        mx = self.dest_obj.matrix_world
+        imx = invert_matrix(mx)
+        
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
-            mx = self.dest_obj.matrix_world
-            imx = invert_matrix(mx)
-
             mx2 = self.obj_orig.matrix_world
             imx2 = invert_matrix(mx2)
 
         else:
             #bm = bmesh.new()  #now new bmesh is created at the start
-            mx2 = Matrix.Identity(4)
-            imx = Matrix.Identity(4)
+            mx2 = Matrix(mx) # Matrix.Identity(4)
+            imx2 = invert_matrix(mx2)
 
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
@@ -303,7 +303,7 @@ class Polystrips_UI:
 
         container_bme = bmesh.new()
         
-        bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
+        bmverts = [container_bme.verts.new(v) for v in verts]
         container_bme.verts.index_update()
         for q in quads: 
             try:
