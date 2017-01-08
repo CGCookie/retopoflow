@@ -175,14 +175,8 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif not self.is_navigating:
             # draw the brush oriented to surface
-            d, hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
-            
-            hit_p3d,hit_norm,hit_idx = hit
-            if hit_p3d != None:
-                #mx = self.mx
-                #mxnorm = matrix_normal(mx)
-                #hit_p3d = mx * hit_p3d
-                #hit_norm = mxnorm * hit_norm
+            hit_p3d,hit_norm = self.src_bmc.raycast_screen(self.cur_pos, region, r3d)
+            if hit_p3d:
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
     
     def modal_wait(self, context, eventd):
