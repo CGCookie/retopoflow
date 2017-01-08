@@ -20,14 +20,8 @@ class LoopCut(object):
             self.source_name = source_obj.name
             self.src_bvh = source_bvh
             self.source_mx = source_obj.matrix_world
-            
-        self.face_loop_eds = []
-        self.face_loop_fs = []
-        self.vert_snaps_local = []
-        self.vert_snaps_world = []
-        self.slide_reverse = []
-        self.slide = False
-        self.pct = .5
+        
+        self.clear()
         
     def clear(self):
         self.face_loop_eds = []
