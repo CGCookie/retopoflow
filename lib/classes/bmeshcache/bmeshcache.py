@@ -77,7 +77,7 @@ class BMeshCache():
         self.imx3x3 = self.imx.to_3x3()
     
     def __del__(self):
-        self.bme.free()
+        #self.bme.free()  # do NOT free! may be shared!
         del self.bme
         del self.bvh
     
