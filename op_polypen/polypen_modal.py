@@ -45,6 +45,7 @@ from ..lib.common_utilities import bversion, selection_mouse
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
+from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from ..cache import mesh_cache, polypen_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 from ..lib.common_drawing_bmesh import BMeshRender
@@ -108,6 +109,7 @@ class CGC_Polypen(ModalOperator):
             self.was_objectmode = False
         
         self.src_object = get_source_object()
+        self.src_bmc = BMeshCache(self.src_object)
         self.mx = self.src_object.matrix_world
         self.imx = invert_matrix(self.mx)
         is_valid = is_object_valid(self.src_object)
@@ -132,15 +134,17 @@ class CGC_Polypen(ModalOperator):
 
         self.tar_object = get_target_object()
         self.tar_bmesh = bmesh.from_edit_mesh(context.object.data).copy()
+        self.tar_mx = self.tar_object.matrix_world
+        self.tar_imx = invert_matrix(self.tar_mx)
         for bmv in self.tar_bmesh.verts:
-            bmv.co = self.mx * bmv.co
+            bmv.co = self.tar_mx * bmv.co
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
         
         #target_bmesh, target_mx, source_bvh, source_mx
         #self.tar_object.matrix_world
-        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, Matrix(), mesh_cache['bvh'], self.mx)
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, Matrix(), mesh_cache['bvh'], self.tar_mx)
         
         color_mesh = self.settings.theme_colors_mesh[self.settings.theme]
         color_selection = self.settings.theme_colors_selection[self.settings.theme]
@@ -240,7 +244,7 @@ class CGC_Polypen(ModalOperator):
         
         bme = self.tar_bmesh.copy()
         for bmv in bme.verts:
-            bmv.co = self.imx * bmv.co
+            bmv.co = self.tar_imx * bmv.co
         
         bpy.ops.object.mode_set(mode='OBJECT')
         bme.to_mesh(self.tar_object.data)
