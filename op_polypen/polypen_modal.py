@@ -45,6 +45,7 @@ from ..lib.common_utilities import bversion, selection_mouse
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
+from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from ..cache import mesh_cache, polypen_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
 from ..lib.common_drawing_bmesh import BMeshRender
@@ -80,6 +81,9 @@ class CGC_Polypen(ModalOperator):
         if get_source_object().type != 'MESH':
             showErrorMessage('Source must be a mesh object')
             return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
         if get_target_object() and get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')
             return False
@@ -105,6 +109,7 @@ class CGC_Polypen(ModalOperator):
             self.was_objectmode = False
         
         self.src_object = get_source_object()
+        self.src_bmc = BMeshCache(self.src_object)
         self.mx = self.src_object.matrix_world
         self.imx = invert_matrix(self.mx)
         is_valid = is_object_valid(self.src_object)
@@ -129,30 +134,32 @@ class CGC_Polypen(ModalOperator):
 
         self.tar_object = get_target_object()
         self.tar_bmesh = bmesh.from_edit_mesh(context.object.data).copy()
+        self.tar_mx = self.tar_object.matrix_world
+        self.tar_imx = invert_matrix(self.tar_mx)
         for bmv in self.tar_bmesh.verts:
-            bmv.co = self.mx * bmv.co
+            bmv.co = self.tar_mx * bmv.co
         
         self.scale = self.src_object.scale[0]
         self.length_scale = get_object_length_scale(self.src_object)
         
         #target_bmesh, target_mx, source_bvh, source_mx
         #self.tar_object.matrix_world
-        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, Matrix(), mesh_cache['bvh'], self.mx)
+        self.tar_bmeshrender = BMeshRender(self.tar_bmesh, Matrix(), mesh_cache['bvh'], self.tar_mx)
         
         color_mesh = self.settings.theme_colors_mesh[self.settings.theme]
         color_selection = self.settings.theme_colors_selection[self.settings.theme]
         color_active = self.settings.theme_colors_active[self.settings.theme]
         
         self.render_normal = {
-            'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
+            'poly color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.1),
             'poly offset': 0.00001,
             
             'line width': 2.0,
-            'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.2),
+            'line color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.3),
             'line offset': 0.00002,
             
-            'point size':  4.0,
-            'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.4),
+            'point size':  5.0,
+            'point color': (color_mesh[0], color_mesh[1], color_mesh[2], 0.75),
             'point offset': 0.00003,
             
             #'normal': 0.002,
@@ -237,7 +244,7 @@ class CGC_Polypen(ModalOperator):
         
         bme = self.tar_bmesh.copy()
         for bmv in bme.verts:
-            bmv.co = self.imx * bmv.co
+            bmv.co = self.tar_imx * bmv.co
         
         bpy.ops.object.mode_set(mode='OBJECT')
         bme.to_mesh(self.tar_object.data)
@@ -299,12 +306,10 @@ class CGC_Polypen(ModalOperator):
                 self.clear_nearest()
             else:
                 p2d,p3d = self.mouse_curp2d,self.mouse_curp3d
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.5)
-                min_bmv = res[0] if res else None
+                min_bmv,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.5)
                 min_bme,min_bmf = None,None
                 if not min_bmv:
-                    res = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
-                    min_bme = res[0] if res else None
+                    min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, 5, 0.5)
                 if not min_bme and not min_bmv:
                     min_bmf = self.closest_bmface(context, p2d, p3d, 0.05)
                 self.nearest_bmvert = min_bmv
@@ -419,10 +424,10 @@ class CGC_Polypen(ModalOperator):
                 hit = ray_cast_point_bvh(eventd['context'], mesh_cache['bvh'], self.mx, p2d)
                 if not hit: return ''
                 p3d = hit[0]
-                res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
-                if res:
+                min_bmv,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
+                if min_bmv:
                     # merge-able!
-                    p3d = Vector(res[0].co)
+                    p3d = Vector(min_bmv.co)
                 nbmvco[bmv] = p3d
             for bmv,co in nbmvco.items():
                 bmv.co = co
@@ -447,9 +452,8 @@ class CGC_Polypen(ModalOperator):
                 for bmv0 in self.vert_pos:
                     p3d = bmv0.co
                     p2d = location_3d_to_region_2d(rgn, r3d, p3d)
-                    res = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
-                    if res:
-                        bmv1 = res[0]
+                    bmv1,_,_ = self.closest_bmvert(context, p2d, p3d, 5, 0.05, exclude=self.vert_pos)
+                    if bmv1:
                         # make sure verts don't share an edge
                         share_edge = [bme for bme in bmv1.link_edges if bmv0 in bme.verts]
                         share_face = [bmf for bmf in bmv1.link_faces if bmv0 in bmf.verts]
@@ -658,7 +662,7 @@ class CGC_Polypen(ModalOperator):
             min_bmv = bmv
             min_dist2d = d2d
             min_dist3d = d3d
-        if not min_bmv: return None
+        if not min_bmv: return (None,None,None)
         return (min_bmv, min_dist2d, min_dist3d)
     
     def closest_bmedge(self, context, p2d, p3d, max_dist2d, max_dist3d, lbme=None, onlyVisible=True):
@@ -670,12 +674,22 @@ class CGC_Polypen(ModalOperator):
         min_dist3d = 0
         bvh_raycast = mesh_cache['bvh'].ray_cast
         viewloc = self.imx * region_2d_to_origin_3d(rgn, r3d, p2d)
+        
+        def isVisible(co):
+            v = self.imx * co
+            v2v = viewloc - v
+            v2vl = v2v.length
+            v2v /= v2vl
+            hit = bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)
+            return not hit[0]
+            
         for bme in lbme:
             # if len(bme.link_faces) == 2:
             #     # bmedge has two faces, so we cannot add another face
             #     # without making non-manifold
             #     continue
             bmv0,bmv1 = bme.verts[0],bme.verts[1]
+            if onlyVisible and not (isVisible(bmv0.co) and isVisible(bmv1.co)): continue
             t,d3d = closest_t_and_distance_point_to_line_segment(p3d, bmv0.co, bmv1.co)
             if d3d > max_dist3d: continue
             bmv3d = bmv1.co * t + bmv0.co * (1-t)
@@ -683,12 +697,12 @@ class CGC_Polypen(ModalOperator):
             if not bmv2d: continue
             d2d = (p2d - bmv2d).length
             if d2d > max_dist2d: continue
-            if onlyVisible:
-                v = self.imx * bmv3d
-                v2v = viewloc - v
-                v2vl = v2v.length
-                v2v /= v2vl
-                if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
+            # if onlyVisible:
+            #     v = self.imx * bmv3d
+            #     v2v = viewloc - v
+            #     v2vl = v2v.length
+            #     v2v /= v2vl
+            #     if bvh_raycast(v+v2v*0.01, v2v, v2vl-0.01)[0]: continue
             if not lmin_bme or (d3d <= min_dist3d+0.0001):
                 if lmin_bme and (abs(d3d-min_dist3d) <= 0.0001):
                     lmin_bme += [bme]
@@ -696,7 +710,7 @@ class CGC_Polypen(ModalOperator):
                     lmin_bme = [bme]
                     min_dist2d = d2d
                     min_dist3d = d3d
-        if not lmin_bme: return None
+        if not lmin_bme: return (None,None,None)
         if len(lmin_bme) >= 2:
             return self.orthogonalest_bmedge(p3d, lmin_bme)
         return (lmin_bme[0], min_dist2d, min_dist3d)
@@ -730,9 +744,11 @@ class CGC_Polypen(ModalOperator):
         for bmf in self.tar_bmesh.faces:
             bmv0 = bmf.verts[0]
             v02d = location_3d_to_region_2d(rgn,r3d,bmv0.co)
+            if not v02d: continue
             for bmv1,bmv2 in zip(bmf.verts[1:-1], bmf.verts[2:]):
                 v12d = location_3d_to_region_2d(rgn,r3d,bmv1.co)
                 v22d = location_3d_to_region_2d(rgn,r3d,bmv2.co)
+                if not v12d or not v22d: continue
                 if not intersect_point_tri_2d(p2d, v02d, v12d, v22d): continue
                 pt = intersect_point_tri(p3d, bmv0.co, bmv1.co, bmv2.co)
                 if not pt: continue

@@ -83,6 +83,13 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             showErrorMessage('Must select a mesh object')
             return False
         
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
+        
         return True
     
     def start(self, context):
@@ -129,10 +136,14 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
         ### Existing Geometry ###
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
-            'poly depth': (0, 0.999),
+            'poly depth': (0, 0.998),
+            'poly offset': 0.000001,
+            'poly dotoffset': 0.001,
 
             'line depth': (0, 0.997),
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line offset': 0.000002,
+            'line dotoffset': 0.002,
         }
         self.tar_bmeshrender.draw(opts)
 
@@ -164,14 +175,8 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
             self.sketch_brush.draw(context, color=(1, 1, 1, .5), linewidth=1, color_size=(1, 1, 1, 1))
         elif not self.is_navigating:
             # draw the brush oriented to surface
-            d, hit = common_utilities.ray_cast_region2d_bvh(region, r3d, self.cur_pos, mesh_cache['bvh'], self.mx, settings)
-            
-            hit_p3d,hit_norm,hit_idx = hit
-            if hit_p3d != None:
-                #mx = self.mx
-                #mxnorm = matrix_normal(mx)
-                #hit_p3d = mx * hit_p3d
-                #hit_norm = mxnorm * hit_norm
+            hit_p3d,hit_norm = self.src_bmc.raycast_screen(self.cur_pos, region, r3d)
+            if hit_p3d:
                 common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius, (1,1,1,.5))
     
     def modal_wait(self, context, eventd):

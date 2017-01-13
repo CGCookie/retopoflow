@@ -47,6 +47,7 @@ class TextBox(object):
         self.text_size = 12
         self.text_dpi = get_dpi()
         blf.size(0, self.text_size, self.text_dpi)
+        
         self.line_height = self.txt_height('A')
         self.raw_text = message
         self.text_lines = []
@@ -99,6 +100,7 @@ class TextBox(object):
         print('to be done later')
 
     def collapse(self):
+        blf.size(0, self.text_size, self.text_dpi)
         line_height = self.txt_height('A')
         self.is_collapsed = True
         self.width = self.txt_width(self.collapsed_msg) + 2 * self.border
@@ -126,6 +128,7 @@ class TextBox(object):
         '''
         shrink width of box to fit width of text
         '''
+        blf.size(0, self.text_size, self.text_dpi)
         max_width = max(self.txt_width(line) for line in self.text_lines)
         self.width = min(max_width + 2*self.border, self.def_width)
         
@@ -134,6 +137,7 @@ class TextBox(object):
         '''
         fit height of box to match text
         '''
+        blf.size(0, self.text_size, self.text_dpi)
         line_height = self.txt_height('A')
         line_count  = len(self.text_lines)
         self.height = line_count*(line_height + self.spacer) + 2*self.border
@@ -142,6 +146,8 @@ class TextBox(object):
     def format_and_wrap_text(self):
         '''
         '''
+        blf.size(0, self.text_size, self.text_dpi)
+        
         # remove \r characters (silly windows machines!)
         self.raw_text = self.raw_text.replace('\r','')
         
@@ -209,6 +215,8 @@ class TextBox(object):
     
     
     def draw(self):
+        blf.size(0, self.text_size, self.text_dpi)
+        
         regOverlap = bpy.context.user_preferences.system.use_region_overlap
         
         if (bpy.context.window.width, bpy.context.window.height) != self.window_dims:
@@ -261,8 +269,6 @@ class TextBox(object):
         outline = common_drawing_px.round_box(left, bottom, left +self.width, bottom + self.height, (line_height + 2 * self.spacer)/6)
         common_drawing_px.draw_outline_or_region('GL_POLYGON', outline, bg_color)
         common_drawing_px.draw_outline_or_region('GL_LINE_LOOP', outline, border_color)
-        
-        blf.size(0, self.text_size, self.text_dpi)
         
         if self.is_collapsed:
             txt_x = left + self.border

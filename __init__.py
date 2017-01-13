@@ -24,11 +24,11 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 2, 1),
+    "version":     (1, 3, 0),
     "blender":     (2, 7, 6),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
-    "wiki_url":    "http://cgcookiemarkets.com/blender/all-products/retopoflow/?view=docs",
+    "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
     }
@@ -44,7 +44,7 @@ from .lib.common_utilities import bversion, check_source_target_objects
 from .lib.common_utilities import register as register_common_utilities
 
 
-#Menus, Panels, Interface and Icon 
+#Menus, Panels, Interface and Icons
 from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
@@ -64,6 +64,9 @@ if bversion() >= '002.076.000':
     from .op_loopcut.loopcut_modal import CGC_LoopCut
     from .op_loopslide.loopslide_modal import CGC_loopslide
     from .op_polypen.polypen_modal import CGC_Polypen
+
+# updater import
+from . import addon_updater_ops
 
 # Used to store keymaps for addon
 addon_keymaps = []
@@ -88,15 +91,18 @@ def register():
     
     bpy.utils.register_class(OpenLog)
 
-    # Create the addon hotkeys
+    # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
    
-    # create the mode switch menu hotkey
+    # Create the retopology menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
     kmi.properties.name = 'object.retopology_menu' 
     kmi.active = True
     addon_keymaps.append((km, kmi))
+
+    # addon updater code and configurations
+    addon_updater_ops.register(bl_info)
 
 def unregister():
     if bversion() >= '002.076.000':
@@ -113,12 +119,15 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
+
+    # addon updater unregister
+    addon_updater_ops.unregister()
     
     clear_icons()
 
     bpy.utils.unregister_class(OpenLog)
     
-    # Remove addon hotkeys
+    # Remove add-on hotkeys
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()

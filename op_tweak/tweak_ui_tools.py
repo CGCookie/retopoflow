@@ -39,46 +39,27 @@ class Tweak_UI_Tools():
     # modal tool functions
     
     def modal_tweak_setup(self, context, eventd, max_dist=1.0):
-        settings = common_utilities.get_settings()
-        region = eventd['region']
-        r3d = eventd['r3d']
+        self.tweak_data = None
         
-        mx = self.obj_orig.matrix_world
-        mx3x3 = mx.to_3x3()
-        imx = invert_matrix(mx)
+        rgn,r3d,mx = eventd['region'],eventd['r3d'],self.mx
         
-        ray,hit = common_utilities.ray_cast_region2d_bvh(region, r3d, eventd['mouse'], mesh_cache['bvh'],self.mx, settings)
-        hit_p3d,hit_norm,hit_idx = hit
-        if not hit_p3d:
-            self.tweak_data = None
-            return
+        hit_p3d,_ = self.src_bmc.raycast_screen(eventd['mouse'], rgn, r3d)
+        if not hit_p3d: return
         
-        #hit_p3d = mx * hit_p3d
-        
-        lmverts = []  #BMVert
-        
-        for i_mv,mv in enumerate(self.dest_bme.verts):
-            d = (mx*mv.co-hit_p3d).length / self.stroke_radius
-            if not d < max_dist:
-                continue
-            lmverts.append((i_mv,mx *mv.co,d))
-        
-        self.tweak_data = {
-            'mouse': eventd['mouse'],
-            'lmverts': lmverts,
-            'mx': mx,
-            'mx3x3': mx3x3,
-            'imx': imx,
-        }
+        lmverts = [(i_mv, mx*mv.co, (mx*mv.co-hit_p3d).length / self.stroke_radius) for i_mv,mv in enumerate(self.dest_bme.verts)]
+        lmverts = [(i,p,d) for i,p,d in lmverts if d <= max_dist]
+        if lmverts:
+            self.tweak_data = {
+                'mouse': eventd['mouse'],
+                'lmverts': lmverts,
+            }
         
     
     def modal_tweak_move_tool(self, context, eventd):
         if eventd['release'] in self.keymap['action']:
             return 'main'
         
-        settings = common_utilities.get_settings()
-        region = eventd['region']
-        r3d = eventd['r3d']
+        rgn,r3d = eventd['region'],eventd['r3d']
         
         if eventd['type'] == 'MOUSEMOVE' and self.tweak_data:
             cx,cy = eventd['mouse']
@@ -86,35 +67,23 @@ class Tweak_UI_Tools():
             dx,dy = cx-lx,cy-ly
             dv = Vector((dx,dy))
             
-            mx = self.tweak_data['mx']
-            mx3x3 = self.tweak_data['mx3x3']
-            imx = self.tweak_data['imx']
+            imx = self.imx
             
             def update(p3d, d):
                 if d >= 1.0: return p3d
-                p2d = location_3d_to_region_2d(region, r3d, p3d)
+                p2d = location_3d_to_region_2d(rgn, r3d, p3d)
                 p2d += dv * (1.0-d)
-                hit = common_utilities.ray_cast_region2d_bvh(region, r3d, p2d, mesh_cache['bvh'],self.mx, settings)[1]
-                if hit[2] == None: return p3d
-                return hit[0] # mx * hit[0]
+                hit_p3d,_ = self.src_bmc.raycast_screen(p2d, rgn, r3d)
+                return hit_p3d or p3d
             
             vertices = self.dest_bme.verts
             for i_v,c,d in self.tweak_data['lmverts']:
                 nc = update(c,d)
                 vertices[i_v].co = imx * nc
-                #print('update_edit_mesh')
                 
             
             bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
             self.tar_bmeshrender.dirty()
-            
-            
-            if eventd['release'] in self.keymap['action']:
-                for u in self.tweak_data['supdate']:
-                    u.update()
-                for u in self.tweak_data['supdate']:
-                    u.update_visibility(eventd['r3d'])
-                self.tweak_data = None
              
         return ''
     
@@ -125,68 +94,59 @@ class Tweak_UI_Tools():
         
         self.create_undo_snapshot('relax')
         
-        settings = common_utilities.get_settings()
-        region = eventd['region']
-        r3d = eventd['r3d']
-        
         self.modal_tweak_setup(context, eventd, max_dist=1.0)
         if not self.tweak_data: return ''
         
         lmverts = self.tweak_data['lmverts']
-        if not lmverts: return
-        
-        bmmesh = self.dest_bme
-        bmverts = bmmesh.verts
-        bvh = mesh_cache['bvh']
-        mx = self.tweak_data['mx']
-        imx = self.tweak_data['imx']
+        bmverts = self.dest_bme.verts
         
         avgDist = 0.0
         avgCount = 0
-        
         divco = dict()
-        dibmf = dict()
+        
+        mx,imx = self.mx,self.imx
+        
+        # collect data for smoothing
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
-            lbme = bmv0.link_edges
+            lbme,lbmf = bmv0.link_edges, bmv0.link_faces
             avgDist += sum(bme.calc_length() for bme in lbme)
             avgCount += len(lbme)
             divco[i] = bmv0.co
             for bme in lbme:
                 bmv1 = bme.other_vert(bmv0)
                 divco[bmv1.index] = bmv1.co
-            for bmf in bmv0.link_faces:
-                if len(bmf.verts) != 4: continue
-                dibmf[bmf.index] = bmf
+            for bmf in lbmf:
                 for bmv in bmf.verts:
                     divco[bmv.index] = bmv.co
         
+        # bail if no data to smooth
         if avgCount == 0: return ''
         
         avgDist /= avgCount
         
+        # perform smoothing
         for i,v,d in lmverts:
             bmv0 = bmverts[i]
-            lbme = bmv0.link_edges
+            lbme,lbmf = bmv0.link_edges, bmv0.link_faces
             if not lbme: continue
             for bme in bmv0.link_edges:
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
                 divco[bmv1.index] += diff * m
-            for bmf in bmv0.link_faces:
-                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / 4.0
-                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / 4.0
+            for bmf in lbmf:
+                cnt = len(bmf.verts)
+                ctr = sum([bmv.co for bmv in bmf.verts], Vector((0,0,0))) / cnt
+                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0- d) * 0.25
+                    m = (fd - diff.length)* (1.0- d) / cnt
                     divco[bmv.index] += diff * m
         
-        for i in divco:
-            if bversion() <= '002.076.000':
-                bmverts[i].co = bvh.find(divco[i])[0]
-            else:
-                bmverts[i].co = bvh.find_nearest(divco[i])[0]
+        # update
+        for i,co in divco.items():
+            bmverts[i].co = imx * self.src_bmc.find_nearest(mx * co)[0]
 
         bmesh.update_edit_mesh(self.dest_obj.data, tessface=True, destructive=False)
         self.tar_bmeshrender.dirty()
@@ -243,7 +203,6 @@ class Tweak_UI_Tools():
         This is the pixel brush radius
         self.tool_fn is expected to be self.
         '''
-        mx,my = eventd['mouse']
 
         if eventd['press'] in {'RET','NUMPAD_ENTER','LEFTMOUSE'}:
             self.tool_fn('commit', eventd)
@@ -251,14 +210,11 @@ class Tweak_UI_Tools():
 
         if eventd['press'] in {'ESC', 'RIGHTMOUSE'}:
             self.tool_fn('undo', eventd)
-
             return 'main'
 
         if eventd['type'] == 'MOUSEMOVE':
-            '''
-            '''
+            mx,my = eventd['mouse']
             self.tool_fn((mx,my), eventd)
-
             return ''
 
         return ''

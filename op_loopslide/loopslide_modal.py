@@ -76,6 +76,13 @@ class CGC_loopslide(ModalOperator, loopslide_UI_fns, loopslide_UI_Modal, loopsli
             showErrorMessage('Cannot use %s when editing the source object' % (self.bl_label))
             return False
 
+        if get_source_object().type != 'MESH':
+            showErrorMessage('Source must be a mesh object')
+            return False
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
+
         return True
     
     def start(self, context):

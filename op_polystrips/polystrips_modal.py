@@ -84,6 +84,10 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
             showErrorMessage('Source must be a mesh object')
             return False
 
+        if len(get_source_object().data.polygons) <= 0:
+            showErrorMessage('Source must have at least one face')
+            return False
+
         if get_target_object() is not None and get_target_object().type != 'MESH':
             showErrorMessage('Target must be a mesh object')
             return False

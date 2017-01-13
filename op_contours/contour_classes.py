@@ -124,6 +124,7 @@ class Contours(object):
             me.update()
             bme = bmesh.new()
             bme.from_mesh(me)
+            bmesh.ops.triangulate(bme, faces=bme.faces[:])
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig,bme, bvh)
          
@@ -152,6 +153,7 @@ class Contours(object):
             
             bme = bmesh.new()
             bme.from_mesh(me)
+            bmesh.ops.triangulate(bme, faces=bme.faces[:])
             bvh = BVHTree.FromBMesh(bme)
             write_mesh_cache(self.obj_orig, bme, bvh)
         
@@ -607,7 +609,10 @@ class Contours(object):
                         #c_cut.geom_color = (settings.geom_rgb[0],settings.geom_rgb[1],settings.geom_rgb[2],1)          
             if not target_at_all:
                 self.hover_target = None
-                self.cut_line_widget = None    
+                self.cut_line_widget = None
+        else:
+            self.hover_target = None
+            self.cut_line_widget = None
 
     #### Non Interactive/Non Data Operators###
     
@@ -720,13 +725,16 @@ class Contours(object):
         if undo:
             self.create_undo_snapshot('LOOP_SHIFT')
             
-        self.sel_loop.shift += shift * (-1 + 2 * up)
+        self.sel_loop.shift = (self.sel_loop.shift + shift * (-1 + 2 * up)) % len(self.sel_loop.verts_simple)
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
+        
+        #print('shift = %f, %d, %d' % (self.sel_loop.shift,len(self.sel_loop.verts),len(self.sel_loop.verts_simple)))
         
         for path in self.cut_paths:
             if self.sel_loop in path.cuts:
                 path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
                 path.update_backbone(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx, self.sel_loop, insert = False)
+        
                
     def loop_nverts_change(self, context, eventd, n):
         if n < 3:
@@ -810,6 +818,8 @@ class Contours(object):
             
         self.sel_path = None
         self.sel_loop = None
+        self.hover_target = None
+        self.cut_line_widget = None
     
     
     ####Interactive/Modal Operators
@@ -882,6 +892,7 @@ class Contours(object):
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
         self.sel_loop.update_com()  
         self.sel_path.connect_cuts_to_make_mesh(mesh_cache['bvh'], self.mx)
+        self.undo_action()
 
     
     def draw_post_pixel(self,context):

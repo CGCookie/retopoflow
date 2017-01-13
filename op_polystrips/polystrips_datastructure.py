@@ -47,11 +47,11 @@ from ..cache import mesh_cache
 # GVert
 
 class GVert:
-    def __init__(self, obj, targ_obj, length_scale, position, radius, normal, tangent_x, tangent_y, from_mesh = False):
+    def __init__(self, obj, tar_obj, length_scale, position, radius, normal, tangent_x, tangent_y, from_mesh = False):
         
         # store info
         self.o_name       = obj.name
-        self.targ_o_name  = targ_obj.name
+        self.tar_o_name  = tar_obj.name
         self.length_scale = length_scale
         self.mx = obj.matrix_world
         
@@ -99,7 +99,7 @@ class GVert:
         '''
         creates detached clone of gvert (without gedges)
         '''
-        gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, Vector(self.position), self.radius, Vector(self.normal), Vector(self.tangent_x), Vector(self.tangent_y))
+        gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.tar_o_name], self.length_scale, Vector(self.position), self.radius, Vector(self.normal), Vector(self.tangent_x), Vector(self.tangent_y))
         gv.snap_pos = Vector(self.snap_pos)
         gv.snap_norm = Vector(self.snap_norm)
         gv.snap_tanx = Vector(self.snap_tanx)
@@ -586,12 +586,12 @@ class GEdge:
     '''
     Graph Edge (GEdge) stores end points and "way points" (cubic bezier)
     '''
-    def __init__(self, obj, targ_obj, length_scale, gvert0, gvert1, gvert2, gvert3):
+    def __init__(self, obj, tar_obj, length_scale, gvert0, gvert1, gvert2, gvert3):
         # store end gvertices
         self.o_name = obj.name
         self.mx = obj.matrix_world
         
-        self.targ_o_name = targ_obj.name
+        self.tar_o_name = tar_obj.name
         self.length_scale = length_scale
         self.gvert0 = gvert0
         self.gvert1 = gvert1
@@ -650,7 +650,7 @@ class GEdge:
         
         # build walking data struct
         bm = bmesh.new()
-        bm.from_mesh(bpy.data.objects[self.targ_o_name].data)
+        bm.from_mesh(bpy.data.objects[self.tar_o_name].data)
         bm.faces.ensure_lookup_table()
         q0,q1 = bm.faces[self.gvert0.from_mesh_ind],bm.faces[self.gvert3.from_mesh_ind]
         
@@ -1021,7 +1021,7 @@ class GEdge:
             l_tany  = [oigv.tangent_y*zdir for _i,oigv in enumerate(loigv)]
             
             self.cache_igverts = [GVert(bpy.data.objects[self.o_name], 
-                                        bpy.data.objects[self.targ_o_name], 
+                                        bpy.data.objects[self.tar_o_name], 
                                         self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
             self.snap_igverts()
             
@@ -1185,7 +1185,7 @@ class GEdge:
         l_tany  = [t.cross(n).normalized() for t,n in zip(l_tanx,l_norms)]
         
         # create igverts!
-        self.cache_igverts = [GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
+        self.cache_igverts = [GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.tar_o_name], self.length_scale,p,r,n,tx,ty) for p,r,n,tx,ty in zip(l_pos,l_radii,l_norms,l_tanx,l_tany)]
         if not self.force_count:
             self.n_quads = int((len(self.cache_igverts)+1)/2)
             
@@ -1233,7 +1233,7 @@ class GEdge:
         
         elif self.from_mesh:
             if self.from_build:
-                m = bpy.data.objects[self.targ_o_name].data
+                m = bpy.data.objects[self.tar_o_name].data
                 mx = self.mx
                 self.update_nozip(debug=debug)
                 for i,igv in enumerate(self.cache_igverts):
@@ -2089,12 +2089,14 @@ class Polystrips(object):
     # class/static variable (shared across all instances)
     settings = None
     
-    def __init__(self, context, obj, targ_obj):
+    def __init__(self, context, obj, tar_obj):
         Polystrips.settings = common_utilities.get_settings()
         
         self.o_name = obj.name
         self.mx = obj.matrix_world
-        self.targ_o_name =targ_obj.name
+        self.src_mx = obj.matrix_world
+        self.tar_o_name = tar_obj.name
+        self.tar_mx = tar_obj.matrix_world
         self.length_scale = get_object_length_scale(bpy.data.objects[self.o_name])
         
         # graph vertices and edges
@@ -2152,13 +2154,13 @@ class Polystrips(object):
         n0  = norm.normalized() if norm else Vector((0,0,1))
         tx0 = Vector((1,0,0))
         ty0 = Vector((0,1,0))
-        gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.targ_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
+        gv = GVert(bpy.data.objects[self.o_name],bpy.data.objects[self.tar_o_name],self.length_scale,p0,r0,n0,tx0,ty0)
         self.gverts += [gv]
         return gv
     
     def create_gedge(self, gv0, gv1, gv2, gv3):
         ge = GEdge(bpy.data.objects[self.o_name],
-                   bpy.data.objects[self.targ_o_name], 
+                   bpy.data.objects[self.tar_o_name], 
                    self.length_scale, gv0, gv1, gv2, gv3)
         ge.update()
         self.gedges += [ge]
@@ -2310,7 +2312,7 @@ class Polystrips(object):
         bme.faces.ensure_lookup_table()
         bme.verts.ensure_lookup_table()
         self.extension_geometry = []
-        mx = bpy.data.objects[self.targ_o_name].matrix_world
+        mx = bpy.data.objects[self.tar_o_name].matrix_world
         imx = invert_matrix(mx)
         nmx = imx.transposed().to_3x3()
         d_if_gv = {}
@@ -2328,7 +2330,7 @@ class Polystrips(object):
                 tan_x.normalize()
                 tan_y = no.cross(tan_x)
                 
-                gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.targ_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
+                gv = GVert(bpy.data.objects[self.o_name], bpy.data.objects[self.tar_o_name], self.length_scale, pos, rad, no, tan_x, tan_y, from_mesh = True)
                 #Freeze Corners
                 #Note, left handed Gvert order wrt to Normal
                 gv.corner0 = mx * f.verts[0].co
@@ -2994,8 +2996,8 @@ class Polystrips(object):
     
     def create_mesh(self, bme):
         bvh = mesh_cache['bvh']
-        mx = self.mx
-        imx = invert_matrix(mx)
+        src_mx,src_imx = self.src_mx,invert_matrix(self.src_mx)
+        tar_mx,tar_imx = self.tar_mx,invert_matrix(self.tar_mx)
         
         verts = []
         quads = []
@@ -3017,7 +3019,7 @@ class Polystrips(object):
             quads.append((iv0,iv1,iv2,iv3))
         
         def insert_vert(v):
-            verts.append(imx*v)
+            verts.append(tar_imx * v)
             return len(verts)-1
         
         def create_Gvert(gv):
@@ -3067,7 +3069,7 @@ class Polystrips(object):
         
         #copy all existing mesh data into our format
         for v in bme.verts:
-            insert_vert(mx * v.co)
+            insert_vert(tar_mx * v.co)
 
         for f in bme.faces:
             if len(f.verts) == 4:
@@ -3137,11 +3139,11 @@ class Polystrips(object):
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
 
                                 if bversion() <= '002.076.000':
-                                    p2 = mx * bvh.find(imx*p2)[0]
-                                    p3 = mx * bvh.find(imx*p3)[0]
+                                    p2 = src_mx * bvh.find(src_imx*p2)[0]
+                                    p3 = src_mx * bvh.find(src_imx*p3)[0]
                                 else:
-                                    p2 = mx * bvh.find_nearest(imx*p2)[0]
-                                    p3 = mx * bvh.find_nearest(imx*p3)[0]
+                                    p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
+                                    p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
 
                                 cc2 = insert_vert(p2)
                                 cc3 = insert_vert(p3)
@@ -3157,7 +3159,7 @@ class Polystrips(object):
                 #elif i == len(ge.cache_igverts) - 1 and ge.force_count:
                     #print('did the funky math')
                     #p2, p3 = ge.gvert3.get_corners_of(ge)
-                    #cc2, cc3 = verts.index(imx * p2), verts.index(imx * p3)
+                    #cc2, cc3 = verts.index(src_imx * p2), verts.index(src_imx * p3)
                 else:
                     # creating zippered gedge
                     i_zge  = ge_idx[ge.zip_to_gedge]
@@ -3187,18 +3189,18 @@ class Polystrips(object):
                             if ge.zip_side*ge.zip_dir == 1:
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
                                 if bversion() <= '002.076.000':
-                                    p3 = mx * bvh.find(imx*p3)[0]
+                                    p3 = src_mx * bvh.find(src_imx*p3)[0]
                                 else:
-                                    p3 = mx * bvh.find_nearest(imx*p3)[0]
+                                    p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
 
                                 cc3 = insert_vert(p3)
                                 cc2 = lzvind[i_z]
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
                                 if bversion() <= '002.076.000':
-                                    p2 = mx * bvh.find(imx*p2)[0]
+                                    p2 = src_mx * bvh.find(src_imx*p2)[0]
                                 else:
-                                    p2 = mx * bvh.find_nearest(imx*p2)[0]
+                                    p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
 
                                 cc2 = insert_vert(p2)
                                 cc3 = lzvind[i_z]
@@ -3523,7 +3525,7 @@ class Polystrips(object):
                         self.extension_geometry.remove(gv3)
                         self.gverts.append(gv3)
                     else:
-                        gv3 = next((gv for gv in self.gverts if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids1)), None)
+                        gv3 = next((gv for gv in self.gverts if any(i in gv.from_mesh_loops for i in lids0) and any(i in gv.from_mesh_loops for i in lids2)), None)
                     if gv3:
                         sge2 = self.insert_gedge_between_gverts(gv2, gv3)
                         sge3 = self.insert_gedge_between_gverts(gv0, gv3)

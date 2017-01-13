@@ -12,7 +12,7 @@
 # /./././././././././././././././././././././././././././././././
  
 NAME            = RetopoFlow
-VERSION         = 1.2.2
+VERSION         = 1.2.4
 BUILD_DIR       = ../release
 BUILD_FILE      = $(BUILD_DIR)/$(NAME)_$(VERSION).zip
 FILES           = *.py help/* icons/* lib/*.py lib/classes/* op_contours/*.py op_loopslide/*.py op_eyedropper/*.py op_loopcut/*.py op_polypen/*.py op_polystrips/*.py

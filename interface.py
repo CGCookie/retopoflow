@@ -2,6 +2,7 @@ import bpy
 
 from .lib import common_utilities
 from .lib.common_utilities import bversion
+from . import addon_updater_ops
 
 if bversion() >= '002.076.000':
     from .icons import load_icons
@@ -21,6 +22,10 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+
+        # explicitly call to check for update in background
+        # note: built-in checks ensure it runs at most once
+        addon_updater_ops.check_for_update_background(context)
 
         settings = common_utilities.get_settings()
         
@@ -126,6 +131,9 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col.label("Debug:")
         col.operator("wm.open_log", "Open Error Log")
+
+        addon_updater_ops.update_notice_box_ui(self, context)
+        
 
 class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
     bl_label = "Retopology"

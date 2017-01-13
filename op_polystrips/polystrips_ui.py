@@ -41,6 +41,7 @@ from ..lib.common_utilities import ray_cast_region2d_bvh, invert_matrix
 from ..lib.common_drawing_bmesh import BMeshRender
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
+from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from .. import key_maps
 from ..cache import mesh_cache, polystrips_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
@@ -92,8 +93,6 @@ class Polystrips_UI:
             is_valid = is_object_valid(self.obj_orig)
             if is_valid:
                 pass
-                #self.bme = mesh_cache['bme']            
-                #self.bvh = mesh_cache['bvh']
                 
             else:
                 clear_mesh_cache()
@@ -126,7 +125,7 @@ class Polystrips_UI:
     
             if is_valid:
                 pass
-
+            
             else:
                 clear_mesh_cache()
                 polystrips_undo_cache = []
@@ -157,6 +156,8 @@ class Polystrips_UI:
 
         #for bmv in self.dest_bme.verts:
         #    bmv.co = self.mx * bmv.co
+        
+        self.src_bmc = BMeshCache(self.obj_orig)
 
         self.scale = self.obj_orig.scale[0]
         self.length_scale = get_object_length_scale(self.obj_orig)
@@ -175,11 +176,6 @@ class Polystrips_UI:
         self.polystrips = Polystrips(context, self.obj_orig, self.dest_obj)
         self.polystrips.extension_geometry_from_bme(self.dest_bme)
         
-        if self.obj_orig.grease_pencil:
-            self.create_polystrips_from_greasepencil()
-        elif 'BezierCurve' in bpy.data.objects:
-            self.create_polystrips_from_bezier(bpy.data.objects['BezierCurve'])
-
         if not self.is_fullscreen:
             was_fullscreen = len(context.screen.areas)==1
             if not was_fullscreen and self.settings.distraction_free:
@@ -267,17 +263,17 @@ class Polystrips_UI:
         self.settings = common_utilities.get_settings()
         verts,quads,non_quads = self.polystrips.create_mesh(self.dest_bme)
 
+        mx = self.dest_obj.matrix_world
+        imx = invert_matrix(mx)
+        
         if 'EDIT' in context.mode:  #self.dest_bme and self.dest_obj:  #EDIT MODE on Existing Mesh
-            mx = self.dest_obj.matrix_world
-            imx = invert_matrix(mx)
-
             mx2 = self.obj_orig.matrix_world
             imx2 = invert_matrix(mx2)
 
         else:
             #bm = bmesh.new()  #now new bmesh is created at the start
-            mx2 = Matrix.Identity(4)
-            imx = Matrix.Identity(4)
+            mx2 = Matrix(mx) # Matrix.Identity(4)
+            imx2 = invert_matrix(mx2)
 
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
@@ -306,7 +302,7 @@ class Polystrips_UI:
 
         container_bme = bmesh.new()
         
-        bmverts = [container_bme.verts.new(imx * mx2 * v) for v in verts]
+        bmverts = [container_bme.verts.new(v) for v in verts]
         container_bme.verts.index_update()
         for q in quads: 
             try:

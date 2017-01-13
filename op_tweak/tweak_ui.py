@@ -34,9 +34,10 @@ import copy
 
 from ..lib import common_utilities
 from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
-from ..lib.common_utilities import point_inside_loop2d, get_source_object
+from ..lib.common_utilities import point_inside_loop2d, get_source_object, invert_matrix
 from ..lib.classes.profiler import profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
+from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from .. import key_maps
 from ..cache import mesh_cache, clear_mesh_cache, write_mesh_cache, is_object_valid, tweak_undo_cache
 
@@ -62,7 +63,7 @@ class Tweak_UI:
         self.post_update = True
 
         self.obj_orig = get_source_object()
-        self.mx = self.obj_orig.matrix_world
+        self.src_bmc = BMeshCache(self.obj_orig)
         
         is_valid = is_object_valid(self.obj_orig)
         
@@ -82,21 +83,11 @@ class Tweak_UI:
         
         self.dest_obj = context.object
         self.dest_bme = bmesh.from_edit_mesh(context.object.data)
-        self.snap_eds = [] #EXTEND
-        #self.snap_eds = [ed for ed in self.dest_bme.edges if not ed.is_manifold]
+        self.mx = self.dest_obj.matrix_world
+        self.imx = invert_matrix(self.mx)
         
-        
-        region, r3d = context.region, context.space_data.region_3d
-        dest_mx = self.dest_obj.matrix_world
-        rv3d = context.space_data.region_3d
-        self.snap_eds_vis = [False not in common_utilities.ray_cast_visible_bvh([dest_mx * ed.verts[0].co, dest_mx * ed.verts[1].co], mesh_cache['bvh'], self.mx, rv3d) for ed in self.snap_eds]
-        self.hover_ed = None
-        
-        
-        self.scale = self.obj_orig.scale[0]
-        self.length_scale = get_object_length_scale(self.obj_orig)
         # World stroke radius
-        self.stroke_radius = 0.01 * self.length_scale
+        self.stroke_radius = 0.01 * get_object_length_scale(self.obj_orig)
         # Screen_stroke_radius
         self.screen_stroke_radius = 20  # TODO, hood to settings
 
@@ -119,10 +110,7 @@ class Tweak_UI:
         '''
         remove temporary object
         '''
-        dprint('cleaning up!')
-
-        if self.obj_orig.modifiers:
-            pass
+        pass
     
     ###############################
     # undo functions
