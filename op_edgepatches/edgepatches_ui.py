@@ -80,7 +80,7 @@ class EdgePatches_UI:
             is_valid = is_object_valid(self.obj_orig)
             if not is_valid:
                 clear_mesh_cache()
-                edgepatches_undo_cahce = []           
+                edgepatches_undo_cache = []           
                 me = self.obj_orig.to_mesh(scene=context.scene, apply_modifiers=True, settings='PREVIEW')
                 me.update()
                 bme = bmesh.new()

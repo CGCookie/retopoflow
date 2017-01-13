@@ -372,8 +372,8 @@ class EdgePatches_UI_Draw():
             if hit_idx != None: # and not self.hover_ed:
                 mx = self.obj_orig.matrix_world
                 mxnorm = mx.transposed().inverted().to_3x3()
-                hit_p3d = mx * hit_p3d
-                hit_norm = mxnorm * hit_norm
+                #hit_p3d = mx * hit_p3d
+                #hit_norm = mxnorm * hit_norm
                 #if settings.use_pressure:
                 #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                 #else:
@@ -389,8 +389,8 @@ class EdgePatches_UI_Draw():
                 if hit_idx != None:
                     mx = self.obj_orig.matrix_world
                     mxnorm = mx.transposed().inverted().to_3x3()
-                    hit_p3d = mx * hit_p3d
-                    hit_norm = mxnorm * hit_norm
+                    #hit_p3d = mx * hit_p3d
+                    #hit_norm = mxnorm * hit_norm
                     #if settings.use_pressure:
                     #    common_drawing_px.draw_circle(context, hit_p3d, hit_norm.normalized(), self.stroke_radius_pressure, (1,1,1,.5))
                     #else:
