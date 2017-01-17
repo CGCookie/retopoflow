@@ -284,12 +284,16 @@ class Polystrips_UI_Draw():
             'poly depth': (0, 0.999),
             'poly mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
             'poly mirror depth': (0, 0.999),
+            'poly dotoffset': 0.5,
+            'poly offset': 0.00001,
             
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'line depth': (0, 0.997),
             'line mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
             'line mirror depth': (0, 0.997),
             'line mirror stipple': True,
+            'line dotoffset': 0.5,
+            'line offset': 0.00002,
             
             'mirror x': self.settings.symmetry_plane == 'x',
         }
