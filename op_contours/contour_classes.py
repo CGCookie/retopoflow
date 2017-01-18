@@ -3690,6 +3690,9 @@ class CutLineManipulatorWidget(object):
                     rot_angle = screen_angle - init_angle
                     rot_angle = math.fmod(rot_angle + 2 * math.pi, 2 * math.pi)  #correct for any negatives
                     
+                    if shift:
+                        rot_angle *= 1/5
+
                 if ctrl:
                     rot_angle = self.constrain_round(rot_angle, math.pi/36)
                 
