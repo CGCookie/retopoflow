@@ -875,7 +875,8 @@ class Contours(object):
         
         x,y = eventd['mouse']
         shft = eventd['shift']
-        self.cut_line_widget.user_interaction(context, x, y, shift = shft)
+        ctr = eventd['ctrl']
+        self.cut_line_widget.user_interaction(context, x, y, shift = shft, ctrl=ctr)
         
         self.sel_loop.cut_object(context, mesh_cache['bme'], mesh_cache['bvh'], self.mx)
         self.sel_loop.simplify_cross(self.sel_path.ring_segments)
@@ -3447,8 +3448,11 @@ class CutLineManipulatorWidget(object):
         
         self.arc_arrow_1 = []
         self.arc_arrow_2 = []
+        
+    def constrain_round(self, angle, step = math.pi/4):
+        return step * round(float(angle)/step)
     
-    def user_interaction(self, context, mouse_x,mouse_y, shift = False):
+    def user_interaction(self, context, mouse_x,mouse_y, shift = False, ctrl = False):
         '''
         analyse mouse coords x,y
         return [type, transform]
@@ -3686,6 +3690,11 @@ class CutLineManipulatorWidget(object):
                     rot_angle = screen_angle - init_angle
                     rot_angle = math.fmod(rot_angle + 2 * math.pi, 2 * math.pi)  #correct for any negatives
                     
+                    if shift:
+                        rot_angle *= 1/5
+
+                if ctrl:
+                    rot_angle = self.constrain_round(rot_angle, math.pi/36)
                 
                 sin = math.sin(rot_angle/2)
                 cos = math.cos(rot_angle/2)
@@ -3699,6 +3708,9 @@ class CutLineManipulatorWidget(object):
                 cos = math.cos(rot_angle/2)
                 #quat = Quaternion((cos, sin*world_y[0], sin*world_y[1], sin*world_y[2]))
                 quat = Quaternion((cos, sin*axis_2[0], sin*axis_2[1], sin*axis_2[2])) 
+            
+            footer = 'Rot: {0:.3f} degree'.format(180 * rot_angle / math.pi)
+            context.area.header_text_set(footer)
             
             new_no = self.initial_plane_no.copy() #its not rotated yet
             new_no.rotate(quat)
