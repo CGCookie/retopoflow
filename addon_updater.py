@@ -115,6 +115,9 @@ class Singleton_updater(object):
 		self._error_msg = None
 		self._prefiltered_tag_count = 0
 
+		# to verify a valid import, in place of placeholder import
+		self.invalidupdater = False
+
 
 	# -------------------------------------------------------------------------
 	# Getters and setters
@@ -171,11 +174,11 @@ class Singleton_updater(object):
 
 	@property
 	def fake_install(self):
-		return self._verbose
+		return self._fake_install
 	@fake_install.setter
 	def fake_install(self, value):
 		if type(value) != type(False):
-			raise ValueError("Verbose must be a boolean value")
+			raise ValueError("fake_install must be a boolean value")
 		self._fake_install = bool(value)
 			
 	@property
@@ -509,7 +512,7 @@ class Singleton_updater(object):
 
 		if self._backup_current==True:
 			self.create_backup()
-		if self._verbose:print("Now retreiving the new source zip")
+		if self._verbose:print("Now retrieving the new source zip")
 
 		self._source_zip = os.path.join(local,"source.zip")
 		
@@ -774,7 +777,7 @@ class Singleton_updater(object):
 			
 			return (self._update_ready, self._update_version, self._update_link)
 		
-		# primaryb internet call
+		# primary internet call
 		self.get_tags() # sets self._tags and self._tag_latest
 
 		self._json["last_check"] = str(datetime.now())
@@ -983,7 +986,7 @@ class Singleton_updater(object):
 		outf.write(data_out)
 		outf.close()
 		if self._verbose:
-			print("Wrote out json settings to file, with the contents:")
+			print(self._addon+": Wrote out updater json settings to file, with the contents:")
 			print(self._json)
 
 	def json_reset_postupdate(self):
@@ -1052,7 +1055,6 @@ class Singleton_updater(object):
 		self._async_checking = False
 		self._error = None
 		self._error_msg = None
-
 
 
 
