@@ -68,7 +68,9 @@ class Contours(object):
         if context.mode == 'OBJECT':
             self.mesh_data_gather_object_mode(context)
         elif 'EDIT' in context.mode:
-            self.mesh_data_gather_edit_mode(context) 
+            self.mesh_data_gather_edit_mode(context)
+        
+        self.dest_xray = self.dest_obj.show_x_ray
             
         #potential item for snapping in 
         self.snap = []
@@ -231,12 +233,12 @@ class Contours(object):
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
 
-            self.dest_obj.show_x_ray = self.settings.use_x_ray
-
             common_utilities.toggle_localview()
             
             common_utilities.default_target_object_to_active()
-    
+        
+        self.dest_obj.show_x_ray = self.dest_xray
+        
         return
     
     def create_undo_snapshot(self, action):
