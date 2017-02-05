@@ -2352,13 +2352,15 @@ class Polystrips(object):
         def crawldir(loopid, f, direction):
             d_if_gv[f.index].from_mesh_loops[direction%2] = loopid
             nle = f.edges[direction]
+            seen = set([f])
             while True:
-                f = next((nf for nf in nle.link_faces if nf != f), None)
+                f = next((nf for nf in nle.link_faces if nf not in seen), None)
                 if not f or len(f.edges) != 4:
                     # crawl over quads only
                     break
                 ile,nle = next((idx%2,f.edges[(idx+2)%4]) for idx in range(4) if nle == f.edges[idx])
                 d_if_gv[f.index].from_mesh_loops[ile] = loopid
+                seen.add(f)
         def crawl(gv, direction, loopid):
             #gv.from_mesh_loops[direction] = loopid
             f = bme.faces[gv.from_mesh_ind]
