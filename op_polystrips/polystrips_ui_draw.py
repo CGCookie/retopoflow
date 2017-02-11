@@ -281,11 +281,11 @@ class Polystrips_UI_Draw():
         ### Existing Geometry ###
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
-            'poly depth': (0, 0.999999), #(0, 0.999),
+            'poly depth': (0, 0.9999), #(0, 0.999),
             'poly mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
-            'poly mirror depth': (0, 0.999999), #(0, 0.999),
-            'poly dotoffset': 0.0, #0.5,
-            'poly offset': 0.0, #0.00001,
+            'poly mirror depth': (0, 0.9999), #(0, 0.999),
+            'poly dotoffset': 0.01, #0.5,
+            'poly offset': 0.0000001, #0.00001,
             
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'line depth': (0, 0.997),
