@@ -27,7 +27,7 @@ except Exception as e:
 	print("ERROR INITIALIZING UPDATER")
 	print(str(e))
 	class Singleton_updater_none(object):
-		def __ini	t__(self):
+		def __init__(self):
 			self.addon = None
 			self.verbose = False
 			self.invalidupdater = True # used to distinguish bad install
