@@ -41,6 +41,10 @@ from ..cache import mesh_cache
 from ..lib.common_utilities import get_settings
 
 
+def constrain_round(angle, step = math.pi/36):
+    return step * round(float(angle)/step)
+
+
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
     bl_category = "Retopology"
@@ -281,19 +285,42 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
         return ''
     
     def modal_cut(self, context, eventd):
-        if self.footer != 'Cutting': self.footer = 'Cutting'
+        if not self.footer.startswith('Cutting'): 
+            self.footer = 'Cutting:  000.00 deg'
         
+        x,y = eventd['mouse']
+        xi, yi = self.contours.sel_loop.head.x, self.contours.sel_loop.head.y
+        vec= Vector((x-xi,y-yi))
+        mag = vec.length
+        angle = math.atan2((y-yi),(x-xi))
+        c_angle = constrain_round(angle)
+        v_final = Vector((xi, yi)) + mag * Vector((math.cos(c_angle),math.sin(c_angle)))
+        xc, yc = v_final[0], v_final[1]
+    
+        if eventd['ctrl']:
+            angle_deg = round(180*c_angle/math.pi,2)
+        else:
+            angle_deg = round(180*angle/math.pi,2)
+            
+        self.footer = 'Cutting: ' + str(angle_deg) + ' deg'
+            
         if eventd['type'] == 'MOUSEMOVE':
-            x,y = eventd['mouse']
-            self.contours.sel_loop.tail.x, self.contours.sel_loop.tail.y  = x, y    
+            if eventd['ctrl']:
+                self.contours.sel_loop.tail.x, self.contours.sel_loop.tail.y  = xc, yc 
+            else:
+                self.contours.sel_loop.tail.x, self.contours.sel_loop.tail.y  = x, y    
             return ''
         
-        if eventd['release'] in self.keymap['action']: #LMB hard code for cut
+        if eventd['release'] and eventd['type'] in self.keymap['action']: #LMB hard code for cut
             print('new cut made')
-            x,y = eventd['mouse']
+            
+            x, y = self.contours.sel_loop.tail.x,self.contours.sel_loop.tail.y 
             self.contours.release_place_cut(context, self.settings, x, y)
             return 'main'
         
+        if self.footer_last != self.footer:
+            context.area.header_text_set(self.footer)
+            
         return ''
         
     def modal_sketching(self, context, eventd):
