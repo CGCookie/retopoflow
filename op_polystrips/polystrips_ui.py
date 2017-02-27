@@ -157,6 +157,8 @@ class Polystrips_UI:
         #for bmv in self.dest_bme.verts:
         #    bmv.co = self.mx * bmv.co
         
+        self.dest_xray = self.dest_obj.show_x_ray
+        
         self.src_bmc = BMeshCache(self.obj_orig)
 
         self.scale = self.obj_orig.scale[0]
@@ -278,7 +280,6 @@ class Polystrips_UI:
             self.dest_obj.update_tag()
             self.dest_obj.show_all_edges = True
             self.dest_obj.show_wire      = True
-            self.dest_obj.show_x_ray     = self.settings.use_x_ray
 
             self.dest_obj.select = True
             context.scene.objects.active = self.dest_obj
@@ -320,8 +321,10 @@ class Polystrips_UI:
             container_bme.to_mesh(self.dest_obj.data)
             bpy.ops.object.mode_set(mode = 'EDIT')
             #bmesh.update_edit_mesh(self.dest_obj.data, tessface=False, destructive=True)
-        else: 
+        else:
             container_bme.to_mesh(self.dest_obj.data)
+        
+        self.dest_obj.show_x_ray = self.dest_xray
         
         self.dest_bme.free()
         container_bme.free()

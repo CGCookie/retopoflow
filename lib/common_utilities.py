@@ -226,12 +226,14 @@ def setup_target_object( new_object, original_object, bmesh ):
             dest_me  = bpy.data.meshes.new(new_object)
             dest_obj = bpy.data.objects.new(new_object, dest_me)
             dest_obj.matrix_world = obj_orig.matrix_world
+            dest_obj.show_x_ray = get_settings().use_x_ray
             bpy.context.scene.objects.link(dest_obj)
             update_target_object(dest_obj)
     else:
         dest_me  = bpy.data.meshes.new(new_object)
         dest_obj = bpy.data.objects.new(new_object, dest_me)
         dest_obj.matrix_world = obj_orig.matrix_world
+        dest_obj.show_x_ray = get_settings().use_x_ray
         bpy.context.scene.objects.link(dest_obj)
         update_target_object(dest_obj)
 
