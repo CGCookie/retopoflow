@@ -222,13 +222,13 @@ class Polystrips_UI_Draw():
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines  
         
-        def draw3d_quad(context, points, color, mirror):
+        def draw3d_quad(context, points, color, mirror, zfar=0.998):
             #if type(points) is types.GeneratorType:
             #    points = list(points)
             points = [mirror(pt) for pt in points]
             if len(points) == 0: return
             bgl.glEnable(bgl.GL_BLEND)
-            set_depthrange(0.0, 0.998, points)
+            set_depthrange(0.0, zfar, points)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(*color)
             for coord in points: bgl.glVertex3f(*coord)
@@ -281,15 +281,19 @@ class Polystrips_UI_Draw():
         ### Existing Geometry ###
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
-            'poly depth': (0, 0.999),
+            'poly depth': (0, 0.9999), #(0, 0.999),
             'poly mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
-            'poly mirror depth': (0, 0.999),
+            'poly mirror depth': (0, 0.9999), #(0, 0.999),
+            'poly dotoffset': 0.01, #0.5,
+            'poly offset': 0.0000001, #0.00001,
             
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'line depth': (0, 0.997),
             'line mirror color': (color_mirror[0], color_mirror[1], color_mirror[2], color_mirror[3]),
             'line mirror depth': (0, 0.997),
             'line mirror stipple': True,
+            'line dotoffset': 0.5,
+            'line offset': 0.00002,
             
             'mirror x': self.settings.symmetry_plane == 'x',
         }
@@ -484,7 +488,7 @@ class Polystrips_UI_Draw():
             gv = self.hov_gvert
             p0,p1,p2,p3 = gv.get_corners()
             p3d = [p0,p1,p2,p3,p0]
-            draw3d_quad(context, [p0,p1,p2,p3], color_fill, vector_mirror_0)
+            draw3d_quad(context, [p0,p1,p2,p3], color_fill, vector_mirror_0) #, zfar=0.992)
             draw3d_polyline(context, p3d, color_border, 1, "GL_LINE_STIPPLE", vector_mirror_0)
             
 
