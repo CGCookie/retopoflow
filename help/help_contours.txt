@@ -24,4 +24,4 @@ GENERATE MESH:
 TIPS:
 - In the case of a crash simply restart Contours and press UNDO once to recover.
 - Contouring in Object mode will create a new object. Contouring in Edit Mode will add retopology to existing mesh object.
-- Extrude contours from an existing edgeloops by selecting it in Edit Mode before starting Contours.
+- Extrude Contours from an existing edgeloop by selecting it in Edit Mode before starting Contours.
