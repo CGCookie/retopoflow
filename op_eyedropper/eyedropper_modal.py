@@ -105,10 +105,7 @@ class  CGC_EyeDropper(ModalOperator):
         ray_origin = region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * ray_max)
 
-        if bversion() <= '002.076.000':
-            result, ob, mx, loc, normal = scene.ray_cast(ray_origin, ray_target)
-        else:
-            result, loc, normal, idx, ob, mx = scene.ray_cast(ray_origin, ray_target)
+        result, loc, normal, idx, ob, mx = scene.ray_cast(ray_origin, ray_target)
 
         if result:
             self.ob = ob

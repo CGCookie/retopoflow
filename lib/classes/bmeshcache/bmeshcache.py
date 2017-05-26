@@ -71,7 +71,7 @@ class BMeshCache():
             assert False, 'Unknown data type: %s' % str(type(data))
         
         self.bvh_raycast = self.bvh.ray_cast
-        self.bvh_nearest = self.bvh.find_nearest if bversion() > '002.076.000' else self.bvh.find
+        self.bvh_nearest = self.bvh.find_nearest
         self.imx = invert_matrix(self.mx)
         self.nmx = matrix_normal(self.mx)
         self.imx3x3 = self.imx.to_3x3()

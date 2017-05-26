@@ -4,8 +4,7 @@ from .lib import common_utilities
 from .lib.common_utilities import bversion
 from . import addon_updater_ops
 
-if bversion() >= '002.076.000':
-    from .icons import load_icons
+from .icons import load_icons
 
 class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
@@ -24,12 +23,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
         
         
-        if bversion() < '002.076.00':
-            col = layout.column(align=True)
-            col.label('ERROR: upgrade needed', icon='ERROR')
-            col.label('RetopoFlow requires Blender 2.76+')
-            return
-
         col = layout.column(align=True)
 
         col.label("Source Object:")

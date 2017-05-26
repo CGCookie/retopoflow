@@ -1168,14 +1168,7 @@ def com_mid_ray_test(new_cut, established_cut, obj, search_factor = .5):
     imx = obj.matrix_world.inverted()     
             
     hit = obj.ray_cast(imx * (C + search_radius * ray), imx * (C - search_radius * ray))
-
-    if bversion() <= '002.076.000':
-        if hit[2] != -1:
-            return True
-        else:
-            return False
-    else:
-        return hit[0]
+    return hit[0]
 
 def com_line_cross_test(com1, com2, pt, no, factor = 2):
     '''

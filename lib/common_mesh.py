@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 # Blender imports
+import bpy
 import bmesh
 
 def edge_loops_from_bmedges(bmesh, bm_edges):
@@ -80,3 +81,10 @@ def edge_loops_from_bmedges(bmesh, bm_edges):
 
     return line_polys
 
+def object_hash(obj: bpy.types.Object):
+    # get object data to act as a hash
+    me = obj.data
+    counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
+    bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+    vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
+    return (obj.name, counts, bbox, vsum)

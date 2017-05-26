@@ -264,16 +264,10 @@ class GVert:
             self.corner2.x = max(0.0, self.corner2.x)
             self.corner3.x = max(0.0, self.corner3.x)
         
-        if bversion() <= '002.076.000':
-            self.corner0 = mx * bvh.find(imx*self.corner0)[0]  #todo...error?
-            self.corner1 = mx * bvh.find(imx*self.corner1)[0]
-            self.corner2 = mx * bvh.find(imx*self.corner2)[0]
-            self.corner3 = mx * bvh.find(imx*self.corner3)[0]
-        else:
-            self.corner0 = mx * bvh.find_nearest(imx*self.corner0)[0]  #todo...error?
-            self.corner1 = mx * bvh.find_nearest(imx*self.corner1)[0]
-            self.corner2 = mx * bvh.find_nearest(imx*self.corner2)[0]
-            self.corner3 = mx * bvh.find_nearest(imx*self.corner3)[0]
+        self.corner0 = mx * bvh.find_nearest(imx*self.corner0)[0]  #todo...error?
+        self.corner1 = mx * bvh.find_nearest(imx*self.corner1)[0]
+        self.corner2 = mx * bvh.find_nearest(imx*self.corner2)[0]
+        self.corner3 = mx * bvh.find_nearest(imx*self.corner3)[0]
         
         if Polystrips.settings.symmetry_plane == 'x':
             self.corner0.x = max(0.0, self.corner0.x)
@@ -300,11 +294,7 @@ class GVert:
         mx3x3 = mx.to_3x3()
         
         if not self.frozen: # and not self.is_inner():
-            if bversion() <= '002.076.000':
-                l,n,i, d = bvh.find(imx*self.position)
-            else:
-                l,n,i, d = bvh.find_nearest(imx*self.position)
-
+            l,n,i, d = bvh.find_nearest(imx*self.position)
             self.snap_norm = (mxnorm * n).normalized()
             self.snap_pos  = mx * l
             self.position = self.snap_pos
@@ -950,10 +940,7 @@ class GEdge:
         bvh = mesh_cache['bvh']
         imx = invert_matrix(mx)
         p3d = [cubic_bezier_blend_t(p0,p1,p2,p3,t/precision) for t in range(precision+1)]
-        if bversion() <= '002.076.000':
-            p3d = [mx*bvh.find(imx * p)[0] for p in p3d]
-        else:
-            p3d = [mx*bvh.find_nearest(imx * p)[0] for p in p3d]
+        p3d = [mx*bvh.find_nearest(imx * p)[0] for p in p3d]
         return sum((p1-p0).length for p0,p1 in zip(p3d[:-1],p3d[1:]))
         #return cubic_bezier_length(p0,p1,p2,p3)
     
@@ -1093,24 +1080,13 @@ class GEdge:
             mx3x3  = mx.to_3x3()
             p3d    = [cubic_bezier_blend_t(p0,p1,p2,p3,t/16.0) for t in range(17)]
 
-            if bversion() <= '002.076.000':
-                snap = [bvh.find(imx*p) for p in p3d]
-            else:
-                snap = [bvh.find_nearest(imx*p) for p in p3d]
-
-
+            snap = [bvh.find_nearest(imx*p) for p in p3d]
             snap_pos = [mx*pos for pos,norm,idx,d in snap]
             bez = cubic_bezier_fit_points(snap_pos, min(r0,r3)/20, allow_split=False)
             if bez:
                 _,_,p0,p1,p2,p3 = bez[0]
-
-                if bversion() <= '002.076.000':
-                    _,n1,_,_ = bvh.find(imx*p1)
-                    _,n2,_,_ = bvh.find(imx*p2)
-                else:
-                    _,n1,_,_ = bvh.find_nearest(imx*p1)
-                    _,n2,_,_ = bvh.find_nearest(imx*p2)
-
+                _,n1,_,_ = bvh.find_nearest(imx*p1)
+                _,n2,_,_ = bvh.find_nearest(imx*p2)
                 n1 = mxnorm*n1
                 n2 = mxnorm*n2
         
@@ -1274,11 +1250,7 @@ class GEdge:
         for igv in self.cache_igverts:
             if igv.is_inner(): continue
 
-            if bversion() <= '002.076.000':
-                l,n,_,_ = bvh.find(imx * igv.position)
-            else:
-                l,n,_,_ = bvh.find_nearest(imx * igv.position)
-
+            l,n,_,_ = bvh.find_nearest(imx * igv.position)
             
             # assume that if the snapped norm is pointing opposite to the norms
             # of outer control points of gedge then we've likely snapped to the
@@ -1702,7 +1674,7 @@ class GPatch:
         norm_good = self.norm_avg
         
         bvh = mesh_cache['bvh']
-        find = bvh.find if bversion() <= '002.076.000' else bvh.find_nearest
+        find = bvh.find_nearest
         
         if 1:
             l,n,_,_ = find(self.imx * pt)
@@ -3139,14 +3111,8 @@ class Polystrips(object):
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-
-                                if bversion() <= '002.076.000':
-                                    p2 = src_mx * bvh.find(src_imx*p2)[0]
-                                    p3 = src_mx * bvh.find(src_imx*p3)[0]
-                                else:
-                                    p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
-                                    p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
-
+                                p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
+                                p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = insert_vert(p3)
                             
@@ -3190,20 +3156,12 @@ class Polystrips(object):
                         else:
                             if ge.zip_side*ge.zip_dir == 1:
                                 p3 = gvert.position+gvert.tangent_y*gvert.radius
-                                if bversion() <= '002.076.000':
-                                    p3 = src_mx * bvh.find(src_imx*p3)[0]
-                                else:
-                                    p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
-
+                                p3 = src_mx * bvh.find_nearest(src_imx*p3)[0]
                                 cc3 = insert_vert(p3)
                                 cc2 = lzvind[i_z]
                             else:
                                 p2 = gvert.position-gvert.tangent_y*gvert.radius
-                                if bversion() <= '002.076.000':
-                                    p2 = src_mx * bvh.find(src_imx*p2)[0]
-                                else:
-                                    p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
-
+                                p2 = src_mx * bvh.find_nearest(src_imx*p2)[0]
                                 cc2 = insert_vert(p2)
                                 cc3 = lzvind[i_z]
                         

@@ -1,6 +1,6 @@
 
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2016 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -24,8 +24,8 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
-    "version":     (1, 3, 1),
-    "blender":     (2, 7, 6),
+    "version":     (2, 0, 0),
+    "blender":     (2, 7, 8),
     "location":    "View 3D > Tool Shelf",
     "warning":     "",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
@@ -50,19 +50,17 @@ from .preferences import RetopoFlowPreferences
 
 from .lib.classes.logging.logging import OpenLog
 
-if bversion() >= '002.076.000':
-    from .icons import clear_icons
-    import bpy.utils.previews
-    
-    from .icons import clear_icons
-    #Tools
-    from .op_polystrips.polystrips_modal import CGC_Polystrips
-    from .op_contours.contours_modal import CGC_Contours
-    from .op_tweak.tweak_modal import CGC_Tweak
-    from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
-    from .op_loopcut.loopcut_modal import CGC_LoopCut
-    from .op_loopslide.loopslide_modal import CGC_loopslide
-    from .op_polypen.polypen_modal import CGC_Polypen
+from .icons import clear_icons
+import bpy.utils.previews
+
+#Tools
+from .op_polystrips.polystrips_modal import CGC_Polystrips
+from .op_contours.contours_modal import CGC_Contours
+from .op_tweak.tweak_modal import CGC_Tweak
+from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
+from .op_loopcut.loopcut_modal import CGC_LoopCut
+from .op_loopslide.loopslide_modal import CGC_loopslide
+from .op_polypen.polypen_modal import CGC_Polypen
 
 # updater import
 from . import addon_updater_ops
@@ -78,14 +76,13 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
-    if bversion() >= '002.076.000':
-        bpy.utils.register_class(CGC_Polystrips)
-        bpy.utils.register_class(CGC_Tweak)
-        bpy.utils.register_class(CGC_Contours)
-        bpy.utils.register_class(CGC_EyeDropper)
-        bpy.utils.register_class(CGC_LoopCut)
-        bpy.utils.register_class(CGC_loopslide)
-        bpy.utils.register_class(CGC_Polypen)
+    bpy.utils.register_class(CGC_Polystrips)
+    bpy.utils.register_class(CGC_Tweak)
+    bpy.utils.register_class(CGC_Contours)
+    bpy.utils.register_class(CGC_EyeDropper)
+    bpy.utils.register_class(CGC_LoopCut)
+    bpy.utils.register_class(CGC_loopslide)
+    bpy.utils.register_class(CGC_Polypen)
     
     bpy.utils.register_class(OpenLog)
 
@@ -103,14 +100,13 @@ def register():
     addon_updater_ops.register(bl_info)
 
 def unregister():
-    if bversion() >= '002.076.000':
-        bpy.utils.unregister_class(CGC_Polystrips)
-        bpy.utils.unregister_class(CGC_Tweak)
-        bpy.utils.unregister_class(CGC_Contours)
-        bpy.utils.unregister_class(CGC_EyeDropper)
-        bpy.utils.unregister_class(CGC_LoopCut)
-        bpy.utils.unregister_class(CGC_loopslide)
-        bpy.utils.unregister_class(CGC_Polypen)
+    bpy.utils.unregister_class(CGC_Polystrips)
+    bpy.utils.unregister_class(CGC_Tweak)
+    bpy.utils.unregister_class(CGC_Contours)
+    bpy.utils.unregister_class(CGC_EyeDropper)
+    bpy.utils.unregister_class(CGC_LoopCut)
+    bpy.utils.unregister_class(CGC_loopslide)
+    bpy.utils.unregister_class(CGC_Polypen)
 
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
@@ -125,7 +121,7 @@ def unregister():
     bpy.utils.unregister_class(OpenLog)
     
     # Remove add-on hotkeys
-    for km, kmi in addon_keymaps:
+    for km,kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
