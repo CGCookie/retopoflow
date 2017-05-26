@@ -6,7 +6,7 @@ from bpy.types import SpaceView3D
 class RFMode_UI:
 
     def ui_start(self):
-        self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview, (self.context, ), 'WINDOW', 'POST_VIEW')
+        self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (self.context, ), 'WINDOW', 'POST_VIEW')
         self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (self.context, ), 'WINDOW', 'POST_PIXEL')
         self.context.area.header_text_set('RetopoFlow Mode')
     
@@ -56,8 +56,6 @@ class RFMode_UI:
         event_oskey = 'OSKEY+' if event.oskey else ''
         event_ftype = event_ctrl + event_shift + event_alt + event_oskey + event.type
 
-        px,py = self.eventd['mousepre']
-
         self.eventd = {
             'context': context,
             'region':  context.region,
@@ -76,7 +74,8 @@ class RFMode_UI:
             'release': event_ftype if event.value=='RELEASE' else None,
 
             'mouse':   (float(event.mouse_region_x), float(event.mouse_region_y)),
-            'mousepre':(px,py),
+            'mousepre':self.eventd['mouse'],
         }
+        
         return self.eventd
 

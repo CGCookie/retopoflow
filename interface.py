@@ -12,7 +12,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
     bl_label = "RetopoFlow"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-
+    
     def draw(self, context):
         layout = self.layout
 
@@ -123,7 +123,7 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
     bl_idname = "object.retopology_menu"
-
+    
     def draw(self, context):
         layout = self.layout
 

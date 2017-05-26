@@ -1,6 +1,7 @@
 import sys
 import bpy
 from mathutils import Matrix, Vector
+from bmesh.types import BMVert
 
 
 '''
@@ -141,6 +142,7 @@ class XForm:
             Vec:        lambda x: self.l2w_vector(x),
             Vector:     lambda x: self.l2w_vector(x),
             Ray:        lambda x: self.l2w_ray(x),
+            BMVert:     lambda x: self.l2w_bmvert(x),
         }
         self.fn_w2l_typed = {
             Point:      lambda x: self.w2l_point(x),
@@ -149,6 +151,7 @@ class XForm:
             Vec:        lambda x: self.w2l_vector(x),
             Vector:     lambda x: self.w2l_vector(x),
             Ray:        lambda x: self.w2l_ray(x),
+            BMVert:     lambda x: self.w2l_bmvert(x),
         }
         return self
     
@@ -206,7 +209,10 @@ class XForm:
         o1 = self.w2l_point(ray.o + ray.max * ray.d)
         d  = self.w2l_direction(ray.d)
         return Ray(o=o0, d=d, max_dist=(o1-o0).length)
-
+    
+    def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
+    def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
+    
 
 
 if __name__ == '__main__':

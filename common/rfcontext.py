@@ -5,9 +5,9 @@ import math
 import bpy
 import bmesh
 from mathutils.bvhtree import BVHTree
-
 from mathutils import Matrix,Vector
-from .maths import Point,Direction,Normal,Ray,XForm
+
+from .maths import Point,Vec,Direction,Normal,Ray,XForm
 
 from .rfmesh import RFSource,RFTarget
 
@@ -25,34 +25,31 @@ class RFContext:
     Each RetopoFlow target will have its own RFContext.  The context is stored in a text block
     so work can be resumed after saving and quitting (context is saved in .blend), or even for
     debugging purposes.
+    
+    NOTE: the source objects will be based on what is visible
+    
+    RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
     
     
-    @staticmethod
-    def create(src_objects):
-        rfctx = RFContext()
-        for src in src_objects: rfctx.source_add(src)
-        return rfctx
-    
-    @staticmethod
-    def load_from_textblock(idx):
-        return RFContext(idx=idx)
-    
-    def __init__(self, idx=None):
-        if idx is None:
-            self.init_idx()
+    def __init__(self, text_name=None, src_objects=None):
+        self.init_idx(text_name)
+        if text_name is None:
             bpy.opt.text.new()
             self.text = bpy.data.texts[-1]
             self.text.name = self.get_text_name()
             
             self.rfsources = []
             self.rftarget = RFTarget(self.idx)
+            if src_objects:
+                for src in src_objects: self.source_add(src)
         else:
             self.idx = idx
             self.text = bpy.data.texts[self.get_text_name()]
             
             self.rfsources = [] # TODO
             self.rftarget = None # TODO
+        
         
         self.state = {}
         self.undo = []
@@ -64,14 +61,25 @@ class RFContext:
     # the following two methods use magic text to know the name of
     # text block in bpy.data.texts for storing state
     
+    @staticmethod
+    def get_text_names():
+        ''' searches text blocks for RFContexts '''
+        
+        reidx = re.compile(r'^RetopoFlow_Context\.\d+$')
+        return [t.name for t in bpy.data.texts if reidx.match(t.name)]
+    
+    def init_idx(self, text_name=None):
+        ''' initialize context index (1 more than current maximum) '''
+        
+        reidx = re.compile(r'^RetopoFlow_Context\.(\d+)$')
+        if text_name is None:
+            matches = [reidx.match(t.name) for t in bpy.data.texts]
+            self.idx = max((int(m.group[0]) for m in matches if m), default=0)
+        else:
+            self.idx = int(reidx.match(text_name).group[0])
+    
     def get_text_name(self):
         return 'RetopoFlow_Context.%03d' % self.idx
-    
-    def init_idx(self):
-        # determine context index (1 more than current maximum)
-        reidx = re.compile(r'^RetopoFlow_Context\.(\d+)$')
-        l = [reidx.match(t.name).group[0] for t in bpy.data.texts]
-        self.idx = max((int(i) for i in n if i), default=0)
     
     ####################################################################
     

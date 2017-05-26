@@ -30,21 +30,22 @@ import bgl
 from bpy.types import Operator
 
 from .common.rfcontext import RFContext
-from .rfmode_ui import RFMode_UI
+from .rfmode_ui        import RFMode_UI
 from .rfmode_framework import RFMode_Framework
+from .rfmode_utils     import RFMode_Utils
 
 class RFMode(Operator, RFMode_Framework, RFMode_UI):
     def __init__(self):
         self.init_framework()
         self.init_contexts()
         self.init_tools()
+        self.init_utils()
     
     def init_contexts(self):
-        # TODO: search bpy.data.texts for contexts!
-        self.rfcontexts = []
-        self.rfcontext = None
+        self.rfcontexts = [RFContext(ctxname) for ctxname in RFContext.get_text_names()]        # all contexts
+        self.rfcontext = None       # current context
     
-    def create_context(self, src_objects):
+    def create_new_context(self, src_objects):
         self.rfcontexts += RFContext.create(src_objects)
     
     def init_tools(self):
