@@ -34,12 +34,13 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Euler
 
-from .lib.classes.textbox.textbox import TextBox
-from . import key_maps
-from .lib import common_utilities
-from .lib.common_utilities import print_exception, showErrorMessage
+from .rfmode import RFMode
 
-from .rfcontext import RFContext
+from ..lib.classes.textbox.textbox import TextBox
+from .. import key_maps
+from ..lib import common_utilities
+from ..lib.common_utilities import print_exception, showErrorMessage
+
 
 '''
 RFTool is Abstract Base Class for all of the RetopoFlow tools.
@@ -47,24 +48,30 @@ RFTool is Abstract Base Class for all of the RetopoFlow tools.
 
 
 class RFTool(metaclass=ABCMeta):
-    def __init__(self, rfmode):
+    def __init__(self, rfmode:RFMode):
         self.rfmode = rfmode
-        self.init_tool()
+        self.rfctx = rfmode.rfctx
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.mode = 'main'
+        self.init_tool()
     
     @abstractmethod
-    def init_tool(self, rfcontext:RFContext): pass
+    def init_tool(self):
+        '''
+        Called when RetopoFlow is started, but not necessarily when the tool is used
+        '''
+        pass
     
     @abstractmethod
-    def start(self): pass
+    def start(self):
+        '''
+        Called the tool is being switched into
+        '''
+        pass
 
     @abstractmethod
     def modal_main(self): pass
-    
-    @abstractmethod
-    def help_text(self): pass
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass

@@ -26,27 +26,21 @@ import os
 import time
 
 import bpy
-import bgl
-from bpy.types import Operator
 
-from .common.rfcontext import RFContext
 from .rfmode_ui        import RFMode_UI
 from .rfmode_framework import RFMode_Framework
 from .rfmode_utils     import RFMode_Utils
+from .rfmode_context   import RFMode_Context
 
-class RFMode(Operator, RFMode_Framework, RFMode_UI):
+class RFMode(RFMode_Framework, RFMode_UI, RFMode_Context):
     def __init__(self):
         self.init_framework()
-        self.init_contexts()
         self.init_tools()
         self.init_utils()
-    
-    def init_contexts(self):
-        self.rfcontexts = [RFContext(ctxname) for ctxname in RFContext.get_text_names()]        # all contexts
-        self.rfcontext = None       # current context
-    
-    def create_new_context(self, src_objects):
-        self.rfcontexts += RFContext.create(src_objects)
+        self.init_context()
+        for tname in self.tools:
+            tool = self.tools[tname]
+            tool.init_state()
     
     def init_tools(self):
         self.tool = None
