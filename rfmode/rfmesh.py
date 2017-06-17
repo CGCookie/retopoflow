@@ -43,7 +43,22 @@ class RFMesh():
     
     
     def __init__(self):
-        assert False, 'Do not create new RFMesh directly!  Use RFSource.create() or RFTarget.create()'
+        assert False, 'Do not create new RFMesh directly!  Use RFSource.new() or RFTarget.new()'
+    
+    def __deepcopy__(self, memo):
+        assert False, 'Do not copy me'
+    
+    def __setup__(self, obj, deform=False, bme=None):
+        self.obj = obj
+        self.xform = XForm(self.obj.matrix_world)
+        self.hash = RFMesh.hash_object(self.obj)
+        if bme != None:
+            self.bme = bme
+        else:
+            self.bme = bmesh.new()
+            self.bme.from_object(self.obj, bpy.context.scene, deform=deform)
+        self.update_bvh()
+        self.store_state()
     
     def update_bvh(self):
         if self.bvh: del self.bvh
@@ -53,7 +68,7 @@ class RFMesh():
         attributes = ['hide']       # list of attributes to remember
         self.prev_state = { attr: self.obj.__getattribute__(attr) for attr in attributes }
     def restore_state(self):
-        for k,v in self.prev_state.iteritems(): self.obj.__setattr__(k, v)
+        for attr,val in self.prev_state.iteritems(): self.obj.__setattr__(attr, val)
     
     def obj_hide(self):   self.obj.hide = True
     def obj_unhide(self): self.obj.hide = False
@@ -93,35 +108,30 @@ class RFSource(RFMesh):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
         # check cache
-        gennew = False
+        rfsource = None
         if 'cache' not in RFSource:
             # create cache
-            gennew = True
             RFSource.cache = {}
-        elif obj.data.name not in RFSource.cache:
-            gennew = True
-        else:
+        elif obj.data.name in RFSource.cache:
             # does cache match current state?
-            rfm = RFSource.cache[obj.data.name]
-            gennew = rfm.hash != RFMesh.hash_object(obj)
-        
-        if gennew:
+            rfsource = RFSource.cache[obj.data.name]
+            if rfsource.hash != RFMesh.hash_object(obj):
+                rfsource = None
+        if not rfsource:
+            # need to (re)generate RFSource object
             RFSource.creating = True
-            rfm = RFSource()
+            rfsource = RFSource()
             del RFSource.creating
-            RFSource.cache[obj.data.name] = rfm
+            rfsource.__setup__(obj)
+            RFSource.cache[obj.data.name] = rfsource
         
         return RFSource.cache[obj.data.name]
     
-    def __init__(self, obj:bpy.types.Object):
+    def __init__(self):
         assert 'creating' in dir(RFSource), 'Do not create new RFSource directly!  Use RFSource.new()'
-        self.obj = obj
-        self.xform = XForm(self.obj.matrix_world)
-        self.hash = RFMesh.hash_object(self.obj)
-        self.bme = bmesh.new()
-        self.bme.from_object(self.obj, bpy.context.scene, deform=True)
-        self.update_bvh()
-        self.store_state()
+    
+    def __setup__(self, obj:bpy.types.Object):
+        super().__setup__(obj, deform=True)
     
 
 
@@ -135,74 +145,17 @@ class RFTarget(RFMesh):
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
-        bme = bmesh.new()
-        bme.from_object(obj, bpy.context.scene. deform=False)
-        
-        rftarget = RFTarget.__new__(RFTarget)
-        rftarget.setup(obj, bme)
-        rftarget.setup_symmetry()
-        rftarget.store_state()
-        rftarget.obj_hide()
+        RFSource.creating = True
+        rftarget = RFTarget()
+        del RFSource.creating
+        rftarget.__setup__(obj)
         return rftarget
     
     def __init__(self):
-        assert False, 'Do not create new RFTarget directly!  Use RFTarget.new()'
+        assert 'creating' in dir(RFTarget), 'Do not create new RFTarget directly!  Use RFTarget.new()'
     
-    def __deepcopy__(self, memo):
-        '''
-        custom deepcopy method, because BMesh and BVHTree are not copyable
-        '''
-        rftarget = RFTarget.__new__(RFTarget)
-        memo[id(self)] = rftarget
-        rftarget.setup(self.obj, self.bme.copy())
-        # deepcopy all remaining settings
-        for k,v in self.__dict__.items():
-            if k in rftarget.__dict__: continue
-            setattr(rftarget, k, copy.deepcopy(v, memo))
-        return rftarget
-        
-    def setup(self, obj:bpy.types.Object, bme:Bmesh):
-        self.obj = obj
-        self.xform = XForm(self.obj.matrix_world)
-        self.bme = bme
-        self.hash = RFMesh.hash_bmesh(self.bme)
-        self.update_bvh()
-        
-        # get ready to label all of the geometry with uids
-        genuids = False
-        if 'vuid' not in self.bme.verts.layers.int:
-            genuids = True
-            self.bme.verts.layers.int.new('vuid')
-        if 'euid' not in self.bme.edges.layers.int:
-            genuids = True
-            self.bme.edges.layers.int.new('euid')
-        if 'fuid' not in self.bme.faces.layers.int:
-            genuids = True
-            self.bme.faces.layers.int.new('fuid')
-        # convenience attributes
-        self.vuid = self.bme.verts.layers.int['vuid']
-        self.euid = self.bme.edges.layers.int['euid']
-        self.fuid = self.bme.faces.layers.int['fuid']
-        self.vefuid = { BMVert:self.vuid, BMEdge:self.euid, BMFace:self.fuid }
-        
-        # maps uid to BMesh geometry
-        self.uidvef = { }
-        
-        # TODO: assert that serialized_data == self
-        if genuids:
-            # label as new!
-            self.uid = 0
-            for v in self.bme.verts: self.set_uid(v)
-            for e in self.bme.edges: self.set_uid(e)
-            for f in self.bme.faces: self.set_uid(f)
-        else:
-            # restore data
-            for v in self.bme.verts: self.uidvef[v[self.vuid]] = v
-            for e in self.bme.edges: self.uidvef[e[self.euid]] = e
-            for f in self.bme.faces: self.uidvef[f[self.fuid]] = f
-            self.uid = max(self.uidvef.keys())
-    
-    def setup_symmetry(self):
+    def __setup__(self, obj:bpy.types.Object, bme:bmesh.types.BMesh=None):
+        super().__setup__(obj, bme=bme)
         # if Mirror modifier is attached, set up symmetry to match
         self.symmetry = set()
         for mod in self.obj.modifiers:
@@ -211,6 +164,19 @@ class RFTarget(RFMesh):
             if mod.use_x: self.symmetry.add('x')
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
+    
+    def __deepcopy__(self, memo):
+        '''
+        custom deepcopy method, because BMesh and BVHTree are not copyable
+        '''
+        rftarget = RFTarget.__new__(RFTarget)
+        memo[id(self)] = rftarget
+        rftarget.__setup__(self.obj, bme=self.bme.copy())
+        # deepcopy all remaining settings
+        for k,v in self.__dict__.items():
+            if k in rftarget.__dict__: continue
+            setattr(rftarget, k, copy.deepcopy(v, memo))
+        return rftarget
     
     def commit(self):
         self.object_write()
@@ -223,32 +189,3 @@ class RFTarget(RFMesh):
         self.bme.to_mesh(self.obj.data)
     
     
-    def get_uid(self, elem):
-        layer = self.vefuid.get(type(elem))
-        return elem[layer] if layer else None
-    def get_elem(self, uid):
-        return self.uidvef.get(uid)
-    
-    def set_uid(self, elem, uid=None):
-        layer = self.vefuid.get(type(elem))
-        assert layer
-        if uid is None: uid = self.new_uid()
-        elem[layer] = uid
-        self.uidvef[uid] = elem
-        return elem
-    def new_uid(self):
-        self.uid += 1
-        return self.uid
-    
-    def new_vert(self, co):
-        return self.set_uid(self.bme.verts.new(co))
-    def new_edge(self, lbmv):
-        return self.set_uid(self.bme.edges.new(lbmv))
-    def new_face(self, lbmv):
-        return self.set_uid(self.bme.faces.new(lbmv))
-    
-    def set_uids(self):
-        ''' ensure all geometry has uid '''
-        for v in self.bme.verts: if v[self.vuid] == 0: self.set_uid(v)
-        for e in self.bme.edges: if e[self.euid] == 0: self.set_uid(e)
-        for f in self.bme.faces: if f[self.fuid] == 0: self.set_uid(f)

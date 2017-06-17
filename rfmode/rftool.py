@@ -50,24 +50,19 @@ RFTool is Abstract Base Class for all of the RetopoFlow tools.
 class RFTool(metaclass=ABCMeta):
     def __init__(self, rfmode:RFMode):
         self.rfmode = rfmode
-        self.rfctx = rfmode.rfctx
-        self.FSM = {} if not FSM else dict(FSM)
+        self.FSM = {}
+        self.init_tool()
         self.FSM['main'] = self.modal_main
         self.mode = 'main'
-        self.init_tool()
     
     @abstractmethod
     def init_tool(self):
-        '''
-        Called when RetopoFlow is started, but not necessarily when the tool is used
-        '''
+        ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
         pass
     
     @abstractmethod
     def start(self):
-        '''
-        Called the tool is being switched into
-        '''
+        ''' Called the tool is being switched into '''
         pass
 
     @abstractmethod

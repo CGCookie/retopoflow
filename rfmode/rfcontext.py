@@ -25,51 +25,28 @@ class RFContext:
     - list of source objects, along with associated BVH, BMesh
     - undo stack
     - current state in FSM
+    - event details
     
-    Each RetopoFlow target will have its own RFContext.  The context is stored in a text block
-    so work can be resumed after saving and quitting (context is saved in .blend), or even for
-    debugging purposes.
-    
-    NOTE: the source objects will be based on what is visible
+    Target object is the active object.  Source objects will be all visible objects that are not active.
     
     RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
     
     
     def __init__(self):
-        obj = bpy.context.active_object
-        assert obj and type(obj.data) is bpy.types.Mesh, 'Active object must be mesh object'
-        assert obj.select, 'Active object must be selected'
-        assert not obj.hide, 'Active object must be visible'
-        assert any(ol and vl for ol,vl in zip(obj.layers, bpy.context.scene.layers)), 'Active object must be visible'
-        
-        # set up source objects
-        self.init_sources()
-        
-        # set up state object
-        self.tbname = 'RetopoFlow_Context.%s' % (obj.data.name)
-        self.state = None
-        if self.tbname not in bpy.data.texts:
-            bpy.data.texts.new(self.tbname)
-        else:
-            self.textblock_read()   # attempt to read from text block
-        if not self.state:
-            self.init_state()
-        
-        self.undo = []      # undo stack
-        
-        # set up target object
-        self.targetobj = obj
-        self.rftarget = RFTarget.new(self.targetobj)
+        self.init_target()      # set up target object
+        self.init_sources()     # set up source objects
+        self.init_state()
+        self.eventd = {}
+        self.undo = []          # undo stack
     
-    def init_state(self):
-        self.state = {
-            'tool':   None,
-            'select': set(),
-            'active': None,
-            'uidtool': dict(),
-            # tool data will also store up in here
-        }
+    def init_target(self):
+        tar_object = bpy.context.active_object
+        assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
+        assert tar_object.select, 'Active object must be selected'
+        assert not tar_object.hide, 'Active object must be visible'
+        assert any(ol and vl for ol,vl in zip(tar_object.layers, bpy.context.scene.layers)), 'Active object must be visible'
+        self.rftarget = RFTarget.new(tar_object)
     
     def init_sources(self):
         '''
@@ -85,6 +62,53 @@ class RFContext:
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
     
+    def init_state(self):
+        self.state = {
+            'tool':   None,
+            'select': set(),
+            'active': None,
+            'uidtool': dict(),
+            # tool data will also store up in here
+        }
+    
+    def update(self, context, event):
+        '''
+        Construct an event dictionary that is *slightly* more
+        convenient than stringing together a bunch of logical
+        conditions
+        '''
+        
+        self.context = context
+        
+        event_ctrl  = 'CTRL+'  if event.ctrl  else ''
+        event_shift = 'SHIFT+' if event.shift else ''
+        event_alt   = 'ALT+'   if event.alt   else ''
+        event_oskey = 'OSKEY+' if event.oskey else ''
+        event_ftype = event_ctrl + event_shift + event_alt + event_oskey + event.type
+
+        self.eventd = {
+            'context': context,
+            'region':  context.region,
+            'r3d':     context.space_data.region_3d,
+
+            'event':   event,
+
+            'ctrl':    event.ctrl,
+            'shift':   event.shift,
+            'alt':     event.alt,
+            'value':   event.value,
+            'type':    event.type,
+
+            'ftype':   event_ftype,
+            'press':   event_ftype if event.value=='PRESS'   else None,
+            'release': event_ftype if event.value=='RELEASE' else None,
+
+            'mouse':   (float(event.mouse_region_x), float(event.mouse_region_y)),
+            'mousepre':self.eventd.get('mouse'),
+        }
+        
+        return self.eventd
+
     def undo_push(self, action, repeatable=False):
         # if action is repeatable and we are repeating actions, skip pushing to undo stack
         if repeatable and self.undo and self.undo[-1]['action'] == action: return
@@ -96,38 +120,19 @@ class RFContext:
         while len(self.undo) > undo_depth: self.undo.pop(0)     # limit stack size
     
     def undo_pop(self, action):
-        if len(self.undo) == 0: return
+        if not self.undo: return
         data = self.undo.pop()
         self.state    = data['state']
         self.rftarget = data['rftarget']
     
-    def textblock_write(self):
-        # write current state to text block
-        # https://docs.python.org/3/library/binascii.html
-        b = pickle.dumps(self.state)
-        a = binascii.b2a_hex(p).decode('utf-8')
-        bpy.data.texts[self.tbname].from_string(a)
-        # update editmesh to match!
-        self.rftarget.object_write()
-    
-    def textblock_read(self):
-        # read current state from text block
-        # https://docs.python.org/3/library/binascii.html
-        try:
-            a = bpy.data.texts[self.tbname].as_string()
-            b = binascii.a2b_hex(a)
-            self.state = pickle.loads(b)
-            # NOTE: READ STATE MAY DIFFER FROM EDITMESH!!!!! TODO: FIX ME!!! XXXX
-        except Error:
-            self.state = None
-    
     def start(self):
-        # hide all unhidden sources so we can render internally
-        pass
+        # hide target so we can render internally
+        self.rftarget.obj_hide()
     
     def end(self):
-        # reveal all previously unhidden sources
-        pass
+        # reveal all previously unhidden RFMeshes
+        for rfsource in self.rfsources: rfsource.restore_state()
+        self.rftarget.restore_state()
     
     
     def raycast_sources(self, ray:Ray):

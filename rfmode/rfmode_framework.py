@@ -18,28 +18,6 @@ class RFMode_Framework:
         self.exceptions_caught = []
         self.exception_quit = False
     
-    def handle_exception(self. serious=False):
-        errormsg = print_exception()
-        # if max number of exceptions occur within threshold of time, abort!
-        curtime = time.time()
-        self.exceptions_caught += [(errormsg, curtime)]
-        # keep exceptions that have occurred within the last 5 seconds
-        self.exceptions_caught = [(m,t) for m,t in self.exceptions_caught if curtime-t < 5]
-        # if we've seen the same message before (within last 5 seconds), assume
-        # that something has gone badly wrong
-        c = sum(1 for m,t in self.exceptions_caught if m == errormsg)
-        if serious or c > 1:
-            self.log.add('\n'*5)
-            self.log.add('-'*100)
-            self.log.add('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
-            self.log.add('-'*100)
-            self.log.add('\n'*5)
-            showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
-            self.exception_quit = True
-            self.end_ui()
-        
-        self.fsm_mode = 'main'
-
     def modal_poll(self):
         '''
         return True if modal can start; otherwise False
@@ -47,16 +25,17 @@ class RFMode_Framework:
         return True
     
     def modal_start(self):
-        '''
-        get everything ready to be run as modal tool
-        '''
-        pass
+        self.context_start()
+        self.ui_start()
 
     def modal_end(self):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
-        pass
+        try:    self.ui_end()
+        except: pass
+        try:    self.context_end()
+        except: pass
 
 
 
@@ -67,25 +46,22 @@ class RFMode_Framework:
         This state calls auxiliary wait state to see into which state we transition.
         '''
 
-        self.context = context
-        self.eventd.update(self.context, event)
+        self.rfctx.update(context, event)
         
         if self.exception_quit:
-            try:
-                self.modal_end()
-                self.ui_end()
-            except:
-                self.handle_exception(serious=True)
-            return {'CANCELLED'}            # Something bad happened, so bail!
+            # something bad happened, so bail!
+            try:    self.modal_end()
+            except: self.handle_exception(serious=True)
+            return {'CANCELLED'}
 
         # when does this occur?
-        if not self.context.area:
+        if not context.area:
             print('Context with no area')
-            print(self.context)
+            print(context)
             return {'RUNNING_MODAL'}
 
         # TODO : is this necessary??
-        self.context.area.tag_redraw()       # force redraw
+        context.area.tag_redraw()       # force redraw
         
         if self.eventd.ftype in self.events_nav:
             # pass navigation events (mouse,keyboard,etc.) on to region
@@ -108,7 +84,6 @@ class RFMode_Framework:
             # (e.g., create the mesh from internal data structure)
             try:
                 self.modal_end()
-                self.ui_end()
             except:
                 self.handle_exception(serious=True)
             return {'FINISHED'}
@@ -119,10 +94,8 @@ class RFMode_Framework:
         '''
         called by Blender when the user invokes (calls/runs) our tool
         '''
-        self.context = context
-        self.eventd.update(self.context, event)
+        self.rfctx.update(context, event)
         if not self.modal_poll(): return {'CANCELLED'}    # tool cannot start
         self.modal_start()
-        self.ui_start()
-        self.context.window_manager.modal_handler_add(self)
+        context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal

@@ -62,6 +62,8 @@ from .op_loopcut.loopcut_modal import CGC_LoopCut
 from .op_loopslide.loopslide_modal import CGC_loopslide
 from .op_polypen.polypen_modal import CGC_Polypen
 
+from .rfmode.rfmode_operator import RFMode_Operator
+
 # updater import
 from . import addon_updater_ops
 
@@ -73,8 +75,6 @@ def register():
 
     bpy.utils.register_class(RetopoFlowPreferences)
     bpy.app.handlers.scene_update_post.append(check_source_target_objects)
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
     bpy.utils.register_class(CGC_Polystrips)
     bpy.utils.register_class(CGC_Tweak)
@@ -83,6 +83,10 @@ def register():
     bpy.utils.register_class(CGC_LoopCut)
     bpy.utils.register_class(CGC_loopslide)
     bpy.utils.register_class(CGC_Polypen)
+    bpy.utils.register_class(RFMode_Operator)
+    
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
     bpy.utils.register_class(OpenLog)
 
@@ -100,6 +104,10 @@ def register():
     addon_updater_ops.register(bl_info)
 
 def unregister():
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
+    
+    bpy.utils.unregister_class(RFMode_Operator)
     bpy.utils.unregister_class(CGC_Polystrips)
     bpy.utils.unregister_class(CGC_Tweak)
     bpy.utils.unregister_class(CGC_Contours)
@@ -108,8 +116,6 @@ def unregister():
     bpy.utils.unregister_class(CGC_loopslide)
     bpy.utils.unregister_class(CGC_Polypen)
 
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 

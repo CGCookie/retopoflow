@@ -4,27 +4,27 @@ from mathutils import Matrix
 from .rfcontext import RFContext
 
 class RFMode_Context:
-    def init_context(self):
-        ctx = bpy.context
-        
-        newtarobj = False
-        if ctx.active_object:
-            newtarobj = True
-        elif type(ctx.active_object.data) is not bpy.types.Mesh:
-            newtarobj = True
-        elif not ctx.active_object.select:
-            newtarobj = True
-        
-        if newtarobj:
+    def context_start(self):
+        tar_object = bpy.context.active_object
+        if not tar_object or type(tar_object) is not bpy.types.Object or type(tar_object.data) is not bpy.types.Mesh:
             # generate new target object
-            tar_name = self.obj_orig.name + "_polystrips"
-            tar_eme = bpy.data.meshes.new(tar_name)
-            tar_obj = bpy.data.objects.new(tar_name, tar_eme)
-            tar_obj.matrix_world = Matrix.Translation(ctx.scene.cursor_location)
-            tar_obj.layers = list(ctx.scene.layers)
-            #tar_obj.show_x_ray = get_settings().use_x_ray
-            ctx.scene.objects.link(tar_obj)
-            ctx.scene.objects.active = tar_obj
-            tar_obj.select = True
+            tar_name = "RetopoFlow"
+            tar_location = bpy.context.scene.cursor_location
+            tar_editmesh = bpy.data.meshes.new(tar_name)
+            tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
+            tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
+            tar_object.layers = list(bpy.context.scene.layers)          # set object on visible layers
+            #tar_object.show_x_ray = get_settings().use_x_ray
+            bpy.context.scene.objects.link(tar_object)
+            bpy.context.scene.objects.active = tar_object
+            tar_object.select = True
         
-        self.rfctx = RFContext()        # current context
+        self.rfctx = RFContext()
+        self.rfctx.start()
+    
+    def context_end(self):
+        self.rfctx.end()
+
+
+
+

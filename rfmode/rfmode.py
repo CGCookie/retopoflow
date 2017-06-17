@@ -35,15 +35,15 @@ from .rfmode_context   import RFMode_Context
 class RFMode(RFMode_Framework, RFMode_UI, RFMode_Context):
     def __init__(self):
         self.init_framework()
-        self.init_tools()
         self.init_utils()
         self.init_context()
-        for tname in self.tools:
-            tool = self.tools[tname]
-            tool.init_state()
+        self.init_tools()
     
     def init_tools(self):
         self.tool = None
         self.tools = {}
+        for tname in self.tools:
+            tool = self.tools[tname]
+            tool.init_state()
 
 

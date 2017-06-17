@@ -25,6 +25,8 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         
         col = layout.column(align=True)
 
+        col.operator("cgcookie.retopoflow")
+        
         col.label("Source Object:")
 
         col = layout.column(align=True)
