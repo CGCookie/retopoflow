@@ -8,16 +8,17 @@ class EventDetails:
         self.ctrl  = False
         self.shift = False
         self.alt   = False
+        self.oskey = False
         self.value = False
         self.type  = False
         
-        self.ftype   = ''
-        self.press   = ''
-        self.release = ''
+        self.ftype   = None
+        self.press   = None
+        self.release = None
         
-        self.mousedown = None
-        self.mousepre = None
-        self.mouse    = None
+        self.mouse     = None   # current mouse location (wrt region)
+        self.mousedown = None   # where the mouse was last pressed down
+        self.mousepre  = None   # previous location of mouse
         
     
     def update(self, context, event):
@@ -35,6 +36,7 @@ class EventDetails:
         self.ctrl  = event.ctrl
         self.shift = event.shift
         self.alt   = event.alt
+        self.oskey = event.oskey
         self.value = event.value
         self.type  = event.type
 

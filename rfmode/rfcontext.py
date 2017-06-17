@@ -32,15 +32,18 @@ class RFContext:
     RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
     
+    undo_depth = 100 # set in RF properties?
     
     def __init__(self):
-        self.init_target()      # set up target object
-        self.init_sources()     # set up source objects
-        self.init_state()
-        self.eventd = {}
-        self.undo = []          # undo stack
+        self.init_target()              # set up target object
+        self.init_sources()             # set up source objects
+        self.tool_state = None          # current state of tool
+        self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
+        self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
+        self.eventd = EventDetails()    # context, event details, etc.
     
     def init_target(self):
+        ''' target is the active object.  must be selected and visible '''
         tar_object = bpy.context.active_object
         assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
         assert tar_object.select, 'Active object must be selected'
@@ -49,10 +52,7 @@ class RFContext:
         self.rftarget = RFTarget.new(tar_object)
     
     def init_sources(self):
-        '''
-        find all valid source objects
-        note: can be called multiple times
-        '''
+        ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = []
         visible_layers = [i for i in range(20) if bpy.context.scene.layers[i]]
         for obj in bpy.context.scene.objects:
@@ -62,77 +62,48 @@ class RFContext:
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
     
-    def init_state(self):
-        self.state = {
-            'tool':   None,
-            'select': set(),
-            'active': None,
-            'uidtool': dict(),
-            # tool data will also store up in here
-        }
     
-    def update(self, context, event):
-        '''
-        Construct an event dictionary that is *slightly* more
-        convenient than stringing together a bunch of logical
-        conditions
-        '''
-        
-        self.context = context
-        
-        event_ctrl  = 'CTRL+'  if event.ctrl  else ''
-        event_shift = 'SHIFT+' if event.shift else ''
-        event_alt   = 'ALT+'   if event.alt   else ''
-        event_oskey = 'OSKEY+' if event.oskey else ''
-        event_ftype = event_ctrl + event_shift + event_alt + event_oskey + event.type
-
-        self.eventd = {
-            'context': context,
-            'region':  context.region,
-            'r3d':     context.space_data.region_3d,
-
-            'event':   event,
-
-            'ctrl':    event.ctrl,
-            'shift':   event.shift,
-            'alt':     event.alt,
-            'value':   event.value,
-            'type':    event.type,
-
-            'ftype':   event_ftype,
-            'press':   event_ftype if event.value=='PRESS'   else None,
-            'release': event_ftype if event.value=='RELEASE' else None,
-
-            'mouse':   (float(event.mouse_region_x), float(event.mouse_region_y)),
-            'mousepre':self.eventd.get('mouse'),
-        }
-        
-        return self.eventd
-
+    ###################################################
+    # undo / redo stack operations
+    
+    def _create_state(self, action):
+        return {
+            'action':     action,
+            'tool_state': copy.deepcopy(self.tool_state),
+            'rftarget':   copy.deepcopy(self.rftarget),
+            }
+    def _restore_state(self, state):
+        self.tool_state = state['tool_state']
+        self.rftarget = state['rftarget']
+    
     def undo_push(self, action, repeatable=False):
-        # if action is repeatable and we are repeating actions, skip pushing to undo stack
+        # skip pushing to undo if action is repeatable and we are repeating actions
         if repeatable and self.undo and self.undo[-1]['action'] == action: return
-        self.undo.append({
-            'action':   action,
-            'state':    copy.deepcopy(self.state),
-            'rftarget': copy.deepcopy(self.rftarget),
-        })
-        while len(self.undo) > undo_depth: self.undo.pop(0)     # limit stack size
+        self.undo.append(self._create_state(action))
+        while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
+        self.redo.clear()
     
     def undo_pop(self, action):
         if not self.undo: return
-        data = self.undo.pop()
-        self.state    = data['state']
-        self.rftarget = data['rftarget']
+        self.redo.append(self._create_state('undo'))
+        self._restore_state(self.undo.pop())
+    
+    def redo_pop(self):
+        if not self.redo: return
+        self.undo.append(self._create_state('redo'))
+        self._restore_state(self.redo.pop())
+    
+    
+    ###################################################
     
     def start(self):
-        # hide target so we can render internally
-        self.rftarget.obj_hide()
+        pass
+    
+    def update(self, context, event):
+        self.eventd.update(context, event)
     
     def end(self):
-        # reveal all previously unhidden RFMeshes
-        for rfsource in self.rfsources: rfsource.restore_state()
-        self.rftarget.restore_state()
+        pass
     
     
     def raycast_sources(self, ray:Ray):
