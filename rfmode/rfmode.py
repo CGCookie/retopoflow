@@ -98,11 +98,11 @@ class RFMode(Operator):
     
     def __init__(self):
         ''' called once when RFMode plugin is enabled in Blender '''
-        self.tool = None
-        self.tools = {}
-        for tname in self.tools:
-            tool = self.tools[tname]
-            tool.init_state()
+        self.tool_set = {
+            # 'PolyPen': PolyPen(),
+            # 'Tweak': Tweak(),
+            # 'PolyStrips': PolyStrips(),
+        }
         #self.cb_pl_handle = load_post.append(self.)
         self.logger = Logger()
         self.settings = common_utilities.get_settings()
@@ -155,9 +155,7 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
-        self.rfctx = RFContext()
-        self.rfctx.start()
-        self.rfctx.update(context, event)
+        self.rfctx = RFContext(self.tool_set, context, event)
     
     def context_end(self):
         self.rfctx.end()
@@ -258,13 +256,13 @@ class RFMode(Operator):
             except: self.handle_exception(serious=True)
             return {'CANCELLED'}
 
-        # when does this occur?
+        # TODO: is this necessary?
         if not context.area:
             print('Context with no area')
             print(context)
             return {'RUNNING_MODAL'}
 
-        # TODO : is this necessary??
+        # TODO: can we not redraw only when necessary?
         context.area.tag_redraw()       # force redraw
         
         if self.rfctx.eventd.ftype in self.events_nav:

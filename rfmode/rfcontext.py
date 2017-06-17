@@ -34,13 +34,19 @@ class RFContext:
     
     undo_depth = 100 # set in RF properties?
     
-    def __init__(self):
+    def __init__(self, tool_set, context, event):
         self.init_target()              # set up target object
         self.init_sources()             # set up source objects
-        self.tool_state = None          # current state of tool
+        self.tool_state = None          # state of current tool
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         self.eventd = EventDetails()    # context, event details, etc.
+        self.tool_set = tool_set
+        
+        for tool in self.tool_set.values():
+            tool.start()
+        
+        self.update(context, event)
     
     def init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -61,6 +67,12 @@ class RFContext:
             if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
+    
+    def update(self, context, event):
+        self.eventd.update(context, event)
+    
+    def end(self):
+        pass
     
     
     ###################################################
@@ -96,16 +108,6 @@ class RFContext:
     
     ###################################################
     
-    def start(self):
-        pass
-    
-    def update(self, context, event):
-        self.eventd.update(context, event)
-    
-    def end(self):
-        pass
-    
-    
     def raycast_sources(self, ray:Ray):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
@@ -121,54 +123,64 @@ class RFContext:
             if bp is None or (hd is not None and hd < bd):
                 bp,bn,bi,bd = hp,bn,hi,hd
         return (bp,bn,bi,bd)
-
-    def get_elem(self, uid): return self.rftarget.get_elem(uid)
-    def get_uid(self, elem): return self.rftarget.get_uid(elem)
     
-    def get_active_uid(self): return self.state['active']
-    def get_active_elem(self): return self.get_elem(self.state['active'])
     
-    def get_select_uid(self): return set(self.state['select'])
-    def get_select_elem(self): return set(self.get_elem(e) for e in self.state['select'])
-    
-    def is_active_uid(self, uid): return uid == self.state['active']
-    def is_active_elem(self, elem): return self.is_active_uid(self.get_elem(elem))
-    
-    def is_select_uid(self, uid): return uid in self.state['select']
-    def is_select_elem(self, elem): return self.is_select_uid(self.get_elem(elem))
+    ###################################################
     
     def deselect_all(self):
-        self.state['select'].clear()
-        self.state['active'] = None
-    def deselect_by_uid(self, uids):
-        if '__len__' not in uids.__dir__(): uids = { uids }
-        if self.state['active'] and self.state['active'] in uids:
-            self.state['active'] = None
-        self.state['select'].difference_update(uids)
-    def deselect_by_elem(self, elems):
-        if '__len__' not in elems.__dir__(): elems = { elems }
-        self.deselect_by_uid(self.get_uid(elem) for elem in elems)
+        pass
+    def deselect(self, elems):
+        pass
+    def select(self, elems, subparts=False, only=True):
+        pass
     
-    def select_by_uid(self, uids, subparts=False, only=True):
-        if only: self.deselect_all()
-        if '__len__' not in uids.__dir__(): uids = { uids }
-        if subparts:
-            nuids = set(uids)
-            for uid in uids:
-                elem = self.get_elem(uid)
-                t = type(elem)
-                if t is bmesh.types.BMVert:
-                    pass
-                elif t is bmesh.types.BMEdge:
-                    nuids.update(self.get_uid(e) for e in elem.verts)
-                elif t is bmesh.types.BMFace:
-                    nuids.update(self.get_uid(e) for e in elem.verts)
-                    nuids.update(self.get_uid(e) for e in elem.edges)
-            uids = nuids
-        for uid in uids:
-            self.state['select'].add(uid)
-            self.active = uid
-    def select_by_elem(self, elems, subparts=False, only=True):
-        if '__len__' not in elems.__dir__(): elems = { elems }
-        self.select_by_uid((self.get_uid(elem) for elem in elems), subparts=subparts, only=only)
+    # def get_elem(self, uid): return self.rftarget.get_elem(uid)
+    # def get_uid(self, elem): return self.rftarget.get_uid(elem)
+    
+    # def get_active_uid(self): return self.state['active']
+    # def get_active_elem(self): return self.get_elem(self.state['active'])
+    
+    # def get_select_uid(self): return set(self.state['select'])
+    # def get_select_elem(self): return set(self.get_elem(e) for e in self.state['select'])
+    
+    # def is_active_uid(self, uid): return uid == self.state['active']
+    # def is_active_elem(self, elem): return self.is_active_uid(self.get_elem(elem))
+    
+    # def is_select_uid(self, uid): return uid in self.state['select']
+    # def is_select_elem(self, elem): return self.is_select_uid(self.get_elem(elem))
+    
+    # def deselect_all(self):
+    #     self.state['select'].clear()
+    #     self.state['active'] = None
+    # def deselect_by_uid(self, uids):
+    #     if '__len__' not in uids.__dir__(): uids = { uids }
+    #     if self.state['active'] and self.state['active'] in uids:
+    #         self.state['active'] = None
+    #     self.state['select'].difference_update(uids)
+    # def deselect_by_elem(self, elems):
+    #     if '__len__' not in elems.__dir__(): elems = { elems }
+    #     self.deselect_by_uid(self.get_uid(elem) for elem in elems)
+    
+    # def select_by_uid(self, uids, subparts=False, only=True):
+    #     if only: self.deselect_all()
+    #     if '__len__' not in uids.__dir__(): uids = { uids }
+    #     if subparts:
+    #         nuids = set(uids)
+    #         for uid in uids:
+    #             elem = self.get_elem(uid)
+    #             t = type(elem)
+    #             if t is bmesh.types.BMVert:
+    #                 pass
+    #             elif t is bmesh.types.BMEdge:
+    #                 nuids.update(self.get_uid(e) for e in elem.verts)
+    #             elif t is bmesh.types.BMFace:
+    #                 nuids.update(self.get_uid(e) for e in elem.verts)
+    #                 nuids.update(self.get_uid(e) for e in elem.edges)
+    #         uids = nuids
+    #     for uid in uids:
+    #         self.state['select'].add(uid)
+    #         self.active = uid
+    # def select_by_elem(self, elems, subparts=False, only=True):
+    #     if '__len__' not in elems.__dir__(): elems = { elems }
+    #     self.select_by_uid((self.get_uid(elem) for elem in elems), subparts=subparts, only=only)
     
