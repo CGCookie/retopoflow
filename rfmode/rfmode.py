@@ -39,6 +39,7 @@ from ..lib.eventdetails import EventDetails
 from ..lib.classes.logging.logger import Logger
 
 from .rfcontext import RFContext
+from .rftool import RFTool
 
 '''
 
@@ -84,7 +85,7 @@ class RFMode(Operator):
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
-        if not self.poll(): return {'CANCELLED'}    # tool cannot start
+        if not self.poll(context): return {'CANCELLED'}    # tool cannot start
         self.framework_start(context, event)
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
@@ -98,11 +99,6 @@ class RFMode(Operator):
     
     def __init__(self):
         ''' called once when RFMode plugin is enabled in Blender '''
-        self.tool_set = {
-            # 'PolyPen': PolyPen(),
-            # 'Tweak': Tweak(),
-            # 'PolyStrips': PolyStrips(),
-        }
         #self.cb_pl_handle = load_post.append(self.)
         self.logger = Logger()
         self.settings = common_utilities.get_settings()
@@ -113,6 +109,7 @@ class RFMode(Operator):
         self.rfctx = None
         self.keymap = None
         self.event_nav = None
+        print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
     
     ###############################################
     # start up and shut down methods
@@ -128,10 +125,12 @@ class RFMode(Operator):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
-        try:    self.ui_end()
-        except: pass
+        err = False
         try:    self.context_end()
-        except: pass
+        except: err = True
+        try:    self.ui_end()
+        except: err = True
+        if err: self.handle_exception(serious=True)
     
     def context_start(self, context, event):
         generate_target = False
@@ -144,6 +143,7 @@ class RFMode(Operator):
         generate_target |= tar_object.select
         generate_target |= not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers))
         if generate_target:
+            print('generating new target')
             tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
             tar_editmesh = bpy.data.meshes.new(tar_name)
@@ -155,7 +155,7 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
-        self.rfctx = RFContext(self.tool_set, context, event)
+        self.rfctx = RFContext(context, event)
     
     def context_end(self):
         self.rfctx.end()
@@ -252,8 +252,7 @@ class RFMode(Operator):
         
         if self.exception_quit:
             # something bad happened, so bail!
-            try:    self.framework_end()
-            except: self.handle_exception(serious=True)
+            self.framework_end()
             return {'CANCELLED'}
 
         # TODO: is this necessary?
@@ -265,26 +264,21 @@ class RFMode(Operator):
         # TODO: can we not redraw only when necessary?
         context.area.tag_redraw()       # force redraw
         
-        if self.rfctx.eventd.ftype in self.events_nav:
+        try:
+            ret = self.rfctx.modal() or {}
+        except:
+            self.handle_exception()
+            return {'RUNNING_MODAL'}
+        
+        if 'pass' in ret:
             # pass navigation events (mouse,keyboard,etc.) on to region
             return {'PASS_THROUGH'}
         
-        if self.tool is not None:
-            # are we currently using a tool?
-            try:
-                handled = self.tool.modal()
-                if handled:
-                    # tool handled event; no need to process further
-                    return {'RUNNING_MODAL'}
-            except: self.handle_exception()
-            return {'RUNNING_MODAL'}
         
-        # accept / cancel
-        if eventd['press'] in self.keymap['confirm']:
+        if 'confirm' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
-            try:    self.framework_end()
-            except: self.handle_exception(serious=True)
+            self.framework_end()
             return {'FINISHED'}
         
         return {'RUNNING_MODAL'}            # tell Blender to continue running our tool in modal

@@ -15,6 +15,9 @@ from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 
 from .rfmesh import RFSource, RFTarget
 
+from .rftool import RFTool
+from .rftool_tweak import RFTool_Tweak
+
 
 class RFContext:
     '''
@@ -34,21 +37,22 @@ class RFContext:
     
     undo_depth = 100 # set in RF properties?
     
-    def __init__(self, tool_set, context, event):
-        self.init_target()              # set up target object
-        self.init_sources()             # set up source objects
-        self.tool_state = None          # state of current tool
+    def __init__(self, context, event):
+        self._init_target()              # set up target object
+        self._init_sources()             # set up source objects
+        self._init_toolset()             # set up tools used in RetopoFlow
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         self.eventd = EventDetails()    # context, event details, etc.
-        self.tool_set = tool_set
-        
-        for tool in self.tool_set.values():
-            tool.start()
-        
         self.update(context, event)
     
-    def init_target(self):
+    def _init_toolset(self):
+        self.tool_set = { rftool:rftool() for rftool in RFTool }
+        self.tool_data = {} # where each tool stores its internal state
+        for tool in self.tool_set.values(): tool.init()     # init each tool
+        self.tool = None    # which tool is currently selected
+    
+    def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
         tar_object = bpy.context.active_object
         assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
@@ -57,7 +61,7 @@ class RFContext:
         assert any(ol and vl for ol,vl in zip(tar_object.layers, bpy.context.scene.layers)), 'Active object must be visible'
         self.rftarget = RFTarget.new(tar_object)
     
-    def init_sources(self):
+    def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = []
         visible_layers = [i for i in range(20) if bpy.context.scene.layers[i]]
@@ -104,6 +108,16 @@ class RFContext:
         if not self.redo: return
         self.undo.append(self._create_state('redo'))
         self._restore_state(self.redo.pop())
+    
+    
+    ###################################################
+    
+    def modal(self):
+        # returns set with actions for RFMode to perform
+        #   {'confirm'}:    done with RFMode
+        #   {'pass'}:       pass-through to Blender
+        #   empty or None:  stay in modal
+        pass
     
     
     ###################################################

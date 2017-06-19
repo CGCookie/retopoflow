@@ -122,27 +122,27 @@ def navigation_language():
 
 
 def kmi_details(kmi):
-        kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
-        kmi_shift   = 'SHIFT+' if kmi.shift else ''
-        kmi_alt     = 'ALT+'   if kmi.alt   else ''
-        kmi_os      = 'OSKEY+'  if kmi.oskey else ''
-        
-        kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi_os
-        if kmi.type == 'WHEELINMOUSE':
-            dprint('WHEELUPMOUSE substituted for WHEELINMOUSE')
-            kmi_ftype += 'WHEELUPMOUSE'
-        
-        elif kmi.type == 'WHEELOUTMOUSE':
-            dprint('WHEELDOWNMOUSE substituted for WHEELOUTMOUSE')
-            kmi_ftype += 'WHEELDOWNMOUSE'
-        
-        else:
-            kmi_ftype  += kmi.type
-        
-        return kmi_ftype
+    kmi_ctrl    = 'CTRL+'  if kmi.ctrl  else ''
+    kmi_shift   = 'SHIFT+' if kmi.shift else ''
+    kmi_alt     = 'ALT+'   if kmi.alt   else ''
+    kmi_os      = 'OSKEY+'  if kmi.oskey else ''
+    
+    kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi_os
+    if kmi.type == 'WHEELINMOUSE':
+        dprint('WHEELUPMOUSE substituted for WHEELINMOUSE')
+        kmi_ftype += 'WHEELUPMOUSE'
+    
+    elif kmi.type == 'WHEELOUTMOUSE':
+        dprint('WHEELDOWNMOUSE substituted for WHEELOUTMOUSE')
+        kmi_ftype += 'WHEELDOWNMOUSE'
+    
+    else:
+        kmi_ftype  += kmi.type
+    
+    return kmi_ftype
 
 
-def add_to_dict(km_dict, key, value, safety = True):   
+def add_to_dict(km_dict, key, value, safety = True):
     if safety:
         for k in km_dict.keys():
             if value in km_dict[k]:

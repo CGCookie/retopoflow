@@ -6,8 +6,8 @@ import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 
-from mathutils import Matrix,Vector
-from .maths import Point,Direction,Normal,Ray,XForm
+from mathutils import Matrix, Vector
+from ..common.maths import Point, Direction, Normal, Ray, XForm
 
 
 class RFMesh():
