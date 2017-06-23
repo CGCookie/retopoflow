@@ -64,11 +64,12 @@ class RegisterRFToolClasses(type, metaclass=ABCMeta):
 
 
 class RFTool(metaclass=RegisterRFToolClasses):
-    def __init__(self):
+    def __init__(self, rtfcontext):
         self.FSM = {}
         self.init_tool()
         self.FSM['main'] = self.modal_main
         self.mode = 'main'
+        self.rtfcontext = rtfcontext
     
     ''' Called when RetopoFlow plugin is '''
     def init_tool(self): pass
@@ -80,8 +81,8 @@ class RFTool(metaclass=RegisterRFToolClasses):
     
     @abstractmethod
     def start(self):
-        ''' Called the tool is being switched into '''
-        pass
+        ''' Called the tool is being switched into. Returns initial state '''
+        return None
 
     @abstractmethod
     def modal_main(self): pass
@@ -89,7 +90,7 @@ class RFTool(metaclass=RegisterRFToolClasses):
     def draw_postview(self): pass
     def draw_postpixel(self): pass
     
-    def __modal(self):
+    def modal(self):
         (nmode,handled) = self.FSM[self.mode]()
         if nmode: self.mode = nmode
         return handled

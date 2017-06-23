@@ -26,8 +26,11 @@ class RFMesh():
         assert type(obj.data) is bpy.types.Mesh, "Only call RFMesh.hash_object on mesh objects!"
         # get object data to act as a hash
         me = obj.data
-        counts = (len(me.vertices), len(me.edges), len(me.polygons), len(ob.modifiers))
-        bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+        counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
+        if me.vertices:
+            bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+        else:
+            bbox = (None, None)
         vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
         xform  = tuple(e for l in obj.matrix_world for e in l)
         return (counts, bbox, vsum, xform)      # ob.name???
@@ -61,14 +64,14 @@ class RFMesh():
         self.store_state()
     
     def update_bvh(self):
-        if self.bvh: del self.bvh
+        if hasattr(self, 'bvh'): del self.bvh
         self.bvh = BVHTree.FromBMesh(self.bme)
     
     def store_state(self):
         attributes = ['hide']       # list of attributes to remember
         self.prev_state = { attr: self.obj.__getattribute__(attr) for attr in attributes }
     def restore_state(self):
-        for attr,val in self.prev_state.iteritems(): self.obj.__setattr__(attr, val)
+        for attr,val in self.prev_state.items(): self.obj.__setattr__(attr, val)
     
     def obj_hide(self):   self.obj.hide = True
     def obj_unhide(self): self.obj.hide = False
@@ -77,6 +80,8 @@ class RFMesh():
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
+    
+    ##########################################################
     
     def raycast(self, ray:Ray):
         if not self.bvh: return (None,None,None,None)
@@ -95,6 +100,37 @@ class RFMesh():
         p,n = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d = (point - p).length
         return (p,n,i,d)
+    
+    
+    ##########################################################
+    
+    def deselect_all(self):
+        for bmv in self.bme.bmverts: bmv.select = False
+        for bme in self.bme.bmedges: bme.select = False
+        for bmf in self.bme.bmfaces: bmf.select = False
+    
+    def deselect(self, elems):
+        if not hasattr(elems, '__len__'):
+            elems.select = False
+        else:
+            for bmelem in elems: bmelem.select = False
+    
+    def select(self, elems, subparts=False, only=True):
+        if only: self.deselect_all()
+        if not hasattr(elems, '__len__'): elems = [elems]
+        if subparts:
+            nelems = set(elems)
+            for elem in elems:
+                t = type(elem)
+                if t is BMVert:
+                    pass
+                elif t is BMEdge:
+                    nelems.update(e for e in elem.verts)
+                elif t is BMFace:
+                    nelems.update(e for e in elem.verts)
+                    nelems.update(e for e in elem.edges)
+            elems = nelems
+        for elem in elems: elem.select = True
 
 
 class RFSource(RFMesh):
@@ -103,16 +139,15 @@ class RFSource(RFMesh):
     are the meshes being retopologized.
     '''
     
+    cache = {}
+    
     @staticmethod
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
         # check cache
         rfsource = None
-        if 'cache' not in RFSource:
-            # create cache
-            RFSource.cache = {}
-        elif obj.data.name in RFSource.cache:
+        if obj.data.name in RFSource.cache:
             # does cache match current state?
             rfsource = RFSource.cache[obj.data.name]
             if rfsource.hash != RFMesh.hash_object(obj):
@@ -128,7 +163,7 @@ class RFSource(RFMesh):
         return RFSource.cache[obj.data.name]
     
     def __init__(self):
-        assert 'creating' in dir(RFSource), 'Do not create new RFSource directly!  Use RFSource.new()'
+        assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
     
     def __setup__(self, obj:bpy.types.Object):
         super().__setup__(obj, deform=True)
@@ -145,14 +180,14 @@ class RFTarget(RFMesh):
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
-        RFSource.creating = True
+        RFTarget.creating = True
         rftarget = RFTarget()
-        del RFSource.creating
+        del RFTarget.creating
         rftarget.__setup__(obj)
         return rftarget
     
     def __init__(self):
-        assert 'creating' in dir(RFTarget), 'Do not create new RFTarget directly!  Use RFTarget.new()'
+        assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
     
     def __setup__(self, obj:bpy.types.Object, bme:bmesh.types.BMesh=None):
         super().__setup__(obj, bme=bme)
@@ -179,13 +214,13 @@ class RFTarget(RFMesh):
         return rftarget
     
     def commit(self):
-        self.object_write()
+        self.write_editmesh()
         self.restore_state()
     
     def cancel(self):
         self.restore_state()
     
-    def object_write(self):
+    def write_editmesh(self):
         self.bme.to_mesh(self.obj.data)
     
     

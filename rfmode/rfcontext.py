@@ -11,7 +11,10 @@ import bmesh
 from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 
+from .. import key_maps
+from ..lib.common_utilities import get_settings
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ..lib.eventdetails import EventDetails
 
 from .rfmesh import RFSource, RFTarget
 
@@ -35,22 +38,34 @@ class RFContext:
     RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
     
-    undo_depth = 100 # set in RF properties?
+    undo_depth = 100 # set in RF settings?
     
-    def __init__(self, context, event):
-        self._init_target()              # set up target object
-        self._init_sources()             # set up source objects
-        self._init_toolset()             # set up tools used in RetopoFlow
+    def __init__(self):
+        self._init_usersettings()       # set up user-defined settings and key mappings
+        self._init_target()             # set up target object
+        self._init_sources()            # set up source objects
+        self._init_toolset()            # set up tools used in RetopoFlow
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         self.eventd = EventDetails()    # context, event details, etc.
-        self.update(context, event)
+    
+    def _init_usersettings(self):
+        # handle user-defined settings and key mappings
+        self.settings = get_settings()
+        self.keymap = key_maps.rtflow_default_keymap_generate()
+        key_maps.navigation_language() # check keymap against system language
+        user = key_maps.rtflow_user_keymap_generate()
+        self.events_nav = user['navigate']
+        self.events_selection = set()
+        self.events_selection.update(user['select'])
+        self.events_selection.update(user['select all'])
+        self.events_confirm = user['confirm']
     
     def _init_toolset(self):
-        self.tool_set = { rftool:rftool() for rftool in RFTool }
-        self.tool_data = {} # where each tool stores its internal state
-        for tool in self.tool_set.values(): tool.init()     # init each tool
-        self.tool = None    # which tool is currently selected
+        self.tool_set = { rftool:rftool(self) for rftool in RFTool }    # create instances of each tool
+        for tool in self.tool_set.values(): tool.init()                 # init each tool
+        self.tool = None                                                # currently selected tool
+        self.tool_state = None                                          # current tool state
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -72,9 +87,6 @@ class RFContext:
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
     
-    def update(self, context, event):
-        self.eventd.update(context, event)
-    
     def end(self):
         pass
     
@@ -84,11 +96,13 @@ class RFContext:
     
     def _create_state(self, action):
         return {
-            'action':     action,
-            'tool_state': copy.deepcopy(self.tool_state),
-            'rftarget':   copy.deepcopy(self.rftarget),
+            'action':       action,
+            'tool':         self.tool,
+            'tool_state':   copy.deepcopy(self.tool_state),
+            'rftarget':     copy.deepcopy(self.rftarget),
             }
     def _restore_state(self, state):
+        self.tool = state['tool']
         self.tool_state = state['tool_state']
         self.rftarget = state['rftarget']
     
@@ -112,12 +126,35 @@ class RFContext:
     
     ###################################################
     
-    def modal(self):
+    def modal(self, context, event):
         # returns set with actions for RFMode to perform
         #   {'confirm'}:    done with RFMode
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
-        pass
+        
+        prev_tool = self.tool
+        self.eventd.update(context, event)
+        
+        if self.eventd.press in self.events_nav:
+            # let Blender handle navigation
+            return {'pass'}
+        
+        if self.eventd.press in self.events_confirm:
+            # all done!
+            return {'confirm'}
+        
+        if self.eventd.press in self.events_selection:
+            # handle selection
+            return {}
+        
+        if self.tool: self.tool.modal()
+        
+        if prev_tool != self.tool:
+            # tool has changed
+            # set up state of new tool
+            self.tool_state = self.tool_set[self.tool].start()
+        
+        return {}
     
     
     ###################################################
@@ -141,60 +178,15 @@ class RFContext:
     
     ###################################################
     
-    def deselect_all(self):
+    def deselect_all(self): self.rftarget.deselect_all()
+    def deselect(self, elems): self.rftarget.deselect(elems)
+    def select(self, elems, subparts=False, only=True): self.rftarget.select(elems, subparts=subparts, only=only)
+    
+    
+    ###################################################
+    
+    def draw_postpixel(self):
         pass
-    def deselect(self, elems):
+    
+    def draw_postview(self):
         pass
-    def select(self, elems, subparts=False, only=True):
-        pass
-    
-    # def get_elem(self, uid): return self.rftarget.get_elem(uid)
-    # def get_uid(self, elem): return self.rftarget.get_uid(elem)
-    
-    # def get_active_uid(self): return self.state['active']
-    # def get_active_elem(self): return self.get_elem(self.state['active'])
-    
-    # def get_select_uid(self): return set(self.state['select'])
-    # def get_select_elem(self): return set(self.get_elem(e) for e in self.state['select'])
-    
-    # def is_active_uid(self, uid): return uid == self.state['active']
-    # def is_active_elem(self, elem): return self.is_active_uid(self.get_elem(elem))
-    
-    # def is_select_uid(self, uid): return uid in self.state['select']
-    # def is_select_elem(self, elem): return self.is_select_uid(self.get_elem(elem))
-    
-    # def deselect_all(self):
-    #     self.state['select'].clear()
-    #     self.state['active'] = None
-    # def deselect_by_uid(self, uids):
-    #     if '__len__' not in uids.__dir__(): uids = { uids }
-    #     if self.state['active'] and self.state['active'] in uids:
-    #         self.state['active'] = None
-    #     self.state['select'].difference_update(uids)
-    # def deselect_by_elem(self, elems):
-    #     if '__len__' not in elems.__dir__(): elems = { elems }
-    #     self.deselect_by_uid(self.get_uid(elem) for elem in elems)
-    
-    # def select_by_uid(self, uids, subparts=False, only=True):
-    #     if only: self.deselect_all()
-    #     if '__len__' not in uids.__dir__(): uids = { uids }
-    #     if subparts:
-    #         nuids = set(uids)
-    #         for uid in uids:
-    #             elem = self.get_elem(uid)
-    #             t = type(elem)
-    #             if t is bmesh.types.BMVert:
-    #                 pass
-    #             elif t is bmesh.types.BMEdge:
-    #                 nuids.update(self.get_uid(e) for e in elem.verts)
-    #             elif t is bmesh.types.BMFace:
-    #                 nuids.update(self.get_uid(e) for e in elem.verts)
-    #                 nuids.update(self.get_uid(e) for e in elem.edges)
-    #         uids = nuids
-    #     for uid in uids:
-    #         self.state['select'].add(uid)
-    #         self.active = uid
-    # def select_by_elem(self, elems, subparts=False, only=True):
-    #     if '__len__' not in elems.__dir__(): elems = { elems }
-    #     self.select_by_uid((self.get_uid(elem) for elem in elems), subparts=subparts, only=only)
-    

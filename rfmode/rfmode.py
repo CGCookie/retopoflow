@@ -28,14 +28,11 @@ import time
 import bpy
 import bgl
 from mathutils import Matrix
-from bpy.types import Operator
-from bpy.types import SpaceView3D
+from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
 
-from .. import key_maps
 from ..lib import common_utilities
-from ..lib.common_utilities import print_exception, showErrorMessage
-from ..lib.eventdetails import EventDetails
+from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 from ..lib.classes.logging.logger import Logger
 
 from .rfcontext import RFContext
@@ -59,6 +56,28 @@ useful reference: https://blender.stackexchange.com/questions/19416/what-do-oper
     * - note, button layouts may set the context of operators to invoke or execute. See: http://www.blender.org/api/blender_python_api_current/bpy.types.UILayout.html?highlight=uilayout#bpy.types.UILayout.operator_context
 
 '''
+
+
+StructRNA = bpy.types.bpy_struct
+rfmode_broken = False
+def still_registered(self):
+    global rfmode_broken
+    if rfmode_broken: return False
+    def is_registered():
+        if 'cgcookie' not in dir(bpy.ops): return False
+        if 'retopoflow' not in dir(bpy.ops.cgcookie): return False
+        try:    StructRNA.path_resolve(self, "properties")
+        except: return False
+        return True
+    if is_registered(): return True
+    print('RFMode is broken!')
+    rfmode_broken = True
+    report_broken_rfmode()
+    return False
+
+def report_broken_rfmode():
+    showErrorMessage('Something went wrong. Please try restarting Blender or create an error report with CG Cookie so we can fix it!', wrap=240)
+
 
 
 class RFMode(Operator):
@@ -85,8 +104,11 @@ class RFMode(Operator):
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
+        if not still_registered(self):
+            report_broken_rfmode()
+            return {'CANCELLED'}
         if not self.poll(context): return {'CANCELLED'}    # tool cannot start
-        self.framework_start(context, event)
+        self.framework_start()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
     
@@ -107,42 +129,46 @@ class RFMode(Operator):
         self.cb_pv_handle = None
         self.cb_pp_handle = None
         self.rfctx = None
-        self.keymap = None
-        self.event_nav = None
+        self.prev_mode = None
         print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
     
     ###############################################
     # start up and shut down methods
     
-    def framework_start(self, context, event):
+    def framework_start(self):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
-        self.context_start(context, event)
-        self.ui_start(context, event)
+        self.context_start()
+        self.ui_start()
 
     def framework_end(self):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
         err = False
-        try:    self.context_end()
-        except: err = True
         try:    self.ui_end()
-        except: err = True
+        except:
+            print_exception()
+            err = True
+        try:    self.context_end()
+        except:
+            print_exception()
+            err = True
         if err: self.handle_exception(serious=True)
     
-    def context_start(self, context, event):
-        generate_target = False
-        
+    
+    def context_start(self):
         # should we generate new target object?
-        tar_object = bpy.context.active_object
-        generate_target |= not tar_object
-        generate_target |= type(tar_object) is not bpy.types.Object
-        generate_target |= type(tar_object.data) is not bpy.types.Mesh
-        generate_target |= tar_object.select
-        generate_target |= not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers))
-        if generate_target:
+        def generate_target():
+            tar_object = bpy.context.active_object
+            if tar_object is None: return True
+            if type(tar_object) is not bpy.types.Object: return True
+            if type(tar_object.data) is not bpy.types.Mesh: return True
+            if not tar_object.select: return true
+            if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers)): return True
+            return False
+        if generate_target():
             print('generating new target')
             tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
@@ -155,24 +181,32 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
-        self.rfctx = RFContext(context, event)
+        self.rfctx = RFContext()
     
     def context_end(self):
         self.rfctx.end()
         self.rfctx = None
     
-    def ui_start(self, context, event):
-        # handle user-defined key mappings
-        self.keymap = key_maps.rtflow_default_keymap_generate()
-        key_maps.navigation_language() # check keymap against system language
-        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+    def ui_start(self):
+        # remember current mode and set to object mode so we can control
+        # how the target mesh is rendered and so we can push new data
+        # into target mesh
+        self.prev_mode = {
+            'OBJECT':        'OBJECT',          # for some reason, we must
+            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
+            'SCULPT':        'SCULPT',          # to something that
+            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set
+            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts...
+            'PAINT_TEXTURE': 'TEXTURE_PAINT',
+            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
+        bpy.ops.object.mode_set(mode='OBJECT')
         
         # report something useful to user
-        context.area.header_text_set('RetopoFlow Mode')
+        bpy.context.area.header_text_set('RetopoFlow Mode')
         
         # add callback handlers
-        self.cb_pv_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (self.context, ), 'WINDOW', 'POST_VIEW')
-        self.cb_pp_handle  = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (self.context, ), 'WINDOW', 'POST_PIXEL')
+        self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
+        self.cb_pp_handle = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (bpy.context, ), 'WINDOW', 'POST_PIXEL')
         
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
@@ -192,21 +226,26 @@ class RFMode(Operator):
             self.cb_pp_handle = None
         
         # remove useful reporting
-        self.context.area.header_text_set()
+        bpy.context.area.header_text_set()
+        
+        # restore previous mode
+        bpy.ops.object.mode_set(mode=self.prev_mode)
     
     
     ####################################################################
     # Draw handler function
     
     def draw_callback_postview(self, context):
+        if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        try:    self.draw_postview()
+        try:    self.rfctx.draw_postview()
         except: self.handle_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
+        if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        try:    self.draw_postpixel()
+        try:    self.rfctx.draw_postpixel()
         except: self.handle_exception()
         #if self.settings.show_help and self.help_box: self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
@@ -216,6 +255,7 @@ class RFMode(Operator):
     # exception handling method
     
     def handle_exception(self, serious=False):
+        #print_exception2()
         errormsg = print_exception()
         # if max number of exceptions occur within threshold of time, abort!
         curtime = time.time()
@@ -226,14 +266,14 @@ class RFMode(Operator):
         # that something has gone badly wrong
         c = sum(1 for m,t in self.exceptions_caught if m == errormsg)
         if serious or c > 1:
-            self.log.add('\n'*5)
-            self.log.add('-'*100)
-            self.log.add('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
-            self.log.add('-'*100)
-            self.log.add('\n'*5)
+            self.logger.add('\n'*5)
+            self.logger.add('-'*100)
+            self.logger.add('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
+            self.logger.add('-'*100)
+            self.logger.add('\n'*5)
             showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
-            self.modal_end()
+            self.ui_end()
         
         self.fsm_mode = 'main'
     
@@ -248,8 +288,6 @@ class RFMode(Operator):
         This state calls auxiliary wait state to see into which state we transition.
         '''
 
-        self.rfctx.update(context, event)
-        
         if self.exception_quit:
             # something bad happened, so bail!
             self.framework_end()
@@ -265,7 +303,7 @@ class RFMode(Operator):
         context.area.tag_redraw()       # force redraw
         
         try:
-            ret = self.rfctx.modal() or {}
+            ret = self.rfctx.modal(context, event) or {}
         except:
             self.handle_exception()
             return {'RUNNING_MODAL'}
@@ -281,7 +319,7 @@ class RFMode(Operator):
             self.framework_end()
             return {'FINISHED'}
         
-        return {'RUNNING_MODAL'}            # tell Blender to continue running our tool in modal
+        return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
     
 
 

@@ -167,6 +167,7 @@ def rtflow_default_keymap_generate():
     for kmi in bpy.context.window_manager.keyconfigs['Blender'].keymaps['3D View'].keymap_items:
         if kmi.name in navigation_events:     
             add_to_dict(km_dict,'navigate',kmi_details(kmi))
+    
     return km_dict
 
 
@@ -180,7 +181,6 @@ def rtflow_user_keymap_generate():
         if kmi.name in navigation_events:     
             add_to_dict(km_dict,'navigate',kmi_details(kmi))
     
-            
     return km_dict
 
 rtflow_keymap = None
