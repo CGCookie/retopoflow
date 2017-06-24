@@ -38,19 +38,28 @@ import math
 #https://www.blender.org/api/blender_python_api_2_77_1/bgl.html
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
 shaderVertSource = '''
-#version 110
+#version 120
 
-attribute float offset;
-attribute float dotoffset;
+uniform vec4 color;
+uniform vec4 color_selected;
 
-varying vec4 vPosition;
-varying vec3 vNormal;
+in float offset;
+in float dotoffset;
+in float selected;
+
+varying vec4  vPosition;
+varying vec3  vNormal;
 varying float vOffset;
 varying float vDotOffset;
 
 void main() {
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-    gl_FrontColor = gl_Color;
+    if(selected > 0.5) {
+        gl_FrontColor = color_selected;
+    } else {
+        gl_FrontColor = color;
+    }
+    //gl_FrontColor = gl_Color;
     
     vPosition = gl_ModelViewMatrix * gl_Vertex;
     vNormal = normalize(gl_NormalMatrix * gl_Normal);
@@ -59,15 +68,15 @@ void main() {
 }
 '''
 shaderFragSource = '''
-#version 110
+#version 120
 
-uniform bool perspective;
+uniform bool  perspective;
 uniform float clip_start;
 uniform float clip_end;
 uniform float object_scale;
 
-varying vec4 vPosition;
-varying vec3 vNormal;
+varying vec4  vPosition;
+varying vec3  vNormal;
 varying float vOffset;
 varying float vDotOffset;
 
@@ -120,20 +129,27 @@ def glSetDefaultOptions(opts=None):
     bgl.glDisable(bgl.GL_LIGHTING)
     bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-def glSetOptions(prefix, opts):
-    if opts == None: return
-    prefix = '%s '%prefix if prefix else ''
-    #if '%sdepth'%prefix in opts: bgl.glDepthRange(*opts['%sdepth'%prefix])
-    if '%soffset'%prefix in opts:
-        bmeshShader.assign('offset', opts['%soffset'%prefix])
-    if '%sdotoffset'%prefix in opts:
-        bmeshShader.assign('dotoffset', opts['%sdotoffset'%prefix])
-    if '%scolor'%prefix in opts: glColor(opts['%scolor'%prefix])
-    if '%swidth'%prefix in opts: bgl.glLineWidth(opts['%swidth'%prefix])
-    if '%ssize'%prefix  in opts: bgl.glPointSize(opts['%ssize'%prefix])
-    if opts.get('%sstipple'%prefix, False):
-        bgl.glLineStipple(4, 0x5555)  #play with this later
+
+def glEnableStipple(enable=True):
+    if enable:
+        bgl.glLineStipple(4, 0x5555)
         bgl.glEnable(bgl.GL_LINE_STIPPLE)
+    else:
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+
+def glSetOptions(prefix, opts):
+    if not opts: return
+    prefix = '%s '%prefix if prefix else ''
+    def set_if_set(opt, cb):
+        opt = '%s%s' % (prefix, opt)
+        if opt in opts: cb(opts[opt])
+    set_if_set('offset',         lambda v: bmeshShader.assign('offset', v))
+    set_if_set('dotoffset',      lambda v: bmeshShader.assign('dotoffset', v))
+    set_if_set('color',          lambda v: bmeshShader.assign('color', v))
+    set_if_set('color selected', lambda v: bmeshShader.assign('color_selected', v))
+    set_if_set('width',          lambda v: bgl.glLineWidth(v))
+    set_if_set('size',           lambda v: bgl.glPointSize(v))
+    set_if_set('stipple',        lambda v: glEnableStipple(v))
 
 
 def glDrawBMFace(bmf, opts=None, enableShader=True):
@@ -146,6 +162,7 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_TRIANGLES)
     for bmf in lbmf:
+        bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
         bgl.glNormal3f(*bmf.normal)
         bmv0 = bmf.verts[0]
         for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
@@ -161,6 +178,7 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
         glSetOptions('poly mirror', opts)
         bgl.glBegin(bgl.GL_TRIANGLES)
         for bmf in lbmf:
+            bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
             bgl.glNormal3f(-bmf.normal.x, bmf.normal.y, bmf.normal.z)
             bmv0 = bmf.verts[0]
             for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
@@ -191,6 +209,7 @@ def glDrawBMEdges(lbme, opts=None, enableShader=True):
     dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_LINES)
     for bme in lbme:
+        bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
         bmv0,bmv1 = bme.verts
         bgl.glNormal3f(*bmv0.normal)
         bgl.glVertex3f(*(bmv0.co+bmv0.normal*dn))
@@ -202,6 +221,7 @@ def glDrawBMEdges(lbme, opts=None, enableShader=True):
         glSetOptions('line mirror', opts)
         bgl.glBegin(bgl.GL_LINES)
         for bme in lbme:
+            bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
             bmv0,bmv1 = bme.verts
             co0,co1 = bmv0.co,bmv1.co
             bgl.glNormal3f(-bmv0.normal.x, bmv0.normal.y, bmv0.normal.z)
@@ -225,6 +245,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
     dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_POINTS)
     for bmv in lbmv:
+        bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
         bgl.glNormal3f(*bmv.normal)
         bgl.glVertex3f(*(bmv.co+bmv.normal*dn))
     bgl.glEnd()
@@ -233,6 +254,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
         glSetOptions('point mirror', opts)
         bgl.glBegin(bgl.GL_POINTS)
         for bmv in lbmv:
+            bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
             bgl.glNormal3f(-bmv.normal.x, bmv.normal.y, bmv.normal.z)
             bgl.glVertex3f(-bmv.co.x, bmv.co.y, bmv.co.z)
         bgl.glEnd()
@@ -242,6 +264,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
 
 class BMeshRender():
     def __init__(self, target_obj, target_mx=None, source_bvh=None, source_mx=None):
+        self.calllist = None
         if type(target_obj) is bpy.types.Object:
             print('Creating BMeshRender for ' + target_obj.name)
             self.tar_bmesh = bmesh.new()

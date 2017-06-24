@@ -1,5 +1,6 @@
 import sys
 import bpy
+import bgl
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 
@@ -115,6 +116,7 @@ class XForm:
                 'mx_n': None, 'imx_n': None
             }
             m['mx_p']  = mx
+            m['mx_t']  = mx.transposed()
             m['imx_p'] = mx.inverted()
             m['mx_d']  = mx.to_3x3()
             m['imx_d'] = m['mx_d'].inverted()
@@ -134,6 +136,7 @@ class XForm:
         self.mx_p,self.imx_p = mats['mx_p'],mats['imx_p']
         self.mx_d,self.imx_d = mats['mx_d'],mats['imx_d']
         self.mx_n,self.imx_n = mats['mx_n'],mats['imx_n']
+        self.mx_t = mats['mx_t']
         
         self.fn_l2w_typed = {
             Point:      lambda x: self.l2w_point(x),
@@ -175,6 +178,9 @@ class XForm:
     def __truediv__(self, other):
         return self.w2l_typed(other)
     
+    def __iter__(self):
+        for v in self.mx_p: yield v
+    
     
     def l2w_typed(self, data):
         ''' dispatched conversion '''
@@ -213,6 +219,11 @@ class XForm:
     def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
     def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
     
+    def to_bglMatrix(self):
+        bglMatrix = bgl.Buffer(bgl.GL_FLOAT, [16])
+        for i,v in enumerate([v for r in self.mx_t for v in r]):
+            bglMatrix[i] = v
+        return bglMatrix
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ from ..lib.common_utilities import get_settings
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..lib.eventdetails import EventDetails
 
-from .rfmesh import RFSource, RFTarget
+from .rfmesh import RFSource, RFTarget, RFMeshRender
 
 from .rftool import RFTool
 from .rftool_tweak import RFTool_Tweak
@@ -41,6 +41,7 @@ class RFContext:
     undo_depth = 100 # set in RF settings?
     
     def __init__(self):
+        self.rftarget_draw = None
         self._init_usersettings()       # set up user-defined settings and key mappings
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
@@ -69,12 +70,51 @@ class RFContext:
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
+        
+        # if user has modified the edit mesh, toggle into object then edit mode to update
+        if bpy.context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='EDIT')
+        
         tar_object = bpy.context.active_object
         assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
         assert tar_object.select, 'Active object must be selected'
         assert not tar_object.hide, 'Active object must be visible'
         assert any(ol and vl for ol,vl in zip(tar_object.layers, bpy.context.scene.layers)), 'Active object must be visible'
         self.rftarget = RFTarget.new(tar_object)
+        
+        # HACK! TODO: FIXME!
+        color_select = self.settings.theme_colors_selection[self.settings.theme]
+        color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
+        opts = {
+            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
+            'poly offset': 0.00001,
+            'poly mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly mirror color selected': (color_select[0], color_select[1], color_select[2], 0.20),
+            'poly mirror offset': 0.00001,
+            
+            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'line width': 2.0,
+            'line offset': 0.00002,
+            'line mirror stipple': False,
+            'line mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line mirror color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'line mirror width': 1.5,
+            'line mirror offset': 0.00002,
+            'line mirror stipple': True,
+            
+            'point color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'point color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'point size': 5.0,
+            'point offset': 0.00003,
+            'point mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'point mirror color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'point mirror size': 3.0,
+            'point mirror offset': 0.00003,
+        }
+        self.rftarget_draw = RFMeshRender(self.rftarget, opts)
     
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
@@ -82,7 +122,7 @@ class RFContext:
         visible_layers = [i for i in range(20) if bpy.context.scene.layers[i]]
         for obj in bpy.context.scene.objects:
             if type(obj.data) is not bpy.types.Mesh: continue               # only mesh objects
-            if obj is bpy.context.active_object: continue                   # exclude active object
+            if obj == bpy.context.active_object: continue                   # exclude active object
             if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
@@ -90,6 +130,16 @@ class RFContext:
     def end(self):
         pass
     
+    ###################################################
+    # mouse cursor functions
+    
+    def set_cursor(self, cursor):
+        # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                win.cursor_modal_set(cursor)
+    
+    def restore_cursor(self): self.set_cursor('DEFAULT')
     
     ###################################################
     # undo / redo stack operations
@@ -189,4 +239,4 @@ class RFContext:
         pass
     
     def draw_postview(self):
-        pass
+        self.rftarget_draw.draw()

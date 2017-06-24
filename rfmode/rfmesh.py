@@ -2,12 +2,15 @@ import sys
 import math
 
 import bpy
+import bgl
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 
 from mathutils import Matrix, Vector
 from ..common.maths import Point, Direction, Normal, Ray, XForm
+from ..lib import common_drawing_bmesh as bmegl
+from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
 
 class RFMesh():
@@ -18,6 +21,12 @@ class RFMesh():
     - handling snapping and raycasting
     - translates to/from local space (transformations)
     '''
+    
+    __version = 0
+    @staticmethod
+    def generate_version_number():
+        RFMesh.__version += 1
+        return RFMesh.__version
     
     @staticmethod
     def hash_object(obj:bpy.types.Object):
@@ -54,18 +63,54 @@ class RFMesh():
     def __setup__(self, obj, deform=False, bme=None):
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
+        self.is_dirty = True
         self.hash = RFMesh.hash_object(self.obj)
         if bme != None:
             self.bme = bme
         else:
+            eme = self.obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
+            eme.update()
             self.bme = bmesh.new()
-            self.bme.from_object(self.obj, bpy.context.scene, deform=deform)
-        self.update_bvh()
+            self.bme.from_mesh(eme)
+            
+            #self.bme = bmesh.new()
+            #self.bme.from_object(self.obj, bpy.context.scene, deform=deform)
+            self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
+            self.copy_editmesh_selection()
         self.store_state()
+        self.make_dirty()
+        self.make_clean()
     
-    def update_bvh(self):
+    
+    ##########################################################
+    
+    def copy_editmesh_selection(self):
+        sel = []
+        for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+            bmv.select = emv.select
+            if bmv.select: sel += ['v%d' % emv.index]
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            bme.select = eme.select
+            if bme.select: sel += ['e%d' % eme.index]
+        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+            bmf.select = emf.select
+            if bmf.select: sel += ['f%d' % emf.index]
+        print('%s: %s' % (str(type(self)),', '.join(sel)))
+    
+    
+    ##########################################################
+    
+    def make_dirty(self):
+        self.is_dirty = True
+        self.version = RFMesh.generate_version_number()
+    
+    def make_clean(self):
         if hasattr(self, 'bvh'): del self.bvh
         self.bvh = BVHTree.FromBMesh(self.bme)
+        self.is_dirty = False
+    
+    
+    ##########################################################
     
     def store_state(self):
         attributes = ['hide']       # list of attributes to remember
@@ -224,3 +269,61 @@ class RFTarget(RFMesh):
         self.bme.to_mesh(self.obj.data)
     
     
+
+
+class RFMeshRender():
+    def __init__(self, rfmesh, opts):
+        self.opts = opts
+        self.replace_rfmesh(rfmesh)
+        self.bglCallList = bgl.glGenLists(1)
+        self.bglMatrix = rfmesh.xform.to_bglMatrix()
+    
+    def __del__(self):
+        if hasattr(self, 'bglCallList'):
+            bgl.glDeleteLists(self.bglCallList, 1)
+            del self.bglCallList
+        if hasattr(self, 'bglMatrix'):
+            del self.bglMatrix
+    
+    def replace_rfmesh(self, rfmesh):
+        self.rfmesh = rfmesh
+        self.bmesh = rfmesh.bme
+        self.version = None
+    
+    def clean(self):
+        # return if rfmesh hasn't changed
+        if self.version == self.rfmesh.version: return
+        
+        self.version = self.rfmesh.version # make not dirty first in case bad things happen while drawing
+        print('RMesh.version = %d' % self.version)
+        
+        opts = dict(self.opts)
+        if 'x' in self.rfmesh.symmetry: opts['mirror x'] = True
+        print(str(opts))
+        
+        bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
+        # do not change attribs if they're not set
+        bmegl.glSetDefaultOptions(opts=self.opts)
+        bgl.glPushMatrix()
+        bgl.glMultMatrixf(self.bglMatrix)
+        bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
+        bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
+        bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        bgl.glDepthRange(0, 1)
+        bgl.glPopMatrix()
+        bgl.glEndList()
+        
+        print('f:%d e:%d v:%d' % (len(self.bmesh.faces), len(self.bmesh.edges), len(self.bmesh.verts)))
+    
+    def draw(self):
+        try:
+            self.clean()
+            bmegl.bmeshShader.enable()
+            bgl.glCallList(self.bglCallList)
+        except:
+            print_exception()
+            pass
+        finally:
+            bmegl.bmeshShader.disable()
+
+

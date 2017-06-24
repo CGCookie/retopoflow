@@ -95,6 +95,8 @@ class Shader():
         if q in {'in','attribute'}:
             if t == 'float':
                 bgl.glVertexAttrib1f(l, varValue)
+            elif t == 'int':
+                bgl.glVertexAttrib1i(l, varValue)
             else:
                 assert False, 'Unhandled type %s for attrib %s' % (t, varName)
         elif q in {'uniform'}:
@@ -102,6 +104,8 @@ class Shader():
                 bgl.glUniform1f(l, varValue)
             elif t == 'bool':
                 bgl.glUniform1i(l, 1 if varValue else 0)
+            elif t == 'vec4':
+                bgl.glUniform4f(l, *varValue)
             else:
                 assert False, 'Unhandled type %s for uniform %s' % (t, varName)
         else:

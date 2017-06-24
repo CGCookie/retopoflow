@@ -126,9 +126,6 @@ class RFMode(Operator):
         self.settings = common_utilities.get_settings()
         self.exceptions_caught = None
         self.exception_quit = None
-        self.cb_pv_handle = None
-        self.cb_pp_handle = None
-        self.rfctx = None
         self.prev_mode = None
         print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
     
@@ -184,8 +181,9 @@ class RFMode(Operator):
         self.rfctx = RFContext()
     
     def context_end(self):
-        self.rfctx.end()
-        self.rfctx = None
+        if hasattr(self, 'rfctx'):
+            self.rfctx.end()
+            del self.rfctx
     
     def ui_start(self):
         # remember current mode and set to object mode so we can control
@@ -195,8 +193,8 @@ class RFMode(Operator):
             'OBJECT':        'OBJECT',          # for some reason, we must
             'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
             'SCULPT':        'SCULPT',          # to something that
-            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set
-            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts...
+            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
+            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
             'PAINT_TEXTURE': 'TEXTURE_PAINT',
             }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -204,9 +202,57 @@ class RFMode(Operator):
         # report something useful to user
         bpy.context.area.header_text_set('RetopoFlow Mode')
         
+        # remember space info and hide all non-renderable items
+        self.space_info = {}
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                for area in win.screen.areas:
+                    if area.type != 'VIEW_3D': continue
+                    for space in area.spaces:
+                        if space.type != 'VIEW_3D': continue
+                        self.space_info[space] = {
+                            'show_only_render': space.show_only_render,
+                        }
+                        space.show_only_render = True
+        
         # add callback handlers
         self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
         self.cb_pp_handle = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (bpy.context, ), 'WINDOW', 'POST_PIXEL')
+        # darken other spaces
+        self.spaces = [
+            bpy.types.SpaceClipEditor,
+            bpy.types.SpaceConsole,
+            bpy.types.SpaceDopeSheetEditor,
+            bpy.types.SpaceFileBrowser,
+            bpy.types.SpaceGraphEditor,
+            bpy.types.SpaceImageEditor,
+            bpy.types.SpaceInfo,
+            bpy.types.SpaceLogicEditor,
+            bpy.types.SpaceNLA,
+            bpy.types.SpaceNodeEditor,
+            bpy.types.SpaceOutliner,
+            bpy.types.SpaceProperties,
+            bpy.types.SpaceSequenceEditor,
+            bpy.types.SpaceTextEditor,
+            bpy.types.SpaceTimeline,
+            #bpy.types.SpaceUVEditor,       # <- does not exist?
+            bpy.types.SpaceUserPreferences,
+            #'SpaceView3D',                 # <- specially handled
+            ]
+        self.areas = [ 'WINDOW', 'HEADER' ]
+        # ('WINDOW', 'HEADER', 'CHANNELS', 'TEMPORARY', 'UI', 'TOOLS', 'TOOL_PROPS', 'PREVIEW')
+        self.cb_pp_tools   = SpaceView3D.draw_handler_add(self.draw_callback_cover, (bpy.context, ), 'TOOLS',      'POST_PIXEL')
+        self.cb_pp_props   = SpaceView3D.draw_handler_add(self.draw_callback_cover, (bpy.context, ), 'TOOL_PROPS', 'POST_PIXEL')
+        self.cb_pp_ui      = SpaceView3D.draw_handler_add(self.draw_callback_cover, (bpy.context, ), 'UI',         'POST_PIXEL')
+        self.cb_pp_header  = SpaceView3D.draw_handler_add(self.draw_callback_cover, (bpy.context, ), 'HEADER',     'POST_PIXEL')
+        self.cb_pp_all = [
+            (s, a, s.draw_handler_add(self.draw_callback_cover, (bpy.context,), a, 'POST_PIXEL'))
+            for s in self.spaces
+            for a in self.areas
+            ]
+        self.tag_redraw_all()
+        
+        self.rfctx.set_cursor('CROSSHAIR')
         
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
@@ -218,18 +264,47 @@ class RFMode(Operator):
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
         
         # remove callback handlers
-        if self.cb_pv_handle:
+        if hasattr(self, 'cb_pv_handle'):
             SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
-            self.cb_pv_handle = None
-        if self.cb_pp_handle:
+            del self.cb_pv_handle
+        if hasattr(self, 'cb_pp_handle'):
             SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
-            self.cb_pp_handle = None
+            del self.cb_pp_handle
+        if hasattr(self, 'cb_pp_tools'):
+            SpaceView3D.draw_handler_remove(self.cb_pp_tools,  "TOOLS")
+            del self.cb_pp_tools
+        if hasattr(self, 'cb_pp_props'):
+            SpaceView3D.draw_handler_remove(self.cb_pp_props,  "TOOL_PROPS")
+            del self.cb_pp_props
+        if hasattr(self, 'cb_pp_ui'):
+            SpaceView3D.draw_handler_remove(self.cb_pp_ui,     "UI")
+            del self.cb_pp_ui
+        if hasattr(self, 'cb_pp_header'):
+            SpaceView3D.draw_handler_remove(self.cb_pp_header, "HEADER")
+            del self.cb_pp_header
+        if hasattr(self, 'cb_pp_all'):
+            for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
+            del self.cb_pp_all
+        
+        self.tag_redraw_all()
+        
+        self.rfctx.restore_cursor()
+       
+        # restore space info
+        for space,data in self.space_info.items():
+            space.show_only_render = data['show_only_render']
         
         # remove useful reporting
         bpy.context.area.header_text_set()
         
         # restore previous mode
         bpy.ops.object.mode_set(mode=self.prev_mode)
+    
+    def tag_redraw_all(self):
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                for ar in win.screen.areas:
+                    ar.tag_redraw()
     
     
     ####################################################################
@@ -249,6 +324,24 @@ class RFMode(Operator):
         except: self.handle_exception()
         #if self.settings.show_help and self.help_box: self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
+    
+    def draw_callback_cover(self, context):
+        if not still_registered(self): return
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
+        bgl.glMatrixMode(bgl.GL_PROJECTION)
+        bgl.glPushMatrix()
+        bgl.glLoadIdentity()
+        bgl.glColor4f(0,0,0,0.5)    # TODO: use window background color??
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_DEPTH_TEST)
+        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
+        bgl.glVertex2f(-1, -1)
+        bgl.glVertex2f( 1, -1)
+        bgl.glVertex2f( 1,  1)
+        bgl.glVertex2f(-1,  1)
+        bgl.glEnd()
+        bgl.glPopMatrix()
+        bgl.glPopAttrib()
     
     
     ####################################################################
@@ -288,6 +381,10 @@ class RFMode(Operator):
         This state calls auxiliary wait state to see into which state we transition.
         '''
 
+        if not still_registered(self):
+            # something bad happened, so bail!
+            return {'CANCELLED'}
+        
         if self.exception_quit:
             # something bad happened, so bail!
             self.framework_end()
