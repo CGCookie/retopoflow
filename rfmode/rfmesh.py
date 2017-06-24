@@ -72,9 +72,6 @@ class RFMesh():
             eme.update()
             self.bme = bmesh.new()
             self.bme.from_mesh(eme)
-            
-            #self.bme = bmesh.new()
-            #self.bme.from_object(self.obj, bpy.context.scene, deform=deform)
             self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
             self.copy_editmesh_selection()
         self.store_state()
@@ -85,17 +82,18 @@ class RFMesh():
     ##########################################################
     
     def copy_editmesh_selection(self):
-        sel = []
-        for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
-            bmv.select = emv.select
-            if bmv.select: sel += ['v%d' % emv.index]
-        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-            bme.select = eme.select
-            if bme.select: sel += ['e%d' % eme.index]
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             bmf.select = emf.select
-            if bmf.select: sel += ['f%d' % emf.index]
-        print('%s: %s' % (str(type(self)),', '.join(sel)))
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            bme.select = eme.select
+        for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+            bmv.select = emv.select
+    
+    def debug_print_selection(self):
+        v = sum(1 if bmv.select else 0 for bmv in self.bme.verts)
+        e = sum(1 if bme.select else 0 for bme in self.bme.edges)
+        f = sum(1 if bmf.select else 0 for bmf in self.bme.faces)
+        print('selection counts: %d %d %d' % (v,e,f))
     
     
     ##########################################################
@@ -153,12 +151,14 @@ class RFMesh():
         for bmv in self.bme.bmverts: bmv.select = False
         for bme in self.bme.bmedges: bme.select = False
         for bmf in self.bme.bmfaces: bmf.select = False
+        self.make_dirty()
     
     def deselect(self, elems):
         if not hasattr(elems, '__len__'):
             elems.select = False
         else:
             for bmelem in elems: bmelem.select = False
+        self.make_dirty()
     
     def select(self, elems, subparts=False, only=True):
         if only: self.deselect_all()
@@ -176,6 +176,7 @@ class RFMesh():
                     nelems.update(e for e in elem.edges)
             elems = nelems
         for elem in elems: elem.select = True
+        self.make_dirty()
 
 
 class RFSource(RFMesh):
@@ -184,7 +185,7 @@ class RFSource(RFMesh):
     are the meshes being retopologized.
     '''
     
-    cache = {}
+    __cache = {}
     
     @staticmethod
     def new(obj:bpy.types.Object):
@@ -192,9 +193,9 @@ class RFSource(RFMesh):
         
         # check cache
         rfsource = None
-        if obj.data.name in RFSource.cache:
+        if obj.data.name in RFSource.__cache:
             # does cache match current state?
-            rfsource = RFSource.cache[obj.data.name]
+            rfsource = RFSource.__cache[obj.data.name]
             if rfsource.hash != RFMesh.hash_object(obj):
                 rfsource = None
         if not rfsource:
@@ -203,9 +204,9 @@ class RFSource(RFMesh):
             rfsource = RFSource()
             del RFSource.creating
             rfsource.__setup__(obj)
-            RFSource.cache[obj.data.name] = rfsource
+            RFSource.__cache[obj.data.name] = rfsource
         
-        return RFSource.cache[obj.data.name]
+        return RFSource.__cache[obj.data.name]
     
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
@@ -299,7 +300,6 @@ class RFMeshRender():
         
         opts = dict(self.opts)
         if 'x' in self.rfmesh.symmetry: opts['mirror x'] = True
-        print(str(opts))
         
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         # do not change attribs if they're not set
@@ -312,8 +312,6 @@ class RFMeshRender():
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
         bgl.glEndList()
-        
-        print('f:%d e:%d v:%d' % (len(self.bmesh.faces), len(self.bmesh.edges), len(self.bmesh.verts)))
     
     def draw(self):
         try:

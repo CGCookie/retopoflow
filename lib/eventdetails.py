@@ -1,3 +1,5 @@
+from mathutils import Vector
+
 class EventDetails:
     def __init__(self):
         self.context = None
@@ -46,6 +48,6 @@ class EventDetails:
 
         if event.value == 'PRESS' and event.type in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             # TODO: only handles (correctly) one mousepress at a time!
-            self.mousedown = (float(event.mouse_region_x), float(event.mouse_region_y))
+            self.mousedown = Vector((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.mousepre = self.mouse
-        self.mouse    = (float(event.mouse_region_x), float(event.mouse_region_y))
+        self.mouse    = Vector((float(event.mouse_region_x), float(event.mouse_region_y)))
