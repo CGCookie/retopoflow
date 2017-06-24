@@ -127,6 +127,10 @@ class RFContext:
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
     
+    def commit(self):
+        #self.rftarget.commit()
+        pass
+    
     def end(self):
         pass
     
@@ -195,6 +199,9 @@ class RFContext:
         
         if self.eventd.press in self.events_selection:
             # handle selection
+            print('select!')
+            self.rftarget.ensure_lookup_tables()
+            self.rftarget.select([self.rftarget.bme.verts[i] for i in range(4)])
             return {}
         
         if self.tool: self.tool.modal()

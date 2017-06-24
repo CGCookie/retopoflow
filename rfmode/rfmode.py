@@ -413,6 +413,7 @@ class RFMode(Operator):
         if 'confirm' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
+            self.rfctx.commit()
             self.framework_end()
             return {'FINISHED'}
         

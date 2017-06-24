@@ -76,7 +76,7 @@ class RFMesh():
             self.copy_editmesh_selection()
         self.store_state()
         self.make_dirty()
-        self.make_clean()
+        # self.make_clean()
     
     
     ##########################################################
@@ -148,9 +148,9 @@ class RFMesh():
     ##########################################################
     
     def deselect_all(self):
-        for bmv in self.bme.bmverts: bmv.select = False
-        for bme in self.bme.bmedges: bme.select = False
-        for bmf in self.bme.bmfaces: bmf.select = False
+        for bmv in self.bme.verts: bmv.select = False
+        for bme in self.bme.edges: bme.select = False
+        for bmf in self.bme.faces: bmf.select = False
         self.make_dirty()
     
     def deselect(self, elems):
@@ -259,6 +259,11 @@ class RFTarget(RFMesh):
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
     
+    def make_clean(self):
+        if self.is_dirty:
+            super().make_clean()
+            self.write_editmesh()
+    
     def commit(self):
         self.write_editmesh()
         self.restore_state()
@@ -268,7 +273,12 @@ class RFTarget(RFMesh):
     
     def write_editmesh(self):
         self.bme.to_mesh(self.obj.data)
-    
+        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+            emf.select = bmf.select
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            eme.select = bme.select
+        for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+            emv.select = bmv.select
     
 
 
@@ -293,6 +303,7 @@ class RFMeshRender():
     
     def clean(self):
         # return if rfmesh hasn't changed
+        self.rfmesh.make_clean()
         if self.version == self.rfmesh.version: return
         
         self.version = self.rfmesh.version # make not dirty first in case bad things happen while drawing
@@ -332,6 +343,7 @@ class RFMeshRender():
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
+        # bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
         bgl.glEndList()
