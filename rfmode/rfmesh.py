@@ -299,16 +299,39 @@ class RFMeshRender():
         print('RMesh.version = %d' % self.version)
         
         opts = dict(self.opts)
-        if 'x' in self.rfmesh.symmetry: opts['mirror x'] = True
+        for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
         
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
         bgl.glPushMatrix()
         bgl.glMultMatrixf(self.bglMatrix)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        # bgl.glEnable(bgl.GL_CULL_FACE)
+        opts['poly hidden'] = 0.0
+        opts['poly mirror hidden'] = 0.0
+        opts['line hidden'] = 0.0
+        opts['line mirror hidden'] = 0.0
+        opts['point hidden'] = 0.0
+        opts['point mirror hidden'] = 0.0
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        # bgl.glDisable(bgl.GL_CULL_FACE)
+        opts['poly hidden']         = 0.95
+        opts['poly mirror hidden']  = 0.95
+        opts['line hidden']         = 0.95
+        opts['line mirror hidden']  = 0.95
+        opts['point hidden']        = 0.95
+        opts['point mirror hidden'] = 0.95
+        bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
+        bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
+        bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_TRUE)
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
         bgl.glEndList()

@@ -46,6 +46,7 @@ uniform vec4 color_selected;
 in float offset;
 in float dotoffset;
 in float selected;
+in float hidden;
 
 varying vec4  vPosition;
 varying vec3  vNormal;
@@ -55,9 +56,11 @@ varying float vDotOffset;
 void main() {
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
     if(selected > 0.5) {
-        gl_FrontColor = color_selected;
+        gl_FrontColor.rgb = color_selected.rgb;
+        gl_FrontColor.a = color_selected.a * (1.0 - hidden);
     } else {
-        gl_FrontColor = color;
+        gl_FrontColor.rgb = color.rgb;
+        gl_FrontColor.a = color.a * (1.0 - hidden);
     }
     //gl_FrontColor = gl_Color;
     
@@ -137,6 +140,14 @@ def glEnableStipple(enable=True):
     else:
         bgl.glDisable(bgl.GL_LINE_STIPPLE)
 
+def glEnableBackfaceCulling(enable=True):
+    if enable:
+        bgl.glDisable(bgl.GL_CULL_FACE)
+        bgl.glDepthFunc(bgl.GL_GEQUAL)
+    else:
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glEnable(bgl.GL_CULL_FACE)
+
 def glSetOptions(prefix, opts):
     if not opts: return
     prefix = '%s '%prefix if prefix else ''
@@ -147,6 +158,7 @@ def glSetOptions(prefix, opts):
     set_if_set('dotoffset',      lambda v: bmeshShader.assign('dotoffset', v))
     set_if_set('color',          lambda v: bmeshShader.assign('color', v))
     set_if_set('color selected', lambda v: bmeshShader.assign('color_selected', v))
+    set_if_set('hidden',         lambda v: bmeshShader.assign('hidden', v))
     set_if_set('width',          lambda v: bgl.glLineWidth(v))
     set_if_set('size',           lambda v: bgl.glPointSize(v))
     set_if_set('stipple',        lambda v: glEnableStipple(v))

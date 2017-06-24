@@ -89,30 +89,30 @@ class RFContext:
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
-            'poly offset': 0.00001,
+            'poly offset': 0.000010,
             'poly mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.10),
             'poly mirror color selected': (color_select[0], color_select[1], color_select[2], 0.10),
-            'poly mirror offset': 0.00001,
+            'poly mirror offset': 0.000010,
             
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'line color selected': (color_select[0], color_select[1], color_select[2], 1.00),
             'line width': 2.0,
-            'line offset': 0.00002,
+            'line offset': 0.000012,
             'line mirror stipple': False,
             'line mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
             'line mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
             'line mirror width': 1.5,
-            'line mirror offset': 0.00002,
+            'line mirror offset': 0.000012,
             'line mirror stipple': False,
             
             'point color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'point color selected': (color_select[0], color_select[1], color_select[2], 1.00),
             'point size': 5.0,
-            'point offset': 0.00003,
+            'point offset': 0.000015,
             'point mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
             'point mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
             'point mirror size': 3.0,
-            'point mirror offset': 0.00003,
+            'point mirror offset': 0.000015,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
     
