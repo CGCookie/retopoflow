@@ -1,4 +1,4 @@
-from mathutils import Vector
+from ..common.maths import Point2D
 
 class EventDetails:
     def __init__(self):
@@ -21,7 +21,6 @@ class EventDetails:
         self.mouse     = None   # current mouse location (wrt region)
         self.mousedown = None   # where the mouse was last pressed down
         self.mousepre  = None   # previous location of mouse
-        
     
     def update(self, context, event):
         event_ctrl  = 'CTRL+'  if event.ctrl  else ''
@@ -48,6 +47,6 @@ class EventDetails:
 
         if event.value == 'PRESS' and event.type in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             # TODO: only handles (correctly) one mousepress at a time!
-            self.mousedown = Vector((float(event.mouse_region_x), float(event.mouse_region_y)))
+            self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.mousepre = self.mouse
-        self.mouse    = Vector((float(event.mouse_region_x), float(event.mouse_region_y)))
+        self.mouse    = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))

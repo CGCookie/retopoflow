@@ -12,12 +12,41 @@ a vanilla Vector.
 '''
 
 
+class Vec2D(Vector):
+    def __str__(self):
+        return '<Vec2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def as_vector(self): return Vector(self)
+    def from_vector(self, v): self.x,self.y = v
+
+
 class Vec(Vector):
     def __str__(self):
         return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y,self.z = v
 
+
+class Point2D(Vector):
+    def __str__(self):
+        return '<Point2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def __add__(self, other):
+        t = type(other)
+        if t is Direction2D:
+            return Point((self.x+other.x,self.y+other.y))
+        if t is Vector or t is Vec2D:
+            return Point((self.x+other.x,self.y+other.y))
+        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def __radd__(self, other):
+        return self.__add__(other)
+    def __sub__(self, other):
+        t = type(other)
+        if t is Vector or t is Vec2D:
+            return Point((self.x-other.x,self.y-other.y))
+        elif t is Point2D:
+            return Vector((self.x-other.x, self.y-other.y))
+        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def as_vector(self): return Vector(self)
+    def from_vector(self, v): self.x,self.y = v
 
 class Point(Vector):
     def __str__(self):
@@ -36,11 +65,31 @@ class Point(Vector):
         if t is Vector or t is Vec:
             return Point((self.x-other.x,self.y-other.y,self.z-other.z))
         elif t is Point:
-            return Vector((self.x-other.x, self.y-other.y, self.z-other.z))
+            return Vec((self.x-other.x, self.y-other.y, self.z-other.z))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y,self.z = v
 
+
+class Direction2D(Vector):
+    def __init__(self, t=None):
+        if t is not None: self.from_vector(t)
+    def __str__(self):
+        return '<Direction2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def __mul__(self, other):
+        t = type(other)
+        if t is float or t is int:
+            return Vec2D((other * self.x, other * self.y))
+        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def __rmul__(self, other):
+        return self.__mul__(other)
+    def normalize(self):
+        super().normalize()
+        return self
+    def as_vector(self): return Vector(self)
+    def from_vector(self, v):
+        self.x,self.y = v
+        self.normalize()
 
 class Direction(Vector):
     def __init__(self, t=None):
@@ -206,15 +255,21 @@ class XForm:
     def w2l_vector(self, v:Vector)->Vec: return Vec(self.imx_d * v)
     
     def l2w_ray(self, ray:Ray)->Ray:
-        o0 = self.l2w_point(ray.o)
-        o1 = self.l2w_point(ray.o + ray.max * ray.d)
-        d  = self.l2w_direction(ray.d)
-        return Ray(o=o0, d=d, max_dist=(o1-o0).length)
+        o = self.l2w_point(ray.o)
+        d = self.l2w_direction(ray.d)
+        if ray.max == float('inf'):
+            l1 = ray.max
+        else:
+            l1 = (o - self.l2w_point(ray.o + ray.max * ray.d)).length
+        return Ray(o=o0, d=d, max_dist=l1)
     def w2l_ray(self, ray:Ray)->Ray:
-        o0 = self.w2l_point(ray.o)
-        o1 = self.w2l_point(ray.o + ray.max * ray.d)
-        d  = self.w2l_direction(ray.d)
-        return Ray(o=o0, d=d, max_dist=(o1-o0).length)
+        o = self.w2l_point(ray.o)
+        d = self.w2l_direction(ray.d)
+        if ray.max == float('inf'):
+            l1 = ray.max
+        else:
+            l1 = (o - self.l2w_point(ray.o + ray.max * ray.d)).length
+        return Ray(o=o, d=d, max_dist=l1)
     
     def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
     def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
@@ -224,6 +279,28 @@ class XForm:
         for i,v in enumerate([v for r in self.mx_t for v in r]):
             bglMatrix[i] = v
         return bglMatrix
+
+
+class BBox:
+    def __init__(self, from_bmverts=None, from_coords=None):
+        assert from_bmverts or from_coords
+        if from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
+        else: from_coords = list(from_coords)
+        mx,my,mz = from_coords[0]
+        Mx,My,Mz = mx,my,mz
+        for x,y,z in from_coords:
+            mx,my,mz = min(mx,x),min(my,y),min(mz,z)
+            Mx,My,Mz = max(Mx,x),max(My,y),max(Mz,z)
+        self.min = Point((mx, my, mz))
+        self.max = Point((Mx, My, Mz))
+        self.mx,self.my,self.mz = mx,my,mz
+        self.Mx,self.My,self.Mz = Mx,My,Mz
+    
+    def __str__(self):
+        return '<BBox (%0.4f, %0.4f, %0.4f) (%0.4f, %0.4f, %0.4f)>' % (self.mx, self.my, self.mz, self.Mx, self.My, self.Mz)
+    
+    def Point_within(self, point:Point, margin=0):
+        return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
 
 
 if __name__ == '__main__':
@@ -254,4 +331,3 @@ if __name__ == '__main__':
 
     print(mxr)
     print(mxr.mx_p)
-

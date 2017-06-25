@@ -43,10 +43,10 @@ shaderVertSource = '''
 uniform vec4 color;
 uniform vec4 color_selected;
 
-in float offset;
-in float dotoffset;
-in float selected;
-in float hidden;
+attribute float offset;
+attribute float dotoffset;
+attribute float selected;
+attribute float hidden;
 
 varying vec4  vPosition;
 varying vec3  vNormal;

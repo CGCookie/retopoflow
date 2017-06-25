@@ -3,6 +3,7 @@ import sys
 import math
 import json
 import copy
+import time
 import pickle
 import binascii
 
@@ -10,16 +11,34 @@ import bpy
 import bmesh
 from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 from .. import key_maps
 from ..lib.common_utilities import get_settings
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.eventdetails import EventDetails
 
 from .rfmesh import RFSource, RFTarget, RFMeshRender
 
 from .rftool import RFTool
+from .rfwidget import RFWidget
+
+
+
+#######################################################
+# import all the tools here
+
 from .rftool_tweak import RFTool_Tweak
+
+#######################################################
+# import all the cursors here
+
+#from .rftool_tweak import RFTool_Tweak
+
+#######################################################
+
 
 
 class RFContext:
@@ -49,10 +68,16 @@ class RFContext:
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         self.eventd = EventDetails()    # context, event details, etc.
+        self.tool = self.toolset[RFTool_Tweak]
+        self.rfwidget = None
+        self.start_time = time.time()
+        self.window_time = time.time()
+        self.frames = 0
     
     def _init_usersettings(self):
         # handle user-defined settings and key mappings
         self.settings = get_settings()
+        # TODO: keymaps need rewritten
         self.keymap = key_maps.rtflow_default_keymap_generate()
         key_maps.navigation_language() # check keymap against system language
         user = key_maps.rtflow_user_keymap_generate()
@@ -63,10 +88,10 @@ class RFContext:
         self.events_confirm = user['confirm']
     
     def _init_toolset(self):
-        self.tool_set = { rftool:rftool(self) for rftool in RFTool }    # create instances of each tool
-        for tool in self.tool_set.values(): tool.init()                 # init each tool
-        self.tool = None                                                # currently selected tool
-        self.tool_state = None                                          # current tool state
+        self.toolset = RFTool.get_toolset(self) # get entire toolset
+        self.tool = None                        # currently selected tool
+        self.tool_state = None                  # current tool state
+        RFWidget.init_widgets(self)
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -126,6 +151,7 @@ class RFContext:
             if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
             if obj.hide: continue                                           # cannot be hidden
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
+        print('%d sources' % len(self.rfsources))
     
     def commit(self):
         #self.rftarget.commit()
@@ -186,11 +212,28 @@ class RFContext:
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
         
+        wtime,ctime = self.window_time,time.time()
+        self.frames += 1
+        if ctime >= wtime + 2:
+            #print('%f fps' % (self.frames / (ctime - wtime)))
+            self.frames = 0
+            self.window_time = ctime
+        
         prev_tool = self.tool
         self.eventd.update(context, event)
         
+        if self.tool:
+            self.rfwidget = self.tool.rfwidget()
+            if self.rfwidget:
+                self.rfwidget.update()
+                self.set_cursor(self.rfwidget.mouse_cursor())
+        else:
+            self.rfwidget = None
+            self.set_cursor('CROSSHAIR')
+        
         if self.eventd.press in self.events_nav:
             # let Blender handle navigation
+            self.set_cursor('HAND')
             return {'pass'}
         
         if self.eventd.press in self.events_confirm:
@@ -200,8 +243,8 @@ class RFContext:
         if self.eventd.press in self.events_selection:
             # handle selection
             print('select!')
-            self.rftarget.ensure_lookup_tables()
-            self.rftarget.select([self.rftarget.bme.verts[i] for i in range(4)])
+            self.ensure_lookup_tables()
+            self.select([self.rftarget.bme.verts[i] for i in range(4)])
             return {}
         
         if self.tool: self.tool.modal()
@@ -209,29 +252,75 @@ class RFContext:
         if prev_tool != self.tool:
             # tool has changed
             # set up state of new tool
-            self.tool_state = self.tool_set[self.tool].start()
+            self.tool_state = self.toolset[self.tool].start()
         
         return {}
     
     
     ###################################################
     
-    def raycast_sources(self, ray:Ray):
+    def raycast_sources_Ray(self, ray:Ray):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
             hp,hn,hi,hd = rfsource.raycast(ray)
-            if bp is None or (hd is not None and hd < bd):
-                bp,bn,bi,bd = hp,bn,hi,hd
+            if bp is None or (hp is not None and hd < bd):
+                bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
     
-    def nearest_sources(self, point:Point, max_dist=sys.float_info.max):
+    def raycast_sources_Point2D(self, xy:Point2D):
+        return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
+    
+    def raycast_sources_mouse(self):
+        return self.raycast_sources_Point2D(self.eventd.mouse)
+    
+    def nearest_sources_Point(self, point:Point, max_dist=sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
             hp,hn,hi,hd = rfsource.nearest(point, max_dist=max_dist)
-            if bp is None or (hd is not None and hd < bd):
+            if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,bn,hi,hd
         return (bp,bn,bi,bd)
     
+    
+    ###################################################
+    # converts entities between screen space and world space
+    
+    def Point2D_to_Vec(self, xy:Point2D):
+        return Vec(region_2d_to_vector_3d(self.eventd.region, self.eventd.r3d, xy))
+    
+    def Point2D_to_Origin(self, xy:Point2D):
+        return Point(region_2d_to_origin_3d(self.eventd.region, self.eventd.r3d, xy))
+    
+    def Point2D_to_Ray(self, xy:Point2D):
+        return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Vec(xy))
+    
+    def Point2D_to_Point(self, xy:Point2D, depth:float):
+        r = self.Point2D_to_Ray(xy)
+        return Point(r.o + depth * r.d)
+        #return Point(region_2d_to_location_3d(self.eventd.region, self.eventd.r3d, xy, depth))
+    
+    def Point_to_Point2D(self, xyz:Point):
+        xy = location_3d_to_region_2d(self.eventd.region, self.eventd.r3d, xyz)
+        if xy is None: return None
+        return Point2D(xy)
+    
+    def Point_to_depth(self, xyz):
+        xy = location_3d_to_region_2d(self.eventd.region, self.eventd.r3d, xyz)
+        if xy is None: return None
+        oxyz = region_2d_to_origin_3d(self.eventd.region, self.eventd.r3d, xy)
+        return (xyz - oxyz).length
+    
+    def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
+        # computes size of 3D object at distance (depth) as it projects to 2D size
+        # TODO: there are more efficient methods of computing this!
+        p3d0 = self.Point2D_to_Point(xy, depth)
+        p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
+        return (p3d0 - p3d1).length
+    
+    ###################################################
+    
+    def ensure_lookup_tables(self):
+        self.rftarget.ensure_lookup_tables()
     
     ###################################################
     
@@ -243,7 +332,10 @@ class RFContext:
     ###################################################
     
     def draw_postpixel(self):
-        pass
+        if self.rfwidget:
+            self.rfwidget.draw_postpixel()
     
     def draw_postview(self):
         self.rftarget_draw.draw()
+        if self.rfwidget:
+            self.rfwidget.draw_postview()

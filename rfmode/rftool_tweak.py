@@ -1,5 +1,6 @@
 import bpy
 from .rftool import RFTool
+from .rfwidget import RFWidgetDefault, RFWidgetCircle
 
 class RFTool_Tweak(RFTool):
     ''' Called when RetopoFlow plugin is '''
@@ -13,9 +14,13 @@ class RFTool_Tweak(RFTool):
     def start(self):
         ''' Called the tool is being switched into '''
         pass
-
+    
+    def rfwidget(self):
+        ''' Returns type of cursor to display '''
+        return RFWidgetCircle
+    
     def modal_main(self):
-        pass
+        return ('', True)
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass

@@ -8,7 +8,7 @@ from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 
 from mathutils import Matrix, Vector
-from ..common.maths import Point, Direction, Normal, Ray, XForm
+from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
@@ -49,9 +49,9 @@ class RFMesh():
         if bme is None: return None
         assert type(bme) is BMesh, 'Only call RFMesh.hash_bmesh on BMesh objects!'
         counts = (len(bme.verts), len(bme.edges), len(bme.faces))
-        bbox   = (tuple(min(v.co for v in bme.verts)), tuple(max(v.co for v in bme.verts)))
+        bbox   = BBox(from_bmverts=self.bme.verts)
         vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
-        return (counts, bbox, vsum)
+        return (counts, tuple(bbox.min), tuple(bbox.max), vsum)
     
     
     def __init__(self):
@@ -63,7 +63,6 @@ class RFMesh():
     def __setup__(self, obj, deform=False, bme=None):
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
-        self.is_dirty = True
         self.hash = RFMesh.hash_object(self.obj)
         if bme != None:
             self.bme = bme
@@ -73,40 +72,38 @@ class RFMesh():
             self.bme = bmesh.new()
             self.bme.from_mesh(eme)
             self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
-            self.copy_editmesh_selection()
+            # copy selection from editmesh
+            for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+                bmf.select = emf.select
+            for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+                bme.select = eme.select
+            for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+                bmv.select = emv.select
         self.store_state()
-        self.make_dirty()
-        # self.make_clean()
+        self.dirty()
     
     
     ##########################################################
     
-    def copy_editmesh_selection(self):
-        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
-            bmf.select = emf.select
-        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-            bme.select = eme.select
-        for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
-            bmv.select = emv.select
-    
-    def debug_print_selection(self):
-        v = sum(1 if bmv.select else 0 for bmv in self.bme.verts)
-        e = sum(1 if bme.select else 0 for bme in self.bme.edges)
-        f = sum(1 if bmf.select else 0 for bmf in self.bme.faces)
-        print('selection counts: %d %d %d' % (v,e,f))
-    
-    
-    ##########################################################
-    
-    def make_dirty(self):
-        self.is_dirty = True
+    def dirty(self):
+        # TODO: add option for dirtying only selection or geo+topo
+        if hasattr(self, 'bvh'): del self.bvh
         self.version = RFMesh.generate_version_number()
     
-    def make_clean(self):
-        if hasattr(self, 'bvh'): del self.bvh
-        self.bvh = BVHTree.FromBMesh(self.bme)
-        self.is_dirty = False
+    def clean(self):
+        pass
     
+    def get_bvh(self):
+        if not hasattr(self, 'bvh') or self.bvh_version != self.version:
+            self.bvh = BVHTree.FromBMesh(self.bme)
+            self.bvh_version = self.version
+        return self.bvh
+    
+    def get_bbox(self):
+        if not hasattr(self, 'bbox') or self.bbox_version != self.version:
+            self.bbox = BBox(from_bmverts=self.bme.verts)
+            self.bbox_version = self.version
+        return self.bbox
     
     ##########################################################
     
@@ -127,18 +124,18 @@ class RFMesh():
     ##########################################################
     
     def raycast(self, ray:Ray):
-        if not self.bvh: return (None,None,None,None)
         ray_local = self.xform.w2l_ray(ray)
-        p,n,i,_ = self.bvh.ray_cast(ray_local.o, ray_local.d, ray_local.max)
+        p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
         if p is None: return (None,None,None,None)
-        p,n = self.xform * Point(p), self.xform * Normal(n)
-        d = (ray.o - p).length
-        return (p,n,i,d)
+        if not self.get_bbox().Point_within(p, margin=1):
+            return (None,None,None,None)
+        p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
+        d_w = (ray.o - p_w).length
+        return (p_w,n_w,i,d_w)
     
     def nearest(self, point:Point, max_dist=sys.float_info.max):
-        if not self.bvh: return (None,None,None,None)
         point_local = self.xform.w2l_point(point)
-        p,n,i,_ = self.bvh.nearest(point_local, max_dist)
+        p,n,i,_ = self.get_bvh().nearest(point_local, max_dist)
         if p is None: return (None,None,None,None)
         p,n = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d = (point - p).length
@@ -151,14 +148,14 @@ class RFMesh():
         for bmv in self.bme.verts: bmv.select = False
         for bme in self.bme.edges: bme.select = False
         for bmf in self.bme.faces: bmf.select = False
-        self.make_dirty()
+        self.dirty()
     
     def deselect(self, elems):
         if not hasattr(elems, '__len__'):
             elems.select = False
         else:
             for bmelem in elems: bmelem.select = False
-        self.make_dirty()
+        self.dirty()
     
     def select(self, elems, subparts=False, only=True):
         if only: self.deselect_all()
@@ -176,7 +173,7 @@ class RFMesh():
                     nelems.update(e for e in elem.edges)
             elems = nelems
         for elem in elems: elem.select = True
-        self.make_dirty()
+        self.dirty()
 
 
 class RFSource(RFMesh):
@@ -245,6 +242,7 @@ class RFTarget(RFMesh):
             if mod.use_x: self.symmetry.add('x')
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
+        self.editmesh_version = None
     
     def __deepcopy__(self, memo):
         '''
@@ -259,11 +257,6 @@ class RFTarget(RFMesh):
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
     
-    def make_clean(self):
-        if self.is_dirty:
-            super().make_clean()
-            self.write_editmesh()
-    
     def commit(self):
         self.write_editmesh()
         self.restore_state()
@@ -271,7 +264,10 @@ class RFTarget(RFMesh):
     def cancel(self):
         self.restore_state()
     
-    def write_editmesh(self):
+    def clean(self):
+        super().clean()
+        if self.editmesh_version == self.version: return
+        self.editmesh_version = self.version
         self.bme.to_mesh(self.obj.data)
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             emf.select = bmf.select
@@ -283,6 +279,10 @@ class RFTarget(RFMesh):
 
 
 class RFMeshRender():
+    '''
+    RFMeshRender handles rendering RFMeshes.
+    '''
+    
     def __init__(self, rfmesh, opts):
         self.opts = opts
         self.replace_rfmesh(rfmesh)
@@ -299,15 +299,15 @@ class RFMeshRender():
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
         self.bmesh = rfmesh.bme
-        self.version = None
+        self.rfmesh_version = None
     
     def clean(self):
         # return if rfmesh hasn't changed
-        self.rfmesh.make_clean()
-        if self.version == self.rfmesh.version: return
+        self.rfmesh.clean()
+        if self.rfmesh_version == self.rfmesh.version: return
         
-        self.version = self.rfmesh.version # make not dirty first in case bad things happen while drawing
-        print('RMesh.version = %d' % self.version)
+        self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
+        print('RMesh.version = %d' % self.rfmesh_version)
         
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
