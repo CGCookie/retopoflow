@@ -1,7 +1,7 @@
 import math
 import bgl
 from mathutils import Matrix, Vector
-from ..common.maths import Vec, Point, Point2D
+from ..common.maths import Vec, Point, Point2D, Direction
 
 from .rfwidget import RFWidget
 
@@ -12,20 +12,21 @@ class RFWidget_Circle(RFWidget):
         self.radius = 50.0
         self.strength = 1.5
         self.draw_mode = 'view'
+        self.ox = Direction((1,0,0))
+        self.oy = Direction((0,1,0))
+        self.oz = Direction((0,0,1))
     
     def update(self):
-        p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+        p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
         if p is None or n is None:
             self.hit = False
             return
         xy = self.rfcontext.eventd.mouse
-        z = Vector((0,0,1))
-        n = Vector(n)
-        rmat = Matrix.Rotation(z.angle(n), 4, z.cross(n).normalized())
+        rmat = Matrix.Rotation(self.oz.angle(n), 4, self.oz.cross(n))
         self.p = p
         self.s = self.rfcontext.size2D_to_size(1.0, xy, self.rfcontext.Point_to_depth(p))
-        self.x = Vec(rmat * Vector((1,0,0)))
-        self.y = Vec(rmat * Vector((0,1,0)))
+        self.x = Vec(rmat * self.ox)
+        self.y = Vec(rmat * self.oy)
         self.hit = True
     
     def clear(self):

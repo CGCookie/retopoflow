@@ -151,6 +151,7 @@ class RFContext:
             if obj == bpy.context.active_object: continue                   # exclude active object
             if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
             if obj.hide: continue                                           # cannot be hidden
+            if not obj.data.polygons: continue                              # must have at least one polygon
             self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
         print('%d sources' % len(self.rfsources))
     
@@ -218,6 +219,8 @@ class RFContext:
         prev_tool = self.tool
         self.eventd.update(context, event)
         
+        self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
+        
         if self.eventd.press in self.events_confirm:
             # all done!
             return {'confirm'}
@@ -239,6 +242,7 @@ class RFContext:
         if self.eventd.press in self.events_nav:
             # let Blender handle navigation
             self.set_cursor('HAND')
+            if self.rfwidget: self.rfwidget.clear()
             return {'pass'}
         
         if self.eventd.press in {'CTRL+Z'}:
