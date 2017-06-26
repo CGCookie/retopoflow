@@ -11,6 +11,7 @@ different types of geometric entities that are typically represented using
 a vanilla Vector.
 '''
 
+float_inf = float('inf')
 
 class Vec2D(Vector):
     def __str__(self):
@@ -134,13 +135,15 @@ class Normal(Vector):
 
 
 class Ray:
-    def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=sys.float_info.max):
+    def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=float_inf):   # sys.float_info.max
         o,d = Point(o),Direction(d)
-        o0,o1 = o + min_dist * d, o + max_dist * d
-        
-        self.o = o0
+        self.o = o + min_dist * d
         self.d = d
-        self.max = (o1-o0).length
+        if max_dist == float_inf:
+            self.max = max_dist
+        else:
+            om = o + max_dist * d
+            self.max = (self.o - om).length
     
     def __str__(self):
         return '<Ray (%0.4f, %0.4f, %0.4f)->(%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z,self.d.x,self.d.y,self.d.z)

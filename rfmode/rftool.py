@@ -81,8 +81,7 @@ class RFTool(metaclass=RegisterClasses):
     def draw_postpixel(self): pass
     
     def modal(self):
-        (nmode,handled) = self.FSM[self.mode]()
+        nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
-        return handled
 
 

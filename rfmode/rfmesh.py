@@ -133,7 +133,7 @@ class RFMesh():
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
     
-    def nearest(self, point:Point, max_dist=sys.float_info.max):
+    def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         point_local = self.xform.w2l_point(point)
         p,n,i,_ = self.get_bvh().nearest(point_local, max_dist)
         if p is None: return (None,None,None,None)
@@ -345,7 +345,7 @@ class RFMeshRender():
         if self.rfmesh_version == self.rfmesh.version: return
         
         self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
-        print('RMesh.version = %d' % self.rfmesh_version)
+        #print('RMesh.version = %d' % self.rfmesh_version)
         
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True

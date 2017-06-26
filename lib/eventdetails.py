@@ -5,6 +5,9 @@ class EventDetails:
         self.context = None
         self.region  = None
         self.r3d     = None
+        self.width   = None     # region width
+        self.height  = None     # region height
+        
         self.event   = None
         
         self.ctrl  = False
@@ -21,6 +24,7 @@ class EventDetails:
         self.mouse     = None   # current mouse location (wrt region)
         self.mousedown = None   # where the mouse was last pressed down
         self.mousepre  = None   # previous location of mouse
+        
     
     def update(self, context, event):
         event_ctrl  = 'CTRL+'  if event.ctrl  else ''
@@ -32,6 +36,9 @@ class EventDetails:
         self.context = context
         self.region  = context.region
         self.r3d     = context.space_data.region_3d
+        self.width   = context.region.width
+        self.height  = context.region.height
+        
         self.event   = event
 
         self.ctrl  = event.ctrl
@@ -50,3 +57,8 @@ class EventDetails:
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.mousepre = self.mouse
         self.mouse    = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+    
+    def valid_mouse(self, size):
+        mx,my = self.mouse
+        sx,sy = size
+        return mx >= 0 and my >= 0 and mx < sx and my < sy

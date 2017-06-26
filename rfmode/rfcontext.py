@@ -222,6 +222,16 @@ class RFContext:
         prev_tool = self.tool
         self.eventd.update(context, event)
         
+        if self.eventd.press in self.events_confirm:
+            # all done!
+            return {'confirm'}
+        
+        if not self.eventd.valid_mouse((context.region.width, context.region.height)):
+            self.set_cursor('DEFAULT')
+            if self.rfwidget:
+                self.rfwidget.clear()
+            return {}
+        
         if self.tool:
             self.rfwidget = self.tool.rfwidget()
             if self.rfwidget:
@@ -235,10 +245,6 @@ class RFContext:
             # let Blender handle navigation
             self.set_cursor('HAND')
             return {'pass'}
-        
-        if self.eventd.press in self.events_confirm:
-            # all done!
-            return {'confirm'}
         
         if self.eventd.press in self.events_selection:
             # handle selection
@@ -275,7 +281,7 @@ class RFContext:
     def raycast_sources_mouse(self):
         return self.raycast_sources_Point2D(self.eventd.mouse)
     
-    def nearest_sources_Point(self, point:Point, max_dist=sys.float_info.max):
+    def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
             hp,hn,hi,hd = rfsource.nearest(point, max_dist=max_dist)
