@@ -22,8 +22,6 @@ class RFTool_Tweak(RFTool):
     
     def rfwidget(self):
         ''' Returns type of cursor to display '''
-        #if self.mode in 'tweak':
-        #    return RFWidgetDefault
         return RFWidgetCircle
     
     def modal_main(self):

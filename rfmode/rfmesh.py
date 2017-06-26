@@ -314,6 +314,13 @@ class RFTarget(RFMesh):
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
     
+    # def modify_bmverts(self, bmverts, update_fn):
+    #     l2w = self.xform.l2w_point
+    #     w2l = self.xform.w2l_point
+    #     for bmv in bmverts:
+    #         bmv.co = w2l(update_fn(bmv, l2w(bmv.co)))
+    #     self.dirty()
+    
 
 
 class RFMeshRender():

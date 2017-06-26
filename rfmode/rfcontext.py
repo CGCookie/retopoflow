@@ -212,13 +212,6 @@ class RFContext:
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
         
-        wtime,ctime = self.window_time,time.time()
-        self.frames += 1
-        if ctime >= wtime + 2:
-            #print('%f fps' % (self.frames / (ctime - wtime)))
-            self.frames = 0
-            self.window_time = ctime
-        
         prev_tool = self.tool
         self.eventd.update(context, event)
         
@@ -374,6 +367,14 @@ class RFContext:
     def draw_postpixel(self):
         if self.rfwidget:
             self.rfwidget.draw_postpixel()
+        
+        wtime,ctime = self.window_time,time.time()
+        self.frames += 1
+        if ctime >= wtime + 2:
+            print('%f fps' % (self.frames / (ctime - wtime)))
+            self.frames = 0
+            self.window_time = ctime
+        
     
     def draw_postview(self):
         self.rftarget_draw.draw()

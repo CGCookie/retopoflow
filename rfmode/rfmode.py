@@ -38,6 +38,8 @@ from ..lib.classes.logging.logger import Logger
 from .rfcontext import RFContext
 from .rftool import RFTool
 
+from ..common.maths import stats_report
+
 '''
 
 useful reference: https://blender.stackexchange.com/questions/19416/what-do-operator-methods-do-poll-invoke-execute-draw-modal
@@ -64,8 +66,10 @@ def still_registered(self):
     global rfmode_broken
     if rfmode_broken: return False
     def is_registered():
-        if 'cgcookie' not in dir(bpy.ops): return False
-        if 'retopoflow' not in dir(bpy.ops.cgcookie): return False
+        if not hasattr(bpy.ops, 'cgcookie'): return False
+        if not hasattr(bpy.ops.cgcookie, 'retopoflow'): return False
+        #if 'cgcookie' not in bpy.ops: return False
+        #if 'retopoflow' not in dir(bpy.ops.cgcookie): return False
         try:    StructRNA.path_resolve(self, "properties")
         except: return False
         return True
@@ -153,6 +157,8 @@ class RFMode(Operator):
             print_exception()
             err = True
         if err: self.handle_exception(serious=True)
+        
+        stats_report()
     
     
     def context_start(self):

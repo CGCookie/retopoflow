@@ -11,9 +11,33 @@ different types of geometric entities that are typically represented using
 a vanilla Vector.
 '''
 
+stats = {
+    'Vec2D': 0,
+    'Vec': 0,
+    'Point2D': 0,
+    'Point': 0,
+    'Direction2D': 0,
+    'Direction': 0,
+    'Normal': 0,
+    'Ray': 0,
+    'XForm': 0,
+    'BBox': 0,
+}
+def stats_report():
+    print('Maths Stats Report')
+    print('------------------')
+    l = max(len(k) for k in stats)
+    for k in sorted(stats):
+        pk = k + ' ' * (l-len(k))
+        v = stats[k]
+        print('%s : %d' % (pk,v))
+
 float_inf = float('inf')
 
 class Vec2D(Vector):
+    def __init__(self, *args, **kwargs):
+        stats['Vec2D'] += 1
+        Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec2D (%0.4f, %0.4f)>' % (self.x,self.y)
     def as_vector(self): return Vector(self)
@@ -21,6 +45,9 @@ class Vec2D(Vector):
 
 
 class Vec(Vector):
+    def __init__(self, *args, **kwargs):
+        stats['Vec'] += 1
+        Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
     def as_vector(self): return Vector(self)
@@ -28,6 +55,9 @@ class Vec(Vector):
 
 
 class Point2D(Vector):
+    def __init__(self, *args, **kwargs):
+        stats['Point2D'] += 1
+        Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point2D (%0.4f, %0.4f)>' % (self.x,self.y)
     def __add__(self, other):
@@ -50,6 +80,9 @@ class Point2D(Vector):
     def from_vector(self, v): self.x,self.y = v
 
 class Point(Vector):
+    def __init__(self, *args, **kwargs):
+        stats['Point'] += 1
+        Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
     def __add__(self, other):
@@ -74,6 +107,7 @@ class Point(Vector):
 
 class Direction2D(Vector):
     def __init__(self, t=None):
+        stats['Direction2D'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction2D (%0.4f, %0.4f)>' % (self.x,self.y)
@@ -94,6 +128,7 @@ class Direction2D(Vector):
 
 class Direction(Vector):
     def __init__(self, t=None):
+        stats['Direction'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -115,6 +150,7 @@ class Direction(Vector):
 
 class Normal(Vector):
     def __init__(self, t=None):
+        stats['Normal'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Normal (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -136,6 +172,7 @@ class Normal(Vector):
 
 class Ray:
     def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=float_inf):   # sys.float_info.max
+        stats['Ray'] += 1
         o,d = Point(o),Direction(d)
         self.o = o + min_dist * d
         self.d = d
@@ -178,6 +215,7 @@ class XForm:
         return d[smat]
     
     def __init__(self, mx:Matrix=None):
+        stats['XForm'] += 1
         if mx is None: mx = Matrix()
         self.assign(mx)
     
@@ -286,6 +324,7 @@ class XForm:
 
 class BBox:
     def __init__(self, from_bmverts=None, from_coords=None):
+        stats['BBox'] += 1
         assert from_bmverts or from_coords
         if from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
         else: from_coords = list(from_coords)
