@@ -68,8 +68,6 @@ def still_registered(self):
     def is_registered():
         if not hasattr(bpy.ops, 'cgcookie'): return False
         if not hasattr(bpy.ops.cgcookie, 'retopoflow'): return False
-        #if 'cgcookie' not in bpy.ops: return False
-        #if 'retopoflow' not in dir(bpy.ops.cgcookie): return False
         try:    StructRNA.path_resolve(self, "properties")
         except: return False
         return True

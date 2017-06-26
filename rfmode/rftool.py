@@ -24,7 +24,6 @@ import sys
 import math
 import os
 import time
-from abc import ABCMeta, abstractmethod
 
 import bpy
 import bgl
@@ -38,50 +37,39 @@ from ..lib.classes.textbox.textbox import TextBox
 from .. import key_maps
 from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, showErrorMessage
-from ..common.registerclasses import RegisterClasses
-from .rfwidget import RFWidgetDefault
+from ..common.metaclasses import SingletonRegisterClass
+from .rfwidget import RFWidget_Default
 
 
-class RFTool(metaclass=RegisterClasses):
+class RFTool(metaclass=SingletonRegisterClass):
     @staticmethod
-    def get_toolset(rfcontext):
-        toolset = { rftool:rftool(rfcontext) for rftool in RFTool }     # create instances of each tool
-        for tool in toolset.values(): tool.init()                       # init each tool
-        return toolset
+    def init_toolset(rfcontext):
+        RFTool.rfcontext = rfcontext
+        toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
     
     ''' a base class for all RetopoFlow Tools '''
-    def __init__(self, rfcontext):
+    def __init__(self):
         self.FSM = {}
-        self.init_tool()
+        self.init()
         self.FSM['main'] = self.modal_main
         self.mode = 'main'
-        self.rfcontext = rfcontext
-    
-    ''' Called when RetopoFlow plugin is '''
-    def init_tool(self): pass
-    
-    @abstractmethod
-    def init(self):
-        ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
-        pass
-    
-    @abstractmethod
-    def start(self):
-        ''' Called the tool is being switched into. Returns initial state '''
-        return None
-    
-    def rfwidget(self):
-        ''' Returns type of cursor to display '''
-        return RFWidgetDefault
-    
-    @abstractmethod
-    def modal_main(self): pass
-    
-    def draw_postview(self): pass
-    def draw_postpixel(self): pass
     
     def modal(self):
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
+    
+    ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
+    def init(self): pass
+    
+    ''' Called the tool is being switched into. Returns initial state '''
+    def start(self): return None
+    
+    ''' Returns type of cursor to display '''
+    def rfwidget(self): return RFWidget_Default()
+    
+    def modal_main(self): pass
+    
+    def draw_postview(self): pass
+    def draw_postpixel(self): pass
 
 

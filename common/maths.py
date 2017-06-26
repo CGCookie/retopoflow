@@ -32,7 +32,11 @@ def stats_report():
         v = stats[k]
         print('%s : %d' % (pk,v))
 
+
+
 float_inf = float('inf')
+
+
 
 class Vec2D(Vector):
     def __init__(self, *args, **kwargs):
@@ -78,6 +82,7 @@ class Point2D(Vector):
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y = v
+
 
 class Point(Vector):
     def __init__(self, *args, **kwargs):
@@ -125,6 +130,7 @@ class Direction2D(Vector):
     def from_vector(self, v):
         self.x,self.y = v
         self.normalize()
+
 
 class Direction(Vector):
     def __init__(self, t=None):

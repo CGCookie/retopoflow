@@ -29,16 +29,33 @@ With self registration, the new entities only need to by imported in, and they a
 show up as an available entity.
 '''
 
+
+# from https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python
+class SingletonClass(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonClass, cls).__call__(*args, *kwargs)
+        return cls._instances[cls]
+    #def __getattr__(cls, name):
+    #    return cls._instances[cls].__getattr__(name)
+
+
 # from http://python-3-patterns-idioms-test.readthedocs.io/en/latest/Metaprogramming.html#example-self-registration-of-subclasses
-class RegisterClasses(type, metaclass=ABCMeta):
+class RegisterClass(type):
     def __init__(cls, name, bases, nmspc):
-        super(RegisterClasses, cls).__init__(name, bases, nmspc)
+        super(RegisterClass, cls).__init__(name, bases, nmspc)
         if not hasattr(cls, 'registry'): cls.registry = set()
         cls.registry.add(cls)
         cls.registry -= set(bases) # Remove base classes
+    
     # Metamethods, called on class objects:
     def __iter__(cls):
         return iter(cls.registry)
+    
     def __str__(cls):
         if cls in cls.registry: return cls.__name__
         return cls.__name__ + ": " + ", ".join([sc.__name__ for sc in cls])
+
+class SingletonRegisterClass(SingletonClass, RegisterClass):
+    pass

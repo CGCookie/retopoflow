@@ -33,9 +33,9 @@ from .rfwidget import RFWidget
 from .rftool_tweak import RFTool_Tweak
 
 #######################################################
-# import all the cursors here
+# import all the widgets here
 
-#from .rftool_tweak import RFTool_Tweak
+from .rfwidget_circle import RFWidget_Circle
 
 #######################################################
 
@@ -60,22 +60,21 @@ class RFContext:
     undo_depth = 100 # set in RF settings?
     
     def __init__(self):
-        self.rftarget_draw = None
         self._init_usersettings()       # set up user-defined settings and key mappings
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
         self._init_toolset()            # set up tools used in RetopoFlow
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
-        self.eventd = EventDetails()    # context, event details, etc.
-        self.tool = self.toolset[RFTool_Tweak]
-        self.rfwidget = None
+        
         self.start_time = time.time()
         self.window_time = time.time()
         self.frames = 0
     
     def _init_usersettings(self):
-        # handle user-defined settings and key mappings
+        self.eventd = EventDetails()    # context, event details, etc.
+        
+        # user-defined settings and key mappings
         self.settings = get_settings()
         # TODO: keymaps need rewritten
         self.keymap = key_maps.rtflow_default_keymap_generate()
@@ -88,10 +87,12 @@ class RFContext:
         self.events_confirm = user['confirm']
     
     def _init_toolset(self):
-        self.toolset = RFTool.get_toolset(self) # get entire toolset
-        self.tool = None                        # currently selected tool
-        self.tool_state = None                  # current tool state
-        RFWidget.init_widgets(self)
+        RFTool.init_toolset(self)           # init toolset
+        RFWidget.init_widgets(self)         # init widgets
+        
+        self.tool = RFTool_Tweak()          # currently selected tool
+        self.tool_state = self.tool.start() # current tool state
+        self.rfwidget = self.tool.rfwidget()
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -185,6 +186,8 @@ class RFContext:
         self.tool = state['tool']
         self.tool_state = state['tool_state']
         self.rftarget = state['rftarget']
+        self.rftarget.dirty()
+        self.rftarget_draw.replace_rfmesh(self.rftarget)
     
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
@@ -193,7 +196,7 @@ class RFContext:
         while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
         self.redo.clear()
     
-    def undo_pop(self, action):
+    def undo_pop(self):
         if not self.undo: return
         self.redo.append(self._create_state('undo'))
         self._restore_state(self.undo.pop())
@@ -221,8 +224,7 @@ class RFContext:
         
         if not self.eventd.valid_mouse((context.region.width, context.region.height)):
             self.set_cursor('DEFAULT')
-            if self.rfwidget:
-                self.rfwidget.clear()
+            if self.rfwidget: self.rfwidget.clear()
             return {}
         
         if self.tool:
@@ -239,6 +241,14 @@ class RFContext:
             self.set_cursor('HAND')
             return {'pass'}
         
+        if self.eventd.press in {'CTRL+Z'}:
+            self.undo_pop()
+            return {}
+        
+        if self.eventd.press in {'CTRL+SHIFT+Z'}:
+            self.redo_pop()
+            return {}
+        
         if self.eventd.press in self.events_selection:
             # handle selection
             #print('select!')
@@ -252,7 +262,7 @@ class RFContext:
         if prev_tool != self.tool:
             # tool has changed
             # set up state of new tool
-            self.tool_state = self.toolset[self.tool].start()
+            self.tool_state = self.tool.start()
         
         return {}
     
@@ -355,11 +365,19 @@ class RFContext:
     def ensure_lookup_tables(self):
         self.rftarget.ensure_lookup_tables()
     
+    def dirty(self):
+        self.rftarget.dirty()
+    
     ###################################################
     
-    def deselect_all(self): self.rftarget.deselect_all()
-    def deselect(self, elems): self.rftarget.deselect(elems)
-    def select(self, elems, supparts=True, subparts=True, only=True): self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
+    def deselect_all(self):
+        self.rftarget.deselect_all()
+    
+    def deselect(self, elems):
+        self.rftarget.deselect(elems)
+    
+    def select(self, elems, supparts=True, subparts=True, only=True):
+        self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
     
     
     ###################################################
@@ -370,7 +388,7 @@ class RFContext:
         
         wtime,ctime = self.window_time,time.time()
         self.frames += 1
-        if ctime >= wtime + 2:
+        if ctime >= wtime + 1:
             print('%f fps' % (self.frames / (ctime - wtime)))
             self.frames = 0
             self.window_time = ctime
