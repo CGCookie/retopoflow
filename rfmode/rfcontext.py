@@ -242,10 +242,11 @@ class RFContext:
         
         if self.eventd.press in self.events_selection:
             # handle selection
-            print('select!')
-            self.ensure_lookup_tables()
-            self.select([self.rftarget.bme.verts[i] for i in range(4)])
-            return {}
+            #print('select!')
+            #self.ensure_lookup_tables()
+            #self.select([self.rftarget.bme.verts[i] for i in range(4)])
+            #return {}
+            pass
         
         if self.tool: self.tool.modal()
         
@@ -258,6 +259,7 @@ class RFContext:
     
     
     ###################################################
+    # RFSource functions
     
     def raycast_sources_Ray(self, ray:Ray):
         bp,bn,bi,bd = None,None,None,None
@@ -280,6 +282,32 @@ class RFContext:
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,bn,hi,hd
         return (bp,bn,bi,bd)
+    
+    
+    ##################################################
+    # RFTarget functions
+    
+    def target_nearest_bmvert_Point2D(self, xy:Point2D):
+        p,_,_,_ = self.raycast_sources_Point2D(xy)
+        if p is None: return None
+        return self.rftarget.nearest_bmvert_Point(p)
+    
+    def target_nearest_bmvert_mouse(self):
+        return self.target_nearest_bmvert_Point2D(self.eventd.mouse)
+    
+    def target_nearest_bmverts_Point2D(self, xy:Point2D, dist3D:float):
+        p,_,_,_ = self.raycast_sources_Point2D(xy)
+        if p is None: return None
+        return self.rftarget.nearest_bmverts_Point(p, dist3D)
+    
+    def target_nearest_bmverts_mouse(self, dist3D:float):
+        return self.target_nearest_bmverts_Point2D(self.eventd.mouse, dist3D)
+    
+    def target_nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float):
+        return self.rftarget.nearest2D_bmverts_Point2D(xy, dist2D, self.Point_to_Point2D)
+    
+    def target_nearest2D_bmverts_mouse(self, dist2D:float):
+        return self.target_nearest2D_bmverts_Point2D(self.eventd.mouse, dist2D)
     
     
     ###################################################
@@ -317,6 +345,12 @@ class RFContext:
         p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
         return (p3d0 - p3d1).length
     
+    def Vec_up(self):
+        return self.Point2D_to_Origin((0,0)) - self.Point2D_to_Origin((0,1))
+    
+    def Vec_right(self):
+        return self.Point2D_to_Origin((1,0)) - self.Point2D_to_Origin((0,0))
+    
     ###################################################
     
     def ensure_lookup_tables(self):
@@ -326,7 +360,7 @@ class RFContext:
     
     def deselect_all(self): self.rftarget.deselect_all()
     def deselect(self, elems): self.rftarget.deselect(elems)
-    def select(self, elems, subparts=False, only=True): self.rftarget.select(elems, subparts=subparts, only=only)
+    def select(self, elems, supparts=True, subparts=True, only=True): self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
     
     
     ###################################################

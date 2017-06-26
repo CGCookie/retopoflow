@@ -32,18 +32,18 @@ class Point2D(Vector):
     def __add__(self, other):
         t = type(other)
         if t is Direction2D:
-            return Point((self.x+other.x,self.y+other.y))
+            return Point2D((self.x+other.x,self.y+other.y))
         if t is Vector or t is Vec2D:
-            return Point((self.x+other.x,self.y+other.y))
+            return Point2D((self.x+other.x,self.y+other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
     def __radd__(self, other):
         return self.__add__(other)
     def __sub__(self, other):
         t = type(other)
         if t is Vector or t is Vec2D:
-            return Point((self.x-other.x,self.y-other.y))
+            return Point2D((self.x-other.x,self.y-other.y))
         elif t is Point2D:
-            return Vector((self.x-other.x, self.y-other.y))
+            return Vec2D((self.x-other.x, self.y-other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y = v

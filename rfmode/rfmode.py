@@ -286,8 +286,6 @@ class RFMode(Operator):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
         
-        self.tag_redraw_all()
-        
         self.rfctx.restore_cursor()
        
         # restore space info
@@ -299,6 +297,8 @@ class RFMode(Operator):
         
         # restore previous mode
         bpy.ops.object.mode_set(mode=self.prev_mode)
+        
+        self.tag_redraw_all()
     
     def tag_redraw_all(self):
         for wm in bpy.data.window_managers:

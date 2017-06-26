@@ -100,13 +100,44 @@ class RFWidgetCircle(RFWidget):
     @classmethod
     def draw_postview(cls):
         if not cls.hit: return
+        cs,cx,cy,cp = cls.s,cls.x,cls.y,cls.p
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        
         bgl.glColor4f(1, 1, 1, 1)
         bgl.glBegin(bgl.GL_LINE_STRIP)
-        cs,cx,cy,cp = cls.s,cls.x,cls.y,cls.p
         for x,y in cls.points:
             p = (cs * ((cx * x) + (cy * y))) + cp
             bgl.glVertex3f(*p)
         bgl.glEnd()
+        
+        bgl.glColor4f(1, 1, 1, 0.5)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        for x,y in cls.points:
+            p = (0.1 * cs * ((cx * x) + (cy * y))) + cp
+            bgl.glVertex3f(*p)
+        bgl.glEnd()
+        
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        
+        bgl.glColor4f(1, 1, 1, 0.05)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        for x,y in cls.points:
+            p = (cs * ((cx * x) + (cy * y))) + cp
+            bgl.glVertex3f(*p)
+        bgl.glEnd()
+        
+        bgl.glColor4f(1, 1, 1, 0.025)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        for x,y in cls.points:
+            p = (0.1 * cs * ((cx * x) + (cy * y))) + cp
+            bgl.glVertex3f(*p)
+        bgl.glEnd()
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_TRUE)
     
     @classmethod
     def draw_postpixel(cls):

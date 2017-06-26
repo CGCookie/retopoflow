@@ -8,7 +8,7 @@ from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 
 from mathutils import Matrix, Vector
-from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox
+from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, Vec2D
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
@@ -141,6 +141,35 @@ class RFMesh():
         d = (point - p).length
         return (p,n,i,d)
     
+    def nearest_bmvert_Point(self, point:Point):
+        point_local = self.xform.w2l_point(point)
+        bv,bd = None,None
+        for bmv in self.bme.verts:
+            d3d = (bmv.co - point_local).length
+            if dv is None or d3d < bd: bv,db = bmv,d3d
+        bmv_world = self.xform.l2w_point(bmv.co)
+        return (bv,(point-bmv_world).length)
+    
+    def nearest_bmverts_Point(self, point:Point, dist3d:float):
+        nearest = []
+        for bmv in self.bme.verts:
+            bmv_world = self.xform.l2w_point(bmv.co)
+            d3d = (bmv_world - point).length
+            if d3d > dist3d: continue
+            nearest += [(bmv, (d3d))]
+        return nearest
+    
+    def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
+        # TODO: compute distance from camera to point
+        # TODO: sort points based on 3d distance
+        nearest = []
+        for bmv in self.bme.verts:
+            p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
+            if p2d is None: continue
+            if (p2d - xy).length > dist2D: continue
+            d3d = 0
+            nearest += [(bmv, d3d)]
+        return nearest
     
     ##########################################################
     
@@ -157,7 +186,7 @@ class RFMesh():
             for bmelem in elems: bmelem.select = False
         self.dirty()
     
-    def select(self, elems, subparts=False, only=True):
+    def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
         if not hasattr(elems, '__len__'): elems = [elems]
         if subparts:
@@ -173,6 +202,15 @@ class RFMesh():
                     nelems.update(e for e in elem.edges)
             elems = nelems
         for elem in elems: elem.select = True
+        if supparts:
+            for elem in elems:
+                if type(elem) is not BMVert: continue
+                for bme in elem.link_edges:
+                    if all(bmv.select for bmv in bme.verts):
+                        bme.select = True
+                for bmf in elem.link_faces:
+                    if all(bmv.select for bmv in bmf.verts):
+                        bmf.select = True
         self.dirty()
 
 
