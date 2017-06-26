@@ -9,6 +9,7 @@ import binascii
 
 import bpy
 import bmesh
+from bmesh.types import BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
@@ -63,7 +64,7 @@ class RFContext:
         self._init_usersettings()       # set up user-defined settings and key mappings
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
-        self._init_toolset()            # set up tools used in RetopoFlow
+        self._init_tools()              # set up tools and widgets used in RetopoFlow
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         
@@ -86,9 +87,9 @@ class RFContext:
         self.events_selection.update(user['select all'])
         self.events_confirm = user['confirm']
     
-    def _init_toolset(self):
-        RFTool.init_toolset(self)           # init toolset
-        RFWidget.init_widgets(self)         # init widgets
+    def _init_tools(self):
+        RFTool.init_tools(self)     # init tools
+        RFWidget.init_widgets(self) # init widgets
         
         self.tool = RFTool_Tweak()          # currently selected tool
         self.tool_state = self.tool.start() # current tool state
@@ -200,6 +201,10 @@ class RFContext:
     def undo_pop(self):
         if not self.undo: return
         self.redo.append(self._create_state('undo'))
+        self._restore_state(self.undo.pop())
+    
+    def undo_cancel(self):
+        if not self.undo: return
         self._restore_state(self.undo.pop())
     
     def redo_pop(self):

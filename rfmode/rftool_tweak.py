@@ -1,6 +1,6 @@
 import bpy
 import math
-from .rftool import RFTool
+from .rftool import RFTool, dirty_when_done
 from .rfwidget_circle import RFWidget_Circle
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
@@ -30,36 +30,32 @@ class RFTool_Tweak(RFTool):
         
         if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
             return 'resize'
+        
         if self.rfcontext.eventd.press in {'SHIFT+RIGHTMOUSE'}:
             return 'restrength'
         
         return ''
     
+    @dirty_when_done
     def modal_tweak(self):
         if self.rfcontext.eventd.release in {'LEFTMOUSE'}:
             return 'main'
+        
         if self.rfcontext.eventd.release in {'ESC'}:
-            for bmv,oco,_ in self.bmverts:
-                bmv.co = oco
-            self.rfcontext.rftarget.dirty()
+            self.rfcontext.undo_cancel()
             return 'main'
         
-        delta = Vec2D(self.rfcontext.eventd.mouse - self.rfcontext.eventd.mousedown)
-        l2w_point = self.rfcontext.rftarget.xform.l2w_point
-        w2l_point = self.rfcontext.rftarget.xform.w2l_point
+        delta = Vec2D(self.rfcontext.eventd.mouse - self.rfcontext.eventd.mousedown_left)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
         get_strength_dist = RFWidget_Circle().get_strength_dist
         
         for bmv,oco,d3d in self.bmverts:
-            oco_world = l2w_point(oco)
-            oco_screen = Point_to_Point2D(oco_world)
-            oco_screen += delta * get_strength_dist(d3d)
+            oco_screen = Point_to_Point2D(oco) + delta * get_strength_dist(d3d)
             p,_,_,_ = raycast_sources_Point2D(oco_screen)
             if p is None: continue
-            bmv.co = w2l_point(p)
+            bmv.co = p
         
-        self.rfcontext.rftarget.dirty()
         return ''
     
     def draw_postview(self): pass

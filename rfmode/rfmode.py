@@ -166,7 +166,7 @@ class RFMode(Operator):
             if tar_object is None: return True
             if type(tar_object) is not bpy.types.Object: return True
             if type(tar_object.data) is not bpy.types.Mesh: return True
-            if not tar_object.select: return true
+            if not tar_object.select: return True
             if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers)): return True
             return False
         if generate_target():
@@ -263,6 +263,7 @@ class RFMode(Operator):
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
     
     def ui_end(self):
+        if not hasattr(self, 'rfctx'): return
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()

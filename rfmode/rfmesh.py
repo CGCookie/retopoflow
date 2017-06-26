@@ -1,5 +1,6 @@
 import sys
 import math
+import copy
 
 import bpy
 import bgl
@@ -11,6 +12,35 @@ from mathutils import Matrix, Vector
 from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, Vec2D
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+
+
+class RFVert:
+    def __init__(self, bmv, xform):
+        self.bmv = bmv
+        self.l2w_point = xform.l2w_point
+        self.w2l_point = xform.w2l_point
+        self.l2w_normal = xform.l2w_normal
+        self.w2l_normal = xform.w2l_normal
+    
+    @property
+    def co(self):
+        return self.l2w_point(self.bmv.co)
+    
+    @co.setter
+    def co(self, co):
+        self.bmv.co = self.w2l_point(co)
+    
+    @property
+    def normal(self):
+        return self.l2w_normal(self.bmv.normal)
+    
+    @normal.setter
+    def normal(self, norm):
+        self.bmv.normal = w2l_normal(norm)
+    
+    def __getattr__(self, k):
+        return self.bmv.__getattr__(k)
+
 
 
 class RFMesh():
@@ -123,6 +153,8 @@ class RFMesh():
     
     ##########################################################
     
+    def wrap_bmvert(self, bmv): return RFVert(bmv, self.xform)
+    
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -148,7 +180,7 @@ class RFMesh():
             d3d = (bmv.co - point_local).length
             if dv is None or d3d < bd: bv,db = bmv,d3d
         bmv_world = self.xform.l2w_point(bmv.co)
-        return (bv,(point-bmv_world).length)
+        return (self.wrap_bmvert(bv),(point-bmv_world).length)
     
     def nearest_bmverts_Point(self, point:Point, dist3d:float):
         nearest = []
@@ -156,7 +188,7 @@ class RFMesh():
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
             if d3d > dist3d: continue
-            nearest += [(bmv, (d3d))]
+            nearest += [(self.wrap_bmvert(bmv), d3d)]
         return nearest
     
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
@@ -168,7 +200,7 @@ class RFMesh():
             if p2d is None: continue
             if (p2d - xy).length > dist2D: continue
             d3d = 0
-            nearest += [(bmv, d3d)]
+            nearest += [(self.wrap_bmvert(bmv), d3d)]
         return nearest
     
     ##########################################################
@@ -291,7 +323,7 @@ class RFTarget(RFMesh):
         rftarget.__setup__(self.obj, bme=self.bme.copy())
         # deepcopy all remaining settings
         for k,v in self.__dict__.items():
-            if k in rftarget.__dict__: continue
+            if k not in {'prev_state'} and k in rftarget.__dict__: continue
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
     

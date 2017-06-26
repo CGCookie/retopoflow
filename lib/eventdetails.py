@@ -55,6 +55,12 @@ class EventDetails:
         if event.value == 'PRESS' and event.type in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             # TODO: only handles (correctly) one mousepress at a time!
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+            if event.type == 'LEFTMOUSE':
+                self.mousedown_left = self.mousedown
+            elif event.type == 'MIDDLEMOUSE':
+                self.mousedown_middle = self.mousedown
+            elif event.type == 'RIGHTMOUSE':
+                self.mousedown_right = self.mousedown
         self.mousepre = self.mouse
         self.mouse    = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
     
