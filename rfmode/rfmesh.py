@@ -14,8 +14,13 @@ from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
 
+'''
+NOTE: RFVert, RFEdge, RFFace do NOT mark RFMesh as dirty!
+'''
 class RFVert:
-    def __init__(self, bmv, xform):
+    def __init__(self, bmv, rfmesh):
+        xform = rfmesh.xform
+        self.rfmesh = rfmesh
         self.bmv = bmv
         self.l2w_point = xform.l2w_point
         self.w2l_point = xform.w2l_point
@@ -41,6 +46,46 @@ class RFVert:
     def __getattr__(self, k):
         return self.bmv.__getattr__(k)
 
+class RFEdge:
+    def __init__(self, bme, rfmesh):
+        self.rfmesh = rfmesh
+        self.bme = bme
+    
+    def other_vert(self, bmv):
+        if type(bmv) is RFVert: bmv = bmv.bmv
+        o = self.bme.other_vert(bmv)
+        if o is None: return None
+        return RFVert(bmv, self.rfmesh)
+    
+    # calc_length...
+    
+    @property
+    def verts(self):
+        bmv0,bmv1 = self.bme.verts
+        return (RFVert(bmv0, self.rfmesh), RFVert(bmv1, self.rfmesh))
+    
+    @property
+    def link_faces(self):
+        return [RFFace(bmf, self.rfmesh) for bmf in self.bme.link_faces]
+    
+    def __getattr__(self, k):
+        return self.bme.__getattr__(k)
+
+class RFFace:
+    def __init__(self, bmf, rfmesh):
+        self.rfmesh = rfmesh
+        self.bmf = bmf
+    
+    @property
+    def edges(self):
+        return [RFEdge(bme, self.rfmesh) for bme in self.bmf.edges]
+    
+    @property
+    def verts(self):
+        return [RFVert(bmv, self.rfmesh) for bmv in self.bmf.verts]
+    
+    def __getattr__(self, k):
+        return self.bmf.__getattr__(k)
 
 
 class RFMesh():
@@ -153,7 +198,9 @@ class RFMesh():
     
     ##########################################################
     
-    def wrap_bmvert(self, bmv): return RFVert(bmv, self.xform)
+    def wrap_bmvert(self, bmv): return RFVert(bmv, self)
+    def wrap_bmedge(self, bme): return RFEdge(bme, self)
+    def wrap_bmface(self, bmf): return RFFace(bmf, self)
     
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
