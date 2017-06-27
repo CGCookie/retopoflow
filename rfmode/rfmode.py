@@ -272,7 +272,7 @@ class RFMode(Operator):
         self.rfctx.rftarget.restore_state()
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
         
-        if hasattr(self.timer):
+        if hasattr(self, 'timer'):
             bpy.context.window_manager.event_timer_remove(self.timer)
             del self.timer
         
