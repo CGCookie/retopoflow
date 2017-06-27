@@ -7,9 +7,10 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 class RFTool_Tweak_Relax(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        self.FSM['relax'] = self.modal_relax
-        self.FSM['resize'] = lambda: RFWidget_Circle().modal_resize('main')
-        self.FSM['restrength'] = lambda: RFWidget_Circle().modal_restrength('main')
+        self.FSM['relax']    = self.modal_relax
+        self.FSM['size']     = lambda: RFWidget_Circle().modal_size('main')
+        self.FSM['strength'] = lambda: RFWidget_Circle().modal_strength('main')
+        self.FSM['falloff']  = lambda: RFWidget_Circle().modal_falloff('main')
     
     ''' Called the tool is being switched into '''
     def start(self):
@@ -26,10 +27,11 @@ class RFTool_Tweak_Relax(RFTool):
             return 'relax'
         
         if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
-            return 'resize'
-        
+            return 'size'
         if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
-            return 'restrength'
+            return 'strength'
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush falloff']:
+            return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_relax(self):

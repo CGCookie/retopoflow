@@ -7,9 +7,10 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 class RFTool_Tweak_Move(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        self.FSM['move'] = self.modal_move
-        self.FSM['resize'] = lambda: RFWidget_Circle().modal_resize('main')
-        self.FSM['restrength'] = lambda: RFWidget_Circle().modal_restrength('main')
+        self.FSM['move']     = self.modal_move
+        self.FSM['size']     = lambda: RFWidget_Circle().modal_size('main')
+        self.FSM['strength'] = lambda: RFWidget_Circle().modal_strength('main')
+        self.FSM['falloff']  = lambda: RFWidget_Circle().modal_falloff('main')
     
     ''' Called the tool is being switched into '''
     def start(self):
@@ -38,10 +39,11 @@ class RFTool_Tweak_Move(RFTool):
         #     return 'move'
         
         if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
-            return 'resize'
-        
+            return 'size'
         if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
-            return 'restrength'
+            return 'strength'
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush falloff']:
+            return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_move(self):

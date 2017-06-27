@@ -10,7 +10,8 @@ class RFWidget_Circle(RFWidget):
         self.points = [(math.cos(r*math.pi/180.0),math.sin(r*math.pi/180.0)) for r in range(0,361,10)]
         self.hit = False
         self.radius = 50.0
-        self.strength = 1.5
+        self.strength = 0.5
+        self.falloff = 1.5
         self.draw_mode = 'view'
         self.ox = Direction((1,0,0))
         self.oy = Direction((0,1,0))
@@ -42,7 +43,7 @@ class RFWidget_Circle(RFWidget):
         return self.s * self.radius
     
     def get_strength_dist(self, dist:float):
-        return 1.0 - math.pow(dist / self.get_scaled_radius(), self.strength)
+        return (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)) * self.strength
     
     def get_strength_Point(self, point:Point):
         return self.get_strength_dist((point - self.p).length)
@@ -52,7 +53,7 @@ class RFWidget_Circle(RFWidget):
         if not self.hit: return
         cx,cy,cp = self.x,self.y,self.p
         cs_outer = self.s * self.radius
-        cs_inner = self.s * self.radius * math.pow(0.5, 1.0 / self.strength)
+        cs_inner = self.s * self.radius * math.pow(0.5, 1.0 / self.falloff)
         cr,cg,cb = self.color
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
@@ -66,7 +67,7 @@ class RFWidget_Circle(RFWidget):
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         
-        bgl.glColor4f(cr, cg, cb, 0.15)
+        bgl.glColor4f(cr, cg, cb, 0.75 * self.strength)
         bgl.glBegin(bgl.GL_TRIANGLES)
         for p0,p1 in zip(self.points[:-1], self.points[1:]):
             x0,y0 = p0
@@ -108,7 +109,7 @@ class RFWidget_Circle(RFWidget):
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         
-        bgl.glColor4f(cr, cg, cb, 0.01)
+        bgl.glColor4f(cr, cg, cb, 0.10 * self.strength)
         bgl.glBegin(bgl.GL_TRIANGLES)
         for p0,p1 in zip(self.points[:-1], self.points[1:]):
             x0,y0 = p0
@@ -154,13 +155,13 @@ class RFWidget_Circle(RFWidget):
         
         cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
         cs_outer = self.radius
-        cs_inner = self.radius * math.pow(0.5, 1.0 / self.strength)
+        cs_inner = self.radius * math.pow(0.5, 1.0 / self.falloff)
         cr,cg,cb = self.color
         
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glLineWidth(2.0)
         
-        bgl.glColor4f(cr, cg, cb, 0.15)
+        bgl.glColor4f(cr, cg, cb, 0.75 * self.strength)
         bgl.glBegin(bgl.GL_TRIANGLES)
         for p0,p1 in zip(self.points[:-1], self.points[1:]):
             x0,y0 = p0
@@ -198,7 +199,7 @@ class RFWidget_Circle(RFWidget):
         eventd.context.window.cursor_warp(x + mx, y + my)
         eventd.mouse = xy
     
-    def modal_resize(self, ret_mode):
+    def modal_size(self, ret_mode):
         eventd = self.rfcontext.eventd
         w,h = eventd.width,eventd.height
         center = Point2D((w/2, h/2))
@@ -224,8 +225,8 @@ class RFWidget_Circle(RFWidget):
         
         self.radius = (center - eventd.mouse).length
         return ''
-        
-    def modal_restrength(self, ret_mode):
+    
+    def modal_falloff(self, ret_mode):
         eventd = self.rfcontext.eventd
         w,h = eventd.width,eventd.height
         center = Point2D((w/2, h/2))
@@ -233,7 +234,37 @@ class RFWidget_Circle(RFWidget):
         if self.draw_mode == 'view':
             # first time
             self.mousepre = Point2D(eventd.mouse)
-            self.cursor_warp(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.strength), h/2)))
+            self.cursor_warp(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.falloff), h/2)))
+            self.draw_mode = 'pixel'
+            self.falloffpre = self.falloff
+            return ''
+        
+        if eventd.press in self.rfcontext.keymap['cancel']:
+            self.falloff = self.falloffpre
+            self.draw_mode = 'view'
+            self.cursor_warp(self.mousepre)
+            return ret_mode
+        
+        if eventd.press in self.rfcontext.keymap['action']:
+            self.draw_mode = 'view'
+            self.cursor_warp(self.mousepre)
+            return ret_mode
+        
+        dist = (center - eventd.mouse).length
+        ratio = max(0.0001, min(0.9999, dist / self.radius))
+        
+        self.falloff = math.log(0.5) / math.log(ratio)
+        return ''
+    
+    def modal_strength(self, ret_mode):
+        eventd = self.rfcontext.eventd
+        w,h = eventd.width,eventd.height
+        center = Point2D((w/2, h/2))
+        
+        if self.draw_mode == 'view':
+            # first time
+            self.mousepre = Point2D(eventd.mouse)
+            self.cursor_warp(Point2D((w/2 + self.radius * self.strength, h/2)))
             self.draw_mode = 'pixel'
             self.strengthpre = self.strength
             return ''
@@ -250,8 +281,8 @@ class RFWidget_Circle(RFWidget):
             return ret_mode
         
         dist = (center - eventd.mouse).length
-        ratio = max(0.0001, min(0.9999, dist / self.radius))
+        ratio = max(0.0001, min(1.0, dist / self.radius))
         
-        self.strength = math.log(0.5) / math.log(ratio)
+        self.strength = ratio
         return ''
         
