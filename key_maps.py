@@ -63,6 +63,7 @@ def_rf_key_map['mode'] = {'TAB'}
 
 #POLYSTRIPS UNIQUE KEYS
 def_rf_key_map['brush size'] = {'F'}
+def_rf_key_map['brush strength'] = {'SHIFT+F'}
 def_rf_key_map['change junction'] = {'CTRL+C'}
 def_rf_key_map['dissolve'] = {'CTRL+D'}
 def_rf_key_map['fill'] = {'SHIFT+F'}

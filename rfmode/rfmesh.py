@@ -163,8 +163,8 @@ class RFMesh():
         bv,bd = None,None
         for bmv in self.bme.verts:
             d3d = (bmv.co - point_local).length
-            if dv is None or d3d < bd: bv,db = bmv,d3d
-        bmv_world = self.xform.l2w_point(bmv.co)
+            if bv is None or d3d < bd: bv,bd = bmv,d3d
+        bmv_world = self.xform.l2w_point(bv.co)
         return (self.wrap_bmvert(bv),(point-bmv_world).length)
     
     def nearest_bmverts_Point(self, point:Point, dist3d:float):
@@ -187,6 +187,18 @@ class RFMesh():
             d3d = 0
             nearest += [(self.wrap_bmvert(bmv), d3d)]
         return nearest
+    
+    def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2D):
+        # TODO: compute distance from camera to point
+        # TODO: sort points based on 3d distance
+        bv,bd = None,None
+        for bmv in self.bme.verts:
+            p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
+            d2d = (xy - p2d).length
+            if p2d is None: continue
+            if bv is None or d2d < bd: bv,bd = bmv,d2d
+        if bv is None: return (None,None)
+        return (self.wrap_bmvert(bv),bd)
     
     ##########################################################
     

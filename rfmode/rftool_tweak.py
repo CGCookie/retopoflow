@@ -19,30 +19,39 @@ class RFTool_Tweak(RFTool):
     def rfwidget(self): return RFWidget_Circle()
     
     def modal_main(self):
-        if self.rfcontext.eventd.press in {'LEFTMOUSE'}: #,'SHIFT+LEFTMOUSE'}:
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['tweak tool move']:
             self.rfcontext.undo_push('tweak move')
             radius = RFWidget_Circle().get_scaled_radius()
             nearest = self.rfcontext.target_nearest_bmverts_mouse(radius)
             self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
             self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
+            self.mousedown = self.rfcontext.eventd.mousedown
             return 'move'
         
-        if self.rfcontext.eventd.press in {'SHIFT+LEFTMOUSE'}:
+        if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
+            self.rfcontext.undo_push('tweak move single')
+            bmv,d3d = self.rfcontext.target_nearest2D_bmvert_mouse()
+            self.bmverts = [(bmv, Point(bmv.co), 0.0)]
+            self.rfcontext.select(bmv)
+            self.mousedown = self.rfcontext.eventd.mousedown
+            return 'move'
+        
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['tweak tool relax']:
             self.rfcontext.undo_push('tweak relax')
             self.rfcontext.ensure_lookup_tables()
             return 'relax'
         
-        if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
             return 'resize'
         
-        if self.rfcontext.eventd.press in {'SHIFT+RIGHTMOUSE'}:
+        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
             return 'restrength'
     
     @RFTool.dirty_when_done
     def modal_relax(self):
         if self.rfcontext.eventd.release in {'LEFTMOUSE','SHIFT+LEFTMOUSE'}:
             return 'main'
-        if self.rfcontext.eventd.release in {'ESC'}:
+        if self.rfcontext.eventd.release in self.rfcontext.keymap['cancel']:
             self.rfcontext.undo_cancel()
             return 'main'
         
@@ -97,13 +106,13 @@ class RFTool_Tweak(RFTool):
     
     @RFTool.dirty_when_done
     def modal_move(self):
-        if self.rfcontext.eventd.release in {'LEFTMOUSE'}:
+        if self.rfcontext.eventd.release in self.rfcontext.keymap['tweak tool move']:
             return 'main'
-        if self.rfcontext.eventd.release in {'ESC'}:
+        if self.rfcontext.eventd.release in self.rfcontext.keymap['cancel']:
             self.rfcontext.undo_cancel()
             return 'main'
         
-        delta = Vec2D(self.rfcontext.eventd.mouse - self.rfcontext.eventd.mousedown_left)
+        delta = Vec2D(self.rfcontext.eventd.mouse - self.mousedown)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
         get_strength_dist = RFWidget_Circle().get_strength_dist

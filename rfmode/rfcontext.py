@@ -315,6 +315,12 @@ class RFContext:
         if p is None: return None
         return self.target_nearest_bmvert_Point(p)
     
+    def target_nearest2D_bmvert_Point2D(self, xy):
+        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D)
+    
+    def target_nearest2D_bmvert_mouse(self):
+        return self.target_nearest2D_bmvert_Point2D(self.eventd.mouse)
+    
     def target_nearest_bmvert_mouse(self):
         return self.target_nearest_bmvert_Point2D(self.eventd.mouse)
     

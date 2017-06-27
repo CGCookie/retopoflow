@@ -30,6 +30,7 @@ class BMElemWrapper:
         BMElemWrapper.w2l_point  = rftarget.xform.w2l_point
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
+        BMElemWrapper.symmetry   = rftarget.symmetry
     
     def __init__(self, bmelem):
         self.bmelem = bmelem
@@ -71,7 +72,11 @@ class RFVert(BMElemWrapper):
     @property
     def co(self): return self.l2w_point(self.bmelem.co)
     @co.setter
-    def co(self, co): self.bmelem.co = self.w2l_point(co)
+    def co(self, co):
+        co = self.w2l_point(co)
+        if 'x' in self.symmetry:
+            co.x = max(0, co.x)
+        self.bmelem.co = co
     
     @property
     def normal(self): return self.l2w_normal(self.bmelem.normal)
