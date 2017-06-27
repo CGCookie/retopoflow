@@ -117,6 +117,8 @@ class RFMode(Operator):
     def modal(self, context, event):
         return self.framework_modal(context, event)
     
+    def check(self, context):
+        return True
     
     #############################################
     # initialization method
@@ -256,6 +258,8 @@ class RFMode(Operator):
             ]
         self.tag_redraw_all()
         
+        self.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
+        
         self.rfctx.set_cursor('CROSSHAIR')
         
         # hide meshes so we can render internally
@@ -267,6 +271,10 @@ class RFMode(Operator):
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
+        
+        if hasattr(self.timer):
+            bpy.context.window_manager.event_timer_remove(self.timer)
+            del self.timer
         
         # remove callback handlers
         if hasattr(self, 'cb_pv_handle'):

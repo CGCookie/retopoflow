@@ -15,6 +15,7 @@ class RFWidget_Circle(RFWidget):
         self.ox = Direction((1,0,0))
         self.oy = Direction((0,1,0))
         self.oz = Direction((0,0,1))
+        self.color = (1,1,1)
     
     def update(self):
         p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
@@ -52,6 +53,7 @@ class RFWidget_Circle(RFWidget):
         cx,cy,cp = self.x,self.y,self.p
         cs_outer = self.s * self.radius
         cs_inner = self.s * self.radius * math.pow(0.5, 1.0 / self.strength)
+        cr,cg,cb = self.color
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
@@ -63,6 +65,23 @@ class RFWidget_Circle(RFWidget):
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+        
+        bgl.glColor4f(cr, cg, cb, 0.15)
+        bgl.glBegin(bgl.GL_TRIANGLES)
+        for p0,p1 in zip(self.points[:-1], self.points[1:]):
+            x0,y0 = p0
+            x1,y1 = p1
+            outer0 = (cs_outer * ((cx * x0) + (cy * y0))) + cp
+            outer1 = (cs_outer * ((cx * x1) + (cy * y1))) + cp
+            inner0 = (cs_inner * ((cx * x0) + (cy * y0))) + cp
+            inner1 = (cs_inner * ((cx * x1) + (cy * y1))) + cp
+            bgl.glVertex3f(*outer0)
+            bgl.glVertex3f(*outer1)
+            bgl.glVertex3f(*inner0)
+            bgl.glVertex3f(*outer1)
+            bgl.glVertex3f(*inner1)
+            bgl.glVertex3f(*inner0)
+        bgl.glEnd()
         
         bgl.glColor4f(1, 1, 1, 1)       # outer ring
         bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -88,6 +107,23 @@ class RFWidget_Circle(RFWidget):
         
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+        
+        bgl.glColor4f(cr, cg, cb, 0.01)
+        bgl.glBegin(bgl.GL_TRIANGLES)
+        for p0,p1 in zip(self.points[:-1], self.points[1:]):
+            x0,y0 = p0
+            x1,y1 = p1
+            outer0 = (cs_outer * ((cx * x0) + (cy * y0))) + cp
+            outer1 = (cs_outer * ((cx * x1) + (cy * y1))) + cp
+            inner0 = (cs_inner * ((cx * x0) + (cy * y0))) + cp
+            inner1 = (cs_inner * ((cx * x1) + (cy * y1))) + cp
+            bgl.glVertex3f(*outer0)
+            bgl.glVertex3f(*outer1)
+            bgl.glVertex3f(*inner0)
+            bgl.glVertex3f(*outer1)
+            bgl.glVertex3f(*inner1)
+            bgl.glVertex3f(*inner0)
+        bgl.glEnd()
         
         bgl.glColor4f(1, 1, 1, 0.05)    # outer ring
         bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -119,9 +155,27 @@ class RFWidget_Circle(RFWidget):
         cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
         cs_outer = self.radius
         cs_inner = self.radius * math.pow(0.5, 1.0 / self.strength)
+        cr,cg,cb = self.color
         
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glLineWidth(2.0)
+        
+        bgl.glColor4f(cr, cg, cb, 0.15)
+        bgl.glBegin(bgl.GL_TRIANGLES)
+        for p0,p1 in zip(self.points[:-1], self.points[1:]):
+            x0,y0 = p0
+            x1,y1 = p1
+            outer0 = (cs_outer * ((cx * x0) + (cy * y0))) + cp
+            outer1 = (cs_outer * ((cx * x1) + (cy * y1))) + cp
+            inner0 = (cs_inner * ((cx * x0) + (cy * y0))) + cp
+            inner1 = (cs_inner * ((cx * x1) + (cy * y1))) + cp
+            bgl.glVertex2f(*outer0)
+            bgl.glVertex2f(*outer1)
+            bgl.glVertex2f(*inner0)
+            bgl.glVertex2f(*outer1)
+            bgl.glVertex2f(*inner1)
+            bgl.glVertex2f(*inner0)
+        bgl.glEnd()
         
         bgl.glColor4f(1, 1, 1, 1)                       # outer ring
         bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -154,9 +208,16 @@ class RFWidget_Circle(RFWidget):
             self.mousepre = Point2D(eventd.mouse)
             self.cursor_warp(Point2D((w/2 + self.radius, h/2)))
             self.draw_mode = 'pixel'
+            self.radiuspre = self.radius
             return ''
         
-        if eventd.press == 'LEFTMOUSE':
+        if eventd.press in self.rfcontext.keymap['cancel']:
+            self.radius = self.radiuspre
+            self.draw_mode = 'view'
+            self.cursor_warp(self.mousepre)
+            return ret_mode
+        
+        if eventd.press in self.rfcontext.keymap['action']:
             self.draw_mode = 'view'
             self.cursor_warp(self.mousepre)
             return ret_mode
@@ -174,9 +235,16 @@ class RFWidget_Circle(RFWidget):
             self.mousepre = Point2D(eventd.mouse)
             self.cursor_warp(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.strength), h/2)))
             self.draw_mode = 'pixel'
+            self.strengthpre = self.strength
             return ''
         
-        if eventd.press == 'LEFTMOUSE':
+        if eventd.press in self.rfcontext.keymap['cancel']:
+            self.strength = self.strengthpre
+            self.draw_mode = 'view'
+            self.cursor_warp(self.mousepre)
+            return ret_mode
+        
+        if eventd.press in self.rfcontext.keymap['action']:
             self.draw_mode = 'view'
             self.cursor_warp(self.mousepre)
             return ret_mode

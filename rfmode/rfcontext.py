@@ -31,7 +31,8 @@ from .rfwidget import RFWidget
 #######################################################
 # import all the tools here
 
-from .rftool_tweak import RFTool_Tweak
+from .rftool_tweak_move import RFTool_Tweak_Move
+from .rftool_tweak_relax import RFTool_Tweak_Relax
 
 #######################################################
 # import all the widgets here
@@ -93,9 +94,10 @@ class RFContext:
         RFTool.init_tools(self)     # init tools
         RFWidget.init_widgets(self) # init widgets
         
-        self.tool = RFTool_Tweak()          # currently selected tool
-        self.tool_state = self.tool.start() # current tool state
-        self.rfwidget = self.tool.rfwidget()
+        self.tool = None
+        self.set_tool(RFTool_Tweak_Move())
+        
+        self.nav = False
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -176,6 +178,12 @@ class RFContext:
     
     def restore_cursor(self): self.set_cursor('DEFAULT')
     
+    def set_tool(self, tool):
+        if self.tool == tool: return
+        self.tool       = tool                  # currently selected tool
+        self.tool_state = self.tool.start()     # current tool state
+        self.rfwidget   = self.tool.rfwidget()  # current tool widget
+    
     ###################################################
     # undo / redo stack operations
     
@@ -232,10 +240,40 @@ class RFContext:
             # all done!
             return {'confirm'}
         
+        # is cursor in valid space?
         if not self.eventd.valid_mouse((context.region.width, context.region.height)):
             self.set_cursor('DEFAULT')
             if self.rfwidget: self.rfwidget.clear()
             return {}
+        
+        # user pressing nav key?
+        if self.eventd.press in self.events_nav:
+            self.nav = True
+        if self.eventd.release in self.events_nav:
+            self.nav = False
+        if self.nav:
+            # let Blender handle navigation
+            self.set_cursor('HAND')
+            if self.rfwidget: self.rfwidget.clear()
+            return {'pass'}
+        
+        
+        # handle undo/redo
+        if self.eventd.press in self.keymap['undo']:
+            self.undo_pop()
+            return {}
+        if self.eventd.press in self.keymap['redo']:
+            self.redo_pop()
+            return {}
+        
+        # handle tool switching hotkeys
+        if self.eventd.press in {'T'}:
+            self.set_tool(RFTool_Tweak_Move())
+            return {}
+        if self.eventd.press in {'R'}:
+            self.set_tool(RFTool_Tweak_Relax())
+            return {}
+        
         
         if self.tool:
             self.rfwidget = self.tool.rfwidget()
@@ -245,20 +283,6 @@ class RFContext:
         else:
             self.rfwidget = None
             self.set_cursor('CROSSHAIR')
-        
-        if self.eventd.press in self.events_nav:
-            # let Blender handle navigation
-            self.set_cursor('HAND')
-            if self.rfwidget: self.rfwidget.clear()
-            return {'pass'}
-        
-        if self.eventd.press in {'CTRL+Z'}:
-            self.undo_pop()
-            return {}
-        
-        if self.eventd.press in {'CTRL+SHIFT+Z'}:
-            self.redo_pop()
-            return {}
         
         if self.eventd.press in self.events_selection:
             # handle selection
