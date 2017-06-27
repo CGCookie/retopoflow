@@ -247,15 +247,13 @@ class RFContext:
             return {}
         
         # user pressing nav key?
-        if self.eventd.press in self.events_nav:
-            self.nav = True
-        if self.eventd.release in self.events_nav:
-            self.nav = False
-        if self.nav:
+        if self.eventd.press in self.events_nav or (self.eventd.type == 'TIMER' and self.nav):
             # let Blender handle navigation
+            self.nav = True
             self.set_cursor('HAND')
             if self.rfwidget: self.rfwidget.clear()
             return {'pass'}
+        self.nav = False
         
         
         # handle undo/redo
