@@ -41,7 +41,6 @@ from .rfwidget_circle import RFWidget_Circle
 #######################################################
 
 
-
 class RFContext:
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
@@ -59,6 +58,7 @@ class RFContext:
     '''
     
     undo_depth = 100 # set in RF settings?
+    instance = None
     
     def __init__(self):
         self._init_usersettings()       # set up user-defined settings and key mappings
@@ -71,6 +71,8 @@ class RFContext:
         self.start_time = time.time()
         self.window_time = time.time()
         self.frames = 0
+        
+        RFContext.instance = self
     
     def _init_usersettings(self):
         self.eventd = EventDetails()    # context, event details, etc.

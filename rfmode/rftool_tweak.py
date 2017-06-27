@@ -1,6 +1,6 @@
 import bpy
 import math
-from .rftool import RFTool, dirty_when_done
+from .rftool import RFTool
 from .rfwidget_circle import RFWidget_Circle
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
@@ -21,11 +21,11 @@ class RFTool_Tweak(RFTool):
     
     def modal_main(self):
         if self.rfcontext.eventd.press in {'LEFTMOUSE'}: #,'SHIFT+LEFTMOUSE'}:
+            self.rfcontext.undo_push("tweak")
             radius = RFWidget_Circle().get_scaled_radius()
             nearest = self.rfcontext.target_nearest_bmverts_mouse(radius)
             self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
-            self.rfcontext.undo_push("tweak")
-            #self.rfcontext.select(self.bmverts, only=not self.rfcontext.eventd.shift)
+            self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             return 'tweak'
         
         if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
@@ -33,10 +33,8 @@ class RFTool_Tweak(RFTool):
         
         if self.rfcontext.eventd.press in {'SHIFT+RIGHTMOUSE'}:
             return 'restrength'
-        
-        return ''
     
-    @dirty_when_done
+    @RFTool.dirty_when_done
     def modal_tweak(self):
         if self.rfcontext.eventd.release in {'LEFTMOUSE'}:
             return 'main'
@@ -55,8 +53,6 @@ class RFTool_Tweak(RFTool):
             p,_,_,_ = raycast_sources_Point2D(oco_screen)
             if p is None: continue
             bmv.co = p
-        
-        return ''
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass

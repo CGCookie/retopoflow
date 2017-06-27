@@ -40,18 +40,20 @@ from ..lib.common_utilities import print_exception, showErrorMessage
 from ..common.metaclasses import SingletonRegisterClass
 from .rfwidget import RFWidget_Default
 
-def dirty_when_done(fn):
-    def wrapper(*args, **kwargs):
-        ret = fn(*args, **kwargs)
-        RFTool.rfcontext.dirty()
-        return ret
-    return wrapper
 
 class RFTool(metaclass=SingletonRegisterClass):
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
         toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
+    
+    @staticmethod
+    def dirty_when_done(fn):
+        def wrapper(*args, **kwargs):
+            ret = fn(*args, **kwargs)
+            RFTool.rfcontext.dirty()
+            return ret
+        return wrapper
     
     ''' a base class for all RetopoFlow Tools '''
     def __init__(self):

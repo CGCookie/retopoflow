@@ -13,79 +13,7 @@ from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, 
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
-
-'''
-NOTE: RFVert, RFEdge, RFFace do NOT mark RFMesh as dirty!
-'''
-class RFVert:
-    def __init__(self, bmv, rfmesh):
-        xform = rfmesh.xform
-        self.rfmesh = rfmesh
-        self.bmv = bmv
-        self.l2w_point = xform.l2w_point
-        self.w2l_point = xform.w2l_point
-        self.l2w_normal = xform.l2w_normal
-        self.w2l_normal = xform.w2l_normal
-    
-    @property
-    def co(self):
-        return self.l2w_point(self.bmv.co)
-    
-    @co.setter
-    def co(self, co):
-        self.bmv.co = self.w2l_point(co)
-    
-    @property
-    def normal(self):
-        return self.l2w_normal(self.bmv.normal)
-    
-    @normal.setter
-    def normal(self, norm):
-        self.bmv.normal = w2l_normal(norm)
-    
-    def __getattr__(self, k):
-        return self.bmv.__getattr__(k)
-
-class RFEdge:
-    def __init__(self, bme, rfmesh):
-        self.rfmesh = rfmesh
-        self.bme = bme
-    
-    def other_vert(self, bmv):
-        if type(bmv) is RFVert: bmv = bmv.bmv
-        o = self.bme.other_vert(bmv)
-        if o is None: return None
-        return RFVert(bmv, self.rfmesh)
-    
-    # calc_length...
-    
-    @property
-    def verts(self):
-        bmv0,bmv1 = self.bme.verts
-        return (RFVert(bmv0, self.rfmesh), RFVert(bmv1, self.rfmesh))
-    
-    @property
-    def link_faces(self):
-        return [RFFace(bmf, self.rfmesh) for bmf in self.bme.link_faces]
-    
-    def __getattr__(self, k):
-        return self.bme.__getattr__(k)
-
-class RFFace:
-    def __init__(self, bmf, rfmesh):
-        self.rfmesh = rfmesh
-        self.bmf = bmf
-    
-    @property
-    def edges(self):
-        return [RFEdge(bme, self.rfmesh) for bme in self.bmf.edges]
-    
-    @property
-    def verts(self):
-        return [RFVert(bmv, self.rfmesh) for bmv in self.bmf.verts]
-    
-    def __getattr__(self, k):
-        return self.bmf.__getattr__(k)
+from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
 
 
 class RFMesh():
@@ -198,9 +126,9 @@ class RFMesh():
     
     ##########################################################
     
-    def wrap_bmvert(self, bmv): return RFVert(bmv, self)
-    def wrap_bmedge(self, bme): return RFEdge(bme, self)
-    def wrap_bmface(self, bmf): return RFFace(bmf, self)
+    def wrap_bmvert(self, bmv): return RFVert(bmv)
+    def wrap_bmedge(self, bme): return RFEdge(bme)
+    def wrap_bmface(self, bmf): return RFFace(bmf)
     
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
@@ -272,18 +200,19 @@ class RFMesh():
             nelems = set(elems)
             for elem in elems:
                 t = type(elem)
-                if t is BMVert:
+                if t is BMVert or t is RFVert:
                     pass
-                elif t is BMEdge:
+                elif t is BMEdge or t is RFEdge:
                     nelems.update(e for e in elem.verts)
-                elif t is BMFace:
+                elif t is BMFace or t is RFFace:
                     nelems.update(e for e in elem.verts)
                     nelems.update(e for e in elem.edges)
             elems = nelems
         for elem in elems: elem.select = True
         if supparts:
             for elem in elems:
-                if type(elem) is not BMVert: continue
+                t = type(elem)
+                if t is not BMVert and t is not RFVert: continue
                 for bme in elem.link_edges:
                     if all(bmv.select for bmv in bme.verts):
                         bme.select = True
@@ -344,6 +273,7 @@ class RFTarget(RFMesh):
         rftarget = RFTarget()
         del RFTarget.creating
         rftarget.__setup__(obj)
+        BMElemWrapper.wrap(rftarget)
         return rftarget
     
     def __init__(self):
