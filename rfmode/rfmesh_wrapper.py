@@ -34,6 +34,13 @@ class BMElemWrapper:
     def __init__(self, bmelem):
         self.bmelem = bmelem
     
+    def __repr__(self):
+        return '<BMElemWrapper: %s>' % repr(self.bmelem)
+    def __hash__(self):
+        return self.bmelem.__hash__()
+    def __eq__(self, other):
+        return other and self.bmelem == other.bmelem
+    
     @property
     def hide(self): return self.bmelem.hide
     @hide.setter
@@ -71,6 +78,14 @@ class RFVert(BMElemWrapper):
     
     @normal.setter
     def normal(self, norm): self.bmelem.normal = self.w2l_normal(norm)
+    
+    @property
+    def link_edges(self):
+        return [RFEdge(bme) for bme in self.bmelem.link_edges]
+    
+    @property
+    def link_faces(self):
+        return [RFFace(bmf) for bmf in self.bmelem.link_faces]
 
 
 class RFEdge(BMElemWrapper):

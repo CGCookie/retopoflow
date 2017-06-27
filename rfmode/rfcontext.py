@@ -307,18 +307,24 @@ class RFContext:
     ##################################################
     # RFTarget functions
     
+    def target_nearest_bmvert_Point(self, xyz:Point):
+        return self.rftarget.nearest_bmvert_Point(xyz)
+    
     def target_nearest_bmvert_Point2D(self, xy:Point2D):
         p,_,_,_ = self.raycast_sources_Point2D(xy)
         if p is None: return None
-        return self.rftarget.nearest_bmvert_Point(p)
+        return self.target_nearest_bmvert_Point(p)
     
     def target_nearest_bmvert_mouse(self):
         return self.target_nearest_bmvert_Point2D(self.eventd.mouse)
     
+    def target_nearest_bmverts_Point(self, xyz:Point, dist3D:float):
+        return self.rftarget.nearest_bmverts_Point(xyz, dist3D)
+    
     def target_nearest_bmverts_Point2D(self, xy:Point2D, dist3D:float):
         p,_,_,_ = self.raycast_sources_Point2D(xy)
         if p is None: return None
-        return self.rftarget.nearest_bmverts_Point(p, dist3D)
+        return self.target_nearest_bmverts_Point(p, dist3D)
     
     def target_nearest_bmverts_mouse(self, dist3D:float):
         return self.target_nearest_bmverts_Point2D(self.eventd.mouse, dist3D)

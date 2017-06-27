@@ -7,6 +7,7 @@ import bgl
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
 from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, Vec2D
@@ -108,6 +109,15 @@ class RFMesh():
             self.bbox_version = self.version
         return self.bbox
     
+    def get_kdtree(self):
+        if not hasattr(self, 'kdt') or self.kdt_version != self.version:
+            self.kdt = KDTree(len(self.bme.verts))
+            for i,bmv in enumerate(self.bme.verts):
+                self.kdt.insert(bmv.co, i)
+            self.kdt.balance()
+            self.kdt_version = self.version
+        return self.kdt
+    
     ##########################################################
     
     def store_state(self):
@@ -142,7 +152,7 @@ class RFMesh():
     
     def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         point_local = self.xform.w2l_point(point)
-        p,n,i,_ = self.get_bvh().nearest(point_local, max_dist)
+        p,n,i,_ = self.get_bvh().find_nearest(point_local, max_dist)
         if p is None: return (None,None,None,None)
         p,n = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d = (point - p).length
