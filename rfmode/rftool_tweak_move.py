@@ -4,6 +4,7 @@ from .rftool import RFTool
 from .rfwidget_circle import RFWidget_Circle
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
+@RFTool.action_call({'T'})
 class RFTool_Tweak_Move(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):

@@ -12,20 +12,18 @@ import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
-from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .. import key_maps
+from .rfcontext_actions import RFContext_Actions
+from .rfcontext_spaces import RFContext_Spaces
+
 from ..lib.common_utilities import get_settings
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
-from ..lib.eventdetails import EventDetails
 
 from .rfmesh import RFSource, RFTarget, RFMeshRender
 
 from .rftool import RFTool
 from .rfwidget import RFWidget
-
 
 
 #######################################################
@@ -43,7 +41,7 @@ from .rfwidget_circle import RFWidget_Circle
 #######################################################
 
 
-class RFContext:
+class RFContext(RFContext_Actions, RFContext_Spaces):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -59,37 +57,30 @@ class RFContext:
     RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
 
-    undo_depth = 100 # set in RF settings?
-    instance = None
+    instance = None     # reference to the current instance of RFContext
+
+    undo_depth = 100    # set in RF settings?
 
     def __init__(self):
-        self._init_usersettings()       # set up user-defined settings and key mappings
-        self._init_target()             # set up target object
-        self._init_sources()            # set up source objects
-        self._init_tools()              # set up tools and widgets used in RetopoFlow
+        RFContext.instance = self
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
+
+        self._init_tools()              # set up tools and widgets used in RetopoFlow
+        self._init_actions()            # set up default and user-defined actions
+        self._init_usersettings()       # set up user-defined settings and key mappings
+
+        self._init_target()             # set up target object
+        self._init_sources()            # set up source objects
 
         self.start_time = time.time()
         self.window_time = time.time()
         self.frames = 0
 
-        RFContext.instance = self
 
     def _init_usersettings(self):
-        self.eventd = EventDetails()    # context, event details, etc.
-
-        # user-defined settings and key mappings
+        # user-defined settings
         self.settings = get_settings()
-        # TODO: keymaps need rewritten
-        self.keymap = key_maps.rtflow_default_keymap_generate()
-        key_maps.navigation_language() # check keymap against system language
-        user = key_maps.rtflow_user_keymap_generate()
-        self.events_nav = user['navigate']
-        self.events_selection = set()
-        self.events_selection.update(user['select'])
-        self.events_selection.update(user['select all'])
-        self.events_confirm = user['confirm']
 
     def _init_tools(self):
         RFTool.init_tools(self)     # init tools
@@ -233,7 +224,7 @@ class RFContext:
         #   empty or None:  stay in modal
 
         prev_tool = self.tool
-        self.eventd.update(context, event)
+        self._process_event(context, event)
 
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
 
@@ -265,16 +256,16 @@ class RFContext:
             self.redo_pop()
             return {}
 
+        for action,tool in RFTool.action_tool:
+            if self.eventd.press in action:
+                self.set_tool(tool())
         # handle tool switching hotkeys
-        if self.eventd.press in {'T'}:
-            self.set_tool(RFTool_Tweak_Move())
-            return {}
-        if self.eventd.press in {'R'}:
-            self.set_tool(RFTool_Tweak_Relax())
-            return {}
-        if self.eventd.press in {'P'}:
-            self.set_tool(RFTool_Polypen())
-            return {}
+        # if self.eventd.press in {'T'}:
+        #     self.set_tool(RFTool_Tweak_Move())
+        #     return {}
+        # if self.eventd.press in {'R'}:
+        #     self.set_tool(RFTool_Tweak_Relax())
+        #     return {}
 
 
         if self.tool:
@@ -368,46 +359,6 @@ class RFContext:
         return self.target_nearest2D_bmverts_Point2D(self.eventd.mouse, dist2D)
 
 
-    ###################################################
-    # converts entities between screen space and world space
-
-    def Point2D_to_Vec(self, xy:Point2D):
-        return Vec(region_2d_to_vector_3d(self.eventd.region, self.eventd.r3d, xy))
-
-    def Point2D_to_Origin(self, xy:Point2D):
-        return Point(region_2d_to_origin_3d(self.eventd.region, self.eventd.r3d, xy))
-
-    def Point2D_to_Ray(self, xy:Point2D):
-        return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Vec(xy))
-
-    def Point2D_to_Point(self, xy:Point2D, depth:float):
-        r = self.Point2D_to_Ray(xy)
-        return Point(r.o + depth * r.d)
-        #return Point(region_2d_to_location_3d(self.eventd.region, self.eventd.r3d, xy, depth))
-
-    def Point_to_Point2D(self, xyz:Point):
-        xy = location_3d_to_region_2d(self.eventd.region, self.eventd.r3d, xyz)
-        if xy is None: return None
-        return Point2D(xy)
-
-    def Point_to_depth(self, xyz):
-        xy = location_3d_to_region_2d(self.eventd.region, self.eventd.r3d, xyz)
-        if xy is None: return None
-        oxyz = region_2d_to_origin_3d(self.eventd.region, self.eventd.r3d, xy)
-        return (xyz - oxyz).length
-
-    def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
-        # computes size of 3D object at distance (depth) as it projects to 2D size
-        # TODO: there are more efficient methods of computing this!
-        p3d0 = self.Point2D_to_Point(xy, depth)
-        p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
-        return (p3d0 - p3d1).length
-
-    def Vec_up(self):
-        return self.Point2D_to_Origin((0,0)) - self.Point2D_to_Origin((0,1))
-
-    def Vec_right(self):
-        return self.Point2D_to_Origin((1,0)) - self.Point2D_to_Origin((0,0))
 
     ###################################################
 

@@ -42,6 +42,8 @@ from .rfwidget import RFWidget_Default
 
 
 class RFTool(metaclass=SingletonRegisterClass):
+    action_tool = []
+    
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
@@ -54,6 +56,13 @@ class RFTool(metaclass=SingletonRegisterClass):
             RFTool.rfcontext.dirty()
             return ret
         return wrapper
+    
+    @staticmethod
+    def action_call(action):
+        def decorator(tool):
+            RFTool.action_tool.append((action, tool))
+            return tool
+        return decorator
     
     ''' a base class for all RetopoFlow Tools '''
     def __init__(self):
