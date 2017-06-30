@@ -205,7 +205,7 @@ class RFWidget_Circle(RFWidget):
             self.radiuspre = self.radius
             return ''
         
-        if actions.pressed(['cancel','confirm'], unpress=False):
+        if actions.pressed({'cancel','confirm'}, unpress=False):
             if actions.pressed('cancel'): self.radius = self.radiuspre
             actions.unpress()
             self.draw_mode = 'view'

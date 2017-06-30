@@ -7,6 +7,7 @@ import time
 import pickle
 import binascii
 
+import bgl
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
@@ -375,6 +376,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
     ###################################################
     
     def draw_postpixel(self):
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+        
         if self.rfwidget:
             self.rfwidget.draw_postpixel()
         
@@ -387,6 +391,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         
     
     def draw_postview(self):
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+        
         self.rftarget_draw.draw()
         if self.rfwidget:
             self.rfwidget.draw_postview()
