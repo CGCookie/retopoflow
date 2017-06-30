@@ -22,31 +22,33 @@ class RFTool_Tweak_Relax(RFTool):
         return RFWidget_Circle()
     
     def modal_main(self):
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('tweak relax')
             self.rfcontext.ensure_lookup_tables()
             return 'relax'
         
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
+        if self.rfcontext.actions.pressed('brush size'):
             return 'size'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
+        if self.rfcontext.actions.pressed('brush strength'):
             return 'strength'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush falloff']:
+        if self.rfcontext.actions.pressed('brush falloff'):
             return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_relax(self):
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.released('action'):
             return 'main'
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['cancel']:
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
         
-        if self.rfcontext.eventd.type not in {'TIMER'}: return
+        if not self.rfcontext.actions.timer: return
         
         hit_pos = self.rfcontext.hit_pos
         if not hit_pos: return
         
+        time_delta = self.rfcontext.actions.time_delta
+        strength = 100.0 * RFWidget_Circle().strength * time_delta
         radius = RFWidget_Circle().get_scaled_radius()
         nearest = self.rfcontext.target_nearest_bmverts_Point(hit_pos, radius)
         self.rfcontext.select([bmv for bmv,_ in nearest])
@@ -78,7 +80,7 @@ class RFTool_Tweak_Relax(RFTool):
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
-                divco[bmv1] += diff * m
+                divco[bmv1] += diff * m * strength
             for bmf in lbmf:
                 cnt = len(bmf.verts)
                 ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
@@ -86,7 +88,7 @@ class RFTool_Tweak_Relax(RFTool):
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
                     m = (fd - diff.length)* (1.0- d) / cnt
-                    divco[bmv] += diff * m
+                    divco[bmv] += diff * m * strength
         
         # update
         for bmv,co in divco.items():

@@ -22,13 +22,13 @@ class RFTool_Tweak_Move(RFTool):
         return RFWidget_Circle()
     
     def modal_main(self):
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('tweak move')
             radius = RFWidget_Circle().get_scaled_radius()
             nearest = self.rfcontext.target_nearest_bmverts_mouse(radius)
             self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
             self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
-            self.mousedown = self.rfcontext.eventd.mousedown
+            self.mousedown = self.rfcontext.actions.mousedown
             return 'move'
         
         # if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
@@ -39,22 +39,22 @@ class RFTool_Tweak_Move(RFTool):
         #     self.mousedown = self.rfcontext.eventd.mousedown
         #     return 'move'
         
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
+        if self.rfcontext.actions.pressed('brush size'):
             return 'size'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
+        if self.rfcontext.actions.pressed('brush strength'):
             return 'strength'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush falloff']:
+        if self.rfcontext.actions.pressed('brush falloff'):
             return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_move(self):
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.released('action'):
             return 'main'
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['cancel']:
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
         
-        delta = Vec2D(self.rfcontext.eventd.mouse - self.mousedown)
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
         get_strength_dist = RFWidget_Circle().get_strength_dist

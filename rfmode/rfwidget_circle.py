@@ -23,7 +23,7 @@ class RFWidget_Circle(RFWidget):
         if p is None or n is None:
             self.hit = False
             return
-        xy = self.rfcontext.eventd.mouse
+        xy = self.rfcontext.actions.mouse
         rmat = Matrix.Rotation(self.oz.angle(n), 4, self.oz.cross(n))
         self.p = p
         self.s = self.rfcontext.size2D_to_size(1.0, xy, self.rfcontext.Point_to_depth(p))
@@ -151,7 +151,7 @@ class RFWidget_Circle(RFWidget):
     def draw_postpixel(self):
         if self.draw_mode != 'pixel': return
         
-        w,h = self.rfcontext.eventd.width,self.rfcontext.eventd.height
+        w,h = self.rfcontext.actions.size
         
         cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
         cs_outer = self.radius
@@ -192,95 +192,84 @@ class RFWidget_Circle(RFWidget):
             bgl.glVertex2f(*p)
         bgl.glEnd()
     
-    def cursor_warp(self, xy:Point2D):
-        eventd = self.rfcontext.eventd
-        x,y = eventd.region.x,eventd.region.y
-        mx,my = xy
-        eventd.context.window.cursor_warp(x + mx, y + my)
-        eventd.mouse = xy
-    
     def modal_size(self, ret_mode):
-        eventd = self.rfcontext.eventd
-        w,h = eventd.width,eventd.height
+        actions = self.rfcontext.actions
+        w,h = actions.size
         center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(eventd.mouse)
-            self.cursor_warp(Point2D((w/2 + self.radius, h/2)))
+            self.mousepre = Point2D(actions.mouse)
+            actions.warp_mouse(Point2D((w/2 + self.radius, h/2)))
             self.draw_mode = 'pixel'
             self.radiuspre = self.radius
             return ''
         
-        if eventd.press in self.rfcontext.keymap['cancel']:
-            self.radius = self.radiuspre
+        if actions.pressed(['cancel','confirm'], unpress=False):
+            if actions.pressed('cancel'): self.radius = self.radiuspre
+            actions.unpress()
             self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
+            actions.warp_mouse(self.mousepre)
             return ret_mode
         
-        if eventd.press in self.rfcontext.keymap['action']:
-            self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
-            return ret_mode
-        
-        self.radius = (center - eventd.mouse).length
+        self.radius = (center - actions.mouse).length
         return ''
     
     def modal_falloff(self, ret_mode):
-        eventd = self.rfcontext.eventd
-        w,h = eventd.width,eventd.height
+        actions = self.rfcontext.actions
+        w,h = actions.size
         center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(eventd.mouse)
-            self.cursor_warp(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.falloff), h/2)))
+            self.mousepre = Point2D(actions.mouse)
+            actions.warp_mouse(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.falloff), h/2)))
             self.draw_mode = 'pixel'
             self.falloffpre = self.falloff
             return ''
         
-        if eventd.press in self.rfcontext.keymap['cancel']:
+        if actions.pressed('cancel'):
             self.falloff = self.falloffpre
             self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
+            actions.warp_mouse(self.mousepre)
             return ret_mode
         
-        if eventd.press in self.rfcontext.keymap['action']:
+        if actions.pressed('confirm'):
             self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
+            actions.warp_mouse(self.mousepre)
             return ret_mode
         
-        dist = (center - eventd.mouse).length
+        dist = (center - actions.mouse).length
         ratio = max(0.0001, min(0.9999, dist / self.radius))
         
         self.falloff = math.log(0.5) / math.log(ratio)
         return ''
     
     def modal_strength(self, ret_mode):
-        eventd = self.rfcontext.eventd
-        w,h = eventd.width,eventd.height
+        actions = self.rfcontext.actions
+        w,h = actions.size
         center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(eventd.mouse)
-            self.cursor_warp(Point2D((w/2 + self.radius * self.strength, h/2)))
+            self.mousepre = Point2D(actions.mouse)
+            actions.warp_mouse(Point2D((w/2 + self.radius * self.strength, h/2)))
             self.draw_mode = 'pixel'
             self.strengthpre = self.strength
             return ''
         
-        if eventd.press in self.rfcontext.keymap['cancel']:
+        if actions.pressed('cancel'):
             self.strength = self.strengthpre
             self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
+            actions.warp_mouse(self.mousepre)
             return ret_mode
         
-        if eventd.press in self.rfcontext.keymap['action']:
+        if actions.pressed('confirm'):
             self.draw_mode = 'view'
-            self.cursor_warp(self.mousepre)
+            actions.warp_mouse(self.mousepre)
             return ret_mode
         
-        dist = (center - eventd.mouse).length
+        dist = (center - actions.mouse).length
         ratio = max(0.0001, min(1.0, dist / self.radius))
         
         self.strength = ratio

@@ -76,6 +76,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         self.window_time = time.time()
         self.frames = 0
         
+        self.timer = None
+        
     
     def _init_usersettings(self):
         # user-defined settings
@@ -227,19 +229,10 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
         
-        if self.eventd.press in self.events_confirm:
-            # all done!
-            return {'confirm'}
-        
-        # is cursor in valid space?
-        if not self.eventd.valid_mouse((context.region.width, context.region.height)):
-            self.set_cursor('DEFAULT')
-            if self.rfwidget: self.rfwidget.clear()
-            return {}
-        
         # user pressing nav key?
-        if self.eventd.press in self.events_nav or (self.eventd.type == 'TIMER' and self.nav):
+        if self.actions.using('navigate') or (self.actions.timer and self.nav):
             # let Blender handle navigation
+            self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True
             self.set_cursor('HAND')
             if self.rfwidget: self.rfwidget.clear()
@@ -248,48 +241,48 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         
         
         # handle undo/redo
-        if self.eventd.press in self.keymap['undo']:
+        if self.actions.pressed('undo'):
             self.undo_pop()
             return {}
-        if self.eventd.press in self.keymap['redo']:
+        if self.actions.pressed('redo'):
             self.redo_pop()
             return {}
         
         for action,tool in RFTool.action_tool:
-            if self.eventd.press in action:
+            if self.actions.pressed(action):
                 self.set_tool(tool())
-        # handle tool switching hotkeys
-        # if self.eventd.press in {'T'}:
-        #     self.set_tool(RFTool_Tweak_Move())
-        #     return {}
-        # if self.eventd.press in {'R'}:
-        #     self.set_tool(RFTool_Tweak_Relax())
-        #     return {}
         
-        
-        if self.tool:
-            self.rfwidget = self.tool.rfwidget()
-            if self.rfwidget:
-                self.rfwidget.update()
-                self.set_cursor(self.rfwidget.mouse_cursor())
+        if self.actions.valid_mouse():
+            if self.tool:
+                self.rfwidget = self.tool.rfwidget()
+                if self.rfwidget:
+                    self.rfwidget.update()
+                    self.set_cursor(self.rfwidget.mouse_cursor())
+            else:
+                self.rfwidget = None
+                self.set_cursor('CROSSHAIR')
         else:
-            self.rfwidget = None
-            self.set_cursor('CROSSHAIR')
+            self.set_cursor('DEFAULT')
+            if self.rfwidget: self.rfwidget.clear()
         
-        if self.eventd.press in self.events_selection:
+        #if self.eventd.press in self.events_selection:
             # handle selection
             #print('select!')
             #self.ensure_lookup_tables()
             #self.select([self.rftarget.bme.verts[i] for i in range(4)])
             #return {}
-            pass
+        #    pass
         
-        if self.tool: self.tool.modal()
+        if self.tool and self.actions.valid_mouse(): self.tool.modal()
         
         if prev_tool != self.tool:
             # tool has changed
             # set up state of new tool
             self.tool_state = self.tool.start()
+        
+        if self.actions.pressed('done'):
+            # all done!
+            return {'confirm'}
         
         return {}
     
@@ -309,7 +302,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
     
     def raycast_sources_mouse(self):
-        return self.raycast_sources_Point2D(self.eventd.mouse)
+        return self.raycast_sources_Point2D(self.actions.mouse)
     
     def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
@@ -335,10 +328,10 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D)
     
     def target_nearest2D_bmvert_mouse(self):
-        return self.target_nearest2D_bmvert_Point2D(self.eventd.mouse)
+        return self.target_nearest2D_bmvert_Point2D(self.actions.mouse)
     
     def target_nearest_bmvert_mouse(self):
-        return self.target_nearest_bmvert_Point2D(self.eventd.mouse)
+        return self.target_nearest_bmvert_Point2D(self.actions.mouse)
     
     def target_nearest_bmverts_Point(self, xyz:Point, dist3D:float):
         return self.rftarget.nearest_bmverts_Point(xyz, dist3D)
@@ -349,13 +342,13 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         return self.target_nearest_bmverts_Point(p, dist3D)
     
     def target_nearest_bmverts_mouse(self, dist3D:float):
-        return self.target_nearest_bmverts_Point2D(self.eventd.mouse, dist3D)
+        return self.target_nearest_bmverts_Point2D(self.actions.mouse, dist3D)
     
     def target_nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float):
         return self.rftarget.nearest2D_bmverts_Point2D(xy, dist2D, self.Point_to_Point2D)
     
     def target_nearest2D_bmverts_mouse(self, dist2D:float):
-        return self.target_nearest2D_bmverts_Point2D(self.eventd.mouse, dist2D)
+        return self.target_nearest2D_bmverts_Point2D(self.actions.mouse, dist2D)
     
     
 
