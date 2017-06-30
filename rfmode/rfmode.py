@@ -101,7 +101,8 @@ class RFMode(Operator):
                 type(o.data) is bpy.types.Mesh and                                      # mesh object
                 any(vl and ol for vl,ol in zip(context.scene.layers, o.layers)) and     # on visible layer
                 not o.hide and                                                          # not hidden
-                o is not context.active_object                                          # not active
+                (o != context.active_object or not o.select) and                        # not active or not selected
+                len(o.data.polygons) > 0                                                # at least one polygon
             ])
     
     def invoke(self, context, event):
