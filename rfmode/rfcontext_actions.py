@@ -28,7 +28,7 @@ class Actions:
         # common
         'navigate': set(),          # to be filled in by self._init_navigation()
         'action': {'LEFTMOUSE'},
-        'select': {'RIGHTMOUSE'},   # only used if there is conflict with user preferences,
+        'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select all': {'A'},
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
