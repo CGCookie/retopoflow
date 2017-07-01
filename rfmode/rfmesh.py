@@ -359,6 +359,8 @@ class RFMeshRender():
     RFMeshRender handles rendering RFMeshes.
     '''
     
+    ALWAYS_DIRTY = True
+    
     def __init__(self, rfmesh, opts):
         self.opts = opts
         self.replace_rfmesh(rfmesh)
@@ -377,22 +379,15 @@ class RFMeshRender():
         self.bmesh = rfmesh.bme
         self.rfmesh_version = None
     
-    def clean(self):
-        # return if rfmesh hasn't changed
-        self.rfmesh.clean()
-        if self.rfmesh_version == self.rfmesh.version: return
-        
-        self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
-        #print('RMesh.version = %d' % self.rfmesh_version)
-        
+    def _draw(self):
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
         
-        bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
         bgl.glPushMatrix()
         bgl.glMultMatrixf(self.bglMatrix)
+        
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glEnable(bgl.GL_CULL_FACE)
@@ -405,6 +400,7 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glDisable(bgl.GL_CULL_FACE)
@@ -417,22 +413,45 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
         # bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
-        bgl.glEndList()
+    
+    def clean(self):
+        # return if rfmesh hasn't changed
+        self.rfmesh.clean()
+        if self.rfmesh_version == self.rfmesh.version and not self.ALWAYS_DIRTY: return
+        
+        self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
+        #print('RMesh.version = %d' % self.rfmesh_version)
+        
+        if not self.ALWAYS_DIRTY:
+            bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
+        
+        self._draw()
+        
+        if not self.ALWAYS_DIRTY:
+            bgl.glEndList()
     
     def draw(self):
         try:
-            self.clean()
-            bmegl.bmeshShader.enable()
-            bgl.glCallList(self.bglCallList)
+            if self.ALWAYS_DIRTY:
+                bmegl.bmeshShader.enable()
+                self._draw()
+            else:
+                self.clean()
+                bmegl.bmeshShader.enable()
+                bgl.glCallList(self.bglCallList)
         except:
             print_exception()
             pass
         finally:
-            bmegl.bmeshShader.disable()
+            try:
+                bmegl.bmeshShader.disable()
+            except:
+                pass
 
 
