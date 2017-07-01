@@ -88,5 +88,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass
+    
+    def name(self): return 'Unnamed RFTool'
 
 

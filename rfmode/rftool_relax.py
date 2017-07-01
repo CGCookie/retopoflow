@@ -9,6 +9,8 @@ class RFTool_Relax(RFTool):
     def init(self):
         self.FSM['relax'] = self.modal_relax
     
+    def name(self): return "Relax"
+    
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))

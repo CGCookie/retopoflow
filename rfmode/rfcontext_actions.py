@@ -36,6 +36,8 @@ class Actions:
         'redo': {'CTRL+SHIFT+Z'},
         'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
         
+        'insert': {'CTRL+LEFTMOUSE'},
+        
         # widget
         'brush size': {'F'},
         'brush falloff': {'CTRL+SHIFT+F'},
@@ -44,6 +46,7 @@ class Actions:
         # shortcuts to tools
         'move tool': {'T'},
         'relax tool': {'R'},
+        'polypen tool': {'P'},
         }
     
     navigation_events = {

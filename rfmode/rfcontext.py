@@ -1,11 +1,15 @@
 import re
+import os
 import sys
 import math
 import json
 import copy
 import time
+import glob
+import inspect
 import pickle
 import binascii
+import importlib
 
 import bgl
 import blf
@@ -32,8 +36,43 @@ from .rfwidget import RFWidget
 #######################################################
 # import all the tools here
 
-from .rftool_move import RFTool_Move
-from .rftool_relax import RFTool_Relax
+def find_all_rftools(root=None):
+    if not root:
+        addons = bpy.context.user_preferences.addons
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find root folder'
+        return find_all_rftools(folderpath)
+    
+    if not hasattr(find_all_rftools, 'touched'):
+        find_all_rftools.touched = set()
+    root = os.path.abspath(root)
+    if root in find_all_rftools.touched: return
+    find_all_rftools.touched.add(root)
+    
+    found = False
+    for path in glob.glob(os.path.join(root, '*')):
+        if os.path.isdir(path):
+            # recurse?
+            found |= find_all_rftools(path)
+        else:
+            rft = os.path.splitext(os.path.basename(path))[0]
+            try:
+                tmp = importlib.__import__(rft, globals(), locals(), [], level=1)
+                for k in dir(tmp):
+                    v = tmp.__getattribute__(k)
+                    if inspect.isclass(v) and v is not RFTool and issubclass(v, RFTool):
+                        # v is an RFTool, so add it to the global namespace
+                        globals()[k] = v
+                        found = True
+            except:
+                pass
+    return found
+assert find_all_rftools(), 'Could not find RFTools'
+
 
 #######################################################
 
@@ -122,11 +161,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     def _init_tools(self):
         self.rfwidget = RFWidget.new(self)  # init widgets
         RFTool.init_tools(self)             # init tools
-        
-        self.tool = None
-        self.set_tool(RFTool_Move())
-        
-        self.nav = False
+        self.nav = False                    # not currently navigating
+        self.set_tool(RFTool_Move())        # set default tool
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -197,7 +233,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     def restore_cursor(self): self.set_cursor('DEFAULT')
     
     def set_tool(self, tool):
-        if self.tool == tool: return
+        if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
     
@@ -337,12 +373,26 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             self.frames = 0
             self.window_time = ctime
         
+        font_id = 0
+        
         if self.show_fps:
-            font_id = 0
             bgl.glColor4f(1.0, 1.0, 1.0, 0.10)
-            blf.position(font_id, 5, 5, 0)
             blf.size(font_id, 12, 72)
+            blf.position(font_id, 5, 5, 0)
             blf.draw(font_id, 'fps: %0.2f' % self.fps)
+        
+        bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+        blf.size(font_id, 12, 72)
+        _,h = blf.dimensions(font_id, "XMPQpqjI")
+        y = self.actions.size[1] - int(h) - 5
+        for rft in RFTool:
+            if type(self.tool) is rft:
+                bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
+            else:
+                bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+            blf.position(font_id, 5, y, 0)
+            blf.draw(font_id, rft().name())
+            y -= int(h)
         
     
     def draw_postview(self):

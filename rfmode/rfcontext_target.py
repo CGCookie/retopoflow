@@ -56,27 +56,47 @@ class RFContext_Target:
     
     #######################################
     # target manipulation functions
+    #
+    # note: these do NOT dirty the target!
+    # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     
     def snap_vert(self, vert:RFVert):
-        vert.co = self.nearest_sources_Point(vert.co)
+        xyz,norm,_,_ = self.nearest_sources_Point(vert.co)
+        vert.co = xyz
+        vert.normal = norm
     
     def snap2D_vert(self, vert:RFVert):
         xy = self.Point_to_Point2D(vert.co)
-        xyz,_,_,_ = self.raycast_sources_Point2D()
+        xyz,norm,_,_ = self.raycast_sources_Point2D()
         if xyz is None: return
         vert.co = xyz
+        vert.normal = norm
     
     def offset2D_vert(self, vert:RFVert, delta_xy:Vec2D):
         xy = self.Point_to_Point2D(vert.co) + delta_xy
-        xyz,_,_,_ = self.raycast_sources_Point2D(xy)
+        xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         vert.co = xyz
+        vert.normal = norm
     
     def set2D_vert(self, vert:RFVert, xy:Point2D):
-        xyz,_,_,_ = self.raycast_sources_Point2D(xy)
+        xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         vert.co = xyz
-        
+        vert.normal = norm
+    
+    
+    def new_vert_point(self, xyz:Point):
+        xyz,norm,_,_ = self.nearest_sources_Point(xyz)
+        return self.rftarget.new_vert(xyz, norm)
+    
+    def new2D_vert_point(self, xy:Point2D):
+        xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
+        if xyz is None: return None
+        return self.rftarget.new_vert(xyz, norm)
+    
+    def new2D_vert_mouse(self):
+        return self.new2D_vert_point(self.actions.mouse)
     
     ###################################################
     

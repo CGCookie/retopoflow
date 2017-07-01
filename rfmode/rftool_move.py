@@ -9,6 +9,8 @@ class RFTool_Move(RFTool):
     def init(self):
         self.FSM['move'] = self.modal_move
     
+    def name(self): return "Tweak Move"
+    
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 0.5, 1.0))
