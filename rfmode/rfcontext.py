@@ -8,6 +8,7 @@ import pickle
 import binascii
 
 import bgl
+import blf
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
@@ -111,7 +112,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.frames = 0
         
         self.timer = None
-        
+        self.fps = 0
+        self.show_fps = True
     
     def _init_usersettings(self):
         # user-defined settings
@@ -331,9 +333,16 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         wtime,ctime = self.window_time,time.time()
         self.frames += 1
         if ctime >= wtime + 1:
-            print('%f fps' % (self.frames / (ctime - wtime)))
+            self.fps = self.frames / (ctime - wtime)
             self.frames = 0
             self.window_time = ctime
+        
+        if self.show_fps:
+            font_id = 0
+            bgl.glColor4f(1.0, 1.0, 1.0, 0.10)
+            blf.position(font_id, 5, 5, 0)
+            blf.size(font_id, 12, 72)
+            blf.draw(font_id, 'fps: %0.2f' % self.fps)
         
     
     def draw_postview(self):
