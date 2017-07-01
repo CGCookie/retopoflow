@@ -6,39 +6,52 @@ class RFContext_Target:
     functions to work on RFTarget
     '''
     
-    def target_nearest_bmvert_Point(self, xyz:Point):
-        return self.rftarget.nearest_bmvert_Point(xyz)
+    #########################################
+    # find target entities in screen space
     
-    def target_nearest_bmvert_Point2D(self, xy:Point2D):
-        p,_,_,_ = self.raycast_sources_Point2D(xy)
-        if p is None: return None
-        return self.target_nearest_bmvert_Point(p)
+    def get_point2D(self, point):
+        if point.is_2D(): return point
+        return self.Point_to_Point2D(point)
     
-    def target_nearest2D_bmvert_Point2D(self, xy):
+    def nearest2D_vert_point(self, point):
+        xy = self.get_point2D(point)
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D)
     
-    def target_nearest2D_bmvert_mouse(self):
-        return self.target_nearest2D_bmvert_Point2D(self.actions.mouse)
+    def nearest2D_vert_mouse(self):
+        return self.nearest2D_vert_point(self.actions.mouse)
     
-    def target_nearest_bmvert_mouse(self):
-        return self.target_nearest_bmvert_Point2D(self.actions.mouse)
+    def nearest2D_verts_point(self, point, max_dist:float):
+        xy = self.get_point2D(point or self.actions.mouse)
+        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D)
     
-    def target_nearest_bmverts_Point(self, xyz:Point, dist3D:float):
-        return self.rftarget.nearest_bmverts_Point(xyz, dist3D)
+    def nearest2D_verts_mouse(self, max_dist:float):
+        return self.nearest2D_verts_point(self.actions.mouse, max_dist)
     
-    def target_nearest_bmverts_Point2D(self, xy:Point2D, dist3D:float):
-        p,_,_,_ = self.raycast_sources_Point2D(xy)
-        if p is None: return None
-        return self.target_nearest_bmverts_Point(p, dist3D)
     
-    def target_nearest_bmverts_mouse(self, dist3D:float):
-        return self.target_nearest_bmverts_Point2D(self.actions.mouse, dist3D)
+    ########################################
+    # find target entities in world space
     
-    def target_nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float):
-        return self.rftarget.nearest2D_bmverts_Point2D(xy, dist2D, self.Point_to_Point2D)
+    def get_point3D(self, point):
+        if point.is_3D(): return point
+        xyz,_,_,_ = self.raycast_sources_Point2D(point)
+        return xyz
     
-    def target_nearest2D_bmverts_mouse(self, dist2D:float):
-        return self.target_nearest2D_bmverts_Point2D(self.actions.mouse, dist2D)
+    def nearest_vert_point(self, point):
+        xyz = self.get_point3D(point)
+        if xyz is None: return None
+        return self.target.nearest_bmvert_Point(xyz)
+    
+    def nearest_vert_mouse(self):
+        return self.nearest_vert_point(self.actions.mouse)
+    
+    def nearest_verts_point(self, point, max_dist:float):
+        xyz = self.get_point3D(point)
+        if xyz is None: return None
+        return self.rftarget.nearest_bmverts_Point(xyz, max_dist)
+    
+    def nearest_verts_mouse(self, max_dist:float):
+        return self.nearest_verts_point(self.actions.mouse, max_dist)
+    
     
     
     ###################################################

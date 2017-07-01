@@ -50,7 +50,7 @@ class RFTool_Tweak_Relax(RFTool):
         time_delta = self.rfcontext.actions.time_delta
         strength = 100.0 * RFWidget_Circle().strength * time_delta
         radius = RFWidget_Circle().get_scaled_radius()
-        nearest = self.rfcontext.target_nearest_bmverts_Point(hit_pos, radius)
+        nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
         self.rfcontext.select([bmv for bmv,_ in nearest])
         
         avgDist,avgCount,divco = 0,0,{}

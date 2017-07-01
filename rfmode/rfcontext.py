@@ -62,6 +62,43 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     
     undo_depth = 100    # set in RF settings?
     
+    @staticmethod
+    def is_valid_source(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if o.select and o == bpy.context.active_object: return False
+        if not o.data.polygons: return False
+        return True
+    
+    @staticmethod
+    def is_valid_target(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if not o.select: return False
+        if o != bpy.context.active_object: return False
+        return True
+    
+    @staticmethod
+    def has_valid_source():
+        return any(True for o in bpy.context.scene.objects if RFContext.is_valid_source(o))
+    
+    @staticmethod
+    def has_valid_target():
+        return RFContext.get_target() is not None
+    
+    @staticmethod
+    def get_sources():
+        return [o for o in bpy.context.scene.objects if RFContext.is_valid_source(o)]
+    
+    @staticmethod
+    def get_target():
+        o = bpy.context.active_object
+        return o if RFContext.is_valid_target(o) else None
+    
     def __init__(self):
         RFContext.instance = self
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
@@ -102,11 +139,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             bpy.ops.object.mode_set(mode='OBJECT')
             bpy.ops.object.mode_set(mode='EDIT')
         
-        tar_object = bpy.context.active_object
-        assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
-        assert tar_object.select, 'Active object must be selected'
-        assert not tar_object.hide, 'Active object must be visible'
-        assert any(ol and vl for ol,vl in zip(tar_object.layers, bpy.context.scene.layers)), 'Active object must be visible'
+        tar_object = RFContext.get_target()
+        assert tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(tar_object)
         
         # HACK! TODO: FIXME!
@@ -144,15 +178,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
-        self.rfsources = []
-        visible_layers = [i for i in range(20) if bpy.context.scene.layers[i]]
-        for obj in bpy.context.scene.objects:
-            if type(obj.data) is not bpy.types.Mesh: continue               # only mesh objects
-            if obj == bpy.context.active_object: continue                   # exclude active object
-            if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
-            if obj.hide: continue                                           # cannot be hidden
-            if not obj.data.polygons: continue                              # must have at least one polygon
-            self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
+        self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         print('%d sources' % len(self.rfsources))
     
     def commit(self):

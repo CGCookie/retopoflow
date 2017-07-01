@@ -25,7 +25,7 @@ class RFTool_Tweak_Move(RFTool):
         if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('tweak move')
             radius = RFWidget_Circle().get_scaled_radius()
-            nearest = self.rfcontext.target_nearest_bmverts_mouse(radius)
+            nearest = self.rfcontext.nearest_verts_mouse(radius)
             self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
             self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             self.mousedown = self.rfcontext.actions.mousedown
@@ -33,7 +33,7 @@ class RFTool_Tweak_Move(RFTool):
         
         # if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
         #     self.rfcontext.undo_push('tweak move single')
-        #     bmv,d3d = self.rfcontext.target_nearest2D_bmvert_mouse()
+        #     bmv,d3d = self.rfcontext.nearest2D_vert_mouse()
         #     self.bmverts = [(bmv, Point(bmv.co), 0.0)]
         #     self.rfcontext.select(bmv)
         #     self.mousedown = self.rfcontext.eventd.mousedown

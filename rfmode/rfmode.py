@@ -96,14 +96,7 @@ class RFMode(Operator):
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
-        return 0 < len([
-            o for o in context.scene.objects if
-                type(o.data) is bpy.types.Mesh and                                      # mesh object
-                any(vl and ol for vl,ol in zip(context.scene.layers, o.layers)) and     # on visible layer
-                not o.hide and                                                          # not hidden
-                (o != context.active_object or not o.select) and                        # not active or not selected
-                len(o.data.polygons) > 0                                                # at least one polygon
-            ])
+        return RFContext.has_valid_source()
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
@@ -164,15 +157,7 @@ class RFMode(Operator):
     
     def context_start(self):
         # should we generate new target object?
-        def generate_target():
-            tar_object = bpy.context.active_object
-            if tar_object is None: return True
-            if type(tar_object) is not bpy.types.Object: return True
-            if type(tar_object.data) is not bpy.types.Mesh: return True
-            if not tar_object.select: return True
-            if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers)): return True
-            return False
-        if generate_target():
+        if not RFContext.has_valid_target():
             print('generating new target')
             tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
@@ -219,8 +204,10 @@ class RFMode(Operator):
                         if space.type != 'VIEW_3D': continue
                         self.space_info[space] = {
                             'show_only_render': space.show_only_render,
+                            'show_manipulator': space.show_manipulator,
                         }
                         space.show_only_render = True
+                        space.show_manipulator = False
         
         # add callback handlers
         self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
@@ -304,7 +291,7 @@ class RFMode(Operator):
        
         # restore space info
         for space,data in self.space_info.items():
-            space.show_only_render = data['show_only_render']
+            for k,v in data.items(): space.__setattr__(k, v)
         
         # remove useful reporting
         bpy.context.area.header_text_set()
