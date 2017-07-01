@@ -242,6 +242,20 @@ class RFMesh():
                     if all(bmv.select for bmv in bmf.verts):
                         bmf.select = True
         self.dirty()
+    
+    def select_all(self):
+        for bmv in self.bme.verts: bmv.select = True
+        for bme in self.bme.edges: bme.select = True
+        for bmf in self.bme.faces: bmf.select = True
+        self.dirty()
+    
+    def select_toggle(self):
+        sel = False
+        sel |= any(bmv.select for bmv in self.bme.verts)
+        sel |= any(bme.select for bme in self.bme.edges)
+        sel |= any(bmf.select for bmf in self.bme.faces)
+        if sel: self.deselect_all()
+        else:   self.select_all()
 
 
 class RFSource(RFMesh):
@@ -423,22 +437,16 @@ class RFMeshRender():
     def clean(self):
         # return if rfmesh hasn't changed
         self.rfmesh.clean()
-        if self.rfmesh_version == self.rfmesh.version and not self.ALWAYS_DIRTY: return
-        
+        if self.rfmesh_version == self.rfmesh.version: return
         self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
-        #print('RMesh.version = %d' % self.rfmesh_version)
-        
-        if not self.ALWAYS_DIRTY:
-            bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
-        
+        bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         self._draw()
-        
-        if not self.ALWAYS_DIRTY:
-            bgl.glEndList()
+        bgl.glEndList()
     
     def draw(self):
         try:
             if self.ALWAYS_DIRTY:
+                self.rfmesh.clean()
                 bmegl.bmeshShader.enable()
                 self._draw()
             else:

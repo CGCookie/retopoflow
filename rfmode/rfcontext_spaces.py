@@ -9,8 +9,11 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 
 
 class RFContext_Spaces:
-    ###################################################
-    # converts entities between screen space and world space
+    '''
+    converts entities between screen space and world space
+    
+    Note: if 2D is not specified, then it is a 1D or 3D entity (whichever is applicable)
+    '''
     
     def Point2D_to_Vec(self, xy:Point2D):
         return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
@@ -43,6 +46,10 @@ class RFContext_Spaces:
         p3d0 = self.Point2D_to_Point(xy, depth)
         p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
         return (p3d0 - p3d1).length
+    
+    
+    #############################################
+    # return camera up and right vectors
     
     def Vec_up(self):
         return self.Point2D_to_Origin((0,0)) - self.Point2D_to_Origin((0,1))
