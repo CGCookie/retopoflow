@@ -47,6 +47,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
+        RFTool.rfwidget = rfcontext.rfwidget
         toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
     
     @staticmethod
@@ -79,10 +80,9 @@ class RFTool(metaclass=SingletonRegisterClass):
     def init(self): pass
     
     ''' Called the tool is being switched into. Returns initial state '''
-    def start(self): return None
-    
-    ''' Returns type of cursor to display '''
-    def rfwidget(self): return RFWidget_Default()
+    def start(self):
+        self.rfwidget.set_widget('default')
+        return None
     
     def modal_main(self): pass
     

@@ -1,38 +1,23 @@
 import bpy
 import math
 from .rftool import RFTool
-from .rfwidget_circle import RFWidget_Circle
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
-@RFTool.action_call({'R'})
-class RFTool_Tweak_Relax(RFTool):
+@RFTool.action_call('relax tool')
+class RFTool_Relax(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        self.FSM['relax']    = self.modal_relax
-        self.FSM['size']     = lambda: RFWidget_Circle().modal_size('main')
-        self.FSM['strength'] = lambda: RFWidget_Circle().modal_strength('main')
-        self.FSM['falloff']  = lambda: RFWidget_Circle().modal_falloff('main')
+        self.FSM['relax'] = self.modal_relax
     
     ''' Called the tool is being switched into '''
     def start(self):
-        RFWidget_Circle().color = (0.5, 1.0, 0.5)
-    
-    ''' Returns type of cursor to display '''
-    def rfwidget(self):
-        return RFWidget_Circle()
+        self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
     
     def modal_main(self):
         if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('tweak relax')
             self.rfcontext.ensure_lookup_tables()
             return 'relax'
-        
-        if self.rfcontext.actions.pressed('brush size'):
-            return 'size'
-        if self.rfcontext.actions.pressed('brush strength'):
-            return 'strength'
-        if self.rfcontext.actions.pressed('brush falloff'):
-            return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_relax(self):
@@ -48,8 +33,8 @@ class RFTool_Tweak_Relax(RFTool):
         if not hit_pos: return
         
         time_delta = self.rfcontext.actions.time_delta
-        strength = 100.0 * RFWidget_Circle().strength * time_delta
-        radius = RFWidget_Circle().get_scaled_radius()
+        strength = 100.0 * self.rfwidget.strength * time_delta
+        radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
         self.rfcontext.select([bmv for bmv,_ in nearest])
         

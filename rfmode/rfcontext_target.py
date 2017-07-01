@@ -1,5 +1,6 @@
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
+from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 
 class RFContext_Target:
     '''
@@ -53,6 +54,29 @@ class RFContext_Target:
         return self.nearest_verts_point(self.actions.mouse, max_dist)
     
     
+    #######################################
+    # target manipulation functions
+    
+    def snap_vert(self, vert:RFVert):
+        vert.co = self.nearest_sources_Point(vert.co)
+    
+    def snap2D_vert(self, vert:RFVert):
+        xy = self.Point_to_Point2D(vert.co)
+        xyz,_,_,_ = self.raycast_sources_Point2D()
+        if xyz is None: return
+        vert.co = xyz
+    
+    def offset2D_vert(self, vert:RFVert, delta_xy:Vec2D):
+        xy = self.Point_to_Point2D(vert.co) + delta_xy
+        xyz,_,_,_ = self.raycast_sources_Point2D(xy)
+        if xyz is None: return
+        vert.co = xyz
+    
+    def set2D_vert(self, vert:RFVert, xy:Point2D):
+        xyz,_,_,_ = self.raycast_sources_Point2D(xy)
+        if xyz is None: return
+        vert.co = xyz
+        
     
     ###################################################
     

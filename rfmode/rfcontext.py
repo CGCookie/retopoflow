@@ -31,13 +31,8 @@ from .rfwidget import RFWidget
 #######################################################
 # import all the tools here
 
-from .rftool_tweak_move import RFTool_Tweak_Move
-from .rftool_tweak_relax import RFTool_Tweak_Relax
-
-#######################################################
-# import all the widgets here
-
-from .rfwidget_circle import RFWidget_Circle
+from .rftool_move import RFTool_Move
+from .rftool_relax import RFTool_Relax
 
 #######################################################
 
@@ -123,11 +118,11 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.settings = get_settings()
         
     def _init_tools(self):
-        RFTool.init_tools(self)     # init tools
-        RFWidget.init_widgets(self) # init widgets
+        self.rfwidget = RFWidget.new(self)  # init widgets
+        RFTool.init_tools(self)             # init tools
         
         self.tool = None
-        self.set_tool(RFTool_Tweak_Move())
+        self.set_tool(RFTool_Move())
         
         self.nav = False
     
@@ -203,7 +198,6 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         if self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
-        self.rfwidget   = self.tool.rfwidget()  # current tool widget
     
     ###################################################
     # undo / redo stack operations
@@ -252,7 +246,6 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
         
-        prev_tool = self.tool
         self._process_event(context, event)
         
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
@@ -263,7 +256,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True
             self.set_cursor('HAND')
-            if self.rfwidget: self.rfwidget.clear()
+            self.rfwidget.clear()
             return {'pass'}
         self.nav = False
         
@@ -281,35 +274,18 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
                 self.set_tool(tool())
         
         if self.actions.valid_mouse():
-            if self.tool:
-                self.rfwidget = self.tool.rfwidget()
-                if self.rfwidget:
-                    self.rfwidget.update()
-                    self.set_cursor(self.rfwidget.mouse_cursor())
-            else:
-                self.rfwidget = None
-                self.set_cursor('CROSSHAIR')
+            self.rfwidget.update()
+            self.set_cursor(self.rfwidget.mouse_cursor())
         else:
+            self.rfwidget.clear()
             self.set_cursor('DEFAULT')
-            if self.rfwidget: self.rfwidget.clear()
         
         if self.actions.pressed('select all'):
             self.select_toggle()
             return {}
-        #if self.eventd.press in self.events_selection:
-            # handle selection
-            #print('select!')
-            #self.ensure_lookup_tables()
-            #self.select([self.rftarget.bme.verts[i] for i in range(4)])
-            #return {}
-        #    pass
         
-        if self.tool and self.actions.valid_mouse(): self.tool.modal()
-        
-        if prev_tool != self.tool:
-            # tool has changed
-            # set up state of new tool
-            self.tool_state = self.tool.start()
+        if self.rfwidget.modal():
+            if self.tool and self.actions.valid_mouse(): self.tool.modal()
         
         if self.actions.pressed('done'):
             # all done!
@@ -350,8 +326,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         
-        if self.rfwidget:
-            self.rfwidget.draw_postpixel()
+        self.rfwidget.draw_postpixel()
         
         wtime,ctime = self.window_time,time.time()
         self.frames += 1
@@ -366,5 +341,4 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_BLEND)
         
         self.rftarget_draw.draw()
-        if self.rfwidget:
-            self.rfwidget.draw_postview()
+        self.rfwidget.draw_postview()
