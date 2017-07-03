@@ -389,7 +389,11 @@ class RFTarget(RFMesh):
     
     def new_face(self, verts):
         verts = [self._unwrap(v) for v in verts]
+        vnorm = sum((v.normal for v in verts), Vector()) / len(verts)
         bmf = self.bme.faces.new(verts)
+        bmf.normal_update()
+        if bmf.normal.dot(vnorm) < 0:
+            bmf.normal *= -1
         return self.wrap_bmface(bmf)
     
     # def modify_bmverts(self, bmverts, update_fn):
