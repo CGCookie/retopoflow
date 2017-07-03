@@ -56,6 +56,9 @@ class RegisterClass(type):
     def __str__(cls):
         if cls in cls.registry: return cls.__name__
         return cls.__name__ + ": " + ", ".join([sc.__name__ for sc in cls])
+    
+    def __len__(cls):
+        return len(cls.registry)
 
 class SingletonRegisterClass(SingletonClass, RegisterClass):
     pass

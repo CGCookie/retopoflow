@@ -1,54 +1,43 @@
 import bpy
 import math
 from .rftool import RFTool
-from .rfwidget_circle import RFWidget_Circle
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
-@RFTool.action_call({'R'})
-class RFTool_Tweak_Relax(RFTool):
+@RFTool.action_call('relax tool')
+class RFTool_Relax(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        self.FSM['relax']    = self.modal_relax
-        self.FSM['size']     = lambda: RFWidget_Circle().modal_size('main')
-        self.FSM['strength'] = lambda: RFWidget_Circle().modal_strength('main')
-        self.FSM['falloff']  = lambda: RFWidget_Circle().modal_falloff('main')
+        self.FSM['relax'] = self.modal_relax
+    
+    def name(self): return "Relax"
     
     ''' Called the tool is being switched into '''
     def start(self):
-        RFWidget_Circle().color = (0.5, 1.0, 0.5)
-    
-    ''' Returns type of cursor to display '''
-    def rfwidget(self):
-        return RFWidget_Circle()
+        self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
     
     def modal_main(self):
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('tweak relax')
             self.rfcontext.ensure_lookup_tables()
             return 'relax'
-        
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush size']:
-            return 'size'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush strength']:
-            return 'strength'
-        if self.rfcontext.eventd.press in self.rfcontext.keymap['brush falloff']:
-            return 'falloff'
     
     @RFTool.dirty_when_done
     def modal_relax(self):
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['action']:
+        if self.rfcontext.actions.released('action'):
             return 'main'
-        if self.rfcontext.eventd.release in self.rfcontext.keymap['cancel']:
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
         
-        if self.rfcontext.eventd.type not in {'TIMER'}: return
+        if not self.rfcontext.actions.timer: return
         
         hit_pos = self.rfcontext.hit_pos
         if not hit_pos: return
         
-        radius = RFWidget_Circle().get_scaled_radius()
-        nearest = self.rfcontext.target_nearest_bmverts_Point(hit_pos, radius)
+        time_delta = self.rfcontext.actions.time_delta
+        strength = 100.0 * self.rfwidget.strength * time_delta
+        radius = self.rfwidget.get_scaled_radius()
+        nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
         self.rfcontext.select([bmv for bmv,_ in nearest])
         
         avgDist,avgCount,divco = 0,0,{}
@@ -78,7 +67,7 @@ class RFTool_Tweak_Relax(RFTool):
                 bmv1 = bme.other_vert(bmv0)
                 diff = (bmv1.co - bmv0.co)
                 m = (avgDist - diff.length) * (1.0 - d) * 0.1
-                divco[bmv1] += diff * m
+                divco[bmv1] += diff * m * strength
             for bmf in lbmf:
                 cnt = len(bmf.verts)
                 ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
@@ -86,7 +75,7 @@ class RFTool_Tweak_Relax(RFTool):
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
                     m = (fd - diff.length)* (1.0- d) / cnt
-                    divco[bmv] += diff * m
+                    divco[bmv] += diff * m * strength
         
         # update
         for bmv,co in divco.items():

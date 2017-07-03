@@ -1,12 +1,18 @@
 import re
+import os
 import sys
 import math
 import json
 import copy
 import time
+import glob
+import inspect
 import pickle
 import binascii
+import importlib
 
+import bgl
+import blf
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
@@ -15,6 +21,7 @@ from mathutils import Matrix, Vector
 
 from .rfcontext_actions import RFContext_Actions
 from .rfcontext_spaces import RFContext_Spaces
+from .rfcontext_target import RFContext_Target
 
 from ..lib.common_utilities import get_settings
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
@@ -29,19 +36,48 @@ from .rfwidget import RFWidget
 #######################################################
 # import all the tools here
 
-from .rftool_tweak_move import RFTool_Tweak_Move
-from .rftool_tweak_relax import RFTool_Tweak_Relax
-from .rftool_polypen import RFTool_Polypen
+def find_all_rftools(root=None):
+    if not root:
+        addons = bpy.context.user_preferences.addons
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find root folder'
+        return find_all_rftools(folderpath)
+
+    if not hasattr(find_all_rftools, 'touched'):
+        find_all_rftools.touched = set()
+    root = os.path.abspath(root)
+    if root in find_all_rftools.touched: return
+    find_all_rftools.touched.add(root)
+
+    found = False
+    for path in glob.glob(os.path.join(root, '*')):
+        if os.path.isdir(path):
+            # recurse?
+            found |= find_all_rftools(path)
+        else:
+            rft = os.path.splitext(os.path.basename(path))[0]
+            try:
+                tmp = importlib.__import__(rft, globals(), locals(), [], level=1)
+                for k in dir(tmp):
+                    v = tmp.__getattribute__(k)
+                    if inspect.isclass(v) and v is not RFTool and issubclass(v, RFTool):
+                        # v is an RFTool, so add it to the global namespace
+                        globals()[k] = v
+                        found = True
+            except:
+                pass
+    return found
+assert find_all_rftools(), 'Could not find RFTools'
+
 
 #######################################################
-# import all the widgets here
-
-from .rfwidget_circle import RFWidget_Circle
-
-#######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Spaces):
+class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -61,7 +97,44 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
 
     undo_depth = 100    # set in RF settings?
 
-    def __init__(self):
+    @staticmethod
+    def is_valid_source(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if o.select and o == bpy.context.active_object: return False
+        if not o.data.polygons: return False
+        return True
+
+    @staticmethod
+    def is_valid_target(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if not o.select: return False
+        if o != bpy.context.active_object: return False
+        return True
+
+    @staticmethod
+    def has_valid_source():
+        return any(True for o in bpy.context.scene.objects if RFContext.is_valid_source(o))
+
+    @staticmethod
+    def has_valid_target():
+        return RFContext.get_target() is not None
+
+    @staticmethod
+    def get_sources():
+        return [o for o in bpy.context.scene.objects if RFContext.is_valid_source(o)]
+
+    @staticmethod
+    def get_target():
+        o = bpy.context.active_object
+        return o if RFContext.is_valid_target(o) else None
+
+    def __init__(self, starting_tool):
         RFContext.instance = self
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
@@ -73,23 +146,28 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
 
+        if starting_tool:
+            self.set_tool(starting_tool)
+        else:
+            self.set_tool(RFTool_Move())
+
         self.start_time = time.time()
         self.window_time = time.time()
         self.frames = 0
 
+        self.timer = None
+        self.fps = 0
+        self.show_fps = True
 
     def _init_usersettings(self):
         # user-defined settings
         self.settings = get_settings()
 
     def _init_tools(self):
-        RFTool.init_tools(self)     # init tools
-        RFWidget.init_widgets(self) # init widgets
-
-        self.tool = None
-        self.set_tool(RFTool_Tweak_Move())
-
-        self.nav = False
+        self.rfwidget = RFWidget.new(self)  # init widgets
+        RFTool.init_tools(self)             # init tools
+        self.nav = False                    # not currently navigating
+        #self.set_tool(RFTool_Move())        # set default tool
 
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -99,11 +177,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
             bpy.ops.object.mode_set(mode='OBJECT')
             bpy.ops.object.mode_set(mode='EDIT')
 
-        tar_object = bpy.context.active_object
-        assert tar_object and type(tar_object.data) is bpy.types.Mesh, 'Active object must be mesh object'
-        assert tar_object.select, 'Active object must be selected'
-        assert not tar_object.hide, 'Active object must be visible'
-        assert any(ol and vl for ol,vl in zip(tar_object.layers, bpy.context.scene.layers)), 'Active object must be visible'
+        tar_object = RFContext.get_target()
+        assert tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(tar_object)
 
         # HACK! TODO: FIXME!
@@ -141,15 +216,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
 
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
-        self.rfsources = []
-        visible_layers = [i for i in range(20) if bpy.context.scene.layers[i]]
-        for obj in bpy.context.scene.objects:
-            if type(obj.data) is not bpy.types.Mesh: continue               # only mesh objects
-            if obj == bpy.context.active_object: continue                   # exclude active object
-            if not any(obj.layers[i] for i in visible_layers): continue     # must be on visible layer
-            if obj.hide: continue                                           # cannot be hidden
-            if not obj.data.polygons: continue                              # must have at least one polygon
-            self.rfsources.append( RFSource.new(obj) )                      # obj is a valid source!
+        self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         print('%d sources' % len(self.rfsources))
 
     def commit(self):
@@ -171,10 +238,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
     def restore_cursor(self): self.set_cursor('DEFAULT')
 
     def set_tool(self, tool):
-        if self.tool == tool: return
+        if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
-        self.rfwidget   = self.tool.rfwidget()  # current tool widget
 
     ###################################################
     # undo / redo stack operations
@@ -223,74 +289,50 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
 
-        prev_tool = self.tool
         self._process_event(context, event)
 
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
 
-        if self.eventd.press in self.events_confirm:
-            # all done!
-            return {'confirm'}
-
-        # is cursor in valid space?
-        if not self.eventd.valid_mouse((context.region.width, context.region.height)):
-            self.set_cursor('DEFAULT')
-            if self.rfwidget: self.rfwidget.clear()
-            return {}
-
         # user pressing nav key?
-        if self.eventd.press in self.events_nav or (self.eventd.type == 'TIMER' and self.nav):
+        if self.actions.using('navigate') or (self.actions.timer and self.nav):
             # let Blender handle navigation
+            self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True
             self.set_cursor('HAND')
-            if self.rfwidget: self.rfwidget.clear()
+            self.rfwidget.clear()
             return {'pass'}
         self.nav = False
 
 
         # handle undo/redo
-        if self.eventd.press in self.keymap['undo']:
+        if self.actions.pressed('undo'):
             self.undo_pop()
             return {}
-        if self.eventd.press in self.keymap['redo']:
+        if self.actions.pressed('redo'):
             self.redo_pop()
             return {}
 
         for action,tool in RFTool.action_tool:
-            if self.eventd.press in action:
+            if self.actions.pressed(action):
                 self.set_tool(tool())
-        # handle tool switching hotkeys
-        # if self.eventd.press in {'T'}:
-        #     self.set_tool(RFTool_Tweak_Move())
-        #     return {}
-        # if self.eventd.press in {'R'}:
-        #     self.set_tool(RFTool_Tweak_Relax())
-        #     return {}
 
-
-        if self.tool:
-            self.rfwidget = self.tool.rfwidget()
-            if self.rfwidget:
-                self.rfwidget.update()
-                self.set_cursor(self.rfwidget.mouse_cursor())
+        if self.actions.valid_mouse():
+            self.rfwidget.update()
+            self.set_cursor(self.rfwidget.mouse_cursor())
         else:
-            self.rfwidget = None
-            self.set_cursor('CROSSHAIR')
+            self.rfwidget.clear()
+            self.set_cursor('DEFAULT')
 
-        if self.eventd.press in self.events_selection:
-            # handle selection
-            #print('select!')
-            #self.ensure_lookup_tables()
-            #self.select([self.rftarget.bme.verts[i] for i in range(4)])
-            #return {}
-            pass
+        if self.actions.pressed('select all'):
+            self.select_toggle()
+            return {}
 
-        if self.tool: self.tool.modal()
+        if self.rfwidget.modal():
+            if self.tool and self.actions.valid_mouse(): self.tool.modal()
 
-        if prev_tool != self.tool:
-            # tool has changed
-            # set up state of new tool
-            self.tool_state = self.tool.start()
+        if self.actions.pressed('done'):
+            # all done!
+            return {'confirm'}
 
         return {}
 
@@ -310,7 +352,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
 
     def raycast_sources_mouse(self):
-        return self.raycast_sources_Point2D(self.eventd.mouse)
+        return self.raycast_sources_Point2D(self.actions.mouse)
 
     def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
@@ -321,80 +363,69 @@ class RFContext(RFContext_Actions, RFContext_Spaces):
         return (bp,bn,bi,bd)
 
 
-    ##################################################
-    # RFTarget functions
-
-    def target_nearest_bmvert_Point(self, xyz:Point):
-        return self.rftarget.nearest_bmvert_Point(xyz)
-
-    def target_nearest_bmvert_Point2D(self, xy:Point2D):
-        p,_,_,_ = self.raycast_sources_Point2D(xy)
-        if p is None: return None
-        return self.target_nearest_bmvert_Point(p)
-
-    def target_nearest2D_bmvert_Point2D(self, xy):
-        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D)
-
-    def target_nearest2D_bmvert_mouse(self):
-        return self.target_nearest2D_bmvert_Point2D(self.eventd.mouse)
-
-    def target_nearest_bmvert_mouse(self):
-        return self.target_nearest_bmvert_Point2D(self.eventd.mouse)
-
-    def target_nearest_bmverts_Point(self, xyz:Point, dist3D:float):
-        return self.rftarget.nearest_bmverts_Point(xyz, dist3D)
-
-    def target_nearest_bmverts_Point2D(self, xy:Point2D, dist3D:float):
-        p,_,_,_ = self.raycast_sources_Point2D(xy)
-        if p is None: return None
-        return self.target_nearest_bmverts_Point(p, dist3D)
-
-    def target_nearest_bmverts_mouse(self, dist3D:float):
-        return self.target_nearest_bmverts_Point2D(self.eventd.mouse, dist3D)
-
-    def target_nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float):
-        return self.rftarget.nearest2D_bmverts_Point2D(xy, dist2D, self.Point_to_Point2D)
-
-    def target_nearest2D_bmverts_mouse(self, dist2D:float):
-        return self.target_nearest2D_bmverts_Point2D(self.eventd.mouse, dist2D)
-
-
-
-    ###################################################
-
-    def ensure_lookup_tables(self):
-        self.rftarget.ensure_lookup_tables()
-
-    def dirty(self):
-        self.rftarget.dirty()
-
-    ###################################################
-
-    def deselect_all(self):
-        self.rftarget.deselect_all()
-
-    def deselect(self, elems):
-        self.rftarget.deselect(elems)
-
-    def select(self, elems, supparts=True, subparts=True, only=True):
-        self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
-
-
     ###################################################
 
     def draw_postpixel(self):
-        if self.rfwidget:
-            self.rfwidget.draw_postpixel()
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+
+        self.rfwidget.draw_postpixel()
 
         wtime,ctime = self.window_time,time.time()
         self.frames += 1
         if ctime >= wtime + 1:
-            print('%f fps' % (self.frames / (ctime - wtime)))
+            self.fps = self.frames / (ctime - wtime)
             self.frames = 0
             self.window_time = ctime
 
+        font_id = 0
+
+        if self.show_fps:
+            bgl.glColor4f(1.0, 1.0, 1.0, 0.10)
+            blf.size(font_id, 12, 72)
+            blf.position(font_id, 5, 5, 0)
+            blf.draw(font_id, 'fps: %0.2f' % self.fps)
+
+        bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+        blf.size(font_id, 12, 72)
+        lh = int(blf.dimensions(font_id, "XMPQpqjI")[1] * 1.5)
+        w = max(int(blf.dimensions(font_id, rft().name())[0]) for rft in RFTool)
+        h = lh * len(RFTool)
+        l,t = 10,self.actions.size[1] - 10
+
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
+        bgl.glBegin(bgl.GL_QUADS)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glVertex2f(l-5,t+5)
+        bgl.glVertex2f(l-5,t-h-5)
+        bgl.glVertex2f(l+w+5,t-h-5)
+        bgl.glEnd()
+
+        bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
+        bgl.glLineWidth(1.0)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glVertex2f(l-5,t+5)
+        bgl.glVertex2f(l-5,t-h-5)
+        bgl.glVertex2f(l+w+5,t-h-5)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glEnd()
+
+        for i,rft in enumerate(RFTool):
+            if type(self.tool) is rft:
+                bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
+            else:
+                bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+            th = int(blf.dimensions(font_id, rft().name())[1])
+            y = t - (i+1) * lh + int((lh - th) / 2.0)
+            blf.position(font_id, l, y, 0)
+            blf.draw(font_id, rft().name())
+
 
     def draw_postview(self):
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+
         self.rftarget_draw.draw()
-        if self.rfwidget:
-            self.rfwidget.draw_postview()
+        self.rfwidget.draw_postview()

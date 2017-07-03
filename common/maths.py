@@ -37,8 +37,16 @@ def stats_report():
 float_inf = float('inf')
 
 
+class Entity2D:
+    def is_2D(self): return True
+    def is_3D(self): return False
 
-class Vec2D(Vector):
+class Entity3D:
+    def is_2D(self): return False
+    def is_3D(self): return True
+
+
+class Vec2D(Vector, Entity2D):
     def __init__(self, *args, **kwargs):
         stats['Vec2D'] += 1
         Vector.__init__(*args, **kwargs)
@@ -48,7 +56,7 @@ class Vec2D(Vector):
     def from_vector(self, v): self.x,self.y = v
 
 
-class Vec(Vector):
+class Vec(Vector, Entity3D):
     def __init__(self, *args, **kwargs):
         stats['Vec'] += 1
         Vector.__init__(*args, **kwargs)
@@ -58,7 +66,7 @@ class Vec(Vector):
     def from_vector(self, v): self.x,self.y,self.z = v
 
 
-class Point2D(Vector):
+class Point2D(Vector, Entity2D):
     def __init__(self, *args, **kwargs):
         stats['Point2D'] += 1
         Vector.__init__(*args, **kwargs)
@@ -84,7 +92,7 @@ class Point2D(Vector):
     def from_vector(self, v): self.x,self.y = v
 
 
-class Point(Vector):
+class Point(Vector, Entity3D):
     def __init__(self, *args, **kwargs):
         stats['Point'] += 1
         Vector.__init__(*args, **kwargs)
@@ -110,7 +118,7 @@ class Point(Vector):
     def from_vector(self, v): self.x,self.y,self.z = v
 
 
-class Direction2D(Vector):
+class Direction2D(Vector, Entity2D):
     def __init__(self, t=None):
         stats['Direction2D'] += 1
         if t is not None: self.from_vector(t)
@@ -132,7 +140,7 @@ class Direction2D(Vector):
         self.normalize()
 
 
-class Direction(Vector):
+class Direction(Vector, Entity3D):
     def __init__(self, t=None):
         stats['Direction'] += 1
         if t is not None: self.from_vector(t)
@@ -154,7 +162,7 @@ class Direction(Vector):
         self.normalize()
 
 
-class Normal(Vector):
+class Normal(Vector, Entity3D):
     def __init__(self, t=None):
         stats['Normal'] += 1
         if t is not None: self.from_vector(t)
@@ -176,7 +184,7 @@ class Normal(Vector):
         self.normalize()
 
 
-class Ray:
+class Ray(Entity3D):
     def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=float_inf):   # sys.float_info.max
         stats['Ray'] += 1
         o,d = Point(o),Direction(d)

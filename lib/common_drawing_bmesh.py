@@ -38,7 +38,7 @@ import math
 #https://www.blender.org/api/blender_python_api_2_77_1/bgl.html
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
 shaderVertSource = '''
-#version 120
+#version 110
 
 uniform vec4 color;
 uniform vec4 color_selected;
@@ -71,7 +71,7 @@ void main() {
 }
 '''
 shaderFragSource = '''
-#version 120
+#version 110
 
 uniform bool  perspective;
 uniform float clip_start;

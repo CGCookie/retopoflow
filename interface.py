@@ -4,6 +4,8 @@ from .lib import common_utilities
 from .lib.common_utilities import bversion
 from . import addon_updater_ops
 
+from .rfmode.rfmode import rfmode_tools
+
 from .icons import load_icons
 
 class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
@@ -25,7 +27,12 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         
         col = layout.column(align=True)
 
-        col.operator("cgcookie.retopoflow")
+        
+        col.label('RetopoFlow Mode')
+        # col.operator("cgcookie.rfmode")
+        for ids in sorted(rfmode_tools.keys()):
+            col.operator(ids)
+        
         
         col.label("Source Object:")
 

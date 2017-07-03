@@ -84,8 +84,8 @@ def report_broken_rfmode():
 
 class RFMode(Operator):
     bl_category    = "Retopology"
-    bl_idname      = "cgcookie.retopoflow"
-    bl_label       = "Retopoflow Mode"
+    bl_idname      = "cgcookie.rfmode"
+    bl_label       = "RetopoFlow Mode"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
@@ -96,13 +96,7 @@ class RFMode(Operator):
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
-        return 0 < len([
-            o for o in context.scene.objects if
-                type(o.data) is bpy.types.Mesh and                                      # mesh object
-                any(vl and ol for vl,ol in zip(context.scene.layers, o.layers)) and     # on visible layer
-                not o.hide and                                                          # not hidden
-                o is not context.active_object                                          # not active
-            ])
+        return RFContext.has_valid_source()
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
@@ -163,15 +157,7 @@ class RFMode(Operator):
     
     def context_start(self):
         # should we generate new target object?
-        def generate_target():
-            tar_object = bpy.context.active_object
-            if tar_object is None: return True
-            if type(tar_object) is not bpy.types.Object: return True
-            if type(tar_object.data) is not bpy.types.Mesh: return True
-            if not tar_object.select: return True
-            if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, tar_object.layers)): return True
-            return False
-        if generate_target():
+        if not RFContext.has_valid_target():
             print('generating new target')
             tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
@@ -184,7 +170,10 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
-        self.rfctx = RFContext()
+        tool = self.context_start_tool()
+        self.rfctx = RFContext(tool)
+    
+    def context_start_tool(self): return None
     
     def context_end(self):
         if hasattr(self, 'rfctx'):
@@ -218,8 +207,10 @@ class RFMode(Operator):
                         if space.type != 'VIEW_3D': continue
                         self.space_info[space] = {
                             'show_only_render': space.show_only_render,
+                            'show_manipulator': space.show_manipulator,
                         }
                         space.show_only_render = True
+                        space.show_manipulator = False
         
         # add callback handlers
         self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
@@ -258,7 +249,9 @@ class RFMode(Operator):
             ]
         self.tag_redraw_all()
         
-        self.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
+        self.wrap_panels()
+        
+        self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
         
         self.rfctx.set_cursor('CROSSHAIR')
         
@@ -272,9 +265,9 @@ class RFMode(Operator):
         self.rfctx.rftarget.restore_state()
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
         
-        if hasattr(self, 'timer'):
-            bpy.context.window_manager.event_timer_remove(self.timer)
-            del self.timer
+        if self.rfctx.timer:
+            bpy.context.window_manager.event_timer_remove(self.rfctx.timer)
+            self.rfctx.timer = None
         
         # remove callback handlers
         if hasattr(self, 'cb_pv_handle'):
@@ -303,7 +296,7 @@ class RFMode(Operator):
        
         # restore space info
         for space,data in self.space_info.items():
-            space.show_only_render = data['show_only_render']
+            for k,v in data.items(): space.__setattr__(k, v)
         
         # remove useful reporting
         bpy.context.area.header_text_set()
@@ -319,7 +312,41 @@ class RFMode(Operator):
                 for ar in win.screen.areas:
                     ar.tag_redraw()
     
-    
+    def wrap_panels(self):
+        # https://wiki.blender.org/index.php/User%3aIdeasman42/Blender_UI_Shenanigans
+        return
+        
+        classes = ['Panel', 'Menu', 'Header']
+        def draw_override(func_orig, self_real, context):
+            # print("override draw:", self_real)
+            ret = None
+            ret = func_orig(self_real, context)
+            return ret
+        def poll_override(func_orig, cls, context):
+            # print("override poll:", func_orig.__self__)
+            ret = False
+            ret = func_orig(context)
+            return ret
+        for cls_name in classes:
+            cls = getattr(bpy.types, cls_name)
+            for subcls in cls.__subclasses__():
+                if "draw" in subcls.__dict__:  # dont want to get parents draw()
+                    def replace_draw():
+                        # function also serves to hold draw_orig in a local namespace
+                        draw_orig = subcls.draw
+                        def draw(self, context):
+                            return draw_override(draw_orig, self, context)
+                        subcls.draw = draw
+                    replace_draw()
+                if "poll" in subcls.__dict__:  # dont want to get parents poll()
+                    def replace_poll():
+                        # function also serves to hold poll_orig in a local namespace
+                        poll_orig = subcls.poll
+                        def poll(cls, context):
+                            return poll_override(poll_orig, cls, context)
+                        subcls.poll = classmethod(poll)
+                    replace_poll()
+                
     ####################################################################
     # Draw handler function
     
@@ -431,7 +458,26 @@ class RFMode(Operator):
             return {'FINISHED'}
         
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
-    
+
+
+rfmode_tools = {}
+
+for rft in RFTool:
+    def classfactory(rft):
+        rft_name = rft().name()
+        cls_name = 'RFMode_' + rft_name.replace(' ','_')
+        id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
+        print('Creating: ' + cls_name)
+        def context_start_tool(self): return rft()
+        newclass = type(cls_name, (RFMode,),{
+            "context_start_tool": context_start_tool,
+            'bl_idname': id_name,
+            "bl_label": rft_name,
+            })
+        print(newclass)
+        rfmode_tools[id_name] = newclass
+        globals()[cls_name] = newclass
+    classfactory(rft)
 
 
 
