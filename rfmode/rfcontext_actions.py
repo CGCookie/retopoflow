@@ -39,6 +39,7 @@ class Actions:
         'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
         
         'insert': {'CTRL+LEFTMOUSE'},
+        'grab': {'G'},
         
         # widget
         'brush size': {'F'},

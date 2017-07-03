@@ -117,6 +117,15 @@ class RFContext_Target:
     
     ###################################################
     
+    def get_selected_verts(self):
+        return self.rftarget.get_selected_verts()
+    
+    def get_selected_edges(self):
+        return self.rftarget.get_selected_edges()
+    
+    def get_selected_faces(self):
+        return self.rftarget.get_selected_faces()
+    
     def deselect_all(self):
         self.rftarget.deselect_all()
     
