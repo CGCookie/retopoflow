@@ -28,10 +28,17 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         col = layout.column(align=True)
 
         
+        icons = load_icons()
         col.label('RetopoFlow Mode')
+        col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
-        for ids in sorted(rfmode_tools.keys()):
-            col.operator(ids)
+        for ids,rft in sorted(rfmode_tools.items()):
+            icon_name = rft.rf_icon
+            if icon_name is not None:
+                icon = icons.get(icon_name)
+                col.operator(ids, icon_value=icon.icon_id)
+            else:
+                col.operator(ids)
         
         
         col.label("Source Object:")
@@ -72,7 +79,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         col.label("Tools:")
 
-        icons = load_icons()
         contours_icon = icons.get("rf_contours_icon")
         col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
 

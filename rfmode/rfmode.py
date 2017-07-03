@@ -89,6 +89,8 @@ class RFMode(Operator):
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
+    rf_icon = None
+    
     
     ################################################
     # Blender Operator methods
@@ -473,6 +475,8 @@ for rft in RFTool:
             "context_start_tool": context_start_tool,
             'bl_idname': id_name,
             "bl_label": rft_name,
+            'bl_description': rft().description(),
+            'rf_icon': rft().icon(),
             })
         print(newclass)
         rfmode_tools[id_name] = newclass

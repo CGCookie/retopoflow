@@ -12,6 +12,8 @@ class RFTool_PolyPen(RFTool):
         self.FSM['place'] = self.modal_place
     
     def name(self): return "PolyPen"
+    def icon(self): return "rf_polypen_icon"
+    def description(self): return 'Insert vertices one at a time'
     
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))

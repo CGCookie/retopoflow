@@ -90,5 +90,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     def draw_postpixel(self): pass
     
     def name(self): return 'Unnamed RFTool'
+    def icon(self): return None
+    def description(self): return ''
 
 
