@@ -104,6 +104,9 @@ class RFContext_Target:
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
     
+    def update_face_normal(self, face):
+        return self.rftarget.update_face_normal(face)
+    
     ###################################################
     
     def ensure_lookup_tables(self):

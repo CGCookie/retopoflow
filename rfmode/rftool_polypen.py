@@ -67,7 +67,12 @@ class RFTool_PolyPen(RFTool):
             bme = self.rfcontext.new_edge((bmv0, bmv1))
             self.rfcontext.select(bme)
             self.mousedown = self.rfcontext.actions.mousedown
-            self.bmverts = [(bmv1, self.rfcontext.Point_to_Point2D(bmv1.co))]
+            xy = self.rfcontext.Point_to_Point2D(bmv1.co)
+            if not xy:
+                print('Could not insert: ' + str(bmv1.co))
+                self.rfcontext.undo_cancel()
+                return 'main'
+            self.bmverts = [(bmv1, xy)]
             return 'move'
         
         if num_edges == 1 and num_faces == 0:
@@ -80,7 +85,12 @@ class RFTool_PolyPen(RFTool):
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
             self.rfcontext.select(bmf)
             self.mousedown = self.rfcontext.actions.mousedown
-            self.bmverts = [(bmv2, self.rfcontext.Point_to_Point2D(bmv2.co))]
+            xy = self.rfcontext.Point_to_Point2D(bmv2.co)
+            if not xy:
+                print('Could not insert: ' + str(bmv2.co))
+                self.rfcontext.undo_cancel()
+                return 'main'
+            self.bmverts = [(bmv2, xy)]
             return 'move'
         
         bmv = self.rfcontext.new2D_vert_mouse()
@@ -89,7 +99,12 @@ class RFTool_PolyPen(RFTool):
             return 'main'
         self.rfcontext.select(bmv)
         self.mousedown = self.rfcontext.actions.mousedown
-        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co))]
+        xy = self.rfcontext.Point_to_Point2D(bmv.co)
+        if not xy:
+            print('Could not insert: ' + str(bmv.co))
+            self.rfcontext.undo_cancel()
+            return 'main'
+        self.bmverts = [(bmv, xy)]
         return 'move'
     
     @RFTool.dirty_when_done
@@ -104,6 +119,9 @@ class RFTool_PolyPen(RFTool):
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
             set2D_vert(bmv, xy + delta)
+        for bmv,_ in self.bmverts:
+            for f in bmv.link_faces:
+                self.rfcontext.update_face_normal(f)
     @RFTool.dirty_when_done
     def modal_select_move(self):
         if self.rfcontext.actions.released('select'):
@@ -115,6 +133,9 @@ class RFTool_PolyPen(RFTool):
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
             set2D_vert(bmv, xy + delta)
+        for bmv,_ in self.bmverts:
+            for f in bmv.link_faces:
+                self.rfcontext.update_face_normal(f)
 
     @RFTool.dirty_when_done
     def modal_place(self):

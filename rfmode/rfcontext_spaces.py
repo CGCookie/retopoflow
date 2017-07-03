@@ -26,6 +26,9 @@ class RFContext_Spaces:
     
     def Point2D_to_Point(self, xy:Point2D, depth:float):
         r = self.Point2D_to_Ray(xy)
+        if r is None or r.o is None or r.d is None or depth is None:
+            print(r)
+            print(depth)
         return Point(r.o + depth * r.d)
         #return Point(region_2d_to_location_3d(self.actions.region, self.actions.r3d, xy, depth))
     

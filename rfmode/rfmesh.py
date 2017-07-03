@@ -10,6 +10,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
+from mathutils.geometry import normal as compute_normal
 from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, Vec2D
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
@@ -46,7 +47,7 @@ class RFMesh():
             bbox = (None, None)
         vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
         xform  = tuple(e for l in obj.matrix_world for e in l)
-        return (counts, bbox, vsum, xform)      # ob.name???
+        return (counts, bbox, vsum, xform, id(obj))      # ob.name???
     
     @staticmethod
     def hash_bmesh(bme:BMesh):
@@ -389,12 +390,17 @@ class RFTarget(RFMesh):
     
     def new_face(self, verts):
         verts = [self._unwrap(v) for v in verts]
-        vnorm = sum((v.normal for v in verts), Vector()) / len(verts)
         bmf = self.bme.faces.new(verts)
-        bmf.normal_update()
-        if bmf.normal.dot(vnorm) < 0:
-            bmf.normal *= -1
+        self.update_face_normal(bmf)
         return self.wrap_bmface(bmf)
+    
+    def update_face_normal(self, face):
+        bmf = self._unwrap(face)
+        n = compute_normal(v.co for v in bmf.verts)
+        vnorm = sum((v.normal for v in bmf.verts), Vector())
+        if n.dot(vnorm) < 0:
+            bmf.normal_flip()
+        bmf.normal_update()
     
     # def modify_bmverts(self, bmverts, update_fn):
     #     l2w = self.xform.l2w_point
@@ -438,6 +444,8 @@ class RFMeshRender():
         bmegl.glSetDefaultOptions(opts=self.opts)
         bgl.glPushMatrix()
         bgl.glMultMatrixf(self.bglMatrix)
+        
+        bgl.glDisable(bgl.GL_CULL_FACE)
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)

@@ -111,10 +111,14 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
         if p is None or n is None:
             self.clear()
             return
+        depth = self.rfcontext.Point_to_depth(p)
+        if depth is None:
+            self.clear()
+            return
         xy = self.rfcontext.actions.mouse
         rmat = Matrix.Rotation(self.oz.angle(n), 4, self.oz.cross(n))
         self.p = p
-        self.s = self.rfcontext.size2D_to_size(1.0, xy, self.rfcontext.Point_to_depth(p))
+        self.s = self.rfcontext.size2D_to_size(1.0, xy, depth)
         self.x = Vec(rmat * self.ox)
         self.y = Vec(rmat * self.oy)
         self.z = Vec(rmat * self.oz)

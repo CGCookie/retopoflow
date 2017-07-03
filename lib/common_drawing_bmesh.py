@@ -63,6 +63,7 @@ void main() {
         gl_FrontColor.a = color.a * (1.0 - hidden);
     }
     //gl_FrontColor = gl_Color;
+    gl_BackColor = gl_Color;
     
     vPosition = gl_ModelViewMatrix * gl_Vertex;
     vNormal = normalize(gl_NormalMatrix * gl_Normal);
@@ -86,12 +87,18 @@ varying float vDotOffset;
 void main() {
     float clip = clip_end - clip_start;
     float hclip = clip / 2.0;
+    
+    float alpha = gl_Color.a;
+    
     if(perspective) {
         // perspective projection
         vec3 v = vPosition.xyz / vPosition.w;
         float l = length(v);
         float d = -dot(vNormal, v/l);
-        if(d <= 0.0) discard;
+        if(d <= 0.0) {
+            alpha *= 0.5;
+            //discard;
+        }
         
         // MAGIC!
         gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l)*vDotOffset - clip*vOffset*0.10;
@@ -100,14 +107,18 @@ void main() {
         vec3 v = vec3(0,0,hclip) + vPosition.xyz / vPosition.w;
         float l = length(v);
         float d = dot(vNormal, v/l);
-        if(d <= 0.0) discard;
+        if(d <= 0.0) {
+            alpha *= 0.5;
+            //discard;
+        }
         
         // MAGIC!
         //gl_FragDepth = gl_FragCoord.z * (1.0000 + 0.001*d);
         gl_FragDepth = gl_FragCoord.z - clip*(0.01*vOffset + 0.0000001*(1.0-d)*vDotOffset);
     }
     
-    gl_FragColor = gl_Color; // vec4(gl_Color.rgb * d, gl_Color.a);
+    //gl_FragColor = vec4(gl_Color.rgb * d, alpha);
+    gl_FragColor = vec4(gl_Color.rgb, alpha);
 }
 '''
 
