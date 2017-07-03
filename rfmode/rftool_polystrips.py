@@ -17,6 +17,10 @@ class RFTool_PolyStrips(RFTool):
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
+        self.rfwidget.set_stroke_callback(self.stroke)
+    
+    def stroke(self):
+        print('A STROKE!')
     
     def modal_main(self):
         pass

@@ -89,6 +89,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         self.color = (1,1,1)
         
         self.stroke2D = []
+        self.stroke_callback = None
         
         self.reset()
     
@@ -115,6 +116,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         self.mouse_cursor = widget.get('mouse_cursor', self.no_mouse_cursor)
         self.modal_main = widget.get('modal_main', self.no_modal_main)
         if color: self.color = color
+    
+    def set_stroke_callback(self, fn):
+        self.stroke_callback = fn
         
     def update(self):
         p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
@@ -164,6 +168,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         center = Point2D((w/2, h/2))
         
         if actions.released('action'):
+            if self.stroke_callback: self.stroke_callback()
             return 'main'
         
         if actions.pressed('cancel'):
