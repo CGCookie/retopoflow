@@ -213,6 +213,7 @@ class XForm:
     def get_mats(mx:Matrix):
         smat,d = str(mx),XForm.get_mats.__dict__
         if smat not in d:
+            mx = Matrix(mx)
             m = {
                 'mx_p': None, 'imx_p': None,
                 'mx_d': None, 'imx_d': None,
@@ -241,6 +242,8 @@ class XForm:
         self.mx_d,self.imx_d = mats['mx_d'],mats['imx_d']
         self.mx_n,self.imx_n = mats['mx_n'],mats['imx_n']
         self.mx_t = mats['mx_t']
+        for matn,mat in mats.items():
+            print(matn + ': ' + str(mat))
         
         self.fn_l2w_typed = {
             Point:      lambda x: self.l2w_point(x),

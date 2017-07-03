@@ -104,6 +104,9 @@ class RFContext_Target:
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
     
+    def update_face_normal(self, face):
+        return self.rftarget.update_face_normal(face)
+    
     ###################################################
     
     def ensure_lookup_tables(self):
@@ -113,6 +116,15 @@ class RFContext_Target:
         self.rftarget.dirty()
     
     ###################################################
+    
+    def get_selected_verts(self):
+        return self.rftarget.get_selected_verts()
+    
+    def get_selected_edges(self):
+        return self.rftarget.get_selected_edges()
+    
+    def get_selected_faces(self):
+        return self.rftarget.get_selected_faces()
     
     def deselect_all(self):
         self.rftarget.deselect_all()

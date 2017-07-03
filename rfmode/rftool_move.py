@@ -26,6 +26,7 @@ class RFTool_Move(RFTool):
             Point_to_Point2D = self.rfcontext.Point_to_Point2D
             get_strength_dist = self.rfwidget.get_strength_dist
             self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
+            self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
             self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             self.mousedown = self.rfcontext.actions.mousedown
             return 'move'
@@ -49,9 +50,12 @@ class RFTool_Move(RFTool):
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
+        update_face_normal = self.rfcontext.update_face_normal
         
         for bmv,xy,strength in self.bmverts:
             set2D_vert(bmv, xy + delta*strength)
+        for bmf in self.bmfaces:
+            update_face_normal(bmf)
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass
