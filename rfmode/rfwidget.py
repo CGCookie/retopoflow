@@ -28,9 +28,10 @@ from ..common.maths import Vec, Point, Point2D, Direction
 
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
+from .rfwidget_brushstroke import RFWidget_BrushStroke
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
+class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     instance = None
     rfcontext = None
     
@@ -65,12 +66,19 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
                 'mouse_cursor': self.brushfalloff_mouse_cursor,
                 'modal_main':   self.brushfalloff_modal_main,
                 },
+            'brush stroke': {
+                'postview':     self.brushstroke_postview,
+                'postpixel':    self.brushstroke_postpixel,
+                'mouse_cursor': self.brushstroke_mouse_cursor,
+                'modal_main':   self.brushstroke_modal_main,
+                },
             }
         self.FSM = {
             'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
             'size':     self.modal_size,
             'strength': self.modal_strength,
             'falloff':  self.modal_falloff,
+            'stroke':   self.modal_stroke,
         }
         
         self.view = 'brush falloff'
@@ -79,6 +87,8 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
         self.strength = 0.5
         
         self.color = (1,1,1)
+        
+        self.stroke2D = []
         
         self.reset()
     
@@ -147,6 +157,20 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
         if not self.p: return 0.0
         return self.get_strength_dist((point - self.p).length)
     
+    
+    def modal_stroke(self):
+        actions = self.rfcontext.actions
+        w,h = actions.size
+        center = Point2D((w/2, h/2))
+        
+        if actions.released('action'):
+            return 'main'
+        
+        if actions.pressed('cancel'):
+            self.stroke2D.clear()
+            return 'main'
+        
+        self.stroke2D.append(actions.mouse)
     
     def modal_size(self):
         actions = self.rfcontext.actions

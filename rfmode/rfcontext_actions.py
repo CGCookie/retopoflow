@@ -50,6 +50,7 @@ class Actions:
         'move tool': {'T'},
         'relax tool': {'R'},
         'polypen tool': {'P'},
+        'polystrips tool': {'S'},
         }
     
     navigation_events = {
