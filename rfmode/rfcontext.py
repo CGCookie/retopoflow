@@ -134,7 +134,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         o = bpy.context.active_object
         return o if RFContext.is_valid_target(o) else None
     
-    def __init__(self):
+    def __init__(self, starting_tool):
         RFContext.instance = self
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
@@ -145,6 +145,11 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
+        
+        if starting_tool:
+            self.set_tool(starting_tool)
+        else:
+            self.set_tool(RFTool_Move())
         
         self.start_time = time.time()
         self.window_time = time.time()
@@ -162,7 +167,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.rfwidget = RFWidget.new(self)  # init widgets
         RFTool.init_tools(self)             # init tools
         self.nav = False                    # not currently navigating
-        self.set_tool(RFTool_Move())        # set default tool
+        #self.set_tool(RFTool_Move())        # set default tool
     
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -383,16 +388,39 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         
         bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
         blf.size(font_id, 12, 72)
-        _,h = blf.dimensions(font_id, "XMPQpqjI")
-        y = self.actions.size[1] - int(h) - 5
-        for rft in RFTool:
+        lh = int(blf.dimensions(font_id, "XMPQpqjI")[1] * 1.5)
+        w = max(int(blf.dimensions(font_id, rft().name())[0]) for rft in RFTool)
+        h = lh * len(RFTool)
+        l,t = 10,self.actions.size[1] - 10
+        
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
+        bgl.glBegin(bgl.GL_QUADS)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glVertex2f(l-5,t+5)
+        bgl.glVertex2f(l-5,t-h-5)
+        bgl.glVertex2f(l+w+5,t-h-5)
+        bgl.glEnd()
+        
+        bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
+        bgl.glLineWidth(1.0)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glVertex2f(l-5,t+5)
+        bgl.glVertex2f(l-5,t-h-5)
+        bgl.glVertex2f(l+w+5,t-h-5)
+        bgl.glVertex2f(l+w+5,t+5)
+        bgl.glEnd()
+        
+        for i,rft in enumerate(RFTool):
             if type(self.tool) is rft:
                 bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
             else:
                 bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
-            blf.position(font_id, 5, y, 0)
+            th = int(blf.dimensions(font_id, rft().name())[1])
+            y = t - (i+1) * lh + int((lh - th) / 2.0)
+            blf.position(font_id, l, y, 0)
             blf.draw(font_id, rft().name())
-            y -= int(h)
         
     
     def draw_postview(self):

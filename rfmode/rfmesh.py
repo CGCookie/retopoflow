@@ -139,6 +139,8 @@ class RFMesh():
     def wrap_bmvert(self, bmv): return RFVert(bmv)
     def wrap_bmedge(self, bme): return RFEdge(bme)
     def wrap_bmface(self, bmf): return RFFace(bmf)
+    def _unwrap(self, elem):
+        return elem if not hasattr(elem, 'bmelem') else elem.bmelem
     
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
@@ -201,6 +203,22 @@ class RFMesh():
         return (self.wrap_bmvert(bv),bd)
     
     ##########################################################
+    
+    def get_selected_verts(self):
+        s = set()
+        for bmv in self.bme.verts:
+            if bmv.select: s.add(self.wrap_bmvert(bmv))
+        return s
+    def get_selected_edges(self):
+        s = set()
+        for bme in self.bme.edges:
+            if bme.select: s.add(self.wrap_bmedge(bme))
+        return s
+    def get_selected_faces(self):
+        s = set()
+        for bmf in self.bme.faces:
+            if bmf.select: s.add(self.wrap_bmface(bmf))
+        return s
     
     def deselect_all(self):
         for bmv in self.bme.verts: bmv.select = False
@@ -363,6 +381,16 @@ class RFTarget(RFMesh):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
         bmv.normal = self.xform.w2l_normal(norm)
         return self.wrap_bmvert(bmv)
+    
+    def new_edge(self, verts):
+        verts = [self._unwrap(v) for v in verts]
+        bme = self.bme.edges.new(verts)
+        return self.wrap_bmedge(bme)
+    
+    def new_face(self, verts):
+        verts = [self._unwrap(v) for v in verts]
+        bmf = self.bme.faces.new(verts)
+        return self.wrap_bmface(bmf)
     
     # def modify_bmverts(self, bmverts, update_fn):
     #     l2w = self.xform.l2w_point

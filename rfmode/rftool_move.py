@@ -20,6 +20,9 @@ class RFTool_Move(RFTool):
             self.rfcontext.undo_push('tweak move')
             radius = self.rfwidget.get_scaled_radius()
             nearest = self.rfcontext.nearest_verts_mouse(radius)
+            if not nearest:
+                self.rfcontext.undo_cancel()
+                return
             Point_to_Point2D = self.rfcontext.Point_to_Point2D
             get_strength_dist = self.rfwidget.get_strength_dist
             self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]

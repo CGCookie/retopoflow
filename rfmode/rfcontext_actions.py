@@ -29,8 +29,10 @@ class Actions:
         'navigate': set(),          # to be filled in by self._init_navigation()
         'action': {'LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
+        'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
         'cancel': {'ESC', 'RIGHTMOUSE'},
+        'cancel no select': {'ESC'},
         'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
         'undo': {'CTRL+Z'},
         'redo': {'CTRL+SHIFT+Z'},

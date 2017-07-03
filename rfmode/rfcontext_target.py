@@ -98,6 +98,12 @@ class RFContext_Target:
     def new2D_vert_mouse(self):
         return self.new2D_vert_point(self.actions.mouse)
     
+    def new_edge(self, verts):
+        return self.rftarget.new_edge(verts)
+    
+    def new_face(self, verts):
+        return self.rftarget.new_face(verts)
+    
     ###################################################
     
     def ensure_lookup_tables(self):

@@ -7,7 +7,9 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 class RFTool_PolyPen(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['insert'] = self.modal_insert
         self.FSM['move']  = self.modal_move
+        self.FSM['select move'] = self.modal_select_move
         self.FSM['place'] = self.modal_place
     
     def name(self): return "PolyPen"
@@ -17,47 +19,102 @@ class RFTool_PolyPen(RFTool):
 
     def modal_main(self):
         if self.rfcontext.actions.pressed('insert'):
-            self.rfcontext.undo_push('polypen insert')
-            bmv = self.rfcontext.new2D_vert_mouse()
-            self.rfcontext.select(bmv)
-            self.rfcontext.dirty()
-            return
+            return 'insert'
         
-        if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('polypen place vert')
-            radius = self.rfwidget.get_scaled_radius()
-            nearest = self.rfcontext.nearest_verts_mouse(radius)
-            self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
-            self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
-            self.mousedown = self.rfcontext.actions.mousedown
-            return 'place'
+        # if self.rfcontext.actions.pressed('action'):
+        #     self.rfcontext.undo_push('polypen place vert')
+        #     radius = self.rfwidget.get_scaled_radius()
+        #     nearest = self.rfcontext.nearest_verts_mouse(radius)
+        #     if not nearest:
+        #         self.rfcontext.undo_cancel()
+        #         return
+        #     self.bmverts = [(bmv, Point(bmv.co), d3d) for bmv,d3d in nearest]
+        #     self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
+        #     self.mousedown = self.rfcontext.actions.mousedown
+        #     return 'move'
         
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('polypen move single')
+        if self.rfcontext.actions.pressed('select add'):
+            self.rfcontext.undo_push('select add')
             bmv,d3d = self.rfcontext.nearest2D_vert_mouse()
-            self.bmverts = [(bmv, Point(bmv.co), 0.0)]
+            self.rfcontext.select(bmv, only=False)
+            return
+            
+        if self.rfcontext.actions.pressed('select'):
+            self.rfcontext.undo_push('move single')
+            bmv,d3d = self.rfcontext.nearest2D_vert_mouse()
+            self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co))]
             self.rfcontext.select(bmv)
             self.mousedown = self.rfcontext.actions.mousedown
+            return 'select move'
+    
+    @RFTool.dirty_when_done
+    def modal_insert(self):
+        self.rfcontext.undo_push('insert')
+        
+        sel_verts = self.rfcontext.rftarget.get_selected_verts()
+        sel_edges = self.rfcontext.rftarget.get_selected_edges()
+        sel_faces = self.rfcontext.rftarget.get_selected_faces()
+        num_verts = len(sel_verts)
+        num_edges = len(sel_edges)
+        num_faces = len(sel_faces)
+        
+        if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            bmv0 = next(iter(sel_verts))
+            bmv1 = self.rfcontext.new2D_vert_mouse()
+            if not bmv1:
+                self.rfcontext.undo_cancel()
+                return 'main'
+            bme = self.rfcontext.new_edge((bmv0, bmv1))
+            self.rfcontext.select(bme)
+            self.mousedown = self.rfcontext.actions.mousedown
+            self.bmverts = [(bmv1, self.rfcontext.Point_to_Point2D(bmv1.co))]
             return 'move'
-
+        
+        if num_edges == 1 and num_faces == 0:
+            bme = next(iter(sel_edges))
+            bmv0,bmv1 = bme.verts
+            bmv2 = self.rfcontext.new2D_vert_mouse()
+            if not bmv2:
+                self.rfcontext.undo_cancel()
+                return 'main'
+            bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
+            self.rfcontext.select(bmf)
+            self.mousedown = self.rfcontext.actions.mousedown
+            self.bmverts = [(bmv2, self.rfcontext.Point_to_Point2D(bmv2.co))]
+            return 'move'
+        
+        bmv = self.rfcontext.new2D_vert_mouse()
+        if not bmv:
+            self.rfcontext.undo_cancel()
+            return 'main'
+        self.rfcontext.select(bmv)
+        self.mousedown = self.rfcontext.actions.mousedown
+        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co))]
+        return 'move'
+    
     @RFTool.dirty_when_done
     def modal_move(self):
-        if self.rfcontext.actions.released('action'):
+        if self.rfcontext.actions.released('insert'):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
-        get_strength_dist = self.rfwidget.get_strength_dist
-
-        for bmv,oco,d3d in self.bmverts:
-            oco_screen = Point_to_Point2D(oco) + delta * get_strength_dist(d3d)
-            p,_,_,_ = raycast_sources_Point2D(oco_screen)
-            if p is None: continue
-            bmv.co = p
+        set2D_vert = self.rfcontext.set2D_vert
+        for bmv,xy in self.bmverts:
+            set2D_vert(bmv, xy + delta)
+    @RFTool.dirty_when_done
+    def modal_select_move(self):
+        if self.rfcontext.actions.released('select'):
+            return 'main'
+        if self.rfcontext.actions.pressed('cancel no select'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        for bmv,xy in self.bmverts:
+            set2D_vert(bmv, xy + delta)
 
     @RFTool.dirty_when_done
     def modal_place(self):
