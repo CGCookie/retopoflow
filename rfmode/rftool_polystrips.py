@@ -5,66 +5,44 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool):
-    ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        #self.FSM['move'] = self.modal_move
         pass
     
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
     def description(self): return 'Strips of quads made easy'
     
-    ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
     
+    @RFTool.dirty_when_done
     def stroke(self):
-        print('A STROKE!')
+        self.rfcontext.undo_push('stroke')
+        
+        radius = self.rfwidget.radius #get_scaled_radius()
+        stroke = self.rfwidget.stroke2D
+        stroke_len = len(stroke)
+        bmfaces = []
+        
+        mini_stroke = [stroke[i] for i in range(0, stroke_len, int(stroke_len/10))]
+        left,right = [],[]
+        
+        for c0,c1 in zip(mini_stroke[:-1],mini_stroke[1:]):
+            d = c1 - c0
+            ortho = Vec2D((-d.y, d.x)).normalized() * radius
+            left.append(self.rfcontext.new2D_vert_point(c0+ortho))
+            right.append(self.rfcontext.new2D_vert_point(c0-ortho))
+        
+        for i in range(len(left)-1):
+            l0,r0 = left[i],right[i]
+            l1,r1 = left[i+1],right[i+1]
+            bmfaces.append(self.rfcontext.new_face([l1,l0,r0,r1]))
+        
+        self.rfcontext.select(bmfaces)
     
     def modal_main(self):
         pass
-        
-        # if self.rfcontext.actions.pressed('action'):
-        #     self.rfcontext.undo_push('tweak move')
-        #     radius = self.rfwidget.get_scaled_radius()
-        #     nearest = self.rfcontext.nearest_verts_mouse(radius)
-        #     if not nearest:
-        #         self.rfcontext.undo_cancel()
-        #         return
-        #     Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        #     get_strength_dist = self.rfwidget.get_strength_dist
-        #     self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
-        #     self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-        #     self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
-        #     self.mousedown = self.rfcontext.actions.mousedown
-        #     return 'move'
-        
-        # if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
-        #     self.rfcontext.undo_push('tweak move single')
-        #     bmv,d3d = self.rfcontext.nearest2D_vert_mouse()
-        #     self.bmverts = [(bmv, Point(bmv.co), 0.0)]
-        #     self.rfcontext.select(bmv)
-        #     self.mousedown = self.rfcontext.eventd.mousedown
-        #     return 'move'
-        
-    
-    @RFTool.dirty_when_done
-    def modal_move(self):
-        if self.rfcontext.actions.released('action'):
-            return 'main'
-        if self.rfcontext.actions.pressed('cancel'):
-            self.rfcontext.undo_cancel()
-            return 'main'
-        
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        set2D_vert = self.rfcontext.set2D_vert
-        update_face_normal = self.rfcontext.update_face_normal
-        
-        for bmv,xy,strength in self.bmverts:
-            set2D_vert(bmv, xy + delta*strength)
-        for bmf in self.bmfaces:
-            update_face_normal(bmf)
     
     def draw_postview(self): pass
     def draw_postpixel(self): pass

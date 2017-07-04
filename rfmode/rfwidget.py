@@ -85,6 +85,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         self.radius = 50.0
         self.falloff = 1.5
         self.strength = 0.5
+        self.tightness = 0.95
         
         self.color = (1,1,1)
         
@@ -175,7 +176,10 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
             self.stroke2D.clear()
             return 'main'
         
-        self.stroke2D.append(actions.mouse)
+        lstpos = self.stroke2D[-1] if self.stroke2D else actions.mouse
+        curpos = actions.mouse
+        newpos = lstpos + (curpos - lstpos) * (1 - self.tightness)
+        self.stroke2D.append(newpos)
     
     def modal_size(self):
         actions = self.rfcontext.actions
