@@ -1,5 +1,6 @@
 import bpy
 import math
+import bgl
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
@@ -17,7 +18,25 @@ class RFTool_PolyPen(RFTool):
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
 
+    def set_next_state(self):
+        sel_verts = self.rfcontext.rftarget.get_selected_verts()
+        sel_edges = self.rfcontext.rftarget.get_selected_edges()
+        sel_faces = self.rfcontext.rftarget.get_selected_faces()
+        num_verts = len(sel_verts)
+        num_edges = len(sel_edges)
+        num_faces = len(sel_faces)
+        if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            self.next_state = 'vert-edge'
+        elif num_edges == 1 and num_faces == 0:
+            self.next_state = 'edge-face'
+        elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+            self.next_state = 'triangle-quad'
+        else:
+            self.next_state = 'new vertex'
+
     def modal_main(self):
+        self.set_next_state()
+
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'
 
@@ -58,11 +77,37 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
+        if self.next_state == 'vert-edge':
+            p0 = self.rfcontext.hit_pos
+            if p0 == None:
+                return
+            sel_verts = self.rfcontext.rftarget.get_selected_verts()
+            bmv1 = next(iter(sel_verts))
+
+            # 2d lines
+            bgl.glColor4f(1,1,1,1)
+            bgl.glDisable(bgl.GL_DEPTH_TEST)
+            bgl.glBegin(bgl.GL_LINES)
+            bgl.glVertex3f(p0.x, p0.y, p0.z)
+            bgl.glVertex3f(bmv1.co.x, bmv1.co.y, bmv1.co.z)
+            bgl.glEnd()
+
+            # TODO: draw edge
+            print("draws edge")
+            return
+        if self.next_state == 'edge-face':
+            # TODO: draw faces
+            print("draws face")
+            return
+        if self.next_state == 'triangle-quad':
+            # TODO: draw quad
+            print("draws quad")
+            return
+
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
-
 
     @RFTool.dirty_when_done
     def modal_insert(self):
@@ -75,11 +120,8 @@ class RFTool_PolyPen(RFTool):
         sel_verts = self.rfcontext.rftarget.get_selected_verts()
         sel_edges = self.rfcontext.rftarget.get_selected_edges()
         sel_faces = self.rfcontext.rftarget.get_selected_faces()
-        num_verts = len(sel_verts)
-        num_edges = len(sel_edges)
-        num_faces = len(sel_faces)
 
-        if num_verts == 1 and num_edges == 0 and num_faces == 0:
+        if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
             bmv1 = self.rfcontext.new2D_vert_mouse()
             if not bmv1:
@@ -96,7 +138,7 @@ class RFTool_PolyPen(RFTool):
             self.bmverts = [(bmv1, xy)]
             return 'move'
 
-        if num_edges == 1 and num_faces == 0:
+        if self.next_state == 'edge-face':
             bme = next(iter(sel_edges))
             bmv0,bmv1 = bme.verts
             bmv2 = self.rfcontext.new2D_vert_mouse()
