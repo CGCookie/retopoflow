@@ -24,7 +24,7 @@ https://github.com/CGCookie/retopoflow
 import math
 import bgl
 from mathutils import Matrix, Vector
-from ..common.maths import Vec, Point, Point2D, Direction
+from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
@@ -89,6 +89,8 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         self.color = (1,1,1)
         
         self.stroke2D = []
+        self.stroke2D_left = []
+        self.stroke2D_right = []
         self.stroke_callback = None
         
         self.reset()
@@ -176,6 +178,14 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
             return 'main'
         
         self.stroke2D.append(actions.mouse)
+        if len(self.stroke2D) > 5:
+            delta = actions.mouse - self.stroke2D[-5]
+            if abs(delta.x) > 2 or abs(delta.y) > 2:
+                print(self.get_scaled_radius())
+                delta = delta.normalized() * self.get_scaled_radius()
+                ortho = Vec2D((-delta.y, delta.x))
+                self.stroke2D_left.append(actions.mouse + ortho)
+                self.stroke2D_right.append(actions.mouse - ortho)
     
     def modal_size(self):
         actions = self.rfcontext.actions
