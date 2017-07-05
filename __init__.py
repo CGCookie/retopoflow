@@ -45,7 +45,7 @@ from .lib.common_utilities import register as register_common_utilities
 
 
 #Menus, Panels, Interface and Icons
-from .interface import CGCOOKIE_OT_retopoflow_panel, CGCOOKIE_OT_retopoflow_menu
+from .interface import CGCOOKIE_OT_retopoflow2_panel, CGCOOKIE_OT_retopoflow1_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
 from .lib.classes.logging.logging import OpenLog
@@ -89,7 +89,8 @@ def register():
         # print('registering '+idname)
         bpy.utils.register_class(rft)
     
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_panel)
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
+    bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
     
     bpy.utils.register_class(OpenLog)
@@ -109,7 +110,8 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_panel)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
+    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
     
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)

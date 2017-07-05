@@ -24,13 +24,14 @@ https://github.com/CGCookie/retopoflow
 import math
 import bgl
 from mathutils import Matrix, Vector
-from ..common.maths import Vec, Point, Point2D, Direction
+from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
+from .rfwidget_brushstroke import RFWidget_BrushStroke
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
+class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     instance = None
     rfcontext = None
     
@@ -65,20 +66,33 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
                 'mouse_cursor': self.brushfalloff_mouse_cursor,
                 'modal_main':   self.brushfalloff_modal_main,
                 },
+            'brush stroke': {
+                'postview':     self.brushstroke_postview,
+                'postpixel':    self.brushstroke_postpixel,
+                'mouse_cursor': self.brushstroke_mouse_cursor,
+                'modal_main':   self.brushstroke_modal_main,
+                },
             }
         self.FSM = {
             'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
             'size':     self.modal_size,
             'strength': self.modal_strength,
             'falloff':  self.modal_falloff,
+            'stroke':   self.modal_stroke,
         }
         
         self.view = 'brush falloff'
         self.radius = 50.0
         self.falloff = 1.5
         self.strength = 0.5
+        self.tightness = 0.95
         
         self.color = (1,1,1)
+        
+        self.stroke2D = []
+        self.stroke2D_left = []
+        self.stroke2D_right = []
+        self.stroke_callback = None
         
         self.reset()
     
@@ -105,6 +119,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
         self.mouse_cursor = widget.get('mouse_cursor', self.no_mouse_cursor)
         self.modal_main = widget.get('modal_main', self.no_modal_main)
         if color: self.color = color
+    
+    def set_stroke_callback(self, fn):
+        self.stroke_callback = fn
         
     def update(self):
         p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
@@ -147,6 +164,35 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff):
         if not self.p: return 0.0
         return self.get_strength_dist((point - self.p).length)
     
+    
+    def modal_stroke(self):
+        actions = self.rfcontext.actions
+        w,h = actions.size
+        center = Point2D((w/2, h/2))
+        
+        if actions.released('action'):
+            if self.stroke_callback: self.stroke_callback()
+            return 'main'
+        
+        if actions.pressed('cancel'):
+            self.stroke2D.clear()
+            return 'main'
+        
+        if False:
+            self.stroke2D.append(actions.mouse)
+            if len(self.stroke2D) > 5:
+                delta = actions.mouse - self.stroke2D[-5]
+                if abs(delta.x) > 2 or abs(delta.y) > 2:
+                    print(self.get_scaled_radius())
+                    delta = delta.normalized() * self.get_scaled_radius()
+                    ortho = Vec2D((-delta.y, delta.x))
+                    self.stroke2D_left.append(actions.mouse + ortho)
+                    self.stroke2D_right.append(actions.mouse - ortho)
+        
+        lstpos = self.stroke2D[-1] if self.stroke2D else actions.mouse
+        curpos = actions.mouse
+        newpos = lstpos + (curpos - lstpos) * (1 - self.tightness)
+        self.stroke2D.append(newpos)
     
     def modal_size(self):
         actions = self.rfcontext.actions

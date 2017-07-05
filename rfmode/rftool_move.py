@@ -10,6 +10,8 @@ class RFTool_Move(RFTool):
         self.FSM['move'] = self.modal_move
     
     def name(self): return "Tweak Move"
+    def icon(self): return "rf_tweak_icon"
+    def description(self): return 'Moves vertices with falloff'
     
     ''' Called the tool is being switched into '''
     def start(self):

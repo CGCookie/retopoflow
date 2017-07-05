@@ -8,10 +8,9 @@ from .rfmode.rfmode import rfmode_tools
 
 from .icons import load_icons
 
-class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
-    '''RetopoFlow Tools'''
+class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
     bl_category = "Retopology"
-    bl_label = "RetopoFlow"
+    bl_label = "RetopoFlow 2.0"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
@@ -27,12 +26,38 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
         
         col = layout.column(align=True)
 
+        icons = load_icons()
         
-        col.label('RetopoFlow Mode')
+        col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
-        for ids in sorted(rfmode_tools.keys()):
-            col.operator(ids)
+        for ids,rft in sorted(rfmode_tools.items()):
+            icon_name = rft.rf_icon
+            if icon_name is not None:
+                icon = icons.get(icon_name)
+                col.operator(ids, icon_value=icon.icon_id)
+            else:
+                col.operator(ids)
+
+class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
+    '''RetopoFlow Tools'''
+    bl_category = "Retopology"
+    bl_label = "RetopoFlow 1.3"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    
+    def draw(self, context):
+        layout = self.layout
+
+        # explicitly call to check for update in background
+        # note: built-in checks ensure it runs at most once
+        addon_updater_ops.check_for_update_background(context)
+
+        settings = common_utilities.get_settings()
         
+        
+        col = layout.column(align=True)
+
+        icons = load_icons()
         
         col.label("Source Object:")
 
@@ -72,7 +97,6 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         col.label("Tools:")
 
-        icons = load_icons()
         contours_icon = icons.get("rf_contours_icon")
         col.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
 

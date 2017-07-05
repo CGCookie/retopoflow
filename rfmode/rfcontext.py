@@ -41,8 +41,9 @@ def find_all_rftools(root=None):
         addons = bpy.context.user_preferences.addons
         folderpath = os.path.dirname(os.path.abspath(__file__))
         while folderpath:
-            folderpath,foldername = os.path.split(folderpath)
+            rootpath,foldername = os.path.split(folderpath)
             if foldername in addons: break
+            folderpath = rootpath
         else:
             assert False, 'Could not find root folder'
         return find_all_rftools(folderpath)
@@ -58,7 +59,7 @@ def find_all_rftools(root=None):
         if os.path.isdir(path):
             # recurse?
             found |= find_all_rftools(path)
-        else:
+        elif os.path.splitext(path)[1] == '.py':
             rft = os.path.splitext(os.path.basename(path))[0]
             try:
                 tmp = importlib.__import__(rft, globals(), locals(), [], level=1)
@@ -68,7 +69,10 @@ def find_all_rftools(root=None):
                         # v is an RFTool, so add it to the global namespace
                         globals()[k] = v
                         found = True
-            except:
+            except Exception as e:
+                if 'rftool' in rft:
+                    print('Could not import ' + rft)
+                    print(e)
                 pass
     return found
 assert find_all_rftools(), 'Could not find RFTools'
@@ -292,6 +296,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self._process_event(context, event)
 
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
+
+        if self.actions.using('maximize area'):
+            return {'pass'}
 
         # user pressing nav key?
         if self.actions.using('navigate') or (self.actions.timer and self.nav):
