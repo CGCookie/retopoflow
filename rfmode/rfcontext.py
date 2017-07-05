@@ -297,6 +297,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         
         self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
         
+        if self.actions.using('maximize area'):
+            return {'pass'}
+        
         # user pressing nav key?
         if self.actions.using('navigate') or (self.actions.timer and self.nav):
             # let Blender handle navigation

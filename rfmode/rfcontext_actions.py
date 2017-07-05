@@ -27,6 +27,7 @@ class Actions:
     default_keymap = {
         # common
         'navigate': set(),          # to be filled in by self._init_navigation()
+        'maximize area': set(),     # to be filled in by self._init_ui()
         'action': {'LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
@@ -70,7 +71,6 @@ class Actions:
         }
     
     def _init_navigation(self):
-        # set up language
         keyconfig = bpy.context.window_manager.keyconfigs['Blender']
         keymap_3dview = keyconfig.keymaps['3D View']
         for key, value in list(self.keymap.items()):
@@ -81,6 +81,9 @@ class Actions:
                 except KeyError as e:
                     print('Key of ' + str(e) + ' not found, trying again')
     
+    def _init_ui(self):
+        keyconfig = bpy.context.window_manager.keyconfigs['Blender']
+    
     def load_keymap(self, keyconfig_name):
         if keyconfig_name not in bpy.context.window_manager.keyconfigs:
             dprint('No keyconfig named "%s"' % keyconfig_name)
@@ -89,6 +92,9 @@ class Actions:
         for kmi in keyconfig.keymaps['3D View'].keymap_items:
             if kmi.name in self.navigation_events:
                 self.keymap['navigate'].add(kmi_details(kmi))
+        for kmi in keyconfig.keymaps['Screen'].keymap_items:
+            if kmi.idname == 'screen.screen_full_area':
+                self.keymap['maximize area'].add(kmi_details(kmi))
     
     def __init__(self):
         self.keymap = deepcopy(self.default_keymap)
