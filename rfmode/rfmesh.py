@@ -11,7 +11,9 @@ from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal
-from ..common.maths import Point, Direction, Normal, Ray, XForm, BBox, Point2D, Vec2D
+from ..common.maths import Point, Direction, Normal
+from ..common.maths import Point2D, Vec2D
+from ..common.maths import Ray, XForm, BBox, Plane
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 
@@ -65,7 +67,7 @@ class RFMesh():
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
     
-    def __setup__(self, obj, deform=False, bme=None):
+    def __setup__(self, obj, deform=False, bme=None, triangulate=False):
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
         self.hash = RFMesh.hash_object(self.obj)
@@ -84,6 +86,8 @@ class RFMesh():
                 bme.select = eme.select
             for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                 bmv.select = emv.select
+        if triangulate:
+            bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
         self.store_state()
         self.dirty()
     
@@ -139,9 +143,17 @@ class RFMesh():
     ##########################################################
     
     def plane_intersection(self, plane:Plane):
-        pass
+        # TODO: do not duplicate vertices!
+        plane_local = self.xform.w2l_plane(plane)
+        intersection = []
+        for bmf in self.bme.faces:
+            intersection += plane_local.triangle_intersection([bmv.co for bmv in bmf.verts])
+        return [(self.xform.l2w_point(p0), self.xform.l2w_point(p1)) for p0,p1 in intersection]
     
-    
+    def get_yz_plane(self):
+        o = self.xform.l2w_point(Point((0,0,0)))
+        n = self.xform.l2w_normal(Normal((1,0,0)))
+        return Plane(o, n)
     
     ##########################################################
     
@@ -318,7 +330,7 @@ class RFSource(RFMesh):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
     
     def __setup__(self, obj:bpy.types.Object):
-        super().__setup__(obj, deform=True)
+        super().__setup__(obj, deform=True, triangulate=True)
     
 
 

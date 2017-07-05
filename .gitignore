@@ -56,3 +56,6 @@ target/
 .DS_Store
 .project
 .pydevproject
+
+# updater
+retopoflow_update/updater_status.json

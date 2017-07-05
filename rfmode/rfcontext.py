@@ -222,6 +222,11 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         print('%d sources' % len(self.rfsources))
+        
+        zy_plane = self.rftarget.get_yz_plane()
+        self.zy_intersections = []
+        for rfs in self.rfsources:
+            self.zy_intersections += rfs.plane_intersection(zy_plane)
     
     def commit(self):
         #self.rftarget.commit()
@@ -376,6 +381,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         
+        self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
         
         wtime,ctime = self.window_time,time.time()
@@ -434,5 +440,31 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         
+        self.draw_yz_mirror()
+        
         self.rftarget_draw.draw()
+        self.tool.draw_postview()
         self.rfwidget.draw_postview()
+    
+    def draw_yz_mirror(self):
+        bgl.glLineWidth(3.0)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        
+        bgl.glColor4f(1, 0.5, 0.5, 0.25)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+        
+        bgl.glColor4f(1, 0.5, 0.5, 0.02)
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_TRUE)

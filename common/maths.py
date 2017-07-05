@@ -3,6 +3,7 @@ import bpy
 import bgl
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
+from mathutils.geometry import intersect_line_plane
 
 
 '''
@@ -214,11 +215,16 @@ class Plane(Entity3D):
         self.n = n
     def __str__(self):
         return '<Plane (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z, self.n.x,self.n.y,self.n.z)
+    
     def side(self, p:Point):
         d = (p - self.o).dot(self.n)
-        if d < 0: return -1
-        if d > 0: return 1
+        if d < -0.00001: return -1
+        if d > 0.00001: return 1
         return 0
+    
+    def polygon_intersects(self, points):
+        return abs(sum(self.side(p) for p in points)) != len(points)
+    
     def triangle_intersection(self, points):
         p0,p1,p2 = points
         s0,s1,s2 = [self.side(p) for p in points]
@@ -229,7 +235,16 @@ class Plane(Entity3D):
             if len(pz) == 2: return [(pz[0],pz[1])]                 # edge in plane
             return [(pz[0],pz[1]), (pz[1],pz[2]), (pz[2],pz[0])]    # all three points in plane
         # two points on one side, one point on the other
-        return []
+        p01 = intersect_line_plane(p0, p1, self.o, self.n)
+        p12 = intersect_line_plane(p1, p2, self.o, self.n)
+        p20 = intersect_line_plane(p2, p0, self.o, self.n)
+        if s0 != s1 and s0 != s2 and p01 and p20: return [(Point(p01), Point(p20))]
+        if s1 != s0 and s1 != s2 and p01 and p12: return [(Point(p01), Point(p12))]
+        if s2 != s0 and s2 != s1 and p12 and p20: return [(Point(p12), Point(p20))]
+        print('%s %s %s' % (str(p0), str(p1), str(p2)))
+        print('%s %s %s' % (str(s0), str(s1), str(s2)))
+        print('%s %s %s' % (str(p01), str(p12), str(p20)))
+        assert False
 
 
 class XForm:
@@ -273,6 +288,7 @@ class XForm:
             Vec:        lambda x: self.l2w_vector(x),
             Vector:     lambda x: self.l2w_vector(x),
             Ray:        lambda x: self.l2w_ray(x),
+            Plane:      lambda x: self.l2w_plane(x),
             BMVert:     lambda x: self.l2w_bmvert(x),
         }
         self.fn_w2l_typed = {
@@ -282,6 +298,7 @@ class XForm:
             Vec:        lambda x: self.w2l_vector(x),
             Vector:     lambda x: self.w2l_vector(x),
             Ray:        lambda x: self.w2l_ray(x),
+            Plane:      lambda x: self.w2l_plane(x),
             BMVert:     lambda x: self.w2l_bmvert(x),
         }
         return self
@@ -349,6 +366,11 @@ class XForm:
         else:
             l1 = (o - self.l2w_point(ray.o + ray.max * ray.d)).length
         return Ray(o=o, d=d, max_dist=l1)
+    
+    def l2w_plane(self, plane:Plane)->Plane:
+        return Plane(o=self.l2w_point(plane.o), n=self.l2w_normal(plane.n))
+    def w2l_plane(self, plane:Plane)->Plane:
+        return Plane(o=self.w2l_point(plane.o), n=self.w2l_normal(plane.n))
     
     def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
     def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
