@@ -10,6 +10,8 @@ class RFWidget_BrushStroke:
             return 'size'
         if self.rfcontext.actions.pressed('action'):
             self.stroke2D.clear()
+            self.stroke2D_left.clear()
+            self.stroke2D_right.clear()
             return 'stroke'
     
     def brushstroke_mouse_cursor(self):
@@ -97,6 +99,16 @@ class RFWidget_BrushStroke:
             bgl.glColor4f(1,1,1,0.5)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for x,y in self.stroke2D:
+                bgl.glVertex2f(x,y)
+            bgl.glEnd()
+            bgl.glColor4f(1,1,1,0.15)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for x,y in self.stroke2D_left:
+                bgl.glVertex2f(x,y)
+            bgl.glEnd()
+            bgl.glColor4f(1,1,1,0.15)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for x,y in self.stroke2D_right:
                 bgl.glVertex2f(x,y)
             bgl.glEnd()
             glEnableStipple(enable=False)
