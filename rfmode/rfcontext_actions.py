@@ -26,8 +26,8 @@ def kmi_details(kmi):
 class Actions:
     default_keymap = {
         # common
-        'navigate': set(),          # to be filled in by self._init_navigation()
-        'maximize area': set(),     # to be filled in by self._init_ui()
+        'navigate': set(),          # to be filled in by self.load_keymap()
+        'maximize area': set(),     # to be filled in by self.load_keymap()
         'action': {'LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
@@ -69,20 +69,6 @@ class Actions:
         'View Selected': 'view3d.view_selected',
         'Center View to Cursor': 'view3d.view_center_cursor'
         }
-    
-    def _init_navigation(self):
-        keyconfig = bpy.context.window_manager.keyconfigs['Blender']
-        keymap_3dview = keyconfig.keymaps['3D View']
-        for key, value in list(self.keymap.items()):
-            for kmi in keymap_3dview.keymap_items:
-                try:
-                    if kmi.idname == value:
-                        self.keymap[kmi.name] = self.keymap.pop(key)
-                except KeyError as e:
-                    print('Key of ' + str(e) + ' not found, trying again')
-    
-    def _init_ui(self):
-        keyconfig = bpy.context.window_manager.keyconfigs['Blender']
     
     def load_keymap(self, keyconfig_name):
         if keyconfig_name not in bpy.context.window_manager.keyconfigs:
