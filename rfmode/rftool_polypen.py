@@ -160,6 +160,47 @@ class RFTool_PolyPen(RFTool):
             set2D_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
+    def draw_lines(self, coords):
+        # 2d lines
+        bgl.glLineWidth(2.0)
+        bgl.glDisable(bgl.GL_CULL_FACE)
+        bgl.glDepthMask(bgl.GL_FALSE)
+
+        # draw above
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glColor4f(1,1,1,0.5)
+        if len(coords) == 1:
+            bgl.glBegin(bgl.GL_POINTS)
+        if len(coords) == 2:
+            bgl.glBegin(bgl.GL_LINES)
+        elif len(coords) == 3:
+            bgl.glBegin(bgl.GL_TRIANGLES)
+        else:
+            bgl.glBegin(bgl.GL_QUADS)
+        for co in coords:
+            bgl.glVertex3f(co.x, co.y, co.z)
+        bgl.glEnd()
+
+        # draw below
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glColor4f(1,1,1,0.1)
+        if len(coords) == 1:
+            bgl.glBegin(bgl.GL_POINTS)
+        elif len(coords) == 2:
+            bgl.glBegin(bgl.GL_LINES)
+        elif len(coords) == 3:
+            bgl.glBegin(bgl.GL_TRIANGLES)
+        else:
+            bgl.glBegin(bgl.GL_QUADS)
+        for co in coords:
+            bgl.glVertex3f(co.x, co.y, co.z)
+        bgl.glEnd()
+
+        bgl.glEnable(bgl.GL_CULL_FACE)
+        bgl.glDepthMask(bgl.GL_TRUE)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+
+
     def draw_postview(self):
         if self.next_state == 'vert-edge':
             p0 = self.rfcontext.hit_pos
@@ -168,40 +209,25 @@ class RFTool_PolyPen(RFTool):
             sel_verts = self.rfcontext.rftarget.get_selected_verts()
             bmv1 = next(iter(sel_verts))
 
-            # 2d lines
-            bgl.glLineWidth(2.0)
-            bgl.glDisable(bgl.GL_CULL_FACE)
-            bgl.glDepthMask(bgl.GL_FALSE)
-            
-            # draw above
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            bgl.glColor4f(1,1,1,0.5)
-            bgl.glBegin(bgl.GL_LINES)
-            bgl.glVertex3f(p0.x, p0.y, p0.z)
-            bgl.glVertex3f(bmv1.co.x, bmv1.co.y, bmv1.co.z)
-            bgl.glEnd()
-            
-            # draw below
-            bgl.glDepthFunc(bgl.GL_GREATER)
-            bgl.glColor4f(1,1,1,0.1)
-            bgl.glBegin(bgl.GL_LINES)
-            bgl.glVertex3f(p0.x, p0.y, p0.z)
-            bgl.glVertex3f(bmv1.co.x, bmv1.co.y, bmv1.co.z)
-            bgl.glEnd()
-            
-            bgl.glEnable(bgl.GL_CULL_FACE)
-            bgl.glDepthMask(bgl.GL_TRUE)
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-
-            # TODO: draw edge
-            # print("draws edge")
+            self.draw_lines([p0, bmv1.co])
             return
         if self.next_state == 'edge-face':
-            # TODO: draw faces
-            # print("draws face")
+            p0 = self.rfcontext.hit_pos
+            if p0 == None:
+                return
+            sel_edges = self.rfcontext.rftarget.get_selected_edges()
+            e1 = next(iter(sel_edges))
+            bmv1,bmv2 = e1.verts
+
+            self.draw_lines([p0, bmv1.co, bmv2.co])
             return
         if self.next_state == 'triangle-quad':
-            # TODO: draw quad
-            # print("draws quad")
-            return
+            p0 = self.rfcontext.hit_pos
+            if p0 == None:
+                return
+            sel_faces = self.rfcontext.rftarget.get_selected_faces()
+            f1 = next(iter(sel_faces))
+            bmv1,bmv2,bmv3 = f1.verts
 
+            self.draw_lines([p0, bmv1.co, bmv2.co, bmv3.co])
+            return
