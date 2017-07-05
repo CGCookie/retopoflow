@@ -376,6 +376,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
 
+        self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
 
         wtime,ctime = self.window_time,time.time()
@@ -428,6 +429,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             y = t - (i+1) * lh + int((lh - th) / 2.0)
             blf.position(font_id, l, y, 0)
             blf.draw(font_id, rft().name())
+        
 
 
     def draw_postview(self):
@@ -435,4 +437,5 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glEnable(bgl.GL_BLEND)
 
         self.rftarget_draw.draw()
+        self.tool.draw_postview()
         self.rfwidget.draw_postview()
