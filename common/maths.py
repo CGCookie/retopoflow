@@ -208,6 +208,30 @@ class Ray(Entity3D):
         pass
 
 
+class Plane(Entity3D):
+    def __init__(self, o:Point, n:Normal):
+        self.o = o
+        self.n = n
+    def __str__(self):
+        return '<Plane (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z, self.n.x,self.n.y,self.n.z)
+    def side(self, p:Point):
+        d = (p - self.o).dot(self.n)
+        if d < 0: return -1
+        if d > 0: return 1
+        return 0
+    def triangle_intersection(self, points):
+        p0,p1,p2 = points
+        s0,s1,s2 = [self.side(p) for p in points]
+        if abs(s0+s1+s2) == 3: return []                            # all points on same side of plane
+        if s0 == 0 or s1 == 0 or s2 == 0:
+            pz = [p for p,s in zip(points,[s0,s1,s2]) if s == 0]
+            if len(pz) == 1: return [(pz[0],pz[0])]                 # single point in plane
+            if len(pz) == 2: return [(pz[0],pz[1])]                 # edge in plane
+            return [(pz[0],pz[1]), (pz[1],pz[2]), (pz[2],pz[0])]    # all three points in plane
+        # two points on one side, one point on the other
+        return []
+
+
 class XForm:
     @staticmethod
     def get_mats(mx:Matrix):

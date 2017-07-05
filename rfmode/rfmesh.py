@@ -135,6 +135,14 @@ class RFMesh():
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
     
+    
+    ##########################################################
+    
+    def plane_intersection(self, plane:Plane):
+        pass
+    
+    
+    
     ##########################################################
     
     def wrap_bmvert(self, bmv): return RFVert(bmv)
