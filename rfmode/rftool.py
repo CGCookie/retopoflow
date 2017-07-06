@@ -84,6 +84,8 @@ class RFTool(metaclass=SingletonRegisterClass):
         self.rfwidget.set_widget('default')
         return None
     
+    def update(self): pass
+    
     def modal_main(self): pass
     
     def draw_postview(self): pass

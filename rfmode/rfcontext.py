@@ -267,6 +267,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.rftarget = state['rftarget']
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
+        if self.tool: self.tool.update()
     
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
@@ -371,7 +372,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         for rfsource in self.rfsources:
             hp,hn,hi,hd = rfsource.nearest(point, max_dist=max_dist)
             if bp is None or (hp is not None and hd < bd):
-                bp,bn,bi,bd = hp,bn,hi,hd
+                bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
     
     

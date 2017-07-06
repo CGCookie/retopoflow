@@ -1,12 +1,146 @@
 import math
+from mathutils import Vector, Matrix
+from .maths import Point, Vec
+from ..lib.common_utilities import iter_running_sum
 
 def compute_quadratic_weights(t):
     t0,t1 = t,(1-t)
-    return (t1*t1, 2*t0*t1, t0*t0)
+    return (t1**2, 2*t0*t1, t0**2)
 
 def compute_cubic_weights(t):
     t0,t1 = t,(1-t)
-    return (t1*t1*t1,3*t0*t1*t1,3*t0*t0*t1,t0*t0*t0)
+    return (t1**3, 3*t0*t1**2, 3*t0**2*t1, t0**3)
+
+
+def interpolate_cubic(v0, v1, v2, v3, t):
+    b0,b1,b2,b3 = compute_cubic_weights(t)
+    return v0*b0 + v1*b1 + v2*b2 + v3*b3
+
+def compute_cubic_error(v0, v1, v2, v3, l_v, l_t):
+    return math.sqrt(sum((interpolate_cubic(v0,v1,v2,v3,t)-v)**2 for v,t in zip(l_v,l_t)))
+
+def fit_cubicbezier(l_v, l_t):
+    #########################################################
+    # http://nbviewer.ipython.org/gist/anonymous/5688579
+    
+    # make the summation functions for A (16 of them)
+    A_fns = [
+        lambda l_t: sum([  2*t**0*(t-1)**6 for t in l_t]),
+        lambda l_t: sum([ -6*t**1*(t-1)**5 for t in l_t]),
+        lambda l_t: sum([  6*t**2*(t-1)**4 for t in l_t]),
+        lambda l_t: sum([ -2*t**3*(t-1)**3 for t in l_t]),
+        
+        lambda l_t: sum([ -6*t**1*(t-1)**5 for t in l_t]),
+        lambda l_t: sum([ 18*t**2*(t-1)**4 for t in l_t]),
+        lambda l_t: sum([-18*t**3*(t-1)**3 for t in l_t]),
+        lambda l_t: sum([  6*t**4*(t-1)**2 for t in l_t]),
+        
+        lambda l_t: sum([  6*t**2*(t-1)**4 for t in l_t]),
+        lambda l_t: sum([-18*t**3*(t-1)**3 for t in l_t]),
+        lambda l_t: sum([ 18*t**4*(t-1)**2 for t in l_t]),
+        lambda l_t: sum([ -6*t**5*(t-1)**1 for t in l_t]),
+        
+        lambda l_t: sum([ -2*t**3*(t-1)**3 for t in l_t]),
+        lambda l_t: sum([  6*t**4*(t-1)**2 for t in l_t]),
+        lambda l_t: sum([ -6*t**5*(t-1)**1 for t in l_t]),
+        lambda l_t: sum([  2*t**6*(t-1)**0 for t in l_t])
+        ]
+    
+    # make the summation functions for b (4 of them)
+    b_fns = [
+        lambda l_t,l_v: sum([-2*v*t**0*(t-1)**3 for t,v in zip(l_t,l_v)]),
+        lambda l_t,l_v: sum([ 6*v*t**1*(t-1)**2 for t,v in zip(l_t,l_v)]),
+        lambda l_t,l_v: sum([-6*v*t**2*(t-1)**1 for t,v in zip(l_t,l_v)]),
+        lambda l_t,l_v: sum([ 2*v*t**3*(t-1)**0 for t,v in zip(l_t,l_v)])
+        ]
+    
+    # compute the data we will put into matrix A
+    A_values = [fn(l_t) for fn in A_fns]
+    # fill the A matrix with data
+    A_matrix = Matrix(tuple(zip(*[iter(A_values)]*4)))
+    try:
+        A_inv    = A_matrix.inverted()
+    except:
+        return (float('inf'), l_v[0],l_v[0],l_v[0],l_v[0])
+    
+    # compute the data we will put into the b vector
+    b_values = [fn(l_t, l_v) for fn in b_fns]
+    # fill the b vector with data
+    b_vector = Vector(b_values)
+    
+    # solve for the unknowns in vector x
+    v0,v1,v2,v3 = A_inv * b_vector
+    
+    err = compute_cubic_error(v0,v1,v2,v3,l_v,l_t) / len(l_v)
+    
+    return (err,v0,v1,v2,v3)
+
+def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=True, force_split=False):
+    '''
+    fits cubic bezier to given points
+    returns list of tuples of (t0,t3,p0,p1,p2,p3)
+    that best fits the given points l_co
+    where t0 and t3 are the passed-in t0 and t3
+    and p0,p1,p2,p3 are the control points of bezier
+    '''
+    assert l_co
+    if len(l_co)<3:
+        p0,p3 = l_co[0],l_co[-1]
+        p12 = (p0+p3)/2
+        return [(t0,t3,p0,p12,p12,p3)]
+    l_d  = [0] + [(v0-v1).length for v0,v1 in zip(l_co[:-1],l_co[1:])]
+    l_ad = [s for d,s in iter_running_sum(l_d)]
+    dist = sum(l_d)
+    if dist <= 0:
+        print('fit_cubicbezier_spline: returning []')
+        return [] #[(t0,t3,l_co[0],l_co[0],l_co[0],l_co[0])]
+    l_t  = [ad/dist for ad in l_ad]
+    
+    ex,x0,x1,x2,x3 = fit_cubicbezier([co[0] for co in l_co], l_t)
+    ey,y0,y1,y2,y3 = fit_cubicbezier([co[1] for co in l_co], l_t)
+    ez,z0,z1,z2,z3 = fit_cubicbezier([co[2] for co in l_co], l_t)
+    tot_error = ex+ey+ez
+    print('total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
+    
+    if not force_split:
+        if tot_error < error_scale or depth == 4 or len(l_co)<=15 or not allow_split:
+            p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
+            return [(t0,t3,p0,p1,p2,p3)]
+    
+    # too much error in fit.  split sequence in two, and fit each sub-sequence
+    
+    # find a good split point
+    ind_split = -1
+    mindot = 1.0
+    for ind in range(5,len(l_co)-5):
+        if l_t[ind] < 0.4: continue
+        if l_t[ind] > 0.6: break
+        #if l_ad[ind] < 0.1: continue
+        #if l_ad[ind] > dist-0.1: break
+        
+        v0 = l_co[ind-4]
+        v1 = l_co[ind+0]
+        v2 = l_co[ind+4]
+        d0 = (v1-v0).normalized()
+        d1 = (v2-v1).normalized()
+        dot01 = d0.dot(d1)
+        if ind_split==-1 or dot01 < mindot:
+            ind_split = ind
+            mindot = dot01
+    
+    if ind_split == -1:
+        # did not find a good splitting point!
+        p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
+        return [(t0,t3,p0,p1,p2,p3)]
+    
+    tsplit = ind_split / (len(l_co)-1)
+    bezier0 = fit_cubicbezier_spline(l_co[:ind_split+1], error_scale, depth=depth+1, t0=t0, t3=tsplit)
+    bezier1 = fit_cubicbezier_spline(l_co[ind_split:], error_scale, depth=depth+1, t0=tsplit, t3=t3)
+    return bezier0 + bezier1
+
+
+
+
 
 
 class CubicBezier:
@@ -75,15 +209,21 @@ class CubicBezier:
         return sum(fn_dist(cb.p0,cb.p3) for cb in l)
 
 
+
+
 class CubicBezierSpline:
     
     @staticmethod
-    def create_from_points(ps, fn_dist):
+    def create_from_points(pts_list, max_error):
         '''
         Estimates best spline to fit given points
         '''
-        return CubicBezierSpline()
-    
+        cbs = []
+        for pts in pts_list:
+            cbs_pts = fit_cubicbezier_spline(pts, max_error)
+            cbs += [CubicBezier(p0,p1,p2,p3) for _,_,p0,p1,p2,p3 in cbs_pts]
+        return CubicBezierSpline(cbs=cbs)
+        
     def __init__(self, cbs=None):
         if cbs is None: cbs = []
         if type(cbs) is CubicBezierSpline: cbs = [cb.copy() for cb in cbs.cbs]
@@ -115,6 +255,8 @@ class CubicBezierSpline:
             assert False, "unhandled type: %s (%s)" % (str(other),str(t))
     
     def __len__(self): return len(self.cbs)
+    
+    def __iter__(self): return self.cbs.__iter__()
     
     def eval(self, t):
         t = max(0.0, min(len(self), t))

@@ -28,6 +28,13 @@ class RFContext_Target:
     def nearest2D_verts_mouse(self, max_dist:float):
         return self.nearest2D_verts_point(self.actions.mouse, max_dist)
     
+    def nearest2D_face_point(self, point):
+        xy = self.get_point2D(point)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+    
+    def nearest2D_face_mouse(self):
+        return self.nearest2D_face_point(self.actions.mouse)
+    
     
     ########################################
     # find target entities in world space
@@ -88,11 +95,12 @@ class RFContext_Target:
     
     def new_vert_point(self, xyz:Point):
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
+        if not xyz or not norm: return None
         return self.rftarget.new_vert(xyz, norm)
     
     def new2D_vert_point(self, xy:Point2D):
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
-        if xyz is None: return None
+        if not xyz or not norm: return None
         return self.rftarget.new_vert(xyz, norm)
     
     def new2D_vert_mouse(self):

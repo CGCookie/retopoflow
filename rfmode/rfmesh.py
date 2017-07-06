@@ -10,7 +10,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
-from mathutils.geometry import normal as compute_normal
+from mathutils.geometry import normal as compute_normal, intersect_point_tri
 from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
@@ -222,6 +222,25 @@ class RFMesh():
             if bv is None or d2d < bd: bv,bd = bmv,d2d
         if bv is None: return (None,None)
         return (self.wrap_bmvert(bv),bd)
+    
+    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D):
+        # TODO: compute distance from camera to point
+        # TODO: sort points based on 3d distance
+        bv,bd = None,None
+        for bmf in self.bme.faces:
+            pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
+            pts = [pt for pt in pts if pt]
+            pt0 = pts[0]
+            for pt1,pt2 in zip(pts[1:-1],pts[2:]):
+                if intersect_point_tri(xy, pt0, pt1, pt2):
+                    return self.wrap_bmface(bmf)
+            #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
+            #d2d = (xy - p2d).length
+            #if p2d is None: continue
+            #if bv is None or d2d < bd: bv,bd = bmv,d2d
+        #if bv is None: return (None,None)
+        #return (self.wrap_bmvert(bv),bd)
+        return None
     
     ##########################################################
     
