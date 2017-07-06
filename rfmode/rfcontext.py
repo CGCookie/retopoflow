@@ -300,7 +300,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         
         self._process_event(context, event)
         
-        self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
+        self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         
         if self.actions.using('maximize area'):
             return {'pass'}
@@ -449,8 +449,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     def draw_yz_mirror(self):
         bgl.glLineWidth(3.0)
         bgl.glDepthMask(bgl.GL_FALSE)
+        bgl.glDepthRange(0.0, 0.9999)
         
-        bgl.glColor4f(1, 0.5, 0.5, 0.25)
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.15)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glBegin(bgl.GL_LINES)
         for p0,p1 in self.zy_intersections:
@@ -458,7 +459,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             bgl.glVertex3f(*p1)
         bgl.glEnd()
         
-        bgl.glColor4f(1, 0.5, 0.5, 0.02)
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.01)
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glBegin(bgl.GL_LINES)
         for p0,p1 in self.zy_intersections:
@@ -466,5 +467,6 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             bgl.glVertex3f(*p1)
         bgl.glEnd()
         
+        bgl.glDepthRange(0.0, 1.0)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)

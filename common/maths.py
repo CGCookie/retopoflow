@@ -228,16 +228,22 @@ class Plane(Entity3D):
     def triangle_intersection(self, points):
         p0,p1,p2 = points
         s0,s1,s2 = [self.side(p) for p in points]
-        if abs(s0+s1+s2) == 3: return []                            # all points on same side of plane
-        if s0 == 0 or s1 == 0 or s2 == 0:
-            pz = [p for p,s in zip(points,[s0,s1,s2]) if s == 0]
-            if len(pz) == 1: return [(pz[0],pz[0])]                 # single point in plane
-            if len(pz) == 2: return [(pz[0],pz[1])]                 # edge in plane
-            return [(pz[0],pz[1]), (pz[1],pz[2]), (pz[2],pz[0])]    # all three points in plane
+        if abs(s0+s1+s2) == 3: return []                    # all points on same side of plane
+        if abs(s0)+abs(s1)+abs(s2) == 1:                    # two points on plane
+            if s0 == 0 and s1 == 0: return [(p0,p1)]
+            if s1 == 0 and s2 == 0: return [(p1,p2)]
+            if s2 == 0 and s0 == 0: return [(p2,p0)]
+        if s0 == 0 or s1 == 0 or s2 == 0:                   # one point on plane, two on same side
+            if s0 == 0 and s1 == s2: return [(p0,p0)]
+            if s1 == 0 and s2 == s0: return [(p1,p1)]
+            if s2 == 0 and s0 == s1: return [(p2,p2)]
         # two points on one side, one point on the other
         p01 = intersect_line_plane(p0, p1, self.o, self.n)
         p12 = intersect_line_plane(p1, p2, self.o, self.n)
         p20 = intersect_line_plane(p2, p0, self.o, self.n)
+        if s0 == 0: return [(Point(p0), Point(p12))]
+        if s1 == 0: return [(Point(p1), Point(p20))]
+        if s2 == 0: return [(Point(p2), Point(p01))]
         if s0 != s1 and s0 != s2 and p01 and p20: return [(Point(p01), Point(p20))]
         if s1 != s0 and s1 != s2 and p01 and p12: return [(Point(p01), Point(p12))]
         if s2 != s0 and s2 != s1 and p12 and p20: return [(Point(p12), Point(p20))]
