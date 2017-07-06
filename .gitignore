@@ -58,4 +58,4 @@ target/
 .pydevproject
 
 # updater
-retopoflow_update/updater_status.json
+retopoflow_updater/updater_status.json
