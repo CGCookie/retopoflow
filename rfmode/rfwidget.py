@@ -124,7 +124,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         self.stroke_callback = fn
         
     def update(self):
-        p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
+        p,n = self.rfcontext.actions.hit_pos,self.rfcontext.actions.hit_norm
         if p is None or n is None:
             self.clear()
             return

@@ -295,7 +295,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
 
         self._process_event(context, event)
 
-        self.hit_pos,self.hit_norm,_,_ = self.raycast_sources_mouse()
+        self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 
         if self.actions.using('maximize area'):
             return {'pass'}

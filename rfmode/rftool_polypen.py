@@ -223,46 +223,37 @@ class RFTool_PolyPen(RFTool):
 
 
     def draw_postview(self):
-        self.set_next_state() # TODO: Delete this line
+        hit_pos = self.rfcontext.actions.hit_pos
+        if not hit_pos: return
+        #self.set_next_state() # TODO: Delete this line
+        
         if self.next_state == 'new vertex':
             return
+        
         if self.next_state == 'vert-edge':
-            p0 = self.rfcontext.hit_pos
-            if p0 == None:
-                return
             sel_verts = self.rfcontext.rftarget.get_selected_verts()
             bmv1 = next(iter(sel_verts))
-
-            self.draw_lines([p0, bmv1.co])
+            self.draw_lines([hit_pos, bmv1.co])
             return
+        
         if self.next_state == 'edge-face':
-            p0 = self.rfcontext.hit_pos
-            if p0 == None:
-                return
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1 = next(iter(sel_edges))
             bmv1,bmv2 = e1.verts
-
-            self.draw_lines([p0, bmv1.co, bmv2.co])
+            self.draw_lines([hit_pos, bmv1.co, bmv2.co])
             return
+        
         if self.next_state == 'edges-face':
-            p0 = self.rfcontext.hit_pos
-            if p0 == None:
-                return
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1 = next(iter(sel_edges))
             bmv1,bmv2 = e1.verts
-
-            self.draw_lines([p0, bmv1.co, bmv2.co])
+            self.draw_lines([hit_pos, bmv1.co, bmv2.co])
             return
+        
         if self.next_state == 'triangle-quad':
-            p0 = self.rfcontext.hit_pos
-            if p0 == None:
-                return
             sel_faces = self.rfcontext.rftarget.get_selected_faces()
-            print(len(sel_faces))
+            # print(len(sel_faces))
             f1 = next(iter(sel_faces))
             bmv1,bmv2,bmv3 = f1.verts
-
-            self.draw_lines([p0, bmv1.co, bmv2.co, bmv3.co])
+            self.draw_lines([hit_pos, bmv1.co, bmv2.co, bmv3.co])
             return

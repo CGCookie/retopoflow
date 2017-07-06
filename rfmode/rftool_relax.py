@@ -33,7 +33,7 @@ class RFTool_Relax(RFTool):
         
         if not self.rfcontext.actions.timer: return
         
-        hit_pos = self.rfcontext.hit_pos
+        hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
         
         time_delta = self.rfcontext.actions.time_delta

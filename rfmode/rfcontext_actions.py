@@ -118,6 +118,9 @@ class Actions:
         self.mousedown_middle = None
         self.mousedown_right = None
         
+        self.hit_pos = None
+        self.hit_norm = None
+        
         self.ctrl = False
         self.ctrl_left = False
         self.ctrl_right = False
