@@ -33,7 +33,7 @@ class RFTool_PolyPen(RFTool):
         elif num_edges == 2 and num_faces == 0:
             self.next_state = 'edges-face'
         elif num_verts == 3 and num_edges == 3 and num_faces == 1:
-            self.next_state = 'triangle-quad'
+            self.next_state = 'tri-quad'
         else:
             self.next_state = 'new vertex'
 
@@ -132,14 +132,15 @@ class RFTool_PolyPen(RFTool):
             self.bmverts = [(bmv2, xy)]
             return 'move'
 
-        if self.next_state == 'triangle-quad':
+        if self.next_state == 'tri-quad':
             bmf0 = next(iter(sel_faces))
             bmv0,bmv1, bmv2 = bmf0.verts
+            bmf1 = self.rfcontext.new_face([bmv0, bmv1, bmv2])
             bmv3 = self.rfcontext.new2D_vert_mouse()
             if not bmv3:
                 self.rfcontext.undo_cancel()
                 return 'main'
-            bmf1 = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
+            bmf2 = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv3.co)
             self.rfcontext.deselect_all()
@@ -226,30 +227,30 @@ class RFTool_PolyPen(RFTool):
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
         #self.set_next_state() # TODO: Delete this line
-        
+
         if self.next_state == 'new vertex':
             return
-        
+
         if self.next_state == 'vert-edge':
             sel_verts = self.rfcontext.rftarget.get_selected_verts()
             bmv1 = next(iter(sel_verts))
             self.draw_lines([hit_pos, bmv1.co])
             return
-        
+
         if self.next_state == 'edge-face':
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1 = next(iter(sel_edges))
             bmv1,bmv2 = e1.verts
             self.draw_lines([hit_pos, bmv1.co, bmv2.co])
             return
-        
+
         if self.next_state == 'edges-face':
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1 = next(iter(sel_edges))
             bmv1,bmv2 = e1.verts
             self.draw_lines([hit_pos, bmv1.co, bmv2.co])
             return
-        
+
         if self.next_state == 'triangle-quad':
             sel_faces = self.rfcontext.rftarget.get_selected_faces()
             # print(len(sel_faces))
