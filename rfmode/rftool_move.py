@@ -29,7 +29,7 @@ class RFTool_Move(RFTool):
             get_strength_dist = self.rfwidget.get_strength_dist
             self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
             self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-            self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
+            #self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             self.mousedown = self.rfcontext.actions.mousedown
             return 'move'
         

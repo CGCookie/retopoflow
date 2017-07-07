@@ -40,7 +40,7 @@ class RFTool_Relax(RFTool):
         strength = 100.0 * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
-        self.rfcontext.select([bmv for bmv,_ in nearest])
+        #self.rfcontext.select([bmv for bmv,_ in nearest])
         
         avgDist,avgCount,divco = 0,0,{}
         
