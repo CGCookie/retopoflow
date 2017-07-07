@@ -112,7 +112,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     if not force_split:
         if tot_error < error_scale or depth == 4 or len(l_co)<=15 or not allow_split:
             p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
-            p0,p3 = Point(l_co[0]),Point(l_co[-1])
+            #p0,p3 = Point(l_co[0]),Point(l_co[-1])
             return [(t0,t3,p0,p1,p2,p3)]
     
     # too much error in fit.  split sequence in two, and fit each sub-sequence
@@ -139,7 +139,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     if ind_split == -1:
         # did not find a good splitting point!
         p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
-        p0,p3 = Point(l_co[0]),Point(l_co[-1])
+        #p0,p3 = Point(l_co[0]),Point(l_co[-1])
         return [(t0,t3,p0,p1,p2,p3)]
     
     print(spc + 'splitting at %d' % ind_split)
@@ -158,6 +158,8 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
 class CubicBezier:
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3
+    
+    def __iter__(self): return iter([self.p0, self.p1, self.p2, self.p3])
     
     def copy(self):
         ''' shallow copy '''

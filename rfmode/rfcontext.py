@@ -143,6 +143,10 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
         
+        self.FSM = {}
+        self.FSM['main'] = self.modal_main
+        self.mode = 'main'
+        
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
@@ -314,21 +318,42 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             self.set_cursor('HAND')
             self.rfwidget.clear()
             return {'pass'}
-        self.nav = False
+        if self.nav:
+            self.nav = False
+            self.rfwidget.update()
         
+        nmode = self.FSM[self.mode]()
+        if nmode: self.mode = nmode
         
+        if self.actions.pressed('done'):
+            # all done!
+            return {'confirm'}
+        
+        return {}
+    
+    
+    def modal_main(self):
         # handle undo/redo
         if self.actions.pressed('undo'):
             self.undo_pop()
-            return {}
+            return
         if self.actions.pressed('redo'):
             self.redo_pop()
-            return {}
+            return
         
+        # handle tool shortcut
         for action,tool in RFTool.action_tool:
             if self.actions.pressed(action):
                 self.set_tool(tool())
+                return
         
+        # handle select all
+        if self.actions.pressed('select all'):
+            self.undo_push('select all')
+            self.select_toggle()
+            return
+        
+        # update rfwidget and cursor
         if self.actions.valid_mouse():
             self.rfwidget.update()
             self.set_cursor(self.rfwidget.mouse_cursor())
@@ -336,19 +361,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             self.rfwidget.clear()
             self.set_cursor('DEFAULT')
         
-        if self.actions.pressed('select all'):
-            self.undo_push('select all')
-            self.select_toggle()
-            return {}
-        
         if self.rfwidget.modal():
-            if self.tool and self.actions.valid_mouse(): self.tool.modal()
-        
-        if self.actions.pressed('done'):
-            # all done!
-            return {'confirm'}
-        
-        return {}
+            if self.tool and self.actions.valid_mouse():
+                self.tool.modal()
     
     
     ###################################################

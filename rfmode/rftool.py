@@ -82,6 +82,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     ''' Called the tool is being switched into. Returns initial state '''
     def start(self):
         self.rfwidget.set_widget('default')
+        self.mode = 'main'
         return None
     
     def update(self): pass
