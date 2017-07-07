@@ -464,6 +464,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.rfwidget.draw_postview()
     
     def draw_yz_mirror(self):
+        if 'x' not in self.rftarget.symmetry: return
         bgl.glLineWidth(3.0)
         bgl.glDepthMask(bgl.GL_FALSE)
         bgl.glDepthRange(0.0, 0.9999)
