@@ -76,11 +76,11 @@ class RFTool_PolyStrips(RFTool):
         self.mode = 'main'
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
-        self.sel_cbpt = None
+        self.sel_cbpts = []
         self.update()
     
     def update(self):
-        self.cbs = None
+        self.cbs = []
         
         # get selected quads
         bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
@@ -272,7 +272,6 @@ class RFTool_PolyStrips(RFTool):
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glLineWidth(2.0)
-        bgl.glPointSize(10.0)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         bgl.glEnable(bgl.GL_DEPTH_TEST)
 
@@ -280,6 +279,7 @@ class RFTool_PolyStrips(RFTool):
         # draw in front of geometry
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glPointSize(10.0)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_POINTS)
         for cb in self.cbs:
@@ -289,6 +289,13 @@ class RFTool_PolyStrips(RFTool):
             bgl.glVertex3f(*p2)
             bgl.glVertex3f(*p3)
         bgl.glEnd()
+        if False:
+            bgl.glColor4f(0.5,1.0,0.5,1.0)
+            bgl.glPointSize(20.0)
+            bgl.glBegin(bgl.GL_POINTS)
+            for cbpt,_ in self.sel_cbpts:
+                bgl.glVertex3f(*cbpt)
+            bgl.glEnd()
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_LINES)
         if False:
@@ -312,6 +319,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glEnd()
     
         bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glPointSize(10.0)
         bgl.glColor4f(1,1,1,0.05)
         bgl.glBegin(bgl.GL_POINTS)
         for cb in self.cbs:
@@ -321,6 +329,13 @@ class RFTool_PolyStrips(RFTool):
             bgl.glVertex3f(*p2)
             bgl.glVertex3f(*p3)
         bgl.glEnd()
+        if False:
+            bgl.glColor4f(0.5,1.0,0.5,0.1)
+            bgl.glPointSize(20.0)
+            bgl.glBegin(bgl.GL_POINTS)
+            for cbpt,_ in self.sel_cbpts:
+                bgl.glVertex3f(*cbpt)
+            bgl.glEnd()
         bgl.glColor4f(1,1,1,0.05)
         bgl.glBegin(bgl.GL_LINES)
         if False:
