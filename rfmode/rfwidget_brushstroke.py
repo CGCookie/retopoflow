@@ -8,7 +8,7 @@ class RFWidget_BrushStroke:
     def brushstroke_modal_main(self):
         if self.rfcontext.actions.pressed('brush size'):
             return 'size'
-        if self.rfcontext.actions.pressed('action'):
+        if self.rfcontext.actions.pressed('insert'):
             self.stroke2D.clear()
             self.stroke2D_left.clear()
             self.stroke2D_right.clear()

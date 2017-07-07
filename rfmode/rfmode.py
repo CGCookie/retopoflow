@@ -251,6 +251,13 @@ class RFMode(Operator):
             ]
         self.tag_redraw_all()
         
+        self.show_toolshelf = bpy.context.area.regions[1].width > 1
+        self.show_properties = bpy.context.area.regions[3].width > 1
+        self.region_overlap = bpy.context.user_preferences.system.use_region_overlap
+        if self.region_overlap:
+            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
+            if self.show_properties: bpy.ops.view3d.properties()
+        
         self.wrap_panels()
         
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
@@ -293,6 +300,10 @@ class RFMode(Operator):
         if hasattr(self, 'cb_pp_all'):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
+        
+        if self.region_overlap:
+            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
+            if self.show_properties: bpy.ops.view3d.properties()
         
         self.rfctx.restore_cursor()
        

@@ -170,7 +170,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         w,h = actions.size
         center = Point2D((w/2, h/2))
         
-        if actions.released('action'):
+        if actions.released('insert'):
             if self.stroke_callback: self.stroke_callback()
             return 'main'
         
