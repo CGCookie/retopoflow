@@ -139,12 +139,16 @@ class RFContext_Target:
     
     def deselect_all(self):
         self.rftarget.deselect_all()
+        if self.tool: self.tool.update()
     
     def deselect(self, elems):
         self.rftarget.deselect(elems)
+        if self.tool: self.tool.update()
     
     def select(self, elems, supparts=True, subparts=True, only=True):
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
+        if self.tool: self.tool.update()
     
     def select_toggle(self):
         self.rftarget.select_toggle()
+        if self.tool: self.tool.update()

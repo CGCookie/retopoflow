@@ -1,9 +1,10 @@
 import bgl
 import bpy
 import math
+from mathutils import Vector
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
-from ..common.bezier import CubicBezierSpline
+from ..common.bezier import CubicBezierSpline, CubicBezier
 
 class RFTool_State():
     def __init__(self, **kwargs):
@@ -11,6 +12,39 @@ class RFTool_State():
     def update(self, kv):
         for k,v in kv.items():
             self.__setattr__(k, v)
+
+def is_edge(bme, only_bmfs):
+    return len([f for f in bme.link_faces if f in only_bmfs]) == 1
+
+def crawl_strip(bmf0, bme01, only_bmfs):
+    bmfs = [bmf for bmf in bme01.link_faces if bmf in only_bmfs and bmf != bmf0]
+    if len(bmfs) != 1: return [bmf0]
+    bmf1 = bmfs[0]
+    bme0,bme1,bme2,bme3 = bmf1.edges
+    if bme01 == bme0: pass
+    if bme01 == bme1: bme1,bme2,bme3,bme0 = bmf1.edges
+    if bme01 == bme2: bme2,bme3,bme0,bme1 = bmf1.edges
+    if bme01 == bme3: bme3,bme0,bme1,bme2 = bmf1.edges
+    if not is_edge(bme1, only_bmfs) or not is_edge(bme3, only_bmfs): return [bmf1]
+    return [bmf0] + crawl_strip(bmf1, bme2, only_bmfs)
+
+def strip_details(strip):
+    pts = []
+    radius = 0
+    for bmf in strip:
+        bmvs = bmf.verts
+        v = sum((Vector(bmv.co) for bmv in bmvs), Vector()) / 4
+        r = ((bmvs[0].co - bmvs[1].co).length + (bmvs[1].co - bmvs[2].co).length + (bmvs[2].co - bmvs[3].co).length + (bmvs[3].co - bmvs[0].co).length) / 8
+        if not pts: radius = r
+        else: radius = max(radius, r)
+        pts += [v]
+    tesspts = []
+    for pt0,pt1 in zip(pts[:-1],pts[1:]):
+        for i in range(2):
+            p = i / 2
+            tesspts += [pt0 + (pt1-pt0)*p]
+    tesspts += [pts[-1]]
+    return (tesspts, radius)
 
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool):
@@ -28,6 +62,39 @@ class RFTool_PolyStrips(RFTool):
     
     def update(self):
         self.cbs = None
+        
+        # get selected quads
+        bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
+        if not bmquads: return
+        
+        # find strips
+        touched = set()
+        self.cbs = CubicBezierSpline()
+        for bmf0 in bmquads:
+            bme0,bme1,bme2,bme3 = bmf0.edges
+            edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf0.edges]
+            if edge0 != edge2:              # either edge0 or edge2 is edge.  crawl other way!
+                strip = crawl_strip(bmf0, bme2 if edge0 else bme0, bmquads)
+                bmf1 = strip[-1]
+                if len(strip) >= 3 and (bmf0,bmf1) not in touched:
+                    touched.add((bmf0,bmf1))
+                    touched.add((bmf1,bmf0))
+                    pts,r = strip_details(strip)
+                    print(strip)
+                    print(pts)
+                    print(r)
+                    self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000)
+            if edge1 != edge3:              # either edge1 or edge3 is edge.  crawl other way!
+                strip = crawl_strip(bmf0, bme3 if edge1 else bme1, bmquads)
+                bmf1 = strip[-1]
+                if len(strip) >= 3 and (bmf0,bmf1) not in touched:
+                    touched.add((bmf0,bmf1))
+                    touched.add((bmf1,bmf0))
+                    pts,r = strip_details(strip)
+                    print(strip)
+                    print(pts)
+                    print(r)
+                    self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000)
     
     @RFTool.dirty_when_done
     def stroke(self):
@@ -75,15 +142,13 @@ class RFTool_PolyStrips(RFTool):
             self.rfcontext.undo_push('select')
             bmf = self.rfcontext.nearest2D_face_mouse()
             if bmf:
-                self.rfcontext.select(bmf)
-                self.update()
+                self.rfcontext.select(bmf, supparts=False)
             return
         if self.rfcontext.actions.using('select add'):
             self.rfcontext.undo_push('select add')
             bmf = self.rfcontext.nearest2D_face_mouse()
             if bmf:
-                self.rfcontext.select(bmf, only=False)
-                self.update()
+                self.rfcontext.select(bmf, supparts=False, only=False)
             return
     
     def draw_postview(self):
