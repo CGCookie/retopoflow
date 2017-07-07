@@ -86,6 +86,7 @@ class Actions:
         self.keymap = deepcopy(self.default_keymap)
         self.load_keymap('Blender')
         self.load_keymap('Blender User')
+        #print('navigation: ' + str(self.keymap['navigate']))
         
         self.context = None
         self.region = None

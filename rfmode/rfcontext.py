@@ -337,6 +337,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             self.set_cursor('DEFAULT')
         
         if self.actions.pressed('select all'):
+            self.undo_push('select all')
             self.select_toggle()
             return {}
         

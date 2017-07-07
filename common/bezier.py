@@ -48,10 +48,10 @@ def fit_cubicbezier(l_v, l_t):
     
     # make the summation functions for b (4 of them)
     b_fns = [
-        lambda l_t,l_v: sum([-2*v*t**0*(t-1)**3 for t,v in zip(l_t,l_v)]),
-        lambda l_t,l_v: sum([ 6*v*t**1*(t-1)**2 for t,v in zip(l_t,l_v)]),
-        lambda l_t,l_v: sum([-6*v*t**2*(t-1)**1 for t,v in zip(l_t,l_v)]),
-        lambda l_t,l_v: sum([ 2*v*t**3*(t-1)**0 for t,v in zip(l_t,l_v)])
+        lambda l_t,l_v: sum(v * (-2 * (t**0) * ((t-1)**3)) for t,v in zip(l_t,l_v)),
+        lambda l_t,l_v: sum(v * ( 6 * (t**1) * ((t-1)**2)) for t,v in zip(l_t,l_v)),
+        lambda l_t,l_v: sum(v * (-6 * (t**2) * ((t-1)**1)) for t,v in zip(l_t,l_v)),
+        lambda l_t,l_v: sum(v * ( 2 * (t**3) * ((t-1)**0)) for t,v in zip(l_t,l_v)),
         ]
     
     # compute the data we will put into matrix A
@@ -83,16 +83,23 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     where t0 and t3 are the passed-in t0 and t3
     and p0,p1,p2,p3 are the control points of bezier
     '''
-    assert l_co
-    if len(l_co)<3:
+    count = len(l_co)
+    spc = '  ' * depth
+    print(spc + 'count = %d' % count)
+    if count == 0: assert False
+    if count == 1: assert False
+    if count == 2:
         p0,p3 = l_co[0],l_co[-1]
         p12 = (p0+p3)/2
         return [(t0,t3,p0,p12,p12,p3)]
+    if count == 3:
+        new_co = [l_co[0], (l_co[0]+l_co[1])/2, l_co[1], (l_co[1]+l_co[2])/2, l_co[2]]
+        return fit_cubicbezier_spline(new_co, error_scale, depth=depth, t0=t0, t3=t3, allow_split=allow_split, force_split=force_split)
     l_d  = [0] + [(v0-v1).length for v0,v1 in zip(l_co[:-1],l_co[1:])]
     l_ad = [s for d,s in iter_running_sum(l_d)]
     dist = sum(l_d)
     if dist <= 0:
-        print('fit_cubicbezier_spline: returning []')
+        print(spc + 'fit_cubicbezier_spline: returning []')
         return [] #[(t0,t3,l_co[0],l_co[0],l_co[0],l_co[0])]
     l_t  = [ad/dist for ad in l_ad]
     
@@ -100,11 +107,12 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     ey,y0,y1,y2,y3 = fit_cubicbezier([co[1] for co in l_co], l_t)
     ez,z0,z1,z2,z3 = fit_cubicbezier([co[2] for co in l_co], l_t)
     tot_error = ex+ey+ez
-    print('total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
+    print(spc + 'total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
     
     if not force_split:
         if tot_error < error_scale or depth == 4 or len(l_co)<=15 or not allow_split:
             p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
+            p0,p3 = Point(l_co[0]),Point(l_co[-1])
             return [(t0,t3,p0,p1,p2,p3)]
     
     # too much error in fit.  split sequence in two, and fit each sub-sequence
@@ -131,11 +139,15 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     if ind_split == -1:
         # did not find a good splitting point!
         p0,p1,p2,p3 = Point((x0,y0,z0)),Point((x1,y1,z1)),Point((x2,y2,z2)),Point((x3,y3,z3))
+        p0,p3 = Point(l_co[0]),Point(l_co[-1])
         return [(t0,t3,p0,p1,p2,p3)]
     
+    print(spc + 'splitting at %d' % ind_split)
+    
+    l_co0,l_co1 = l_co[:ind_split+1],l_co[ind_split:]   # share split point
     tsplit = ind_split / (len(l_co)-1)
-    bezier0 = fit_cubicbezier_spline(l_co[:ind_split+1], error_scale, depth=depth+1, t0=t0, t3=tsplit)
-    bezier1 = fit_cubicbezier_spline(l_co[ind_split:], error_scale, depth=depth+1, t0=tsplit, t3=t3)
+    bezier0 = fit_cubicbezier_spline(l_co0, error_scale, depth=depth+1, t0=t0, t3=tsplit)
+    bezier1 = fit_cubicbezier_spline(l_co1, error_scale, depth=depth+1, t0=tsplit, t3=t3)
     return bezier0 + bezier1
 
 
@@ -154,7 +166,7 @@ class CubicBezier:
     def eval(self, t):
         p0,p1,p2,p3 = self.p0,self.p1,self.p2,self.p3
         b0,b1,b2,b3 = compute_cubic_weights(t)
-        return p0*b0 + p1*b1 + p2*b2 + p3*b3
+        return Point(Vector(p0)*b0 + Vector(p1)*b1 + Vector(p2)*b2 + Vector(p3)*b3)
     
     def eval_derivative(self, t):
         p0,p1,p2,p3 = self.p0,self.p1,self.p2,self.p3
