@@ -199,7 +199,7 @@ class CubicBezier:
                  \_/
                  p2
         '''
-        p0,p1,p2,p3 = self.p0,self.p1,self.p2,self.p3
+        p0,p1,p2,p3 = Vector(self.p0),Vector(self.p1),Vector(self.p2),Vector(self.p3)
         q0,q1,q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
         r0,r1    = (q0+q1)/2, (q1+q2)/2
         s        = (r0+r1)/2
@@ -211,15 +211,15 @@ class CubicBezier:
     def subdivide_linesegments(self, fn_dist, max_linearity=None):
         if self.compute_linearity(fn_dist) < (max_linearity or 0.1): return [self]
         # de casteljau subdivide:
-        p0,p1,p2,p3 = self.p0,self.p1,self.p2,self.p3
+        p0,p1,p2,p3 = Vector(self.p0),Vector(self.p1),Vector(self.p2),Vector(self.p3)
         q0,q1,q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
         r0,r1    = (q0+q1)/2, (q1+q2)/2
         s        = (r0+r1)/2
         cb0,cb1 = CubicBezier(p0,q0,r0,s),CubicBezier(s,r1,q2,p3)
-        return cb0.subdivide_linesegments(max_linearity=max_linearity) + cb1.subdivide_linesegments(max_linearity=max_linearity)
+        return cb0.subdivide_linesegments(fn_dist, max_linearity=max_linearity) + cb1.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
     
     def length(self, fn_dist, max_linearity=None):
-        l = self.subdivide_linesegments(max_linearity=max_linearity)
+        l = self.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
         return sum(fn_dist(cb.p0,cb.p3) for cb in l)
 
 
@@ -273,10 +273,28 @@ class CubicBezierSpline:
     def __iter__(self): return self.cbs.__iter__()
     
     def eval(self, t):
-        t = max(0.0, min(len(self), t))
-        #assert t >= 0 and t <= len(self)
-        idx = int(t)
-        return self.cbs[min(len(self)-1,idx)].eval(t - idx)
+        if t < 0.0:
+            t = 0
+            idx = 0
+        elif t >= len(self):
+            t = 1
+            idx = len(self)-1
+        else:
+            idx = int(t)
+            t = t - idx
+        return self.cbs[idx].eval(t)
+    
+    def eval_derivative(self, t):
+        if t < 0.0:
+            t = 0
+            idx = 0
+        elif t >= len(self):
+            t = 1
+            idx = len(self)-1
+        else:
+            idx = int(t)
+            t = t - idx
+        return self.cbs[idx].eval_derivative(t)
     
     def length(self, fn_dist, max_linearity=None):
         return sum(cb.length(fn_dist, max_linearity=max_linearity) for cb in self.cbs)

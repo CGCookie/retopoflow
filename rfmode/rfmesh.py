@@ -464,7 +464,7 @@ class RFMeshRender():
     RFMeshRender handles rendering RFMeshes.
     '''
     
-    ALWAYS_DIRTY = True
+    ALWAYS_DIRTY = False
     
     def __init__(self, rfmesh, opts):
         self.opts = opts

@@ -77,6 +77,8 @@ class RFTool_PolyStrips(RFTool):
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
         self.sel_cbpts = []
+        self.strokes = []
+        self.stroke_cbs = CubicBezierSpline()
         self.update()
     
     def update(self):
@@ -113,7 +115,7 @@ class RFTool_PolyStrips(RFTool):
                     print('strip: %s' % str(strip))
                     print('pts: %s' % str(pts))
                     print('radius: %f' % r)
-                    self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r)
+                    self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000.0)
             
             if not edge0: add_strip(bme0)
             if not edge1: add_strip(bme1)
@@ -128,7 +130,7 @@ class RFTool_PolyStrips(RFTool):
     
     @RFTool.dirty_when_done
     def stroke(self):
-        radius = self.rfwidget.radius #get_scaled_radius()
+        radius = self.rfwidget.get_scaled_radius()
         stroke2D = self.rfwidget.stroke2D
         stroke_len = len(stroke2D)
         bmfaces = []
@@ -147,25 +149,49 @@ class RFTool_PolyStrips(RFTool):
                 continue
             cur_stroke += [pt]
         if cur_stroke: strokes += [cur_stroke]
+        self.strokes = strokes
         
-        #self.cbs = CubicBezierSpline.create_from_points(strokes, radius/2000.0)
+        cbs = CubicBezierSpline.create_from_points(strokes, radius/2000.0)
+        length = cbs.length(lambda p0,p1: (p0-p1).length)
+        steps = round(length / radius)
+        if steps <= 1: return
+        p0,p1,p2,p3 = None,None,None,None
+        for i in range(steps):
+            t = (i / (steps-1)) * len(cbs)
+            center,normal,_,_ = self.rfcontext.nearest_sources_Point(cbs.eval(t))
+            direction = cbs.eval_derivative(t).normalized()
+            cross = normal.cross(direction).normalized()
+            back = center - direction * radius
+            if p0 is None:
+                p0 = self.rfcontext.new_vert_point(back - cross * radius)
+                p1 = self.rfcontext.new_vert_point(back + cross * radius)
+            # else:
+            #     p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
+            #     p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
+            front = center + direction * radius
+            p2 = self.rfcontext.new_vert_point(front + cross * radius)
+            p3 = self.rfcontext.new_vert_point(front - cross * radius)
+            bmfaces.append(self.rfcontext.new_face([p0,p1,p2,p3]))
+            p0,p1 = p3,p2
         
-        mini_stroke = [stroke2D[i] for i in range(0, stroke_len, int(stroke_len/10))]
-        left,right = [],[]
+        self.stroke_cbs = cbs
         
-        for c0,c1 in zip(mini_stroke[:-1],mini_stroke[1:]):
-            d = c1 - c0
-            ortho = Vec2D((-d.y, d.x)).normalized() * radius
-            lpt = self.rfcontext.get_point3D(c0+ortho)
-            rpt = self.rfcontext.get_point3D(c0-ortho)
-            if lpt and rpt:
-                left.append(self.rfcontext.new_vert_point(lpt))
-                right.append(self.rfcontext.new_vert_point(rpt))
+        # mini_stroke = [stroke2D[i] for i in range(0, stroke_len, int(stroke_len/10))]
+        # left,right = [],[]
         
-        for i in range(len(left)-1):
-            l0,r0 = left[i],right[i]
-            l1,r1 = left[i+1],right[i+1]
-            bmfaces.append(self.rfcontext.new_face([l1,l0,r0,r1]))
+        # for c0,c1 in zip(mini_stroke[:-1],mini_stroke[1:]):
+        #     d = c1 - c0
+        #     ortho = Vec2D((-d.y, d.x)).normalized() * radius
+        #     lpt = self.rfcontext.get_point3D(c0+ortho)
+        #     rpt = self.rfcontext.get_point3D(c0-ortho)
+        #     if lpt and rpt:
+        #         left.append(self.rfcontext.new_vert_point(lpt))
+        #         right.append(self.rfcontext.new_vert_point(rpt))
+        
+        # for i in range(len(left)-1):
+        #     l0,r0 = left[i],right[i]
+        #     l1,r1 = left[i+1],right[i+1]
+        #     bmfaces.append(self.rfcontext.new_face([l1,l0,r0,r1]))
         
         self.rfcontext.select(bmfaces)
     
@@ -265,6 +291,25 @@ class RFTool_PolyStrips(RFTool):
     
     def draw_postview(self):
         self.draw_spline()
+        
+        stroke_pts = [[cb.eval(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
+        stroke_der = [[cb.eval_derivative(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
+        bgl.glLineWidth(1.0)
+        bgl.glColor4f(1,1,1,0.5)
+        for pts in stroke_pts:
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for pt in pts:
+                bgl.glVertex3f(*pt)
+            bgl.glEnd()
+        bgl.glColor4f(0,0,1,0.5)
+        bgl.glBegin(bgl.GL_LINES)
+        for pts,ders in zip(stroke_pts,stroke_der):
+            for pt,der in zip(pts,ders):
+                bgl.glVertex3f(*pt)
+                ptder = pt + der.normalized() * 0.3
+                bgl.glVertex3f(*ptder)
+        bgl.glEnd()
+        
     
     def draw_spline(self):
         if not self.cbs: return
@@ -317,7 +362,7 @@ class RFTool_PolyStrips(RFTool):
                     bgl.glVertex3f(*v1)
                 v0 = v1
         bgl.glEnd()
-    
+        
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glPointSize(10.0)
         bgl.glColor4f(1,1,1,0.05)
@@ -362,5 +407,6 @@ class RFTool_PolyStrips(RFTool):
         bgl.glDepthRange(0.0, 1.0)
         bgl.glDepthMask(bgl.GL_TRUE)
     
-    def draw_postpixel(self): pass
+    def draw_postpixel(self):
+        pass
     
