@@ -5,8 +5,8 @@ from ..common.maths import Vec, Point, Point2D, Direction
 
 class RFWidget_BrushFalloff:
     def brushfalloff_modal_main(self):
-        if self.rfcontext.actions.pressed('brush size'):
-            return 'size'
+        if self.rfcontext.actions.pressed('brush radius'):
+            return 'radius'
         if self.rfcontext.actions.pressed('brush strength'):
             return 'strength'
         if self.rfcontext.actions.pressed('brush falloff'):

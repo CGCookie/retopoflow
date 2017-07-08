@@ -24,8 +24,8 @@ class RFWidget_BrushStroke:
         if self.mode not in {'main','stroke'}: return
         if not self.hit: return
         cx,cy,cp = self.x,self.y,self.p
-        cs_outer = self.s * self.radius
-        cs_inner = self.s * self.radius * 0.5
+        cs_outer = self.s * self.size
+        cs_inner = self.s * self.size * 0.5
         cr,cg,cb = self.color
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
@@ -117,8 +117,8 @@ class RFWidget_BrushStroke:
         
         
         cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
-        cs_outer = self.radius
-        cs_inner = self.radius * 0.5
+        cs_outer = self.size
+        cs_inner = self.size * 0.5
         cr,cg,cb = self.color
         
         bgl.glLineWidth(2.0)

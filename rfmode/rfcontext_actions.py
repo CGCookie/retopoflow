@@ -43,6 +43,7 @@ class Actions:
         'grab': {'G'},
         
         # widget
+        'brush radius': {'F'},
         'brush size': {'F'},
         'brush falloff': {'CTRL+SHIFT+F'},
         'brush strength': {'SHIFT+F'},

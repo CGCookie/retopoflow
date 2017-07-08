@@ -75,20 +75,24 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
             }
         self.FSM = {
             'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
-            'size':     self.modal_size,
+            'radius':   self.modal_radius,
             'strength': self.modal_strength,
             'falloff':  self.modal_falloff,
+            'size':     self.modal_size,
             'stroke':   self.modal_stroke,
         }
         
         self.view = 'brush falloff'
+        self.color = (1,1,1)
+        
+        # brushfalloff properties
         self.radius = 50.0
         self.falloff = 1.5
         self.strength = 0.5
+        
+        # brushstroke properties
+        self.size = 20.0
         self.tightness = 0.95
-        
-        self.color = (1,1,1)
-        
         self.stroke2D = []
         self.stroke2D_left = []
         self.stroke2D_right = []
@@ -157,6 +161,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     def get_scaled_radius(self):
         return self.s * self.radius
     
+    def get_scaled_size(self):
+        return self.s * self.size
+    
     def get_strength_dist(self, dist:float):
         return (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)) * self.strength
     
@@ -194,7 +201,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
         newpos = lstpos + (curpos - lstpos) * (1 - self.tightness)
         self.stroke2D.append(newpos)
     
-    def modal_size(self):
+    def modal_radius(self):
         actions = self.rfcontext.actions
         w,h = actions.size
         center = Point2D((w/2, h/2))
@@ -215,6 +222,29 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
             return 'main'
         
         self.radius = (center - actions.mouse).length
+        return ''
+    
+    def modal_size(self):
+        actions = self.rfcontext.actions
+        w,h = actions.size
+        center = Point2D((w/2, h/2))
+        
+        if self.draw_mode == 'view':
+            # first time
+            self.mousepre = Point2D(actions.mouse)
+            actions.warp_mouse(Point2D((w/2 + self.size, h/2)))
+            self.draw_mode = 'pixel'
+            self.sizepre = self.size
+            return ''
+        
+        if actions.pressed({'cancel','confirm'}, unpress=False):
+            if actions.pressed('cancel'): self.size = self.sizepre
+            actions.unpress()
+            self.draw_mode = 'view'
+            actions.warp_mouse(self.mousepre)
+            return 'main'
+        
+        self.size = (center - actions.mouse).length
         return ''
     
     def modal_falloff(self):

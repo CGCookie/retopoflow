@@ -130,7 +130,7 @@ class RFTool_PolyStrips(RFTool):
     
     @RFTool.dirty_when_done
     def stroke(self):
-        radius = self.rfwidget.get_scaled_radius()
+        radius = self.rfwidget.get_scaled_size()
         stroke2D = self.rfwidget.stroke2D
         stroke_len = len(stroke2D)
         bmfaces = []
