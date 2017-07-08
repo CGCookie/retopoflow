@@ -130,7 +130,7 @@ class RFEdge(BMElemWrapper):
     
     def split(self, vert=None, fac=0.5):
         bme = BMElemWrapper._unwrap(self)
-        vert = BMElemWrapper._unwrap(vert) or bme.verts[0]
+        bmv = BMElemWrapper._unwrap(vert) or bme.verts[0]
         bme_new,bmv_new = edge_split(bme, bmv, fac)
         return BMElemWrapper(bme_new), BMElemWrapper(bmv_new)
 

@@ -58,6 +58,15 @@ class RFTool_PolyPen(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
+        
+        if self.rfcontext.actions.pressed('SPACE'):
+            bmes = self.rfcontext.get_selected_edges()
+            bmvs = []
+            for bme in bmes:
+                _,bmv = bme.split()
+                bmvs.append(bmv)
+            self.rfcontext.select(bmvs)
+            self.rfcontext.dirty()
     
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
