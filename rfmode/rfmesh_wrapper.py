@@ -1,5 +1,6 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from bmesh.utils import edge_split
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -31,6 +32,12 @@ class BMElemWrapper:
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
         BMElemWrapper.symmetry   = rftarget.symmetry
+    
+    @staticmethod
+    def _unwrap(bmelem):
+        if bmelem is None: return None
+        if isinstance(bmelem, BMElemWrapper): return bmelem.bmelem
+        return bmelem
     
     def __init__(self, bmelem):
         self.bmelem = bmelem
@@ -118,6 +125,14 @@ class RFEdge(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    #############################################
+    
+    def split(self, vert=None, fac=0.5):
+        bme = BMElemWrapper._unwrap(self)
+        vert = BMElemWrapper._unwrap(vert) or bme.verts[0]
+        bme_new,bmv_new = edge_split(bme, bmv, fac)
+        return BMElemWrapper(bme_new), BMElemWrapper(bmv_new)
 
 
 class RFFace(BMElemWrapper):
