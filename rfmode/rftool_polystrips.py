@@ -67,6 +67,8 @@ class RFTool_PolyStrips(RFTool):
     def init(self):
         self.FSM['move bmf'] = self.modal_move_bmf
         self.FSM['manip bezier'] = self.modal_manip_bezier
+        
+        self.point_size = 10
     
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
@@ -196,38 +198,36 @@ class RFTool_PolyStrips(RFTool):
         self.rfcontext.select(bmfaces)
     
     def modal_main(self):
-        if self.rfcontext.actions.pressed('select'):
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = 'select'
-            self.move_cancelled = 'cancel no select'
-            
-            # check if control point is under cursor
-            self.sel_cbpts = []
-            for cb in self.cbs:
-                for cb_pt in cb:
-                    cb_pt2D = self.rfcontext.Point_to_Point2D(cb_pt)
-                    if (cb_pt2D - self.rfcontext.actions.mouse).length < 10:
-                        self.sel_cbpts.append(cb_pt)
-            if self.sel_cbpts:
-                self.prep_manip()
-                self.rfcontext.undo_push('manipulate bezier')
-                return 'manip bezier'
-            
-            self.rfcontext.undo_push('select')
-            bmf = self.rfcontext.nearest2D_face_mouse()
-            if not bmf: return
-            self.rfcontext.select(bmf, supparts=False)
-            self.prep_move()
-            self.rfcontext.undo_push('move single')
-            return 'move bmf'
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        mouse = self.rfcontext.actions.mouse
+        hovering = []
+        for cbpts in self.cbs:
+            for cbpt in cbpts:
+                v = Point_to_Point2D(cbpt)
+                if (mouse - v).length < self.point_size:
+                    hovering.append(cbpt)
+        if hovering:
+            self.rfwidget.set_widget('move')
+        else:
+            self.rfwidget.set_widget('brush stroke')
         
-        if self.rfcontext.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
+        if hovering and self.rfcontext.actions.pressed('action'):
             self.move_done_pressed = 'confirm'
-            self.move_done_released = None
+            self.move_done_released = 'action'
             self.move_cancelled = 'cancel'
-            return 'move bmf'
+            self.sel_cbpts = hovering
+            self.prep_manip()
+            self.rfcontext.undo_push('manipulate bezier')
+            return 'manip bezier'
+        
+        if self.rfcontext.actions.using('select'):
+            if self.rfcontext.actions.pressed('select'):
+                self.rfcontext.undo_push('select')
+                self.rfcontext.deselect_all()
+            bmf = self.rfcontext.nearest2D_face_mouse()
+            if bmf and not bmf.select:
+                self.rfcontext.select(bmf, supparts=False, only=False)
+            return
         
         if self.rfcontext.actions.using('select add'):
             if self.rfcontext.actions.pressed('select add'):
@@ -236,12 +236,21 @@ class RFTool_PolyStrips(RFTool):
             if bmf and not bmf.select:
                 self.rfcontext.select(bmf, supparts=False, only=False)
             return
+        
+        if self.rfcontext.actions.pressed('grab'):
+            self.rfcontext.undo_push('move grabbed')
+            self.prep_move()
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            self.move_cancelled = 'cancel'
+            return 'move bmf'
     
     def prep_manip(self):
         self.sel_cbpts = [(cbpt, self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in self.sel_cbpts]
         self.mousedown = self.rfcontext.actions.mouse
-        self.rfwidget.set_widget('default')
+        self.rfwidget.set_widget('move')
     
+    @RFTool.dirty_when_done
     def modal_manip_bezier(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.rfwidget.set_widget('brush stroke')
@@ -261,7 +270,6 @@ class RFTool_PolyStrips(RFTool):
         #self.update()
         self.cbs_pts = [[cb.eval(i / 10) for i in range(10+1)] for cb in self.cbs]
     
-    
     def prep_move(self, bmfaces=None):
         if not bmfaces: bmfaces = self.rfcontext.get_selected_faces()
         bmverts = set(bmv for bmf in bmfaces for bmv in bmf.verts)
@@ -269,6 +277,7 @@ class RFTool_PolyStrips(RFTool):
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
     
+    @RFTool.dirty_when_done
     def modal_move_bmf(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.rfwidget.set_widget('brush stroke')
@@ -316,15 +325,15 @@ class RFTool_PolyStrips(RFTool):
         
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(2.0)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         bgl.glEnable(bgl.GL_DEPTH_TEST)
 
         ######################################
         # draw in front of geometry
-
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glPointSize(10.0)
+        
+        # draw control points
+        bgl.glPointSize(self.point_size)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_POINTS)
         for cb in self.cbs:
@@ -334,26 +343,23 @@ class RFTool_PolyStrips(RFTool):
             bgl.glVertex3f(*p2)
             bgl.glVertex3f(*p3)
         bgl.glEnd()
-        if False:
-            bgl.glColor4f(0.5,1.0,0.5,1.0)
-            bgl.glPointSize(20.0)
-            bgl.glBegin(bgl.GL_POINTS)
-            for cbpt,_ in self.sel_cbpts:
-                bgl.glVertex3f(*cbpt)
-            bgl.glEnd()
+        
+        # draw outer-inner lines
+        bgl.glLineWidth(2.0)
+        bgl.glColor4f(1,0.5,0.5,0.4)
+        bgl.glBegin(bgl.GL_LINES)
+        for cb in self.cbs:
+            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+            bgl.glVertex3f(*p2)
+            bgl.glVertex3f(*p3)
+        bgl.glEnd()
+        
+        # draw curve
+        bgl.glLineWidth(2.0)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_LINES)
-        if False:
-            # draw line segments between control points of bezier
-            for cb in self.cbs:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        # draw bezier curve
         for pts in self.cbs_pts:
             v0 = None
             for v1 in pts:
@@ -363,9 +369,13 @@ class RFTool_PolyStrips(RFTool):
                 v0 = v1
         bgl.glEnd()
         
+        ######################################
+        # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        bgl.glPointSize(10.0)
-        bgl.glColor4f(1,1,1,0.05)
+        
+        # draw control points
+        bgl.glPointSize(self.point_size)
+        bgl.glColor4f(1,1,1,0.25)
         bgl.glBegin(bgl.GL_POINTS)
         for cb in self.cbs:
             p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
@@ -374,26 +384,23 @@ class RFTool_PolyStrips(RFTool):
             bgl.glVertex3f(*p2)
             bgl.glVertex3f(*p3)
         bgl.glEnd()
-        if False:
-            bgl.glColor4f(0.5,1.0,0.5,0.1)
-            bgl.glPointSize(20.0)
-            bgl.glBegin(bgl.GL_POINTS)
-            for cbpt,_ in self.sel_cbpts:
-                bgl.glVertex3f(*cbpt)
-            bgl.glEnd()
-        bgl.glColor4f(1,1,1,0.05)
+        
+        # draw outer-inner lines
+        bgl.glLineWidth(2.0)
+        bgl.glColor4f(1,0.5,0.5,0.2)
         bgl.glBegin(bgl.GL_LINES)
-        if False:
-            # draw line segments between control points of bezier
-            for cb in self.cbs:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        # draw bezier curve
+        for cb in self.cbs:
+            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+            bgl.glVertex3f(*p2)
+            bgl.glVertex3f(*p3)
+        bgl.glEnd()
+        
+        # draw curve
+        bgl.glLineWidth(2.0)
+        bgl.glColor4f(1,1,1,0.25)
+        bgl.glBegin(bgl.GL_LINES)
         for pts in self.cbs_pts:
             v0 = None
             for v1 in pts:

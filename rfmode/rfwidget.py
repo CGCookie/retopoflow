@@ -27,11 +27,12 @@ from mathutils import Matrix, Vector
 from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 
 from .rfwidget_default import RFWidget_Default
+from .rfwidget_move import RFWidget_Move
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
 from .rfwidget_brushstroke import RFWidget_BrushStroke
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
+class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move):
     instance = None
     rfcontext = None
     
@@ -59,6 +60,12 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
                 'postpixel':    self.default_postpixel,
                 'mouse_cursor': self.default_mouse_cursor,
                 'modal_main':   self.default_modal_main,
+                },
+            'move': {
+                'postview':     self.move_postview,
+                'postpixel':    self.move_postpixel,
+                'mouse_cursor': self.move_mouse_cursor,
+                'modal_main':   self.move_modal_main,
                 },
             'brush falloff': {
                 'postview':     self.brushfalloff_postview,
