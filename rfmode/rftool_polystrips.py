@@ -13,6 +13,82 @@ class RFTool_State():
         for k,v in kv.items():
             self.__setattr__(k, v)
 
+def find_shared_edge(bmf0, bmf1):
+    for e0 in bmf0.edges:
+        for e1 in bmf1.edges:
+            if e0 == e1: return e0
+    return None
+
+
+class RFTool_PolyStrips_Strip:
+    def __init__(self, bmf_strip):
+        pts,r = strip_details(bmf_strip)
+        self.bmf_strip = bmf_strip
+        self.cbs = CubicBezierSpline.create_from_points([pts], r/2000.0)
+        
+        self.bmvs = []
+        for bmfp,bmf,bmfn in zip([None] + bmf_strip[:-1], bmf_strip, bmf_strip[1:] + [None]):
+            bme0 = find_shared_edge(bmfp,bmf) if bmfp else None
+            bme1 = find_shared_edge(bmfn,bmf) if bmfn else None
+            bmvs = bmf.verts
+            if bme0:
+                bme0_bmv = [any(bmv == bme0v for bme0v in bme0.verts) for bmv in bmvs]
+                if   bme0_bmv[0] and bme0_bmv[1]: self.bmvs += [(bmvs[0], bmvs[1], bmvs[2], bmvs[3])]
+                elif bme0_bmv[1] and bme0_bmv[2]: self.bmvs += [(bmvs[1], bmvs[2], bmvs[3], bmvs[0])]
+                elif bme0_bmv[2] and bme0_bmv[3]: self.bmvs += [(bmvs[2], bmvs[3], bmvs[0], bmvs[1])]
+                elif bme0_bmv[3] and bme0_bmv[0]: self.bmvs += [(bmvs[3], bmvs[0], bmvs[1], bmvs[2])]
+                else: assert False
+            else:
+                bme1_bmv = [any(bmv == bme1v for bme1v in bme1.verts) for bmv in bmvs]
+                if   bme1_bmv[2] and bme1_bmv[3]: self.bmvs += [(bmvs[0], bmvs[1], bmvs[2], bmvs[3])]
+                elif bme1_bmv[3] and bme1_bmv[0]: self.bmvs += [(bmvs[1], bmvs[2], bmvs[3], bmvs[0])]
+                elif bme1_bmv[0] and bme1_bmv[1]: self.bmvs += [(bmvs[2], bmvs[3], bmvs[0], bmvs[1])]
+                elif bme1_bmv[1] and bme1_bmv[2]: self.bmvs += [(bmvs[3], bmvs[0], bmvs[1], bmvs[2])]
+                else: assert False
+    
+    def __len__(self): return len(self.cbs)
+    
+    def __iter__(self): return iter(self.cbs)
+    
+    def __getitem__(self, key): return self.cbs[key]
+    
+    def update(self, nearest_sources_Point):
+        # go through bmf_strip and update positions
+        
+        length = self.cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
+        steps = 2 * (len(self.bmf_strip) - 1)
+        radius = length / steps
+        intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
+        ts = self.cbs.approximate_t_at_intervals(intervals, lambda p,q: (p-q).length)
+        
+        p0,p1,p2,p3 = None,None,None,None
+        for i,t in enumerate(ts):
+            if i % 2 == 1: continue
+            idx = i // 2
+            bmf = self.bmf_strip[idx]
+            bmv0,bmv1,bmv2,bmv3 = self.bmvs[idx]
+            center,normal,_,_ = nearest_sources_Point(self.cbs.eval(t))
+            direction = self.cbs.eval_derivative(t).normalized()
+            cross = normal.cross(direction).normalized()
+            back = center - direction * radius
+            if p0 is None:
+                p0 = back - cross * radius
+                p1 = back + cross * radius
+                bmv0.co = p0
+                bmv1.co = p1
+            else:
+                p0 = (Vector(p0) + Vector(back - cross * radius)) * 0.5
+                p1 = (Vector(p1) + Vector(back + cross * radius)) * 0.5
+                bmv0.co = p0
+                bmv1.co = p1
+            front = center + direction * radius
+            p2 = front + cross * radius
+            p3 = front - cross * radius
+            bmv2.co = p2
+            bmv3.co = p3
+            p0,p1 = p3,p2
+
+
 def is_edge(bme, only_bmfs):
     return len([f for f in bme.link_faces if f in only_bmfs]) == 1
 
@@ -84,12 +160,13 @@ class RFTool_PolyStrips(RFTool):
         self.update()
     
     def update(self):
-        self.cbs = []
+        self.strips = []
+        #self.cbs = []
         
         # get selected quads
         bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
         if not bmquads: return
-        print('bmquads len: %d' % len(bmquads))
+        # print('bmquads len: %d' % len(bmquads))
         
         # find knots
         knots = set()
@@ -101,34 +178,39 @@ class RFTool_PolyStrips(RFTool):
         
         # find strips between knots
         touched = set()
-        self.cbs = CubicBezierSpline()
+        self.strips = []
+        #self.cbs = CubicBezierSpline()
         for bmf0 in knots:
             bme0,bme1,bme2,bme3 = bmf0.edges
             edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf0.edges]
             
             def add_strip(bme):
                 strip = crawl_strip(bmf0, bme, bmquads, knots)
-                print('quads in strip: %d' % len(strip))
+                # print('quads in strip: %d' % len(strip))
                 bmf1 = strip[-1]
                 if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
                     touched.add(hash_face_pair(bmf0,bmf1))
                     touched.add(hash_face_pair(bmf1,bmf0))
-                    pts,r = strip_details(strip)
-                    print('strip: %s' % str(strip))
-                    print('pts: %s' % str(pts))
-                    print('radius: %f' % r)
-                    self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000.0)
+                    self.strips.append(RFTool_PolyStrips_Strip(strip))
+                    #pts,r = strip_details(strip)
+                    #print('strip: %s' % str(strip))
+                    #print('pts: %s' % str(pts))
+                    #print('radius: %f' % r)
+                    #self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000.0)
             
             if not edge0: add_strip(bme0)
             if not edge1: add_strip(bme1)
             if not edge2: add_strip(bme2)
             if not edge3: add_strip(bme3)
         
-        print('touched len: %d' % len(touched))
-        print('bezier count: %d' % len(self.cbs))
-        print(touched)
-        self.cbs_pts = [[cb.eval(i / 10) for i in range(10+1)] for cb in self.cbs]
+        #print('touched len: %d' % len(touched))
+        #print('bezier count: %d' % len(self.cbs))
+        #print(touched)
+        #self.cbs_pts = [[cb.eval(i / 10) for i in range(10+1)] for cb in self.cbs]
+        self.update_strip_viz()
     
+    def update_strip_viz(self):
+        self.strip_pts = [[cb.eval(i/10) for i in range(10+1)] for strip in self.strips for cb in strip]
     
     @RFTool.dirty_when_done
     def stroke(self):
@@ -154,11 +236,11 @@ class RFTool_PolyStrips(RFTool):
         self.strokes = strokes
         
         cbs = CubicBezierSpline.create_from_points(strokes, radius/2000.0)
-        length = cbs.approximate_totlength_uniform(lambda p0,p1: (p0-p1).length)
+        length = cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
         steps = round(length / radius)
+        steps += steps % 2              # make sure that we have even number of steps
         intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
         ts = cbs.approximate_t_at_intervals(intervals, lambda p,q: (p-q).length)
-        print('ts: ' + str(ts))
         
         if steps <= 1: return
         p0,p1,p2,p3 = None,None,None,None
@@ -205,11 +287,12 @@ class RFTool_PolyStrips(RFTool):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
         hovering = []
-        for cbpts in self.cbs:
-            for cbpt in cbpts:
-                v = Point_to_Point2D(cbpt)
-                if (mouse - v).length < self.point_size:
-                    hovering.append(cbpt)
+        for strip in self.strips:
+            for cb in strip:
+                for cbpt in cb:
+                    v = Point_to_Point2D(cbpt)
+                    if (mouse - v).length < self.point_size:
+                        hovering.append(cbpt)
         if hovering:
             self.rfwidget.set_widget('move')
         else:
@@ -271,8 +354,10 @@ class RFTool_PolyStrips(RFTool):
         for cbpt,oco in self.sel_cbpts:
             xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco + delta)
             if xyz: cbpt.xyz = xyz
+        
+        for strip in self.strips: strip.update(self.rfcontext.nearest_sources_Point)
         #self.update()
-        self.cbs_pts = [[cb.eval(i / 10) for i in range(10+1)] for cb in self.cbs]
+        self.update_strip_viz()
     
     def prep_move(self, bmfaces=None):
         if not bmfaces: bmfaces = self.rfcontext.get_selected_faces()
@@ -305,27 +390,28 @@ class RFTool_PolyStrips(RFTool):
     def draw_postview(self):
         self.draw_spline()
         
-        stroke_pts = [[cb.eval(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
-        stroke_der = [[cb.eval_derivative(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
-        bgl.glLineWidth(1.0)
-        bgl.glColor4f(1,1,1,0.5)
-        for pts in stroke_pts:
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            for pt in pts:
-                bgl.glVertex3f(*pt)
+        if False:
+            stroke_pts = [[cb.eval(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
+            stroke_der = [[cb.eval_derivative(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
+            bgl.glLineWidth(1.0)
+            bgl.glColor4f(1,1,1,0.5)
+            for pts in stroke_pts:
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                for pt in pts:
+                    bgl.glVertex3f(*pt)
+                bgl.glEnd()
+            bgl.glColor4f(0,0,1,0.5)
+            bgl.glBegin(bgl.GL_LINES)
+            for pts,ders in zip(stroke_pts,stroke_der):
+                for pt,der in zip(pts,ders):
+                    bgl.glVertex3f(*pt)
+                    ptder = pt + der.normalized() * 0.3
+                    bgl.glVertex3f(*ptder)
             bgl.glEnd()
-        bgl.glColor4f(0,0,1,0.5)
-        bgl.glBegin(bgl.GL_LINES)
-        for pts,ders in zip(stroke_pts,stroke_der):
-            for pt,der in zip(pts,ders):
-                bgl.glVertex3f(*pt)
-                ptder = pt + der.normalized() * 0.3
-                bgl.glVertex3f(*ptder)
-        bgl.glEnd()
         
     
     def draw_spline(self):
-        if not self.cbs: return
+        if not self.strips: return
         
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
@@ -340,31 +426,33 @@ class RFTool_PolyStrips(RFTool):
         bgl.glPointSize(self.point_size)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_POINTS)
-        for cb in self.cbs:
-            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-            bgl.glVertex3f(*p2)
-            bgl.glVertex3f(*p3)
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                bgl.glVertex3f(*p0)
+                bgl.glVertex3f(*p1)
+                bgl.glVertex3f(*p2)
+                bgl.glVertex3f(*p3)
         bgl.glEnd()
         
         # draw outer-inner lines
         bgl.glLineWidth(2.0)
         bgl.glColor4f(1,0.5,0.5,0.4)
         bgl.glBegin(bgl.GL_LINES)
-        for cb in self.cbs:
-            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-            bgl.glVertex3f(*p2)
-            bgl.glVertex3f(*p3)
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                bgl.glVertex3f(*p0)
+                bgl.glVertex3f(*p1)
+                bgl.glVertex3f(*p2)
+                bgl.glVertex3f(*p3)
         bgl.glEnd()
         
         # draw curve
         bgl.glLineWidth(2.0)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_LINES)
-        for pts in self.cbs_pts:
+        for pts in self.strip_pts:
             v0 = None
             for v1 in pts:
                 if v0:
@@ -381,31 +469,33 @@ class RFTool_PolyStrips(RFTool):
         bgl.glPointSize(self.point_size)
         bgl.glColor4f(1,1,1,0.25)
         bgl.glBegin(bgl.GL_POINTS)
-        for cb in self.cbs:
-            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-            bgl.glVertex3f(*p2)
-            bgl.glVertex3f(*p3)
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                bgl.glVertex3f(*p0)
+                bgl.glVertex3f(*p1)
+                bgl.glVertex3f(*p2)
+                bgl.glVertex3f(*p3)
         bgl.glEnd()
         
         # draw outer-inner lines
         bgl.glLineWidth(2.0)
         bgl.glColor4f(1,0.5,0.5,0.2)
         bgl.glBegin(bgl.GL_LINES)
-        for cb in self.cbs:
-            p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-            bgl.glVertex3f(*p2)
-            bgl.glVertex3f(*p3)
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                bgl.glVertex3f(*p0)
+                bgl.glVertex3f(*p1)
+                bgl.glVertex3f(*p2)
+                bgl.glVertex3f(*p3)
         bgl.glEnd()
         
         # draw curve
         bgl.glLineWidth(2.0)
         bgl.glColor4f(1,1,1,0.25)
         bgl.glBegin(bgl.GL_LINES)
-        for pts in self.cbs_pts:
+        for pts in self.strip_pts:
             v0 = None
             for v1 in pts:
                 if v0:

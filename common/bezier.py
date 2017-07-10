@@ -75,7 +75,7 @@ def fit_cubicbezier(l_v, l_t):
     
     return (err,v0,v1,v2,v3)
 
-def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=True, force_split=False):
+def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=True, force_split=False):
     '''
     fits cubic bezier to given points
     returns list of tuples of (t0,t3,p0,p1,p2,p3)
@@ -84,8 +84,9 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     and p0,p1,p2,p3 are the control points of bezier
     '''
     count = len(l_co)
-    spc = '  ' * depth
-    print(spc + 'count = %d' % count)
+    if t3 == -1: t3 = count-1
+    # spc = '  ' * depth
+    # print(spc + 'count = %d' % count)
     if count == 0: assert False
     if count == 1: assert False
     if count == 2:
@@ -99,7 +100,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     l_ad = [s for d,s in iter_running_sum(l_d)]
     dist = sum(l_d)
     if dist <= 0:
-        print(spc + 'fit_cubicbezier_spline: returning []')
+        # print(spc + 'fit_cubicbezier_spline: returning []')
         return [] #[(t0,t3,l_co[0],l_co[0],l_co[0],l_co[0])]
     l_t  = [ad/dist for ad in l_ad]
     
@@ -107,7 +108,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
     ey,y0,y1,y2,y3 = fit_cubicbezier([co[1] for co in l_co], l_t)
     ez,z0,z1,z2,z3 = fit_cubicbezier([co[2] for co in l_co], l_t)
     tot_error = ex+ey+ez
-    print(spc + 'total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
+    # print(spc + 'total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
     
     if not force_split:
         if tot_error < error_scale or depth == 4 or len(l_co)<=15 or not allow_split:
@@ -142,10 +143,10 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
         #p0,p3 = Point(l_co[0]),Point(l_co[-1])
         return [(t0,t3,p0,p1,p2,p3)]
     
-    print(spc + 'splitting at %d' % ind_split)
+    #print(spc + 'splitting at %d' % ind_split)
     
     l_co0,l_co1 = l_co[:ind_split+1],l_co[ind_split:]   # share split point
-    tsplit = ind_split / (len(l_co)-1)
+    tsplit = ind_split # / (len(l_co)-1)
     bezier0 = fit_cubicbezier_spline(l_co0, error_scale, depth=depth+1, t0=t0, t3=tsplit)
     bezier1 = fit_cubicbezier_spline(l_co1, error_scale, depth=depth+1, t0=tsplit, t3=t3)
     return bezier0 + bezier1
@@ -258,24 +259,28 @@ class CubicBezierSpline:
         Estimates best spline to fit given points
         '''
         cbs = []
+        inds = []
         for pts in pts_list:
             cbs_pts = fit_cubicbezier_spline(pts, max_error)
             cbs += [CubicBezier(p0,p1,p2,p3) for _,_,p0,p1,p2,p3 in cbs_pts]
-        return CubicBezierSpline(cbs=cbs)
+            inds += [(ind0,ind1) for ind0,ind1,_,_,_,_ in cbs_pts]
+        return CubicBezierSpline(cbs=cbs, inds=inds)
         
-    def __init__(self, cbs=None):
+    def __init__(self, cbs=None, inds=None):
         if cbs is None: cbs = []
+        if inds is None: inds = []
         if type(cbs) is CubicBezierSpline: cbs = [cb.copy() for cb in cbs.cbs]
         assert type(cbs) is list, "expected list"
         self.cbs = cbs
+        self.inds = inds
     
     def copy(self):
-        return CubicBezierSpline(cbs=[cb.copy() for cb in self.cbs])
+        return CubicBezierSpline(cbs=[cb.copy() for cb in self.cbs], inds=list(self.inds))
     
     def __add__(self, other):
         t = type(other)
         if t is CubicBezierSpline:
-            return CubicBezierSpline(self.cbs + other.cbs)
+            return CubicBezierSpline(self.cbs + other.cbs, self.inds + other.inds)
         if t is CubicBezier:
             return CubicBezierSpline(self.cbs + [other])
         if t is list:
@@ -286,10 +291,13 @@ class CubicBezierSpline:
         t = type(other)
         if t is CubicBezierSpline:
             self.cbs += other.cbs
+            self.inds += other.inds
         elif t is CubicBezier:
             self.cbs += [other]
+            self.inds = []
         elif t is list:
             self.cbs += other
+            self.inds = []
         else:
             assert False, "unhandled type: %s (%s)" % (str(other),str(t))
     
