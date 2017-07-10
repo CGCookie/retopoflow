@@ -154,12 +154,16 @@ class RFTool_PolyStrips(RFTool):
         self.strokes = strokes
         
         cbs = CubicBezierSpline.create_from_points(strokes, radius/2000.0)
-        length = cbs.length(lambda p0,p1: (p0-p1).length)
+        length = cbs.approximate_totlength_uniform(lambda p0,p1: (p0-p1).length)
         steps = round(length / radius)
+        intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
+        ts = cbs.approximate_t_at_intervals(intervals, lambda p,q: (p-q).length)
+        print('ts: ' + str(ts))
+        
         if steps <= 1: return
         p0,p1,p2,p3 = None,None,None,None
-        for i in range(steps):
-            t = (i / (steps-1)) * len(cbs)
+        for i,t in enumerate(ts):
+            if i % 2 == 1: continue
             center,normal,_,_ = self.rfcontext.nearest_sources_Point(cbs.eval(t))
             direction = cbs.eval_derivative(t).normalized()
             cross = normal.cross(direction).normalized()
@@ -167,9 +171,9 @@ class RFTool_PolyStrips(RFTool):
             if p0 is None:
                 p0 = self.rfcontext.new_vert_point(back - cross * radius)
                 p1 = self.rfcontext.new_vert_point(back + cross * radius)
-            # else:
-            #     p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
-            #     p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
+            else:
+                p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
+                p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
             front = center + direction * radius
             p2 = self.rfcontext.new_vert_point(front + cross * radius)
             p3 = self.rfcontext.new_vert_point(front - cross * radius)

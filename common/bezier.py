@@ -156,6 +156,8 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=T
 
 
 class CubicBezier:
+    split_default = 100
+    
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3
     
@@ -215,12 +217,35 @@ class CubicBezier:
         q0,q1,q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
         r0,r1    = (q0+q1)/2, (q1+q2)/2
         s        = (r0+r1)/2
-        cb0,cb1 = CubicBezier(p0,q0,r0,s),CubicBezier(s,r1,q2,p3)
-        return cb0.subdivide_linesegments(fn_dist, max_linearity=max_linearity) + cb1.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
+        cbs = CubicBezier(p0,q0,r0,s),CubicBezier(s,r1,q2,p3)
+        segs0,segs1 = [cb.subdivide_linesegments(fn_dist, max_linearity=max_linearity) for cb in cbs]
+        return segs0 + segs1
     
     def length(self, fn_dist, max_linearity=None):
         l = self.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
         return sum(fn_dist(cb.p0,cb.p3) for cb in l)
+    
+    def approximate_length_uniform(self, fn_dist, split=None):
+        split = split or self.split_default
+        p = self.p0
+        d = 0
+        for i in range(split):
+            q = self.eval((i+1) / split)
+            d += fn_dist(p,q)
+            p = q
+        return d
+    
+    def approximate_t_at_interval_uniform(self, interval, fn_dist, split=None):
+        split = split or self.split_default
+        p = self.p0
+        d = 0
+        for i in range(split):
+            percent = (i+1) / split
+            q = self.eval(percent)
+            d += fn_dist(p, q)
+            if interval <= d: return percent
+            p = q
+        return 1
 
 
 
@@ -296,8 +321,32 @@ class CubicBezierSpline:
             t = t - idx
         return self.cbs[idx].eval_derivative(t)
     
-    def length(self, fn_dist, max_linearity=None):
-        return sum(cb.length(fn_dist, max_linearity=max_linearity) for cb in self.cbs)
+    def approximate_totlength_uniform(self, fn_dist, split=None):
+        return sum(self.approximate_lengths_uniform(fn_dist, split=split))
+    
+    def approximate_lengths_uniform(self, fn_dist, split=None):
+        return [cb.approximate_length_uniform(fn_dist, split=split) for cb in self.cbs]
+    
+    def approximate_t_at_intervals(self, intervals, fn_dist, split=None):
+        lengths = self.approximate_lengths_uniform(fn_dist, split=split)
+        totlength = sum(lengths)
+        ts = []
+        for interval in intervals:
+            if interval < 0:
+                ts.append(0)
+                continue
+            if interval >= totlength:
+                ts.append(len(self.cbs))
+                continue
+            for i,length in enumerate(lengths):
+                if interval <= length:
+                    t = self.cbs[i].approximate_t_at_interval_uniform(interval, fn_dist, split=split)
+                    ts.append(i + t)
+                    break
+                interval -= length
+            else:
+                assert False
+        return ts
     
     def subdivide_linesegments(self, fn_dist, max_linearity=None):
         return CubicBezierSpline(cbi
