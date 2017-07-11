@@ -260,6 +260,15 @@ class RFMesh():
             if bmf.select: s.add(self.wrap_bmface(bmf))
         return s
     
+    def get_selection_center(self):
+        v,c = Vector(),0
+        for bmv in self.bme.verts:
+            if not bmv.select: continue
+            v += bmv.co
+            c += 1
+        if c == 0: return self.xform.l2w_point(Point((0,0,0)))
+        return self.xform.l2w_point(v / c)
+    
     def deselect_all(self):
         for bmv in self.bme.verts: bmv.select = False
         for bme in self.bme.edges: bme.select = False

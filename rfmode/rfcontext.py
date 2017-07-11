@@ -154,6 +154,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
         
+        self._init_rotate_about_active()    # must happen *AFTER* target is initialized!
+        
         if starting_tool:
             self.set_tool(starting_tool)
         else:
@@ -177,6 +179,22 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.nav = False                    # not currently navigating
         #self.set_tool(RFTool_Move())        # set default tool
     
+    def _init_rotate_about_active(self):
+        self._end_rotate_about_active()
+        o = bpy.data.objects.new('RetopoFlow_Rotate', None)
+        bpy.context.scene.objects.link(o)
+        o.select = True
+        bpy.context.scene.objects.active = o
+        self.rot_object = o
+        self.update_rot_object()
+    
+    def _end_rotate_about_active(self):
+        if 'RetopoFlow_Rotate' not in bpy.data.objects: return
+        # need to remove empty object for rotation
+        bpy.data.objects.remove(bpy.data.objects['RetopoFlow_Rotate'], do_unlink=True)
+        bpy.context.scene.objects.active = self.tar_object
+        self.rot_object = None
+    
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
         
@@ -185,9 +203,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             bpy.ops.object.mode_set(mode='OBJECT')
             bpy.ops.object.mode_set(mode='EDIT')
         
-        tar_object = RFContext.get_target()
-        assert tar_object, 'Could not find valid target?'
-        self.rftarget = RFTarget.new(tar_object)
+        self.tar_object = RFContext.get_target()
+        assert self.tar_object, 'Could not find valid target?'
+        self.rftarget = RFTarget.new(self.tar_object)
         
         # HACK! TODO: FIXME!
         color_select = self.settings.theme_colors_selection[self.settings.theme]
@@ -237,7 +255,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         pass
     
     def end(self):
-        pass
+        self._end_rotate_about_active()
     
     ###################################################
     # mouse cursor functions
