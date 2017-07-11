@@ -73,7 +73,7 @@ class RFTool_PolyStrips_Strip:
             off = center - pos
             off_cross = cross.dot(off)
             off_der = der.dot(off)
-            rot = math.acos(diffdir.dot(cross))
+            rot = math.acos(max(-0.99999,min(0.99999,diffdir.dot(cross))))
             if diffdir.dot(der) < 0: rot = -rot
             self.bmes += [(bme, t, rad, rot, off_cross, off_der)]
     
@@ -298,32 +298,73 @@ class RFTool_PolyStrips(RFTool):
         if cur_stroke: strokes += [cur_stroke]
         self.strokes = strokes
         
-        cbs = CubicBezierSpline.create_from_points(strokes, radius/2000.0)
-        length = cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
-        steps = round(length / radius)
-        steps += steps % 2              # make sure that we have even number of steps
-        intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
-        ts = cbs.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
+        def merge(p0, p1, q0, q1):
+            dp = p1.co - p0.co
+            dq = q1.co - q0.co
+            if dp.dot(dq) < 0: p0,p1 = p1,p0
+            q0.merge(p0)
+            q1.merge(p1)
         
-        if steps <= 1: return
-        p0,p1,p2,p3 = None,None,None,None
-        for i,t in enumerate(ts):
-            if i % 2 == 1: continue
-            center,normal,_,_ = self.rfcontext.nearest_sources_Point(cbs.eval(t))
-            direction = cbs.eval_derivative(t).normalized()
-            cross = normal.cross(direction).normalized()
-            back = center - direction * radius
-            if p0 is None:
-                p0 = self.rfcontext.new_vert_point(back - cross * radius)
-                p1 = self.rfcontext.new_vert_point(back + cross * radius)
+        def insert(cb, bme_start, bme_end):
+            length = cb.approximate_length_uniform(lambda p,q: (p-q).length)
+            steps = round(length / radius)
+            steps += steps % 2              # make sure that we have even number of steps
+            if steps <= 1: return
+            
+            intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
+            ts = cb.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
+            
+            fp0,fp1 = None,None
+            lp2,lp3 = None,None
+            p0,p1,p2,p3 = None,None,None,None
+            for i,t in enumerate(ts):
+                if i % 2 == 1: continue
+                center,normal,_,_ = self.rfcontext.nearest_sources_Point(cb.eval(t))
+                direction = cb.eval_derivative(t).normalized()
+                cross = normal.cross(direction).normalized()
+                back = center - direction * radius
+                if p0 is None:
+                    p0 = self.rfcontext.new_vert_point(back - cross * radius)
+                    p1 = self.rfcontext.new_vert_point(back + cross * radius)
+                    fp0,fp1 = p0,p1
+                else:
+                    p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
+                    p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
+                front = center + direction * radius
+                p2 = self.rfcontext.new_vert_point(front + cross * radius)
+                p3 = self.rfcontext.new_vert_point(front - cross * radius)
+                lp2,lp3 = p2,p3
+                bmfaces.append(self.rfcontext.new_face([p0,p1,p2,p3]))
+                p0,p1 = p3,p2
+            
+            if bme_start is not None:
+                bmv0,bmv1 = bme_start.verts
+                merge(fp0, fp1, bmv0, bmv1)
+            if bme_end is not None:
+                bmv0,bmv1 = bme_end.verts
+                merge(lp2, lp3, bmv0, bmv1)
+        
+        cbs = CubicBezierSpline.create_from_points(strokes, radius/20.0)
+        
+        for cb in cbs:
+            # pre-pass curve to see if we cross existing geo
+            p0,_,_,p3 = cb.points()
+            bmes0 = self.rfcontext.nearest_bmedges_Point(p0, radius)
+            bmes3 = self.rfcontext.nearest_bmedges_Point(p3, radius)
+            print('close to %d and %d' % (len(bmes0), len(bmes3)))
+            if bmes0:
+                bmes0 = sorted(bmes0, key=lambda d:d[1])
+                bme0 = bmes0[0][0]
             else:
-                p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
-                p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
-            front = center + direction * radius
-            p2 = self.rfcontext.new_vert_point(front + cross * radius)
-            p3 = self.rfcontext.new_vert_point(front - cross * radius)
-            bmfaces.append(self.rfcontext.new_face([p0,p1,p2,p3]))
-            p0,p1 = p3,p2
+                bme0 = None
+            if bmes3:
+                bmes3 = sorted(bmes3, key=lambda d:d[1])
+                bme3 = bmes3[0][0]
+            else:
+                bme3 = None
+            
+            # post-pass to create 
+            insert(cb, bme0, bme3)
         
         for bmf in bmfaces:
             self.rfcontext.update_face_normal(bmf)
@@ -341,6 +382,7 @@ class RFTool_PolyStrips(RFTool):
             for cb in strip:
                 for cbpt in cb:
                     v = Point_to_Point2D(cbpt)
+                    if v is None: continue
                     if (mouse - v).length < self.point_size:
                         self.hovering.append(cbpt)
                         self.hovering_strips.add(strip)
@@ -398,7 +440,7 @@ class RFTool_PolyStrips(RFTool):
                 p0,p1,p2,p3 = cb.points()
                 if p0 in cbpts and p1 not in cbpts: cbpts.append(p1)
                 if p3 in cbpts and p2 not in cbpts: cbpts.append(p2)
-        self.sel_cbpts = [(cbpt, self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
+        self.sel_cbpts = [(cbpt, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
     
@@ -416,8 +458,10 @@ class RFTool_PolyStrips(RFTool):
             return 'main'
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        for cbpt,oco in self.sel_cbpts:
-            xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco + delta)
+        up,rt = self.rfcontext.Vec_up(),self.rfcontext.Vec_right()
+        for cbpt,oco,oco2D in self.sel_cbpts:
+            xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco2D + delta)
+            #xyz = oco + delta.x * rt - delta.y * up
             if xyz: cbpt.xyz = xyz
         
         for strip in self.hovering_strips:

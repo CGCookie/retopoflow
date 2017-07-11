@@ -1,6 +1,6 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split
+from bmesh.utils import edge_split, vert_splice
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -98,6 +98,13 @@ class RFVert(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    #############################################
+    
+    def merge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        vert_splice(bmv1, bmv0)
 
 
 class RFEdge(BMElemWrapper):
@@ -125,6 +132,15 @@ class RFEdge(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    #############################################
+    
+    def normal(self):
+        n,c = Vector(),0
+        for bmf in self.bmelem.link_faces:
+            n += bmf.normal
+            c += 1
+        return n / max(1,c)
     
     #############################################
     

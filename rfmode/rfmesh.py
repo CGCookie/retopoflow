@@ -200,6 +200,19 @@ class RFMesh():
             nearest += [(self.wrap_bmvert(bmv), d3d)]
         return nearest
     
+    def nearest_bmedges_Point(self, point:Point, dist3d:float):
+        nearest = []
+        for bme in self.bme.edges:
+            bmv0,bmv1 = self.xform.l2w_point(bme.verts[0].co), self.xform.l2w_point(bme.verts[1].co)
+            diff = bmv1 - bmv0
+            l = diff.length
+            d = diff / l
+            pp = bmv0 + d * max(0, min(l, (point - bmv0).dot(d)))
+            dist = (point - pp).length
+            if dist > dist3d: continue
+            nearest += [(self.wrap_bmedge(bme), dist)]
+        return nearest
+    
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance

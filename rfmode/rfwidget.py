@@ -105,6 +105,8 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.stroke2D_right = []
         self.stroke_callback = None
         
+        self.s = 0.0
+        
         self.reset()
     
     def reset(self):
@@ -116,7 +118,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         ''' called when mouse is moved outside View3D '''
         self.hit = False
         self.p = None
-        self.s = 0.0
+        #self.s = 0.0
         self.x = None
         self.y = None
         self.z = None

@@ -28,6 +28,9 @@ class RFContext_Target:
     def nearest2D_verts_mouse(self, max_dist:float):
         return self.nearest2D_verts_point(self.actions.mouse, max_dist)
     
+    def nearest_bmedges_Point(self, point, max_dist:float):
+        return self.rftarget.nearest_bmedges_Point(point, max_dist)
+    
     def nearest2D_face_point(self, point):
         xy = self.get_point2D(point)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)

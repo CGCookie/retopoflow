@@ -145,7 +145,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
     
     #print(spc + 'splitting at %d' % ind_split)
     
-    l_co0,l_co1 = l_co[:ind_split+1],l_co[ind_split:]   # share split point
+    l_co0,l_co1 = l_co[:ind_split],l_co[ind_split:]   # share split point
     tsplit = ind_split # / (len(l_co)-1)
     bezier0 = fit_cubicbezier_spline(l_co0, error_scale, depth=depth+1, t0=t0, t3=tsplit)
     bezier1 = fit_cubicbezier_spline(l_co1, error_scale, depth=depth+1, t0=tsplit, t3=t3)
@@ -157,7 +157,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
 
 
 class CubicBezier:
-    split_default = 10
+    split_default = 100
     
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3
@@ -249,6 +249,9 @@ class CubicBezier:
             if interval <= d: return percent
             p = q
         return 1
+    
+    def approximate_ts_at_intervals_uniform(self, intervals, fn_dist, split=None):
+        return [self.approximate_t_at_interval_uniform(interval,fn_dist,split=split) for interval in intervals]
     
     def tessellate_uniform(self, fn_dist, split=None):
         split = split or self.split_default
