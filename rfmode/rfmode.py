@@ -189,6 +189,12 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
+        tar_object = bpy.context.scene.objects.active
+        
+        # remember selection and unselect all
+        self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
+        for o in self.selected_objects: o.select = False
+        
         tool = self.context_start_tool()
         self.rfctx = RFContext(tool)
     
@@ -198,6 +204,10 @@ class RFMode(Operator):
         if hasattr(self, 'rfctx'):
             self.rfctx.end()
             del self.rfctx
+        
+        # restore selection
+        for o in self.selected_objects: o.select = True
+        
     
     def ui_start(self):
         # report something useful to user
