@@ -157,7 +157,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
 
 
 class CubicBezier:
-    split_default = 100
+    split_default = 10
     
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3

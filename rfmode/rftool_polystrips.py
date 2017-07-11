@@ -216,7 +216,7 @@ class RFTool_PolyStrips(RFTool):
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
         self.hovering = []
-        self.hovering_strips = []
+        self.hovering_strips = set()
         self.sel_cbpts = []
         self.strokes = []
         self.stroke_cbs = CubicBezierSpline()
@@ -330,23 +330,6 @@ class RFTool_PolyStrips(RFTool):
         
         self.stroke_cbs = cbs
         
-        # mini_stroke = [stroke2D[i] for i in range(0, stroke_len, int(stroke_len/10))]
-        # left,right = [],[]
-        
-        # for c0,c1 in zip(mini_stroke[:-1],mini_stroke[1:]):
-        #     d = c1 - c0
-        #     ortho = Vec2D((-d.y, d.x)).normalized() * radius
-        #     lpt = self.rfcontext.get_point3D(c0+ortho)
-        #     rpt = self.rfcontext.get_point3D(c0-ortho)
-        #     if lpt and rpt:
-        #         left.append(self.rfcontext.new_vert_point(lpt))
-        #         right.append(self.rfcontext.new_vert_point(rpt))
-        
-        # for i in range(len(left)-1):
-        #     l0,r0 = left[i],right[i]
-        #     l1,r1 = left[i+1],right[i+1]
-        #     bmfaces.append(self.rfcontext.new_face([l1,l0,r0,r1]))
-        
         self.rfcontext.select(bmfaces)
     
     def modal_main(self):
@@ -360,7 +343,7 @@ class RFTool_PolyStrips(RFTool):
                     v = Point_to_Point2D(cbpt)
                     if (mouse - v).length < self.point_size:
                         self.hovering.append(cbpt)
-                        self.hovering_strips.append(strip)
+                        self.hovering_strips.add(strip)
         if self.hovering:
             self.rfwidget.set_widget('move')
         else:
@@ -437,13 +420,9 @@ class RFTool_PolyStrips(RFTool):
             xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco + delta)
             if xyz: cbpt.xyz = xyz
         
-        touched = set()
         for strip in self.hovering_strips:
-            h = strip.__hash__()
-            if h in touched: continue
-            touched.add(h)
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
-        #self.update()
+        
         self.update_strip_viz()
     
     def prep_move(self, bmfaces=None):
