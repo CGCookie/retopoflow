@@ -26,8 +26,9 @@ def kmi_details(kmi):
 class Actions:
     default_keymap = {
         # common
-        'navigate': set(),          # to be filled in by self.load_keymap()
-        'maximize area': set(),     # to be filled in by self.load_keymap()
+        'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
+        'maximize area': set(),                         # to be filled in by self.load_keymap()
+        'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
@@ -228,6 +229,7 @@ class RFContext_Actions:
         self.actions = Actions()
     
     def _process_event(self, context, event):
+        # if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
         self.actions.update(context, event, self.timer)
 
 

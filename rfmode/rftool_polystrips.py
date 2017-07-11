@@ -45,6 +45,12 @@ class RFTool_PolyStrips_Strip:
                 elif bme1_bmv[0] and bme1_bmv[1]: self.bmvs += [(bmvs[2], bmvs[3], bmvs[0], bmvs[1])]
                 elif bme1_bmv[1] and bme1_bmv[2]: self.bmvs += [(bmvs[3], bmvs[0], bmvs[1], bmvs[2])]
                 else: assert False
+        
+        self.bmes = []
+        for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:]):
+            bme = find_shared_edge(bmf0,bmf1)
+            
+            pass
     
     def __len__(self): return len(self.cbs)
     
