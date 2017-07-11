@@ -29,7 +29,7 @@ class RFTool_PolyStrips_Strip:
         self.bmvs = []
         for bmfp,bmf,bmfn in zip([None] + bmf_strip[:-1], bmf_strip, bmf_strip[1:] + [None]):
             bme0 = find_shared_edge(bmfp,bmf) if bmfp else None
-            bme1 = find_shared_edge(bmfn,bmf) if bmfn else None
+            bme1 = find_shared_edge(bmf,bmfn) if bmfn else None
             bmvs = bmf.verts
             if bme0:
                 bme0_bmv = [any(bmv == bme0v for bme0v in bme0.verts) for bmv in bmvs]
@@ -52,7 +52,7 @@ class RFTool_PolyStrips_Strip:
     
     def __getitem__(self, key): return self.cbs[key]
     
-    def update(self, nearest_sources_Point):
+    def update(self, nearest_sources_Point, update_face_normal):
         # go through bmf_strip and update positions
         
         length = self.cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
@@ -66,7 +66,7 @@ class RFTool_PolyStrips_Strip:
             if i % 2 == 1: continue
             idx = i // 2
             bmf = self.bmf_strip[idx]
-            bmv0,bmv1,bmv2,bmv3 = self.bmvs[idx]
+            bmv1,bmv0,bmv3,bmv2 = self.bmvs[idx]
             center,normal,_,_ = nearest_sources_Point(self.cbs.eval(t))
             direction = self.cbs.eval_derivative(t).normalized()
             cross = normal.cross(direction).normalized()
@@ -74,19 +74,22 @@ class RFTool_PolyStrips_Strip:
             if p0 is None:
                 p0 = back - cross * radius
                 p1 = back + cross * radius
-                bmv0.co = p0
-                bmv1.co = p1
+                bmv0.co,_,_,_ = nearest_sources_Point(p0)
+                bmv1.co,_,_,_ = nearest_sources_Point(p1)
             else:
                 p0 = (Vector(p0) + Vector(back - cross * radius)) * 0.5
                 p1 = (Vector(p1) + Vector(back + cross * radius)) * 0.5
-                bmv0.co = p0
-                bmv1.co = p1
+                bmv0.co,_,_,_ = nearest_sources_Point(p0)
+                bmv1.co,_,_,_ = nearest_sources_Point(p1)
             front = center + direction * radius
             p2 = front + cross * radius
             p3 = front - cross * radius
-            bmv2.co = p2
-            bmv3.co = p3
+            bmv2.co,_,_,_ = nearest_sources_Point(p2)
+            bmv3.co,_,_,_ = nearest_sources_Point(p3)
             p0,p1 = p3,p2
+        
+        for bmf in self.bmf_strip:
+            update_face_normal(bmf)
 
 
 def is_edge(bme, only_bmfs):
@@ -262,6 +265,9 @@ class RFTool_PolyStrips(RFTool):
             bmfaces.append(self.rfcontext.new_face([p0,p1,p2,p3]))
             p0,p1 = p3,p2
         
+        for bmf in bmfaces:
+            self.rfcontext.update_face_normal(bmf)
+        
         self.stroke_cbs = cbs
         
         # mini_stroke = [stroke2D[i] for i in range(0, stroke_len, int(stroke_len/10))]
@@ -355,7 +361,7 @@ class RFTool_PolyStrips(RFTool):
             xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco + delta)
             if xyz: cbpt.xyz = xyz
         
-        for strip in self.strips: strip.update(self.rfcontext.nearest_sources_Point)
+        for strip in self.strips: strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.update_face_normal)
         #self.update()
         self.update_strip_viz()
     
