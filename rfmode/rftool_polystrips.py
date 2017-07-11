@@ -157,6 +157,7 @@ class RFTool_PolyStrips(RFTool):
         self.mode = 'main'
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
+        self.hovering = []
         self.sel_cbpts = []
         self.strokes = []
         self.stroke_cbs = CubicBezierSpline()
@@ -292,23 +293,22 @@ class RFTool_PolyStrips(RFTool):
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
-        hovering = []
+        self.hovering.clear()
         for strip in self.strips:
             for cb in strip:
                 for cbpt in cb:
                     v = Point_to_Point2D(cbpt)
                     if (mouse - v).length < self.point_size:
-                        hovering.append(cbpt)
-        if hovering:
+                        self.hovering.append(cbpt)
+        if self.hovering:
             self.rfwidget.set_widget('move')
         else:
             self.rfwidget.set_widget('brush stroke')
         
-        if hovering and self.rfcontext.actions.pressed('action'):
+        if self.hovering and self.rfcontext.actions.pressed('action'):
             self.move_done_pressed = 'confirm'
             self.move_done_released = 'action'
             self.move_cancelled = 'cancel'
-            self.sel_cbpts = hovering
             self.prep_manip()
             self.rfcontext.undo_push('manipulate bezier')
             return 'manip bezier'
@@ -339,7 +339,13 @@ class RFTool_PolyStrips(RFTool):
             return 'move bmf'
     
     def prep_manip(self):
-        self.sel_cbpts = [(cbpt, self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in self.sel_cbpts]
+        cbpts = list(self.hovering)
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                if p0 in cbpts and p1 not in cbpts: cbpts.append(p1)
+                if p3 in cbpts and p2 not in cbpts: cbpts.append(p2)
+        self.sel_cbpts = [(cbpt, self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
     

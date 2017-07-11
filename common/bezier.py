@@ -164,6 +164,8 @@ class CubicBezier:
     
     def __iter__(self): return iter([self.p0, self.p1, self.p2, self.p3])
     
+    def points(self): return (self.p0, self.p1, self.p2, self.p3)
+    
     def copy(self):
         ''' shallow copy '''
         return CubicBezier(self.p0, self.p1, self.p2, self.p3)
