@@ -148,7 +148,8 @@ class RFMode(Operator):
             'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
             'PAINT_TEXTURE': 'TEXTURE_PAINT',
             }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
-        bpy.ops.object.mode_set(mode='OBJECT')
+        if self.prev_mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
         
         self.context_start()
         self.ui_start()
