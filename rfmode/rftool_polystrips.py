@@ -83,10 +83,10 @@ class RFTool_PolyStrips_Strip:
     
     def __getitem__(self, key): return self.cbs[key]
     
-    def update(self, nearest_sources_Point, update_face_normal):
-        self.update_bme(nearest_sources_Point, update_face_normal)
+    def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
+        self.update_bme(nearest_sources_Point, raycast_sources_Point, update_face_normal)
     
-    def update_bmf(self, nearest_sources_Point, update_face_normal):
+    def update_bmf(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
         # go through bmf_strip and update positions
         
         self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
@@ -128,11 +128,11 @@ class RFTool_PolyStrips_Strip:
         for bmf in self.bmf_strip:
             update_face_normal(bmf)
     
-    def update_bme(self, nearest_sources_Point, update_face_normal):
+    def update_bme(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
         self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
         length = self.cbs.approximate_totlength_tessellation()
         for bme,t,rad,rot,off_cross,off_der in self.bmes:
-            pos,norm,_,_ = nearest_sources_Point(self.cbs.eval(t))
+            pos,norm,_,_ = raycast_sources_Point(self.cbs.eval(t))
             der = self.cbs.eval_derivative(t).normalized()
             cross = der.cross(norm).normalized()
             center = pos + der * off_der + cross * off_cross
@@ -140,8 +140,12 @@ class RFTool_PolyStrips_Strip:
             p0 = center - rotcross * rad
             p1 = center + rotcross * rad
             bmv0,bmv1 = bme.verts
-            bmv0.co,_,_,_ = nearest_sources_Point(p0)
-            bmv1.co,_,_,_ = nearest_sources_Point(p1)
+            v0,_,_,_ = raycast_sources_Point(p0)
+            v1,_,_,_ = raycast_sources_Point(p1)
+            if not v0: v0,_,_,_ = nearest_sources_Point(p0)
+            if not v1: v1,_,_,_ = nearest_sources_Point(p1)
+            bmv0.co = v0
+            bmv1.co = v1
         for bmf in self.bmf_strip:
             update_face_normal(bmf)
 
@@ -438,7 +442,7 @@ class RFTool_PolyStrips(RFTool):
             h = strip.__hash__()
             if h in touched: continue
             touched.add(h)
-            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.update_face_normal)
+            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
         #self.update()
         self.update_strip_viz()
     

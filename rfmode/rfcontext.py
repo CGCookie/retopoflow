@@ -405,6 +405,11 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     def raycast_sources_mouse(self):
         return self.raycast_sources_Point2D(self.actions.mouse)
     
+    def raycast_sources_Point(self, xyz:Point):
+        if xyz is None: return None,None,None,None
+        xy = self.Point_to_Point2D(xyz)
+        return self.raycast_sources_Point2D(xy)
+    
     def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
