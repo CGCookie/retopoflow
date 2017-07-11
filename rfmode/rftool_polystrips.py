@@ -1,7 +1,7 @@
 import bgl
 import bpy
 import math
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
@@ -12,6 +12,14 @@ class RFTool_State():
     def update(self, kv):
         for k,v in kv.items():
             self.__setattr__(k, v)
+
+def find_opposite_edge(bmf, bme):
+    bmes = bmf.edges
+    if bmes[0] == bme: return bmes[2]
+    if bmes[1] == bme: return bmes[3]
+    if bmes[2] == bme: return bmes[0]
+    if bmes[3] == bme: return bmes[1]
+    assert False
 
 def find_shared_edge(bmf0, bmf1):
     for e0 in bmf0.edges:
@@ -25,6 +33,7 @@ class RFTool_PolyStrips_Strip:
         pts,r = strip_details(bmf_strip)
         self.bmf_strip = bmf_strip
         self.cbs = CubicBezierSpline.create_from_points([pts], r/2000.0)
+        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
         
         self.bmvs = []
         for bmfp,bmf,bmfn in zip([None] + bmf_strip[:-1], bmf_strip, bmf_strip[1:] + [None]):
@@ -47,12 +56,24 @@ class RFTool_PolyStrips_Strip:
                 else: assert False
         
         self.bmes = []
-        for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:]):
-            bme = find_shared_edge(bmf0,bmf1)
+        bmes = [(find_shared_edge(bmf0,bmf1), (bmf0.normal+bmf1.normal).normalized()) for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:])]
+        bmes = [(find_opposite_edge(bmf_strip[0], bmes[0][0]), bmf_strip[0].normal)] + bmes
+        bmes = bmes + [(find_opposite_edge(bmf_strip[-1], bmes[-1][0]), bmf_strip[-1].normal)]
+        for bme,norm in bmes:
             bmvs = bme.verts
-            center = bmvs[0].co + (bmvs[1].co - bmvs[0].co) / 2.0
+            halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
+            center = bmvs[0].co + halfdiff
             
-            pass
+            t = self.cbs.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
+            pos,der = self.cbs.eval(t),self.cbs.eval_derivative(t).normalized()
+            
+            rad = halfdiff.length
+            cross = der.cross(norm).normalized()
+            off = center - pos
+            off_cross = cross.dot(off)
+            off_der = der.dot(off)
+            rot = -math.acos(halfdiff.normalized().dot(cross))
+            self.bmes += [(bme, t, rad, rot, off_cross, off_der)]
     
     def __len__(self): return len(self.cbs)
     
@@ -61,9 +82,12 @@ class RFTool_PolyStrips_Strip:
     def __getitem__(self, key): return self.cbs[key]
     
     def update(self, nearest_sources_Point, update_face_normal):
+        self.update_bme(nearest_sources_Point, update_face_normal)
+    
+    def update_bmf(self, nearest_sources_Point, update_face_normal):
         # go through bmf_strip and update positions
         
-        self.cbs.tessellate_uniform(lambda p,q:(p-q).length)
+        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
         #length = self.cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
         length = self.cbs.approximate_totlength_tessellation()
         steps = 2 * (len(self.bmf_strip) - 1)
@@ -99,6 +123,23 @@ class RFTool_PolyStrips_Strip:
             bmv3.co,_,_,_ = nearest_sources_Point(p3)
             p0,p1 = p3,p2
         
+        for bmf in self.bmf_strip:
+            update_face_normal(bmf)
+    
+    def update_bme(self, nearest_sources_Point, update_face_normal):
+        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
+        length = self.cbs.approximate_totlength_tessellation()
+        for bme,t,rad,rot,off_cross,off_der in self.bmes:
+            pos,norm,_,_ = nearest_sources_Point(self.cbs.eval(t))
+            der = self.cbs.eval_derivative(t).normalized()
+            cross = der.cross(norm).normalized()
+            center = pos + der * off_der + cross * off_cross
+            rotcross = (Matrix.Rotation(rot, 3, norm) * cross).normalized()
+            p0 = center - rotcross * rad
+            p1 = center + rotcross * rad
+            bmv0,bmv1 = bme.verts
+            bmv0.co,_,_,_ = nearest_sources_Point(p0)
+            bmv1.co,_,_,_ = nearest_sources_Point(p1)
         for bmf in self.bmf_strip:
             update_face_normal(bmf)
 

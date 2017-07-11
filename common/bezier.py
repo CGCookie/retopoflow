@@ -430,6 +430,15 @@ class CubicBezierSpline:
                         bd,bt = d,i+t
             ts.append(bt)
         return ts
+    
+    def approximate_t_at_point_tessellation(self, point, fn_dist):
+        bd,bt = None,None
+        for i,cb_tess in enumerate(self.tessellation):
+            for t,q,_ in cb_tess:
+                d = fn_dist(point, q)
+                if bd is None or d < bd:
+                    bd,bt = d,i+t
+        return bt
 
 
 class GenVector(list):
