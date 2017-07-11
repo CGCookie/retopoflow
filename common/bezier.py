@@ -249,6 +249,13 @@ class CubicBezier:
             if interval <= d: return percent
             p = q
         return 1
+    
+    def tessellate_uniform(self, fn_dist, split=None):
+        split = split or self.split_default
+        ts = [i/(split-1) for i in range(split)]
+        ps = [self.eval(t) for t in ts]
+        ds = [0] + [fn_dist(p,q) for p,q in zip(ps[:-1],ps[1:])]
+        return [(t,p,d) for t,p,d in zip(ts,ps,ds)]
 
 
 
@@ -275,6 +282,7 @@ class CubicBezierSpline:
         assert type(cbs) is list, "expected list"
         self.cbs = cbs
         self.inds = inds
+        self.tessellation = []
     
     def copy(self):
         return CubicBezierSpline(cbs=[cb.copy() for cb in self.cbs], inds=list(self.inds))
@@ -337,7 +345,7 @@ class CubicBezierSpline:
     def approximate_lengths_uniform(self, fn_dist, split=None):
         return [cb.approximate_length_uniform(fn_dist, split=split) for cb in self.cbs]
     
-    def approximate_t_at_intervals(self, intervals, fn_dist, split=None):
+    def approximate_ts_at_intervals_uniform(self, intervals, fn_dist, split=None):
         lengths = self.approximate_lengths_uniform(fn_dist, split=split)
         totlength = sum(lengths)
         ts = []
@@ -363,6 +371,65 @@ class CubicBezierSpline:
             for cb in self.cbs
             for cbi in cb.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
             )
+    
+    ########################################################################################
+    #                                                                                      #
+    # the following code **requires** that self.tessellate_uniform() is called beforehand! #
+    #                                                                                      #
+    ########################################################################################
+    
+    def tessellate_uniform(self, fn_dist, split=None):
+        self.tessellation.clear()
+        for i,cb in enumerate(self.cbs):
+            cb_tess = cb.tessellate_uniform(fn_dist, split=split)
+            self.tessellation.append(cb_tess)
+    
+    def approximate_totlength_tessellation(self):
+        return sum(self.approximate_lengths_tessellation())
+    
+    def approximate_lengths_tessellation(self):
+        return [sum(d for _,_,d in cb_tess) for cb_tess in self.tessellation]
+    
+    def approximate_ts_at_intervals_tessellation(self, intervals):
+        lengths = self.approximate_lengths_tessellation()
+        totlength = sum(lengths)
+        ts = []
+        for interval in intervals:
+            if interval < 0:
+                ts.append(0)
+                continue
+            if interval >= totlength:
+                ts.append(len(self.cbs))
+                continue
+            for i,length in enumerate(lengths):
+                if interval > length:
+                    interval -= length
+                    continue
+                cb_tess = self.tessellation[i]
+                for t,p,d in cb_tess:
+                    if interval > d:
+                        interval -= d
+                        continue
+                    ts.append(i+t)
+                    break
+                else:
+                    assert False
+                break
+            else:
+                assert False
+        return ts
+    
+    def approximate_ts_at_points_tessellation(self, points, fn_dist):
+        ts = []
+        for p in points:
+            bd,bt = None,None
+            for i,cb_tess in enumerate(self.tessellation):
+                for t,q,_ in cb_tess:
+                    d = fn_dist(p, q)
+                    if bd is None or d < bd:
+                        bd,bt = d,i+t
+            ts.append(bt)
+        return ts
 
 
 class GenVector(list):

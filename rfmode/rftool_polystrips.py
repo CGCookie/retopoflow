@@ -49,6 +49,8 @@ class RFTool_PolyStrips_Strip:
         self.bmes = []
         for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:]):
             bme = find_shared_edge(bmf0,bmf1)
+            bmvs = bme.verts
+            center = bmvs[0].co + (bmvs[1].co - bmvs[0].co) / 2.0
             
             pass
     
@@ -61,11 +63,14 @@ class RFTool_PolyStrips_Strip:
     def update(self, nearest_sources_Point, update_face_normal):
         # go through bmf_strip and update positions
         
-        length = self.cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
+        self.cbs.tessellate_uniform(lambda p,q:(p-q).length)
+        #length = self.cbs.approximate_totlength_uniform(lambda p,q: (p-q).length)
+        length = self.cbs.approximate_totlength_tessellation()
         steps = 2 * (len(self.bmf_strip) - 1)
         radius = length / steps
         intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
-        ts = self.cbs.approximate_t_at_intervals(intervals, lambda p,q: (p-q).length)
+        #ts = self.cbs.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
+        ts = self.cbs.approximate_ts_at_intervals_tessellation(intervals)
         
         p0,p1,p2,p3 = None,None,None,None
         for i,t in enumerate(ts):
@@ -164,6 +169,7 @@ class RFTool_PolyStrips(RFTool):
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
         self.hovering = []
+        self.hovering_strips = []
         self.sel_cbpts = []
         self.strokes = []
         self.stroke_cbs = CubicBezierSpline()
@@ -250,7 +256,7 @@ class RFTool_PolyStrips(RFTool):
         steps = round(length / radius)
         steps += steps % 2              # make sure that we have even number of steps
         intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
-        ts = cbs.approximate_t_at_intervals(intervals, lambda p,q: (p-q).length)
+        ts = cbs.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
         
         if steps <= 1: return
         p0,p1,p2,p3 = None,None,None,None
@@ -300,12 +306,14 @@ class RFTool_PolyStrips(RFTool):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
         self.hovering.clear()
+        self.hovering_strips.clear()
         for strip in self.strips:
             for cb in strip:
                 for cbpt in cb:
                     v = Point_to_Point2D(cbpt)
                     if (mouse - v).length < self.point_size:
                         self.hovering.append(cbpt)
+                        self.hovering_strips.append(strip)
         if self.hovering:
             self.rfwidget.set_widget('move')
         else:
@@ -373,7 +381,12 @@ class RFTool_PolyStrips(RFTool):
             xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco + delta)
             if xyz: cbpt.xyz = xyz
         
-        for strip in self.strips: strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.update_face_normal)
+        touched = set()
+        for strip in self.hovering_strips:
+            h = strip.__hash__()
+            if h in touched: continue
+            touched.add(h)
+            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.update_face_normal)
         #self.update()
         self.update_strip_viz()
     
