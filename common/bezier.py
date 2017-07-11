@@ -91,8 +91,8 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
     if count == 1: assert False
     if count == 2:
         p0,p3 = l_co[0],l_co[-1]
-        p12 = (p0+p3)/2
-        return [(t0,t3,p0,p12,p12,p3)]
+        diff = p3-p0
+        return [(t0,t3,p0,p0+diff*0.33,p0+diff*0.66,p3)]
     if count == 3:
         new_co = [l_co[0], (l_co[0]+l_co[1])/2, l_co[1], (l_co[1]+l_co[2])/2, l_co[2]]
         return fit_cubicbezier_spline(new_co, error_scale, depth=depth, t0=t0, t3=t3, allow_split=allow_split, force_split=force_split)
