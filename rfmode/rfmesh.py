@@ -514,7 +514,9 @@ class RFTarget(RFMesh):
                 mapping[bmf] = self.new_face(lbmv)
                 #self.create_face(lbmv)
                 handled = True
-            assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
+            if not handled:
+                # assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
+                print('clean_duplicate_bmedges: unhandled count of linked faces %d, %d' % (l0,l1))
         return mapping
     
     # def modify_bmverts(self, bmverts, update_fn):
