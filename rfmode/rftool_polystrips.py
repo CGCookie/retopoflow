@@ -57,8 +57,12 @@ class RFTool_PolyStrips_Strip:
         
         self.bmes = []
         bmes = [(find_shared_edge(bmf0,bmf1), (bmf0.normal+bmf1.normal).normalized()) for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:])]
-        bmes = [(find_opposite_edge(bmf_strip[0], bmes[0][0]), bmf_strip[0].normal)] + bmes
-        bmes = bmes + [(find_opposite_edge(bmf_strip[-1], bmes[-1][0]), bmf_strip[-1].normal)]
+        bme0 = find_opposite_edge(bmf_strip[0], bmes[0][0])
+        bme1 = find_opposite_edge(bmf_strip[-1], bmes[-1][0])
+        if len(bme0.link_faces) == 1: bmes = [(bme0, bmf_strip[0].normal)] + bmes
+        if len(bme1.link_faces) == 1: bmes = bmes + [(bme1, bmf_strip[-1].normal)]
+        #bmes = [(find_opposite_edge(bmf_strip[0], bmes[0][0]), bmf_strip[0].normal)] + bmes
+        #bmes = bmes + [(find_opposite_edge(bmf_strip[-1], bmes[-1][0]), bmf_strip[-1].normal)]
         for bme,norm in bmes:
             bmvs = bme.verts
             halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
