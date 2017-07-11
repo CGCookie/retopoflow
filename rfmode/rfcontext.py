@@ -199,9 +199,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         ''' target is the active object.  must be selected and visible '''
         
         # if user has modified the edit mesh, toggle into object then edit mode to update
-        if bpy.context.mode == 'EDIT_MESH':
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.mode_set(mode='EDIT')
+        # if bpy.context.mode == 'EDIT_MESH':
+        #    bpy.ops.object.mode_set(mode='OBJECT')
+        #    bpy.ops.object.mode_set(mode='EDIT')
         
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
@@ -399,6 +399,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         return (bp,bn,bi,bd)
     
     def raycast_sources_Point2D(self, xy:Point2D):
+        if xy is None: return None,None,None,None
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
     
     def raycast_sources_mouse(self):

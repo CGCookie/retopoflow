@@ -220,6 +220,7 @@ class Actions:
         self.context.window.cursor_warp(rx + mx, ry + my)
     
     def valid_mouse(self):
+        if self.mouse is None: return False
         mx,my = self.mouse
         sx,sy = self.size
         return mx >= 0 and my >= 0 and mx < sx and my < sy

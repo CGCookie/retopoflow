@@ -16,12 +16,15 @@ class RFContext_Spaces:
     '''
     
     def Point2D_to_Vec(self, xy:Point2D):
+        if xy is None: return None
         return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
     
     def Point2D_to_Origin(self, xy:Point2D):
+        if xy is None: return None
         return Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
     
     def Point2D_to_Ray(self, xy:Point2D):
+        if xy is None: return None
         return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Vec(xy))
     
     def Point2D_to_Point(self, xy:Point2D, depth:float):

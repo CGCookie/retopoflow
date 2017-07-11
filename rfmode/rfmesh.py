@@ -88,6 +88,7 @@ class RFMesh():
                 bmv.select = emv.select
         if triangulate:
             bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
+        self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
     
@@ -266,8 +267,8 @@ class RFMesh():
             if not bmv.select: continue
             v += bmv.co
             c += 1
-        if c == 0: return self.xform.l2w_point(Point((0,0,0)))
-        return self.xform.l2w_point(v / c)
+        if c: self.selection_center = v / c
+        return self.xform.l2w_point(self.selection_center)
     
     def deselect_all(self):
         for bmv in self.bme.verts: bmv.select = False

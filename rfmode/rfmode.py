@@ -136,6 +136,20 @@ class RFMode(Operator):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
+        
+        # remember current mode and set to object mode so we can control
+        # how the target mesh is rendered and so we can push new data
+        # into target mesh
+        self.prev_mode = {
+            'OBJECT':        'OBJECT',          # for some reason, we must
+            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
+            'SCULPT':        'SCULPT',          # to something that
+            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
+            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
+            'PAINT_TEXTURE': 'TEXTURE_PAINT',
+            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
         self.context_start()
         self.ui_start()
 
@@ -153,6 +167,9 @@ class RFMode(Operator):
             print_exception()
             err = True
         if err: self.handle_exception(serious=True)
+        
+        # restore previous mode
+        bpy.ops.object.mode_set(mode=self.prev_mode)
         
         stats_report()
     
@@ -183,19 +200,6 @@ class RFMode(Operator):
             del self.rfctx
     
     def ui_start(self):
-        # remember current mode and set to object mode so we can control
-        # how the target mesh is rendered and so we can push new data
-        # into target mesh
-        self.prev_mode = {
-            'OBJECT':        'OBJECT',          # for some reason, we must
-            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
-            'SCULPT':        'SCULPT',          # to something that
-            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
-            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
-            'PAINT_TEXTURE': 'TEXTURE_PAINT',
-            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
         # report something useful to user
         bpy.context.area.header_text_set('RetopoFlow Mode')
         
@@ -313,9 +317,6 @@ class RFMode(Operator):
         
         # remove useful reporting
         bpy.context.area.header_text_set()
-        
-        # restore previous mode
-        bpy.ops.object.mode_set(mode=self.prev_mode)
         
         self.tag_redraw_all()
     
