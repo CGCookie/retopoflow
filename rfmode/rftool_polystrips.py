@@ -62,6 +62,7 @@ class RFTool_PolyStrips_Strip:
         for bme,norm in bmes:
             bmvs = bme.verts
             halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
+            diffdir = halfdiff.normalized()
             center = bmvs[0].co + halfdiff
             
             t = self.cbs.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
@@ -72,7 +73,8 @@ class RFTool_PolyStrips_Strip:
             off = center - pos
             off_cross = cross.dot(off)
             off_der = der.dot(off)
-            rot = -math.acos(halfdiff.normalized().dot(cross))
+            rot = math.acos(diffdir.dot(cross))
+            if diffdir.dot(der) < 0: rot = -rot
             self.bmes += [(bme, t, rad, rot, off_cross, off_der)]
     
     def __len__(self): return len(self.cbs)
