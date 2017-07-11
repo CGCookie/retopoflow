@@ -303,11 +303,14 @@ class RFTool_PolyStrips(RFTool):
         self.strokes = strokes
         
         def merge(p0, p1, q0, q1):
+            nonlocal bmfaces
             dp = p1.co - p0.co
             dq = q1.co - q0.co
             if dp.dot(dq) < 0: p0,p1 = p1,p0
             q0.merge(p0)
             q1.merge(p1)
+            mapping = self.rfcontext.clean_duplicate_bmedges(q0)
+            bmfaces = [mapping[f] if f in mapping else f for f in bmfaces]
         
         def insert(cb, bme_start, bme_end):
             length = cb.approximate_length_uniform(lambda p,q: (p-q).length)

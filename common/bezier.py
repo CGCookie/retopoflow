@@ -145,7 +145,7 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
     
     #print(spc + 'splitting at %d' % ind_split)
     
-    l_co0,l_co1 = l_co[:ind_split],l_co[ind_split:]   # share split point
+    l_co0,l_co1 = l_co[:ind_split+1],l_co[ind_split:]   # share split point
     tsplit = ind_split # / (len(l_co)-1)
     bezier0 = fit_cubicbezier_spline(l_co0, error_scale, depth=depth+1, t0=t0, t3=tsplit)
     bezier1 = fit_cubicbezier_spline(l_co1, error_scale, depth=depth+1, t0=tsplit, t3=t3)

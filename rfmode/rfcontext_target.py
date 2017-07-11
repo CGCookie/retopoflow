@@ -124,6 +124,9 @@ class RFContext_Target:
     def delete_faces(self, faces):
         self.rftarget.delete_faces(faces)
     
+    def clean_duplicate_bmedges(self, vert):
+        return self.rftarget.clean_duplicate_bmedges(vert)
+    
     ###################################################
     
     def ensure_lookup_tables(self):

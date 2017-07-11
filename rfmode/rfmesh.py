@@ -485,6 +485,38 @@ class RFTarget(RFMesh):
             bmf.normal_flip()
         bmf.normal_update()
     
+    def clean_duplicate_bmedges(self, vert):
+        bmv = self._unwrap(vert)
+        # search for two edges between the same pair of verts
+        lbme = list(bmv.link_edges)
+        lbme_dup = []
+        for i0,bme0 in enumerate(lbme):
+            for i1,bme1 in enumerate(lbme):
+                if i1 <= i0: continue
+                if bme0.other_vert(bmv) == bme1.other_vert(bmv):
+                    lbme_dup += [(bme0,bme1)]
+        mapping = {}
+        for bme0,bme1 in lbme_dup:
+            #if not bme0.is_valid or bme1.is_valid: continue
+            l0,l1 = len(bme0.link_faces), len(bme1.link_faces)
+            handled = False
+            if l0 == 0:
+                self.bme.edges.remove(bme0)
+                handled = True
+            if l1 == 0:
+                self.bme.edges.remove(bme1)
+                handled = True
+            if l0 == 1 and l1 == 1:
+                # remove bme1 and recreate attached faces
+                lbmv = list(bme1.link_faces[0].verts)
+                bmf = self.wrap_bmface(bme1.link_faces[0])
+                self.bme.edges.remove(bme1)
+                mapping[bmf] = self.new_face(lbmv)
+                #self.create_face(lbmv)
+                handled = True
+            assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
+        return mapping
+    
     # def modify_bmverts(self, bmverts, update_fn):
     #     l2w = self.xform.l2w_point
     #     w2l = self.xform.w2l_point
