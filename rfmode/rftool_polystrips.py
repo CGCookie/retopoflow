@@ -392,6 +392,15 @@ class RFTool_PolyStrips(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move bmf'
+        
+        if self.rfcontext.actions.pressed('delete'):
+            self.rfcontext.undo_push('delete')
+            faces = self.rfcontext.get_selected_faces()
+            self.rfcontext.delete_faces(faces)
+            self.rfcontext.deselect_all()
+            self.rfcontext.dirty()
+            self.update()
+            return
     
     def prep_manip(self):
         cbpts = list(self.hovering)

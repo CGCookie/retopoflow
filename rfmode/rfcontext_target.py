@@ -118,6 +118,9 @@ class RFContext_Target:
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
     
+    def delete_faces(self, faces):
+        self.rftarget.delete_faces(faces)
+    
     ###################################################
     
     def ensure_lookup_tables(self):

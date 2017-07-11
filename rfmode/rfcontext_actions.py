@@ -42,6 +42,7 @@ class Actions:
         
         'insert': {'CTRL+LEFTMOUSE'},
         'grab': {'G'},
+        'delete': {'X','DELETE'},
         
         # widget
         'brush radius': {'F'},
