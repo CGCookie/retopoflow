@@ -22,6 +22,9 @@ def kmi_details(kmi):
     
     return kmi_ftype
 
+def strip_mods(action):
+    if action is None: return None
+    return action.replace('CTRL+','').replace('SHIFT+','').replace('ALT+','').replace('OSKEY+','')
 
 class Actions:
     default_keymap = {
@@ -207,9 +210,10 @@ class Actions:
         actions = self.convert(actions)
         return any(p in actions for p in self.now_pressed.values())
     
-    def pressed(self, actions, unpress=True):
+    def pressed(self, actions, unpress=True, ignoremods=False):
         actions = self.convert(actions)
-        ret = self.just_pressed in actions
+        just_pressed = self.just_pressed if not ignoremods else strip_mods(self.just_pressed)
+        ret = just_pressed in actions
         if ret and unpress: self.just_pressed = None
         return ret
     
