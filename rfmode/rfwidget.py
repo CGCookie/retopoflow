@@ -223,8 +223,8 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             self.radiuspre = self.radius
             return ''
         
-        if actions.pressed({'cancel','confirm'}, unpress=False):
-            if actions.pressed('cancel'): self.radius = self.radiuspre
+        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
+            if actions.pressed('cancel', ignoremods=True): self.radius = self.radiuspre
             actions.unpress()
             self.draw_mode = 'view'
             actions.warp_mouse(self.mousepre)
@@ -246,8 +246,8 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             self.sizepre = self.size
             return ''
         
-        if actions.pressed({'cancel','confirm'}, unpress=False):
-            if actions.pressed('cancel'): self.size = self.sizepre
+        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
+            if actions.pressed('cancel', ignoremods=True): self.size = self.sizepre
             actions.unpress()
             self.draw_mode = 'view'
             actions.warp_mouse(self.mousepre)
@@ -269,13 +269,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             self.falloffpre = self.falloff
             return ''
         
-        if actions.pressed('cancel'):
-            self.falloff = self.falloffpre
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        if actions.pressed('confirm'):
+        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
+            if actions.pressed('cancel', ignoremods=True): self.falloff = self.falloffpre
+            actions.unpress()
             self.draw_mode = 'view'
             actions.warp_mouse(self.mousepre)
             return 'main'
@@ -299,13 +295,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             self.strengthpre = self.strength
             return ''
         
-        if actions.pressed('cancel'):
-            self.strength = self.strengthpre
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        if actions.pressed('confirm'):
+        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
+            if actions.pressed('cancel', ignoremods=True): self.strength = self.strengthpre
+            actions.unpress()
             self.draw_mode = 'view'
             actions.warp_mouse(self.mousepre)
             return 'main'
