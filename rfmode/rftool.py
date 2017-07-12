@@ -44,11 +44,26 @@ from .rfwidget import RFWidget_Default
 class RFTool(metaclass=SingletonRegisterClass):
     action_tool = []
     
+    preferred_tool_order = [
+        # use the reported name
+        # note: any tool not listed here will append to the bottom in alphabetical-sorted order
+        'Contours',
+        'PolyStrips',
+        'PolyPen',
+        'Relax',
+        'Tweak',
+    ]
+    order = None
+    
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
         RFTool.rfwidget = rfcontext.rfwidget
         toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
+    
+    @staticmethod
+    def get_tools():
+        return RFTool.order
     
     @staticmethod
     def dirty_when_done(fn):

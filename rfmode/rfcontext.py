@@ -469,15 +469,16 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bgl.glVertex2f(l+w+5,t+5)
         bgl.glEnd()
         
-        for i,rft in enumerate(RFTool):
-            if type(self.tool) is rft:
+        for i,rft_data in enumerate(RFTool.get_tools()):
+            ids,rft = rft_data
+            if type(self.tool) == rft.rft_class:
                 bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
             else:
                 bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
-            th = int(blf.dimensions(font_id, rft().name())[1])
+            th = int(blf.dimensions(font_id, rft.bl_label)[1])
             y = t - (i+1) * lh + int((lh - th) / 2.0)
             blf.position(font_id, l, y, 0)
-            blf.draw(font_id, rft().name())
+            blf.draw(font_id, rft.bl_label)
         
     
     def draw_postview(self):

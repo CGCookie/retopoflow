@@ -155,12 +155,10 @@ class RFTool_PolyStrips(RFTool):
     
     def update(self):
         self.strips = []
-        #self.cbs = []
         
         # get selected quads
         bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
         if not bmquads: return
-        # print('bmquads len: %d' % len(bmquads))
         
         # find knots
         knots = set()
@@ -173,34 +171,23 @@ class RFTool_PolyStrips(RFTool):
         # find strips between knots
         touched = set()
         self.strips = []
-        #self.cbs = CubicBezierSpline()
         for bmf0 in knots:
             bme0,bme1,bme2,bme3 = bmf0.edges
             edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf0.edges]
             
             def add_strip(bme):
                 strip = crawl_strip(bmf0, bme, bmquads, knots)
-                # print('quads in strip: %d' % len(strip))
                 bmf1 = strip[-1]
                 if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
                     touched.add(hash_face_pair(bmf0,bmf1))
                     touched.add(hash_face_pair(bmf1,bmf0))
                     self.strips.append(RFTool_PolyStrips_Strip(strip))
-                    #pts,r = strip_details(strip)
-                    #print('strip: %s' % str(strip))
-                    #print('pts: %s' % str(pts))
-                    #print('radius: %f' % r)
-                    #self.cbs = self.cbs + CubicBezierSpline.create_from_points([pts], r/2000.0)
             
             if not edge0: add_strip(bme0)
             if not edge1: add_strip(bme1)
             if not edge2: add_strip(bme2)
             if not edge3: add_strip(bme3)
         
-        #print('touched len: %d' % len(touched))
-        #print('bezier count: %d' % len(self.cbs))
-        #print(touched)
-        #self.cbs_pts = [[cb.eval(i / 10) for i in range(10+1)] for cb in self.cbs]
         self.update_strip_viz()
     
     def update_strip_viz(self):
@@ -349,12 +336,7 @@ class RFTool_PolyStrips(RFTool):
             return
         
         if self.rfcontext.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = None
-            self.move_cancelled = 'cancel'
-            return 'move bmf'
+            return self.prep_move()
         
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
@@ -474,6 +456,11 @@ class RFTool_PolyStrips(RFTool):
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
+        self.rfcontext.undo_push('move grabbed')
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+        return 'move bmf'
     
     @RFTool.dirty_when_done
     def modal_move_bmf(self):

@@ -487,25 +487,39 @@ class RFMode(Operator):
 
 rfmode_tools = {}
 
-for rft in RFTool:
-    def classfactory(rft):
-        rft_name = rft().name()
-        cls_name = 'RFMode_' + rft_name.replace(' ','_')
-        id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
-        print('Creating: ' + cls_name)
-        def context_start_tool(self): return rft()
-        newclass = type(cls_name, (RFMode,),{
-            "context_start_tool": context_start_tool,
-            'bl_idname': id_name,
-            "bl_label": rft_name,
-            'bl_description': rft().description(),
-            'rf_icon': rft().icon(),
-            })
-        print(newclass)
-        rfmode_tools[id_name] = newclass
-        globals()[cls_name] = newclass
-    classfactory(rft)
+def setup_tools():
+    for rft in RFTool:
+        def classfactory(rft):
+            rft_name = rft().name()
+            cls_name = 'RFMode_' + rft_name.replace(' ','_')
+            id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
+            print('Creating: ' + cls_name)
+            def context_start_tool(self): return rft()
+            newclass = type(cls_name, (RFMode,),{
+                "context_start_tool": context_start_tool,
+                'bl_idname': id_name,
+                "bl_label": rft_name,
+                'bl_description': rft().description(),
+                'rf_icon': rft().icon(),
+                'rft_class': rft,
+                })
+            print(newclass)
+            rfmode_tools[id_name] = newclass
+            globals()[cls_name] = newclass
+        classfactory(rft)
 
+    listed,unlisted = [None]*len(RFTool.preferred_tool_order),[]
+    for ids,rft in rfmode_tools.items():
+        name = rft.bl_label
+        if name in RFTool.preferred_tool_order:
+            idx = RFTool.preferred_tool_order.index(name)
+            listed[idx] = (ids,rft)
+        else:
+            unlisted.append((ids,rft))
+    # sort unlisted entries by name
+    unlisted.sort(key=lambda k:k[1].bl_label)
+    listed = [data for data in listed if data]
+    RFTool.order = listed + unlisted
 
-
+setup_tools()
 
