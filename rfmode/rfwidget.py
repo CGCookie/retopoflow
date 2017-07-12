@@ -313,7 +313,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         dist = (center - actions.mouse).length
         ratio = max(0.0001, min(1.0, dist / self.radius))
         
-        self.strength = ratio
+        self.strength = 1.0 - ratio
         return ''
         
 
