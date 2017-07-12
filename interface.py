@@ -1,7 +1,8 @@
 import bpy
+from mathutils import Vector
 
 from .lib import common_utilities
-from .lib.common_utilities import bversion
+from .lib.common_utilities import bversion, get_source_object
 from . import addon_updater_ops
 
 if bversion() >= '002.076.000':
@@ -52,7 +53,28 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
             sub = row.row(align=True)
             sub.scale_x = 0.1
             sub.operator("cgcookie.eye_dropper", icon='EYEDROPPER').target_prop = 'source_object'
-
+        
+        source_object = get_source_object()
+        if source_object:
+            threshold = 0.00001
+            report_loc = source_object.location.length > threshold
+            if source_object.rotation_mode == 'AXIS_ANGLE':
+                rot = abs(source_object.rotation_axis_angle[0])
+            elif source_object.rotation_mode == 'QUATERNION':
+                rot = abs(source_object.rotation_quaternion.to_axis_angle()[1])
+            else:
+                rot = abs(source_object.rotation_euler.x) + abs(source_object.rotation_euler.y) + abs(source_object.rotation_euler.z)
+            report_rot = rot > threshold
+            report_sca = abs(source_object.scale.x-1)>threshold or abs(source_object.scale.y-1)>threshold or abs(source_object.scale.z-1)>threshold
+            if report_loc or report_rot or report_sca:
+                col = layout.column(align=True)
+                col.label('==== WARNING ====')
+                if report_loc: col.label("> Location not at origin")
+                if report_rot: col.label("> Rotation is not zero")
+                if report_sca: col.label("> Scaling is not unit")
+                col.label("RetopoFlow might not work correctly")
+                col.label("Apply transformations before proceeding")
+        
         if context.mode != 'EDIT_MESH':
 
             col = layout.column(align=True)
