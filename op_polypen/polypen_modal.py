@@ -818,7 +818,7 @@ class CGC_Polypen(ModalOperator):
         
         if self.hover_face():
             bmf = self.nearest_bmface
-            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges)
+            min_bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges, onlyVisible=False)
             _,bmv = bmesh.utils.edge_split(min_bme, min_bme.verts[0], 0.5)
             lbme = bmv.link_edges
             bmv.co = p3d
@@ -895,7 +895,7 @@ class CGC_Polypen(ModalOperator):
             bmf = self.hover_face()
             p3d = bmv0.co
             p2d = location_3d_to_region_2d(rgn, r3d, bmv0.co)
-            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=bmf.edges, onlyVisible=False)
             bmv1,bmv2 = bme.verts
             bmf = self.create_face([bmv0,bmv1,bmv2])
             return ''
@@ -907,7 +907,7 @@ class CGC_Polypen(ModalOperator):
         rgn,r3d = context.region,context.space_data.region_3d
         
         if self.hover_source():
-            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges, onlyVisible=False)
             assert bme in self.selected_bmedges
             bmv0 = self.create_vert(p3d, n3d)
             bmv1,bmv2 = bme.verts
@@ -923,7 +923,7 @@ class CGC_Polypen(ModalOperator):
                 return 'move vert'
             p3d = bmv0.co
             p2d = location_3d_to_region_2d(rgn, r3d, bmv0.co)
-            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges, onlyVisible=False)
             bmf = self.face_between_vertedge(bmv0, bme)
             if bmf:
                 # edge and vert share face
@@ -990,7 +990,7 @@ class CGC_Polypen(ModalOperator):
                 
                 # find which edge to split
                 lbme = [bme for bme in bmf.edges if bmv_shared in bme.verts]
-                bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+                bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
                 
                 # split edge
                 _,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
@@ -1111,7 +1111,7 @@ class CGC_Polypen(ModalOperator):
         # bridge
         p3d = (bme1.verts[0].co + bme1.verts[1].co)/2
         p2d = location_3d_to_region_2d(rgn, r3d, p3d)
-        bme0,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges)
+        bme0,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=self.selected_bmedges, onlyVisible=False)
         bmv0,bmv1 = bme0.verts
         bmv2,bmv3 = bme1.verts
         bmf = self.create_face([bmv0,bmv1,bmv2,bmv3])
@@ -1130,7 +1130,7 @@ class CGC_Polypen(ModalOperator):
                 lbme = self.selected_bmedges
             elif self.selected_bmfaces:
                 lbme = self.selected_bmfaces[0].edges
-            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
             bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.nearest_bmvert
             bmf = self.create_face([bmv0, bmv1, bmv2])
             self.set_selection(lbmv=[bmv2],lbmf=[bmf])
@@ -1145,7 +1145,7 @@ class CGC_Polypen(ModalOperator):
                 lbme1 = self.selected_bmedges
             elif self.selected_bmfaces:
                 lbme1 = self.selected_bmfaces[0].edges
-            bme1,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1)
+            bme1,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1, onlyVisible=False)
             bmv2,bmv3 = bme1.verts
             bmf = self.create_face([bmv0, bmv1, bmv2, bmv3])
             self.set_selection(lbme=[bme for bme in bmf.edges if bme not in {bme0,bme1}])
@@ -1166,7 +1166,7 @@ class CGC_Polypen(ModalOperator):
             for bme0 in self.nearest_bmface.edges:
                 p3d = (bme0.verts[0].co + bme0.verts[0].co) / 2.0
                 p2d = location_3d_to_region_2d(rgn, r3d, p3d)
-                bme1,d2d,d3d = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1)
+                bme1,d2d,d3d = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme1, onlyVisible=False)
                 if not mbme0 or d3d < md3d:
                     mbme0 = bme0
                     mbme1 = bme1
@@ -1189,7 +1189,7 @@ class CGC_Polypen(ModalOperator):
             lbme = self.selected_bmfaces[0].edges
         else:
             return
-        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
         bmv0,bmv1,bmv2 = bme.verts[0],bme.verts[1],self.create_vert(p3d, n3d)
         bmf = self.create_face([bmv0, bmv1, bmv2])
         self.set_selection(lbmv=[bmv2],lbmf=[bmf])
@@ -1218,7 +1218,7 @@ class CGC_Polypen(ModalOperator):
             p3d = bmv0.co
             p2d = location_3d_to_region_2d(rgn, r3d, p3d)
             lbme = self.nearest_bmface.edges
-            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+            bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
             _,bmv1 = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         elif self.hover_vert():
             bmv1 = self.nearest_bmvert
@@ -1257,7 +1257,7 @@ class CGC_Polypen(ModalOperator):
             lbme = self.selected_bmfaces[0].edges
         else:
             return ''
-        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         lbme = bmv.link_edges
         bmv.co = p3d
@@ -1279,7 +1279,7 @@ class CGC_Polypen(ModalOperator):
             lbme = self.selected_bmfaces[0].edges
         else:
             return ''
-        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+        bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme, onlyVisible=False)
         bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
         bmesh.utils.vert_splice(bmv, self.nearest_bmvert)
         self.clean_duplicate_bmedges(self.nearest_bmvert)
