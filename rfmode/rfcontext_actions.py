@@ -44,6 +44,8 @@ class Actions:
         'grab': {'G'},
         'delete': {'X','DELETE'},
         
+        'relax selected': {'SHIFT+S'},
+        
         # widget
         'brush radius': {'F'},
         'brush size': {'F'},
