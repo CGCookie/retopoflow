@@ -134,6 +134,7 @@ class RFTool_PolyStrips(RFTool):
     def init(self):
         self.FSM['move bmf'] = self.modal_move_bmf
         self.FSM['manip bezier'] = self.modal_manip_bezier
+        self.FSM['rotate outer'] = self.modal_rotate_outer
         
         self.point_size = 10
     
@@ -325,12 +326,10 @@ class RFTool_PolyStrips(RFTool):
             self.rfwidget.set_widget('brush stroke')
         
         if self.hovering and self.rfcontext.actions.pressed('action'):
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = 'action'
-            self.move_cancelled = 'cancel'
-            self.prep_manip()
-            self.rfcontext.undo_push('manipulate bezier')
-            return 'manip bezier'
+            return self.prep_manip()
+        
+        if self.hovering and self.rfcontext.actions.pressed('alt action'):
+            return self.prep_rotate()
         
         if self.rfcontext.actions.using('select'):
             if self.rfcontext.actions.pressed('select'):
@@ -366,6 +365,68 @@ class RFTool_PolyStrips(RFTool):
             self.update()
             return
     
+    def prep_rotate(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        inner,outer = None,None
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                if p1 in self.hovering: inner,outer = p1,p0
+                if p2 in self.hovering: inner,outer = p2,p3
+        if not inner or not outer: return ''
+        self.sel_cbpts = []
+        self.mod_strips = set()
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                if (outer - p0).length < 0.01:
+                    self.sel_cbpts += [(p1, Point(p1), Point_to_Point2D(p1))]
+                    self.mod_strips.add(strip)
+                if (outer - p3).length < 0.01:
+                    self.sel_cbpts += [(p2, Point(p2), Point_to_Point2D(p2))]
+                    self.mod_strips.add(strip)
+        self.rotate_about = Point_to_Point2D(outer)
+        if not self.rotate_about: return ''
+        
+        self.mousedown = self.rfcontext.actions.mouse
+        self.rfwidget.set_widget('move')
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = 'alt action'
+        self.move_cancelled = 'cancel'
+        self.rfcontext.undo_push('rotate outer')
+        return 'rotate outer'
+    
+    @RFTool.dirty_when_done
+    def modal_rotate_outer(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            self.rfwidget.set_widget('brush stroke')
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            self.rfwidget.set_widget('brush stroke')
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfwidget.set_widget('brush stroke')
+            self.rfcontext.undo_cancel()
+            return 'main'
+        
+        prev_diff = self.mousedown - self.rotate_about
+        prev_rot = math.atan2(prev_diff.x, prev_diff.y)
+        cur_diff = self.rfcontext.actions.mouse - self.rotate_about
+        cur_rot = math.atan2(cur_diff.x, cur_diff.y)
+        angle = prev_rot - cur_rot
+        
+        rot = Matrix.Rotation(angle, 2)
+        
+        for cbpt,oco,oco2D in self.sel_cbpts:
+            xy = rot * (oco2D - self.rotate_about) + self.rotate_about
+            xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(xy)
+            if xyz: cbpt.xyz = xyz
+        
+        for strip in self.mod_strips:
+            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
+        
+        self.update_strip_viz()
+    
     def prep_manip(self):
         cbpts = list(self.hovering)
         for strip in self.strips:
@@ -376,6 +437,11 @@ class RFTool_PolyStrips(RFTool):
         self.sel_cbpts = [(cbpt, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = 'action'
+        self.move_cancelled = 'cancel'
+        self.rfcontext.undo_push('manipulate bezier')
+        return 'manip bezier'
     
     @RFTool.dirty_when_done
     def modal_manip_bezier(self):

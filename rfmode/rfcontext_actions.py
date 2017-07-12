@@ -33,6 +33,7 @@ class Actions:
         'maximize area': set(),                         # to be filled in by self.load_keymap()
         'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
+        'alt action': {'SHIFT+LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
@@ -48,6 +49,7 @@ class Actions:
         'delete': {'X','DELETE'},
         
         'relax selected': {'SHIFT+S'},
+        
         
         # widget
         'brush radius': {'F'},
