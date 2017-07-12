@@ -4,12 +4,12 @@ from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
 @RFTool.action_call('move tool')
-class RFTool_Move(RFTool):
+class RFTool_Tweak(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['move'] = self.modal_move
     
-    def name(self): return "Tweak Move"
+    def name(self): return "Tweak"
     def icon(self): return "rf_tweak_icon"
     def description(self): return 'Moves vertices with falloff'
     

@@ -14,7 +14,33 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
+    preferred_tool_order = [
+        # use the reported name
+        # note: any tool not listed here will append to the bottom in alphabetical-sorted order
+        'Contours',
+        'PolyStrips',
+        'PolyPen',
+        'Relax',
+        'Tweak',
+    ]
+    order = None
+    
     def draw(self, context):
+        cls = type(self)
+        if cls.order == None:
+            listed,unlisted = [None]*len(cls.preferred_tool_order),[]
+            for ids,rft in rfmode_tools.items():
+                name = rft.bl_label
+                if name in cls.preferred_tool_order:
+                    idx = cls.preferred_tool_order.index(name)
+                    listed[idx] = (ids,rft)
+                else:
+                    unlisted.append((ids,rft))
+            # sort unlisted entries by name
+            unlisted.sort(key=lambda k:k[1].bl_label)
+            listed = [data for data in listed if data]
+            cls.order = listed + unlisted
+        
         layout = self.layout
 
         # explicitly call to check for update in background
@@ -30,7 +56,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         
         col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
-        for ids,rft in sorted(rfmode_tools.items()):
+        for ids,rft in self.order:
             icon_name = rft.rf_icon
             if icon_name is not None:
                 icon = icons.get(icon_name)

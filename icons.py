@@ -22,6 +22,7 @@ def load_icons():
 	rf_icons.load( "rf_loopcut_icon", os.path.join(icons_dir, "loop_cut_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopdelete_icon", os.path.join(icons_dir, "loop_delete_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopslide_icon", os.path.join(icons_dir, "loop_slide_32.png"), 'IMAGE')
+	rf_icons.load( "rf_relax_icon", os.path.join(icons_dir, "relax_32.png"), 'IMAGE')
 
 	icon_collections["main"] = rf_icons
 	icons_loaded = True

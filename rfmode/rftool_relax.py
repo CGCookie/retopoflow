@@ -11,7 +11,7 @@ class RFTool_Relax(RFTool):
         self.FSM['relax selected'] = self.modal_relax_selected
     
     def name(self): return "Relax"
-    def icon(self): return "rf_tweak_icon"
+    def icon(self): return "rf_relax_icon"
     def description(self): return 'Relax topology by changing length of edges to average'
     
     ''' Called the tool is being switched into '''
