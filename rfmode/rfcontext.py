@@ -166,6 +166,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.frames = 0
         
         self.timer = None
+        self.time_to_save = None
         self.fps = 0
         self.show_fps = True
     
@@ -331,6 +332,16 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         if self.actions.using('autosave'):
             return {'pass'}
         
+        use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
+        auto_save_time = context.user_preferences.filepaths.auto_save_time
+        if use_auto_save_temporary_files and self.actions.using('timer'):
+            if self.time_to_save is None: self.time_to_save = auto_save_time
+            else: self.time_to_save -= self.actions.time_delta
+            if self.time_to_save <= 0:
+                filepath = os.path.join(bpy.app.tempdir, 'retopoflow_backup.blend')
+                bpy.ops.wm.save_as_mainfile(filepath, check_existing=False, copy=True)
+                self.time_to_save = auto_save_time
+        
         # user pressing nav key?
         if self.actions.using('navigate') or (self.actions.timer and self.nav):
             # let Blender handle navigation
@@ -417,6 +428,13 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
+    
+    
+    ###################################################
+    
+    def is_visible(self, point:Point):
+        ray = self.Point_to_Ray(point, max_dist_offset=-0.001)
+        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
     
     
     ###################################################

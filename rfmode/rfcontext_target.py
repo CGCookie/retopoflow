@@ -65,6 +65,18 @@ class RFContext_Target:
     
     
     #######################################
+    
+    def visible_verts(self):
+        return self.rftarget.visible_verts(self.is_visible)
+    
+    def visible_edges(self, verts=None):
+        return self.rftarget.visible_edges(self.is_visible, verts=verts)
+    
+    def visible_faces(self, verts=None):
+        return self.rftarget.visible_faces(self.is_visible, verts=verts)
+    
+    
+    #######################################
     # target manipulation functions
     #
     # note: these do NOT dirty the target!

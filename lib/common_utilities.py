@@ -46,6 +46,8 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from bpy.app.handlers import persistent
 
+from .classes.logging.logger import Logger
+
 
 def bversion():
     bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
@@ -94,7 +96,8 @@ def print_exception():
     print_exception.count += 1
 
     # write error to log text object
-    bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
+    Logger.add(errormsg)
+    #bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
 
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)

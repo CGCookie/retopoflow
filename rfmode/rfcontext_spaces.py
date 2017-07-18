@@ -46,6 +46,14 @@ class RFContext_Spaces:
         oxyz = region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy)
         return (xyz - oxyz).length
     
+    def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
+        xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
+        if not xy: return None
+        o = self.Point2D_to_Origin(xy)
+        d = self.Point2D_to_Vec(xy)
+        dist = (o - xyz).length
+        return Ray(o, d, min_dist=min_dist, max_dist=dist+max_dist_offset)
+    
     def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
         # computes size of 3D object at distance (depth) as it projects to 2D size
         # TODO: there are more efficient methods of computing this!

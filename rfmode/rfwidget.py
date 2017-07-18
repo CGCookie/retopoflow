@@ -205,10 +205,13 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
                     self.stroke2D_left.append(actions.mouse + ortho)
                     self.stroke2D_right.append(actions.mouse - ortho)
         
-        lstpos = self.stroke2D[-1] if self.stroke2D else actions.mouse
-        curpos = actions.mouse
-        newpos = lstpos + (curpos - lstpos) * (1 - self.tightness)
-        self.stroke2D.append(newpos)
+        if not self.stroke2D:
+            self.stroke2D.append(actions.mouse)
+        else:
+            lstpos,curpos = self.stroke2D[-1],actions.mouse
+            diff = curpos - lstpos
+            newpos = lstpos + diff * (1 - self.tightness)
+            self.stroke2D.append(newpos)
     
     def modal_radius(self):
         actions = self.rfcontext.actions

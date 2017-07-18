@@ -156,13 +156,23 @@ class RFMesh():
         n = self.xform.l2w_normal(Normal((1,0,0)))
         return Plane(o, n)
     
+    
     ##########################################################
     
-    def wrap_bmvert(self, bmv): return RFVert(bmv)
-    def wrap_bmedge(self, bme): return RFEdge(bme)
-    def wrap_bmface(self, bmf): return RFFace(bmf)
+    def _wrap(self, bmelem):
+        t = type(bmelem)
+        if t is BMVert: return RFVert(bmelem)
+        if t is BMEdge: return RFEdge(bmelem)
+        if t is BMFace: return RFFace(bmelem)
+        assert False
+    def _wrap_bmvert(self, bmv): return RFVert(bmv)
+    def _wrap_bmedge(self, bme): return RFEdge(bme)
+    def _wrap_bmface(self, bmf): return RFFace(bmf)
     def _unwrap(self, elem):
         return elem if not hasattr(elem, 'bmelem') else elem.bmelem
+    
+    
+    ##########################################################
     
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
@@ -173,6 +183,11 @@ class RFMesh():
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
+    
+    def raycast_hit(self, ray:Ray):
+        ray_local = self.xform.w2l_ray(ray)
+        p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
+        return p is not None
     
     def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         point_local = self.xform.w2l_point(point)
@@ -189,7 +204,7 @@ class RFMesh():
             d3d = (bmv.co - point_local).length
             if bv is None or d3d < bd: bv,bd = bmv,d3d
         bmv_world = self.xform.l2w_point(bv.co)
-        return (self.wrap_bmvert(bv),(point-bmv_world).length)
+        return (self._wrap_bmvert(bv),(point-bmv_world).length)
     
     def nearest_bmverts_Point(self, point:Point, dist3d:float):
         nearest = []
@@ -197,7 +212,7 @@ class RFMesh():
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
             if d3d > dist3d: continue
-            nearest += [(self.wrap_bmvert(bmv), d3d)]
+            nearest += [(self._wrap_bmvert(bmv), d3d)]
         return nearest
     
     def nearest_bmedges_Point(self, point:Point, dist3d:float):
@@ -210,7 +225,7 @@ class RFMesh():
             pp = bmv0 + d * max(0, min(l, (point - bmv0).dot(d)))
             dist = (point - pp).length
             if dist > dist3d: continue
-            nearest += [(self.wrap_bmedge(bme), dist)]
+            nearest += [(self._wrap_bmedge(bme), dist)]
         return nearest
     
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
@@ -222,7 +237,7 @@ class RFMesh():
             if p2d is None: continue
             if (p2d - xy).length > dist2D: continue
             d3d = 0
-            nearest += [(self.wrap_bmvert(bmv), d3d)]
+            nearest += [(self._wrap_bmvert(bmv), d3d)]
         return nearest
     
     def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2D):
@@ -235,7 +250,7 @@ class RFMesh():
             if p2d is None: continue
             if bv is None or d2d < bd: bv,bd = bmv,d2d
         if bv is None: return (None,None)
-        return (self.wrap_bmvert(bv),bd)
+        return (self._wrap_bmvert(bv),bd)
     
     def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D):
         # TODO: compute distance from camera to point
@@ -247,31 +262,61 @@ class RFMesh():
             pt0 = pts[0]
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
                 if intersect_point_tri(xy, pt0, pt1, pt2):
-                    return self.wrap_bmface(bmf)
+                    return self._wrap_bmface(bmf)
             #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
             #d2d = (xy - p2d).length
             #if p2d is None: continue
             #if bv is None or d2d < bd: bv,bd = bmv,d2d
         #if bv is None: return (None,None)
-        #return (self.wrap_bmvert(bv),bd)
+        #return (self._wrap_bmvert(bv),bd)
         return None
+    
+    
+    ##########################################################
+    
+    def _visible_verts(self, is_visible):
+        l2w_point = self.xform.l2w_point
+        is_vis = lambda bmv: is_visible(l2w_point(bmv.co))
+        return { bmv for bmv in self.bme.verts if is_vis(bmv) }
+    
+    def _visible_edges(self, is_visible, bmvs=None):
+        if bmvs is None: bmvs = self._visible_verts(is_visible)
+        return { bme for bme in self.bme.edges if any(bmv in bmvs for bmv in bme.verts) }
+    
+    def _visible_faces(self, is_visible, bmvs=None):
+        if bmvs is None: bmvs = self._visible_verts(is_visible)
+        return { bmf for bmf in self.bme.faces if any(bmv in bmvs for bmv in bmf.verts) }
+    
+    def visible_verts(self, is_visible):
+        return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) }
+    
+    def visible_edges(self, is_visible, verts=None):
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs) }
+    
+    def visible_faces(self, is_visible, verts=None):
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        bmfs = { self._wrap_bmface(bmf) for bmf in self._visible_faces(is_visible, bmvs=bmvs) }
+        #print('seeing %d / %d faces' % (len(bmfs), len(self.bme.faces)))
+        return bmfs
+    
     
     ##########################################################
     
     def get_selected_verts(self):
         s = set()
         for bmv in self.bme.verts:
-            if bmv.select: s.add(self.wrap_bmvert(bmv))
+            if bmv.select: s.add(self._wrap_bmvert(bmv))
         return s
     def get_selected_edges(self):
         s = set()
         for bme in self.bme.edges:
-            if bme.select: s.add(self.wrap_bmedge(bme))
+            if bme.select: s.add(self._wrap_bmedge(bme))
         return s
     def get_selected_faces(self):
         s = set()
         for bmf in self.bme.faces:
-            if bmf.select: s.add(self.wrap_bmface(bmf))
+            if bmf.select: s.add(self._wrap_bmface(bmf))
         return s
     
     def get_selection_center(self):
@@ -443,18 +488,18 @@ class RFTarget(RFMesh):
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
         bmv.normal = self.xform.w2l_normal(norm)
-        return self.wrap_bmvert(bmv)
+        return self._wrap_bmvert(bmv)
     
     def new_edge(self, verts):
         verts = [self._unwrap(v) for v in verts]
         bme = self.bme.edges.new(verts)
-        return self.wrap_bmedge(bme)
+        return self._wrap_bmedge(bme)
     
     def new_face(self, verts):
         verts = [self._unwrap(v) for v in verts]
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
-        return self.wrap_bmface(bmf)
+        return self._wrap_bmface(bmf)
     
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         faces = set(self._unwrap(f) for f in faces)
@@ -509,7 +554,7 @@ class RFTarget(RFMesh):
             if l0 == 1 and l1 == 1:
                 # remove bme1 and recreate attached faces
                 lbmv = list(bme1.link_faces[0].verts)
-                bmf = self.wrap_bmface(bme1.link_faces[0])
+                bmf = self._wrap_bmface(bme1.link_faces[0])
                 self.bme.edges.remove(bme1)
                 mapping[bmf] = self.new_face(lbmv)
                 #self.create_face(lbmv)

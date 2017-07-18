@@ -5,129 +5,12 @@ from mathutils import Vector, Matrix
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
+from mathutils.geometry import intersect_point_tri_2d
 
-def find_opposite_edge(bmf, bme):
-    bmes = bmf.edges
-    if bmes[0] == bme: return bmes[2]
-    if bmes[1] == bme: return bmes[3]
-    if bmes[2] == bme: return bmes[0]
-    if bmes[3] == bme: return bmes[1]
-    assert False
+from ..lib.common_utilities import showErrorMessage
+from ..lib.classes.logging.logger import Logger
 
-def find_shared_edge(bmf0, bmf1):
-    for e0 in bmf0.edges:
-        for e1 in bmf1.edges:
-            if e0 == e1: return e0
-    return None
-
-def is_edge(bme, only_bmfs):
-    return len([f for f in bme.link_faces if f in only_bmfs]) == 1
-
-def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs):
-    #
-    #         *------*------*
-    #    ===> | bmf0 | bmf1 | ===>
-    #         *------*------*
-    #                ^      ^
-    # bme0_2=bme1_0 /        \ bme1_2
-    #
-    bmfs = [bmf for bmf in bme0_2.link_faces if bmf in only_bmfs and bmf != bmf0]
-    if len(bmfs) != 1: return [bmf0]
-    bmf1 = bmfs[0]
-    # rotate bmedges so bme1_0 is where we came from, bme1_2 is where we are going
-    bmf1_edges = bmf1.edges
-    if   bme0_2 == bmf1_edges[0]: bme1_0,bme1_1,bme1_2,bme1_3 = bmf1_edges
-    elif bme0_2 == bmf1_edges[1]: bme1_3,bme1_0,bme1_1,bme1_2 = bmf1_edges
-    elif bme0_2 == bmf1_edges[2]: bme1_2,bme1_3,bme1_0,bme1_1 = bmf1_edges
-    elif bme0_2 == bmf1_edges[3]: bme1_1,bme1_2,bme1_3,bme1_0 = bmf1_edges
-    else: assert False, 'Something very unexpected happened!'
-    
-    if bmf1 not in only_bmfs: return [bmf0]
-    if bmf1 in stop_bmfs: return [bmf0, bmf1]
-    return [bmf0] + crawl_strip(bmf1, bme1_2, only_bmfs, stop_bmfs)
-
-def strip_details(strip):
-    pts = []
-    radius = 0
-    for bmf in strip:
-        bmvs = bmf.verts
-        v = sum((Vector(bmv.co) for bmv in bmvs), Vector()) / 4
-        r = ((bmvs[0].co - bmvs[1].co).length + (bmvs[1].co - bmvs[2].co).length + (bmvs[2].co - bmvs[3].co).length + (bmvs[3].co - bmvs[0].co).length) / 8
-        if not pts: radius = r
-        else: radius = max(radius, r)
-        pts += [v]
-    if False:
-        tesspts = []
-        tess_count = 2 if len(strip)>2 else 4
-        for pt0,pt1 in zip(pts[:-1],pts[1:]):
-            for i in range(tess_count):
-                p = i / tess_count
-                tesspts += [pt0 + (pt1-pt0)*p]
-        pts = tesspts + [pts[-1]]
-    return (pts, radius)
-
-def hash_face_pair(bmf0, bmf1):
-    return str(bmf0.__hash__()) + str(bmf1.__hash__())
-
-
-
-class RFTool_PolyStrips_Strip:
-    def __init__(self, bmf_strip):
-        pts,r = strip_details(bmf_strip)
-        self.bmf_strip = bmf_strip
-        self.cbs = CubicBezierSpline.create_from_points([pts], r/2000.0)
-        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
-        
-        self.bmes = []
-        bmes = [(find_shared_edge(bmf0,bmf1), (bmf0.normal+bmf1.normal).normalized()) for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:])]
-        bme0 = find_opposite_edge(bmf_strip[0], bmes[0][0])
-        bme1 = find_opposite_edge(bmf_strip[-1], bmes[-1][0])
-        if len(bme0.link_faces) == 1: bmes = [(bme0, bmf_strip[0].normal)] + bmes
-        if len(bme1.link_faces) == 1: bmes = bmes + [(bme1, bmf_strip[-1].normal)]
-        for bme,norm in bmes:
-            bmvs = bme.verts
-            halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
-            diffdir = halfdiff.normalized()
-            center = bmvs[0].co + halfdiff
-            
-            t = self.cbs.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
-            pos,der = self.cbs.eval(t),self.cbs.eval_derivative(t).normalized()
-            
-            rad = halfdiff.length
-            cross = der.cross(norm).normalized()
-            off = center - pos
-            off_cross = cross.dot(off)
-            off_der = der.dot(off)
-            rot = math.acos(max(-0.99999,min(0.99999,diffdir.dot(cross))))
-            if diffdir.dot(der) < 0: rot = -rot
-            self.bmes += [(bme, t, rad, rot, off_cross, off_der)]
-    
-    def __len__(self): return len(self.cbs)
-    
-    def __iter__(self): return iter(self.cbs)
-    
-    def __getitem__(self, key): return self.cbs[key]
-    
-    def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
-        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
-        length = self.cbs.approximate_totlength_tessellation()
-        for bme,t,rad,rot,off_cross,off_der in self.bmes:
-            pos,norm,_,_ = raycast_sources_Point(self.cbs.eval(t))
-            der = self.cbs.eval_derivative(t).normalized()
-            cross = der.cross(norm).normalized()
-            center = pos + der * off_der + cross * off_cross
-            rotcross = (Matrix.Rotation(rot, 3, norm) * cross).normalized()
-            p0 = center - rotcross * rad
-            p1 = center + rotcross * rad
-            bmv0,bmv1 = bme.verts
-            v0,_,_,_ = raycast_sources_Point(p0)
-            v1,_,_,_ = raycast_sources_Point(p1)
-            if not v0: v0,_,_,_ = nearest_sources_Point(p0)
-            if not v1: v1,_,_,_ = nearest_sources_Point(p1)
-            bmv0.co = v0
-            bmv1.co = v1
-        for bmf in self.bmf_strip:
-            update_face_normal(bmf)
+from .rftool_polystrips_utils import *
 
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool):
@@ -196,25 +79,33 @@ class RFTool_PolyStrips(RFTool):
     @RFTool.dirty_when_done
     def stroke(self):
         radius = self.rfwidget.get_scaled_size()
-        stroke2D = self.rfwidget.stroke2D
-        stroke_len = len(stroke2D)
+        stroke2D = list(self.rfwidget.stroke2D)
         bmfaces = []
+        all_bmfaces = []
         
-        if stroke_len < 10: return
+        if len(stroke2D) < 10: return
         
         self.rfcontext.undo_push('stroke')
         
-        strokes = []
-        cur_stroke = []
-        for pt2D in stroke2D:
-            pt = self.rfcontext.get_point3D(pt2D)
-            if not pt:
-                if cur_stroke: strokes += [cur_stroke]
-                cur_stroke = []
-                continue
-            cur_stroke += [pt]
-        if cur_stroke: strokes += [cur_stroke]
-        self.strokes = strokes
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        vis_faces = self.rfcontext.visible_faces()
+        vis_faces2D = [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in vis_faces]
+        
+        def get_state(point:Point2D):
+            nonlocal vis_faces2D
+            point3D = self.rfcontext.get_point3D(point)
+            if not point3D: return ('off', None)
+            for bmf,cos in vis_faces2D:
+                co0 = cos[0]
+                for co1,co2 in zip(cos[1:-1],cos[2:]):
+                    if intersect_point_tri_2d(point, co0, co1, co2):
+                        return ('tar', bmf)
+            return ('src', None)
+        def next_state():
+            nonlocal stroke2D
+            pt = stroke2D.pop()
+            state,face = get_state(pt)
+            return (pt,state,face)
         
         def merge(p0, p1, q0, q1):
             nonlocal bmfaces
@@ -224,75 +115,118 @@ class RFTool_PolyStrips(RFTool):
             q0.merge(p0)
             q1.merge(p1)
             mapping = self.rfcontext.clean_duplicate_bmedges(q0)
-            bmfaces = [mapping[f] if f in mapping else f for f in bmfaces]
+            bmfaces = [mapping.get(f, f) for f in bmfaces]
         
         def insert(cb, bme_start, bme_end):
-            length = cb.approximate_length_uniform(lambda p,q: (p-q).length)
-            steps = round(length / radius)
-            steps += steps % 2              # make sure that we have even number of steps
-            if steps <= 1: return
+            nonlocal bmfaces
+            if bme_start and bme_start == bme_end: return
+            if bme_start and bme_end:
+                bmv0,bmv1 = bme_start.verts
+                bmv2,bmv3 = bme_end.verts
+                if bmv0 == bmv2 or bmv0 == bmv3 or bmv1 == bmv2 or bmv1 == bmv3: return
             
-            intervals = [0] + [((i+1)/steps)*length for i in range(steps)]
+            length = cb.approximate_length_uniform(lambda p,q: (p-q).length)
+            steps = math.floor((length / radius) / 2)
+            
+            if steps == 0:
+                if bme_start == None or bme_end == None: return
+                bmv0,bmv1 = bme_start.verts
+                bmv2,bmv3 = bme_end.verts
+                dir01,dir23 = bmv1.co - bmv0.co, bmv3.co - bmv2.co
+                if dir01.dot(dir23) > 0:
+                    bmfaces.append(self.rfcontext.new_face([bmv0,bmv1,bmv3,bmv2]))
+                else:
+                    bmfaces.append(self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3]))
+                return
+            
+            intervals = [(i/steps)*length for i in range(steps+1)]
             ts = cb.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
             
             fp0,fp1 = None,None
             lp2,lp3 = None,None
             p0,p1,p2,p3 = None,None,None,None
-            for i,t in enumerate(ts):
-                if i % 2 == 1: continue
+            for t in ts:
                 center,normal,_,_ = self.rfcontext.nearest_sources_Point(cb.eval(t))
                 direction = cb.eval_derivative(t).normalized()
                 cross = normal.cross(direction).normalized()
-                back = center - direction * radius
+                back,front = center - direction * radius, center + direction * radius
+                loc0,loc1 = back  - cross * radius, back  + cross * radius
+                loc2,loc3 = front + cross * radius, front - cross * radius
                 if p0 is None:
-                    p0 = self.rfcontext.new_vert_point(back - cross * radius)
-                    p1 = self.rfcontext.new_vert_point(back + cross * radius)
-                    fp0,fp1 = p0,p1
+                    p0 = self.rfcontext.new_vert_point(loc0)
+                    p1 = self.rfcontext.new_vert_point(loc1)
                 else:
-                    p0.co = (Vector(p0.co) + Vector(back - cross * radius)) * 0.5
-                    p1.co = (Vector(p1.co) + Vector(back + cross * radius)) * 0.5
-                front = center + direction * radius
-                p2 = self.rfcontext.new_vert_point(front + cross * radius)
-                p3 = self.rfcontext.new_vert_point(front - cross * radius)
-                lp2,lp3 = p2,p3
+                    p0.co = (Vector(p0.co) + Vector(loc0)) * 0.5
+                    p1.co = (Vector(p1.co) + Vector(loc1)) * 0.5
+                p2 = self.rfcontext.new_vert_point(loc2)
+                p3 = self.rfcontext.new_vert_point(loc3)
                 bmfaces.append(self.rfcontext.new_face([p0,p1,p2,p3]))
+                if not fp0: fp0,fp1 = p0,p1
                 p0,p1 = p3,p2
+            lp2,lp3 = p2,p3
             
-            if bme_start is not None:
+            if bme_start:
                 bmv0,bmv1 = bme_start.verts
                 merge(fp0, fp1, bmv0, bmv1)
-            if bme_end is not None:
+            if bme_end:
                 bmv0,bmv1 = bme_end.verts
                 merge(lp2, lp3, bmv0, bmv1)
         
-        cbs = CubicBezierSpline.create_from_points(strokes, radius/20.0)
-        
-        for cb in cbs:
-            # pre-pass curve to see if we cross existing geo
-            p0,_,_,p3 = cb.points()
-            bmes0 = self.rfcontext.nearest_bmedges_Point(p0, radius)
-            bmes3 = self.rfcontext.nearest_bmedges_Point(p3, radius)
-            print('close to %d and %d' % (len(bmes0), len(bmes3)))
-            if bmes0:
-                bmes0 = sorted(bmes0, key=lambda d:d[1])
-                bme0 = bmes0[0][0]
-            else:
-                bme0 = None
-            if bmes3:
-                bmes3 = sorted(bmes3, key=lambda d:d[1])
-                bme3 = bmes3[0][0]
-            else:
-                bme3 = None
+        def stroke_to_quads(stroke):
+            nonlocal bmfaces, all_bmfaces, vis_faces2D
+            cbs = CubicBezierSpline.create_from_points([stroke], radius/20.0)
+            nearest_bmedges_Point = self.rfcontext.nearest_bmedges_Point
             
-            # post-pass to create 
-            insert(cb, bme0, bme3)
+            for cb in cbs:
+                # pre-pass curve to see if we cross existing geo
+                p0,_,_,p3 = cb.points()
+                bmes0 = nearest_bmedges_Point(p0, radius)
+                bmes3 = nearest_bmedges_Point(p3, radius)
+                #print('close to %d and %d' % (len(bmes0), len(bmes3)))
+                bme0 = None if not bmes0 else sorted(bmes0, key=lambda d:d[1])[0][0]
+                bme3 = None if not bmes3 else sorted(bmes3, key=lambda d:d[1])[0][0]
+                
+                # post-pass to create
+                bmfaces = []
+                insert(cb, bme0, bme3)
+                all_bmfaces += bmfaces
+                vis_faces2D += [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in bmfaces]
+            
+            self.stroke_cbs = self.stroke_cbs + cbs
         
-        for bmf in bmfaces:
-            self.rfcontext.update_face_normal(bmf)
+        def process_stroke():
+            # scan through all the points of stroke
+            # if stroke goes off source or crosses a visible face, stop and insert,
+            # then skip ahead until stroke goes back on source
+            
+            self.stroke_cbs = CubicBezierSpline()
+            
+            strokes = []
+            pt,state,face0 = next_state()
+            while stroke2D:
+                if state == 'src':
+                    stroke = []
+                    while stroke2D and state == 'src':
+                        stroke.append(self.rfcontext.get_point3D(pt))
+                        pt,state,face1 = next_state()
+                    if len(stroke) > 10:
+                        stroke_to_quads(stroke)
+                        strokes.append(stroke)
+                    face0 = face1
+                elif state in {'tar', 'off'}:
+                    pt,state,face0 = next_state()
+                else:
+                    assert False, 'Unexpected state'
+            self.strokes = strokes
+            
+            map(self.rfcontext.update_face_normal, all_bmfaces)
+            self.rfcontext.select(all_bmfaces)
         
-        self.stroke_cbs = cbs
-        
-        self.rfcontext.select(bmfaces)
+        try:
+            process_stroke()
+        except Exception as e:
+            Logger.add('Unhandled exception raised while processing stroke\n' + str(e))
+            showErrorMessage('Unhandled exception raised while processing stroke.\nPlease try again.')
     
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
