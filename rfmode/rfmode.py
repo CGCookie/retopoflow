@@ -34,6 +34,7 @@ from bpy.app.handlers import persistent, load_post
 from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 from ..lib.classes.logging.logger import Logger
+from ..lib.common_utilities import dprint
 
 from .rfcontext import RFContext
 from .rftool import RFTool
@@ -493,7 +494,7 @@ def setup_tools():
             rft_name = rft().name()
             cls_name = 'RFMode_' + rft_name.replace(' ','_')
             id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
-            print('Creating: ' + cls_name)
+            dprint('Creating: ' + cls_name)
             def context_start_tool(self): return rft()
             newclass = type(cls_name, (RFMode,),{
                 "context_start_tool": context_start_tool,
@@ -503,7 +504,6 @@ def setup_tools():
                 'rf_icon': rft().icon(),
                 'rft_class': rft,
                 })
-            print(newclass)
             rfmode_tools[id_name] = newclass
             globals()[cls_name] = newclass
         classfactory(rft)

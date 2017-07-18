@@ -63,6 +63,7 @@ from .op_loopslide.loopslide_modal import CGC_loopslide
 from .op_polypen.polypen_modal import CGC_Polypen
 
 from .rfmode.rfmode import RFMode, rfmode_tools
+from .rfmode.rf_recover import RFRecover
 
 # updater import
 from . import addon_updater_ops
@@ -89,6 +90,8 @@ def register():
         # print('registering '+idname)
         bpy.utils.register_class(rft)
     
+    bpy.utils.register_class(RFRecover)
+    
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
@@ -112,6 +115,8 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
+    
+    bpy.utils.unregister_class(RFRecover)
     
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)

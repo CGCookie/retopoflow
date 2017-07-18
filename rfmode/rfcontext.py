@@ -23,9 +23,10 @@ from .rfcontext_actions import RFContext_Actions
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
-from ..lib.common_utilities import get_settings
+from ..lib.common_utilities import get_settings, dprint
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
+from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh import RFSource, RFTarget, RFMeshRender
 
@@ -71,8 +72,8 @@ def find_all_rftools(root=None):
                         found = True
             except Exception as e:
                 if 'rftool' in rft:
-                    print('Could not import ' + rft)
-                    print(e)
+                    dprint('Could not import ' + rft)
+                    dprint(e)
                 pass
     return found
 assert find_all_rftools(), 'Could not find RFTools'
@@ -139,6 +140,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         return o if RFContext.is_valid_target(o) else None
     
     def __init__(self, starting_tool):
+        pr = profiler.start()
+        
         RFContext.instance = self
         self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
@@ -169,6 +172,9 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.time_to_save = None
         self.fps = 0
         self.show_fps = True
+        
+        pr.done()
+        profiler.printout()
     
     def _init_usersettings(self):
         # user-defined settings
@@ -203,6 +209,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         # if bpy.context.mode == 'EDIT_MESH':
         #    bpy.ops.object.mode_set(mode='OBJECT')
         #    bpy.ops.object.mode_set(mode='EDIT')
+        
+        pr = profiler.start()
         
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
@@ -240,7 +248,10 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             'point mirror offset': 0.000015,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
+        
+        pr.done()
     
+    @profiler.profile
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
@@ -333,13 +344,16 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             return {'pass'}
         
         use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
-        auto_save_time = context.user_preferences.filepaths.auto_save_time
-        if use_auto_save_temporary_files and self.actions.using('timer'):
+        auto_save_time = context.user_preferences.filepaths.auto_save_time * 60
+        if use_auto_save_temporary_files and event.type == 'TIMER':
             if self.time_to_save is None: self.time_to_save = auto_save_time
             else: self.time_to_save -= self.actions.time_delta
             if self.time_to_save <= 0:
-                filepath = os.path.join(bpy.app.tempdir, 'retopoflow_backup.blend')
-                bpy.ops.wm.save_as_mainfile(filepath, check_existing=False, copy=True)
+                # tempdir = bpy.app.tempdir
+                tempdir = context.user_preferences.filepaths.temporary_directory
+                filepath = os.path.join(tempdir, 'retopoflow_backup.blend')
+                dprint('auto saving to %s' % filepath)
+                bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
                 self.time_to_save = auto_save_time
         
         # user pressing nav key?
@@ -456,10 +470,12 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         font_id = 0
         
         if self.show_fps:
+            debug_fps = 'fps: %0.2f' % self.fps
+            debug_save = 'save: %0.0f' % (self.time_to_save or float('inf'))
             bgl.glColor4f(1.0, 1.0, 1.0, 0.10)
             blf.size(font_id, 12, 72)
             blf.position(font_id, 5, 5, 0)
-            blf.draw(font_id, 'fps: %0.2f' % self.fps)
+            blf.draw(font_id, '%s  %s' % (debug_fps,debug_save))
         
         bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
         blf.size(font_id, 12, 72)

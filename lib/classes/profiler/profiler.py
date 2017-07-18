@@ -25,6 +25,8 @@ import time
 from ...common_utilities import dprint, dcallstack
 
 class Profiler(object):
+    debug = False
+    
     class ProfilerHelper(object):
         def __init__(self, pr, text):
             full_text = (pr.stack[-1].text+'^' if pr.stack else '') + text
@@ -49,6 +51,10 @@ class Profiler(object):
             self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
             del self.pr.d_start[self.text]
     
+    class ProfilerHelper_Ignore:
+        def __init__(self, *args, **kwargs): pass
+        def done(self): pass
+    
     def __init__(self):
         self.d_start = {}
         self.d_times = {}
@@ -56,6 +62,8 @@ class Profiler(object):
         self.stack = []
     
     def start(self, text=None):
+        if not self.debug: return self.ProfilerHelper_Ignore()
+        
         if not text:
             frame = inspect.currentframe().f_back
             filename = os.path.basename( frame.f_code.co_filename )
@@ -68,7 +76,24 @@ class Profiler(object):
         #self.printout()
         pass
     
+    def profile(self, fn):
+        if not self.debug: return fn
+        
+        frame = inspect.currentframe().f_back
+        filename = os.path.basename( frame.f_code.co_filename )
+        linenum = frame.f_lineno
+        fnname = frame.f_code.co_name
+        text = '%s (%s:%d)' % (fnname, filename, linenum)
+        def wrapper(*args, **kwargs):
+            pr = self.start(text=text)
+            ret = fn(*args, **kwargs)
+            pr.done()
+            return ret
+        return wrapper
+    
     def printout(self):
+        if not self.debug: return
+        
         dprint('Profiler:')
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
@@ -78,7 +103,7 @@ class Profiler(object):
                 t = text
             else:
                 t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            dprint('  %6.2f / %3d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
+            dprint('  %6.2f / %7d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
         dprint('')
 
 profiler = Profiler()

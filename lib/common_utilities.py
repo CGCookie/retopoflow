@@ -58,17 +58,18 @@ def selection_mouse():
     return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
-    addons = bpy.context.user_preferences.addons
-
-    folderpath = os.path.dirname(os.path.abspath(__file__))
-    while folderpath:
-        folderpath,foldername = os.path.split(folderpath)
-        if foldername in {'lib','addons'}: continue
-        if foldername in addons: break
-    else:
-        assert False, 'Could not find non-"lib" folder'
-
-    return addons[foldername].preferences
+    if not hasattr(get_settings, 'settings'):
+        addons = bpy.context.user_preferences.addons
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
+            if foldername in {'lib','addons'}: continue
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find non-"lib" folder'
+        if not addons[foldername].preferences: return None
+        get_settings.settings = addons[foldername].preferences
+    return get_settings.settings
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
@@ -250,7 +251,9 @@ def setup_target_object( new_object, original_object, bmesh ):
 
 def dprint(s, l=2):
     settings = get_settings()
-    if settings.debug >= l:
+    if not settings:
+        print(s)
+    elif settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
 
 def dcallstack(l=2):

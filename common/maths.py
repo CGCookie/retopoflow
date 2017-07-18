@@ -4,6 +4,7 @@ import bgl
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane
+from ..lib.classes.profiler.profiler import profiler
 
 
 '''
@@ -225,6 +226,7 @@ class Plane(Entity3D):
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
     
+    @profiler.profile
     def triangle_intersection(self, points):
         p0,p1,p2 = points
         s0,s1,s2 = [self.side(p) for p in points]

@@ -16,6 +16,7 @@ from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
 
@@ -38,6 +39,7 @@ class RFMesh():
     @staticmethod
     def hash_object(obj:bpy.types.Object):
         if obj is None: return None
+        pr = profiler.start()
         assert type(obj) is bpy.types.Object, "Only call RFMesh.hash_object on mesh objects!"
         assert type(obj.data) is bpy.types.Mesh, "Only call RFMesh.hash_object on mesh objects!"
         # get object data to act as a hash
@@ -49,16 +51,21 @@ class RFMesh():
             bbox = (None, None)
         vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
         xform  = tuple(e for l in obj.matrix_world for e in l)
-        return (counts, bbox, vsum, xform, id(obj))      # ob.name???
+        hashed = (counts, bbox, vsum, xform, hash(obj))      # ob.name???
+        pr.done()
+        return hashed
     
     @staticmethod
     def hash_bmesh(bme:BMesh):
         if bme is None: return None
+        pr = profiler.start()
         assert type(bme) is BMesh, 'Only call RFMesh.hash_bmesh on BMesh objects!'
         counts = (len(bme.verts), len(bme.edges), len(bme.faces))
         bbox   = BBox(from_bmverts=self.bme.verts)
         vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
-        return (counts, tuple(bbox.min), tuple(bbox.max), vsum)
+        hashed = (counts, tuple(bbox.min), tuple(bbox.max), vsum)
+        pr.done()
+        return hashed
     
     
     def __init__(self):
@@ -67,6 +74,7 @@ class RFMesh():
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
     
+    @profiler.profile
     def __setup__(self, obj, deform=False, bme=None, triangulate=False):
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
@@ -74,10 +82,14 @@ class RFMesh():
         if bme != None:
             self.bme = bme
         else:
+            pr = profiler.start('edit mesh > bmesh')
             eme = self.obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
             eme.update()
             self.bme = bmesh.new()
             self.bme.from_mesh(eme)
+            pr.done()
+            
+            pr = profiler.start('selection')
             self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
             # copy selection from editmesh
             for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
@@ -86,6 +98,7 @@ class RFMesh():
                 bme.select = eme.select
             for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                 bmv.select = emv.select
+            pr.done()
         if triangulate:
             bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
         self.selection_center = Point((0,0,0))
@@ -143,13 +156,18 @@ class RFMesh():
     
     ##########################################################
     
+    @profiler.profile
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
         plane_local = self.xform.w2l_plane(plane)
-        intersection = []
-        for bmf in self.bme.faces:
-            intersection += plane_local.triangle_intersection([bmv.co for bmv in bmf.verts])
-        return [(self.xform.l2w_point(p0), self.xform.l2w_point(p1)) for p0,p1 in intersection]
+        l2w_point = self.xform.l2w_point
+        triangle_intersection = plane_local.triangle_intersection
+        intersection = [
+            (l2w_point(p0),l2w_point(p1))
+            for bmf in self.bme.faces
+            for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
+            ]
+        return intersection
     
     def get_yz_plane(self):
         o = self.xform.l2w_point(Point((0,0,0)))
@@ -396,12 +414,17 @@ class RFSource(RFMesh):
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
+        pr = profiler.start()
+        
         # check cache
         rfsource = None
         if obj.data.name in RFSource.__cache:
             # does cache match current state?
             rfsource = RFSource.__cache[obj.data.name]
-            if rfsource.hash != RFMesh.hash_object(obj):
+            hashed = RFMesh.hash_object(obj)
+            print(str(rfsource.hash))
+            print(str(hashed))
+            if rfsource.hash != hashed:
                 rfsource = None
         if not rfsource:
             # need to (re)generate RFSource object
@@ -411,7 +434,11 @@ class RFSource(RFMesh):
             rfsource.__setup__(obj)
             RFSource.__cache[obj.data.name] = rfsource
         
-        return RFSource.__cache[obj.data.name]
+        src = RFSource.__cache[obj.data.name]
+        
+        pr.done()
+        
+        return src
     
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
@@ -431,11 +458,16 @@ class RFTarget(RFMesh):
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
         
+        pr = profiler.start()
+        
         RFTarget.creating = True
         rftarget = RFTarget()
         del RFTarget.creating
         rftarget.__setup__(obj)
         BMElemWrapper.wrap(rftarget)
+        
+        pr.done()
+        
         return rftarget
     
     def __init__(self):

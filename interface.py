@@ -22,11 +22,9 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         addon_updater_ops.check_for_update_background(context)
 
         settings = common_utilities.get_settings()
-        
-        col = layout.column(align=True)
-
         icons = load_icons()
         
+        col = layout.column(align=True)
         col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
         for ids,rft in RFTool.get_tools():
@@ -36,6 +34,10 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
                 col.operator(ids, icon_value=icon.icon_id)
             else:
                 col.operator(ids)
+        
+        col = layout.column(align=True)
+        col.alignment = 'CENTER'
+        col.operator('cgcookie.rf_recover', icon_value=icons.get('rf_recover_icon').icon_id)
 
 class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
