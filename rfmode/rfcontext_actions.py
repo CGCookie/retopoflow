@@ -43,6 +43,7 @@ class Actions:
         'undo': {'CTRL+Z'},
         'redo': {'CTRL+SHIFT+Z'},
         'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        'edit mode': {'TAB'},
 
         'insert': {'CTRL+LEFTMOUSE'},
         'grab': {'G'},

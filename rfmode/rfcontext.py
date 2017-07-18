@@ -124,7 +124,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     
     @staticmethod
     def has_valid_source():
-        return any(True for o in bpy.context.scene.objects if RFContext.is_valid_source(o))
+        return any(RFContext.is_valid_source(o) for o in bpy.context.scene.objects)
     
     @staticmethod
     def has_valid_target():
@@ -143,8 +143,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         pr = profiler.start()
         
         RFContext.instance = self
-        self.undo = []                  # undo stack of causing actions, FSM state, tool states, and rftargets
-        self.redo = []                  # redo stack of causing actions, FSM state, tool states, and rftargets
+        self.undo = []  # undo stack of causing actions, FSM state, tool states, and rftargets
+        self.redo = []  # redo stack of causing actions, FSM state, tool states, and rftargets
         
         self.FSM = {}
         self.FSM['main'] = self.modal_main
@@ -164,8 +164,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         else:
             self.set_tool(RFTool_Move())
         
-        self.start_time = time.time()
-        self.window_time = time.time()
+        self.fps_time = time.time()
         self.frames = 0
         
         self.timer = None
@@ -376,6 +375,10 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             # all done!
             return {'confirm'}
         
+        if self.actions.pressed('edit mode'):
+            # leave to edit mode
+            return {'confirm', 'edit mode'}
+        
         return {}
     
     
@@ -461,12 +464,12 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
         
-        wtime,ctime = self.window_time,time.time()
+        wtime,ctime = self.fps_time,time.time()
         self.frames += 1
         if ctime >= wtime + 1:
             self.fps = self.frames / (ctime - wtime)
             self.frames = 0
-            self.window_time = ctime
+            self.fps_time = ctime
         
         font_id = 0
         

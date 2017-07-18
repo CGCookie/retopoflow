@@ -482,9 +482,18 @@ class RFMode(Operator):
         if 'confirm' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
+            if 'edit mode' in ret: self.prev_mode = 'EDIT'
             self.rfctx.commit()
             self.framework_end()
             return {'FINISHED'}
+        
+        if 'edit mode' in ret:
+            # commit the operator
+            # (e.g., create the mesh from internal data structure)
+            self.rfctx.commit()
+            self.framework_end()
+            return {'FINISHED'}
+            
         
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
 

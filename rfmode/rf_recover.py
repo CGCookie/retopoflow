@@ -12,7 +12,7 @@ class RFRecover(Operator):
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     
-    rf_icon = None
+    rf_icon = 'rf_recover_icon'
     
     @classmethod
     def filepath(cls):
@@ -94,5 +94,23 @@ class RFRecover(Operator):
     
     def invoke(self, context, event):
         self.recover()
-        return set()
+        return {'FINISHED'}
     
+
+class RFRecover_Clear(Operator):
+    bl_category    = "Retopology"
+    bl_idname      = "cgcookie.rf_recover_clear"
+    bl_label       = "Clear Auto Save"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    
+    rf_icon = None
+    
+    @classmethod
+    def poll(cls, context):
+        return os.path.exists(RFRecover.filepath())
+    
+    def invoke(self, context, event):
+        filepath = RFRecover.filepath()
+        os.remove(filepath)
+        return {'FINISHED'}
