@@ -215,13 +215,10 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     
     def modal_radius(self):
         actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius, h/2)))
+            self.center = actions.mouse - Vec2D((self.radius, 0))
             self.draw_mode = 'pixel'
             self.radiuspre = self.radius
             return ''
@@ -230,21 +227,17 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             if actions.pressed('cancel', ignoremods=True): self.radius = self.radiuspre
             actions.unpress()
             self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
             return 'main'
         
-        self.radius = (center - actions.mouse).length
+        self.radius = (self.center - actions.mouse).length
         return ''
     
     def modal_size(self):
         actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.size, h/2)))
+            self.center = actions.mouse - Vec2D((self.size, 0))
             self.draw_mode = 'pixel'
             self.sizepre = self.size
             return ''
@@ -253,21 +246,18 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             if actions.pressed('cancel', ignoremods=True): self.size = self.sizepre
             actions.unpress()
             self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
             return 'main'
         
-        self.size = (center - actions.mouse).length
+        self.size = (self.center - actions.mouse).length
         return ''
     
     def modal_falloff(self):
         actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.falloff), h/2)))
+            radius = self.radius * math.pow(0.5, 1.0 / self.falloff)
+            self.center = actions.mouse - Vec2D((radius,0))
             self.draw_mode = 'pixel'
             self.falloffpre = self.falloff
             return ''
@@ -276,10 +266,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             if actions.pressed('cancel', ignoremods=True): self.falloff = self.falloffpre
             actions.unpress()
             self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
             return 'main'
         
-        dist = (center - actions.mouse).length
+        dist = (self.center - actions.mouse).length
         ratio = max(0.0001, min(0.9999, dist / self.radius))
         
         self.falloff = math.log(0.5) / math.log(ratio)
@@ -287,13 +276,11 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     
     def modal_strength(self):
         actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
         
         if self.draw_mode == 'view':
             # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius * self.strength, h/2)))
+            radius = self.radius * (1.0 - self.strength)
+            self.center = actions.mouse - Vec2D((radius,0))
             self.draw_mode = 'pixel'
             self.strengthpre = self.strength
             return ''
@@ -302,10 +289,9 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             if actions.pressed('cancel', ignoremods=True): self.strength = self.strengthpre
             actions.unpress()
             self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
             return 'main'
         
-        dist = (center - actions.mouse).length
+        dist = (self.center - actions.mouse).length
         ratio = max(0.0001, min(1.0, dist / self.radius))
         
         self.strength = 1.0 - ratio

@@ -122,7 +122,7 @@ class RFWidget_BrushFalloff:
         
         w,h = self.rfcontext.actions.size
         
-        cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
+        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.center #Vector((w/2,h/2))
         cs_outer = self.radius
         cs_inner = self.radius * math.pow(0.5, 1.0 / self.falloff)
         cr,cg,cb = self.color

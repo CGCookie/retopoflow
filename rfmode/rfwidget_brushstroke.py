@@ -116,7 +116,7 @@ class RFWidget_BrushStroke:
             return
         
         
-        cx,cy,cp = Vector((1,0)),Vector((0,1)),Vector((w/2,h/2))
+        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.center #Vector((w/2,h/2))
         cs_outer = self.size
         cs_inner = self.size * 0.5
         cr,cg,cb = self.color
