@@ -38,6 +38,7 @@ from ..lib.common_utilities import dprint
 
 from .rfcontext import RFContext
 from .rftool import RFTool
+from .rf_recover import RFRecover
 
 from ..common.maths import stats_report
 
@@ -130,6 +131,7 @@ class RFMode(Operator):
         self.prev_mode = None
         print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
     
+    
     ###############################################
     # start up and shut down methods
     
@@ -216,6 +218,7 @@ class RFMode(Operator):
         bpy.context.area.header_text_set('RetopoFlow Mode')
         
         # remember space info and hide all non-renderable items
+        RFRecover.save_window_state()
         self.space_info = {}
         for wm in bpy.data.window_managers:
             for win in wm.windows:

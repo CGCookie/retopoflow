@@ -353,6 +353,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
                 tempdir = context.user_preferences.filepaths.temporary_directory
                 filepath = os.path.join(tempdir, 'retopoflow_backup.blend')
                 dprint('auto saving to %s' % filepath)
+                if os.path.exists(filepath): os.remove(filepath)
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
                 self.time_to_save = auto_save_time
         
