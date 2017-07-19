@@ -28,6 +28,22 @@ class RFContext_Target:
     def nearest2D_verts_mouse(self, max_dist:float):
         return self.nearest2D_verts_point(self.actions.mouse, max_dist)
     
+    def nearest_edges_Point(self, point, max_dist:float):
+        return self.rftarget.nearest_bmedges_Point(point, max_dist)
+    
+    def nearest_edge_Point(self, point:Point):
+        return self.rftarget.nearest_bmedge_Point(point)
+    
+    def nearest2D_edge_Point2D(self, point:Point2D):
+        return self.rftarget.nearest2D_bmedge_Point2D(point)
+    
+    def nearest2D_face_point(self, point):
+        xy = self.get_point2D(point)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+    
+    def nearest2D_face_mouse(self):
+        return self.nearest2D_face_point(self.actions.mouse)
+    
     
     ########################################
     # find target entities in world space
@@ -52,6 +68,18 @@ class RFContext_Target:
     
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
+    
+    
+    #######################################
+    
+    def visible_verts(self):
+        return self.rftarget.visible_verts(self.is_visible)
+    
+    def visible_edges(self, verts=None):
+        return self.rftarget.visible_edges(self.is_visible, verts=verts)
+    
+    def visible_faces(self, verts=None):
+        return self.rftarget.visible_faces(self.is_visible, verts=verts)
     
     
     #######################################
@@ -88,11 +116,12 @@ class RFContext_Target:
     
     def new_vert_point(self, xyz:Point):
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
+        if not xyz or not norm: return None
         return self.rftarget.new_vert(xyz, norm)
     
     def new2D_vert_point(self, xy:Point2D):
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
-        if xyz is None: return None
+        if not xyz or not norm: return None
         return self.rftarget.new_vert(xyz, norm)
     
     def new2D_vert_mouse(self):
@@ -109,6 +138,12 @@ class RFContext_Target:
     
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
+    
+    def delete_faces(self, faces):
+        self.rftarget.delete_faces(faces)
+    
+    def clean_duplicate_bmedges(self, vert):
+        return self.rftarget.clean_duplicate_bmedges(vert)
     
     ###################################################
     
@@ -131,12 +166,23 @@ class RFContext_Target:
     
     def deselect_all(self):
         self.rftarget.deselect_all()
+        if self.tool: self.tool.update()
+        self.update_rot_object()
     
     def deselect(self, elems):
         self.rftarget.deselect(elems)
+        if self.tool: self.tool.update()
+        self.update_rot_object()
     
     def select(self, elems, supparts=True, subparts=True, only=True):
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
+        if self.tool: self.tool.update()
+        self.update_rot_object()
     
     def select_toggle(self):
         self.rftarget.select_toggle()
+        if self.tool: self.tool.update()
+        self.update_rot_object()
+    
+    def update_rot_object(self):
+        self.rot_object.location = self.rftarget.get_selection_center()

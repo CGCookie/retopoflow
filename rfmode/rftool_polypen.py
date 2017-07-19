@@ -81,6 +81,15 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
+        if self.rfcontext.actions.pressed('SPACE'):
+            bmes = self.rfcontext.get_selected_edges()
+            bmvs = []
+            for bme in bmes:
+                _,bmv = bme.split()
+                bmvs.append(bmv)
+            self.rfcontext.select(bmvs)
+            self.rfcontext.dirty()
+
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
@@ -145,8 +154,9 @@ class RFTool_PolyPen(RFTool):
             else:
                 return 'main'
             # TODO: Figure out how to get closest bmedge, and store to bme
-            # bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
-            bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+            bme0,_ = self.rfcontext.nearest2D_edge_Point2D(self.rfcontext.actions.mouse)
+            bmv0,bmv2 = bme0.verts
+            bme1,bmv1 = bmesh.utils.edge_split(bme0, bmv0, 0.5)
             bmesh.utils.vert_splice(bmv, bmv3)
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv3.co)

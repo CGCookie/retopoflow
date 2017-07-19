@@ -1,5 +1,6 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from bmesh.utils import edge_split, vert_splice
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -31,6 +32,12 @@ class BMElemWrapper:
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
         BMElemWrapper.symmetry   = rftarget.symmetry
+    
+    @staticmethod
+    def _unwrap(bmelem):
+        if bmelem is None: return None
+        if isinstance(bmelem, BMElemWrapper): return bmelem.bmelem
+        return bmelem
     
     def __init__(self, bmelem):
         self.bmelem = bmelem
@@ -91,6 +98,13 @@ class RFVert(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    #############################################
+    
+    def merge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        vert_splice(bmv1, bmv0)
 
 
 class RFEdge(BMElemWrapper):
@@ -105,10 +119,10 @@ class RFEdge(BMElemWrapper):
     def smooth(self, v): self.bmelem.smooth = v
     
     def other_vert(self, bmv):
-        if type(bmv) is RFVert: bmv = bmv.bmelem
+        bmv = self._unwrap(bmv)
         o = self.bmelem.other_vert(bmv)
         if o is None: return None
-        return RFVert(bmv)
+        return RFVert(o)
     
     @property
     def verts(self):
@@ -118,6 +132,23 @@ class RFEdge(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    #############################################
+    
+    def normal(self):
+        n,c = Vector(),0
+        for bmf in self.bmelem.link_faces:
+            n += bmf.normal
+            c += 1
+        return n / max(1,c)
+    
+    #############################################
+    
+    def split(self, vert=None, fac=0.5):
+        bme = BMElemWrapper._unwrap(self)
+        bmv = BMElemWrapper._unwrap(vert) or bme.verts[0]
+        bme_new,bmv_new = edge_split(bme, bmv, fac)
+        return BMElemWrapper(bme_new), BMElemWrapper(bmv_new)
 
 
 class RFFace(BMElemWrapper):
