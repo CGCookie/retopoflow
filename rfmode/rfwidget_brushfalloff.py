@@ -20,9 +20,9 @@ class RFWidget_BrushFalloff:
     def brushfalloff_postview(self):
         if self.mode != 'main': return
         if not self.hit: return
-        cx,cy,cp = self.x,self.y,self.p
-        cs_outer = self.s * self.radius
-        cs_inner = self.s * self.radius * math.pow(0.5, 1.0 / self.falloff)
+        cx,cy,cp = self.hit_x,self.hit_y,self.hit_p
+        cs_outer = self.scale * self.radius
+        cs_inner = self.scale * self.radius * math.pow(0.5, 1.0 / self.falloff)
         cr,cg,cb = self.color
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 

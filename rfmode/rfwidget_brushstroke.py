@@ -23,9 +23,9 @@ class RFWidget_BrushStroke:
     def brushstroke_postview(self):
         if self.mode not in {'main','stroke'}: return
         if not self.hit: return
-        cx,cy,cp = self.x,self.y,self.p
-        cs_outer = self.s * self.size
-        cs_inner = self.s * self.size * 0.5
+        cx,cy,cp = self.hit_x,self.hit_y,self.hit_p
+        cs_outer = self.scale * self.size
+        cs_inner = self.scale * self.size * 0.5
         cr,cg,cb = self.color
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
