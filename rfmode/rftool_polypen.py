@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 import math
 import bgl
 from .rftool import RFTool
@@ -135,12 +136,18 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'tri-quad':
             bmf0 = next(iter(sel_faces))
             bmv0,bmv1, bmv2 = bmf0.verts
-            bmf1 = self.rfcontext.new_face([bmv0, bmv1, bmv2])
             bmv3 = self.rfcontext.new2D_vert_mouse()
             if not bmv3:
                 self.rfcontext.undo_cancel()
                 return 'main'
-            bmf2 = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
+            if sel_edges:
+                lbme = sel_edges
+            else:
+                return 'main'
+            # TODO: Figure out how to get closest bmedge, and store to bme
+            # bme,_,_ = self.closest_bmedge(context, p2d, p3d, float('inf'), float('inf'), lbme=lbme)
+            bme,bmv = bmesh.utils.edge_split(bme, bme.verts[0], 0.5)
+            bmesh.utils.vert_splice(bmv, bmv3)
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv3.co)
             self.rfcontext.deselect_all()
@@ -251,7 +258,7 @@ class RFTool_PolyPen(RFTool):
             self.draw_lines([hit_pos, bmv1.co, bmv2.co])
             return
 
-        if self.next_state == 'triangle-quad':
+        if self.next_state == 'tri-quad':
             sel_faces = self.rfcontext.rftarget.get_selected_faces()
             # print(len(sel_faces))
             f1 = next(iter(sel_faces))
