@@ -31,11 +31,11 @@ class RFContext_Target:
     def nearest_edges_Point(self, point, max_dist:float):
         return self.rftarget.nearest_bmedges_Point(point, max_dist)
     
-    def nearest_edge_Point(self, point:Point):
-        return self.rftarget.nearest_bmedge_Point(point)
+    def nearest_edge_Point(self, point:Point, edges=None):
+        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
     
-    def nearest2D_edge_Point2D(self, point:Point2D):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D)
+    def nearest2D_edge_Point2D(self, point:Point2D, edges=None):
+        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges)
     
     def nearest2D_face_point(self, point):
         xy = self.get_point2D(point)

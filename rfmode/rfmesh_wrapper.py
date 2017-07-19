@@ -148,7 +148,7 @@ class RFEdge(BMElemWrapper):
         bme = BMElemWrapper._unwrap(self)
         bmv = BMElemWrapper._unwrap(vert) or bme.verts[0]
         bme_new,bmv_new = edge_split(bme, bmv, fac)
-        return BMElemWrapper(bme_new), BMElemWrapper(bmv_new)
+        return RFEdge(bme_new), RFVert(bmv_new)
 
 
 class RFFace(BMElemWrapper):
