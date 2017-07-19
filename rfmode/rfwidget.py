@@ -30,9 +30,10 @@ from .rfwidget_default import RFWidget_Default
 from .rfwidget_move import RFWidget_Move
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
 from .rfwidget_brushstroke import RFWidget_BrushStroke
+from .rfwidget_line import RFWidget_Line
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move):
+class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line):
     instance = None
     rfcontext = None
     
@@ -79,19 +80,25 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
                 'mouse_cursor': self.brushstroke_mouse_cursor,
                 'modal_main':   self.brushstroke_modal_main,
                 },
+            'line': {
+                'postview':     self.line_postview,
+                'postpixel':    self.line_postpixel,
+                'mouse_cursor': self.line_mouse_cursor,
+                'modal_main':   self.line_modal_main,
+                },
             }
         self.FSM = {
             'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
-            'radius':   self.modal_radius,
-            'strength': self.modal_strength,
-            'falloff':  self.modal_falloff,
-            'size':     self.modal_size,
             'stroke':   self.modal_stroke,
             'line':     self.modal_line,
+            'change':   self.modal_change,
         }
         
         self.view = 'brush falloff'
         self.color = (1,1,1)
+        
+        self.change_var = None
+        self.change_fn = None
         
         # brushfalloff properties
         self.radius = 50.0
@@ -105,6 +112,10 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.stroke2D_left = []
         self.stroke2D_right = []
         self.stroke_callback = None
+        
+        # line properties
+        self.line2D = []
+        self.line_callback = None
         
         self.scale = 0.0
         
@@ -135,7 +146,10 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     
     def set_stroke_callback(self, fn):
         self.stroke_callback = fn
-        
+    
+    def set_line_callback(self, fn):
+        self.line_callback = fn
+    
     def update(self):
         p,n = self.rfcontext.actions.hit_pos,self.rfcontext.actions.hit_norm
         if p is None or n is None:
@@ -181,125 +195,33 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         return self.get_strength_dist((point - self.hit_p).length)
     
     
-    def modal_stroke(self):
-        actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
+    def setup_change(self, var_to_dist, dist_to_var):
+        self.change_dist_to_var = dist_to_var
         
-        if actions.released('insert'):
-            if self.stroke_callback: self.stroke_callback()
-            return 'main'
-        
-        if actions.pressed('cancel'):
-            self.stroke2D.clear()
-            return 'main'
-        
-        if False:
-            self.stroke2D.append(actions.mouse)
-            if len(self.stroke2D) > 5:
-                delta = actions.mouse - self.stroke2D[-5]
-                if abs(delta.x) > 2 or abs(delta.y) > 2:
-                    print(self.get_scaled_radius())
-                    delta = delta.normalized() * self.get_scaled_radius()
-                    ortho = Vec2D((-delta.y, delta.x))
-                    self.stroke2D_left.append(actions.mouse + ortho)
-                    self.stroke2D_right.append(actions.mouse - ortho)
-        
-        if not self.stroke2D:
-            self.stroke2D.append(actions.mouse)
+        if var_to_dist:
+            dist = var_to_dist()
+            actions = self.rfcontext.actions
+            self.change_pre = dist
+            self.change_center = actions.mouse - Vec2D((dist, 0))
+            self.draw_mode = 'pixel'
         else:
-            lstpos,curpos = self.stroke2D[-1],actions.mouse
-            diff = curpos - lstpos
-            newpos = lstpos + diff * (1 - self.tightness)
-            self.stroke2D.append(newpos)
+            self.change_pre = None
+            self.change_center = None
+            self.draw_mode = 'view'
     
-    def modal_line(self):
-        pass
-    
-    
-    def modal_size(self):
+    def modal_change(self):
+        dist_to_var = self.change_dist_to_var
+        assert dist_to_var
+        
         actions = self.rfcontext.actions
         
-        if self.draw_mode == 'view':
-            # first time
-            self.center = actions.mouse - Vec2D((self.size, 0))
-            self.draw_mode = 'pixel'
-            self.sizepre = self.size
-            return ''
-        
         if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
-            if actions.pressed('cancel', ignoremods=True): self.size = self.sizepre
+            if actions.pressed('cancel', ignoremods=True):
+                dist_to_var(self.change_pre)
             actions.unpress()
-            self.draw_mode = 'view'
+            self.setup_change(None, None)
             return 'main'
         
-        self.size = (self.center - actions.mouse).length
-        return ''
+        dist = (self.change_center - actions.mouse).length
+        dist_to_var(dist)
     
-    def modal_radius(self):
-        actions = self.rfcontext.actions
-        
-        if self.draw_mode == 'view':
-            # first time
-            self.center = actions.mouse - Vec2D((self.radius, 0))
-            self.draw_mode = 'pixel'
-            self.radiuspre = self.radius
-            return ''
-        
-        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
-            if actions.pressed('cancel', ignoremods=True): self.radius = self.radiuspre
-            actions.unpress()
-            self.draw_mode = 'view'
-            return 'main'
-        
-        self.radius = (self.center - actions.mouse).length
-        return ''
-    
-    def modal_falloff(self):
-        actions = self.rfcontext.actions
-        
-        if self.draw_mode == 'view':
-            # first time
-            radius = self.radius * math.pow(0.5, 1.0 / self.falloff)
-            self.center = actions.mouse - Vec2D((radius,0))
-            self.draw_mode = 'pixel'
-            self.falloffpre = self.falloff
-            return ''
-        
-        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
-            if actions.pressed('cancel', ignoremods=True): self.falloff = self.falloffpre
-            actions.unpress()
-            self.draw_mode = 'view'
-            return 'main'
-        
-        dist = (self.center - actions.mouse).length
-        ratio = max(0.0001, min(0.9999, dist / self.radius))
-        
-        self.falloff = math.log(0.5) / math.log(ratio)
-        return ''
-    
-    def modal_strength(self):
-        actions = self.rfcontext.actions
-        
-        if self.draw_mode == 'view':
-            # first time
-            radius = self.radius * (1.0 - self.strength)
-            self.center = actions.mouse - Vec2D((radius,0))
-            self.draw_mode = 'pixel'
-            self.strengthpre = self.strength
-            return ''
-        
-        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
-            if actions.pressed('cancel', ignoremods=True): self.strength = self.strengthpre
-            actions.unpress()
-            self.draw_mode = 'view'
-            return 'main'
-        
-        dist = (self.center - actions.mouse).length
-        ratio = max(0.0001, min(1.0, dist / self.radius))
-        
-        self.strength = 1.0 - ratio
-        return ''
-        
-
-

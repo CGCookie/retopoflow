@@ -4,13 +4,25 @@ from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
 
 class RFWidget_BrushFalloff:
+    def radius_to_dist(self): return self.radius
+    def dist_to_radius(self, d): self.radius = d
+    
+    def strength_to_dist(self): return self.radius * (1.0 - self.strength)
+    def dist_to_strength(self, d): self.strength = 1.0 - max(0.0001, min(1.0, d / self.radius))
+    
+    def falloff_to_dist(self): return self.radius * math.pow(0.5, 1.0 / self.falloff)
+    def dist_to_falloff(self, d): self.falloff = math.log(0.5) / math.log(max(0.0001, min(0.9999, d / self.radius)))
+    
     def brushfalloff_modal_main(self):
         if self.rfcontext.actions.pressed('brush radius'):
-            return 'radius'
+            self.setup_change(self.radius_to_dist, self.dist_to_radius)
+            return 'change'
         if self.rfcontext.actions.pressed('brush strength'):
-            return 'strength'
+            self.setup_change(self.strength_to_dist, self.dist_to_strength)
+            return 'change'
         if self.rfcontext.actions.pressed('brush falloff'):
-            return 'falloff'
+            self.setup_change(self.falloff_to_dist, self.dist_to_falloff)
+            return 'change'
     
     def brushfalloff_mouse_cursor(self):
         if self.mode == 'main':
@@ -122,7 +134,7 @@ class RFWidget_BrushFalloff:
         
         w,h = self.rfcontext.actions.size
         
-        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.center #Vector((w/2,h/2))
+        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.change_center #Vector((w/2,h/2))
         cs_outer = self.radius
         cs_inner = self.radius * math.pow(0.5, 1.0 / self.falloff)
         cr,cg,cb = self.color

@@ -5,15 +5,49 @@ from ..common.maths import Vec, Point, Point2D, Direction
 from ..lib.common_drawing_bmesh import glEnableStipple
 
 class RFWidget_BrushStroke:
+    def size_to_dist(self): return self.size
+    def dist_to_size(self, d): self.size = d
+    
     def brushstroke_modal_main(self):
         if self.rfcontext.actions.pressed('brush size'):
-            return 'size'
+            self.setup_change(self.size_to_dist, self.dist_to_size)
+            return 'change'
         
         if self.rfcontext.actions.pressed('insert'):
             self.stroke2D.clear()
             self.stroke2D_left.clear()
             self.stroke2D_right.clear()
             return 'stroke'
+    
+    def modal_stroke(self):
+        actions = self.rfcontext.actions
+        
+        if actions.released('insert'):
+            if self.stroke_callback: self.stroke_callback()
+            return 'main'
+        
+        if actions.pressed('cancel'):
+            self.stroke2D.clear()
+            return 'main'
+        
+        if False:
+            self.stroke2D.append(actions.mouse)
+            if len(self.stroke2D) > 5:
+                delta = actions.mouse - self.stroke2D[-5]
+                if abs(delta.x) > 2 or abs(delta.y) > 2:
+                    print(self.get_scaled_radius())
+                    delta = delta.normalized() * self.get_scaled_radius()
+                    ortho = Vec2D((-delta.y, delta.x))
+                    self.stroke2D_left.append(actions.mouse + ortho)
+                    self.stroke2D_right.append(actions.mouse - ortho)
+        
+        if not self.stroke2D:
+            self.stroke2D.append(actions.mouse)
+        else:
+            lstpos,curpos = self.stroke2D[-1],actions.mouse
+            diff = curpos - lstpos
+            newpos = lstpos + diff * (1 - self.tightness)
+            self.stroke2D.append(newpos)
     
     def brushstroke_mouse_cursor(self):
         if self.mode in {'main','stroke'}:
@@ -116,7 +150,7 @@ class RFWidget_BrushStroke:
             return
         
         
-        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.center #Vector((w/2,h/2))
+        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.change_center #Vector((w/2,h/2))
         cs_outer = self.size
         cs_inner = self.size * 0.5
         cr,cg,cb = self.color
