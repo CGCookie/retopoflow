@@ -13,7 +13,21 @@ class RFTool_Contours(RFTool):
     def description(self): return 'Contours!!'
     
     def start(self):
-        self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
+        self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))
+        self.rfwidget.set_line_callback(self.line)
+    
+    @RFTool.dirty_when_done
+    def line(self):
+        xy0,xy1 = self.rfwidget.line2D
+        ctr = xy0 + (xy1 - xy0) / 2
+        plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
+        ray = self.rfcontext.Point2D_to_Ray(ctr)
+        pos,nor,_,_ = self.rfcontext.raycast_sources_Point2D(ctr)
+        if not pos: return
+        
+        self.rfcontext.undo_push('cut')
+        
+        self.rfcontext.plane_intersection_crawl(ray, plane)
 
     def modal_main(self): pass
     def draw_postview(self): pass

@@ -30,6 +30,7 @@ class RFWidget_Line:
     def line_postpixel(self):
         if self.mode == 'main': return
         
+        cr,cg,cb = self.color
         p0,p1 = self.line2D
         ctr = p0 + (p1-p0)/2
         
@@ -44,9 +45,10 @@ class RFWidget_Line:
         bgl.glEnd()
         glEnableStipple(enable=False)
         
+        bgl.glColor4f(cr, cg, cb, 1.0)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         for px,py in self.points:
-            x = ctr.x + px * 4
-            y = ctr.y + py * 4
+            x = ctr.x + px * 5
+            y = ctr.y + py * 5
             bgl.glVertex2f(x, y)
         bgl.glEnd()
