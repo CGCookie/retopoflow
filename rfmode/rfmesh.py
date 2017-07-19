@@ -293,17 +293,17 @@ class RFMesh():
     ##########################################################
     
     def _visible_verts(self, is_visible):
-        l2w_point = self.xform.l2w_point
-        is_vis = lambda bmv: is_visible(l2w_point(bmv.co))
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
+        is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         return { bmv for bmv in self.bme.verts if is_vis(bmv) }
     
     def _visible_edges(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bme for bme in self.bme.edges if any(bmv in bmvs for bmv in bme.verts) }
+        return { bme for bme in self.bme.edges if all(bmv in bmvs for bmv in bme.verts) }
     
     def _visible_faces(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bmf for bmf in self.bme.faces if any(bmv in bmvs for bmv in bmf.verts) }
+        return { bmf for bmf in self.bme.faces if all(bmv in bmvs for bmv in bmf.verts) }
     
     def visible_verts(self, is_visible):
         return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) }
