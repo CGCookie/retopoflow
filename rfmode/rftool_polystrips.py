@@ -175,13 +175,13 @@ class RFTool_PolyStrips(RFTool):
         def stroke_to_quads(stroke):
             nonlocal bmfaces, all_bmfaces, vis_faces2D
             cbs = CubicBezierSpline.create_from_points([stroke], radius/20.0)
-            nearest_bmedges_Point = self.rfcontext.nearest_bmedges_Point
+            nearest_edges_Point = self.rfcontext.nearest_edges_Point
             
             for cb in cbs:
                 # pre-pass curve to see if we cross existing geo
                 p0,_,_,p3 = cb.points()
-                bmes0 = nearest_bmedges_Point(p0, radius)
-                bmes3 = nearest_bmedges_Point(p3, radius)
+                bmes0 = nearest_edges_Point(p0, radius)
+                bmes3 = nearest_edges_Point(p3, radius)
                 #print('close to %d and %d' % (len(bmes0), len(bmes3)))
                 bme0 = None if not bmes0 else sorted(bmes0, key=lambda d:d[1])[0][0]
                 bme3 = None if not bmes3 else sorted(bmes3, key=lambda d:d[1])[0][0]

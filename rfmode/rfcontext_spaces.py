@@ -3,8 +3,10 @@ import bpy
 from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+from ..lib.common_utilities import dprint
 
-from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ..common.maths import Point, Vec, Direction, Normal
+from ..common.maths import Ray, XForm, Plane
 from ..common.maths import Point2D, Vec2D, Direction2D
 
 
@@ -30,10 +32,17 @@ class RFContext_Spaces:
     def Point2D_to_Point(self, xy:Point2D, depth:float):
         r = self.Point2D_to_Ray(xy)
         if r is None or r.o is None or r.d is None or depth is None:
-            print(r)
-            print(depth)
+            dprint(r)
+            dprint(depth)
+            return None
         return Point(r.o + depth * r.d)
         #return Point(region_2d_to_location_3d(self.actions.region, self.actions.r3d, xy, depth))
+    
+    def Point2D_to_Plane(self, xy0:Point2D, xy1:Point2D):
+        ray0,ray1 = self.Point2D_to_Ray(xy0),self.Point2D_to_Ray(xy1)
+        o = ray0.o + ray0.d
+        n = Normal((ray1.o + ray1.d - o).cross(ray0.d))
+        return Plane(o, n)
     
     def Point_to_Point2D(self, xyz:Point):
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
