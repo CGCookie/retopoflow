@@ -178,7 +178,7 @@ class RFMesh():
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
         crosses = {bme for bme in self.bme.edges if plane.edge_crosses((bme.verts[0].co, bme.verts[1].co))}
-        coplanar = {bme for bme in self.bme.edges if plane.edge_coplanar((bme.verts[0].co, bme.verts[1].co))}
+        #coplanar = {bme for bme in self.bme.edges if plane.edge_coplanar((bme.verts[0].co, bme.verts[1].co))}
         
         p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
@@ -191,14 +191,16 @@ class RFMesh():
             for bme in bmf0.edges:
                 if bme not in crosses: continue
                 for bmf1 in bme.link_faces:
-                    if bmf1 == bmf: ret = [bmf]
+                    if bmf1 == bmf: ret = [bmf0, bme, bmf]
                     elif bmf1 in touched: continue
-                    else: ret = crawl(bmf1)
+                    else: ret = [bmf0, bme] + crawl(bmf1)
                     if len(ret) > len(best): best = ret
             touched.remove(bmf0)
-            return [bmf0] + best
+            return best
         ret = crawl(bmf)
-        print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
+        # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
+        # print(ret)
+        return [self._wrap(bmelem) for bmelem in ret]
         
     
     ##########################################################

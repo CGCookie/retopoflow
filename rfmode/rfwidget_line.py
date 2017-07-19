@@ -45,10 +45,11 @@ class RFWidget_Line:
         bgl.glEnd()
         glEnableStipple(enable=False)
         
-        bgl.glColor4f(cr, cg, cb, 1.0)
+        # bgl.glLineWidth(1.0)
+        bgl.glColor4f(cr, cg, cb, 0.25)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         for px,py in self.points:
-            x = ctr.x + px * 5
-            y = ctr.y + py * 5
+            x = ctr.x + px * 10
+            y = ctr.y + py * 10
             bgl.glVertex2f(x, y)
         bgl.glEnd()

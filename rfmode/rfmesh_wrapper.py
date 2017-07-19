@@ -171,6 +171,11 @@ class RFFace(BMElemWrapper):
     def edges(self):
         return [RFEdge(bme) for bme in self.bmelem.edges]
     
+    def shared_edge(self, other):
+        edges = set(self.bmelem.edges)
+        for bme in other.bmelem.edges:
+            if bme in edges: return bme
+    
     @property
     def verts(self):
         return [RFVert(bmv) for bmv in self.bmelem.verts]

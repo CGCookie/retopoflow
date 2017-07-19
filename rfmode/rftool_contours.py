@@ -1,4 +1,5 @@
 import bpy
+import bgl
 import math
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
@@ -6,7 +7,8 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
-    def init(self): pass
+    def init(self):
+        self.edges = []
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -27,8 +29,20 @@ class RFTool_Contours(RFTool):
         
         self.rfcontext.undo_push('cut')
         
-        self.rfcontext.plane_intersection_crawl(ray, plane)
+        crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
+        self.edges = [elem for i,elem in enumerate(crawl) if i % 2 == 1]
+        
 
     def modal_main(self): pass
-    def draw_postview(self): pass
+    def draw_postview(self):
+        bgl.glDepthRange(0, 0.999)
+        bgl.glLineWidth(2)
+        bgl.glColor4f(1,1,0,1)
+        bgl.glBegin(bgl.GL_LINES)
+        for bme in self.edges:
+            bmv0,bmv1 = bme.verts
+            bgl.glVertex3f(*bmv0.co)
+            bgl.glVertex3f(*bmv1.co)
+        bgl.glEnd()
+        bgl.glDepthRange(0,1)
     def draw_postpixel(self): pass

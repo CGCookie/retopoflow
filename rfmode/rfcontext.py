@@ -455,7 +455,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
         if not bp: return []
-        bo.plane_intersection_crawl(ray, plane)
+        return bo.plane_intersection_crawl(ray, plane)
     
     ###################################################
     
