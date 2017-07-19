@@ -27,11 +27,13 @@ from mathutils import Matrix, Vector
 from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 
 from .rfwidget_default import RFWidget_Default
+from .rfwidget_move import RFWidget_Move
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
 from .rfwidget_brushstroke import RFWidget_BrushStroke
+from .rfwidget_line import RFWidget_Line
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
+class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line):
     instance = None
     rfcontext = None
     
@@ -60,6 +62,12 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
                 'mouse_cursor': self.default_mouse_cursor,
                 'modal_main':   self.default_modal_main,
                 },
+            'move': {
+                'postview':     self.move_postview,
+                'postpixel':    self.move_postpixel,
+                'mouse_cursor': self.move_mouse_cursor,
+                'modal_main':   self.move_modal_main,
+                },
             'brush falloff': {
                 'postview':     self.brushfalloff_postview,
                 'postpixel':    self.brushfalloff_postpixel,
@@ -72,27 +80,44 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
                 'mouse_cursor': self.brushstroke_mouse_cursor,
                 'modal_main':   self.brushstroke_modal_main,
                 },
+            'line': {
+                'postview':     self.line_postview,
+                'postpixel':    self.line_postpixel,
+                'mouse_cursor': self.line_mouse_cursor,
+                'modal_main':   self.line_modal_main,
+                },
             }
         self.FSM = {
             'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
-            'size':     self.modal_size,
-            'strength': self.modal_strength,
-            'falloff':  self.modal_falloff,
             'stroke':   self.modal_stroke,
+            'line':     self.modal_line,
+            'change':   self.modal_change,
         }
         
         self.view = 'brush falloff'
+        self.color = (1,1,1)
+        
+        self.change_var = None
+        self.change_fn = None
+        
+        # brushfalloff properties
         self.radius = 50.0
         self.falloff = 1.5
         self.strength = 0.5
+        
+        # brushstroke properties
+        self.size = 20.0
         self.tightness = 0.95
-        
-        self.color = (1,1,1)
-        
         self.stroke2D = []
         self.stroke2D_left = []
         self.stroke2D_right = []
         self.stroke_callback = None
+        
+        # line properties
+        self.line2D = []
+        self.line_callback = None
+        
+        self.scale = 0.0
         
         self.reset()
     
@@ -104,12 +129,11 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     def clear(self):
         ''' called when mouse is moved outside View3D '''
         self.hit = False
-        self.p = None
-        self.s = 0.0
-        self.x = None
-        self.y = None
-        self.z = None
-        self.rmat = None
+        self.hit_p = None
+        self.hit_x = None
+        self.hit_y = None
+        self.hit_z = None
+        self.hit_rmat = None
     
     def set_widget(self, name, color=None):
         assert name in self.widgets
@@ -122,9 +146,12 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     
     def set_stroke_callback(self, fn):
         self.stroke_callback = fn
-        
+    
+    def set_line_callback(self, fn):
+        self.line_callback = fn
+    
     def update(self):
-        p,n = self.rfcontext.hit_pos,self.rfcontext.hit_norm
+        p,n = self.rfcontext.actions.hit_pos,self.rfcontext.actions.hit_norm
         if p is None or n is None:
             self.clear()
             return
@@ -134,13 +161,13 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
             return
         xy = self.rfcontext.actions.mouse
         rmat = Matrix.Rotation(self.oz.angle(n), 4, self.oz.cross(n))
-        self.p = p
-        self.s = self.rfcontext.size2D_to_size(1.0, xy, depth)
-        self.x = Vec(rmat * self.ox)
-        self.y = Vec(rmat * self.oy)
-        self.z = Vec(rmat * self.oz)
-        self.rmat = rmat
         self.hit = True
+        self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+        self.hit_p = p
+        self.hit_x = Vec(rmat * self.ox)
+        self.hit_y = Vec(rmat * self.oy)
+        self.hit_z = Vec(rmat * self.oz)
+        self.hit_rmat = rmat
     
     def modal(self):
         nmode = self.FSM[self.mode]()
@@ -155,127 +182,46 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke):
     
     
     def get_scaled_radius(self):
-        return self.s * self.radius
+        return self.scale * self.radius
+    
+    def get_scaled_size(self):
+        return self.scale * self.size
     
     def get_strength_dist(self, dist:float):
         return (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)) * self.strength
     
     def get_strength_Point(self, point:Point):
-        if not self.p: return 0.0
-        return self.get_strength_dist((point - self.p).length)
+        if not self.hit_p: return 0.0
+        return self.get_strength_dist((point - self.hit_p).length)
     
     
-    def modal_stroke(self):
-        actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
+    def setup_change(self, var_to_dist, dist_to_var):
+        self.change_dist_to_var = dist_to_var
         
-        if actions.released('action'):
-            if self.stroke_callback: self.stroke_callback()
-            return 'main'
-        
-        if actions.pressed('cancel'):
-            self.stroke2D.clear()
-            return 'main'
-        
-        if False:
-            self.stroke2D.append(actions.mouse)
-            if len(self.stroke2D) > 5:
-                delta = actions.mouse - self.stroke2D[-5]
-                if abs(delta.x) > 2 or abs(delta.y) > 2:
-                    print(self.get_scaled_radius())
-                    delta = delta.normalized() * self.get_scaled_radius()
-                    ortho = Vec2D((-delta.y, delta.x))
-                    self.stroke2D_left.append(actions.mouse + ortho)
-                    self.stroke2D_right.append(actions.mouse - ortho)
-        
-        lstpos = self.stroke2D[-1] if self.stroke2D else actions.mouse
-        curpos = actions.mouse
-        newpos = lstpos + (curpos - lstpos) * (1 - self.tightness)
-        self.stroke2D.append(newpos)
-    
-    def modal_size(self):
-        actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
-        
-        if self.draw_mode == 'view':
-            # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius, h/2)))
+        if var_to_dist:
+            dist = var_to_dist()
+            actions = self.rfcontext.actions
+            self.change_pre = dist
+            self.change_center = actions.mouse - Vec2D((dist, 0))
             self.draw_mode = 'pixel'
-            self.radiuspre = self.radius
-            return ''
+        else:
+            self.change_pre = None
+            self.change_center = None
+            self.draw_mode = 'view'
+    
+    def modal_change(self):
+        dist_to_var = self.change_dist_to_var
+        assert dist_to_var
         
-        if actions.pressed({'cancel','confirm'}, unpress=False):
-            if actions.pressed('cancel'): self.radius = self.radiuspre
+        actions = self.rfcontext.actions
+        
+        if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
+            if actions.pressed('cancel', ignoremods=True):
+                dist_to_var(self.change_pre)
             actions.unpress()
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
+            self.setup_change(None, None)
             return 'main'
         
-        self.radius = (center - actions.mouse).length
-        return ''
+        dist = (self.change_center - actions.mouse).length
+        dist_to_var(dist)
     
-    def modal_falloff(self):
-        actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
-        
-        if self.draw_mode == 'view':
-            # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius * math.pow(0.5, 1.0 / self.falloff), h/2)))
-            self.draw_mode = 'pixel'
-            self.falloffpre = self.falloff
-            return ''
-        
-        if actions.pressed('cancel'):
-            self.falloff = self.falloffpre
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        if actions.pressed('confirm'):
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        dist = (center - actions.mouse).length
-        ratio = max(0.0001, min(0.9999, dist / self.radius))
-        
-        self.falloff = math.log(0.5) / math.log(ratio)
-        return ''
-    
-    def modal_strength(self):
-        actions = self.rfcontext.actions
-        w,h = actions.size
-        center = Point2D((w/2, h/2))
-        
-        if self.draw_mode == 'view':
-            # first time
-            self.mousepre = Point2D(actions.mouse)
-            actions.warp_mouse(Point2D((w/2 + self.radius * self.strength, h/2)))
-            self.draw_mode = 'pixel'
-            self.strengthpre = self.strength
-            return ''
-        
-        if actions.pressed('cancel'):
-            self.strength = self.strengthpre
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        if actions.pressed('confirm'):
-            self.draw_mode = 'view'
-            actions.warp_mouse(self.mousepre)
-            return 'main'
-        
-        dist = (center - actions.mouse).length
-        ratio = max(0.0001, min(1.0, dist / self.radius))
-        
-        self.strength = ratio
-        return ''
-        
-
-

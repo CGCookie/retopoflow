@@ -4,12 +4,12 @@ from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 
 @RFTool.action_call('move tool')
-class RFTool_Move(RFTool):
+class RFTool_Tweak(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['move'] = self.modal_move
     
-    def name(self): return "Tweak Move"
+    def name(self): return "Tweak"
     def icon(self): return "rf_tweak_icon"
     def description(self): return 'Moves vertices with falloff'
     
@@ -29,7 +29,7 @@ class RFTool_Move(RFTool):
             get_strength_dist = self.rfwidget.get_strength_dist
             self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
             self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-            self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
+            #self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             self.mousedown = self.rfcontext.actions.mousedown
             return 'move'
         

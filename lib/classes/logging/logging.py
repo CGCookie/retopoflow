@@ -5,11 +5,13 @@ class OpenLog(bpy.types.Operator):
     """Open log text files in new window"""
     bl_idname = "wm.open_log"
     bl_label = "Open Log in Text Editor"
+    
+    @classmethod
+    def poll(cls, context):
+        return 'RetopoFlow_log' in bpy.data.texts
 
     def execute(self, context):
-
         self.openTextFile('RetopoFlow_log')
-
         return {'FINISHED'}
 
     def openTextFile(self, filename):

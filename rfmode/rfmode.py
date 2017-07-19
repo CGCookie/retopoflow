@@ -34,9 +34,11 @@ from bpy.app.handlers import persistent, load_post
 from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 from ..lib.classes.logging.logger import Logger
+from ..lib.common_utilities import dprint
 
 from .rfcontext import RFContext
 from .rftool import RFTool
+from .rf_recover import RFRecover
 
 from ..common.maths import stats_report
 
@@ -129,6 +131,7 @@ class RFMode(Operator):
         self.prev_mode = None
         print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
     
+    
     ###############################################
     # start up and shut down methods
     
@@ -136,6 +139,21 @@ class RFMode(Operator):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
+        
+        # remember current mode and set to object mode so we can control
+        # how the target mesh is rendered and so we can push new data
+        # into target mesh
+        self.prev_mode = {
+            'OBJECT':        'OBJECT',          # for some reason, we must
+            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
+            'SCULPT':        'SCULPT',          # to something that
+            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
+            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
+            'PAINT_TEXTURE': 'TEXTURE_PAINT',
+            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
+        if self.prev_mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
         self.context_start()
         self.ui_start()
 
@@ -153,6 +171,9 @@ class RFMode(Operator):
             print_exception()
             err = True
         if err: self.handle_exception(serious=True)
+        
+        # restore previous mode
+        bpy.ops.object.mode_set(mode=self.prev_mode)
         
         stats_report()
     
@@ -172,6 +193,12 @@ class RFMode(Operator):
             bpy.context.scene.objects.active = tar_object
             tar_object.select = True
         
+        tar_object = bpy.context.scene.objects.active
+        
+        # remember selection and unselect all
+        self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
+        for o in self.selected_objects: o.select = False
+        
         tool = self.context_start_tool()
         self.rfctx = RFContext(tool)
     
@@ -181,25 +208,17 @@ class RFMode(Operator):
         if hasattr(self, 'rfctx'):
             self.rfctx.end()
             del self.rfctx
+        
+        # restore selection
+        for o in self.selected_objects: o.select = True
+        
     
     def ui_start(self):
-        # remember current mode and set to object mode so we can control
-        # how the target mesh is rendered and so we can push new data
-        # into target mesh
-        self.prev_mode = {
-            'OBJECT':        'OBJECT',          # for some reason, we must
-            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
-            'SCULPT':        'SCULPT',          # to something that
-            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
-            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
-            'PAINT_TEXTURE': 'TEXTURE_PAINT',
-            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
         # report something useful to user
         bpy.context.area.header_text_set('RetopoFlow Mode')
         
         # remember space info and hide all non-renderable items
+        RFRecover.save_window_state()
         self.space_info = {}
         for wm in bpy.data.window_managers:
             for win in wm.windows:
@@ -251,6 +270,13 @@ class RFMode(Operator):
             ]
         self.tag_redraw_all()
         
+        self.show_toolshelf = bpy.context.area.regions[1].width > 1
+        self.show_properties = bpy.context.area.regions[3].width > 1
+        self.region_overlap = bpy.context.user_preferences.system.use_region_overlap
+        if self.region_overlap:
+            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
+            if self.show_properties: bpy.ops.view3d.properties()
+        
         self.wrap_panels()
         
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
@@ -294,6 +320,10 @@ class RFMode(Operator):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
         
+        if self.region_overlap:
+            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
+            if self.show_properties: bpy.ops.view3d.properties()
+        
         self.rfctx.restore_cursor()
        
         # restore space info
@@ -302,9 +332,6 @@ class RFMode(Operator):
         
         # remove useful reporting
         bpy.context.area.header_text_set()
-        
-        # restore previous mode
-        bpy.ops.object.mode_set(mode=self.prev_mode)
         
         self.tag_redraw_all()
     
@@ -455,34 +482,56 @@ class RFMode(Operator):
         if 'confirm' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
+            if 'edit mode' in ret: self.prev_mode = 'EDIT'
             self.rfctx.commit()
             self.framework_end()
             return {'FINISHED'}
+        
+        if 'edit mode' in ret:
+            # commit the operator
+            # (e.g., create the mesh from internal data structure)
+            self.rfctx.commit()
+            self.framework_end()
+            return {'FINISHED'}
+            
         
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
 
 
 rfmode_tools = {}
 
-for rft in RFTool:
-    def classfactory(rft):
-        rft_name = rft().name()
-        cls_name = 'RFMode_' + rft_name.replace(' ','_')
-        id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
-        print('Creating: ' + cls_name)
-        def context_start_tool(self): return rft()
-        newclass = type(cls_name, (RFMode,),{
-            "context_start_tool": context_start_tool,
-            'bl_idname': id_name,
-            "bl_label": rft_name,
-            'bl_description': rft().description(),
-            'rf_icon': rft().icon(),
-            })
-        print(newclass)
-        rfmode_tools[id_name] = newclass
-        globals()[cls_name] = newclass
-    classfactory(rft)
+def setup_tools():
+    for rft in RFTool:
+        def classfactory(rft):
+            rft_name = rft().name()
+            cls_name = 'RFMode_' + rft_name.replace(' ','_')
+            id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
+            dprint('Creating: ' + cls_name)
+            def context_start_tool(self): return rft()
+            newclass = type(cls_name, (RFMode,),{
+                "context_start_tool": context_start_tool,
+                'bl_idname': id_name,
+                "bl_label": rft_name,
+                'bl_description': rft().description(),
+                'rf_icon': rft().icon(),
+                'rft_class': rft,
+                })
+            rfmode_tools[id_name] = newclass
+            globals()[cls_name] = newclass
+        classfactory(rft)
 
+    listed,unlisted = [None]*len(RFTool.preferred_tool_order),[]
+    for ids,rft in rfmode_tools.items():
+        name = rft.bl_label
+        if name in RFTool.preferred_tool_order:
+            idx = RFTool.preferred_tool_order.index(name)
+            listed[idx] = (ids,rft)
+        else:
+            unlisted.append((ids,rft))
+    # sort unlisted entries by name
+    unlisted.sort(key=lambda k:k[1].bl_label)
+    listed = [data for data in listed if data]
+    RFTool.order = listed + unlisted
 
-
+setup_tools()
 

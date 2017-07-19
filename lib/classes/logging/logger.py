@@ -1,5 +1,5 @@
 import bpy
-from ...common_utilities import showErrorMessage
+# from ...common_utilities import showErrorMessage
 
 class Logger:
     @classmethod
@@ -9,9 +9,10 @@ class Logger:
             bpy.ops.text.new()
             bpy.data.texts[-1].name = 'RetopoFlow_log'
         
-        # TODO: TERRIBLY INEFFICIENT!!
+        divider = '=' * 80
+        
         log = bpy.data.texts['RetopoFlow_log']
-        log.from_string(log.as_string() + "\n" + line)
+        log.write("\n\n" + divider + "\n" + line)
     
     @classmethod
     def openTextFile(cls):
@@ -29,4 +30,29 @@ class Logger:
         for space in area.spaces:
             if space.type == 'TEXT_EDITOR':
                 space.text = bpy.data.texts[filename]
+
+def showErrorMessage(message, wrap=80):
+    if not message: return
+    lines = message.splitlines()
+    if wrap > 0:
+        nlines = []
+        for line in lines:
+            spc = len(line) - len(line.lstrip())
+            while len(line) > wrap:
+                i = line.rfind(' ',0,wrap)
+                if i == -1:
+                    nlines += [line[:wrap]]
+                    line = line[wrap:]
+                else:
+                    nlines += [line[:i]]
+                    line = line[i+1:]
+                if line:
+                    line = ' '*spc + line
+            nlines += [line]
+        lines = nlines
+    def draw(self,context):
+        for line in lines:
+            self.layout.label(line)
+    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
+    return
 

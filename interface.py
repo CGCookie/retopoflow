@@ -4,7 +4,7 @@ from .lib import common_utilities
 from .lib.common_utilities import bversion
 from . import addon_updater_ops
 
-from .rfmode.rfmode import rfmode_tools
+from .rfmode.rftool import RFTool
 
 from .icons import load_icons
 
@@ -22,21 +22,25 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         addon_updater_ops.check_for_update_background(context)
 
         settings = common_utilities.get_settings()
-        
-        
-        col = layout.column(align=True)
-
         icons = load_icons()
         
+        col = layout.column(align=True)
         col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
-        for ids,rft in sorted(rfmode_tools.items()):
+        for ids,rft in RFTool.get_tools():
             icon_name = rft.rf_icon
             if icon_name is not None:
                 icon = icons.get(icon_name)
                 col.operator(ids, icon_value=icon.icon_id)
             else:
                 col.operator(ids)
+        
+        col = layout.column(align=True)
+        col.alignment = 'CENTER'
+        col.label('Help')
+        col.operator('cgcookie.rf_recover', icon_value=icons.get('rf_recover_icon').icon_id)
+        col.operator('cgcookie.rf_recover_clear', icon_value=icons.get('rf_recover_icon').icon_id)
+        col.operator("wm.open_log", "Open Error Log")
 
 class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
