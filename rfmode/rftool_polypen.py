@@ -143,30 +143,30 @@ class RFTool_PolyPen(RFTool):
             return 'move'
 
         if self.next_state == 'tri-quad':
-            bmf0 = next(iter(sel_faces))
-            bmv0,bmv1, bmv2 = bmf0.verts
-            bmv3 = self.rfcontext.new2D_vert_mouse()
-            if not bmv3:
+            # bmf0 = next(iter(sel_faces))
+            # bmv0,bmv1,bmv2 = bmf0.verts
+            hit_pos = self.rfcontext.actions.hit_pos
+            if not hit_pos:
                 self.rfcontext.undo_cancel()
                 return 'main'
             if sel_edges:
                 lbme = sel_edges
             else:
                 return 'main'
-            # TODO: Figure out how to get closest bmedge, and store to bme
             bme0,_ = self.rfcontext.nearest2D_edge_Point2D(self.rfcontext.actions.mouse)
             bmv0,bmv2 = bme0.verts
-            bme1,bmv1 = bmesh.utils.edge_split(bme0, bmv0, 0.5)
-            bmesh.utils.vert_splice(bmv, bmv3)
+            bme1, bmv1 = bme0.split()
+            bmv1.co = hit_pos
             self.mousedown = self.rfcontext.actions.mousedown
-            xy = self.rfcontext.Point_to_Point2D(bmv3.co)
+            xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             self.rfcontext.deselect_all()
-            self.rfcontext.select(bmv3.link_edges)
+            self.rfcontext.select(bmv1.link_edges)
             if not xy:
                 print('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv3, xy)]
+            self.bmverts = [(bmv1, xy)]
+            self.next_state = 'edge-face'
             return 'move'
 
         bmv = self.rfcontext.new2D_vert_mouse()
