@@ -293,7 +293,11 @@ class RFMesh():
             nearest += [(self._wrap_bmvert(bmv), d3d)]
         return nearest
     
-    def nearest_bmedge_Point(self, point:Point):
+    def nearest_bmedge_Point(self, point:Point, edges=None):
+        if edges is None:
+            edges = self.bme.edges
+        else:
+            edges = [self._unwrap(bme) for bme in edges]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in self.bme.edges:
@@ -346,10 +350,15 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
     
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None):
+        if edges is None:
+            edges = self.bme.edges
+        else:
+            edges = [self._unwrap(bme) for bme in edges]
+        edges = edges or self.bme.edges
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
-        for bme in self.bme.edges:
+        for bme in edges:
             bmv0 = Point_to_Point2D(l2w_point(bme.verts[0].co))
             bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
             diff = bmv1 - bmv0
@@ -476,6 +485,27 @@ class RFMesh():
                 for bmf in elem.link_faces:
                     if all(bmv.select for bmv in bmf.verts):
                         bmf.select = True
+        self.dirty()
+    
+    def select_edge_loop(self, edge, only=True):
+        if only: self.deselect_all()
+        bme = self._unwrap(edge)
+        bme.select = True
+        touched = set()
+        def crawl(bme0, bmv01):
+            bme0.select = True
+            bmv01.select = True
+            if bmv01 in touched: return
+            touched.add(bmv01)
+            if len(bmv01.link_edges) > 4: return
+            if len(bmv01.link_faces) > 4: return
+            bmf0 = bme0.link_faces
+            for bme1 in bmv01.link_edges:
+                if any(f in bmf0 for f in bme1.link_faces): continue
+                bmv2 = bme1.other_vert(bmv01)
+                crawl(bme1, bmv2)
+        crawl(bme, bme.verts[0])
+        crawl(bme, bme.verts[1])
         self.dirty()
     
     def select_all(self):

@@ -235,6 +235,9 @@ class Plane(Entity3D):
         if d > 0.00001: return 1
         return 0
     
+    def distance_to(self, p:Point):
+        return abs((p - self.o).dot(self.n))
+    
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
     
