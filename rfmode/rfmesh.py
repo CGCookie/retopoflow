@@ -177,7 +177,8 @@ class RFMesh():
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-        crosses = {bme for bme in self.bme.edges if plane.edge_crosses((bme.verts[0].co, bme.verts[1].co))}
+        #crosses = [plane.edge_crosses((bme.verts[0].co, bme.verts[1].co)) for bme in self.bme.edges]
+        #crosses = {bme:cos[0] for bme,cos in zip(self.bme.edges, crosses) if cos}
         #coplanar = {bme for bme in self.bme.edges if plane.edge_coplanar((bme.verts[0].co, bme.verts[1].co))}
         
         p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
@@ -189,23 +190,54 @@ class RFMesh():
             touched.add(bmf0)
             best = []
             for bme in bmf0.edges:
-                if bme not in crosses: continue
-                for bmf1 in bme.link_faces:
-                    if bmf1 == bmf: ret = [bmf0, bme, bmf]
-                    elif bmf1 in touched: continue
-                    else: ret = [bmf0, bme] + crawl(bmf1)
+                # find where plane crosses edge
+                bmv0,bmv1 = bme.verts
+                crosses = plane.edge_intersection((bmv0.co, bmv1.co))
+                if not crosses: continue
+                cross = crosses[0][0]   # only care about one crossing for now (TODO: coplanar??)
+                
+                if len(bme.link_faces) == 1:
+                    # non-manifold edge
+                    ret = [(bmf0, bme, None, cross)]
                     if len(ret) > len(best): best = ret
+                
+                for bmf1 in bme.link_faces:
+                    if bmf1 == bmf0: continue
+                    if bmf1 == bmf:
+                        # wrapped completely around!
+                        ret = [(bmf0, bme, bmf1, cross)]
+                    elif bmf1 in touched:
+                        # we've seen this face before
+                        continue
+                    else:
+                        # recursively crawl on!
+                        ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
+                    
+                    if bmf0 == bmf:
+                        # on first face
+                        # stop crawling if we wrapped around
+                        if ret[-1][2] == bmf: return ret
+                        # reverse and add to best
+                        if not best:
+                            best = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
+                        else:
+                            best = best + ret
+                    elif len(ret) > len(best):
+                        best = ret
             touched.remove(bmf0)
             return best
         ret = crawl(bmf)
+        w = self._wrap
+        ret = [(w(f0),w(e),w(f1),c) for f0,e,f1,c in ret]
         # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
         # print(ret)
-        return [self._wrap(bmelem) for bmelem in ret]
+        return ret
         
     
     ##########################################################
     
     def _wrap(self, bmelem):
+        if bmelem is None: return None
         t = type(bmelem)
         if t is BMVert: return RFVert(bmelem)
         if t is BMEdge: return RFEdge(bmelem)
