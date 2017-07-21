@@ -69,6 +69,24 @@ class RFContext_Target:
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
     
+    def nearest_edges_Point(self, point, max_dist:float):
+        return self.rftarget.nearest_bmedges_Point(point, max_dist)
+    
+    def nearest_edge_Point(self, point:Point, edges=None):
+        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
+    
+    def nearest2D_edge_Point2D(self, point:Point2D, edges=None):
+        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges)
+    
+    def nearest2D_edge_mouse(self, edges=None):
+        return self.nearest2D_edge_Point2D(self.actions.mouse, edges=edges)
+    
+    def nearest2D_face_point(self, point):
+        xy = self.get_point2D(point)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+    
+    def nearest2D_face_mouse(self):
+        return self.nearest2D_face_point(self.actions.mouse)
     
     #######################################
     
@@ -184,5 +202,11 @@ class RFContext_Target:
         if self.tool: self.tool.update()
         self.update_rot_object()
     
+    def select_edge_loop(self, edge, only=True):
+        self.rftarget.select_edge_loop(edge, only=only)
+        if self.tool: self.tool.update()
+        self.update_rot_object()
+    
     def update_rot_object(self):
         self.rot_object.location = self.rftarget.get_selection_center()
+    

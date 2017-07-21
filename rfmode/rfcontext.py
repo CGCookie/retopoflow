@@ -24,7 +24,8 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
 from ..lib.common_utilities import get_settings, dprint
-from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ..common.maths import Point, Vec, Direction, Normal
+from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.classes.profiler.profiler import profiler
 
@@ -447,6 +448,14 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
 
+    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
+        bp,bn,bi,bd,bo = None,None,None,None,None
+        for rfsource in self.rfsources:
+            hp,hn,hi,hd = rfsource.raycast(ray)
+            if bp is None or (hp is not None and hd < bd):
+                bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
+        if not bp: return []
+        return bo.plane_intersection_crawl(ray, plane)
 
     ###################################################
 
