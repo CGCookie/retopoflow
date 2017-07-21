@@ -177,12 +177,6 @@ class RFMesh():
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-<<<<<<< HEAD
-        #crosses = [plane.edge_crosses((bme.verts[0].co, bme.verts[1].co)) for bme in self.bme.edges]
-        #crosses = {bme:cos[0] for bme,cos in zip(self.bme.edges, crosses) if cos}
-        #coplanar = {bme for bme in self.bme.edges if plane.edge_coplanar((bme.verts[0].co, bme.verts[1].co))}
-=======
->>>>>>> release/2.0.0
 
         p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
@@ -230,13 +224,8 @@ class RFMesh():
             touched.remove(bmf0)
             return best
         ret = crawl(bmf)
-<<<<<<< HEAD
-        w = self._wrap
-        ret = [(w(f0),w(e),w(f1),c) for f0,e,f1,c in ret]
-=======
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
->>>>>>> release/2.0.0
         # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
         # print(ret)
         return ret
