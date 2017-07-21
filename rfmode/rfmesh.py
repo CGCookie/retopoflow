@@ -160,8 +160,8 @@ class RFMesh():
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
         plane_local = self.xform.w2l_plane(plane)
-        l2w_point = self.xform.l2w_point
         triangle_intersection = plane_local.triangle_intersection
+        l2w_point = self.xform.l2w_point
         intersection = [
             (l2w_point(p0),l2w_point(p1))
             for bmf in self.bme.faces

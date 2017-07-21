@@ -410,7 +410,7 @@ class XForm:
         if ray.max == float('inf'):
             l1 = ray.max
         else:
-            l1 = (o - self.l2w_point(ray.o + ray.max * ray.d)).length
+            l1 = (o - self.w2l_point(ray.o + ray.max * ray.d)).length
         return Ray(o=o, d=d, max_dist=l1)
     
     def l2w_plane(self, plane:Plane)->Plane:
