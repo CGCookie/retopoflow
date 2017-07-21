@@ -54,6 +54,7 @@ class Vec2D(Vector, Entity2D):
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def __repr__(self): return self.__str__()
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y = v
 
@@ -64,6 +65,7 @@ class Vec(Vector, Entity3D):
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
+    def __repr__(self): return self.__str__()
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y,self.z = v
 
@@ -74,6 +76,7 @@ class Point2D(Vector, Entity2D):
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def __repr__(self): return self.__str__()
     def __add__(self, other):
         t = type(other)
         if t is Direction2D:
@@ -100,6 +103,7 @@ class Point(Vector, Entity3D):
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
+    def __repr__(self): return self.__str__()
     def __add__(self, other):
         t = type(other)
         if t is Direction:
@@ -126,6 +130,7 @@ class Direction2D(Vector, Entity2D):
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction2D (%0.4f, %0.4f)>' % (self.x,self.y)
+    def __repr__(self): return self.__str__()
     def __mul__(self, other):
         t = type(other)
         if t is float or t is int:
@@ -148,6 +153,7 @@ class Direction(Vector, Entity3D):
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
+    def __repr__(self): return self.__str__()
     def __mul__(self, other):
         t = type(other)
         if t is float or t is int:
@@ -170,6 +176,7 @@ class Normal(Vector, Entity3D):
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Normal (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
+    def __repr__(self): return self.__str__()
     def __mul__(self, other):
         t = type(other)
         if t is float or t is int:
@@ -201,6 +208,8 @@ class Ray(Entity3D):
     def __str__(self):
         return '<Ray (%0.4f, %0.4f, %0.4f)->(%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z,self.d.x,self.d.y,self.d.z)
     
+    def __repr__(self): return self.__str__()
+    
     def eval(self, t:float):
         return self.o + max(self.min, min(self.max, t)) * self.d
     
@@ -214,8 +223,11 @@ class Plane(Entity3D):
     def __init__(self, o:Point, n:Normal):
         self.o = o
         self.n = n
+    
     def __str__(self):
         return '<Plane (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z, self.n.x,self.n.y,self.n.z)
+    
+    def __repr__(self): return self.__str__()
     
     def side(self, p:Point):
         d = (p - self.o).dot(self.n)
@@ -223,19 +235,25 @@ class Plane(Entity3D):
         if d > 0.00001: return 1
         return 0
     
+    def distance_to(self, p:Point):
+        return abs((p - self.o).dot(self.n))
+    
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
     
     @profiler.profile
     def triangle_intersection(self, points):
-        p0,p1,p2 = points
-        s0,s1,s2 = [self.side(p) for p in points]
-        if abs(s0+s1+s2) == 3: return []                    # all points on same side of plane
-        if abs(s0)+abs(s1)+abs(s2) == 1:                    # two points on plane
+        p0,p1,p2 = map(Point, points)
+        s0,s1,s2 = map(self.side, points)
+        if abs(s0+s1+s2) == 3: return []    # all points on same side of plane
+        if s0 == 0 or s1 == 0 or s2 == 0:   # at least one point on plane
+            # handle if all points in plane
+            if s0 == 0 and s1 == 0 and s2 == 0: return [(p0,p1), (p1,p2), (p2,p0)]
+            # handle if two points in plane
             if s0 == 0 and s1 == 0: return [(p0,p1)]
             if s1 == 0 and s2 == 0: return [(p1,p2)]
             if s2 == 0 and s0 == 0: return [(p2,p0)]
-        if s0 == 0 or s1 == 0 or s2 == 0:                   # one point on plane, two on same side
+            # one point on plane, two on same side
             if s0 == 0 and s1 == s2: return [(p0,p0)]
             if s1 == 0 and s2 == s0: return [(p1,p1)]
             if s2 == 0 and s0 == s1: return [(p2,p2)]
@@ -243,16 +261,35 @@ class Plane(Entity3D):
         p01 = intersect_line_plane(p0, p1, self.o, self.n)
         p12 = intersect_line_plane(p1, p2, self.o, self.n)
         p20 = intersect_line_plane(p2, p0, self.o, self.n)
-        if s0 == 0: return [(Point(p0), Point(p12))]
-        if s1 == 0: return [(Point(p1), Point(p20))]
-        if s2 == 0: return [(Point(p2), Point(p01))]
-        if s0 != s1 and s0 != s2 and p01 and p20: return [(Point(p01), Point(p20))]
-        if s1 != s0 and s1 != s2 and p01 and p12: return [(Point(p01), Point(p12))]
-        if s2 != s0 and s2 != s1 and p12 and p20: return [(Point(p12), Point(p20))]
+        if s0 == 0: return [(p0, p1)]
+        if s1 == 0: return [(p1, p2)]
+        if s2 == 0: return [(p2, p0)]
+        if s0 != s1 and s0 != s2 and p01 and p20: return [(p0, p2)]
+        if s1 != s0 and s1 != s2 and p01 and p12: return [(p0, p1)]
+        if s2 != s0 and s2 != s1 and p12 and p20: return [(p1, p2)]
         print('%s %s %s' % (str(p0), str(p1), str(p2)))
         print('%s %s %s' % (str(s0), str(s1), str(s2)))
         print('%s %s %s' % (str(p01), str(p12), str(p20)))
         assert False
+
+    @profiler.profile
+    def edge_intersection(self, points):
+        p0,p1 = map(Point, points)
+        s0,s1 = map(self.side, points)
+        if abs(s0 + s1) == 2: return []   # points on same side
+        if s0 == 0 and s1 == 0: return [(p0, p1)]
+        if s0 == 0: return [(p0, p0)]
+        if s1 == 0: return [(p1, p1)]
+        p01 = intersect_line_plane(p0, p1, self.o, self.n)
+        return [(p01, p01)]
+    
+    def edge_crosses(self, points):
+        p0,p1 = points
+        return self.side(p0) != self.side(p1)
+    
+    def edge_coplanar(self, points):
+        p0,p1 = points
+        return self.side(p0) == 0 and self.side(p1) == 0
 
 
 class XForm:
@@ -318,6 +355,7 @@ class XForm:
                '       (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
                '       (%0.4f, %0.4f, %0.4f, %0.4f)>' % v
     
+    def __repr__(self): return self.__str__()
     
     def __mul__(self, other):
         t = type(other)
@@ -408,6 +446,8 @@ class BBox:
     
     def __str__(self):
         return '<BBox (%0.4f, %0.4f, %0.4f) (%0.4f, %0.4f, %0.4f)>' % (self.mx, self.my, self.mz, self.Mx, self.My, self.Mz)
+    
+    def __repr__(self): return self.__str__()
     
     def Point_within(self, point:Point, margin=0):
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
