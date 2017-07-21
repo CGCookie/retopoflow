@@ -347,7 +347,7 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
 
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01):
         if edges is None:
             edges = self.bme.edges
         else:
@@ -361,7 +361,8 @@ class RFMesh():
             diff = bmv1 - bmv0
             l = diff.length
             d = diff / l
-            pp = bmv0 + d * max(0, min(l, (xy - bmv0).dot(d)))
+            margin = l * shorten / 2
+            pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
             dist = (xy - pp).length
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)

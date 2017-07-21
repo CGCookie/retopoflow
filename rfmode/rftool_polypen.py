@@ -246,7 +246,6 @@ class RFTool_PolyPen(RFTool):
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
         self.set_next_state()
-        nearest_edge = self.rfcontext.nearest2D_edge_Point2D(self.rfcontext.actions.mouse, edges=sel_edges)
 
         if self.next_state == 'new vertex':
             return
@@ -255,9 +254,6 @@ class RFTool_PolyPen(RFTool):
             sel_verts = self.rfcontext.rftarget.get_selected_verts()
             bmv1 = next(iter(sel_verts))
             self.draw_lines([hit_pos, bmv1.co])
-            return
-
-        if (nearest_edge.verts[0].co.x + nearest_edge.verts[1].co.x)/2  - hit_pos[0] < 1 and (nearest_edge.verts[0].co.y + nearest_edge.verts[1].co.y)/2 - hit_pos[1] < 1 and (nearest_edge.verts[0].co.z + nearest_edge.verts[1].co.z)/2 - hit_pos[2] < 1:
             return
 
         if self.next_state == 'edge-face':
