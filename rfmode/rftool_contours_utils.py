@@ -24,7 +24,45 @@ def hash_loop(cycle):
        h = rotcycle(h, 1)
     return ' '.join(str(c) for c in h)
 
-def find_loops(edges, max_loops=10):
+def find_loops(edges):
+    if not edges: return []
+    
+    touched = set()
+    loops = []
+    
+    def crawl(v0, edge01, vert_list):
+        nonlocal edges, touched
+        # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
+        #    came ^ from ^
+        vert_list.append(v0)
+        touched.add(edge01)
+        v1 = edge01.other_vert(v0)
+        if v1 == vert_list[0]: return vert_list
+        edges12 = v1.link_edges
+        # ignore edges that have two faces already
+        edges12 = [edge for edge in edges12 if len(edge.link_faces) <= 1]
+        # ignore edges that share face with previous edge
+        edges12 = [edge for edge in edges12 if not any(f in edge01.link_faces for f in edge.link_faces)]
+        # ignore touched edges
+        edges12 = [edge for edge in edges12 if edge not in touched]
+        # ignore non-given edges
+        edges12 = [edge for edge in edges12 if edge in edges]
+        if len(edges12) != 1:
+            # print('not exactly one edges12 %d' % (len(edges12)))
+            return []
+        edge12 = edges12[0]
+        return crawl(v1, edge12, vert_list)
+    
+    for edge in edges:
+        if edge in touched: continue
+        vert_list = crawl(edge.verts[0], edge, [])
+        if vert_list:
+            loops.append(vert_list)
+    
+    return loops
+    
+
+def find_cycles(edges, max_loops=10):
     # searches through edges to find loops
     # first, break into connected components
     # then, find all the junctions (verts with more than two connected edges)

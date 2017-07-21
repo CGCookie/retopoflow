@@ -45,9 +45,14 @@ class BMElemWrapper:
     def __repr__(self):
         return '<BMElemWrapper: %s>' % repr(self.bmelem)
     def __hash__(self):
-        return self.bmelem.__hash__()
+        return hash(self.bmelem)
     def __eq__(self, other):
-        return other and self.bmelem == other.bmelem
+        if other is None: return False
+        if isinstance(other, BMElemWrapper):
+            return self.bmelem == other.bmelem
+        return self.bmelem == other
+    def __ne__(self, other):
+        return not self.__eq__(other)
     
     @property
     def hide(self): return self.bmelem.hide
@@ -76,6 +81,9 @@ class BMElemWrapper:
 
 
 class RFVert(BMElemWrapper):
+    def __repr__(self):
+        return '<RFVert: %s>' % repr(self.bmelem)
+    
     @property
     def co(self): return self.l2w_point(self.bmelem.co)
     @co.setter
@@ -108,6 +116,9 @@ class RFVert(BMElemWrapper):
 
 
 class RFEdge(BMElemWrapper):
+    def __repr__(self):
+        return '<RFEdge: %s>' % repr(self.bmelem)
+    
     @property
     def seam(self): return self.bmelem.seam
     @seam.setter
@@ -152,6 +163,9 @@ class RFEdge(BMElemWrapper):
 
 
 class RFFace(BMElemWrapper):
+    def __repr__(self):
+        return '<RFFace: %s>' % repr(self.bmelem)
+    
     @property
     def material_index(self): return self.bmelem.material_index
     @material_index.setter
