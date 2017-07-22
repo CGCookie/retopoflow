@@ -204,6 +204,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
     
+    @profiler.profile
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
         
@@ -211,8 +212,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         # if bpy.context.mode == 'EDIT_MESH':
         #    bpy.ops.object.mode_set(mode='OBJECT')
         #    bpy.ops.object.mode_set(mode='EDIT')
-        
-        pr = profiler.start()
         
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
@@ -250,8 +249,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             'point mirror offset': 0.000015,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
-        
-        pr.done()
     
     @profiler.profile
     def _init_sources(self):

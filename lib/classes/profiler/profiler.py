@@ -82,7 +82,7 @@ class Profiler(object):
         frame = inspect.currentframe().f_back
         filename = os.path.basename( frame.f_code.co_filename )
         linenum = frame.f_lineno
-        fnname = frame.f_code.co_name
+        fnname = fn.__name__ #frame.f_code.co_name
         text = '%s (%s:%d)' % (fnname, filename, linenum)
         def wrapper(*args, **kwargs):
             pr = self.start(text=text)
@@ -103,7 +103,7 @@ class Profiler(object):
                 t = text
             else:
                 t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            dprint('  %6.2f / %7d = %6.2f - %s' % (tottime, totcount, tottime/totcount, t))
+            dprint('  %6.2f / %7d = %6.6f - %s' % (tottime, totcount, tottime/totcount, t))
         dprint('')
 
 profiler = Profiler()

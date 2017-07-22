@@ -15,7 +15,7 @@ from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..lib import common_drawing_bmesh as bmegl
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
@@ -99,8 +99,14 @@ class RFMesh():
             for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                 bmv.select = emv.select
             pr.done()
+        
         if triangulate:
-            bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
+            pr = profiler.start('triangulation')
+            faces = [face for face in self.bme.faces if len(face.verts) != 3]
+            dprint('%d non-triangles' % len(faces))
+            bmesh.ops.triangulate(self.bme, faces=faces)
+            pr.done()
+        
         self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
@@ -630,12 +636,12 @@ class RFTarget(RFMesh):
         if self.editmesh_version == self.version: return
         self.editmesh_version = self.version
         self.bme.to_mesh(self.obj.data)
-        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
-            emf.select = bmf.select
-        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-            eme.select = bme.select
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            eme.select = bme.select
+        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+            emf.select = bmf.select
     
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
