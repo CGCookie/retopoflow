@@ -141,12 +141,18 @@ class RFTool_PolyPen(RFTool):
                 bme = next(iter(sel_edges))
                 bmv0,bmv1 = bme.verts
 
-            bmv2 = self.rfcontext.new2D_vert_mouse()
-            if not bmv2:
-                self.rfcontext.undo_cancel()
-                return 'main'
+            nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            if d < 15:
+                bmv2 = nearest_vert
+            else:
+                bmv2 = self.rfcontext.new2D_vert_mouse()
+                if not bmv2:
+                    self.rfcontext.undo_cancel()
+                    return 'main'
 
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
+            if d < 15:
+                self.rfcontext.clean_duplicate_bmedges(bmv2)
             self.rfcontext.select(bmf)
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
@@ -167,7 +173,14 @@ class RFTool_PolyPen(RFTool):
             bme0,_ = self.rfcontext.nearest2D_edge_mouse(edges=sel_edges)
             bmv0,bmv2 = bme0.verts
             bme1,bmv1 = bme0.split()
-            bmv1.co = hit_pos
+            nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            if d < 15:
+                pos = nearest_vert.co
+            else:
+                pos = hit_pos
+            bmv1.co = pos
+            if d < 15:
+                self.rfcontext.clean_duplicate_bmedges(bmv1)
 
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
@@ -268,12 +281,22 @@ class RFTool_PolyPen(RFTool):
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1 = next(iter(sel_edges))
             bmv1,bmv2 = e1.verts
-            self.draw_lines([hit_pos, bmv1.co, bmv2.co])
+            nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            if d < 15:
+                p0 = nearest_vert.co
+            else:
+                p0 = hit_pos
+            self.draw_lines([p0, bmv1.co, bmv2.co])
             return
 
         if self.next_state == 'edges-face' or self.next_state == 'tri-quad':
             sel_edges = self.rfcontext.rftarget.get_selected_edges()
             e1,_ = self.rfcontext.nearest2D_edge_mouse(edges=sel_edges)
             bmv1,bmv2 = e1.verts
-            self.draw_lines([hit_pos, bmv1.co, bmv2.co])
+            nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            if d < 15:
+                p0 = nearest_vert.co
+            else:
+                p0 = hit_pos
+            self.draw_lines([p0, bmv1.co, bmv2.co])
             return
