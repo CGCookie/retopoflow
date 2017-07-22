@@ -469,6 +469,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     ###################################################
     
     def draw_postpixel(self):
+        if not self.actions.r3d: return
+        
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         
@@ -531,6 +533,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         
     
     def draw_postview(self):
+        if not self.actions.r3d: return
+        
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         

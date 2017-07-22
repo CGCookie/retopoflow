@@ -129,3 +129,8 @@ def loop_plane(vert_loop):
                 else: n += c
             cnt += 1
     return Plane(pt, n.normalized())
+
+def loop_radius(vert_loop):
+    pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
+    rad = sum((vert.co - pt).length for vert in vert_loop) / len(vert_loop)
+    return rad

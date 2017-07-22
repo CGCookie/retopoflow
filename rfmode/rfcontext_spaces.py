@@ -70,13 +70,20 @@ class RFContext_Spaces:
         p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
         return (p3d0 - p3d1).length
     
+    def size_to_size2D(self, size:float, xyz:Point):
+        xy = self.Point_to_Point2D(xyz)
+        pt2D = self.Point_to_Point2D(xyz - self.Vec_up() * size)
+        return abs(xy.y - pt2D.y)
+    
     
     #############################################
     # return camera up and right vectors
     
     def Vec_up(self):
-        return self.Point2D_to_Origin((0,0)) - self.Point2D_to_Origin((0,1))
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,1,0))
     
     def Vec_right(self):
-        return self.Point2D_to_Origin((1,0)) - self.Point2D_to_Origin((0,0))
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((1,0,0))
     
