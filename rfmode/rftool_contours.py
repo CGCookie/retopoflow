@@ -1,5 +1,6 @@
 import bpy
 import bgl
+import blf
 import math
 from .rftool import RFTool
 from ..lib.common_utilities import showErrorMessage
@@ -18,6 +19,17 @@ class RFTool_Contours(RFTool):
     def start(self):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))
         self.rfwidget.set_line_callback(self.line)
+        self.update()
+    
+    def update(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        self.loops_data = [{
+            'loop': loop,
+            'plane': loop_plane(loop),
+            'count': len(loop),
+            'radius': loop_radius(loop),
+            } for loop in sel_loops]
     
     @RFTool.dirty_when_done
     def line(self):
@@ -119,18 +131,46 @@ class RFTool_Contours(RFTool):
             edges += edges_of_loop(sel_loops[sel_loop_neg[0]])
         
         self.rfcontext.select(verts + edges, supparts=False) # + faces)
+        self.update()
 
     def modal_main(self):
         if self.rfcontext.actions.pressed('select'):
-            edge,_ = self.rfcontext.nearest2D_edge_mouse()
+            edges = self.rfcontext.visible_edges()
+            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            if not edge:
+                self.rfcontext.deselect_all()
+                return
             self.rfcontext.select_edge_loop(edge, only=True)
+            self.update()
             return
         
         if self.rfcontext.actions.pressed('select add'):
-            edge,_ = self.rfcontext.nearest2D_edge_mouse()
+            edges = self.rfcontext.visible_edges()
+            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            if not edge: return
             self.rfcontext.select_edge_loop(edge, only=False)
+            self.update()
             return
         
     
     def draw_postview(self): pass
-    def draw_postpixel(self): pass
+    def draw_postpixel(self):
+        point_to_point2d = self.rfcontext.Point_to_Point2D
+        up = self.rfcontext.Vec_up()
+        size_to_size2D = self.rfcontext.size_to_size2D
+        font_id = 0
+        bgl.glColor4f(1, 1, 1, 1)
+        blf.size(font_id, 12, 72)
+        for loop_data in self.loops_data:
+            loop = loop_data['loop']
+            radius = loop_data['radius']
+            count = loop_data['count']
+            plane = loop_data['plane']
+            cos = [point_to_point2d(vert.co) for vert in loop]
+            cos = [co for co in cos if co]
+            if not cos: continue
+            xy = max(cos, key=lambda co:co.y)
+            #xy = point_to_point2d(plane.o + up * radius)
+            blf.position(font_id, xy.x, xy.y + 10, 0)
+            blf.draw(font_id, '%d' % (count))
+            
