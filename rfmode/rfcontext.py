@@ -20,6 +20,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 
 from .rfcontext_actions import RFContext_Actions
+from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
@@ -83,7 +84,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
+class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
     
@@ -154,6 +155,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
+        self._init_drawing()            # set up drawing utilities
         
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects

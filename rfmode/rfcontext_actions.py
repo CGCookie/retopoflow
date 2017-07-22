@@ -49,6 +49,11 @@ class Actions:
         'grab': {'G'},
         'delete': {'X','DELETE'},
 
+        # contours
+        'increase count': {'SHIFT+NUMPAD_PLUS','SHIFT+WHEELUPMOUSE', 'SHIFT+UP_ARROW'},
+        'decrease count': {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE','SHIFT+DOWN_ARROW'},
+
+        # relax
         'relax selected': {'SHIFT+S'},
 
         # widget

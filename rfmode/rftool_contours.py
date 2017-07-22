@@ -20,16 +20,26 @@ class RFTool_Contours(RFTool):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))
         self.rfwidget.set_line_callback(self.line)
         self.update()
+        
+        self.show_cut = False
+        self.pts = []
+        self.connected = False
     
     def update(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges)
         self.loops_data = [{
             'loop': loop,
             'plane': loop_plane(loop),
             'count': len(loop),
             'radius': loop_radius(loop),
             } for loop in sel_loops]
+        self.strings_data = [{
+            'string': string,
+            'plane': loop_plane(string),
+            'count': len(string),
+            } for string in sel_strings]
     
     @RFTool.dirty_when_done
     def line(self):
@@ -47,6 +57,7 @@ class RFTool_Contours(RFTool):
         # find two closest selected loops, one on each side
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges)
         sel_loop_planes = [loop_plane(loop) for loop in sel_loops]
         sel_loops_pos = [(i,plane.distance_to(p.o),len(sel_loops[i])) for i,p in enumerate(sel_loop_planes) if plane.side(p.o) > 0]
         sel_loops_neg = [(i,plane.distance_to(p.o),len(sel_loops[i])) for i,p in enumerate(sel_loop_planes) if plane.side(p.o) < 0]
@@ -63,19 +74,17 @@ class RFTool_Contours(RFTool):
                     sel_loop_neg = None
                 else:
                     sel_loop_pos = None
-                #showErrorMessage('Selected loops do not have same count of vertices')
-        if sel_loop_pos is not None:
-            count = sel_loop_pos[2]
-        elif sel_loop_neg is not None:
-            count = sel_loop_neg[2]
-        else:
-            count = 16
+        
+        count = 16  # default starting count
+        if sel_loop_pos is not None: count = sel_loop_pos[2]
+        if sel_loop_neg is not None: count = sel_loop_neg[2]
         
         pts = [c for (f0,e,f1,c) in crawl]
         connected = crawl[0][0] is not None
         length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
         
-        step_size = length / count
+        # step_size is shrunk just a bit to account for floating point errors
+        step_size = length / (count - (0 if connected else 1)) * 0.999
         verts,edges,faces = [],[],[]
         dist = 0
         for c0,c1 in iter_pairs(pts, connected):
@@ -120,18 +129,19 @@ class RFTool_Contours(RFTool):
                 faces += [self.rfcontext.new_face((get_vnew(i0), get_vnew(i1), get_vold(i2), get_vold(i3)))]
                 i0,i3 = i1,i2
         
-        if sel_loop_pos:
-            bridge(sel_loops[sel_loop_pos[0]])
-        if sel_loop_neg:
-            bridge(sel_loops[sel_loop_neg[0]])
+        if sel_loop_pos: bridge(sel_loops[sel_loop_pos[0]])
+        if sel_loop_neg: bridge(sel_loops[sel_loop_neg[0]])
         
-        if sel_loop_pos:
-            edges += edges_of_loop(sel_loops[sel_loop_pos[0]])
-        if sel_loop_neg:
-            edges += edges_of_loop(sel_loops[sel_loop_neg[0]])
+        #if sel_loop_pos:
+        #    edges += edges_of_loop(sel_loops[sel_loop_pos[0]])
+        #if sel_loop_neg:
+        #    edges += edges_of_loop(sel_loops[sel_loop_neg[0]])
         
         self.rfcontext.select(verts + edges, supparts=False) # + faces)
         self.update()
+        
+        self.pts = pts
+        self.connected = connected
 
     def modal_main(self):
         if self.rfcontext.actions.pressed('select'):
@@ -152,15 +162,30 @@ class RFTool_Contours(RFTool):
             self.update()
             return
         
+        if self.rfcontext.actions.pressed('increase count'):
+            print('increasing count')
+            return
+        if self.rfcontext.actions.pressed('decrease count'):
+            print('decreasing count')
+            return
     
-    def draw_postview(self): pass
+    def draw_postview(self):
+        if self.show_cut:
+            bgl.glLineWidth(1.0)
+            bgl.glColor4f(1,1,0,1)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for pt in self.pts:
+                bgl.glVertex3f(*pt)
+            if self.connected: bgl.glVertex3f(*self.pts[0])
+            bgl.glEnd()
+    
     def draw_postpixel(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
-        font_id = 0
-        bgl.glColor4f(1, 1, 1, 1)
-        blf.size(font_id, 12, 72)
+        text_draw2D = self.rfcontext.drawing.text_draw2D
+        self.rfcontext.drawing.text_size(12)
+        
         for loop_data in self.loops_data:
             loop = loop_data['loop']
             radius = loop_data['radius']
@@ -170,7 +195,17 @@ class RFTool_Contours(RFTool):
             cos = [co for co in cos if co]
             if not cos: continue
             xy = max(cos, key=lambda co:co.y)
-            #xy = point_to_point2d(plane.o + up * radius)
-            blf.position(font_id, xy.x, xy.y + 10, 0)
-            blf.draw(font_id, '%d' % (count))
-            
+            xy.y += 10
+            text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+        
+        for string_data in self.strings_data:
+            string = string_data['string']
+            count = string_data['count']
+            plane = string_data['plane']
+            cos = [point_to_point2d(vert.co) for vert in string]
+            cos = [co for co in cos if co]
+            if not cos: continue
+            xy = max(cos, key=lambda co:co.y)
+            xy.y += 10
+            text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+

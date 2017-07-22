@@ -24,33 +24,32 @@ def hash_loop(cycle):
        h = rotcycle(h, 1)
     return ' '.join(str(c) for c in h)
 
+def next_edge_in_string(edge0, vert01, ignore_two_faced=False):
+    faces0 = edge0.link_faces
+    edges1 = vert01.link_edges
+    # ignore edge0
+    edges1 = [edge for edge in edges1 if edge != edge0]
+    if ignore_two_faced:
+        # ignore edges that have two faces already
+        edges1 = [edge for edge in edges1 if len(edge.link_faces) <= 1]
+    # ignore edges that share face with previous edge
+    edges1 = [edge for edge in edges1 if not faces0 or not any(f in faces0 for f in edge.link_faces)]
+    return edges1[0] if len(edges1) == 1 else []
+
 def find_loops(edges):
     if not edges: return []
-    
-    touched = set()
-    loops = []
+    touched,loops = set(),[]
     
     def crawl(v0, edge01, vert_list):
         nonlocal edges, touched
         # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
-        #    came ^ from ^
+        #  > came-^-from-^        ^-going-^-to >
         vert_list.append(v0)
         touched.add(edge01)
         v1 = edge01.other_vert(v0)
         if v1 == vert_list[0]: return vert_list
-        edges12 = v1.link_edges
-        # ignore edges that have two faces already
-        edges12 = [edge for edge in edges12 if len(edge.link_faces) <= 1]
-        # ignore edges that share face with previous edge
-        edges12 = [edge for edge in edges12 if not any(f in edge01.link_faces for f in edge.link_faces)]
-        # ignore touched edges
-        edges12 = [edge for edge in edges12 if edge not in touched]
-        # ignore non-given edges
-        edges12 = [edge for edge in edges12 if edge in edges]
-        if len(edges12) != 1:
-            # print('not exactly one edges12 %d' % (len(edges12)))
-            return []
-        edge12 = edges12[0]
+        edge12 = next_edge_in_string(edge01, v1)
+        if not edge12 or edge12 in touched or edge12 not in edges: return []
         return crawl(v1, edge12, vert_list)
     
     for edge in edges:
@@ -60,7 +59,31 @@ def find_loops(edges):
             loops.append(vert_list)
     
     return loops
+
+def find_strings(edges, min_length=4):
+    if not edges: return []
+    touched,strings = set(),[]
     
+    def crawl(v0, edge01, vert_list):
+        nonlocal edges, touched
+        # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
+        #    came ^ from ^
+        vert_list.append(v0)
+        touched.add(edge01)
+        v1 = edge01.other_vert(v0)
+        if v1 == vert_list[0]: return []
+        edge12 = next_edge_in_string(edge01, v1)
+        if not edge12 or edge12 not in edges: return vert_list + [v1]
+        return crawl(v1, edge12, vert_list)
+    
+    for edge in edges:
+        if edge in touched: continue
+        vert_list0 = crawl(edge.verts[0], edge, [])
+        vert_list1 = crawl(edge.verts[1], edge, [])
+        vert_list = list(reversed(vert_list0)) + vert_list1[2:]
+        if len(vert_list) >= min_length: strings.append(vert_list)
+    
+    return strings
 
 def find_cycles(edges, max_loops=10):
     # searches through edges to find loops
