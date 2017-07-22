@@ -135,13 +135,19 @@ class RFTool_Contours(RFTool):
 
     def modal_main(self):
         if self.rfcontext.actions.pressed('select'):
-            edge,_ = self.rfcontext.nearest2D_edge_mouse()
+            edges = self.rfcontext.visible_edges()
+            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            if not edge:
+                self.rfcontext.deselect_all()
+                return
             self.rfcontext.select_edge_loop(edge, only=True)
             self.update()
             return
         
         if self.rfcontext.actions.pressed('select add'):
-            edge,_ = self.rfcontext.nearest2D_edge_mouse()
+            edges = self.rfcontext.visible_edges()
+            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            if not edge: return
             self.rfcontext.select_edge_loop(edge, only=False)
             self.update()
             return
@@ -160,7 +166,10 @@ class RFTool_Contours(RFTool):
             radius = loop_data['radius']
             count = loop_data['count']
             plane = loop_data['plane']
-            xy = max([point_to_point2d(vert.co) for vert in loop], key=lambda co:co.y)
+            cos = [point_to_point2d(vert.co) for vert in loop]
+            cos = [co for co in cos if co]
+            if not cos: continue
+            xy = max(cos, key=lambda co:co.y)
             #xy = point_to_point2d(plane.o + up * radius)
             blf.position(font_id, xy.x, xy.y + 10, 0)
             blf.draw(font_id, '%d' % (count))
