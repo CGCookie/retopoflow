@@ -659,6 +659,14 @@ class RFTarget(RFMesh):
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
     
+    def delete_edges(self, edges, del_empty_verts=True):
+        edges = set(self._unwrap(e) for e in edges)
+        verts = set(v for e in edges for v in e.verts)
+        for bme in edges: self.bme.edges.remove(bme)
+        if del_empty_verts:
+            for bmv in verts:
+                if len(bmv.link_edges) == 0: self.bme.verts.remove(bmv)
+    
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         faces = set(self._unwrap(f) for f in faces)
         edges = set(e for f in faces for e in f.edges)

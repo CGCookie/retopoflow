@@ -1,6 +1,7 @@
 import bpy
 import bgl
 import math
+from itertools import chain
 from mathutils import Vector
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
@@ -13,7 +14,7 @@ def rotcycle(cycle, offset):
     l = len(cycle)
     return [cycle[(l + ((i - offset) % l)) % l] for i in range(l)]
 
-def hash_loop(cycle):
+def hash_cycle(cycle):
     l = len(cycle)
     h = [hash(v) for v in cycle]
     m = min(h)
@@ -113,7 +114,7 @@ def find_cycles(edges, max_loops=10):
                 # found cycle!
                 cycle = list(reversed(vert_list))
                 while cycle[-1] != v1: cycle.pop()
-                h = hash_loop(cycle)
+                h = hash_cycle(cycle)
                 if h not in cycle_hashes:
                     cycle_hashes.add(h)
                     cycles.append(cycle)
@@ -157,3 +158,23 @@ def loop_radius(vert_loop):
     pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
     rad = sum((vert.co - pt).length for vert in vert_loop) / len(vert_loop)
     return rad
+
+def loop_length(vert_loop):
+    return sum((v0.co-v1.co).length for v0,v1 in zip(vert_loop, chain(vert_loop[1:], vert_loop[:1])))
+
+def loops_connected(vert_loop0, vert_loop1):
+    if not vert_loop0 or not vert_loop1: return False
+    v0 = vert_loop0
+    v0_connected = { e.other_vert(v0) for e in v0.link_edges }
+    return any(v1 in v0_connected for v1 in vert_loop1)
+
+def edges_between_loops(vert_loop0, vert_loop1):
+    loop1 = set(vert_loop1)
+    return [e for v0 in vert_loop0 for e in v0.link_edges if e.other_vert(v0) in loop1]
+
+def faces_between_loops(vert_loop0, vert_loop1):
+    loop1 = set(vert_loop1)
+    return [f for v0 in vert_loop0 for f in v0.link_faces if any(fv in loop1 for fv in f.verts)]
+
+def string_length(vert_loop):
+    return sum((v0.co-v1.co).length for v0,v1 in zip(vert_loop[:-1], vert_loop[1:]))

@@ -51,56 +51,88 @@ class RFTool_Contours(RFTool):
         
         crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
         if not crawl: return
+        # get crawl data (over source)
+        pts = [c for (f0,e,f1,c) in crawl]
+        connected = crawl[0][0] is not None
+        length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
         
         self.rfcontext.undo_push('cut')
         
-        # find two closest selected loops, one on each side
         sel_edges = self.rfcontext.get_selected_edges()
-        sel_loops = find_loops(sel_edges)
-        sel_strings = find_strings(sel_edges)
-        sel_loop_planes = [loop_plane(loop) for loop in sel_loops]
-        sel_loops_pos = [(i,plane.distance_to(p.o),len(sel_loops[i])) for i,p in enumerate(sel_loop_planes) if plane.side(p.o) > 0]
-        sel_loops_neg = [(i,plane.distance_to(p.o),len(sel_loops[i])) for i,p in enumerate(sel_loop_planes) if plane.side(p.o) < 0]
-        sel_loops_pos.sort(key=lambda x:x[1])
-        sel_loops_neg.sort(key=lambda x:x[1])
-        sel_loop_pos = None if not sel_loops_pos else sel_loops_pos[0]
-        sel_loop_neg = None if not sel_loops_neg else sel_loops_neg[0]
-        
-        if sel_loop_pos is not None and sel_loop_neg is not None:
-            if sel_loop_pos[2] != sel_loop_neg[2]:
-                # selected loops do not have same count of vertices
-                # choosing the closer loop
-                if sel_loop_pos[1] < sel_loop_neg[1]:
-                    sel_loop_neg = None
+        if connected:
+            # find two closest selected loops, one on each side
+            sel_loops = find_loops(sel_edges)
+            sel_loop_planes = [loop_plane(loop) for loop in sel_loops]
+            sel_loops_pos = sorted([
+                (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
+                for loop,p in zip(sel_loops, sel_loop_planes) if plane.side(p.o) > 0
+                ], key=lambda data:data[1])
+            sel_loops_neg = sorted([
+                (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
+                for loop,p in zip(sel_loops, sel_loop_planes) if plane.side(p.o) < 0
+                ], key=lambda data:data[1])
+            sel_loop_pos = next(iter(sel_loops_pos), None)
+            sel_loop_neg = next(iter(sel_loops_neg), None)
+            if sel_loop_pos and sel_loop_neg:
+                if sel_loop_pos[2] != sel_loop_neg[2]:
+                    # selected loops do not have same count of vertices
+                    # choosing the closer loop
+                    if sel_loop_pos[1] < sel_loop_neg[1]:
+                        sel_loop_neg = None
+                    else:
+                        sel_loop_pos = None
                 else:
-                    sel_loop_pos = None
+                    edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
+                    self.rfcontext.delete_edges(edges_between)
+        else:
+            # find two closest selected strings, one on each side
+            sel_strings = find_strings(sel_edges)
+            sel_string_planes = [loop_plane(string) for string in sel_strings]
+            sel_strings_pos = sorted([
+                (string, plane.distance_to(p.o), len(string), string_length(string))
+                for string,p in zip(sel_strings, sel_string_planes) if plane.side(p.o) > 0
+                ], key=lambda data:data[1])
+            sel_strings_neg = sorted([
+                (string, plane.distance_to(p.o), len(string), string_length(string))
+                for string,p in zip(sel_strings, sel_string_planes) if plane.side(p.o) < 0
+                ], key=lambda data:data[1])
+            sel_string_pos = next(iter(sel_strings_pos), None)
+            sel_string_neg = next(iter(sel_strings_neg), None)
+            if sel_string_pos and sel_string_neg:
+                if sel_string_pos[2] != sel_string_neg[2]:
+                    # selected strings do not have same count of vertices
+                    # choosing the closer string
+                    if sel_string_pos[1] < sel_string_neg[1]:
+                        sel_string_neg = None
+                    else:
+                        sel_string_pos = None
+            sel_loop_pos = None
+            sel_loop_neg = None
         
         count = 16  # default starting count
         if sel_loop_pos is not None: count = sel_loop_pos[2]
         if sel_loop_neg is not None: count = sel_loop_neg[2]
         
-        pts = [c for (f0,e,f1,c) in crawl]
-        connected = crawl[0][0] is not None
-        length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
-        
-        # step_size is shrunk just a bit to account for floating point errors
-        step_size = length / (count - (0 if connected else 1)) * 0.999
+        # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
-        dist = 0
-        for c0,c1 in iter_pairs(pts, connected):
-            d = (c1-c0).length
-            while dist - d <= 0:
-                # create new vert between c0 and c1
-                p = c0 + (c1 - c0) * (dist / d)
-                verts += [self.rfcontext.new_vert_point(p)]
-                dist += step_size
-                count -= 1 # make sure we don't add too many!
-                if count == 0: break
-            dist -= d
-            if count == 0: break
         
-        for v0,v1 in iter_pairs(verts, connected):
-            edges += [self.rfcontext.new_edge((v0, v1))]
+        def insert_verts_edges(dists):
+            nonlocal verts,edges,pts,connected
+            i,dist = 0,dists[0]
+            for c0,c1 in iter_pairs(pts, connected):
+                d = (c1-c0).length
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d)
+                    verts += [self.rfcontext.new_vert_point(p)]
+                    i += 1
+                    if i == len(dists): break
+                    dist += dists[i]
+                dist -= d
+                if i == len(dists): break
+            assert len(dists)==len(verts)
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
         
         def bridge(loop):
             nonlocal faces, verts
@@ -129,8 +161,12 @@ class RFTool_Contours(RFTool):
                 faces += [self.rfcontext.new_face((get_vnew(i0), get_vnew(i1), get_vold(i2), get_vold(i3)))]
                 i0,i3 = i1,i2
         
-        if sel_loop_pos: bridge(sel_loops[sel_loop_pos[0]])
-        if sel_loop_neg: bridge(sel_loops[sel_loop_neg[0]])
+        # step_size is shrunk just a bit to account for floating point errors
+        step_size = length / (count - (0 if connected else 1)) * 0.999
+        dists = [step_size for i in range(count)]
+        insert_verts_edges(dists)
+        if sel_loop_pos: bridge(sel_loop_pos[0])
+        if sel_loop_neg: bridge(sel_loop_neg[0])
         
         #if sel_loop_pos:
         #    edges += edges_of_loop(sel_loops[sel_loop_pos[0]])
@@ -193,10 +229,28 @@ class RFTool_Contours(RFTool):
             plane = loop_data['plane']
             cos = [point_to_point2d(vert.co) for vert in loop]
             cos = [co for co in cos if co]
-            if not cos: continue
-            xy = max(cos, key=lambda co:co.y)
-            xy.y += 10
-            text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            if cos:
+                xy = max(cos, key=lambda co:co.y)
+                xy.y += 10
+                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            
+            p0 = point_to_point2d(plane.o)
+            p1 = point_to_point2d(plane.o+plane.n*0.1)
+            if p0 and p1:
+                d = (p0 - p1) * 0.25
+                c = Vec2D((d.y,-d.x))
+                p2 = p1 + d + c
+                p3 = p1 + d - c
+                
+                bgl.glLineWidth(2.0)
+                bgl.glColor4f(1,1,0,0.5)
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glVertex2f(*p0)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p2)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p3)
+                bgl.glEnd()
         
         for string_data in self.strings_data:
             string = string_data['string']
@@ -204,8 +258,26 @@ class RFTool_Contours(RFTool):
             plane = string_data['plane']
             cos = [point_to_point2d(vert.co) for vert in string]
             cos = [co for co in cos if co]
-            if not cos: continue
-            xy = max(cos, key=lambda co:co.y)
-            xy.y += 10
-            text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            if cos:
+                xy = max(cos, key=lambda co:co.y)
+                xy.y += 10
+                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            
+            p0 = point_to_point2d(plane.o)
+            p1 = point_to_point2d(plane.o+plane.n*0.1)
+            if p0 and p1:
+                d = (p0 - p1) * 0.25
+                c = Vec2D((d.y,-d.x))
+                p2 = p1 + d + c
+                p3 = p1 + d - c
+                
+                bgl.glLineWidth(2.0)
+                bgl.glColor4f(1,1,0,0.5)
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glVertex2f(*p0)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p2)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p3)
+                bgl.glEnd()
 
