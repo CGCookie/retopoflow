@@ -297,11 +297,12 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'vert-edge':
             sel_verts = self.rfcontext.rftarget.get_selected_verts()
             nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            bmv0 = next(iter(sel_verts))
             if d < 15:
-                bmv1 = nearest_vert
+                p0 = nearest_vert.co
             else:
-                bmv1 = next(iter(sel_verts))
-            self.draw_lines([hit_pos, bmv1.co])
+                p0 = hit_pos
+            self.draw_lines([bmv0.co, p0])
             return
 
         if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
