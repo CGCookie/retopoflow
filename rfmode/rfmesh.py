@@ -15,7 +15,7 @@ from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..lib import common_drawing_bmesh as bmegl
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
@@ -99,8 +99,14 @@ class RFMesh():
             for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                 bmv.select = emv.select
             pr.done()
+
         if triangulate:
-            bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
+            pr = profiler.start('triangulation')
+            faces = [face for face in self.bme.faces if len(face.verts) != 3]
+            dprint('%d non-triangles' % len(faces))
+            bmesh.ops.triangulate(self.bme, faces=faces)
+            pr.done()
+
         self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
@@ -259,6 +265,23 @@ class RFMesh():
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
 
+    def raycast_all(self, ray:Ray):
+        l2w_point,l2w_normal = self.xform.l2w_point,self.xform.l2w_normal
+        ray_local = self.xform.w2l_ray(ray)
+        hits = []
+        origin,direction,maxdist = ray_local.o,ray_local.d,ray_local.max
+        dist = 0
+        while True:
+            p,n,i,d = self.get_bvh().ray_cast(origin, direction, maxdist)
+            if not p: break
+            p,n = l2w_point(p),l2w_normal(n)
+            d = (origin - p).length
+            dist += d
+            hits += [(p,n,i,dist)]
+            origin += direction * (d + 0.00001)
+            maxdist -= d
+        return hits
+
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -347,7 +370,7 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
 
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, max_dist=None, shorten=0.01):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
             edges = self.bme.edges
@@ -631,12 +654,12 @@ class RFTarget(RFMesh):
         if self.editmesh_version == self.version: return
         self.editmesh_version = self.version
         self.bme.to_mesh(self.obj.data)
-        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
-            emf.select = bmf.select
-        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-            eme.select = bme.select
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            eme.select = bme.select
+        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+            emf.select = bmf.select
 
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
@@ -653,6 +676,14 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
+
+    def delete_edges(self, edges, del_empty_verts=True):
+        edges = set(self._unwrap(e) for e in edges)
+        verts = set(v for e in edges for v in e.verts)
+        for bme in edges: self.bme.edges.remove(bme)
+        if del_empty_verts:
+            for bmv in verts:
+                if len(bmv.link_edges) == 0: self.bme.verts.remove(bmv)
 
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         faces = set(self._unwrap(f) for f in faces)

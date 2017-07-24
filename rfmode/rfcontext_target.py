@@ -134,6 +134,15 @@ class RFContext_Target:
         vert.co = xyz
         vert.normal = norm
 
+    def set2D_crawl_vert(self, vert:RFVert, xy:Point2D):
+        hits = self.raycast_sources_Point2D_all(xy)
+        if not hits: return
+        # find closest
+        co = vert.co
+        p,n,_,_ = min(hits, key=lambda hit:(hit[0]-co).length)
+        vert.co = p
+        vert.normal = n
+
 
     def new_vert_point(self, xyz:Point):
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
@@ -159,6 +168,9 @@ class RFContext_Target:
 
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
+
+    def delete_edges(self, edges):
+        self.rftarget.delete_edges(edges)
 
     def delete_faces(self, faces):
         self.rftarget.delete_faces(faces)

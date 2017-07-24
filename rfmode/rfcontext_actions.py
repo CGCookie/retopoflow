@@ -46,9 +46,17 @@ class Actions:
         'edit mode': {'TAB'},
 
         'insert': {'CTRL+LEFTMOUSE'},
+        'insert alt0': {'SHIFT+LEFTMOUSE'},
+        'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
         'grab': {'G'},
         'delete': {'X','DELETE'},
+        'dissolve': {'SHIFT+X','SHIFT+DELETE'},
 
+        # contours
+        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
+        'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
+
+        # relax
         'relax selected': {'SHIFT+S'},
 
         # widget

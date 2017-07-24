@@ -211,7 +211,7 @@ class RFTool_PolyPen(RFTool):
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        for item in self.move_done_released
+        for item in self.move_done_released:
             if item and self.rfcontext.actions.released(item):
                 return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
