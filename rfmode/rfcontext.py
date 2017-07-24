@@ -462,13 +462,15 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
     def is_visible(self, point:Point, normal:Normal):
         ray = self.Point_to_Ray(point, max_dist_offset=-0.001)
         if not ray: return False
-        if normal.dot(ray.d) <= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
+        #if normal.dot(ray.d) <= 0: return False
+        return all(not rfsource.raycast_hit(ray) for rfsource in self.rfsources)
 
 
     ###################################################
 
     def draw_postpixel(self):
+        if not self.actions.r3d: return
+
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
 
@@ -531,6 +533,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
 
 
     def draw_postview(self):
+        if not self.actions.r3d: return
+
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
 

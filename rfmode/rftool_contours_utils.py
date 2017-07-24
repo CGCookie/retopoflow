@@ -26,10 +26,10 @@ def hash_loop(cycle):
 
 def find_loops(edges):
     if not edges: return []
-    
+
     touched = set()
     loops = []
-    
+
     def crawl(v0, edge01, vert_list):
         nonlocal edges, touched
         # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
@@ -52,15 +52,15 @@ def find_loops(edges):
             return []
         edge12 = edges12[0]
         return crawl(v1, edge12, vert_list)
-    
+
     for edge in edges:
         if edge in touched: continue
         vert_list = crawl(edge.verts[0], edge, [])
         if vert_list:
             loops.append(vert_list)
-    
+
     return loops
-    
+
 
 def find_cycles(edges, max_loops=10):
     # searches through edges to find loops
@@ -68,9 +68,9 @@ def find_cycles(edges, max_loops=10):
     # then, find all the junctions (verts with more than two connected edges)
     # sequence of edges between junctions can be reduced to single edge
     # find cycles in graph
-    
+
     if not edges: return []
-    
+
     vert_edges = {}
     for edge in edges:
         v0,v1 = edge.verts
@@ -129,3 +129,8 @@ def loop_plane(vert_loop):
                 else: n += c
             cnt += 1
     return Plane(pt, n.normalized())
+
+def loop_radius(vert_loop):
+    pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
+    rad = sum((vert.co - pt).length for vert in vert_loop) / len(vert_loop)
+    return rad

@@ -347,12 +347,12 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
 
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, max_dist=None, shorten=0.01):
+        if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
             edges = self.bme.edges
         else:
             edges = [self._unwrap(bme) for bme in edges]
-        edges = edges or self.bme.edges
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in edges:
@@ -364,6 +364,7 @@ class RFMesh():
             margin = l * shorten / 2
             pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
             dist = (xy - pp).length
+            if dist > max_dist: continue
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
@@ -541,8 +542,8 @@ class RFSource(RFMesh):
             # does cache match current state?
             rfsource = RFSource.__cache[obj.data.name]
             hashed = RFMesh.hash_object(obj)
-            print(str(rfsource.hash))
-            print(str(hashed))
+            #print(str(rfsource.hash))
+            #print(str(hashed))
             if rfsource.hash != hashed:
                 rfsource = None
         if not rfsource:

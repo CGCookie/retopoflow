@@ -108,7 +108,7 @@ class RFTool_PolyPen(RFTool):
         self.rfcontext.undo_push('insert')
 
         self.move_done_pressed = None
-        self.move_done_released = 'insert'
+        self.move_done_released = ['insert', 'insert alt0']
         self.move_cancelled = 'cancel'
 
         sel_verts = self.rfcontext.rftarget.get_selected_verts()
@@ -122,7 +122,8 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             bme = self.rfcontext.new_edge((bmv0, bmv1))
-            self.rfcontext.select(bme)
+            if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+                self.rfcontext.select(bme)
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
@@ -210,8 +211,9 @@ class RFTool_PolyPen(RFTool):
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            return 'main'
+        for item in self.move_done_released
+            if item and self.rfcontext.actions.released(item):
+                return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
