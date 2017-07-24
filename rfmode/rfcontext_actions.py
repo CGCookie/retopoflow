@@ -248,6 +248,3 @@ class RFContext_Actions:
     def _process_event(self, context, event):
         # if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
         self.actions.update(context, event, self.timer)
-
-
-

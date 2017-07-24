@@ -165,11 +165,14 @@ class RFTool_Contours(RFTool):
         
         # step_size is shrunk just a bit to account for floating point errors
         if sel_loop_pos and sel_loop_neg:
-            pass
+            step_size = length / (count - (0 if connected else 1)) * 0.999
+            dists = [step_size for i in range(count)]
         elif sel_loop_pos:
-            pass
+            step_size = length / (count - (0 if connected else 1)) * 0.999
+            dists = [step_size for i in range(count)]
         elif sel_loop_neg:
-            pass
+            step_size = length / (count - (0 if connected else 1)) * 0.999
+            dists = [step_size for i in range(count)]
         else:
             step_size = length / (count - (0 if connected else 1)) * 0.999
             dists = [step_size for i in range(count)]

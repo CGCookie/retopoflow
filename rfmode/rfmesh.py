@@ -29,13 +29,13 @@ class RFMesh():
     - handling snapping and raycasting
     - translates to/from local space (transformations)
     '''
-    
+
     __version = 0
     @staticmethod
     def generate_version_number():
         RFMesh.__version += 1
         return RFMesh.__version
-    
+
     @staticmethod
     def hash_object(obj:bpy.types.Object):
         if obj is None: return None
@@ -54,7 +54,7 @@ class RFMesh():
         hashed = (counts, bbox, vsum, xform, hash(obj))      # ob.name???
         pr.done()
         return hashed
-    
+
     @staticmethod
     def hash_bmesh(bme:BMesh):
         if bme is None: return None
@@ -66,14 +66,14 @@ class RFMesh():
         hashed = (counts, tuple(bbox.min), tuple(bbox.max), vsum)
         pr.done()
         return hashed
-    
-    
+
+
     def __init__(self):
         assert False, 'Do not create new RFMesh directly!  Use RFSource.new() or RFTarget.new()'
-    
+
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
-    
+
     @profiler.profile
     def __setup__(self, obj, deform=False, bme=None, triangulate=False):
         self.obj = obj
@@ -88,7 +88,7 @@ class RFMesh():
             self.bme = bmesh.new()
             self.bme.from_mesh(eme)
             pr.done()
-            
+
             pr = profiler.start('selection')
             self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
             # copy selection from editmesh
@@ -110,30 +110,30 @@ class RFMesh():
         self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
-    
-    
+
+
     ##########################################################
-    
+
     def dirty(self):
         # TODO: add option for dirtying only selection or geo+topo
         if hasattr(self, 'bvh'): del self.bvh
         self.version = RFMesh.generate_version_number()
-    
+
     def clean(self):
         pass
-    
+
     def get_bvh(self):
         if not hasattr(self, 'bvh') or self.bvh_version != self.version:
             self.bvh = BVHTree.FromBMesh(self.bme)
             self.bvh_version = self.version
         return self.bvh
-    
+
     def get_bbox(self):
         if not hasattr(self, 'bbox') or self.bbox_version != self.version:
             self.bbox = BBox(from_bmverts=self.bme.verts)
             self.bbox_version = self.version
         return self.bbox
-    
+
     def get_kdtree(self):
         if not hasattr(self, 'kdt') or self.kdt_version != self.version:
             self.kdt = KDTree(len(self.bme.verts))
@@ -142,26 +142,26 @@ class RFMesh():
             self.kdt.balance()
             self.kdt_version = self.version
         return self.kdt
-    
+
     ##########################################################
-    
+
     def store_state(self):
         attributes = ['hide']       # list of attributes to remember
         self.prev_state = { attr: self.obj.__getattribute__(attr) for attr in attributes }
     def restore_state(self):
         for attr,val in self.prev_state.items(): self.obj.__setattr__(attr, val)
-    
+
     def obj_hide(self):   self.obj.hide = True
     def obj_unhide(self): self.obj.hide = False
-    
+
     def ensure_lookup_tables(self):
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
-    
-    
+
+
     ##########################################################
-    
+
     @profiler.profile
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
@@ -174,7 +174,7 @@ class RFMesh():
             for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
             ]
         return intersection
-    
+
     def get_yz_plane(self):
         o = self.xform.l2w_point(Point((0,0,0)))
         n = self.xform.l2w_normal(Normal((1,0,0)))
@@ -238,7 +238,7 @@ class RFMesh():
         
     
     ##########################################################
-    
+
     def _wrap(self, bmelem):
         if bmelem is None: return None
         t = type(bmelem)
@@ -251,10 +251,10 @@ class RFMesh():
     def _wrap_bmface(self, bmf): return RFFace(bmf)
     def _unwrap(self, elem):
         return elem if not hasattr(elem, 'bmelem') else elem.bmelem
-    
-    
+
+
     ##########################################################
-    
+
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -286,7 +286,7 @@ class RFMesh():
         ray_local = self.xform.w2l_ray(ray)
         p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
         return p is not None
-    
+
     def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         point_local = self.xform.w2l_point(point)
         p,n,i,_ = self.get_bvh().find_nearest(point_local, max_dist)
@@ -294,7 +294,7 @@ class RFMesh():
         p,n = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d = (point - p).length
         return (p,n,i,d)
-    
+
     def nearest_bmvert_Point(self, point:Point):
         point_local = self.xform.w2l_point(point)
         bv,bd = None,None
@@ -303,7 +303,7 @@ class RFMesh():
             if bv is None or d3d < bd: bv,bd = bmv,d3d
         bmv_world = self.xform.l2w_point(bv.co)
         return (self._wrap_bmvert(bv),(point-bmv_world).length)
-    
+
     def nearest_bmverts_Point(self, point:Point, dist3d:float):
         nearest = []
         for bmv in self.bme.verts:
@@ -330,7 +330,7 @@ class RFMesh():
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (point-self.xform.l2w_point(bpp)).length)
-    
+
     def nearest_bmedges_Point(self, point:Point, dist3d:float):
         l2w_point = self.xform.l2w_point
         nearest = []
@@ -344,7 +344,7 @@ class RFMesh():
             if dist > dist3d: continue
             nearest += [(self._wrap_bmedge(bme), dist)]
         return nearest
-    
+
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
@@ -356,7 +356,7 @@ class RFMesh():
             d3d = 0
             nearest += [(self._wrap_bmvert(bmv), d3d)]
         return nearest
-    
+
     def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2D):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
@@ -369,8 +369,8 @@ class RFMesh():
             if bv is None or d2d < bd: bv,bd = bmv,d2d
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
-    
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, max_dist=None):
+
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
             edges = self.bme.edges
@@ -384,13 +384,14 @@ class RFMesh():
             diff = bmv1 - bmv0
             l = diff.length
             d = diff / l
-            pp = bmv0 + d * max(0, min(l, (xy - bmv0).dot(d)))
+            margin = l * shorten / 2
+            pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
             dist = (xy - pp).length
             if dist > max_dist: continue
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
-    
+
     def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
@@ -409,39 +410,39 @@ class RFMesh():
         #if bv is None: return (None,None)
         #return (self._wrap_bmvert(bv),bd)
         return None
-    
-    
+
+
     ##########################################################
-    
+
     def _visible_verts(self, is_visible):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         return { bmv for bmv in self.bme.verts if is_vis(bmv) }
-    
+
     def _visible_edges(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
         return { bme for bme in self.bme.edges if all(bmv in bmvs for bmv in bme.verts) }
-    
+
     def _visible_faces(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
         return { bmf for bmf in self.bme.faces if all(bmv in bmvs for bmv in bmf.verts) }
-    
+
     def visible_verts(self, is_visible):
         return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) }
-    
+
     def visible_edges(self, is_visible, verts=None):
         bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
         return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs) }
-    
+
     def visible_faces(self, is_visible, verts=None):
         bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
         bmfs = { self._wrap_bmface(bmf) for bmf in self._visible_faces(is_visible, bmvs=bmvs) }
         #print('seeing %d / %d faces' % (len(bmfs), len(self.bme.faces)))
         return bmfs
-    
-    
+
+
     ##########################################################
-    
+
     def get_selected_verts(self):
         s = set()
         for bmv in self.bme.verts:
@@ -457,7 +458,7 @@ class RFMesh():
         for bmf in self.bme.faces:
             if bmf.select: s.add(self._wrap_bmface(bmf))
         return s
-    
+
     def get_selection_center(self):
         v,c = Vector(),0
         for bmv in self.bme.verts:
@@ -466,20 +467,20 @@ class RFMesh():
             c += 1
         if c: self.selection_center = v / c
         return self.xform.l2w_point(self.selection_center)
-    
+
     def deselect_all(self):
         for bmv in self.bme.verts: bmv.select = False
         for bme in self.bme.edges: bme.select = False
         for bmf in self.bme.faces: bmf.select = False
         self.dirty()
-    
+
     def deselect(self, elems):
         if not hasattr(elems, '__len__'):
             elems.select = False
         else:
             for bmelem in elems: bmelem.select = False
         self.dirty()
-    
+
     def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
         if not hasattr(elems, '__len__'): elems = [elems]
@@ -534,7 +535,7 @@ class RFMesh():
         for bme in self.bme.edges: bme.select = True
         for bmf in self.bme.faces: bmf.select = True
         self.dirty()
-    
+
     def select_toggle(self):
         sel = False
         sel |= any(bmv.select for bmv in self.bme.verts)
@@ -549,15 +550,15 @@ class RFSource(RFMesh):
     RFSource is a source object for RetopoFlow.  Source objects
     are the meshes being retopologized.
     '''
-    
+
     __cache = {}
-    
+
     @staticmethod
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
-        
+
         pr = profiler.start()
-        
+
         # check cache
         rfsource = None
         if obj.data.name in RFSource.__cache:
@@ -575,16 +576,16 @@ class RFSource(RFMesh):
             del RFSource.creating
             rfsource.__setup__(obj)
             RFSource.__cache[obj.data.name] = rfsource
-        
+
         src = RFSource.__cache[obj.data.name]
-        
+
         pr.done()
-        
+
         return src
-    
+
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
-    
+
     def __setup__(self, obj:bpy.types.Object):
         super().__setup__(obj, deform=True, triangulate=True)
         self.ensure_lookup_tables()
@@ -596,26 +597,26 @@ class RFTarget(RFMesh):
     RFTarget is a target object for RetopoFlow.  Target objects
     are the retopologized meshes.
     '''
-    
+
     @staticmethod
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
-        
+
         pr = profiler.start()
-        
+
         RFTarget.creating = True
         rftarget = RFTarget()
         del RFTarget.creating
         rftarget.__setup__(obj)
         BMElemWrapper.wrap(rftarget)
-        
+
         pr.done()
-        
+
         return rftarget
-    
+
     def __init__(self):
         assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
-    
+
     def __setup__(self, obj:bpy.types.Object, bme:bmesh.types.BMesh=None):
         super().__setup__(obj, bme=bme)
         # if Mirror modifier is attached, set up symmetry to match
@@ -627,7 +628,7 @@ class RFTarget(RFMesh):
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
         self.editmesh_version = None
-    
+
     def __deepcopy__(self, memo):
         '''
         custom deepcopy method, because BMesh and BVHTree are not copyable
@@ -640,14 +641,14 @@ class RFTarget(RFMesh):
             if k not in {'prev_state'} and k in rftarget.__dict__: continue
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
-    
+
     def commit(self):
         self.write_editmesh()
         self.restore_state()
-    
+
     def cancel(self):
         self.restore_state()
-    
+
     def clean(self):
         super().clean()
         if self.editmesh_version == self.version: return
@@ -664,12 +665,12 @@ class RFTarget(RFMesh):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
         bmv.normal = self.xform.w2l_normal(norm)
         return self._wrap_bmvert(bmv)
-    
+
     def new_edge(self, verts):
         verts = [self._unwrap(v) for v in verts]
         bme = self.bme.edges.new(verts)
         return self._wrap_bmedge(bme)
-    
+
     def new_face(self, verts):
         verts = [self._unwrap(v) for v in verts]
         bmf = self.bme.faces.new(verts)
@@ -695,7 +696,7 @@ class RFTarget(RFMesh):
         if del_empty_verts:
             for bmv in verts:
                 if len(bmv.link_faces) == 0: self.bme.verts.remove(bmv)
-    
+
     def update_verts_faces(self, verts):
         faces = set(f for v in verts for f in self._unwrap(v).link_faces)
         for bmf in faces:
@@ -704,7 +705,7 @@ class RFTarget(RFMesh):
             if n.dot(vnorm) < 0:
                 bmf.normal_flip()
             bmf.normal_update()
-    
+
     def update_face_normal(self, face):
         bmf = self._unwrap(face)
         n = compute_normal(v.co for v in bmf.verts)
@@ -712,7 +713,7 @@ class RFTarget(RFMesh):
         if n.dot(vnorm) < 0:
             bmf.normal_flip()
         bmf.normal_update()
-    
+
     def clean_duplicate_bmedges(self, vert):
         bmv = self._unwrap(vert)
         # search for two edges between the same pair of verts
@@ -746,52 +747,52 @@ class RFTarget(RFMesh):
                 # assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
                 print('clean_duplicate_bmedges: unhandled count of linked faces %d, %d' % (l0,l1))
         return mapping
-    
+
     # def modify_bmverts(self, bmverts, update_fn):
     #     l2w = self.xform.l2w_point
     #     w2l = self.xform.w2l_point
     #     for bmv in bmverts:
     #         bmv.co = w2l(update_fn(bmv, l2w(bmv.co)))
     #     self.dirty()
-    
+
 
 
 class RFMeshRender():
     '''
     RFMeshRender handles rendering RFMeshes.
     '''
-    
+
     ALWAYS_DIRTY = False
-    
+
     def __init__(self, rfmesh, opts):
         self.opts = opts
         self.replace_rfmesh(rfmesh)
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
-    
+
     def __del__(self):
         if hasattr(self, 'bglCallList'):
             bgl.glDeleteLists(self.bglCallList, 1)
             del self.bglCallList
         if hasattr(self, 'bglMatrix'):
             del self.bglMatrix
-    
+
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
         self.bmesh = rfmesh.bme
         self.rfmesh_version = None
-    
+
     def _draw(self):
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
-        
+
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
         bgl.glPushMatrix()
         bgl.glMultMatrixf(self.bglMatrix)
-        
+
         bgl.glDisable(bgl.GL_CULL_FACE)
-        
+
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glEnable(bgl.GL_CULL_FACE)
@@ -804,7 +805,7 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
-        
+
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glDisable(bgl.GL_CULL_FACE)
@@ -817,13 +818,13 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
-        
+
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
         # bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
-    
+
     def clean(self):
         # return if rfmesh hasn't changed
         self.rfmesh.clean()
@@ -832,7 +833,7 @@ class RFMeshRender():
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         self._draw()
         bgl.glEndList()
-    
+
     def draw(self):
         try:
             if self.ALWAYS_DIRTY:
@@ -851,5 +852,3 @@ class RFMeshRender():
                 bmegl.bmeshShader.disable()
             except:
                 pass
-
-
