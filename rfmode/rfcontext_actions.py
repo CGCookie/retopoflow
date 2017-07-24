@@ -48,7 +48,13 @@ class Actions:
         'insert': {'CTRL+LEFTMOUSE'},
         'grab': {'G'},
         'delete': {'X','DELETE'},
+        'dissolve': {'SHIFT+X','SHIFT+DELETE'},
 
+        # contours
+        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
+        'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
+
+        # relax
         'relax selected': {'SHIFT+S'},
 
         # widget

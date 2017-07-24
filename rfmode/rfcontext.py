@@ -20,6 +20,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 
 from .rfcontext_actions import RFContext_Actions
+from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
@@ -83,7 +84,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
+class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -154,7 +155,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
-
+        self._init_drawing()            # set up drawing utilities
+        
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
 
@@ -201,7 +203,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bpy.data.objects.remove(bpy.data.objects['RetopoFlow_Rotate'], do_unlink=True)
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
-
+    
+    @profiler.profile
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
 
@@ -209,9 +212,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         # if bpy.context.mode == 'EDIT_MESH':
         #    bpy.ops.object.mode_set(mode='OBJECT')
         #    bpy.ops.object.mode_set(mode='EDIT')
-
-        pr = profiler.start()
-
+        
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object)
@@ -248,9 +249,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             'point mirror offset': 0.000015,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
-
-        pr.done()
-
+    
     @profiler.profile
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
@@ -427,11 +426,18 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
-
+    
+    def raycast_sources_Ray_all(self, ray:Ray):
+        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray)]
+    
     def raycast_sources_Point2D(self, xy:Point2D):
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
-
+    
+    def raycast_sources_Point2D_all(self, xy:Point2D):
+        if xy is None: return None,None,None,None
+        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy))
+    
     def raycast_sources_mouse(self):
         return self.raycast_sources_Point2D(self.actions.mouse)
 
@@ -447,7 +453,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
-
+    
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
@@ -456,19 +462,21 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
                 bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
         if not bp: return []
         return bo.plane_intersection_crawl(ray, plane)
-
+    
     ###################################################
 
     def is_visible(self, point:Point, normal:Normal):
         ray = self.Point_to_Ray(point, max_dist_offset=-0.001)
         if not ray: return False
-        if normal.dot(ray.d) <= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
-
-
+        #if normal.dot(ray.d) <= 0: return False
+        return all(not rfsource.raycast_hit(ray) for rfsource in self.rfsources)
+    
+    
     ###################################################
 
     def draw_postpixel(self):
+        if not self.actions.r3d: return
+        
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
 
@@ -531,6 +539,8 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
 
 
     def draw_postview(self):
+        if not self.actions.r3d: return
+        
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
 

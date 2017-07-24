@@ -15,7 +15,7 @@ from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..lib import common_drawing_bmesh as bmegl
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
@@ -99,8 +99,14 @@ class RFMesh():
             for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                 bmv.select = emv.select
             pr.done()
+        
         if triangulate:
-            bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
+            pr = profiler.start('triangulation')
+            faces = [face for face in self.bme.faces if len(face.verts) != 3]
+            dprint('%d non-triangles' % len(faces))
+            bmesh.ops.triangulate(self.bme, faces=faces)
+            pr.done()
+        
         self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
@@ -173,15 +179,15 @@ class RFMesh():
         o = self.xform.l2w_point(Point((0,0,0)))
         n = self.xform.l2w_normal(Normal((1,0,0)))
         return Plane(o, n)
-
+    
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-
+        
         p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
         touched = set()
-
+        
         def crawl(bmf0):
             assert bmf0 not in touched
             touched.add(bmf0)
@@ -192,12 +198,12 @@ class RFMesh():
                 crosses = plane.edge_intersection((bmv0.co, bmv1.co))
                 if not crosses: continue
                 cross = crosses[0][0]   # only care about one crossing for now (TODO: coplanar??)
-
+                
                 if len(bme.link_faces) == 1:
                     # non-manifold edge
                     ret = [(bmf0, bme, None, cross)]
                     if len(ret) > len(best): best = ret
-
+                
                 for bmf1 in bme.link_faces:
                     if bmf1 == bmf0: continue
                     if bmf1 == bmf:
@@ -209,7 +215,7 @@ class RFMesh():
                     else:
                         # recursively crawl on!
                         ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
-
+                    
                     if bmf0 == bmf:
                         # on first face
                         # stop crawling if we wrapped around
@@ -229,8 +235,8 @@ class RFMesh():
         # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
         # print(ret)
         return ret
-
-
+        
+    
     ##########################################################
 
     def _wrap(self, bmelem):
@@ -258,7 +264,24 @@ class RFMesh():
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
-
+    
+    def raycast_all(self, ray:Ray):
+        l2w_point,l2w_normal = self.xform.l2w_point,self.xform.l2w_normal
+        ray_local = self.xform.w2l_ray(ray)
+        hits = []
+        origin,direction,maxdist = ray_local.o,ray_local.d,ray_local.max
+        dist = 0
+        while True:
+            p,n,i,d = self.get_bvh().ray_cast(origin, direction, maxdist)
+            if not p: break
+            p,n = l2w_point(p),l2w_normal(n)
+            d = (origin - p).length
+            dist += d
+            hits += [(p,n,i,dist)]
+            origin += direction * (d + 0.00001)
+            maxdist -= d
+        return hits
+    
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -289,7 +312,7 @@ class RFMesh():
             if d3d > dist3d: continue
             nearest += [(self._wrap_bmvert(bmv), d3d)]
         return nearest
-
+    
     def nearest_bmedge_Point(self, point:Point, edges=None):
         if edges is None:
             edges = self.bme.edges
@@ -347,12 +370,12 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
 
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
+        if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
             edges = self.bme.edges
         else:
             edges = [self._unwrap(bme) for bme in edges]
-        edges = edges or self.bme.edges
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in edges:
@@ -364,6 +387,7 @@ class RFMesh():
             margin = l * shorten / 2
             pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
             dist = (xy - pp).length
+            if dist > max_dist: continue
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
@@ -484,7 +508,7 @@ class RFMesh():
                     if all(bmv.select for bmv in bmf.verts):
                         bmf.select = True
         self.dirty()
-
+    
     def select_edge_loop(self, edge, only=True):
         if only: self.deselect_all()
         bme = self._unwrap(edge)
@@ -505,7 +529,7 @@ class RFMesh():
         crawl(bme, bme.verts[0])
         crawl(bme, bme.verts[1])
         self.dirty()
-
+    
     def select_all(self):
         for bmv in self.bme.verts: bmv.select = True
         for bme in self.bme.edges: bme.select = True
@@ -541,8 +565,8 @@ class RFSource(RFMesh):
             # does cache match current state?
             rfsource = RFSource.__cache[obj.data.name]
             hashed = RFMesh.hash_object(obj)
-            print(str(rfsource.hash))
-            print(str(hashed))
+            #print(str(rfsource.hash))
+            #print(str(hashed))
             if rfsource.hash != hashed:
                 rfsource = None
         if not rfsource:
@@ -565,7 +589,7 @@ class RFSource(RFMesh):
     def __setup__(self, obj:bpy.types.Object):
         super().__setup__(obj, deform=True, triangulate=True)
         self.ensure_lookup_tables()
-
+    
 
 
 class RFTarget(RFMesh):
@@ -630,13 +654,13 @@ class RFTarget(RFMesh):
         if self.editmesh_version == self.version: return
         self.editmesh_version = self.version
         self.bme.to_mesh(self.obj.data)
-        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
-            emf.select = bmf.select
-        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-            eme.select = bme.select
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
-
+        for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+            eme.select = bme.select
+        for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+            emf.select = bmf.select
+    
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
         bmv.normal = self.xform.w2l_normal(norm)
@@ -652,7 +676,15 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
-
+    
+    def delete_edges(self, edges, del_empty_verts=True):
+        edges = set(self._unwrap(e) for e in edges)
+        verts = set(v for e in edges for v in e.verts)
+        for bme in edges: self.bme.edges.remove(bme)
+        if del_empty_verts:
+            for bmv in verts:
+                if len(bmv.link_edges) == 0: self.bme.verts.remove(bmv)
+    
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         faces = set(self._unwrap(f) for f in faces)
         edges = set(e for f in faces for e in f.edges)

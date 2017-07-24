@@ -71,26 +71,26 @@ class RFContext_Target:
 
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
-
+    
     def nearest_edges_Point(self, point, max_dist:float):
         return self.rftarget.nearest_bmedges_Point(point, max_dist)
-
+    
     def nearest_edge_Point(self, point:Point, edges=None):
         return self.rftarget.nearest_bmedge_Point(point, edges=edges)
-
-    def nearest2D_edge_Point2D(self, point:Point2D, edges=None):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges)
-
-    def nearest2D_edge_mouse(self, edges=None):
-        return self.nearest2D_edge_Point2D(self.actions.mouse, edges=edges)
-
+    
+    def nearest2D_edge_Point2D(self, point:Point2D, edges=None, max_dist=None):
+        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
+    
+    def nearest2D_edge_mouse(self, edges=None, max_dist=None):
+        return self.nearest2D_edge_Point2D(self.actions.mouse, edges=edges, max_dist=max_dist)
+    
     def nearest2D_face_point(self, point):
         xy = self.get_point2D(point)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
-
+    
     def nearest2D_face_mouse(self):
         return self.nearest2D_face_point(self.actions.mouse)
-
+    
     #######################################
 
     def visible_verts(self):
@@ -133,8 +133,17 @@ class RFContext_Target:
         if xyz is None: return
         vert.co = xyz
         vert.normal = norm
-
-
+    
+    def set2D_crawl_vert(self, vert:RFVert, xy:Point2D):
+        hits = self.raycast_sources_Point2D_all(xy)
+        if not hits: return
+        # find closest
+        co = vert.co
+        p,n,_,_ = min(hits, key=lambda hit:(hit[0]-co).length)
+        vert.co = p
+        vert.normal = n
+    
+    
     def new_vert_point(self, xyz:Point):
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
@@ -159,7 +168,10 @@ class RFContext_Target:
 
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
-
+    
+    def delete_edges(self, edges):
+        self.rftarget.delete_edges(edges)
+    
     def delete_faces(self, faces):
         self.rftarget.delete_faces(faces)
 
@@ -204,11 +216,12 @@ class RFContext_Target:
         self.rftarget.select_toggle()
         if self.tool: self.tool.update()
         self.update_rot_object()
-
+    
     def select_edge_loop(self, edge, only=True):
         self.rftarget.select_edge_loop(edge, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
-
+    
     def update_rot_object(self):
         self.rot_object.location = self.rftarget.get_selection_center()
+    
