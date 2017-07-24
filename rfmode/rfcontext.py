@@ -427,9 +427,16 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
     
+    def raycast_sources_Ray_all(self, ray:Ray):
+        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray)]
+    
     def raycast_sources_Point2D(self, xy:Point2D):
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
+    
+    def raycast_sources_Point2D_all(self, xy:Point2D):
+        if xy is None: return None,None,None,None
+        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy))
     
     def raycast_sources_mouse(self):
         return self.raycast_sources_Point2D(self.actions.mouse)

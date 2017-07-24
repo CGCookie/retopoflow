@@ -48,10 +48,11 @@ class Actions:
         'insert': {'CTRL+LEFTMOUSE'},
         'grab': {'G'},
         'delete': {'X','DELETE'},
+        'dissolve': {'SHIFT+X','SHIFT+DELETE'},
 
         # contours
-        'increase count': {'SHIFT+NUMPAD_PLUS','SHIFT+WHEELUPMOUSE', 'SHIFT+UP_ARROW'},
-        'decrease count': {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE','SHIFT+DOWN_ARROW'},
+        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
+        'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
 
         # relax
         'relax selected': {'SHIFT+S'},

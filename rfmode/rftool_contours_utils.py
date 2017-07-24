@@ -178,3 +178,6 @@ def faces_between_loops(vert_loop0, vert_loop1):
 
 def string_length(vert_loop):
     return sum((v0.co-v1.co).length for v0,v1 in zip(vert_loop[:-1], vert_loop[1:]))
+
+def project_loop_to_plane(vert_loop, plane):
+    return [plane.project(v.co) for v in vert_loop]

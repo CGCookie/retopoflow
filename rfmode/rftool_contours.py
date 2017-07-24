@@ -2,6 +2,7 @@ import bpy
 import bgl
 import blf
 import math
+from itertools import chain
 from .rftool import RFTool
 from ..lib.common_utilities import showErrorMessage
 from ..common.maths import Point,Point2D,Vec2D,Vec
@@ -10,7 +11,8 @@ from .rftool_contours_utils import *
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
-    def init(self): pass
+    def init(self):
+        self.FSM['move']  = self.modal_move
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -116,10 +118,10 @@ class RFTool_Contours(RFTool):
         # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
         
-        def insert_verts_edges(dists):
+        def insert_verts_edges(dists, offset=0):
             nonlocal verts,edges,pts,connected
             i,dist = 0,dists[0]
-            for c0,c1 in iter_pairs(pts, connected):
+            for c0,c1 in iter_pairs(pts, connected): #chain(pts[:offset],pts[offset:]), connected):
                 d = (c1-c0).length
                 while dist - d <= 0:
                     # create new vert between c0 and c1
@@ -162,9 +164,18 @@ class RFTool_Contours(RFTool):
                 i0,i3 = i1,i2
         
         # step_size is shrunk just a bit to account for floating point errors
-        step_size = length / (count - (0 if connected else 1)) * 0.999
-        dists = [step_size for i in range(count)]
+        if sel_loop_pos and sel_loop_neg:
+            pass
+        elif sel_loop_pos:
+            pass
+        elif sel_loop_neg:
+            pass
+        else:
+            step_size = length / (count - (0 if connected else 1)) * 0.999
+            dists = [step_size for i in range(count)]
+        
         insert_verts_edges(dists)
+        
         if sel_loop_pos: bridge(sel_loop_pos[0])
         if sel_loop_neg: bridge(sel_loop_neg[0])
         
@@ -198,12 +209,42 @@ class RFTool_Contours(RFTool):
             self.update()
             return
         
+        if self.rfcontext.actions.pressed('grab'):
+            self.rfcontext.undo_push('move grabbed')
+            self.prep_move()
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            self.move_cancelled = 'cancel'
+            return 'move'
+            
+        
         if self.rfcontext.actions.pressed('increase count'):
             print('increasing count')
             return
         if self.rfcontext.actions.pressed('decrease count'):
             print('decreasing count')
             return
+    
+    def prep_move(self, bmverts=None):
+        if not bmverts: bmverts = self.rfcontext.get_selected_verts()
+        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.mousedown = self.rfcontext.actions.mouse
+    
+    @RFTool.dirty_when_done
+    def modal_move(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        set2D_crawl_vert = self.rfcontext.set2D_crawl_vert
+        for bmv,xy in self.bmverts:
+            set2D_crawl_vert(bmv, xy + delta)
+        self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
     
     def draw_postview(self):
         if self.show_cut:

@@ -238,6 +238,9 @@ class Plane(Entity3D):
     def distance_to(self, p:Point):
         return abs((p - self.o).dot(self.n))
     
+    def project(self, p:Point):
+        return p + self.n * (self.o - p).dot(self.n)
+    
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
     
@@ -290,6 +293,81 @@ class Plane(Entity3D):
     def edge_coplanar(self, points):
         p0,p1 = points
         return self.side(p0) == 0 and self.side(p1) == 0
+
+class Frame:
+    @staticmethod
+    def from_plane(plane:Plane): return Frame(plane.o, z=plane.n)
+    
+    def __init__(self, o:Point, x:Direction=None, y:Direction=None, z:Direction=None):
+        c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
+        assert c==0, "Must specify at least one direction"
+        if c == 1:
+            if x:
+                y = Direction((-x.x + 3.14, x.y + 42, x.z - 1.61))
+                z = Direction(x.cross(y).normalize())
+                y = Direction(z.cross(x).normalize())
+                x.normalize()
+            elif y:
+                x = Direction((-y.x + 3.14, y.y + 42, y.z - 1.61))
+                z = Direction(x.cross(y).normalize())
+                x = Direction(y.cross(z).normalize())
+                y.normalize()
+            else:
+                x = Direction((-z.x + 3.14, z.y + 42, z.z - 1.61))
+                y = Direction(z.cross(x).normalize())
+                x = Direction(y.cross(z).normalize())
+                z.normalize()
+        elif c >= 2:
+            if x and y:
+                z = Direction(x.cross(y).normalize())
+                y = Direction(z.cross(x).normalize())
+                x = Direction(y.cross(z).normalize())
+            elif x and z:
+                y = Direction(z.cross(x).normalize())
+                x = Direction(y.cross(z).normalize())
+                z = Direction(x.cross(y).normalize())
+            else:
+                x = Direction(y.cross(z).normalize())
+                z = Direction(x.cross(y).normalize())
+                y = Direction(z.cross(x).normalize())
+        
+        self.o = o
+        self.x = x
+        self.y = y
+        self.z = z
+    
+    def w2l_typed(self, entity):
+        # TODO: generalize like XForm
+        t = type(entity)
+        xdot,ydot,zdot = self.x.dot,self.y.dot,self.z.dot
+        if t is Point:
+            p = entity - self.o
+            return Point(xdot(p), ydot(p), zdot(p))
+        if t is Vec:
+            return Vec(xdot(entity), ydot(entity), zdot(entity))
+        if t is Normal:
+            return Normal(xdot(entity), ydot(entity), zdot(entity)).normalize()
+        if t is Direction:
+            return Direction(xdot(entity), ydot(entity), zdot(entity)).normalize()
+    
+    def l2w_typed(self, entity):
+        # TODO: generalize like XForm
+        t = type(entity)
+        xdot,ydot,zdot = self.x.dot,self.y.dot,self.z.dot
+        if t is Point:
+            return Point(self.o + self.x * entity.x + self.y * entity.y + self.z * entity.z)
+        if t is Vec:
+            return Vec(self.x * entity.x + self.y * entity.y + self.z * entity.z)
+        if t is Normal:
+            return Normal(self.x * entity.x + self.y * entity.y + self.z * entity.z).normalize()
+        if t is Direction:
+            return Direction(self.x * entity.x + self.y * entity.y + self.z * entity.z).normalize()
+    
+    def rotate_about_z(self, radians:float):
+        c,s = math.cos(radians),math.sin(radians)
+        x,y = self.x,self.y
+        self.x = x*c + y*s
+        self.y = -x*s + y*c
 
 
 class XForm:

@@ -265,6 +265,23 @@ class RFMesh():
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
     
+    def raycast_all(self, ray:Ray):
+        l2w_point,l2w_normal = self.xform.l2w_point,self.xform.l2w_normal
+        ray_local = self.xform.w2l_ray(ray)
+        hits = []
+        origin,direction,maxdist = ray_local.o,ray_local.d,ray_local.max
+        dist = 0
+        while True:
+            p,n,i,d = self.get_bvh().ray_cast(origin, direction, maxdist)
+            if not p: break
+            p,n = l2w_point(p),l2w_normal(n)
+            d = (origin - p).length
+            dist += d
+            hits += [(p,n,i,dist)]
+            origin += direction * (d + 0.00001)
+            maxdist -= d
+        return hits
+    
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
