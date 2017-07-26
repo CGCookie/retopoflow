@@ -229,12 +229,11 @@ class RFTool_PolyPen(RFTool):
 
     @RFTool.dirty_when_done
     def modal_move(self):
+        released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released:
-            for item in self.move_done_released:
-                if self.rfcontext.actions.released(item):
-                    return 'main'
+        if self.move_done_released and all(released(item) for item in self.move_done_released):
+            return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
