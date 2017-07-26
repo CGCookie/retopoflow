@@ -1,93 +1,133 @@
 import bpy
 import bgl
 import blf
+import time
+
+from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
+from ..common.ui import Drawing, UI_Window
 
-class Drawing:
-    def __init__(self):
-        self.font_id = 0
-        self.text_size(12)
-    
-    def text_size(self, size):
-        blf.size(self.font_id, size, 72)
-        self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] * 1.5)
-    
-    def get_text_size(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return (round(size[0]), round(size[1]))
-    def get_text_width(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[0])
-    def get_text_height(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[1])
-    
-    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None):
-        lines = str(text).split('\n')
-        x,y = round(pos[0]),round(pos[1])
-        
-        if dropshadow: self.text_draw2D(text, (x+1,y-1), dropshadow)
-        
-        bgl.glColor4f(*color)
-        for line in lines:
-            blf.position(self.font_id, x, y, 0)
-            blf.draw(self.font_id, line)
-            y -= self.line_height
-    
-    def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7):
-        '''
-        textbox_position specifies where the textbox is drawn in relation to pos.
-        ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
-        tip: textbox_position is arranged same as numpad
-                    +-----+
-                    |7 8 9|
-                    |4 5 6|
-                    |1 2 3|
-                    +-----+
-        '''
-        lh = self.line_height
-        
-        # TODO: wrap text!
-        lines = text.split('\n')
-        w = max(self.get_text_width(line) for line in lines)
-        h = len(lines) * lh
-        
-        # find top-left corner (adjusting for textbox_position)
-        l,t = round(pos[0]),round(pos[1])
-        textbox_position -= 1
-        lcr = textbox_position % 3
-        tmb = int(textbox_position / 3)
-        l += [w+padding,round(w/2),-padding][lcr]
-        t += [h+padding,round(h/2),-padding][tmb]
-        
-        bgl.glEnable(bgl.GL_BLEND)
-        
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
-        bgl.glBegin(bgl.GL_QUADS)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glEnd()
-        
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-        bgl.glLineWidth(1.0)
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glEnd()
-        
-        bgl.glColor4f(1,1,1,0.5)
-        for i,line in enumerate(lines):
-            th = self.get_text_height(line)
-            y = t - (i+1)*lh + int((lh-th) / 2)
-            blf.position(self.font_id, l, y, 0)
-            blf.draw(self.font_id, line)
 
 class RFContext_Drawing:
     def _init_drawing(self):
-        self.drawing = Drawing()
+        self.drawing = Drawing.get_instance()
+        
+        self.tool_window = UI_Window("Tools", sticky=7)
+        for i,rft_data in enumerate(RFTool.get_tools()):
+            ids,rft = rft_data
+            self.tool_window.add_label(rft.bl_label)
+            # if type(self.tool) == rft.rft_class:
+            #     bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
+            # else:
+            #     bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+            # th = int(blf.dimensions(font_id, rft.bl_label)[1])
+            # y = t - (i+1) * lh + int((lh - th) / 2.0)
+            # blf.position(font_id, l, y, 0)
+            # blf.draw(font_id, rft.bl_label)
+
+
+    def draw_postpixel(self):
+        if not self.actions.r3d: return
+
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+
+        self.tool.draw_postpixel()
+        self.rfwidget.draw_postpixel()
+        
+        self.tool_window.draw_postpixel(self.actions.size[0], self.actions.size[1])
+
+        wtime,ctime = self.fps_time,time.time()
+        self.frames += 1
+        if ctime >= wtime + 1:
+            self.fps = self.frames / (ctime - wtime)
+            self.frames = 0
+            self.fps_time = ctime
+
+        font_id = 0
+
+        if self.show_fps:
+            debug_fps = 'fps: %0.2f' % self.fps
+            debug_save = 'save: %0.0f' % (self.time_to_save or float('inf'))
+            bgl.glColor4f(1.0, 1.0, 1.0, 0.10)
+            blf.size(font_id, 12, 72)
+            blf.position(font_id, 5, 5, 0)
+            blf.draw(font_id, '%s  %s' % (debug_fps,debug_save))
+
+        if False:
+            bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+            blf.size(font_id, 12, 72)
+            lh = int(blf.dimensions(font_id, "XMPQpqjI")[1] * 1.5)
+            w = max(int(blf.dimensions(font_id, rft().name())[0]) for rft in RFTool)
+            h = lh * len(RFTool)
+            l,t = 10,self.actions.size[1] - 10
+
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l+w+5,t+5)
+            bgl.glVertex2f(l-5,t+5)
+            bgl.glVertex2f(l-5,t-h-5)
+            bgl.glVertex2f(l+w+5,t-h-5)
+            bgl.glEnd()
+
+            bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
+            bgl.glLineWidth(1.0)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(l+w+5,t+5)
+            bgl.glVertex2f(l-5,t+5)
+            bgl.glVertex2f(l-5,t-h-5)
+            bgl.glVertex2f(l+w+5,t-h-5)
+            bgl.glVertex2f(l+w+5,t+5)
+            bgl.glEnd()
+
+            for i,rft_data in enumerate(RFTool.get_tools()):
+                ids,rft = rft_data
+                if type(self.tool) == rft.rft_class:
+                    bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
+                else:
+                    bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+                th = int(blf.dimensions(font_id, rft.bl_label)[1])
+                y = t - (i+1) * lh + int((lh - th) / 2.0)
+                blf.position(font_id, l, y, 0)
+                blf.draw(font_id, rft.bl_label)
+
+
+    def draw_postview(self):
+        if not self.actions.r3d: return
+
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+
+        self.draw_yz_mirror()
+
+        self.rftarget_draw.draw()
+        self.tool.draw_postview()
+        self.rfwidget.draw_postview()
+
+    def draw_yz_mirror(self):
+        if 'x' not in self.rftarget.symmetry: return
+        bgl.glLineWidth(3.0)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        bgl.glDepthRange(0.0, 0.9999)
+
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.15)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.01)
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_TRUE)
