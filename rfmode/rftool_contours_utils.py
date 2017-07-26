@@ -4,7 +4,7 @@ import math
 from itertools import chain
 from mathutils import Vector
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
+from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame
 
 def iter_pairs(items, wrap):
     for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
@@ -141,18 +141,18 @@ def loop_plane(vert_loop):
     # average co is pt on plane
     # average cross product (point in same direction) is normal
     pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
-    n,cnt = Vector(),0
+    n,cnt = None,0
     for i0,vert0 in enumerate(vert_loop[:-1]):
         v0 = vert0.co - pt
         for vert1 in vert_loop[i0+1:]:
             v1 = vert1.co - pt
-            c = v0.cross(v1).normalized()
+            c = Vec(v0.cross(v1)).normalize()
             if cnt == 0: n = c
             else:
                 if n.dot(c) < 0: n -= c
                 else: n += c
             cnt += 1
-    return Plane(pt, n.normalized())
+    return Plane(pt, Normal(n).normalize())
 
 def loop_radius(vert_loop):
     pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
@@ -181,3 +181,20 @@ def string_length(vert_loop):
 
 def project_loop_to_plane(vert_loop, plane):
     return [plane.project(v.co) for v in vert_loop]
+
+
+class Contours_Loop:
+    def __init__(self, vert_loop):
+        self.verts = vert_loop
+        self.count = len(self.verts)
+        self.plane = loop_plane(self.verts)
+        self.frame = Frame.from_plane(self.plane)
+        self.pts = [bmv.co for bmv in self.verts]
+        self.pts_local = [self.frame.w2l_point(pt) for pt in self.pts]
+        
+        self.radius = sum(pt.length for pt in self.pts_local) / self.count
+        self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, True)]
+        self.length = sum(self.dists)
+    
+    def move_2D(self, xy_delta:Vec2D):
+        pass

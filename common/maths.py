@@ -66,6 +66,15 @@ class Vec(Vector, Entity3D):
     def __str__(self):
         return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
     def __repr__(self): return self.__str__()
+    def normalize(self):
+        super().normalize()
+        return self
+    def cross(self, other):
+        t = type(other)
+        if t is Vector: return Vec(super().cross(other))
+        if t is Vec or t is Direction or t is Normal:
+            return Vec(super().cross(Vector(other)))
+        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y,self.z = v
 
@@ -164,6 +173,13 @@ class Direction(Vector, Entity3D):
     def normalize(self):
         super().normalize()
         return self
+    def cross(self, other):
+        t = type(other)
+        if t is Vector: return Vec(super().cross(other))
+        if t is Vec or t is Direction or t is Normal:
+            return Vec(super().cross(Vector(other)))
+        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
+        
     def as_vector(self): return Vector(self)
     def from_vector(self, v):
         self.x,self.y,self.z = v
@@ -187,6 +203,12 @@ class Normal(Vector, Entity3D):
     def normalize(self):
         super().normalize()
         return self
+    def cross(self, other):
+        t = type(other)
+        if t is Vector: return Vec(super().cross(other))
+        if t is Vec or t is Direction or t is Normal:
+            return Vec(super().cross(Vector(other)))
+        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v):
         self.x,self.y,self.z = v
@@ -300,7 +322,7 @@ class Frame:
     
     def __init__(self, o:Point, x:Direction=None, y:Direction=None, z:Direction=None):
         c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
-        assert c==0, "Must specify at least one direction"
+        assert c!=0, "Must specify at least one direction"
         if c == 1:
             if x:
                 y = Direction((-x.x + 3.14, x.y + 42, x.z - 1.61))
@@ -314,7 +336,7 @@ class Frame:
                 y.normalize()
             else:
                 x = Direction((-z.x + 3.14, z.y + 42, z.z - 1.61))
-                y = Direction(z.cross(x).normalize())
+                y = Direction(-x.cross(z).normalize())
                 x = Direction(y.cross(z).normalize())
                 z.normalize()
         elif c >= 2:
@@ -335,33 +357,54 @@ class Frame:
         self.x = x
         self.y = y
         self.z = z
+        
+        self.fn_l2w_typed = {
+            Point:      self.l2w_point,
+            Direction:  self.l2w_direction,
+            Normal:     self.l2w_normal,
+            Vec:        self.l2w_vector,
+            Vector:     self.l2w_vector,
+            # Ray:        self.l2w_ray,
+            # Plane:      self.l2w_plane,
+            # BMVert:     self.l2w_bmvert,
+        }
+        self.fn_w2l_typed = {
+            Point:      self.w2l_point,
+            Direction:  self.w2l_direction,
+            Normal:     self.w2l_normal,
+            Vec:        self.w2l_vector,
+            Vector:     self.w2l_vector,
+            # Ray:        self.w2l_ray,
+            # Plane:      self.w2l_plane,
+            # BMVert:     self.w2l_bmvert,
+        }
     
-    def w2l_typed(self, entity):
-        # TODO: generalize like XForm
-        t = type(entity)
-        xdot,ydot,zdot = self.x.dot,self.y.dot,self.z.dot
-        if t is Point:
-            p = entity - self.o
-            return Point(xdot(p), ydot(p), zdot(p))
-        if t is Vec:
-            return Vec(xdot(entity), ydot(entity), zdot(entity))
-        if t is Normal:
-            return Normal(xdot(entity), ydot(entity), zdot(entity)).normalize()
-        if t is Direction:
-            return Direction(xdot(entity), ydot(entity), zdot(entity)).normalize()
+    def _dot_fns(self): return self.x.dot,self.y.dot,self.z.dot
+    def _dots(self, v): return (self.x.dot(v), self.y.dot(v), self.z.dot(v))
+    def _mults(self, v): return self.x*v.x + self.y*v.y + self.z*v.z
     
-    def l2w_typed(self, entity):
-        # TODO: generalize like XForm
-        t = type(entity)
-        xdot,ydot,zdot = self.x.dot,self.y.dot,self.z.dot
-        if t is Point:
-            return Point(self.o + self.x * entity.x + self.y * entity.y + self.z * entity.z)
-        if t is Vec:
-            return Vec(self.x * entity.x + self.y * entity.y + self.z * entity.z)
-        if t is Normal:
-            return Normal(self.x * entity.x + self.y * entity.y + self.z * entity.z).normalize()
-        if t is Direction:
-            return Direction(self.x * entity.x + self.y * entity.y + self.z * entity.z).normalize()
+    def l2w_typed(self, data):
+        ''' dispatched conversion '''
+        t = type(data)
+        assert t in self.fn_l2w_typed, "unhandled type of data: %s (%s)" % (str(data), str(type(data)))
+        return self.fn_l2w_typed[t](data)
+    def w2l_typed(self, data):
+        ''' dispatched conversion '''
+        t = type(data)
+        assert t in self.fn_w2l_typed, "unhandled type of data: %s (%s)" % (str(data), str(type(data)))
+        return self.fn_w2l_typed[t](data)
+    
+    def w2l_point(self, p:Point)->Point: return Point(self._dots(p - self.o))
+    def l2w_point(self, p:Point)->Point: return Point(self.o + self._mults(p))
+    
+    def w2l_vector(self, v:Vector)->Vec: return Vec(self._dots(v))
+    def l2w_vector(self, v:Vector)->Vec: return Vec(self._mults(v))
+    
+    def w2l_direction(self, d:Direction)->Direction: return Direction(self._dots(d)).normalize()
+    def l2w_direction(self, d:Direction)->Direction: return Direction(self._mults(d)).normalize()
+    
+    def w2l_normal(self, n:Normal)->Normal: return Normal(self._dots(n)).normalize()
+    def l2w_normal(self, n:Normal)->Normal: return Normal(self._mults(n)).normalize()
     
     def rotate_about_z(self, radians:float):
         c,s = math.cos(radians),math.sin(radians)

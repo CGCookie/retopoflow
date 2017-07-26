@@ -42,6 +42,7 @@ class RFTool_Contours(RFTool):
             'plane': loop_plane(string),
             'count': len(string),
             } for string in sel_strings]
+        self.sel_loops = [Contours_Loop(loop) for loop in sel_loops]
     
     @RFTool.dirty_when_done
     def line(self):
