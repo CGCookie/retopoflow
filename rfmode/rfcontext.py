@@ -20,6 +20,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 
 from .rfcontext_actions import RFContext_Actions
+from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
@@ -83,7 +84,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
+class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -154,6 +155,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
+        self._init_drawing()            # set up drawing utilities
 
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
@@ -202,6 +204,7 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
 
+    @profiler.profile
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
 
@@ -209,8 +212,6 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
         # if bpy.context.mode == 'EDIT_MESH':
         #    bpy.ops.object.mode_set(mode='OBJECT')
         #    bpy.ops.object.mode_set(mode='EDIT')
-
-        pr = profiler.start()
 
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
@@ -248,8 +249,6 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
             'point mirror offset': 0.000015,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
-
-        pr.done()
 
     @profiler.profile
     def _init_sources(self):
@@ -428,9 +427,16 @@ class RFContext(RFContext_Actions, RFContext_Spaces, RFContext_Target):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
 
+    def raycast_sources_Ray_all(self, ray:Ray):
+        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray)]
+
     def raycast_sources_Point2D(self, xy:Point2D):
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
+
+    def raycast_sources_Point2D_all(self, xy:Point2D):
+        if xy is None: return None,None,None,None
+        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy))
 
     def raycast_sources_mouse(self):
         return self.raycast_sources_Point2D(self.actions.mouse)

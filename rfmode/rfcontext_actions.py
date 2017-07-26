@@ -48,7 +48,13 @@ class Actions:
         'insert': {'CTRL+LEFTMOUSE'},
         'grab': {'G'},
         'delete': {'X','DELETE'},
+        'dissolve': {'SHIFT+X','SHIFT+DELETE'},
 
+        # contours
+        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
+        'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
+
+        # relax
         'relax selected': {'SHIFT+S'},
 
         # widget
@@ -242,6 +248,3 @@ class RFContext_Actions:
     def _process_event(self, context, event):
         # if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
         self.actions.update(context, event, self.timer)
-
-
-
