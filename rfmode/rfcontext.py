@@ -357,7 +357,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                 self.time_to_save = auto_save_time
 
         # user pressing nav key?
-        if self.actions.using('navigate') or (self.actions.timer and self.nav):
+        if self.actions.navigating() or (self.actions.timer and self.nav):
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True

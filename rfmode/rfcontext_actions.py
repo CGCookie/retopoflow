@@ -174,6 +174,9 @@ class Actions:
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             return
+        
+        self.now_pressed['TRACKPADPAN'] = (t == 'TRACKPADPAN')
+        self.now_pressed['TRACKPADZOOM'] = (t == 'TRACKPADZOOM')
 
         if pressed and t in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
@@ -218,6 +221,11 @@ class Actions:
     def using(self, actions):
         actions = self.convert(actions)
         return any(p in actions for p in self.now_pressed.values())
+    
+    def navigating(self):
+        actions = self.convert('navigate')
+        if any(p in actions for p in self.now_pressed.values()): return True
+        return False
 
     def pressed(self, actions, unpress=True, ignoremods=False):
         actions = self.convert(actions)
