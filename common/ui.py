@@ -16,9 +16,19 @@ def set_cursor(cursor):
 
 class Drawing:
     _instance = None
+    _dpi = 72
+    _dpi_mult = 1
+    
+    @staticmethod
+    def update_dpi():
+        Drawing._dpi = bpy.context.user_preferences.system.dpi
+        if bpy.context.user_preferences.system.virtual_pixel_mode == 'DOUBLE':
+            Drawing._dpi *= 2
+        Drawing._dpi_mult = Drawing._dpi / 72
     
     @staticmethod
     def get_instance():
+        Drawing.update_dpi()
         if not Drawing._instance:
             Drawing._creating = True
             Drawing._instance = Drawing()
@@ -31,8 +41,11 @@ class Drawing:
         self.font_id = 0
         self.text_size(12)
     
+    def line_width(self, width): bgl.glLineWidth(width * self._dpi_mult)
+    def point_size(self, size): bgl.glPointSize(size * self._dpi_mult)
+    
     def text_size(self, size):
-        blf.size(self.font_id, size, 72)
+        blf.size(self.font_id, size, self._dpi)
         self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] * 1.5)
         self.line_base = round(blf.dimensions(self.font_id, "XMPQI")[1])
     
@@ -65,6 +78,7 @@ class Drawing:
         
         if dropshadow: self.text_draw2D(text, (l+1,t-1), dropshadow)
         
+        bgl.glEnable(bgl.GL_BLEND)
         bgl.glColor4f(*color)
         for i,line in enumerate(lines):
             th = self.get_text_height(line)
@@ -111,7 +125,7 @@ class Drawing:
         bgl.glEnd()
         
         bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-        bgl.glLineWidth(1.0)
+        self.drawing.line_width(1.0)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l+w+padding,t+padding)
         bgl.glVertex2f(l-padding,t+padding)
@@ -156,8 +170,8 @@ class UI_Element:
     def get_width(self): return 0
     def get_height(self): return 0
     def _draw(self): pass
-    def mouse_down(self): pass
-    def mouse_up(self): pass
+    def mouse_down(self, mouse): pass
+    def mouse_up(self, mouse): pass
 
 
 class UI_Label(UI_Element):
@@ -191,7 +205,7 @@ class UI_Button(UI_Label):
     def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
         super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
         self.fn_callback = fn_callback
-    def mouse_up(self):
+    def mouse_up(self, mouse):
         self.fn_callback()
 
 
@@ -210,7 +224,7 @@ class UI_Rule(UI_Element):
         padding = self.padding
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glColor4f(*self.color)
-        bgl.glLineWidth(self.thickness)
+        self.drawing.line_width(self.thickness)
         bgl.glBegin(bgl.GL_LINES)
         bgl.glVertex2f(left+padding, top-padding-t2)
         bgl.glVertex2f(left+width-padding, top-padding-t2)
@@ -262,6 +276,53 @@ class UI_Container(UI_Element):
         return ui_item
 
 
+class UI_Options(UI_Container):
+    def __init__(self, fn_callback):
+        super().__init__()
+        self.fn_callback = fn_callback
+        self.options = {}
+        self.selected = None
+    
+    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+        class UI_Option(UI_Label):
+            def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+                super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
+                self.label = label
+                self.options = options
+            def _draw(self):
+                if self.label == self.options.selected:
+                    l,t = self.pos
+                    w,h = self.size
+                    bgl.glEnable(bgl.GL_BLEND)
+                    bgl.glColor4f(0.2,0.9,1.0,0.6)
+                    bgl.glBegin(bgl.GL_QUADS)
+                    bgl.glVertex2f(l,t)
+                    bgl.glVertex2f(l,t-h)
+                    bgl.glVertex2f(l+w,t-h)
+                    bgl.glVertex2f(l+w,t)
+                    bgl.glEnd()
+                super()._draw()
+        lbl = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
+        super().add(lbl)
+        self.options[lbl] = label
+        if not self.selected: self.selected = label
+    
+    def set_option(self, label):
+        if self.selected == label: return
+        self.selected = label
+        self.fn_callback(self.selected)
+    
+    def add(self, *args, **kwargs):
+        assert False, "Do not call UI_Options.add()"
+    
+    def hover_ui(self, mouse):
+        return self if super().hover_ui(mouse) else None
+    
+    def mouse_up(self, mouse):
+        ui = super().hover_ui(mouse)
+        self.set_option(self.options[ui])
+
+
 class UI_HBFContainer(UI_Container):
     def __init__(self):
         super().__init__()
@@ -296,7 +357,7 @@ class UI_BoolProperty(UI_Element):
     def __init__(self, prop):
         super().__init__()
         self.prop = prop
-        
+
 
 class UI_Padding(UI_Element):
     def __init__(self, ui_item=None, padding=5):
@@ -400,6 +461,7 @@ class UI_Window(UI_Padding):
         bgl.glVertex2f(l+w,t)
         bgl.glEnd()
         
+        self.drawing.line_width(1.0)
         bgl.glColor4f(0,0,0,0.5)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l,t)
@@ -433,7 +495,7 @@ class UI_Window(UI_Padding):
                 self.pos_prev = self.pos
                 return 'move'
             self.ui_down = ui_hover
-            self.ui_down.mouse_down()
+            self.ui_down.mouse_down(self.mouse)
             return 'down'
     
     def modal_move(self):
@@ -446,7 +508,7 @@ class UI_Window(UI_Padding):
     
     def modal_down(self):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
-            self.ui_down.mouse_up()
+            self.ui_down.mouse_up(self.mouse)
             return 'main'
 
 

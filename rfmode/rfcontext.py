@@ -283,6 +283,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
+        self.tool_options.set_option(tool.name())
 
     ###################################################
     # undo / redo stack operations

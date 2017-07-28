@@ -6,21 +6,27 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Button, UI_Window
+from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window
 
 
 class RFContext_Drawing:
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
         
+        def options_callback(lbl):
+            for ids,rft in RFTool.get_tools():
+                if rft.bl_label == lbl:
+                    self.set_tool(rft.rft_class())
         self.tool_window = UI_Window("Tools", sticky=7)
+        self.tool_options = UI_Options(options_callback)
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            def create(rft):
-                def fn_callback(): self.set_tool(rft.rft_class())
-                return fn_callback
-            button = UI_Button(rft.bl_label, create(rft))
-            self.tool_window.add(button)
+            # def create(rft):
+            #     def fn_callback(): self.set_tool(rft.rft_class())
+            #     return fn_callback
+            # button = UI_Button(rft.bl_label, create(rft))
+            # self.tool_window.add(button)
+            self.tool_options.add_option(rft.bl_label)
             # if type(self.tool) == rft.rft_class:
             #     bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
             # else:
@@ -29,6 +35,7 @@ class RFContext_Drawing:
             # y = t - (i+1) * lh + int((lh - th) / 2.0)
             # blf.position(font_id, l, y, 0)
             # blf.draw(font_id, rft.bl_label)
+        self.tool_window.add(self.tool_options)
 
 
     def draw_postpixel(self):
