@@ -6,7 +6,17 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window, UI_Checkbox, UI_Label, UI_Spacer, UI_WindowManager, UI_Collapsible
+from ..common.ui import Drawing
+from ..common.ui import (
+    UI_WindowManager,
+    UI_Button,
+    UI_Options,
+    UI_Checkbox,
+    UI_Label,
+    UI_Spacer,
+    UI_Collapsible,
+    UI_IntValue,
+    )
 
 
 class RFContext_Drawing:
@@ -43,6 +53,7 @@ class RFContext_Drawing:
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         window_tool_options.add(UI_Checkbox('Symmetry: X', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v)))
+        window_tool_options.add(UI_Spacer(height=5))
         for tool_name,tool_options in tools_options:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)

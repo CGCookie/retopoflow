@@ -7,13 +7,14 @@ from .rftool import RFTool
 from ..lib.common_utilities import showErrorMessage
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from .rftool_contours_utils import *
-from ..common.ui import UI_Label
+from ..common.ui import UI_Label, UI_IntValue
 
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['move']  = self.modal_move
+        self.count = 16
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -28,8 +29,10 @@ class RFTool_Contours(RFTool):
         self.pts = []
         self.connected = False
     
+    def get_count(self): return self.count
+    def set_count(self, v): self.count = max(3, v)
     def get_ui_options(self):
-        self.ui_count = UI_Label('Count: 16')
+        self.ui_count = UI_IntValue('Count', self.get_count, self.set_count)
         return [self.ui_count]
     
     def update(self):
@@ -117,7 +120,7 @@ class RFTool_Contours(RFTool):
             sel_loop_pos = None
             sel_loop_neg = None
         
-        count = 16  # default starting count
+        count = self.count  # default starting count
         if sel_loop_pos is not None: count = sel_loop_pos[2]
         if sel_loop_neg is not None: count = sel_loop_neg[2]
         

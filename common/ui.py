@@ -178,6 +178,7 @@ class UI_Element:
     def _draw(self): pass
     def predraw(self): pass
     def mouse_down(self, mouse): pass
+    def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
 
 
@@ -297,10 +298,12 @@ class UI_Container(UI_Element):
                 y -= eh
         else:
             x = l
-            for ui in self.ui_items:
-                ew = ui.get_width()
+            l = len(self.ui_items)
+            for i,ui in enumerate(self.ui_items):
+                ew = ui.get_width() if i < l-1 else w
                 ui.draw(x,t,ew,h)
                 x += ew
+                w -= ew
     
     def add(self, ui_item):
         self.ui_items.append(ui_item)
@@ -350,6 +353,7 @@ class UI_Options(UI_Container):
         return self if super().hover_ui(mouse) else None
     
     def mouse_down(self, mouse): self.mouse_up(mouse)
+    def mouse_move(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
         ui = super().hover_ui(mouse)
         if ui is None: return
@@ -361,9 +365,9 @@ class UI_Graphic(UI_Element):
     height = 10
     padding = 2
     
-    def __init__(self):
+    def __init__(self, graphic=None):
         super().__init__()
-        self._graphic = ''
+        self._graphic = graphic
     
     def set_graphic(self, graphic): self._graphic = graphic
     
@@ -411,10 +415,21 @@ class UI_Graphic(UI_Element):
             bgl.glEnd()
         
         elif self._graphic == 'triangle right':
-            pass
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            bgl.glVertex2f(l+2,t-2)
+            bgl.glVertex2f(l+2,t-h+2)
+            bgl.glVertex2f(l+w-2,cy)
+            bgl.glEnd()
         
         elif self._graphic == 'triangle down':
-            pass
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            bgl.glVertex2f(l+2,t-2)
+            bgl.glVertex2f(cx,t-h+2)
+            bgl.glVertex2f(l+w-2,t-2)
+            bgl.glEnd()
+
 
 class UI_Checkbox(UI_Container):
     def __init__(self, label, fn_get_checked, fn_set_checked):
@@ -434,6 +449,33 @@ class UI_Checkbox(UI_Container):
     
     def predraw(self):
         self.chk.set_graphic('box checked' if self.fn_get_checked() else 'box unchecked')
+
+
+class UI_IntValue(UI_Container):
+    def __init__(self, label, fn_get_value, fn_set_value):
+        super().__init__(vertical=False)
+        self.lbl = UI_Label(label)
+        self.val = UI_Label(fn_get_value())
+        self.add(self.lbl)
+        self.add(UI_Label(':'))
+        self.add(UI_Spacer(width=4))
+        self.add(self.val)
+        self.fn_get_value = fn_get_value
+        self.fn_set_value = fn_set_value
+    
+    def hover_ui(self, mouse):
+        return self if super().hover_ui(mouse) else None
+    
+    def mouse_down(self, mouse):
+        self.down_mouse = mouse
+        self.down_val = self.fn_get_value()
+        set_cursor('MOVE_X')
+    
+    def mouse_move(self, mouse):
+        self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
+    
+    def predraw(self):
+        self.val.set_label(self.fn_get_value())
 
 
 class UI_HBFContainer(UI_Container):
@@ -470,18 +512,31 @@ class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=False, vertical=True):
         super().__init__()
         self.header = UI_Container()
-        self.title = self.header.add(UI_Label(title, align=0, bgcolor=(0,0,0,0.5)))
-        self.title_rule = self.header.add(UI_Rule())
         self.body = UI_Container(vertical=vertical)
+        self.footer = UI_Container()
+        
+        self.title = self.header.add(UI_Container(vertical=False))
+        self.title_arrow = self.title.add(UI_Graphic('triangle down'))
+        self.title_label = self.title.add(UI_Label(title))
+        
+        self.header.add(UI_Rule(color=(0,0,0,0.25)))
+        
+        self.footer.add(UI_Rule(color=(0,0,0,0.25)))
+        #self.title_rule = self.header.add(UI_Rule(color=(0,0,0,0.5)))
+        
         self.collapsed = collapsed
         
         self.versions = {
-            False: [self.header, self.body],
-            True: [self.header]
+            False: [self.header, self.body, self.footer],
+            True: [self.header, self.footer]
         }
         self.bgcolors = {
             False: (0,0,0,0.5),
             True: (0,0,0,0.2),
+        }
+        self.graphics = {
+            False: 'triangle down',
+            True: 'triangle right',
         }
         
         super().add(self.header)
@@ -490,7 +545,8 @@ class UI_Collapsible(UI_Container):
     def collapse(self): self.collapsed = True
     
     def predraw(self):
-        self.title.set_bgcolor(self.bgcolors[self.collapsed])
+        #self.title.set_bgcolor(self.bgcolors[self.collapsed])
+        self.title_arrow.set_graphic(self.graphics[self.collapsed])
         self.ui_items = self.versions[self.collapsed]
     
     def add(self, ui_item, header=False):
@@ -679,6 +735,7 @@ class UI_Window(UI_Padding):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             self.ui_down.mouse_up(self.mouse)
             return 'main'
+        self.ui_down.mouse_move(self.mouse)
 
 
 class UI_WindowManager:
