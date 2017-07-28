@@ -43,9 +43,10 @@ class Drawing:
         self.font_id = 0
         self.text_size(12)
     
+    def scale(self, s): return self._dpi_mult * s
     def get_dpi_mult(self): return self._dpi_mult
-    def line_width(self, width): bgl.glLineWidth(width * self._dpi_mult)
-    def point_size(self, size): bgl.glPointSize(size * self._dpi_mult)
+    def line_width(self, width): bgl.glLineWidth(self.scale(width))
+    def point_size(self, size): bgl.glPointSize(self.scale(size))
     
     def text_size(self, size):
         blf.size(self.font_id, size, self._dpi)
@@ -190,31 +191,45 @@ class UI_Spacer(UI_Element):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1):
         super().__init__()
         self.set_label(label)
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
         self.align = align
+        self.bgcolor = bgcolor
+    
+    def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
     def set_label(self, label):
         self.text = str(label)
-        self.width = self.drawing.get_text_width(self.text)
-        self.height = self.drawing.get_line_height(self.text)
+        self.text_width = self.drawing.get_text_width(self.text)
+        self.text_height = self.drawing.get_line_height(self.text)
     
-    def get_width(self): return self.width
-    def get_height(self): return self.height
+    def get_width(self): return self.text_width
+    def get_height(self): return self.text_height
     
     def _draw(self):
-        left,top = self.pos
-        width,height = self.size
+        l,t = self.pos
+        w,h = self.size
+        
+        if self.bgcolor:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
         if self.align < 0:
-            self.drawing.text_draw2D(self.text, Point2D((left, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l, t)), self.color)
         elif self.align == 0:
-            self.drawing.text_draw2D(self.text, Point2D((left+(width-self.width)/2, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l+(w-self.text_width)/2, t)), self.color)
         else:
-            self.drawing.text_draw2D(self.text, Point2D((left+width-self.width, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
 
 
 class UI_Button(UI_Label):
@@ -362,6 +377,7 @@ class UI_Graphic(UI_Element):
         l,t = cx-w/2, cy+h/2
         
         self.drawing.line_width(1.0)
+        
         if self._graphic == 'box unchecked':
             bgl.glColor4f(1,1,1,1)
             bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -371,6 +387,7 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(l+w,t)
             bgl.glVertex2f(l,t)
             bgl.glEnd()
+        
         elif self._graphic == 'box checked':
             bgl.glColor4f(0.27,0.50,0.72,0.90)
             bgl.glBegin(bgl.GL_QUADS)
@@ -392,7 +409,12 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(cx,t-h+2)
             bgl.glVertex2f(l+w-2,t-2)
             bgl.glEnd()
-        pass
+        
+        elif self._graphic == 'triangle right':
+            pass
+        
+        elif self._graphic == 'triangle down':
+            pass
 
 class UI_Checkbox(UI_Container):
     def __init__(self, label, fn_get_checked, fn_set_checked):
@@ -448,7 +470,7 @@ class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=False, vertical=True):
         super().__init__()
         self.header = UI_Container()
-        self.title = self.header.add(UI_Label(title, align=0))
+        self.title = self.header.add(UI_Label(title, align=0, bgcolor=(0,0,0,0.5)))
         self.title_rule = self.header.add(UI_Rule())
         self.body = UI_Container(vertical=vertical)
         self.collapsed = collapsed
@@ -457,6 +479,10 @@ class UI_Collapsible(UI_Container):
             False: [self.header, self.body],
             True: [self.header]
         }
+        self.bgcolors = {
+            False: (0,0,0,0.5),
+            True: (0,0,0,0.2),
+        }
         
         super().add(self.header)
     
@@ -464,6 +490,7 @@ class UI_Collapsible(UI_Container):
     def collapse(self): self.collapsed = True
     
     def predraw(self):
+        self.title.set_bgcolor(self.bgcolors[self.collapsed])
         self.ui_items = self.versions[self.collapsed]
     
     def add(self, ui_item, header=False):

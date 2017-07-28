@@ -7,6 +7,7 @@ from .rftool import RFTool
 from ..lib.common_utilities import showErrorMessage
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from .rftool_contours_utils import *
+from ..common.ui import UI_Label
 
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool):
@@ -26,6 +27,10 @@ class RFTool_Contours(RFTool):
         self.show_cut = False
         self.pts = []
         self.connected = False
+    
+    def get_ui_options(self):
+        self.ui_count = UI_Label('Count: 16')
+        return [self.ui_count]
     
     def update(self):
         sel_edges = self.rfcontext.get_selected_edges()
