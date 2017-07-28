@@ -178,18 +178,28 @@ class UI_Element:
     def mouse_up(self, mouse): pass
 
 
+class UI_Spacer(UI_Element):
+    def __init__(self, width=0, height=0):
+        super().__init__()
+        self.width = width
+        self.height = height
+    def get_width(self): return self.width * self.dpi_mult
+    def get_height(self): return self.height * self.dpi_mult
+
+
 class UI_Label(UI_Element):
     def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
         super().__init__()
-        self.text = str(label)
+        self.set_label(label)
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
         self.align = align
-        
+    
+    def set_label(self, label):
+        self.text = str(label)
         self.width = self.drawing.get_text_width(self.text)
         self.height = self.drawing.get_line_height(self.text)
-        print((self.width,self.height))
     
     def get_width(self): return self.width
     def get_height(self): return self.height
@@ -388,7 +398,7 @@ class UI_Checkbox(UI_Container):
         self.chk = UI_Graphic()
         self.lbl = UI_Label(label)
         self.add(self.chk)
-        self.add(UI_Padding(padding=2))
+        self.add(UI_Spacer(width=4))
         self.add(self.lbl)
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
@@ -403,10 +413,10 @@ class UI_Checkbox(UI_Container):
 
 
 class UI_HBFContainer(UI_Container):
-    def __init__(self):
+    def __init__(self, vertical=True):
         super().__init__()
         self.header = UI_Container()
-        self.body = UI_Container()
+        self.body = UI_Container(vertical=vertical)
         self.footer = UI_Container()
         super().add(self.header)
         super().add(self.body)
@@ -471,7 +481,7 @@ class UI_Window(UI_Padding):
     def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5):
         super().__init__(padding=padding)
         self.drawing.text_size(12)
-        self.hbf = UI_HBFContainer()
+        self.hbf = UI_HBFContainer(vertical=vertical)
         self.hbf_label = UI_Label(label, align=0)
         self.hbf_rule = UI_Rule()
         self.hbf.add(self.hbf_label, header=True)
