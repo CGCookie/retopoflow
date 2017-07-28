@@ -331,9 +331,9 @@ class UI_Options(UI_Container):
                 super().__init__(vertical=False)
                 self.ui_label = UI_Label(label, tooltip=tooltip, color=color, align=align)
                 self.ui_icon = icon
-                self.ui_label.margin = 2
+                # self.ui_label.margin = 4
                 if self.ui_icon:
-                    self.ui_icon.margin = 2
+                    # self.ui_icon.margin = 4
                     self.add(self.ui_icon)
                     self.add(UI_Spacer(width=4))
                 self.add(self.ui_label)
@@ -435,12 +435,11 @@ class UI_Image(UI_Element):
 
 
 class UI_Graphic(UI_Element):
-    width = 10
-    height = 10
-    
     def __init__(self, graphic=None):
         super().__init__()
         self._graphic = graphic
+        self.width = 12
+        self.height = 12
     
     def set_graphic(self, graphic): self._graphic = graphic
     
@@ -507,10 +506,9 @@ class UI_Graphic(UI_Element):
 class UI_Checkbox(UI_Container):
     def __init__(self, label, fn_get_checked, fn_set_checked):
         super().__init__(vertical=False)
+        self.margin = 0
         self.chk = UI_Graphic()
         self.lbl = UI_Label(label)
-        self.chk.margin = 0
-        self.lbl.margin = 0
         self.add(self.chk)
         self.add(UI_Spacer(width=4))
         self.add(self.lbl)
@@ -529,6 +527,7 @@ class UI_Checkbox(UI_Container):
 class UI_IntValue(UI_Container):
     def __init__(self, label, fn_get_value, fn_set_value):
         super().__init__(vertical=False)
+        self.margin = 0
         self.lbl = UI_Label(label)
         self.val = UI_Label(fn_get_value())
         self.add(self.lbl)
@@ -556,12 +555,13 @@ class UI_IntValue(UI_Container):
 class UI_HBFContainer(UI_Container):
     def __init__(self, vertical=True):
         super().__init__()
+        self.margin = 0
         self.header = UI_Container()
         self.body = UI_Container(vertical=vertical)
         self.footer = UI_Container()
-        self.header.margin = 0
-        self.body.margin = 0
-        self.footer.margin = 0
+        # self.header.margin = 0
+        # self.body.margin = 0
+        # self.footer.margin = 0
         super().add(self.header)
         super().add(self.body)
         super().add(self.footer)
@@ -576,8 +576,8 @@ class UI_HBFContainer(UI_Container):
         if ui: return ui
         return self
     
-    def _get_width(self): return max(c.get_width() for c in self.ui_items)
-    def _get_height(self): return sum(c.get_height() for c in self.ui_items)
+    def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
+    def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
     
     def add(self, ui_item, header=False, footer=False):
         if header: self.header.add(ui_item)
@@ -589,28 +589,28 @@ class UI_HBFContainer(UI_Container):
 class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=False, vertical=True):
         super().__init__()
+        self.margin = 0
+        
         self.header = UI_Container()
         self.body = UI_Container(vertical=vertical)
         self.footer = UI_Container()
         
+        self.header.margin = 0
+        # self.body.margin = 0
+        # self.footer.margin = 0
+        
         self.title = self.header.add(UI_Container(vertical=False))
         self.title_arrow = self.title.add(UI_Graphic('triangle down'))
         self.title_label = self.title.add(UI_Label(title))
-        
-        self.header.add(UI_Rule(color=(0,0,0,0.25)))
+        # self.header.add(UI_Rule(color=(0,0,0,0.25)))
         
         self.footer.add(UI_Rule(color=(0,0,0,0.25)))
-        #self.title_rule = self.header.add(UI_Rule(color=(0,0,0,0.5)))
         
         self.collapsed = collapsed
         
         self.versions = {
             False: [self.header, self.body, self.footer],
-            True: [self.header, self.footer]
-        }
-        self.bgcolors = {
-            False: (0,0,0,0.5),
-            True: (0,0,0,0.2),
+            True: [self.header]
         }
         self.graphics = {
             False: 'triangle down',
@@ -627,6 +627,9 @@ class UI_Collapsible(UI_Container):
         self.title_arrow.set_graphic(self.graphics[self.collapsed])
         self.ui_items = self.versions[self.collapsed]
     
+    def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
+    def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
+    
     def add(self, ui_item, header=False):
         if header: self.header.add(ui_item)
         else: self.body.add(ui_item)
@@ -640,15 +643,10 @@ class UI_Collapsible(UI_Container):
         self.collapsed = not self.collapsed
 
 
-class UI_BoolProperty(UI_Element):
-    def __init__(self, prop):
-        super().__init__()
-        self.prop = prop
-
-
 class UI_Padding(UI_Element):
     def __init__(self, ui_item=None, padding=5):
         super().__init__()
+        self.margin = 0
         self.padding = padding
         self.ui_item = ui_item
     

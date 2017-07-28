@@ -26,6 +26,7 @@ stats = {
     'BBox': 0,
 }
 def stats_report():
+    return
     print('Maths Stats Report')
     print('------------------')
     l = max(len(k) for k in stats)
