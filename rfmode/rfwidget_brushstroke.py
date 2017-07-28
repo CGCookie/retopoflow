@@ -64,8 +64,8 @@ class RFWidget_BrushStroke:
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(2.0)
-        bgl.glPointSize(3.0)
+        self.drawing.line_width(2.0)
+        self.drawing.point_size(3.0)
         
         ######################################
         # draw in front of geometry
@@ -129,7 +129,7 @@ class RFWidget_BrushStroke:
             return
         
         if self.mode == 'stroke':
-            bgl.glLineWidth(2.0)
+            self.drawing.line_width(2.0)
             glEnableStipple(enable=True)
             bgl.glColor4f(1,1,1,0.5)
             bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -155,7 +155,7 @@ class RFWidget_BrushStroke:
         cs_inner = self.size * 0.5
         cr,cg,cb = self.color
         
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         
         bgl.glColor4f(cr, cg, cb, 1)                       # outer ring
         bgl.glBegin(bgl.GL_LINE_STRIP)

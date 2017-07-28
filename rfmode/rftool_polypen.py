@@ -224,7 +224,7 @@ class RFTool_PolyPen(RFTool):
 
     def draw_lines(self, coords):
         # 2d lines
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         bgl.glDisable(bgl.GL_CULL_FACE)
         bgl.glDepthMask(bgl.GL_FALSE)
 

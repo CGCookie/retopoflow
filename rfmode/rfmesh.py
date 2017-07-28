@@ -14,6 +14,7 @@ from mathutils.geometry import normal as compute_normal, intersect_point_tri
 from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
+from ..common.ui import Drawing
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -769,6 +770,8 @@ class RFMeshRender():
         self.replace_rfmesh(rfmesh)
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
+        self.drawing = Drawing.get_instance()
+        self.opts['dpi mult'] = self.drawing.get_dpi_mult()
 
     def __del__(self):
         if hasattr(self, 'bglCallList'):

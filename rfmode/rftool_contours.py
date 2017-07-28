@@ -252,7 +252,7 @@ class RFTool_Contours(RFTool):
     
     def draw_postview(self):
         if self.show_cut:
-            bgl.glLineWidth(1.0)
+            self.drawing.line_width(1.0)
             bgl.glColor4f(1,1,0,1)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for pt in self.pts:
@@ -287,7 +287,7 @@ class RFTool_Contours(RFTool):
                 p2 = p1 + d + c
                 p3 = p1 + d - c
                 
-                bgl.glLineWidth(2.0)
+                self.drawing.line_width(2.0)
                 bgl.glColor4f(1,1,0,0.5)
                 bgl.glBegin(bgl.GL_LINE_STRIP)
                 bgl.glVertex2f(*p0)
@@ -316,7 +316,7 @@ class RFTool_Contours(RFTool):
                 p2 = p1 + d + c
                 p3 = p1 + d - c
                 
-                bgl.glLineWidth(2.0)
+                self.drawing.line_width(2.0)
                 bgl.glColor4f(1,1,0,0.5)
                 bgl.glBegin(bgl.GL_LINE_STRIP)
                 bgl.glVertex2f(*p0)

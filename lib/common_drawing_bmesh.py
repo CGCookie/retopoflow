@@ -142,6 +142,7 @@ def glSetDefaultOptions(opts=None):
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glDisable(bgl.GL_LIGHTING)
     bgl.glEnable(bgl.GL_DEPTH_TEST)
+    bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
 
 def glEnableStipple(enable=True):
@@ -165,13 +166,14 @@ def glSetOptions(prefix, opts):
     def set_if_set(opt, cb):
         opt = '%s%s' % (prefix, opt)
         if opt in opts: cb(opts[opt])
+    dpi_mult = opts.get('dpi mult', 1.0)
     set_if_set('offset',         lambda v: bmeshShader.assign('offset', v))
     set_if_set('dotoffset',      lambda v: bmeshShader.assign('dotoffset', v))
     set_if_set('color',          lambda v: bmeshShader.assign('color', v))
     set_if_set('color selected', lambda v: bmeshShader.assign('color_selected', v))
     set_if_set('hidden',         lambda v: bmeshShader.assign('hidden', v))
-    set_if_set('width',          lambda v: bgl.glLineWidth(v))
-    set_if_set('size',           lambda v: bgl.glPointSize(v))
+    set_if_set('width',          lambda v: bgl.glLineWidth(v*dpi_mult))
+    set_if_set('size',           lambda v: bgl.glPointSize(v*dpi_mult))
     set_if_set('stipple',        lambda v: glEnableStipple(v))
 
 

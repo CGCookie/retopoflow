@@ -43,6 +43,7 @@ class RFContext_Drawing:
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
@@ -84,7 +85,7 @@ class RFContext_Drawing:
             bgl.glEnd()
 
             bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-            bgl.glLineWidth(1.0)
+            self.drawing.line_width(1.0)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             bgl.glVertex2f(l+w+5,t+5)
             bgl.glVertex2f(l-5,t+5)
@@ -110,6 +111,7 @@ class RFContext_Drawing:
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         self.draw_yz_mirror()
 
@@ -119,7 +121,7 @@ class RFContext_Drawing:
 
     def draw_yz_mirror(self):
         if 'x' not in self.rftarget.symmetry: return
-        bgl.glLineWidth(3.0)
+        self.drawing.line_width(3.0)
         bgl.glDepthMask(bgl.GL_FALSE)
         bgl.glDepthRange(0.0, 0.9999)
 

@@ -25,6 +25,7 @@ import math
 import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
+from ..common.ui import Drawing
 
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_move import RFWidget_Move
@@ -40,6 +41,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     @staticmethod
     def new(rfcontext):
         RFWidget.rfcontext = rfcontext
+        RFWidget.drawing = Drawing.get_instance()
         if not RFWidget.instance:
             RFWidget.creating = True
             RFWidget.instance = RFWidget()

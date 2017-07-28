@@ -423,7 +423,7 @@ class RFTool_PolyStrips(RFTool):
         if False:
             stroke_pts = [[cb.eval(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
             stroke_der = [[cb.eval_derivative(i / 5) for i in range(5+1)] for cb in self.stroke_cbs]
-            bgl.glLineWidth(1.0)
+            self.drawing.line_width(1.0)
             bgl.glColor4f(1,1,1,0.5)
             for pts in stroke_pts:
                 bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -453,7 +453,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         
         # draw control points
-        bgl.glPointSize(self.point_size)
+        self.drawing.point_size(self.point_size)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_POINTS)
         for strip in self.strips:
@@ -466,7 +466,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glEnd()
         
         # draw outer-inner lines
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         bgl.glColor4f(1,0.5,0.5,0.4)
         bgl.glBegin(bgl.GL_LINES)
         for strip in self.strips:
@@ -479,7 +479,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glEnd()
         
         # draw curve
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         bgl.glColor4f(1,1,1,0.5)
         bgl.glBegin(bgl.GL_LINES)
         for pts in self.strip_pts:
@@ -496,7 +496,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glDepthFunc(bgl.GL_GREATER)
         
         # draw control points
-        bgl.glPointSize(self.point_size)
+        self.drawing.point_size(self.point_size)
         bgl.glColor4f(1,1,1,0.25)
         bgl.glBegin(bgl.GL_POINTS)
         for strip in self.strips:
@@ -509,7 +509,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glEnd()
         
         # draw outer-inner lines
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         bgl.glColor4f(1,0.5,0.5,0.2)
         bgl.glBegin(bgl.GL_LINES)
         for strip in self.strips:
@@ -522,7 +522,7 @@ class RFTool_PolyStrips(RFTool):
         bgl.glEnd()
         
         # draw curve
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         bgl.glColor4f(1,1,1,0.25)
         bgl.glBegin(bgl.GL_LINES)
         for pts in self.strip_pts:
