@@ -5,7 +5,13 @@ from bpy.types import BoolProperty
 
 from itertools import chain
 
-from .maths import Point2D
+from .maths import Point2D,Vec2D
+
+def set_cursor(cursor):
+    # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
+    for wm in bpy.data.window_managers:
+        for win in wm.windows:
+            win.cursor_modal_set(cursor)
 
 
 class Drawing:
@@ -125,15 +131,33 @@ class Drawing:
 class UI_Element:
     def __init__(self):
         self.drawing = Drawing.get_instance()
+        self.context = bpy.context
+        self.pos = None
+        self.size = None
+    
+    def __hover_ui(self, mouse):
+        if not self.pos or not self.size: return None
+        x,y = mouse
+        l,t = self.pos
+        w,h = self.size
+        if x < l or x >= l + w: return None
+        if y > t or y <= t - h: return None
+        return self
+    
+    def hover_ui(self, mouse): return self.__hover_ui(mouse)
     
     def draw(self, left, top, width, height):
+        self.pos = Point2D((left, top))
+        self.size = Vec2D((width, height))
         #self.drawing.set_clipping(left, top-height, left+width, top)
-        self._draw(left, top, width, height)
+        self._draw()
         #self.drawing.disable_clipping()
     
     def get_width(self): return 0
     def get_height(self): return 0
-    def _draw(self, left, top, width, height): pass
+    def _draw(self): pass
+    def mouse_down(self): pass
+    def mouse_up(self): pass
 
 
 class UI_Label(UI_Element):
@@ -147,16 +171,28 @@ class UI_Label(UI_Element):
         
         self.width = self.drawing.get_text_width(self.text)
         self.height = self.drawing.get_line_height(self.text)
+        print((self.width,self.height))
     
     def get_width(self): return self.width
     def get_height(self): return self.height
-    def _draw(self, left, top, width, height):
+    
+    def _draw(self):
+        left,top = self.pos
+        width,height = self.size
         if self.align < 0:
             self.drawing.text_draw2D(self.text, Point2D((left, top)), self.color)
         elif self.align == 0:
             self.drawing.text_draw2D(self.text, Point2D((left+(width-self.width)/2, top)), self.color)
         else:
             self.drawing.text_draw2D(self.text, Point2D((left+width-self.width, top)), self.color)
+
+
+class UI_Button(UI_Label):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+        super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
+        self.fn_callback = fn_callback
+    def mouse_up(self):
+        self.fn_callback()
 
 
 class UI_Rule(UI_Element):
@@ -167,7 +203,9 @@ class UI_Rule(UI_Element):
         self.padding = padding
     def get_width(self): return self.padding*2 + 1
     def get_height(self): return self.padding*2 + self.thickness
-    def _draw(self, left, top, width, height):
+    def _draw(self):
+        left,top = self.pos
+        width,height = self.size
         t2 = round(self.thickness/2)
         padding = self.padding
         bgl.glEnable(bgl.GL_BLEND)
@@ -185,6 +223,13 @@ class UI_Container(UI_Element):
         self.vertical = vertical
         self.ui_items = []
     
+    def hover_ui(self, mouse):
+        if not super().hover_ui(mouse): return None
+        for ui in self.ui_items:
+            hover = ui.hover_ui(mouse)
+            if hover: return hover
+        return self
+    
     def get_width(self):
         if not self.ui_items: return 0
         if self.vertical:
@@ -196,7 +241,9 @@ class UI_Container(UI_Element):
             return sum(ui.get_height() for ui in self.ui_items)
         return max(ui.get_height() for ui in self.ui_items)
     
-    def _draw(self, l, t, w, h):
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
         if self.vertical:
             y = t
             for ui in self.ui_items:
@@ -213,59 +260,36 @@ class UI_Container(UI_Element):
     def add(self, ui_item):
         self.ui_items.append(ui_item)
         return ui_item
-    
-    def add_label(self, *args, **kwargs):
-        return self.add(UI_Label(*args, **kwargs))
-    
-    def add_rule(self, *args, **kwargs):
-        return self.add(UI_Rule(*args, **kwargs))
-    
-    def add_container(self, *args, **kwargs):
-        return self.add(UI_Container(*args, **kwargs))
-    
-    # def add_collapsable(self, label, collapsed=False):
-    #     pass
-    
-    # def add_property(self, prop):
-    #     ui = None
-    #     t = type(property)
-    #     if t is BoolProperty:
-    #         ui = UI_BoolProperty(prop)
-    #     assert ui, "Unhandled type: %s" % str(t)
-    #     self.entities += [ui]
-    #     return ui
-    
-    # def add_checkbox(self, label, fn_get, fn_set):
-    #     pass
-    # def add_button(self, label, fn_click):
-    #     pass
 
 
 class UI_HBFContainer(UI_Container):
-    def __init__(self, label, vertical=True):
+    def __init__(self):
         super().__init__()
-        self.header = self.add_container()
-        self.body = self.add_container(vertical=vertical)
-        self.footer = self.add_container()
-        self.add_label(label, align=0, header=True)
-        self.add_rule(header=True)
+        self.header = UI_Container()
+        self.body = UI_Container()
+        self.footer = UI_Container()
+        super().add(self.header)
+        super().add(self.body)
+        super().add(self.footer)
+    
+    def hover_ui(self, mouse):
+        if not super().hover_ui(mouse): return None
+        ui = self.header.hover_ui(mouse)
+        if ui: return ui
+        ui = self.body.hover_ui(mouse)
+        if ui: return ui
+        ui = self.footer.hover_ui(mouse)
+        if ui: return ui
+        return self
     
     def get_width(self): return max(c.get_width() for c in self.ui_items)
     def get_height(self): return sum(c.get_height() for c in self.ui_items)
     
-    def add_HBF(self, ui_item, header=False, footer=False):
+    def add(self, ui_item, header=False, footer=False):
         if header: self.header.add(ui_item)
         elif footer: self.footer.add(ui_item)
         else: self.body.add(ui_item)
         return ui_item
-    
-    def add_label(self, *args, header=False, footer=False, **kwargs):
-        ui = UI_Label(*args, **kwargs)
-        return self.add_HBF(ui, header=header, footer=footer)
-    
-    def add_rule(self, *args, header=False, footer=False, **kwargs):
-        ui = UI_Rule(*args, **kwargs)
-        return self.add_HBF(ui, header=header, footer=footer)
 
 
 class UI_BoolProperty(UI_Element):
@@ -274,37 +298,98 @@ class UI_BoolProperty(UI_Element):
         self.prop = prop
         
 
-
-class UI_Window(UI_HBFContainer):
-    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True):
-        super().__init__(label, vertical=vertical)
-        self.pos = pos or Point2D((0,0))
-        self.sticky = sticky
-        self.padding = 5
+class UI_Padding(UI_Element):
+    def __init__(self, ui_item=None, padding=5):
+        super().__init__()
+        self.padding = padding
+        self.ui_item = ui_item
     
-    def draw_postpixel(self, screen_width, screen_height):
-        bgl.glEnable(bgl.GL_BLEND)
-        
+    def set_ui_item(self, ui_item): self.ui_item = ui_item
+    
+    def hover_ui(self, mouse):
+        if not super().hover_ui(mouse): return None
+        ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
+        return ui or self
+    
+    def get_width(self):
+        return self.padding*2 + (0 if not self.ui_item else self.ui_item.get_width())
+    def get_height(self):
+        return self.padding*2 + (0 if not self.ui_item else self.ui_item.get_height())
+    
+    def _draw(self):
+        if not self.ui_item: return
         p = self.padding
-        sw,sh = screen_width,screen_height
+        l,t = self.pos
+        w,h = self.size
+        self.ui_item.draw(l+p,t-p,w-p*2,h-p*2)
+    
+
+
+class UI_Window(UI_Padding):
+    margin = 5
+    
+    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5):
+        super().__init__(padding=padding)
+        self.drawing.text_size(12)
+        self.hbf = UI_HBFContainer()
+        self.hbf_label = UI_Label(label, align=0)
+        self.hbf_rule = UI_Rule()
+        self.hbf.add(self.hbf_label, header=True)
+        self.hbf.add(self.hbf_rule, header=True)
+        self.set_ui_item(self.hbf)
+        self.update_pos(pos=pos or Point2D((0,0)), sticky=sticky)
+        self.ui_grab = [self, self.hbf_label, self.hbf_rule]
+        
+        self.FSM = {}
+        self.FSM['main'] = self.modal_main
+        self.FSM['move'] = self.modal_move
+        self.FSM['down'] = self.modal_down
+        self.state = 'main'
+    
+    def add(self, *args, **kwargs): self.hbf.add(*args, **kwargs)
+    
+    def update_pos(self, pos:Point2D=None, sticky=None):
+        m = self.margin
+        sw,sh = self.context.region.width,self.context.region.height
         cw,ch = round(sw/2),round(sh/2)
+        w,h = self.get_width(),self.get_height()
+        
+        if sticky is not None:
+            self.sticky = sticky
+            self.pos = pos or self.pos
+        elif pos:
+            self.pos = pos
+            self.sticky = 0
+            l,t = self.pos
+            stick_top,stick_bot = t >= sh - m, t <= m + h
+            stick_left,stick_right = l <= m, l >= sw - m - w
+            if stick_top:
+                if stick_left: self.sticky = 7
+                if stick_right: self.sticky = 9
+            elif stick_bot:
+                if stick_left: self.sticky = 1
+                if stick_right: self.sticky = 3
+        
         positions = {
-            None: self.pos,
+            7: (0, sh), 8: (cw, sh), 9: (sw, sh),
+            4: (0, ch), 5: (cw, ch), 6: (sw, ch),
+            1: (0, 0),  2: (cw, 0),  3: (sw, 0),
             0: self.pos,
-            7: (0, sh),
-            8: (cw, sh),
-            9: (sw, sh),
-            4: (0, ch),
-            5: (cw, ch),
-            6: (sw, ch),
-            1: (0, 0),
-            2: (cw, 0),
-            3: (sw, 0),
         }
-        l,t = positions.get(self.sticky, self.pos)
-        w,h = self.get_width()+p*2,self.get_height()+p*2
-        l,t = max(10, min(sw-10-w,l)),max(10+h, min(sh-10,t))     # clamp position so window is always seen
+        l,t = positions[self.sticky]
+        l,t = max(m, min(sw-m-w,l)),max(m+h, min(sh-m,t))     # clamp position so window is always seen
+        
         self.pos = Point2D((l,t))
+        self.size = Vec2D((w,h))
+    
+    def draw_postpixel(self):
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.text_size(12)
+        
+        self.update_pos()
+        
+        l,t = self.pos
+        w,h = self.size
         
         # draw background
         bgl.glColor4f(0,0,0,0.25)
@@ -324,7 +409,45 @@ class UI_Window(UI_HBFContainer):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
         
-        self.draw(l+p, t-p, w-p*2, h-p*2)
+        self.draw(l, t, w, h)
+    
+    def modal(self, context, event):
+        self.win_width,self.win_height = context.region.width,context.region.height
+        self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+        self.context = context
+        self.event = event
+        
+        nstate = self.FSM[self.state]()
+        self.state = nstate or self.state
+        
+        return {'hover'} if self.hover_ui(self.mouse) else {}
+    
+    def modal_main(self):
+        ui_hover = self.hover_ui(self.mouse)
+        if not ui_hover: return
+        set_cursor('DEFAULT')
+        if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
+            if ui_hover in self.ui_grab:
+                self.mouse_down = self.mouse
+                self.mouse_prev = self.mouse
+                self.pos_prev = self.pos
+                return 'move'
+            self.ui_down = ui_hover
+            self.ui_down.mouse_down()
+            return 'down'
+    
+    def modal_move(self):
+        set_cursor('HAND')
+        if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
+            return 'main'
+        diff = self.mouse - self.mouse_down
+        self.update_pos(pos=self.pos_prev + diff)
+        self.mouse_prev = self.mouse
+    
+    def modal_down(self):
+        if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
+            self.ui_down.mouse_up()
+            return 'main'
 
 
 class UI_Collapsable(UI_Container):
@@ -333,6 +456,4 @@ class UI_Collapsable(UI_Container):
 class UI_Checkbox:
     pass
 
-class UI_Button:
-    pass
 

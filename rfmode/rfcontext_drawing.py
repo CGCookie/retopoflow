@@ -6,7 +6,7 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Window
+from ..common.ui import Drawing, UI_Button, UI_Window
 
 
 class RFContext_Drawing:
@@ -16,7 +16,11 @@ class RFContext_Drawing:
         self.tool_window = UI_Window("Tools", sticky=7)
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_window.add_label(rft.bl_label)
+            def create(rft):
+                def fn_callback(): self.set_tool(rft.rft_class())
+                return fn_callback
+            button = UI_Button(rft.bl_label, create(rft))
+            self.tool_window.add(button)
             # if type(self.tool) == rft.rft_class:
             #     bgl.glColor4f(1.0, 1.0, 0.0, 1.0)
             # else:
@@ -36,7 +40,7 @@ class RFContext_Drawing:
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
         
-        self.tool_window.draw_postpixel(self.actions.size[0], self.actions.size[1])
+        self.tool_window.draw_postpixel()
 
         wtime,ctime = self.fps_time,time.time()
         self.frames += 1

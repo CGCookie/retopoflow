@@ -367,6 +367,9 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.nav:
             self.nav = False
             self.rfwidget.update()
+        
+        ret = self.tool_window.modal(context, event)
+        if 'hover' in ret: return {}
 
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
