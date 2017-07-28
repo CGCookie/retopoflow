@@ -317,6 +317,7 @@ class UI_Container(UI_Element):
         return ui_item
 
 
+
 class UI_Options(UI_Container):
     def __init__(self, fn_callback):
         super().__init__()
@@ -325,12 +326,24 @@ class UI_Options(UI_Container):
         self.selected = None
     
     def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
-        class UI_Option(UI_Label):
+        class UI_Option(UI_Container):
             def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
-                super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
-                self.margin = 2
+                super().__init__(vertical=False)
+                self.ui_label = UI_Label(label, tooltip=tooltip, color=color, align=align)
+                self.ui_icon = icon
+                self.ui_label.margin = 2
+                if self.ui_icon:
+                    self.ui_icon.margin = 2
+                    self.add(self.ui_icon)
+                    self.add(UI_Spacer(width=2))
+                self.add(self.ui_label)
+                self.margin = 0
                 self.label = label
                 self.options = options
+            
+            def hover_ui(self, mouse):
+                return self if super().hover_ui(mouse) else None
+            
             def _draw(self):
                 if self.label == self.options.selected:
                     l,t = self.pos
@@ -344,9 +357,9 @@ class UI_Options(UI_Container):
                     bgl.glVertex2f(l+w,t)
                     bgl.glEnd()
                 super()._draw()
-        lbl = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
-        super().add(lbl)
-        self.options[lbl] = label
+        option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
+        super().add(option)
+        self.options[option] = label
         if not self.selected: self.selected = label
     
     def set_option(self, label):
@@ -366,6 +379,59 @@ class UI_Options(UI_Container):
         ui = super().hover_ui(mouse)
         if ui is None or ui == self: return
         self.set_option(self.options[ui])
+
+
+class UI_Image(UI_Element):
+    def __init__(self, image_data):
+        super().__init__()
+        self.height,self.width,self.depth = len(image_data),len(image_data[0]),len(image_data[0][0])
+        assert self.depth == 4
+        
+        image_flat = [d for r in image_data for c in r for d in c]
+        
+        texbuffer = bgl.Buffer(bgl.GL_INT, [1])
+        bgl.glGenTextures(1, texbuffer)
+        self.texture_id = texbuffer.to_list()[0]
+        del texbuffer
+        
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
+        bgl.glTexEnvf(bgl.GL_TEXTURE_ENV, bgl.GL_TEXTURE_ENV_MODE, bgl.GL_MODULATE)
+        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_LINEAR)
+        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, bgl.GL_LINEAR)
+        # texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width,self.height,self.depth], image_data)
+        texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width*self.height*self.depth], image_flat)
+        bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self.width, self.height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
+        del texbuffer
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+    
+    def _get_width(self): return self.dpi_mult * self.width
+    def _get_height(self): return self.dpi_mult * self.height
+    
+    def set_width(self, w): self.width = w
+    def set_height(self, h): self.height = h
+    def set_size(self, w, h): self.width,self.height = w,h
+    
+    def _draw(self):
+        cx,cy = self.pos + self.size / 2
+        w,h = self.width,self.height
+        l,t = cx-w/2, cy-h/2
+        
+        bgl.glColor4f(1,1,1,1)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_TEXTURE_2D)
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
+        bgl.glBegin(bgl.GL_QUADS)
+        bgl.glTexCoord2f(0,0)
+        bgl.glVertex2f(l,t)
+        bgl.glTexCoord2f(0,1)
+        bgl.glVertex2f(l,t-h)
+        bgl.glTexCoord2f(1,1)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glTexCoord2f(1,0)
+        bgl.glVertex2f(l+w,t)
+        bgl.glEnd()
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+        
 
 
 class UI_Graphic(UI_Element):
