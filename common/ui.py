@@ -478,23 +478,35 @@ class UI_Padding(UI_Element):
 class UI_Window(UI_Padding):
     margin = 5
     
-    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5):
+    def __init__(self, title, options):
+        pos = options.get('pos', None)
+        sticky = options.get('sticky', None)
+        vertical = options.get('vertical', True)
+        padding = options.get('padding', 5)
+        visible = options.get('visible', True)
+        
         super().__init__(padding=padding)
+        
+        self.visible = visible
+        
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
-        self.hbf_label = UI_Label(label, align=0)
-        self.hbf_rule = UI_Rule()
-        self.hbf.add(self.hbf_label, header=True)
-        self.hbf.add(self.hbf_rule, header=True)
+        self.hbf_title = UI_Label(title, align=0)
+        self.hbf_title_rule = UI_Rule()
+        self.hbf.add(self.hbf_title, header=True)
+        self.hbf.add(self.hbf_title_rule, header=True)
         self.set_ui_item(self.hbf)
         self.update_pos(pos=pos or Point2D((0,0)), sticky=sticky)
-        self.ui_grab = [self, self.hbf_label, self.hbf_rule]
+        self.ui_grab = [self, self.hbf_title, self.hbf_title_rule]
         
         self.FSM = {}
         self.FSM['main'] = self.modal_main
         self.FSM['move'] = self.modal_move
         self.FSM['down'] = self.modal_down
         self.state = 'main'
+    
+    def show(self): self.visible = True
+    def hide(self): self.visible = False
     
     def add(self, *args, **kwargs): self.hbf.add(*args, **kwargs)
     
@@ -533,6 +545,8 @@ class UI_Window(UI_Padding):
         self.size = Vec2D((w,h))
     
     def draw_postpixel(self):
+        if not self.visible: return
+        
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.text_size(12)
         
@@ -568,6 +582,8 @@ class UI_Window(UI_Padding):
         self.context = context
         self.event = event
         
+        if not self.visible: return
+        
         nstate = self.FSM[self.state]()
         self.state = nstate or self.state
         
@@ -599,6 +615,33 @@ class UI_Window(UI_Padding):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             self.ui_down.mouse_up(self.mouse)
             return 'main'
+
+
+class UI_WindowManager:
+    def __init__(self):
+        self.windows = []
+        self.active = None
+    
+    def create_window(self, title, options):
+        win = UI_Window(title, options)
+        self.windows.append(win)
+        return win
+    
+    def draw_postpixel(self):
+        for win in self.windows:
+            win.draw_postpixel()
+    
+    def modal(self, context, event):
+        if self.active:
+            ret = self.active.modal(context, event)
+            if not ret: self.active = None
+        else:
+            for win in reversed(self.windows):
+                ret = win.modal(context, event)
+                if ret:
+                    self.active = win
+                    break
+        return ret
 
 
 class UI_Collapsable(UI_Container):

@@ -6,25 +6,26 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window, UI_Checkbox, UI_Label, UI_Spacer
+from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window, UI_Checkbox, UI_Label, UI_Spacer, UI_WindowManager
 
 
 class RFContext_Drawing:
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
+        self.window_manager = UI_WindowManager()
         
         def options_callback(lbl):
             for ids,rft in RFTool.get_tools():
                 if rft.bl_label == lbl:
                     self.set_tool(rft.rft_class())
-        self.tool_window = UI_Window("Tools", sticky=7)
+        self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
         self.tool_options = UI_Options(options_callback)
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
             self.tool_options.add_option(rft.bl_label)
         self.tool_window.add(self.tool_options)
         
-        self.window_debug = UI_Window('Debug', sticky=1, vertical=False)
+        self.window_debug = self.window_manager.create_window('Debug', {'sticky':1, 'vertical':False, 'visible':True})
         self.window_debug_fps = UI_Label('fps: 0.00')
         self.window_debug_save = UI_Label('save: inf')
         self.window_debug.add(self.window_debug_fps)
@@ -61,11 +62,9 @@ class RFContext_Drawing:
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
         
-        self.tool_window.draw_postpixel()
-        if self.show_fps:
-            self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
-            self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
-            self.window_debug.draw_postpixel()
+        self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
+        self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
+        self.window_manager.draw_postpixel()
 
 
     def draw_postview(self):
