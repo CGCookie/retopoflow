@@ -47,7 +47,7 @@ class Drawing:
     
     def text_size(self, size):
         blf.size(self.font_id, size, self._dpi)
-        self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] * 1.5)
+        self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] + 3*self._dpi_mult)
         self.line_base = round(blf.dimensions(self.font_id, "XMPQI")[1])
     
     def get_text_size(self, text):
@@ -84,7 +84,7 @@ class Drawing:
         for i,line in enumerate(lines):
             th = self.get_text_height(line)
             # x,y = l,t - (i+1)*lh + int((lh-th)/2)
-            x,y = l,t - (i+1)*lh + int((lh-lb)/2)
+            x,y = l,t - (i+1)*lh + int((lh-lb)/2+2*self._dpi_mult)
             blf.position(self.font_id, x, y, 0)
             blf.draw(self.font_id, line)
             y -= self.line_height
