@@ -195,17 +195,17 @@ class RFTool_PolyPen(RFTool):
             bmv0,bmv2 = bme0.verts
             bme1,bmv1 = bme0.split()
             nearest_vert,d = self.rfcontext.nearest2D_vert_mouse()
+            self.rfcontext.select([bme0, bme1, bmv1])
             if d < 15:
-                pos = nearest_vert.co
-            else:
-                pos = hit_pos
-            bmv1.co = pos
-            if d < 15:
+                nearest_vert.merge(bmv1)
+                bmv1 = nearest_vert
                 self.rfcontext.clean_duplicate_bmedges(bmv1)
-
+                for bme in bmv1.link_edges: bme.select &= len(bme.link_faces)==1
+            else:
+                bmv1.co = hit_pos
             self.mousedown = self.rfcontext.actions.mousedown
+            self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
-            self.rfcontext.select(bmv1.link_edges)
             if not xy:
                 print('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
