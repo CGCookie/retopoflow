@@ -153,6 +153,7 @@ class UI_Element:
         self.context = bpy.context
         self.pos = None
         self.size = None
+        self.margin = 4
     
     def __hover_ui(self, mouse):
         if not self.pos or not self.size: return None
@@ -166,15 +167,19 @@ class UI_Element:
     def hover_ui(self, mouse): return self.__hover_ui(mouse)
     
     def draw(self, left, top, width, height):
-        self.pos = Point2D((left, top))
-        self.size = Vec2D((width, height))
+        m = self.margin
+        self.pos = Point2D((left+m, top-m))
+        self.size = Vec2D((width-m*2, height-m*2))
         self.predraw()
         #self.drawing.set_clipping(left, top-height, left+width, top)
         self._draw()
         #self.drawing.disable_clipping()
     
-    def get_width(self): return 0
-    def get_height(self): return 0
+    def get_width(self): return self._get_width() + self.margin*2
+    def get_height(self): return self._get_height() + self.margin*2
+    
+    def _get_width(self): return 0
+    def _get_height(self): return 0
     def _draw(self): pass
     def predraw(self): pass
     def mouse_down(self, mouse): pass
@@ -187,8 +192,9 @@ class UI_Spacer(UI_Element):
         super().__init__()
         self.width = width
         self.height = height
-    def get_width(self): return self.width * self.dpi_mult
-    def get_height(self): return self.height * self.dpi_mult
+        self.margin = 0
+    def _get_width(self): return self.width * self.dpi_mult
+    def _get_height(self): return self.height * self.dpi_mult
 
 
 class UI_Label(UI_Element):
@@ -208,8 +214,8 @@ class UI_Label(UI_Element):
         self.text_width = self.drawing.get_text_width(self.text)
         self.text_height = self.drawing.get_line_height(self.text)
     
-    def get_width(self): return self.text_width
-    def get_height(self): return self.text_height
+    def _get_width(self): return self.text_width
+    def _get_height(self): return self.text_height
     
     def _draw(self):
         l,t = self.pos
@@ -244,11 +250,12 @@ class UI_Button(UI_Label):
 class UI_Rule(UI_Element):
     def __init__(self, thickness=2, padding=0, color=(1.0,1.0,1.0,0.25)):
         super().__init__()
+        self.margin = 0
         self.thickness = thickness
         self.color = color
         self.padding = padding
-    def get_width(self): return self.dpi_mult * (self.padding*2 + 1)
-    def get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
+    def _get_width(self): return self.dpi_mult * (self.padding*2 + 1)
+    def _get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
     def _draw(self):
         left,top = self.pos
         width,height = self.size
@@ -276,12 +283,12 @@ class UI_Container(UI_Element):
             if hover: return hover
         return self
     
-    def get_width(self):
+    def _get_width(self):
         if not self.ui_items: return 0
         if self.vertical:
             return max(ui.get_width() for ui in self.ui_items)
         return sum(ui.get_width() for ui in self.ui_items)
-    def get_height(self):
+    def _get_height(self):
         if not self.ui_items: return 0
         if self.vertical:
             return sum(ui.get_height() for ui in self.ui_items)
@@ -321,6 +328,7 @@ class UI_Options(UI_Container):
         class UI_Option(UI_Label):
             def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
                 super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
+                self.margin = 2
                 self.label = label
                 self.options = options
             def _draw(self):
@@ -356,14 +364,13 @@ class UI_Options(UI_Container):
     def mouse_move(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
         ui = super().hover_ui(mouse)
-        if ui is None: return
+        if ui is None or ui == self: return
         self.set_option(self.options[ui])
 
 
 class UI_Graphic(UI_Element):
     width = 10
     height = 10
-    padding = 2
     
     def __init__(self, graphic=None):
         super().__init__()
@@ -371,8 +378,8 @@ class UI_Graphic(UI_Element):
     
     def set_graphic(self, graphic): self._graphic = graphic
     
-    def get_width(self): return self.dpi_mult * (self.width + self.padding*2)
-    def get_height(self): return self.dpi_mult * (self.height + self.padding*2)
+    def _get_width(self): return self.dpi_mult * self.width
+    def _get_height(self): return self.dpi_mult * self.height
     
     def _draw(self):
         cx = self.pos.x + self.size.x / 2
@@ -436,6 +443,8 @@ class UI_Checkbox(UI_Container):
         super().__init__(vertical=False)
         self.chk = UI_Graphic()
         self.lbl = UI_Label(label)
+        self.chk.margin = 0
+        self.lbl.margin = 0
         self.add(self.chk)
         self.add(UI_Spacer(width=4))
         self.add(self.lbl)
@@ -484,6 +493,9 @@ class UI_HBFContainer(UI_Container):
         self.header = UI_Container()
         self.body = UI_Container(vertical=vertical)
         self.footer = UI_Container()
+        self.header.margin = 0
+        self.body.margin = 0
+        self.footer.margin = 0
         super().add(self.header)
         super().add(self.body)
         super().add(self.footer)
@@ -498,8 +510,8 @@ class UI_HBFContainer(UI_Container):
         if ui: return ui
         return self
     
-    def get_width(self): return max(c.get_width() for c in self.ui_items)
-    def get_height(self): return sum(c.get_height() for c in self.ui_items)
+    def _get_width(self): return max(c.get_width() for c in self.ui_items)
+    def _get_height(self): return sum(c.get_height() for c in self.ui_items)
     
     def add(self, ui_item, header=False, footer=False):
         if header: self.header.add(ui_item)
@@ -581,9 +593,9 @@ class UI_Padding(UI_Element):
         ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
         return ui or self
     
-    def get_width(self):
+    def _get_width(self):
         return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_width())
-    def get_height(self):
+    def _get_height(self):
         return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
     
     def _draw(self):
@@ -596,16 +608,17 @@ class UI_Padding(UI_Element):
 
 
 class UI_Window(UI_Padding):
-    margin = 5
+    screen_margin = 5
     
     def __init__(self, title, options):
         pos = options.get('pos', None)
         sticky = options.get('sticky', None)
         vertical = options.get('vertical', True)
-        padding = options.get('padding', 5)
+        padding = options.get('padding', 2)
         visible = options.get('visible', True)
         
         super().__init__(padding=padding)
+        self.margin = 0
         
         self.visible = visible
         
@@ -616,6 +629,7 @@ class UI_Window(UI_Padding):
         self.hbf.add(self.hbf_title, header=True)
         self.hbf.add(self.hbf_title_rule, header=True)
         self.set_ui_item(self.hbf)
+        
         self.update_pos(pos=pos or Point2D((0,0)), sticky=sticky)
         self.ui_grab = [self, self.hbf_title, self.hbf_title_rule]
         
@@ -631,7 +645,7 @@ class UI_Window(UI_Padding):
     def add(self, *args, **kwargs): return self.hbf.add(*args, **kwargs)
     
     def update_pos(self, pos:Point2D=None, sticky=None):
-        m = self.margin
+        m = self.screen_margin
         sw,sh = self.context.region.width,self.context.region.height
         cw,ch = round(sw/2),round(sh/2)
         w,h = self.get_width(),self.get_height()
