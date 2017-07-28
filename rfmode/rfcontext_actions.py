@@ -149,6 +149,7 @@ class Actions:
         self.timer = (event.type in {'TIMER'})
         if self.timer:
             self.time_delta = timer.time_delta
+            self.trackpad = False
             return
 
         t,pressed = event.type, event.value=='PRESS'
