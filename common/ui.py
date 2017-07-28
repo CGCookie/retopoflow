@@ -318,8 +318,10 @@ class UI_Options(UI_Container):
     def hover_ui(self, mouse):
         return self if super().hover_ui(mouse) else None
     
+    def mouse_down(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
         ui = super().hover_ui(mouse)
+        if ui is None: return
         self.set_option(self.options[ui])
 
 
@@ -482,7 +484,7 @@ class UI_Window(UI_Padding):
         nstate = self.FSM[self.state]()
         self.state = nstate or self.state
         
-        return {'hover'} if self.hover_ui(self.mouse) else {}
+        return {'hover'} if self.hover_ui(self.mouse) or self.state != 'main' else {}
     
     def modal_main(self):
         ui_hover = self.hover_ui(self.mouse)
