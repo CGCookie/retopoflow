@@ -308,7 +308,7 @@ class RFTool_PolyPen(RFTool):
                 sel_verts = self.rfcontext.rftarget.get_selected_verts()
                 nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
                 bmv0 = next(iter(sel_verts))
-                if nearest_vert
+                if nearest_vert:
                     p0 = nearest_vert.co
                 else:
                     p0 = hit_pos

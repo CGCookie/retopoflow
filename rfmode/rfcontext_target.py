@@ -14,12 +14,12 @@ class RFContext_Target:
         if point.is_2D(): return point
         return self.Point_to_Point2D(point)
 
-    def nearest2D_vert_point(self, point, verts=None):
+    def nearest2D_vert_point(self, point, verts=None, max_dist=None):
         xy = self.get_point2D(point)
-        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts)
+        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
-    def nearest2D_vert_mouse(self, verts=None):
-        return self.nearest2D_vert_point(self.actions.mouse, verts=verts)
+    def nearest2D_vert_mouse(self, verts=None, max_dist=None):
+        return self.nearest2D_vert_point(self.actions.mouse, verts=verts, max_dist=max_dist)
 
     def nearest2D_verts_point(self, point, max_dist:float):
         xy = self.get_point2D(point or self.actions.mouse)
