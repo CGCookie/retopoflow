@@ -294,7 +294,7 @@ class UI_Options(UI_Container):
                     l,t = self.pos
                     w,h = self.size
                     bgl.glEnable(bgl.GL_BLEND)
-                    bgl.glColor4f(0.2,0.9,1.0,0.6)
+                    bgl.glColor4f(0.27,0.50,0.72,0.90)
                     bgl.glBegin(bgl.GL_QUADS)
                     bgl.glVertex2f(l,t)
                     bgl.glVertex2f(l,t-h)
