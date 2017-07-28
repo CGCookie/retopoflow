@@ -6,7 +6,7 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window
+from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window, UI_Checkbox
 
 
 class RFContext_Drawing:
@@ -36,6 +36,18 @@ class RFContext_Drawing:
             # blf.position(font_id, l, y, 0)
             # blf.draw(font_id, rft.bl_label)
         self.tool_window.add(self.tool_options)
+        
+        if False:
+            # testing UI_Checkbox
+            tmp = True
+            def get_checked():
+                nonlocal tmp
+                return tmp
+            def set_checked(v):
+                nonlocal tmp
+                print(v)
+                tmp = v
+            self.tool_window.add(UI_Checkbox('foo', get_checked, set_checked))
 
 
     def draw_postpixel(self):

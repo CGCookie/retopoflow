@@ -146,6 +146,7 @@ class Drawing:
 class UI_Element:
     def __init__(self):
         self.drawing = Drawing.get_instance()
+        self.dpi_mult = self.drawing.get_dpi_mult()
         self.context = bpy.context
         self.pos = None
         self.size = None
@@ -164,6 +165,7 @@ class UI_Element:
     def draw(self, left, top, width, height):
         self.pos = Point2D((left, top))
         self.size = Vec2D((width, height))
+        self.predraw()
         #self.drawing.set_clipping(left, top-height, left+width, top)
         self._draw()
         #self.drawing.disable_clipping()
@@ -171,6 +173,7 @@ class UI_Element:
     def get_width(self): return 0
     def get_height(self): return 0
     def _draw(self): pass
+    def predraw(self): pass
     def mouse_down(self, mouse): pass
     def mouse_up(self, mouse): pass
 
@@ -216,8 +219,8 @@ class UI_Rule(UI_Element):
         self.thickness = thickness
         self.color = color
         self.padding = padding
-    def get_width(self): return self.padding*2 + 1
-    def get_height(self): return self.padding*2 + self.thickness
+    def get_width(self): return self.dpi_mult * (self.padding*2 + 1)
+    def get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
     def _draw(self):
         left,top = self.pos
         width,height = self.size
@@ -268,8 +271,8 @@ class UI_Container(UI_Element):
         else:
             x = l
             for ui in self.ui_items:
-                ew,eh = ui.get_width(),ui.get_height()
-                ui.draw(x,t,w,eh)
+                ew = ui.get_width()
+                ui.draw(x,t,ew,h)
                 x += ew
     
     def add(self, ui_item):
@@ -326,6 +329,79 @@ class UI_Options(UI_Container):
         self.set_option(self.options[ui])
 
 
+class UI_Graphic(UI_Element):
+    width = 10
+    height = 10
+    padding = 2
+    
+    def __init__(self):
+        super().__init__()
+        self._graphic = ''
+    
+    def set_graphic(self, graphic): self._graphic = graphic
+    
+    def get_width(self): return self.dpi_mult * (self.width + self.padding*2)
+    def get_height(self): return self.dpi_mult * (self.height + self.padding*2)
+    
+    def _draw(self):
+        cx = self.pos.x + self.size.x / 2
+        cy = self.pos.y - self.size.y / 2
+        w,h = self.dpi_mult * self.width,self.dpi_mult * self.height
+        l,t = cx-w/2, cy+h/2
+        
+        self.drawing.line_width(1.0)
+        if self._graphic == 'box unchecked':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glVertex2f(l,t)
+            bgl.glEnd()
+        elif self._graphic == 'box checked':
+            bgl.glColor4f(0.27,0.50,0.72,0.90)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glVertex2f(l,t)
+            bgl.glEnd()
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(l+2,cy)
+            bgl.glVertex2f(cx,t-h+2)
+            bgl.glVertex2f(l+w-2,t-2)
+            bgl.glEnd()
+        pass
+
+class UI_Checkbox(UI_Container):
+    def __init__(self, label, fn_get_checked, fn_set_checked):
+        super().__init__(vertical=False)
+        self.chk = UI_Graphic()
+        self.lbl = UI_Label(label)
+        self.add(self.chk)
+        self.add(UI_Padding(padding=2))
+        self.add(self.lbl)
+        self.fn_get_checked = fn_get_checked
+        self.fn_set_checked = fn_set_checked
+    
+    def hover_ui(self, mouse):
+        return self if super().hover_ui(mouse) else None
+    
+    def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
+    
+    def predraw(self):
+        self.chk.set_graphic('box checked' if self.fn_get_checked() else 'box unchecked')
+
+
 class UI_HBFContainer(UI_Container):
     def __init__(self):
         super().__init__()
@@ -376,9 +452,9 @@ class UI_Padding(UI_Element):
         return ui or self
     
     def get_width(self):
-        return self.padding*2 + (0 if not self.ui_item else self.ui_item.get_width())
+        return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_width())
     def get_height(self):
-        return self.padding*2 + (0 if not self.ui_item else self.ui_item.get_height())
+        return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
     
     def _draw(self):
         if not self.ui_item: return
@@ -518,7 +594,5 @@ class UI_Window(UI_Padding):
 class UI_Collapsable(UI_Container):
     pass
 
-class UI_Checkbox:
-    pass
 
 
