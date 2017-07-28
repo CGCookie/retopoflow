@@ -335,7 +335,7 @@ class UI_Options(UI_Container):
                 if self.ui_icon:
                     self.ui_icon.margin = 2
                     self.add(self.ui_icon)
-                    self.add(UI_Spacer(width=2))
+                    self.add(UI_Spacer(width=4))
                 self.add(self.ui_label)
                 self.margin = 0
                 self.label = label
