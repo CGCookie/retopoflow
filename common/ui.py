@@ -442,6 +442,41 @@ class UI_HBFContainer(UI_Container):
         return ui_item
 
 
+class UI_Collapsible(UI_Container):
+    def __init__(self, title, collapsed=False, vertical=True):
+        super().__init__()
+        self.header = UI_Container()
+        self.title = self.header.add(UI_Label(title, align=0))
+        self.title_rule = self.header.add(UI_Rule())
+        self.body = UI_Container(vertical=vertical)
+        self.collapsed = collapsed
+        
+        self.versions = {
+            False: [self.header, self.body],
+            True: [self.header]
+        }
+        
+        super().add(self.header)
+    
+    def expand(self): self.collapsed = False
+    def collapse(self): self.collapsed = True
+    
+    def predraw(self):
+        self.ui_items = self.versions[self.collapsed]
+    
+    def add(self, ui_item, header=False):
+        if header: self.header.add(ui_item)
+        else: self.body.add(ui_item)
+        return ui_item
+    
+    def hover_ui(self, mouse):
+        if not super().hover_ui(mouse): return None
+        return self.body.hover_ui(mouse) or self
+    
+    def mouse_up(self, mouse):
+        self.collapsed = not self.collapsed
+
+
 class UI_BoolProperty(UI_Element):
     def __init__(self, prop):
         super().__init__()
@@ -508,7 +543,7 @@ class UI_Window(UI_Padding):
     def show(self): self.visible = True
     def hide(self): self.visible = False
     
-    def add(self, *args, **kwargs): self.hbf.add(*args, **kwargs)
+    def add(self, *args, **kwargs): return self.hbf.add(*args, **kwargs)
     
     def update_pos(self, pos:Point2D=None, sticky=None):
         m = self.margin
@@ -643,9 +678,6 @@ class UI_WindowManager:
                     break
         return ret
 
-
-class UI_Collapsable(UI_Container):
-    pass
 
 
 
