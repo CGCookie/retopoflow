@@ -24,7 +24,8 @@ class Drawing:
         Drawing._dpi = bpy.context.user_preferences.system.dpi
         if bpy.context.user_preferences.system.virtual_pixel_mode == 'DOUBLE':
             Drawing._dpi *= 2
-        Drawing._dpi_mult = Drawing._dpi / 72 * bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi *=  bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi_mult = Drawing._dpi / 72
     
     @staticmethod
     def get_instance():
