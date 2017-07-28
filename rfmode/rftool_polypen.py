@@ -165,8 +165,11 @@ class RFTool_PolyPen(RFTool):
                 bmv0,bmv1 = bme.verts
 
             nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
-            if nearest_vert:
+            if nearest_vert and not nearest_vert.select:
                 bmv2 = nearest_vert
+            elif nearest_vert:
+                self.rfcontext.undo_cancel()
+                return 'main'
             else:
                 bmv2 = self.rfcontext.new2D_vert_mouse()
                 if not bmv2:
@@ -197,8 +200,11 @@ class RFTool_PolyPen(RFTool):
             bmv0,bmv2 = bme0.verts
             bme1,bmv1 = bme0.split()
             nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
-            if nearest_vert:
+            if nearest_vert and not nearest_vert.select:
                 pos = nearest_vert.co
+            elif nearest_vert:
+                self.rfcontext.undo_cancel()
+                return 'main'
             else:
                 pos = hit_pos
             bmv1.co = pos
@@ -290,50 +296,51 @@ class RFTool_PolyPen(RFTool):
 
 
     def draw_postview(self):
-        hit_pos = self.rfcontext.actions.hit_pos
-        if not hit_pos: return
-        self.set_next_state()
+        if self.rfcontext.actions.shift or self.rfcontext.actions.ctrl:
+            hit_pos = self.rfcontext.actions.hit_pos
+            if not hit_pos: return
+            self.set_next_state()
 
-        if self.next_state == 'new vertex':
-            return
+            if self.next_state == 'new vertex':
+                return
 
-        if self.next_state == 'vert-edge':
-            sel_verts = self.rfcontext.rftarget.get_selected_verts()
-            nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
-            bmv0 = next(iter(sel_verts))
-            if nearest_vert
-                p0 = nearest_vert.co
-            else:
-                p0 = hit_pos
-            self.draw_lines([bmv0.co, p0])
-            return
-
-        if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
-            if self.next_state in ['edge-face', 'edges-face', 'tri-quad']:
-                nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(verts=self.rfcontext.rftarget.get_selected_verts())
-                self.draw_lines([nearest_vert.co, hit_pos])
-
-        elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
-            if self.next_state == 'edge-face':
-                sel_edges = self.rfcontext.rftarget.get_selected_edges()
-                e1 = next(iter(sel_edges))
-                bmv1,bmv2 = e1.verts
+            if self.next_state == 'vert-edge':
+                sel_verts = self.rfcontext.rftarget.get_selected_verts()
                 nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
-                if nearest_vert:
+                bmv0 = next(iter(sel_verts))
+                if nearest_vert
                     p0 = nearest_vert.co
                 else:
                     p0 = hit_pos
-                self.draw_lines([p0, bmv1.co, bmv2.co])
+                self.draw_lines([bmv0.co, p0])
                 return
 
-            if self.next_state == 'edges-face' or self.next_state == 'tri-quad':
-                sel_edges = self.rfcontext.rftarget.get_selected_edges()
-                e1,_ = self.rfcontext.nearest2D_edge_mouse(edges=sel_edges)
-                bmv1,bmv2 = e1.verts
-                nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
-                if nearest_vert:
-                    p0 = nearest_vert.co
-                else:
-                    p0 = hit_pos
-                self.draw_lines([p0, bmv1.co, bmv2.co])
-                return
+            if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+                if self.next_state in ['edge-face', 'edges-face', 'tri-quad']:
+                    nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(verts=self.rfcontext.rftarget.get_selected_verts())
+                    self.draw_lines([nearest_vert.co, hit_pos])
+
+            elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+                if self.next_state == 'edge-face':
+                    sel_edges = self.rfcontext.rftarget.get_selected_edges()
+                    e1 = next(iter(sel_edges))
+                    bmv1,bmv2 = e1.verts
+                    nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
+                    if nearest_vert:
+                        p0 = nearest_vert.co
+                    else:
+                        p0 = hit_pos
+                    self.draw_lines([p0, bmv1.co, bmv2.co])
+                    return
+
+                if self.next_state == 'edges-face' or self.next_state == 'tri-quad':
+                    sel_edges = self.rfcontext.rftarget.get_selected_edges()
+                    e1,_ = self.rfcontext.nearest2D_edge_mouse(edges=sel_edges)
+                    bmv1,bmv2 = e1.verts
+                    nearest_vert,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
+                    if nearest_vert:
+                        p0 = nearest_vert.co
+                    else:
+                        p0 = hit_pos
+                    self.draw_lines([p0, bmv1.co, bmv2.co])
+                    return
