@@ -14,29 +14,30 @@ class RFContext_Target:
         if point.is_2D(): return point
         return self.Point_to_Point2D(point)
 
-    def nearest2D_vert_point(self, point, verts=None, max_dist=None):
-        xy = self.get_point2D(point)
+    def nearest2D_vert(self, point=None, max_dist=None, verts=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
-    def nearest2D_vert_mouse(self, verts=None, max_dist=None):
-        return self.nearest2D_vert_point(self.actions.mouse, verts=verts, max_dist=max_dist)
-
-    def nearest2D_verts_point(self, point, max_dist:float):
+    def nearest2D_verts(self, point=None, max_dist:float=10, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D)
+        max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D, verts=verts)
 
-    def nearest2D_verts_mouse(self, max_dist:float):
-        return self.nearest2D_verts_point(self.actions.mouse, max_dist)
+    def nearest2D_edge(self, point=None, max_dist=None, edges=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
-    def nearest_edges_Point(self, point, max_dist:float):
-        return self.rftarget.nearest_bmedges_Point(point, max_dist)
+    def nearest2D_edges(self, point=None, max_dist:float=10, edges=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
 
-    def nearest_edge_Point(self, point:Point, edges=None):
-        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
-
-    def nearest2D_edge_Point2D(self, point:Point2D, edges=None):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges)
-
+    ####################
+    # REWRITE BELOW!!! #
+    ####################
+    
     def nearest2D_face_Point2D(self, point:Point2D, faces=None):
         return self.rftarget.nearest2D_bmface_Point2D(point, self.Point_to_Point2D, faces=faces)
 
@@ -47,6 +48,15 @@ class RFContext_Target:
     def nearest2D_face_mouse(self):
         return self.nearest2D_face_point(self.actions.mouse)
 
+    def nearest2D_face_point(self, point):
+        # if max_dist: max_dist = self.drawing.scale(max_dist)
+        xy = self.get_point2D(point)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+
+    def nearest2D_face_mouse(self):
+        # if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.nearest2D_face_point(self.actions.mouse)
+
 
     ########################################
     # find target entities in world space
@@ -55,6 +65,7 @@ class RFContext_Target:
         if point.is_3D(): return point
         xyz,_,_,_ = self.raycast_sources_Point2D(point)
         return xyz
+
 
     def nearest_vert_point(self, point, verts=None):
         xyz = self.get_point3D(point)
@@ -72,26 +83,23 @@ class RFContext_Target:
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
 
+
     def nearest_edges_Point(self, point, max_dist:float):
         return self.rftarget.nearest_bmedges_Point(point, max_dist)
 
     def nearest_edge_Point(self, point:Point, edges=None):
         return self.rftarget.nearest_bmedge_Point(point, edges=edges)
 
-    def nearest2D_edge_Point2D(self, point:Point2D, edges=None, max_dist=None):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
+    def nearest_edges_Point(self, point, max_dist:float):
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest_bmedges_Point(point, max_dist)
 
-    def nearest2D_edge_mouse(self, edges=None, max_dist=None):
-        return self.nearest2D_edge_Point2D(self.actions.mouse, edges=edges, max_dist=max_dist)
+    def nearest_edge_Point(self, point:Point, edges=None):
+        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
 
-    def nearest2D_face_point(self, point):
-        xy = self.get_point2D(point)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
-
-    def nearest2D_face_mouse(self):
-        return self.nearest2D_face_point(self.actions.mouse)
 
     #######################################
+    # get visible geometry
 
     def visible_verts(self):
         return self.rftarget.visible_verts(self.is_visible)

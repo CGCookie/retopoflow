@@ -213,7 +213,7 @@ class RFTool_Contours(RFTool):
     def modal_main(self):
         if self.rfcontext.actions.pressed('select'):
             edges = self.rfcontext.visible_edges()
-            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            edge,_ = self.rfcontext.nearest2D_edge(edges=edges)
             if not edge:
                 self.rfcontext.deselect_all()
                 return
@@ -223,7 +223,7 @@ class RFTool_Contours(RFTool):
 
         if self.rfcontext.actions.pressed('select add'):
             edges = self.rfcontext.visible_edges()
-            edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
+            edge,_ = self.rfcontext.nearest2D_edge(edges=edges)
             if not edge: return
             self.rfcontext.select_edge_loop(edge, only=False)
             self.update()

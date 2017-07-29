@@ -350,11 +350,15 @@ class RFMesh():
             nearest += [(self._wrap_bmedge(bme), dist)]
         return nearest
 
-    def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D):
+    def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D, verts=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
+        if verts is None:
+            verts = self.bme.verts
+        else:
+            verts = [self._unwrap(bmv) for bmv in verts]
         nearest = []
-        for bmv in self.bme.verts:
+        for bmv in verts:
             p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
             if p2d is None: continue
             if (p2d - xy).length > dist2D: continue
@@ -380,6 +384,28 @@ class RFMesh():
             if bv is None or d2d < bd: bv,bd = bmv,d2d
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
+
+    def nearest2D_bmedges_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D, edges=None, shorten=0.01):
+        # TODO: compute distance from camera to point
+        # TODO: sort points based on 3d distance
+        if edges is None:
+            edges = self.bme.edges
+        else:
+            edges = [self._unwrap(bme) for bme in edges]
+        l2w_point = self.xform.l2w_point
+        nearest = []
+        for bme in edges:
+            bmv0 = Point_to_Point2D(l2w_point(bme.verts[0].co))
+            bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
+            diff = bmv1 - bmv0
+            l = diff.length
+            d = diff / l
+            margin = l * shorten / 2
+            pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
+            dist = (xy - pp).length
+            if dist > dist2D: continue
+            nearest += [(self._wrap_bmedge(bme), dist)]
+        return nearest
 
     def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
@@ -507,7 +533,8 @@ class RFMesh():
                     nelems.update(e for e in elem.verts)
                     nelems.update(e for e in elem.edges)
             elems = nelems
-        for elem in elems: elem.select = True
+        for elem in elems:
+            if elem: elem.select = True
         if supparts:
             for elem in elems:
                 t = type(elem)

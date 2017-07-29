@@ -474,7 +474,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     ###################################################
 
     def is_visible(self, point:Point, normal:Normal):
-        ray = self.Point_to_Ray(point, max_dist_offset=-0.001)
+        ray = self.Point_to_Ray(point, max_dist_offset=-0.01)
         if not ray: return False
         #if normal.dot(ray.d) <= 0: return False
         return all(not rfsource.raycast_hit(ray) for rfsource in self.rfsources)
