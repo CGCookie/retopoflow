@@ -558,13 +558,14 @@ class UI_Graphic(UI_Element):
 
 
 class UI_Checkbox(UI_Container):
-    def __init__(self, label, fn_get_checked, fn_set_checked):
+    def __init__(self, label, fn_get_checked, fn_set_checked, options={}):
+        spacing = options.get('spacing', 4)
         super().__init__(vertical=False)
         self.margin = 0
         self.chk = UI_Graphic()
         self.lbl = UI_Label(label)
         self.add(self.chk)
-        self.add(UI_Spacer(width=4))
+        self.add(UI_Spacer(width=spacing))
         self.add(self.lbl)
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
