@@ -129,6 +129,8 @@ class Actions:
         self.mousedown_left = None
         self.mousedown_middle = None
         self.mousedown_right = None
+        
+        self.trackpad = False
 
         self.hit_pos = None
         self.hit_norm = None
@@ -169,6 +171,7 @@ class Actions:
         self.timer = (event.type in {'TIMER'})
         if self.timer:
             self.time_delta = timer.time_delta
+            self.trackpad = False
             return
 
         t,pressed = event.type, event.value=='PRESS'
@@ -196,6 +199,8 @@ class Actions:
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             return
+        
+        self.trackpad = (t == 'TRACKPADPAN') or (t == 'TRACKPADZOOM')
 
         if pressed and t in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
@@ -240,6 +245,12 @@ class Actions:
     def using(self, actions):
         actions = self.convert(actions)
         return any(p in actions for p in self.now_pressed.values())
+    
+    def navigating(self):
+        actions = self.convert('navigate')
+        if self.trackpad: return True
+        if any(p in actions for p in self.now_pressed.values()): return True
+        return False
 
     def pressed(self, actions, unpress=True, ignoremods=False):
         actions = self.convert(actions)
