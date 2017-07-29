@@ -24,6 +24,8 @@ class Drawing:
         Drawing._dpi = bpy.context.user_preferences.system.dpi
         if bpy.context.user_preferences.system.virtual_pixel_mode == 'DOUBLE':
             Drawing._dpi *= 2
+        Drawing._dpi *= bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi = int(Drawing._dpi)
         Drawing._dpi_mult = Drawing._dpi / 72
     
     @staticmethod
@@ -41,9 +43,10 @@ class Drawing:
         self.font_id = 0
         self.text_size(12)
     
+    def scale(self, s): return self._dpi_mult * s
     def get_dpi_mult(self): return self._dpi_mult
-    def line_width(self, width): bgl.glLineWidth(width * self._dpi_mult)
-    def point_size(self, size): bgl.glPointSize(size * self._dpi_mult)
+    def line_width(self, width): bgl.glLineWidth(self.scale(width))
+    def point_size(self, size): bgl.glPointSize(self.scale(size))
     
     def text_size(self, size):
         blf.size(self.font_id, size, self._dpi)
@@ -150,6 +153,7 @@ class UI_Element:
         self.context = bpy.context
         self.pos = None
         self.size = None
+        self.margin = 4
     
     def __hover_ui(self, mouse):
         if not self.pos or not self.size: return None
@@ -163,18 +167,23 @@ class UI_Element:
     def hover_ui(self, mouse): return self.__hover_ui(mouse)
     
     def draw(self, left, top, width, height):
-        self.pos = Point2D((left, top))
-        self.size = Vec2D((width, height))
+        m = self.margin
+        self.pos = Point2D((left+m, top-m))
+        self.size = Vec2D((width-m*2, height-m*2))
         self.predraw()
         #self.drawing.set_clipping(left, top-height, left+width, top)
         self._draw()
         #self.drawing.disable_clipping()
     
-    def get_width(self): return 0
-    def get_height(self): return 0
+    def get_width(self): return self._get_width() + self.margin*2
+    def get_height(self): return self._get_height() + self.margin*2
+    
+    def _get_width(self): return 0
+    def _get_height(self): return 0
     def _draw(self): pass
     def predraw(self): pass
     def mouse_down(self, mouse): pass
+    def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
 
 
@@ -183,36 +192,51 @@ class UI_Spacer(UI_Element):
         super().__init__()
         self.width = width
         self.height = height
-    def get_width(self): return self.width * self.dpi_mult
-    def get_height(self): return self.height * self.dpi_mult
+        self.margin = 0
+    def _get_width(self): return self.width * self.dpi_mult
+    def _get_height(self): return self.height * self.dpi_mult
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1):
         super().__init__()
         self.set_label(label)
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
         self.align = align
+        self.bgcolor = bgcolor
+    
+    def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
     def set_label(self, label):
         self.text = str(label)
-        self.width = self.drawing.get_text_width(self.text)
-        self.height = self.drawing.get_line_height(self.text)
+        self.text_width = self.drawing.get_text_width(self.text)
+        self.text_height = self.drawing.get_line_height(self.text)
     
-    def get_width(self): return self.width
-    def get_height(self): return self.height
+    def _get_width(self): return self.text_width
+    def _get_height(self): return self.text_height
     
     def _draw(self):
-        left,top = self.pos
-        width,height = self.size
+        l,t = self.pos
+        w,h = self.size
+        
+        if self.bgcolor:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
         if self.align < 0:
-            self.drawing.text_draw2D(self.text, Point2D((left, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l, t)), self.color)
         elif self.align == 0:
-            self.drawing.text_draw2D(self.text, Point2D((left+(width-self.width)/2, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l+(w-self.text_width)/2, t)), self.color)
         else:
-            self.drawing.text_draw2D(self.text, Point2D((left+width-self.width, top)), self.color)
+            self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
 
 
 class UI_Button(UI_Label):
@@ -226,11 +250,12 @@ class UI_Button(UI_Label):
 class UI_Rule(UI_Element):
     def __init__(self, thickness=2, padding=0, color=(1.0,1.0,1.0,0.25)):
         super().__init__()
+        self.margin = 0
         self.thickness = thickness
         self.color = color
         self.padding = padding
-    def get_width(self): return self.dpi_mult * (self.padding*2 + 1)
-    def get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
+    def _get_width(self): return self.dpi_mult * (self.padding*2 + 1)
+    def _get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
     def _draw(self):
         left,top = self.pos
         width,height = self.size
@@ -258,12 +283,12 @@ class UI_Container(UI_Element):
             if hover: return hover
         return self
     
-    def get_width(self):
+    def _get_width(self):
         if not self.ui_items: return 0
         if self.vertical:
             return max(ui.get_width() for ui in self.ui_items)
         return sum(ui.get_width() for ui in self.ui_items)
-    def get_height(self):
+    def _get_height(self):
         if not self.ui_items: return 0
         if self.vertical:
             return sum(ui.get_height() for ui in self.ui_items)
@@ -280,14 +305,17 @@ class UI_Container(UI_Element):
                 y -= eh
         else:
             x = l
-            for ui in self.ui_items:
-                ew = ui.get_width()
+            l = len(self.ui_items)
+            for i,ui in enumerate(self.ui_items):
+                ew = ui.get_width() if i < l-1 else w
                 ui.draw(x,t,ew,h)
                 x += ew
+                w -= ew
     
     def add(self, ui_item):
         self.ui_items.append(ui_item)
         return ui_item
+
 
 
 class UI_Options(UI_Container):
@@ -298,11 +326,24 @@ class UI_Options(UI_Container):
         self.selected = None
     
     def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
-        class UI_Option(UI_Label):
+        class UI_Option(UI_Container):
             def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
-                super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
+                super().__init__(vertical=False)
+                self.ui_label = UI_Label(label, tooltip=tooltip, color=color, align=align)
+                self.ui_icon = icon
+                # self.ui_label.margin = 4
+                if self.ui_icon:
+                    # self.ui_icon.margin = 4
+                    self.add(self.ui_icon)
+                    self.add(UI_Spacer(width=4))
+                self.add(self.ui_label)
+                self.margin = 0
                 self.label = label
                 self.options = options
+            
+            def hover_ui(self, mouse):
+                return self if super().hover_ui(mouse) else None
+            
             def _draw(self):
                 if self.label == self.options.selected:
                     l,t = self.pos
@@ -316,9 +357,9 @@ class UI_Options(UI_Container):
                     bgl.glVertex2f(l+w,t)
                     bgl.glEnd()
                 super()._draw()
-        lbl = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
-        super().add(lbl)
-        self.options[lbl] = label
+        option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
+        super().add(option)
+        self.options[option] = label
         if not self.selected: self.selected = label
     
     def set_option(self, label):
@@ -333,25 +374,77 @@ class UI_Options(UI_Container):
         return self if super().hover_ui(mouse) else None
     
     def mouse_down(self, mouse): self.mouse_up(mouse)
+    def mouse_move(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
         ui = super().hover_ui(mouse)
-        if ui is None: return
+        if ui is None or ui == self: return
         self.set_option(self.options[ui])
 
 
-class UI_Graphic(UI_Element):
-    width = 10
-    height = 10
-    padding = 2
-    
-    def __init__(self):
+class UI_Image(UI_Element):
+    def __init__(self, image_data):
         super().__init__()
-        self._graphic = ''
+        self.height,self.width,self.depth = len(image_data),len(image_data[0]),len(image_data[0][0])
+        assert self.depth == 4
+        
+        image_flat = [d for r in image_data for c in r for d in c]
+        
+        texbuffer = bgl.Buffer(bgl.GL_INT, [1])
+        bgl.glGenTextures(1, texbuffer)
+        self.texture_id = texbuffer.to_list()[0]
+        del texbuffer
+        
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
+        bgl.glTexEnvf(bgl.GL_TEXTURE_ENV, bgl.GL_TEXTURE_ENV_MODE, bgl.GL_MODULATE)
+        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_LINEAR)
+        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, bgl.GL_LINEAR)
+        # texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width,self.height,self.depth], image_data)
+        texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width*self.height*self.depth], image_flat)
+        bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self.width, self.height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
+        del texbuffer
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+    
+    def _get_width(self): return self.dpi_mult * self.width
+    def _get_height(self): return self.dpi_mult * self.height
+    
+    def set_width(self, w): self.width = w
+    def set_height(self, h): self.height = h
+    def set_size(self, w, h): self.width,self.height = w,h
+    
+    def _draw(self):
+        cx,cy = self.pos + self.size / 2
+        w,h = self.width,self.height
+        l,t = cx-w/2, cy-h/2
+        
+        bgl.glColor4f(1,1,1,1)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_TEXTURE_2D)
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
+        bgl.glBegin(bgl.GL_QUADS)
+        bgl.glTexCoord2f(0,0)
+        bgl.glVertex2f(l,t)
+        bgl.glTexCoord2f(0,1)
+        bgl.glVertex2f(l,t-h)
+        bgl.glTexCoord2f(1,1)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glTexCoord2f(1,0)
+        bgl.glVertex2f(l+w,t)
+        bgl.glEnd()
+        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+        
+
+
+class UI_Graphic(UI_Element):
+    def __init__(self, graphic=None):
+        super().__init__()
+        self._graphic = graphic
+        self.width = 12
+        self.height = 12
     
     def set_graphic(self, graphic): self._graphic = graphic
     
-    def get_width(self): return self.dpi_mult * (self.width + self.padding*2)
-    def get_height(self): return self.dpi_mult * (self.height + self.padding*2)
+    def _get_width(self): return self.dpi_mult * self.width
+    def _get_height(self): return self.dpi_mult * self.height
     
     def _draw(self):
         cx = self.pos.x + self.size.x / 2
@@ -360,6 +453,7 @@ class UI_Graphic(UI_Element):
         l,t = cx-w/2, cy+h/2
         
         self.drawing.line_width(1.0)
+        
         if self._graphic == 'box unchecked':
             bgl.glColor4f(1,1,1,1)
             bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -369,6 +463,7 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(l+w,t)
             bgl.glVertex2f(l,t)
             bgl.glEnd()
+        
         elif self._graphic == 'box checked':
             bgl.glColor4f(0.27,0.50,0.72,0.90)
             bgl.glBegin(bgl.GL_QUADS)
@@ -390,11 +485,28 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(cx,t-h+2)
             bgl.glVertex2f(l+w-2,t-2)
             bgl.glEnd()
-        pass
+        
+        elif self._graphic == 'triangle right':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            bgl.glVertex2f(l+2,t-2)
+            bgl.glVertex2f(l+2,t-h+2)
+            bgl.glVertex2f(l+w-2,cy)
+            bgl.glEnd()
+        
+        elif self._graphic == 'triangle down':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            bgl.glVertex2f(l+2,t-2)
+            bgl.glVertex2f(cx,t-h+2)
+            bgl.glVertex2f(l+w-2,t-2)
+            bgl.glEnd()
+
 
 class UI_Checkbox(UI_Container):
     def __init__(self, label, fn_get_checked, fn_set_checked):
         super().__init__(vertical=False)
+        self.margin = 0
         self.chk = UI_Graphic()
         self.lbl = UI_Label(label)
         self.add(self.chk)
@@ -412,12 +524,44 @@ class UI_Checkbox(UI_Container):
         self.chk.set_graphic('box checked' if self.fn_get_checked() else 'box unchecked')
 
 
+class UI_IntValue(UI_Container):
+    def __init__(self, label, fn_get_value, fn_set_value):
+        super().__init__(vertical=False)
+        self.margin = 0
+        self.lbl = UI_Label(label)
+        self.val = UI_Label(fn_get_value())
+        self.add(self.lbl)
+        self.add(UI_Label(':'))
+        self.add(UI_Spacer(width=4))
+        self.add(self.val)
+        self.fn_get_value = fn_get_value
+        self.fn_set_value = fn_set_value
+    
+    def hover_ui(self, mouse):
+        return self if super().hover_ui(mouse) else None
+    
+    def mouse_down(self, mouse):
+        self.down_mouse = mouse
+        self.down_val = self.fn_get_value()
+        set_cursor('MOVE_X')
+    
+    def mouse_move(self, mouse):
+        self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
+    
+    def predraw(self):
+        self.val.set_label(self.fn_get_value())
+
+
 class UI_HBFContainer(UI_Container):
     def __init__(self, vertical=True):
         super().__init__()
+        self.margin = 0
         self.header = UI_Container()
         self.body = UI_Container(vertical=vertical)
         self.footer = UI_Container()
+        # self.header.margin = 0
+        # self.body.margin = 0
+        # self.footer.margin = 0
         super().add(self.header)
         super().add(self.body)
         super().add(self.footer)
@@ -432,8 +576,8 @@ class UI_HBFContainer(UI_Container):
         if ui: return ui
         return self
     
-    def get_width(self): return max(c.get_width() for c in self.ui_items)
-    def get_height(self): return sum(c.get_height() for c in self.ui_items)
+    def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
+    def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
     
     def add(self, ui_item, header=False, footer=False):
         if header: self.header.add(ui_item)
@@ -442,15 +586,67 @@ class UI_HBFContainer(UI_Container):
         return ui_item
 
 
-class UI_BoolProperty(UI_Element):
-    def __init__(self, prop):
+class UI_Collapsible(UI_Container):
+    def __init__(self, title, collapsed=False, vertical=True):
         super().__init__()
-        self.prop = prop
+        self.margin = 0
+        
+        self.header = UI_Container()
+        self.body = UI_Container(vertical=vertical)
+        self.footer = UI_Container()
+        
+        self.header.margin = 0
+        # self.body.margin = 0
+        # self.footer.margin = 0
+        
+        self.title = self.header.add(UI_Container(vertical=False))
+        self.title_arrow = self.title.add(UI_Graphic('triangle down'))
+        self.title_label = self.title.add(UI_Label(title))
+        # self.header.add(UI_Rule(color=(0,0,0,0.25)))
+        
+        self.footer.add(UI_Rule(color=(0,0,0,0.25)))
+        
+        self.collapsed = collapsed
+        
+        self.versions = {
+            False: [self.header, self.body, self.footer],
+            True: [self.header]
+        }
+        self.graphics = {
+            False: 'triangle down',
+            True: 'triangle right',
+        }
+        
+        super().add(self.header)
+    
+    def expand(self): self.collapsed = False
+    def collapse(self): self.collapsed = True
+    
+    def predraw(self):
+        #self.title.set_bgcolor(self.bgcolors[self.collapsed])
+        self.title_arrow.set_graphic(self.graphics[self.collapsed])
+        self.ui_items = self.versions[self.collapsed]
+    
+    def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
+    def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
+    
+    def add(self, ui_item, header=False):
+        if header: self.header.add(ui_item)
+        else: self.body.add(ui_item)
+        return ui_item
+    
+    def hover_ui(self, mouse):
+        if not super().hover_ui(mouse): return None
+        return self.body.hover_ui(mouse) or self
+    
+    def mouse_up(self, mouse):
+        self.collapsed = not self.collapsed
 
 
 class UI_Padding(UI_Element):
     def __init__(self, ui_item=None, padding=5):
         super().__init__()
+        self.margin = 0
         self.padding = padding
         self.ui_item = ui_item
     
@@ -461,9 +657,9 @@ class UI_Padding(UI_Element):
         ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
         return ui or self
     
-    def get_width(self):
+    def _get_width(self):
         return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_width())
-    def get_height(self):
+    def _get_height(self):
         return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
     
     def _draw(self):
@@ -476,20 +672,32 @@ class UI_Padding(UI_Element):
 
 
 class UI_Window(UI_Padding):
-    margin = 5
+    screen_margin = 5
     
-    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5, movable=True):
+    def __init__(self, title, options):
+        pos = options.get('pos', None)
+        sticky = options.get('sticky', None)
+        vertical = options.get('vertical', True)
+        padding = options.get('padding', 2)
+        visible = options.get('visible', True)
+        movable = options.get('movable', True)
+        
         super().__init__(padding=padding)
+        self.margin = 0
+        
+        self.visible = visible
         self.movable = movable
+        
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
-        self.hbf_label = UI_Label(label, align=0)
-        self.hbf_rule = UI_Rule()
-        self.hbf.add(self.hbf_label, header=True)
-        self.hbf.add(self.hbf_rule, header=True)
+        self.hbf_title = UI_Label(title, align=0)
+        self.hbf_title_rule = UI_Rule()
+        self.hbf.add(self.hbf_title, header=True)
+        self.hbf.add(self.hbf_title_rule, header=True)
         self.set_ui_item(self.hbf)
+        
         self.update_pos(pos=pos or Point2D((0,0)), sticky=sticky)
-        self.ui_grab = [self, self.hbf_label, self.hbf_rule]
+        self.ui_grab = [self, self.hbf_title, self.hbf_title_rule]
         
         self.FSM = {}
         self.FSM['main'] = self.modal_main
@@ -497,10 +705,13 @@ class UI_Window(UI_Padding):
         self.FSM['down'] = self.modal_down
         self.state = 'main'
     
-    def add(self, *args, **kwargs): self.hbf.add(*args, **kwargs)
+    def show(self): self.visible = True
+    def hide(self): self.visible = False
+    
+    def add(self, *args, **kwargs): return self.hbf.add(*args, **kwargs)
     
     def update_pos(self, pos:Point2D=None, sticky=None):
-        m = self.margin
+        m = self.screen_margin
         sw,sh = self.context.region.width,self.context.region.height
         cw,ch = round(sw/2),round(sh/2)
         w,h = self.get_width(),self.get_height()
@@ -534,6 +745,8 @@ class UI_Window(UI_Padding):
         self.size = Vec2D((w,h))
     
     def draw_postpixel(self):
+        if not self.visible: return
+        
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.text_size(12)
         
@@ -569,6 +782,8 @@ class UI_Window(UI_Padding):
         self.context = context
         self.event = event
         
+        if not self.visible: return
+        
         nstate = self.FSM[self.state]()
         self.state = nstate or self.state
         
@@ -600,10 +815,35 @@ class UI_Window(UI_Padding):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             self.ui_down.mouse_up(self.mouse)
             return 'main'
+        self.ui_down.mouse_move(self.mouse)
 
 
-class UI_Collapsable(UI_Container):
-    pass
+class UI_WindowManager:
+    def __init__(self):
+        self.windows = []
+        self.active = None
+    
+    def create_window(self, title, options):
+        win = UI_Window(title, options)
+        self.windows.append(win)
+        return win
+    
+    def draw_postpixel(self):
+        for win in self.windows:
+            win.draw_postpixel()
+    
+    def modal(self, context, event):
+        if self.active:
+            ret = self.active.modal(context, event)
+            if not ret: self.active = None
+        else:
+            for win in reversed(self.windows):
+                ret = win.modal(context, event)
+                if ret:
+                    self.active = win
+                    break
+        return ret
+
 
 
 

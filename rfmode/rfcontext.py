@@ -283,7 +283,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
-        self.tool_options.set_option(tool.name())
+        self.tool_selection.set_option(tool.name())
 
     ###################################################
     # undo / redo stack operations
@@ -369,8 +369,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.nav = False
             self.rfwidget.update()
         
-        ret = self.tool_window.modal(context, event)
-        if 'hover' in ret: return {}
+        ret = self.window_manager.modal(context, event)
+        if 'hover' in ret:
+            self.rfwidget.clear()
+            return {}
 
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode

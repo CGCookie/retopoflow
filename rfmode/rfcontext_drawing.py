@@ -6,42 +6,57 @@ import time
 from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
-from ..common.ui import Drawing, UI_Button, UI_Options, UI_Window, UI_Checkbox, UI_Label, UI_Spacer
+from ..common.ui import Drawing
+from ..common.ui import (
+    UI_WindowManager,
+    UI_Button,
+    UI_Options,
+    UI_Checkbox,
+    UI_Label,
+    UI_Spacer,
+    UI_Collapsible,
+    UI_IntValue,
+    )
 
 
 class RFContext_Drawing:
+    def set_symmetry(self, axis, enable):
+        if enable: self.rftarget.enable_symmetry(axis)
+        else: self.rftarget.disable_symmetry(axis)
+        self.rftarget.dirty()
+    def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
+    
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
+        self.window_manager = UI_WindowManager()
         
         def options_callback(lbl):
             for ids,rft in RFTool.get_tools():
                 if rft.bl_label == lbl:
                     self.set_tool(rft.rft_class())
-        self.tool_window = UI_Window("Tools", sticky=7)
-        self.tool_options = UI_Options(options_callback)
+        self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
+        self.tool_selection = UI_Options(options_callback)
+        tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_options.add_option(rft.bl_label)
-        self.tool_window.add(self.tool_options)
+            self.tool_selection.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
+            ui_options = rft.rft_class().get_ui_options()
+            if ui_options: tools_options.append((rft.bl_label,ui_options))
+        self.tool_window.add(self.tool_selection)
         
-        self.window_debug = UI_Window('Debug', sticky=1, vertical=False)
+        self.window_debug = self.window_manager.create_window('Debug', {'sticky':1, 'vertical':False, 'visible':True})
         self.window_debug_fps = UI_Label('fps: 0.00')
         self.window_debug_save = UI_Label('save: inf')
         self.window_debug.add(self.window_debug_fps)
         self.window_debug.add(UI_Spacer(width=10))
         self.window_debug.add(self.window_debug_save)
         
-        if False:
-            # testing UI_Checkbox
-            tmp = True
-            def get_checked():
-                nonlocal tmp
-                return tmp
-            def set_checked(v):
-                nonlocal tmp
-                print(v)
-                tmp = v
-            self.tool_window.add(UI_Checkbox('foo', get_checked, set_checked))
+        window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
+        window_tool_options.add(UI_Checkbox('Symmetry: X', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v)))
+        window_tool_options.add(UI_Spacer(height=5))
+        for tool_name,tool_options in tools_options:
+            ui_options = window_tool_options.add(UI_Collapsible(tool_name))
+            for tool_option in tool_options: ui_options.add(tool_option)
 
 
     def draw_postpixel(self):
@@ -61,11 +76,9 @@ class RFContext_Drawing:
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
         
-        self.tool_window.draw_postpixel()
-        if self.show_fps:
-            self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
-            self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
-            self.window_debug.draw_postpixel()
+        self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
+        self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
+        self.window_manager.draw_postpixel()
 
 
     def draw_postview(self):
