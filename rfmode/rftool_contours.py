@@ -237,6 +237,12 @@ class RFTool_Contours(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
+        if self.rfcontext.actions.pressed('delete'):
+            self.rfcontext.undo_push('delete')
+            self.rfcontext.delete_selection()
+            self.rfcontext.dirty()
+            self.update()
+            return
 
         if self.rfcontext.actions.pressed('increase count'):
             print('increasing count')

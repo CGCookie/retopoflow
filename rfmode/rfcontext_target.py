@@ -169,6 +169,12 @@ class RFContext_Target:
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
 
+    def delete_selection(self):
+        self.rftarget.delete_selection()
+
+    def delete_verts(self, verts):
+        self.rftarget.delete_verts(verts)
+
     def delete_edges(self, edges):
         self.rftarget.delete_edges(edges)
 
