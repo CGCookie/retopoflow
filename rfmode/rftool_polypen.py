@@ -110,6 +110,12 @@ class RFTool_PolyPen(RFTool):
                 bmvs.append(bmv)
             self.rfcontext.select(bmvs)
             self.rfcontext.dirty()
+        
+        if self.rfcontext.actions.pressed('delete'):
+            self.rfcontext.undo_push('delete')
+            self.rfcontext.delete_selection()
+            self.rfcontext.dirty()
+            return
 
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
