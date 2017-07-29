@@ -39,8 +39,8 @@ class RFWidget_BrushFalloff:
         
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(2.0)
-        bgl.glPointSize(3.0)
+        self.drawing.line_width(2.0)
+        self.drawing.point_size(3.0)
         
         ######################################
         # draw in front of geometry
@@ -140,7 +140,7 @@ class RFWidget_BrushFalloff:
         cr,cg,cb = self.color
         
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         
         bgl.glColor4f(cr, cg, cb, 0.75 * self.strength)
         bgl.glBegin(bgl.GL_TRIANGLES)

@@ -108,7 +108,7 @@ class RFMode(Operator):
             report_broken_rfmode()
             return {'CANCELLED'}
         if not self.poll(context): return {'CANCELLED'}    # tool cannot start
-        self.framework_start()
+        self.framework_start(context)
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
     
@@ -135,7 +135,7 @@ class RFMode(Operator):
     ###############################################
     # start up and shut down methods
     
-    def framework_start(self):
+    def framework_start(self, context):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
@@ -153,6 +153,8 @@ class RFMode(Operator):
             }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
         if self.prev_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
+        
+        self.area = context.area
         
         self.context_start()
         self.ui_start()
@@ -215,7 +217,7 @@ class RFMode(Operator):
     
     def ui_start(self):
         # report something useful to user
-        bpy.context.area.header_text_set('RetopoFlow Mode')
+        # bpy.context.area.header_text_set('RetopoFlow Mode')
         
         # remember space info and hide all non-renderable items
         RFRecover.save_window_state()
@@ -331,9 +333,14 @@ class RFMode(Operator):
             for k,v in data.items(): space.__setattr__(k, v)
         
         # remove useful reporting
-        bpy.context.area.header_text_set()
+        self.area.header_text_set()
         
         self.tag_redraw_all()
+    
+    def tag_redraw(self):
+        if bpy.context.area and bpy.context.area.type == 'VIEW_3D': self.area = bpy.context.area
+        self.area.tag_redraw()
+        self.area.header_text_set('RetopoFlow Mode')
     
     def tag_redraw_all(self):
         for wm in bpy.data.window_managers:
@@ -459,14 +466,20 @@ class RFMode(Operator):
             self.framework_end()
             return {'CANCELLED'}
 
-        # TODO: is this necessary?
-        if not context.area:
-            print('Context with no area')
-            print(context)
-            return {'RUNNING_MODAL'}
+        # # handle strange edge cases
+        # if not context.area:
+        #     #dprint('Context with no area')
+        #     #dprint(context)
+        #     return {'RUNNING_MODAL'}
+        # if not hasattr(context.space_data, 'region_3d'):
+        #     #dprint('context.space_data has no region_3d')
+        #     #dprint(context)
+        #     #dprint(context.space_data)
+        #     return {'RUNNING_MODAL'}
 
         # TODO: can we not redraw only when necessary?
-        context.area.tag_redraw()       # force redraw
+        self.tag_redraw()
+        #context.area.tag_redraw()       # force redraw
         
         try:
             ret = self.rfctx.modal(context, event) or {}

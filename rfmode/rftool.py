@@ -38,6 +38,7 @@ from .. import key_maps
 from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, showErrorMessage
 from ..common.metaclasses import SingletonRegisterClass
+from ..common.ui import Drawing
 from .rfwidget import RFWidget_Default
 
 
@@ -58,6 +59,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
+        RFTool.drawing = Drawing.get_instance()
         RFTool.rfwidget = rfcontext.rfwidget
         toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
     
@@ -110,5 +112,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     def name(self): return 'Unnamed RFTool'
     def icon(self): return None
     def description(self): return ''
+    def get_ui_icon(self): return None
+    def get_ui_options(self): return None
 
 

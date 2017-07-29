@@ -1,93 +1,127 @@
 import bpy
 import bgl
 import blf
+import time
+
+from .rftool import RFTool
 
 from ..common.maths import Point, Point2D
+from ..common.ui import Drawing
+from ..common.ui import (
+    UI_WindowManager,
+    UI_Button,
+    UI_Options,
+    UI_Checkbox,
+    UI_Label,
+    UI_Spacer,
+    UI_Collapsible,
+    UI_IntValue,
+    )
 
-class Drawing:
-    def __init__(self):
-        self.font_id = 0
-        self.text_size(12)
-    
-    def text_size(self, size):
-        blf.size(self.font_id, size, 72)
-        self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] * 1.5)
-    
-    def get_text_size(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return (round(size[0]), round(size[1]))
-    def get_text_width(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[0])
-    def get_text_height(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[1])
-    
-    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None):
-        lines = str(text).split('\n')
-        x,y = round(pos[0]),round(pos[1])
-        
-        if dropshadow: self.text_draw2D(text, (x+1,y-1), dropshadow)
-        
-        bgl.glColor4f(*color)
-        for line in lines:
-            blf.position(self.font_id, x, y, 0)
-            blf.draw(self.font_id, line)
-            y -= self.line_height
-    
-    def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7):
-        '''
-        textbox_position specifies where the textbox is drawn in relation to pos.
-        ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
-        tip: textbox_position is arranged same as numpad
-                    +-----+
-                    |7 8 9|
-                    |4 5 6|
-                    |1 2 3|
-                    +-----+
-        '''
-        lh = self.line_height
-        
-        # TODO: wrap text!
-        lines = text.split('\n')
-        w = max(self.get_text_width(line) for line in lines)
-        h = len(lines) * lh
-        
-        # find top-left corner (adjusting for textbox_position)
-        l,t = round(pos[0]),round(pos[1])
-        textbox_position -= 1
-        lcr = textbox_position % 3
-        tmb = int(textbox_position / 3)
-        l += [w+padding,round(w/2),-padding][lcr]
-        t += [h+padding,round(h/2),-padding][tmb]
-        
-        bgl.glEnable(bgl.GL_BLEND)
-        
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
-        bgl.glBegin(bgl.GL_QUADS)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glEnd()
-        
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-        bgl.glLineWidth(1.0)
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glEnd()
-        
-        bgl.glColor4f(1,1,1,0.5)
-        for i,line in enumerate(lines):
-            th = self.get_text_height(line)
-            y = t - (i+1)*lh + int((lh-th) / 2)
-            blf.position(self.font_id, l, y, 0)
-            blf.draw(self.font_id, line)
 
 class RFContext_Drawing:
+    def quit(self): self.exit = True
+    
+    def set_symmetry(self, axis, enable):
+        if enable: self.rftarget.enable_symmetry(axis)
+        else: self.rftarget.disable_symmetry(axis)
+        self.rftarget.dirty()
+    def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
+    
     def _init_drawing(self):
-        self.drawing = Drawing()
+        self.drawing = Drawing.get_instance()
+        self.window_manager = UI_WindowManager()
+        
+        def options_callback(lbl):
+            for ids,rft in RFTool.get_tools():
+                if rft.bl_label == lbl:
+                    self.set_tool(rft.rft_class())
+        self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
+        self.tool_selection = UI_Options(options_callback)
+        tools_options = []
+        for i,rft_data in enumerate(RFTool.get_tools()):
+            ids,rft = rft_data
+            self.tool_selection.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
+            ui_options = rft.rft_class().get_ui_options()
+            if ui_options: tools_options.append((rft.bl_label,ui_options))
+        self.tool_window.add(self.tool_selection)
+        self.tool_window.add(UI_Button('Exit', self.quit, align=0))
+        
+        self.window_debug = self.window_manager.create_window('Debug', {'sticky':1, 'vertical':False, 'visible':True})
+        self.window_debug_fps = UI_Label('fps: 0.00')
+        self.window_debug_save = UI_Label('save: inf')
+        self.window_debug.add(self.window_debug_fps)
+        self.window_debug.add(UI_Spacer(width=10))
+        self.window_debug.add(self.window_debug_save)
+        
+        window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
+        ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', vertical=False))
+        ui_symmetry.add(UI_Checkbox('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
+        ui_symmetry.add(UI_Checkbox('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
+        ui_symmetry.add(UI_Checkbox('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        window_tool_options.add(UI_Spacer(height=5))
+        for tool_name,tool_options in tools_options:
+            ui_options = window_tool_options.add(UI_Collapsible(tool_name))
+            for tool_option in tool_options: ui_options.add(tool_option)
+
+
+    def draw_postpixel(self):
+        if not self.actions.r3d: return
+
+        wtime,ctime = self.fps_time,time.time()
+        self.frames += 1
+        if ctime >= wtime + 1:
+            self.fps = self.frames / (ctime - wtime)
+            self.frames = 0
+            self.fps_time = ctime
+
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
+
+        self.tool.draw_postpixel()
+        self.rfwidget.draw_postpixel()
+        
+        self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
+        self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
+        self.window_manager.draw_postpixel()
+
+
+    def draw_postview(self):
+        if not self.actions.r3d: return
+
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
+
+        self.draw_yz_mirror()
+
+        self.rftarget_draw.draw()
+        self.tool.draw_postview()
+        self.rfwidget.draw_postview()
+
+    def draw_yz_mirror(self):
+        if 'x' not in self.rftarget.symmetry: return
+        self.drawing.line_width(3.0)
+        bgl.glDepthMask(bgl.GL_FALSE)
+        bgl.glDepthRange(0.0, 0.9999)
+
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.15)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+
+        bgl.glColor4f(0.5, 1.0, 1.0, 0.01)
+        bgl.glDepthFunc(bgl.GL_GREATER)
+        bgl.glBegin(bgl.GL_LINES)
+        for p0,p1 in self.zy_intersections:
+            bgl.glVertex3f(*p0)
+            bgl.glVertex3f(*p1)
+        bgl.glEnd()
+
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthMask(bgl.GL_TRUE)

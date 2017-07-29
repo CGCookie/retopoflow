@@ -26,6 +26,7 @@ stats = {
     'BBox': 0,
 }
 def stats_report():
+    return
     print('Maths Stats Report')
     print('------------------')
     l = max(len(k) for k in stats)
@@ -253,9 +254,8 @@ class Plane(Entity3D):
     
     def side(self, p:Point):
         d = (p - self.o).dot(self.n)
-        if d < -0.00001: return -1
-        if d > 0.00001: return 1
-        return 0
+        if abs(d) < 0.000001: return 0
+        return -1 if d < 0 else 1
     
     def distance_to(self, p:Point):
         return abs((p - self.o).dot(self.n))
@@ -286,12 +286,12 @@ class Plane(Entity3D):
         p01 = intersect_line_plane(p0, p1, self.o, self.n)
         p12 = intersect_line_plane(p1, p2, self.o, self.n)
         p20 = intersect_line_plane(p2, p0, self.o, self.n)
-        if s0 == 0: return [(p0, p1)]
-        if s1 == 0: return [(p1, p2)]
-        if s2 == 0: return [(p2, p0)]
-        if s0 != s1 and s0 != s2 and p01 and p20: return [(p0, p2)]
-        if s1 != s0 and s1 != s2 and p01 and p12: return [(p0, p1)]
-        if s2 != s0 and s2 != s1 and p12 and p20: return [(p1, p2)]
+        if s0 == 0: return [(p0, p12)]
+        if s1 == 0: return [(p1, p20)]
+        if s2 == 0: return [(p2, p01)]
+        if s0 != s1 and s0 != s2 and p01 and p20: return [(p01, p20)]
+        if s1 != s0 and s1 != s2 and p01 and p12: return [(p01, p12)]
+        if s2 != s0 and s2 != s1 and p12 and p20: return [(p12, p20)]
         print('%s %s %s' % (str(p0), str(p1), str(p2)))
         print('%s %s %s' % (str(s0), str(s1), str(s2)))
         print('%s %s %s' % (str(p01), str(p12), str(p20)))

@@ -14,6 +14,7 @@ from mathutils.geometry import normal as compute_normal, intersect_point_tri
 from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
+from ..common.ui import Drawing
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -621,12 +622,19 @@ class RFTarget(RFMesh):
         super().__setup__(obj, bme=bme)
         # if Mirror modifier is attached, set up symmetry to match
         self.symmetry = set()
+        self.mirror_mod = None
         for mod in self.obj.modifiers:
             if mod.type != 'MIRROR': continue
+            self.mirror_mod = mod
             if not mod.show_viewport: continue
             if mod.use_x: self.symmetry.add('x')
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
+        if not self.mirror_mod:
+            # add mirror modifier
+            bpy.ops.object.modifier_add(type='MIRROR')
+            self.mirror_mod = self.obj.modifiers[-1]
+            self.mirror_mod.show_on_cage = True
         self.editmesh_version = None
 
     def __deepcopy__(self, memo):
@@ -660,6 +668,13 @@ class RFTarget(RFMesh):
             eme.select = bme.select
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             emf.select = bmf.select
+        self.mirror_mod.use_x = 'x' in self.symmetry
+        self.mirror_mod.use_y = 'y' in self.symmetry
+        self.mirror_mod.use_z = 'z' in self.symmetry
+    
+    def enable_symmetry(self, axis): self.symmetry.add(axis)
+    def disable_symmetry(self, axis): self.symmetry.discard(axis)
+    def has_symmetry(self, axis): return axis in self.symmetry
 
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new(self.xform.w2l_point(co))
@@ -769,6 +784,8 @@ class RFMeshRender():
         self.replace_rfmesh(rfmesh)
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
+        self.drawing = Drawing.get_instance()
+        self.opts['dpi mult'] = self.drawing.get_dpi_mult()
 
     def __del__(self):
         if hasattr(self, 'bglCallList'):

@@ -30,7 +30,8 @@ class Actions:
     default_keymap = {
         # common
         'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
-        'maximize area': set(),                         # to be filled in by self.load_keymap()
+        'window actions': set(),                        # to be filled in by self.load_keymap()
+
         'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
         'alt action': {'SHIFT+LEFTMOUSE'},
@@ -87,6 +88,11 @@ class Actions:
         'Center View to Cursor': 'view3d.view_center_cursor'
         }
 
+    window_actions = {
+        'wm.window_fullscreen_toggle',
+        'screen.screen_full_area',
+    }
+
     def load_keymap(self, keyconfig_name):
         if keyconfig_name not in bpy.context.window_manager.keyconfigs:
             dprint('No keyconfig named "%s"' % keyconfig_name)
@@ -95,9 +101,11 @@ class Actions:
         for kmi in keyconfig.keymaps['3D View'].keymap_items:
             if kmi.name in self.navigation_events:
                 self.keymap['navigate'].add(kmi_details(kmi))
-        for kmi in keyconfig.keymaps['Screen'].keymap_items:
-            if kmi.idname == 'screen.screen_full_area':
-                self.keymap['maximize area'].add(kmi_details(kmi))
+        for map_name in ['Screen', 'Window']:
+            for kmi in keyconfig.keymaps[map_name].keymap_items:
+                if kmi.idname in self.window_actions:
+                    self.keymap['window actions'].add(kmi_details(kmi))
+            
 
     def __init__(self):
         self.keymap = deepcopy(self.default_keymap)
@@ -141,8 +149,22 @@ class Actions:
         self.just_pressed = None
 
         self.context = context
-        self.region,self.r3d  = context.region,context.space_data.region_3d
-        self.size = (context.region.width,context.region.height)
+        
+        if context.region and hasattr(context.space_data, 'region_3d'):
+            self.region = context.region
+            self.size = (context.region.width,context.region.height)
+            self.r3d = context.space_data.region_3d
+        
+        # # handle strange edge cases
+        # if not context.area:
+        #     #dprint('Context with no area')
+        #     #dprint(context)
+        #     return {'RUNNING_MODAL'}
+        # if not hasattr(context.space_data, 'region_3d'):
+        #     #dprint('context.space_data has no region_3d')
+        #     #dprint(context)
+        #     #dprint(context.space_data)
+        #     return {'RUNNING_MODAL'}
 
         self.timer = (event.type in {'TIMER'})
         if self.timer:
@@ -246,5 +268,5 @@ class RFContext_Actions:
         self.actions = Actions()
 
     def _process_event(self, context, event):
-        # if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
+        #if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
         self.actions.update(context, event, self.timer)
