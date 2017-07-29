@@ -21,12 +21,12 @@ class RFTool_Contours(RFTool):
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
     def description(self): return 'Contours!!'
-    
+
     def start(self):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))
         self.rfwidget.set_line_callback(self.line)
         self.update()
-        
+
         self.show_cut = False
         self.pts = []
         self.connected = False
@@ -59,24 +59,24 @@ class RFTool_Contours(RFTool):
             'count': len(string),
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop) for loop in sel_loops]
-    
+
     @RFTool.dirty_when_done
     def line(self):
         xy0,xy1 = self.rfwidget.line2D
         if (xy1-xy0).length < 0.001: return
-        
+
         plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
         ray = self.rfcontext.Point2D_to_Ray(xy0 + (xy1-xy0)/2)
-        
+
         crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
         if not crawl: return
         # get crawl data (over source)
         pts = [c for (f0,e,f1,c) in crawl]
         connected = crawl[0][0] is not None
         length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
-        
+
         self.rfcontext.undo_push('cut')
-        
+
         sel_edges = self.rfcontext.get_selected_edges()
         if connected:
             # find two closest selected loops, one on each side
@@ -131,10 +131,10 @@ class RFTool_Contours(RFTool):
         count = self.count  # default starting count
         if sel_loop_pos is not None: count = sel_loop_pos[2]
         if sel_loop_neg is not None: count = sel_loop_neg[2]
-        
+
         # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
-        
+
         def insert_verts_edges(dists, offset=0):
             nonlocal verts,edges,pts,connected
             i,dist = 0,dists[0]
@@ -152,7 +152,7 @@ class RFTool_Contours(RFTool):
             assert len(dists)==len(verts)
             for v0,v1 in iter_pairs(verts, connected):
                 edges += [self.rfcontext.new_edge((v0, v1))]
-        
+
         def bridge(loop):
             nonlocal faces, verts
             # find closest pair of verts between new loop and given loop
@@ -179,7 +179,7 @@ class RFTool_Contours(RFTool):
                 i2 = i3 + o3
                 faces += [self.rfcontext.new_face((get_vnew(i0), get_vnew(i1), get_vold(i2), get_vold(i3)))]
                 i0,i3 = i1,i2
-        
+
         # step_size is shrunk just a bit to account for floating point errors
         if sel_loop_pos and sel_loop_neg:
             step_size = length / (count - (0 if connected else 1)) * 0.999
@@ -193,20 +193,20 @@ class RFTool_Contours(RFTool):
         else:
             step_size = length / (count - (0 if connected else 1)) * 0.999
             dists = [step_size for i in range(count)]
-        
+
         insert_verts_edges(dists)
-        
+
         if sel_loop_pos: bridge(sel_loop_pos[0])
         if sel_loop_neg: bridge(sel_loop_neg[0])
-        
+
         #if sel_loop_pos:
         #    edges += edges_of_loop(sel_loops[sel_loop_pos[0]])
         #if sel_loop_neg:
         #    edges += edges_of_loop(sel_loops[sel_loop_neg[0]])
-        
+
         self.rfcontext.select(verts + edges, supparts=False) # + faces)
         self.update()
-        
+
         self.pts = pts
         self.connected = connected
 
@@ -220,7 +220,7 @@ class RFTool_Contours(RFTool):
             self.rfcontext.select_edge_loop(edge, only=True)
             self.update()
             return
-        
+
         if self.rfcontext.actions.pressed('select add'):
             edges = self.rfcontext.visible_edges()
             edge,_ = self.rfcontext.nearest2D_edge_mouse(edges=edges, max_dist=10)
@@ -228,7 +228,7 @@ class RFTool_Contours(RFTool):
             self.rfcontext.select_edge_loop(edge, only=False)
             self.update()
             return
-        
+
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
@@ -236,20 +236,20 @@ class RFTool_Contours(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
-            
-        
+
+
         if self.rfcontext.actions.pressed('increase count'):
             print('increasing count')
             return
         if self.rfcontext.actions.pressed('decrease count'):
             print('decreasing count')
             return
-    
+
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
-    
+
     @RFTool.dirty_when_done
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
@@ -265,7 +265,7 @@ class RFTool_Contours(RFTool):
         for bmv,xy in self.bmverts:
             set2D_crawl_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
-    
+
     def draw_postview(self):
         if self.show_cut:
             self.drawing.line_width(1.0)
@@ -275,14 +275,14 @@ class RFTool_Contours(RFTool):
                 bgl.glVertex3f(*pt)
             if self.connected: bgl.glVertex3f(*self.pts[0])
             bgl.glEnd()
-    
+
     def draw_postpixel(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
         self.rfcontext.drawing.text_size(12)
-        
+
         for loop_data in self.loops_data:
             loop = loop_data['loop']
             radius = loop_data['radius']
@@ -294,36 +294,7 @@ class RFTool_Contours(RFTool):
                 xy = max(cos, key=lambda co:co.y)
                 xy.y += 10
                 text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
-            
-            p0 = point_to_point2d(plane.o)
-            p1 = point_to_point2d(plane.o+plane.n*0.1)
-            if p0 and p1:
-                d = (p0 - p1) * 0.25
-                c = Vec2D((d.y,-d.x))
-                p2 = p1 + d + c
-                p3 = p1 + d - c
-                
-                self.drawing.line_width(2.0)
-                bgl.glColor4f(1,1,0,0.5)
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glVertex2f(*p0)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p2)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p3)
-                bgl.glEnd()
-        
-        for string_data in self.strings_data:
-            string = string_data['string']
-            count = string_data['count']
-            plane = string_data['plane']
-            cos = [point_to_point2d(vert.co) for vert in string]
-            cos = [co for co in cos if co]
-            if cos:
-                xy = max(cos, key=lambda co:co.y)
-                xy.y += 10
-                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
-            
+
             p0 = point_to_point2d(plane.o)
             p1 = point_to_point2d(plane.o+plane.n*0.1)
             if p0 and p1:
@@ -342,3 +313,31 @@ class RFTool_Contours(RFTool):
                 bgl.glVertex2f(*p3)
                 bgl.glEnd()
 
+        for string_data in self.strings_data:
+            string = string_data['string']
+            count = string_data['count']
+            plane = string_data['plane']
+            cos = [point_to_point2d(vert.co) for vert in string]
+            cos = [co for co in cos if co]
+            if cos:
+                xy = max(cos, key=lambda co:co.y)
+                xy.y += 10
+                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+
+            p0 = point_to_point2d(plane.o)
+            p1 = point_to_point2d(plane.o+plane.n*0.1)
+            if p0 and p1:
+                d = (p0 - p1) * 0.25
+                c = Vec2D((d.y,-d.x))
+                p2 = p1 + d + c
+                p3 = p1 + d - c
+                
+                self.drawing.line_width(2.0)
+                bgl.glColor4f(1,1,0,0.5)
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glVertex2f(*p0)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p2)
+                bgl.glVertex2f(*p1)
+                bgl.glVertex2f(*p3)
+                bgl.glEnd()

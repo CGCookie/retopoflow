@@ -180,7 +180,7 @@ class Direction(Vector, Entity3D):
         if t is Vec or t is Direction or t is Normal:
             return Vec(super().cross(Vector(other)))
         assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
-        
+
     def as_vector(self): return Vector(self)
     def from_vector(self, v):
         self.x,self.y,self.z = v
@@ -227,15 +227,15 @@ class Ray(Entity3D):
         else:
             om = o + max_dist * d
             self.max = (self.o - om).length
-    
+
     def __str__(self):
         return '<Ray (%0.4f, %0.4f, %0.4f)->(%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z,self.d.x,self.d.y,self.d.z)
-    
+
     def __repr__(self): return self.__str__()
-    
+
     def eval(self, t:float):
         return self.o + max(self.min, min(self.max, t)) * self.d
-    
+
     @classmethod
     def from_screenspace(cls, pos:Vector):
         # convert pos in screenspace to ray
@@ -246,26 +246,26 @@ class Plane(Entity3D):
     def __init__(self, o:Point, n:Normal):
         self.o = o
         self.n = n
-    
+
     def __str__(self):
         return '<Plane (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (self.o.x,self.o.y,self.o.z, self.n.x,self.n.y,self.n.z)
-    
+
     def __repr__(self): return self.__str__()
-    
+
     def side(self, p:Point):
         d = (p - self.o).dot(self.n)
         if abs(d) < 0.000001: return 0
         return -1 if d < 0 else 1
-    
+
     def distance_to(self, p:Point):
         return abs((p - self.o).dot(self.n))
-    
+
     def project(self, p:Point):
         return p + self.n * (self.o - p).dot(self.n)
-    
+
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
-    
+
     @profiler.profile
     def triangle_intersection(self, points):
         p0,p1,p2 = map(Point, points)
@@ -307,11 +307,11 @@ class Plane(Entity3D):
         if s1 == 0: return [(p1, p1)]
         p01 = intersect_line_plane(p0, p1, self.o, self.n)
         return [(p01, p01)]
-    
+
     def edge_crosses(self, points):
         p0,p1 = points
         return self.side(p0) != self.side(p1)
-    
+
     def edge_coplanar(self, points):
         p0,p1 = points
         return self.side(p0) == 0 and self.side(p1) == 0
@@ -319,7 +319,7 @@ class Plane(Entity3D):
 class Frame:
     @staticmethod
     def from_plane(plane:Plane): return Frame(plane.o, z=plane.n)
-    
+
     def __init__(self, o:Point, x:Direction=None, y:Direction=None, z:Direction=None):
         c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
         assert c!=0, "Must specify at least one direction"
@@ -352,12 +352,12 @@ class Frame:
                 x = Direction(y.cross(z).normalize())
                 z = Direction(x.cross(y).normalize())
                 y = Direction(z.cross(x).normalize())
-        
+
         self.o = o
         self.x = x
         self.y = y
         self.z = z
-        
+
         self.fn_l2w_typed = {
             Point:      self.l2w_point,
             Direction:  self.l2w_direction,
@@ -378,11 +378,11 @@ class Frame:
             # Plane:      self.w2l_plane,
             # BMVert:     self.w2l_bmvert,
         }
-    
+
     def _dot_fns(self): return self.x.dot,self.y.dot,self.z.dot
     def _dots(self, v): return (self.x.dot(v), self.y.dot(v), self.z.dot(v))
     def _mults(self, v): return self.x*v.x + self.y*v.y + self.z*v.z
-    
+
     def l2w_typed(self, data):
         ''' dispatched conversion '''
         t = type(data)
@@ -393,19 +393,19 @@ class Frame:
         t = type(data)
         assert t in self.fn_w2l_typed, "unhandled type of data: %s (%s)" % (str(data), str(type(data)))
         return self.fn_w2l_typed[t](data)
-    
+
     def w2l_point(self, p:Point)->Point: return Point(self._dots(p - self.o))
     def l2w_point(self, p:Point)->Point: return Point(self.o + self._mults(p))
-    
+
     def w2l_vector(self, v:Vector)->Vec: return Vec(self._dots(v))
     def l2w_vector(self, v:Vector)->Vec: return Vec(self._mults(v))
-    
+
     def w2l_direction(self, d:Direction)->Direction: return Direction(self._dots(d)).normalize()
     def l2w_direction(self, d:Direction)->Direction: return Direction(self._mults(d)).normalize()
-    
+
     def w2l_normal(self, n:Normal)->Normal: return Normal(self._dots(n)).normalize()
     def l2w_normal(self, n:Normal)->Normal: return Normal(self._mults(n)).normalize()
-    
+
     def rotate_about_z(self, radians:float):
         c,s = math.cos(radians),math.sin(radians)
         x,y = self.x,self.y
@@ -432,21 +432,21 @@ class XForm:
             m['imx_n'] = m['mx_d'].transposed()
             d[smat] = m
         return d[smat]
-    
+
     def __init__(self, mx:Matrix=None):
         stats['XForm'] += 1
         if mx is None: mx = Matrix()
         self.assign(mx)
-    
+
     def assign(self, mx):
         if type(mx) is XForm: return self.assign(mx.mx_p)
-        
+
         mats = XForm.get_mats(mx)
         self.mx_p,self.imx_p = mats['mx_p'],mats['imx_p']
         self.mx_d,self.imx_d = mats['mx_d'],mats['imx_d']
         self.mx_n,self.imx_n = mats['mx_n'],mats['imx_n']
         self.mx_t = mats['mx_t']
-        
+
         self.fn_l2w_typed = {
             Point:      lambda x: self.l2w_point(x),
             Direction:  lambda x: self.l2w_direction(x),
@@ -468,32 +468,32 @@ class XForm:
             BMVert:     lambda x: self.w2l_bmvert(x),
         }
         return self
-    
+
     def __str__(self):
         v = tuple(x for r in self.mx_p for x in r)
         return '<XForm (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
                '       (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
                '       (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
                '       (%0.4f, %0.4f, %0.4f, %0.4f)>' % v
-    
+
     def __repr__(self): return self.__str__()
-    
+
     def __mul__(self, other):
         t = type(other)
         if t is XForm:  return XForm(self.mx_p * other.mx_p)
         if t is Matrix: return XForm(self.mx_p * other)
         return self.l2w_typed(other)
-    
+
     def __imul__(self, other):
         self.assign(self.mx_p * (other.mx_p if type(other) is XForm else other))
-    
+
     def __truediv__(self, other):
         return self.w2l_typed(other)
-    
+
     def __iter__(self):
         for v in self.mx_p: yield v
-    
-    
+
+
     def l2w_typed(self, data):
         ''' dispatched conversion '''
         t = type(data)
@@ -504,19 +504,19 @@ class XForm:
         t = type(data)
         assert t in self.fn_w2l_typed, "unhandled type of data: %s (%s)" % (str(data), str(type(data)))
         return self.fn_w2l_typed[t](data)
-    
+
     def l2w_point(self, p:Point)->Point: return Point(self.mx_p * p)
     def w2l_point(self, p:Point)->Point: return Point(self.imx_p * p)
-    
+
     def l2w_direction(self, d:Direction)->Direction: return Direction(self.mx_d * d)
     def w2l_direction(self, d:Direction)->Direction: return Direction(self.imx_d * d)
-    
+
     def l2w_normal(self, n:Normal)->Normal: return Normal(self.mx_n * n)
     def w2l_normal(self, n:Normal)->Normal: return Normal(self.imx_n * n)
-    
+
     def l2w_vector(self, v:Vector)->Vec: return Vec(self.mx_d * v)
     def w2l_vector(self, v:Vector)->Vec: return Vec(self.imx_d * v)
-    
+
     def l2w_ray(self, ray:Ray)->Ray:
         o = self.l2w_point(ray.o)
         d = self.l2w_direction(ray.d)
@@ -533,15 +533,15 @@ class XForm:
         else:
             l1 = (o - self.w2l_point(ray.o + ray.max * ray.d)).length
         return Ray(o=o, d=d, max_dist=l1)
-    
+
     def l2w_plane(self, plane:Plane)->Plane:
         return Plane(o=self.l2w_point(plane.o), n=self.l2w_normal(plane.n))
     def w2l_plane(self, plane:Plane)->Plane:
         return Plane(o=self.w2l_point(plane.o), n=self.w2l_normal(plane.n))
-    
+
     def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
     def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
-    
+
     def to_bglMatrix(self):
         bglMatrix = bgl.Buffer(bgl.GL_FLOAT, [16])
         for i,v in enumerate([v for r in self.mx_t for v in r]):
@@ -564,12 +564,12 @@ class BBox:
         self.max = Point((Mx, My, Mz))
         self.mx,self.my,self.mz = mx,my,mz
         self.Mx,self.My,self.Mz = Mx,My,Mz
-    
+
     def __str__(self):
         return '<BBox (%0.4f, %0.4f, %0.4f) (%0.4f, %0.4f, %0.4f)>' % (self.mx, self.my, self.mz, self.Mx, self.My, self.Mz)
-    
+
     def __repr__(self): return self.__str__()
-    
+
     def Point_within(self, point:Point, margin=0):
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
 

@@ -40,7 +40,7 @@ def next_edge_in_string(edge0, vert01, ignore_two_faced=False):
 def find_loops(edges):
     if not edges: return []
     touched,loops = set(),[]
-    
+
     def crawl(v0, edge01, vert_list):
         nonlocal edges, touched
         # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
@@ -52,19 +52,19 @@ def find_loops(edges):
         edge12 = next_edge_in_string(edge01, v1)
         if not edge12 or edge12 in touched or edge12 not in edges: return []
         return crawl(v1, edge12, vert_list)
-    
+
     for edge in edges:
         if edge in touched: continue
         vert_list = crawl(edge.verts[0], edge, [])
         if vert_list:
             loops.append(vert_list)
-    
+
     return loops
 
 def find_strings(edges, min_length=4):
     if not edges: return []
     touched,strings = set(),[]
-    
+
     def crawl(v0, edge01, vert_list):
         nonlocal edges, touched
         # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
@@ -76,14 +76,14 @@ def find_strings(edges, min_length=4):
         edge12 = next_edge_in_string(edge01, v1)
         if not edge12 or edge12 not in edges: return vert_list + [v1]
         return crawl(v1, edge12, vert_list)
-    
+
     for edge in edges:
         if edge in touched: continue
         vert_list0 = crawl(edge.verts[0], edge, [])
         vert_list1 = crawl(edge.verts[1], edge, [])
         vert_list = list(reversed(vert_list0)) + vert_list1[2:]
         if len(vert_list) >= min_length: strings.append(vert_list)
-    
+
     return strings
 
 def find_cycles(edges, max_loops=10):
@@ -92,9 +92,9 @@ def find_cycles(edges, max_loops=10):
     # then, find all the junctions (verts with more than two connected edges)
     # sequence of edges between junctions can be reduced to single edge
     # find cycles in graph
-    
+
     if not edges: return []
-    
+
     vert_edges = {}
     for edge in edges:
         v0,v1 = edge.verts
@@ -191,10 +191,10 @@ class Contours_Loop:
         self.frame = Frame.from_plane(self.plane)
         self.pts = [bmv.co for bmv in self.verts]
         self.pts_local = [self.frame.w2l_point(pt) for pt in self.pts]
-        
+
         self.radius = sum(pt.length for pt in self.pts_local) / self.count
         self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, True)]
         self.length = sum(self.dists)
-    
+
     def move_2D(self, xy_delta:Vec2D):
         pass
