@@ -478,8 +478,9 @@ class UI_Padding(UI_Element):
 class UI_Window(UI_Padding):
     margin = 5
     
-    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5):
+    def __init__(self, label, pos:Point2D=None, sticky=None, vertical=True, padding=5, movable=True):
         super().__init__(padding=padding)
+        self.movable = movable
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
         self.hbf_label = UI_Label(label, align=0)
@@ -578,7 +579,7 @@ class UI_Window(UI_Padding):
         if not ui_hover: return
         set_cursor('DEFAULT')
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
-            if ui_hover in self.ui_grab:
+            if self.movable and ui_hover in self.ui_grab:
                 self.mouse_down = self.mouse
                 self.mouse_prev = self.mouse
                 self.pos_prev = self.pos
