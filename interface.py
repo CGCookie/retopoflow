@@ -19,7 +19,7 @@ class CGCOOKIE_OT_retopoflow_panel(bpy.types.Panel):
 
         # explicitly call to check for update in background
         # note: built-in checks ensure it runs at most once
-        addon_updater_ops.check_for_update_background(context)
+        addon_updater_ops.check_for_update_background()
 
         settings = common_utilities.get_settings()
         
