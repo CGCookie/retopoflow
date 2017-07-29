@@ -239,13 +239,6 @@ class UI_Label(UI_Element):
             self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
 
 
-class UI_Button(UI_Label):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
-        super().__init__(label, icon=icon, tooltip=tooltip, color=color, align=align)
-        self.fn_callback = fn_callback
-    def mouse_up(self, mouse):
-        self.fn_callback()
-
 
 class UI_Rule(UI_Element):
     def __init__(self, thickness=2, padding=0, color=(1.0,1.0,1.0,0.25)):
@@ -317,6 +310,51 @@ class UI_Container(UI_Element):
         return ui_item
 
 
+class UI_Button(UI_Container):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+        super().__init__()
+        self.add(UI_Label(label, icon=icon, tooltip=tooltip, color=color, align=align))
+        self.fn_callback = fn_callback
+        self.pressed = False
+    
+    def mouse_down(self, mouse):
+        self.pressed = True
+    def mouse_move(self, mouse):
+        self.pressed = self.hover_ui(mouse) is not None
+    def mouse_up(self, mouse):
+        if self.pressed: self.fn_callback()
+        self.pressed = False
+    
+    def hover_ui(self, mouse):
+        return self if super().hover_ui(mouse) else None
+    
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.line_width(1)
+        bgl.glColor4f(0,0,0,0.1)
+        
+        if self.pressed:
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l,t)
+        bgl.glVertex2f(l,t-h)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glVertex2f(l+w,t)
+        bgl.glVertex2f(l,t)
+        bgl.glEnd()
+        super()._draw()
+    
+
+
+
 
 class UI_Options(UI_Container):
     def __init__(self, fn_callback):
@@ -357,6 +395,7 @@ class UI_Options(UI_Container):
                     bgl.glVertex2f(l+w,t)
                     bgl.glEnd()
                 super()._draw()
+        
         option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
         super().add(option)
         self.options[option] = label
@@ -379,6 +418,21 @@ class UI_Options(UI_Container):
         ui = super().hover_ui(mouse)
         if ui is None or ui == self: return
         self.set_option(self.options[ui])
+    
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.line_width(1)
+        bgl.glColor4f(0,0,0,0.1)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l,t)
+        bgl.glVertex2f(l,t-h)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glVertex2f(l+w,t)
+        bgl.glVertex2f(l,t)
+        bgl.glEnd()
+        super()._draw()
 
 
 class UI_Image(UI_Element):
@@ -527,7 +581,7 @@ class UI_Checkbox(UI_Container):
 class UI_IntValue(UI_Container):
     def __init__(self, label, fn_get_value, fn_set_value):
         super().__init__(vertical=False)
-        self.margin = 0
+        # self.margin = 0
         self.lbl = UI_Label(label)
         self.val = UI_Label(fn_get_value())
         self.add(self.lbl)
@@ -550,6 +604,21 @@ class UI_IntValue(UI_Container):
     
     def predraw(self):
         self.val.set_label(self.fn_get_value())
+    
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.line_width(1)
+        bgl.glColor4f(0,0,0,0.1)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l,t)
+        bgl.glVertex2f(l,t-h)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glVertex2f(l+w,t)
+        bgl.glVertex2f(l,t)
+        bgl.glEnd()
+        super()._draw()
 
 
 class UI_HBFContainer(UI_Container):
@@ -704,6 +773,8 @@ class UI_Window(UI_Padding):
         self.FSM['move'] = self.modal_move
         self.FSM['down'] = self.modal_down
         self.state = 'main'
+        
+        self.win_width,self.win_height = 1,1
     
     def show(self): self.visible = True
     def hide(self): self.visible = False
@@ -777,7 +848,8 @@ class UI_Window(UI_Padding):
         self.draw(l, t, w, h)
     
     def modal(self, context, event):
-        self.win_width,self.win_height = context.region.width,context.region.height
+        if context.region:
+            self.win_width,self.win_height = context.region.width,context.region.height
         self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.context = context
         self.event = event

@@ -20,6 +20,8 @@ from ..common.ui import (
 
 
 class RFContext_Drawing:
+    def quit(self): self.exit = True
+    
     def set_symmetry(self, axis, enable):
         if enable: self.rftarget.enable_symmetry(axis)
         else: self.rftarget.disable_symmetry(axis)
@@ -43,6 +45,7 @@ class RFContext_Drawing:
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label,ui_options))
         self.tool_window.add(self.tool_selection)
+        self.tool_window.add(UI_Button('Exit', self.quit, align=0))
         
         self.window_debug = self.window_manager.create_window('Debug', {'sticky':1, 'vertical':False, 'visible':True})
         self.window_debug_fps = UI_Label('fps: 0.00')

@@ -169,11 +169,12 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
 
         self.fps_time = time.time()
         self.frames = 0
-
         self.timer = None
         self.time_to_save = None
         self.fps = 0
         self.show_fps = True
+
+        self.exit = False
 
         pr.done()
         profiler.printout()
@@ -337,7 +338,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 
-        if self.actions.using('maximize area'):
+        if self.actions.using('window actions'):
             return {'pass'}
 
         if self.actions.using('autosave'):
@@ -372,12 +373,13 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         ret = self.window_manager.modal(context, event)
         if 'hover' in ret:
             self.rfwidget.clear()
+            if self.exit: return {'confirm'}
             return {}
 
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
 
-        if self.actions.pressed('done'):
+        if self.actions.pressed('done') or self.exit:
             # all done!
             return {'confirm'}
 
