@@ -318,7 +318,8 @@ class Plane(Entity3D):
 
 class Frame:
     @staticmethod
-    def from_plane(plane:Plane): return Frame(plane.o, z=plane.n)
+    def from_plane(plane:Plane, x:Direction=None, y:Direction=None):
+        return Frame(plane.o, x=x, y=y, z=Direction(plane.n))
 
     def __init__(self, o:Point, x:Direction=None, y:Direction=None, z:Direction=None):
         c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
@@ -350,8 +351,8 @@ class Frame:
                 z = Direction(x.cross(y).normalize())
             else:
                 x = Direction(y.cross(z).normalize())
-                z = Direction(x.cross(y).normalize())
                 y = Direction(z.cross(x).normalize())
+                z = Direction(z).normalize()
 
         self.o = o
         self.x = x

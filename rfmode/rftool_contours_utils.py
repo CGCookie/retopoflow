@@ -4,7 +4,11 @@ import math
 from itertools import chain
 from mathutils import Vector
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame
+from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
+
+def to_point(item):
+    if type(item) is Point: return item
+    return item.co
 
 def iter_pairs(items, wrap):
     for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
@@ -143,12 +147,12 @@ def edges_of_loop(vert_loop):
 def loop_plane(vert_loop):
     # average co is pt on plane
     # average cross product (point in same direction) is normal
-    pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
+    pt = sum((Vector(to_point(vert)) for vert in vert_loop), Vector()) / len(vert_loop)
     n,cnt = None,0
     for i0,vert0 in enumerate(vert_loop[:-1]):
-        v0 = vert0.co - pt
+        v0 = to_point(vert0) - pt
         for vert1 in vert_loop[i0+1:]:
-            v1 = vert1.co - pt
+            v1 = to_point(vert1) - pt
             c = Vec(v0.cross(v1)).normalize()
             if cnt == 0: n = c
             else:
@@ -158,12 +162,12 @@ def loop_plane(vert_loop):
     return Plane(pt, Normal(n).normalize())
 
 def loop_radius(vert_loop):
-    pt = sum((Vector(vert.co) for vert in vert_loop), Vector()) / len(vert_loop)
-    rad = sum((vert.co - pt).length for vert in vert_loop) / len(vert_loop)
+    pt = sum((Vector(to_point(vert)) for vert in vert_loop), Vector()) / len(vert_loop)
+    rad = sum((to_point(vert) - pt).length for vert in vert_loop) / len(vert_loop)
     return rad
 
 def loop_length(vert_loop):
-    return sum((v0.co-v1.co).length for v0,v1 in zip(vert_loop, chain(vert_loop[1:], vert_loop[:1])))
+    return sum((to_point(v0)-to_point(v1)).length for v0,v1 in zip(vert_loop, chain(vert_loop[1:], vert_loop[:1])))
 
 def loops_connected(vert_loop0, vert_loop1):
     if not vert_loop0 or not vert_loop1: return False
@@ -180,24 +184,59 @@ def faces_between_loops(vert_loop0, vert_loop1):
     return [f for v0 in vert_loop0 for f in v0.link_faces if any(fv in loop1 for fv in f.verts)]
 
 def string_length(vert_loop):
-    return sum((v0.co-v1.co).length for v0,v1 in zip(vert_loop[:-1], vert_loop[1:]))
+    return sum((to_point(v0)-to_point(v1)).length for v0,v1 in zip(vert_loop[:-1], vert_loop[1:]))
 
 def project_loop_to_plane(vert_loop, plane):
-    return [plane.project(v.co) for v in vert_loop]
+    return [plane.project(to_point(v)) for v in vert_loop]
 
 
 class Contours_Loop:
     def __init__(self, vert_loop):
+        self.set_vert_loop(vert_loop)
+    
+    def __str__(self):
+        return '<Contours_Loop: %s>' % str(self.verts)
+
+    def set_vert_loop(self, vert_loop):
         self.verts = vert_loop
+        self.pts = [to_point(bmv) for bmv in self.verts]
         self.count = len(self.verts)
         self.plane = loop_plane(self.verts)
-        self.frame = Frame.from_plane(self.plane)
-        self.pts = [bmv.co for bmv in self.verts]
+        self.up_dir = Direction(self.pts[0] - self.plane.o).normalize()
+        self.frame = Frame.from_plane(self.plane, y=self.up_dir)
         self.pts_local = [self.frame.w2l_point(pt) for pt in self.pts]
 
         self.radius = sum(pt.length for pt in self.pts_local) / self.count
         self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, True)]
         self.length = sum(self.dists)
 
+    def get_origin(self): return self.plane.o
+    def get_normal(self): return self.plane.n
+    def get_local_by_index(self, idx): return self.pts_local[idx]
+    def w2l_point(self, co): return self.frame.w2l_point(to_point(co))
+    def get_index_of_top(self, pts):
+        ys = map(self.w2l_point, pts)
+        i,_ = max(enumerate(ys), key=lambda iy:iy[1].y)
+        return i
+
+    def align_to(self, other):
+        opposite = self.get_normal().dot(other.get_normal()) < 0
+        vert_loop = list(reversed(self.verts)) if opposite else self.verts
+        rot_by = other.get_index_of_top(vert_loop)
+        vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
+        self.set_vert_loop(vert_loop)
+    
+    def get_closest_point(self, point):
+        point = to_point(point)
+        cp,cd = None,None
+        for p0,p1 in iter_pairs(self.pts, wrap=True):
+            diff = p1 - p0
+            l = diff.length
+            d = diff / l
+            pp = p0 + d * max(0, min(l, (point - p0).dot(d)))
+            dist = (point - pp).length
+            if not cp or dist < cd: cp,cd = pp,dist
+        return cp
+    
     def move_2D(self, xy_delta:Vec2D):
         pass
