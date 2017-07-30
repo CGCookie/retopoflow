@@ -35,6 +35,7 @@ class Actions:
         'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
         'alt action': {'SHIFT+LEFTMOUSE'},
+        # 'action alt1': {'CTRL+LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},

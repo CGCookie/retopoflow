@@ -64,6 +64,9 @@ class RFContext_Drawing:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)
 
+    def get_view_version(self):
+        m = self.actions.r3d.view_matrix
+        return [v for r in m for v in r]
 
     def draw_postpixel(self):
         if not self.actions.r3d: return

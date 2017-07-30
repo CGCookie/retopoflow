@@ -199,6 +199,9 @@ class RFContext_Target:
 
     def dirty(self):
         self.rftarget.dirty()
+    
+    def get_target_version(self):
+        return self.rftarget.get_version()
 
     ###################################################
 

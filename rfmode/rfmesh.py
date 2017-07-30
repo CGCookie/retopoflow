@@ -122,6 +122,9 @@ class RFMesh():
 
     def clean(self):
         pass
+    
+    def get_version(self):
+        return self.version
 
     def get_bvh(self):
         if not hasattr(self, 'bvh') or self.bvh_version != self.version:
