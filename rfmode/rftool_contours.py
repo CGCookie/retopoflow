@@ -211,6 +211,18 @@ class RFTool_Contours(RFTool):
                 verts += [self.rfcontext.new_vert_point(pm)]
             for v0,v1 in iter_pairs(verts, connected):
                 edges += [self.rfcontext.new_edge((v0, v1))]
+        elif cl_pos:
+            for pt in cl_pos.get_points_relative_to(cl_cut):
+                pt = cl_cut.get_closest_point(pt)
+                verts += [self.rfcontext.new_vert_point(pt)]
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
+        elif cl_neg:
+            for pt in cl_neg.get_points_relative_to(cl_cut):
+                pt = cl_cut.get_closest_point(pt)
+                verts += [self.rfcontext.new_vert_point(pt)]
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
         else:
             insert_verts_edges(cl_cut.pts, dists, connected)
 

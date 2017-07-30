@@ -7,7 +7,8 @@ from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
 
 def to_point(item):
-    if type(item) is Point: return item
+    t = type(item)
+    if t is Point or t is Vector: return item
     return item.co
 
 def iter_pairs(items, wrap):
@@ -214,6 +215,7 @@ class Contours_Loop:
     def get_normal(self): return self.plane.n
     def get_local_by_index(self, idx): return self.pts_local[idx]
     def w2l_point(self, co): return self.frame.w2l_point(to_point(co))
+    def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
         ys = map(self.w2l_point, pts)
         i,_ = max(enumerate(ys), key=lambda iy:iy[1].y)
@@ -237,6 +239,10 @@ class Contours_Loop:
             dist = (point - pp).length
             if not cp or dist < cd: cp,cd = pp,dist
         return cp
+    
+    def get_points_relative_to(self, other):
+        scale = other.radius / self.radius
+        return [other.l2w_point(Vector(pt) * scale) for pt in self.pts_local]
     
     def move_2D(self, xy_delta:Vec2D):
         pass
