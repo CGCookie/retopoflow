@@ -47,12 +47,10 @@ class RFContext_Drawing:
         self.tool_window.add(self.tool_selection)
         self.tool_window.add(UI_Button('Exit', self.quit, align=0))
         
-        self.window_debug = self.window_manager.create_window('Debug', {'sticky':1, 'vertical':False, 'visible':True})
-        self.window_debug_fps = UI_Label('fps: 0.00')
-        self.window_debug_save = UI_Label('save: inf')
-        self.window_debug.add(self.window_debug_fps)
-        self.window_debug.add(UI_Spacer(width=10))
-        self.window_debug.add(self.window_debug_save)
+        window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
+        info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
+        self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
+        self.window_debug_save = info_debug.add(UI_Label('save: inf'))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', vertical=False))

@@ -301,23 +301,24 @@ class RFTool_Contours(RFTool):
                 xy.y += 10
                 text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
 
-            p0 = point_to_point2d(plane.o)
-            p1 = point_to_point2d(plane.o+plane.n*0.1)
-            if p0 and p1:
-                d = (p0 - p1) * 0.25
-                c = Vec2D((d.y,-d.x))
-                p2 = p1 + d + c
-                p3 = p1 + d - c
-                
-                self.drawing.line_width(2.0)
-                bgl.glColor4f(1,1,0,0.5)
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glVertex2f(*p0)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p2)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p3)
-                bgl.glEnd()
+            if False:
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                if p0 and p1:
+                    d = (p0 - p1) * 0.25
+                    c = Vec2D((d.y,-d.x))
+                    p2 = p1 + d + c
+                    p3 = p1 + d - c
+                    
+                    self.drawing.line_width(2.0)
+                    bgl.glColor4f(1,1,0,0.5)
+                    bgl.glBegin(bgl.GL_LINE_STRIP)
+                    bgl.glVertex2f(*p0)
+                    bgl.glVertex2f(*p1)
+                    bgl.glVertex2f(*p2)
+                    bgl.glVertex2f(*p1)
+                    bgl.glVertex2f(*p3)
+                    bgl.glEnd()
 
         for string_data in self.strings_data:
             string = string_data['string']
