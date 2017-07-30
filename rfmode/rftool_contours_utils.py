@@ -49,7 +49,10 @@ def find_loops(edges):
         touched.add(edge01)
         v1 = edge01.other_vert(v0)
         if v1 == vert_list[0]: return vert_list
-        edge12 = next_edge_in_string(edge01, v1)
+        next_edges = [e for e in v1.link_edges if e in edges and e != edge01]
+        if not next_edges: return []
+        if len(next_edges) == 1: edge12 = next_edges[0]
+        else: edge12 = next_edge_in_string(edge01, v1)
         if not edge12 or edge12 in touched or edge12 not in edges: return []
         return crawl(v1, edge12, vert_list)
 
