@@ -327,37 +327,34 @@ class Frame:
         if c == 1:
             if x:
                 y = Direction((-x.x + 3.14, x.y + 42, x.z - 1.61))
-                z = Direction(x.cross(y).normalize())
-                y = Direction(z.cross(x).normalize())
-                x.normalize()
+                z = Direction(x.cross(y))
+                y = Direction(z.cross(x))
             elif y:
                 x = Direction((-y.x + 3.14, y.y + 42, y.z - 1.61))
-                z = Direction(x.cross(y).normalize())
-                x = Direction(y.cross(z).normalize())
-                y.normalize()
+                z = Direction(x.cross(y))
+                x = Direction(y.cross(z))
             else:
                 x = Direction((-z.x + 3.14, z.y + 42, z.z - 1.61))
-                y = Direction(-x.cross(z).normalize())
-                x = Direction(y.cross(z).normalize())
-                z.normalize()
+                y = Direction(-x.cross(z))
+                x = Direction(y.cross(z))
         elif c >= 2:
             if x and y:
-                z = Direction(x.cross(y).normalize())
-                y = Direction(z.cross(x).normalize())
-                x = Direction(y.cross(z).normalize())
+                z = Direction(x.cross(y))
+                y = Direction(z.cross(x))
+                x = Direction(y.cross(z))
             elif x and z:
-                y = Direction(z.cross(x).normalize())
-                x = Direction(y.cross(z).normalize())
-                z = Direction(x.cross(y).normalize())
+                y = Direction(z.cross(x))
+                x = Direction(y.cross(z))
+                z = Direction(x.cross(y))
             else:
-                x = Direction(y.cross(z).normalize())
-                y = Direction(z.cross(x).normalize())
-                z = Direction(z).normalize()
+                x = Direction(y.cross(z))
+                y = Direction(z.cross(x))
+                z = Direction(z)
 
         self.o = o
-        self.x = x
-        self.y = y
-        self.z = z
+        self.x = x.normalize()
+        self.y = y.normalize()
+        self.z = z.normalize()
 
         self.fn_l2w_typed = {
             Point:      self.l2w_point,

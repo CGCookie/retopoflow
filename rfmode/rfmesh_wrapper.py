@@ -1,6 +1,6 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice
+from bmesh.utils import edge_split, vert_splice, face_split
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -193,3 +193,12 @@ class RFFace(BMElemWrapper):
     @property
     def verts(self):
         return [RFVert(bmv) for bmv in self.bmelem.verts]
+    
+    #############################################
+    
+    def split(self, vert_a, vert_b):
+        bmf = BMElemWrapper._unwrap(self)
+        bmva = BMElemWrapper._unwrap(vert_a)
+        bmvb = BMElemWrapper._unwrap(vert_b)
+        bmf_new,bml_new = face_split(bmf, bmva, bmvb)
+        return RFFace(bmf_new)

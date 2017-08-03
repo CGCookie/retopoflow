@@ -6,6 +6,21 @@ from mathutils import Vector
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
 
+
+def draw2D_arrow(p0:Point2D, p1:Point2D):
+    d = (p0 - p1) * 0.25
+    c = Vec2D((d.y,-d.x))
+    p2 = p1 + d + c
+    p3 = p1 + d - c
+    
+    bgl.glBegin(bgl.GL_LINE_STRIP)
+    bgl.glVertex2f(*p0)
+    bgl.glVertex2f(*p1)
+    bgl.glVertex2f(*p2)
+    bgl.glVertex2f(*p1)
+    bgl.glVertex2f(*p3)
+    bgl.glEnd()
+
 def to_point(item):
     t = type(item)
     if t is Point or t is Vector: return item
@@ -205,25 +220,24 @@ class Contours_Loop:
         self.plane = loop_plane(self.verts)
         self.up_dir = Direction(self.pts[0] - self.plane.o).normalize()
         self.frame = Frame.from_plane(self.plane, y=self.up_dir)
-        self.pts_local = [self.frame.w2l_point(pt) for pt in self.pts]
 
-        self.radius = sum(pt.length for pt in self.pts_local) / self.count
         self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, True)]
         self.length = sum(self.dists)
-
+        self.radius = sum(self.w2l_point(pt).length for pt in self.pts) / self.count
+    
     def get_origin(self): return self.plane.o
     def get_normal(self): return self.plane.n
-    def get_local_by_index(self, idx): return self.pts_local[idx]
+    def get_local_by_index(self, idx): return self.w2l_point(self.pts[idx])
     def w2l_point(self, co): return self.frame.w2l_point(to_point(co))
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
         ys = map(self.w2l_point, pts)
-        i,_ = max(enumerate(ys), key=lambda iy:iy[1].y)
+        i,_ = max(enumerate(ys), key=lambda iy:iy[1].y / iy[1].length)
         return i
 
     def align_to(self, other):
-        opposite = self.get_normal().dot(other.get_normal()) < 0
-        vert_loop = list(reversed(self.verts)) if opposite else self.verts
+        is_opposite = self.get_normal().dot(other.get_normal()) < 0
+        vert_loop = list(reversed(self.verts)) if is_opposite else self.verts
         rot_by = other.get_index_of_top(vert_loop)
         vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         self.set_vert_loop(vert_loop)
@@ -242,7 +256,7 @@ class Contours_Loop:
     
     def get_points_relative_to(self, other):
         scale = other.radius / self.radius
-        return [other.l2w_point(Vector(pt) * scale) for pt in self.pts_local]
+        return [other.l2w_point(Vector(self.w2l_point(pt)) * scale) for pt in self.pts]
     
     def move_2D(self, xy_delta:Vec2D):
         pass

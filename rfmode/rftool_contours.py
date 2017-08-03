@@ -27,9 +27,10 @@ class RFTool_Contours(RFTool):
         self.rfwidget.set_line_callback(self.line)
         self.update()
 
-        self.show_cut = False
+        self.show_cut = True
         self.pts = []
         self.connected = False
+        self.cuts = []
     
     def get_count(self): return self.count
     def set_count(self, v): self.count = max(3, v)
@@ -52,6 +53,7 @@ class RFTool_Contours(RFTool):
             'plane': loop_plane(loop),
             'count': len(loop),
             'radius': loop_radius(loop),
+            'cl': Contours_Loop(loop),
             } for loop in sel_loops]
         self.strings_data = [{
             'string': string,
@@ -73,8 +75,9 @@ class RFTool_Contours(RFTool):
         # get crawl data (over source)
         pts = [c for (f0,e,f1,c) in crawl]
         connected = crawl[0][0] is not None
-        length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
+        # length = sum((c0-c1).length for c0,c1 in iter_pairs(pts, connected))
         cl_cut = Contours_Loop(pts)
+        length = cl_cut.length
 
         self.rfcontext.undo_push('cut')
 
@@ -101,14 +104,6 @@ class RFTool_Contours(RFTool):
                         sel_loop_neg = None
                     else:
                         sel_loop_pos = None
-                else:
-                    # ************************************
-                    # ************************************
-                    # TODO: DO **NOT** DELETE, BUT CUT IN!
-                    # ************************************
-                    # ************************************
-                    edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
-                    self.rfcontext.delete_edges(edges_between)
         else:
             # find two closest selected strings, one on each side
             sel_strings = find_strings(sel_edges)
@@ -134,6 +129,28 @@ class RFTool_Contours(RFTool):
             sel_loop_pos = None
             sel_loop_neg = None
         
+        if connected and sel_loop_pos and sel_loop_neg:
+            edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
+            if edges_between:
+                if True:
+                    # ************************************
+                    # ************************************
+                    # TODO: DO **NOT** DELETE, BUT CUT IN!
+                    # ************************************
+                    # ************************************
+                    edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
+                    self.rfcontext.delete_edges(edges_between)
+                else:
+                    verts = [edge.split()[1] for edge in edges_between]
+                    edges = []
+                    for v0,v1 in iter_pairs(verts, wrap=True):
+                        bmf0 = next(iter(set(v0.link_faces) & set(v1.link_faces)))
+                        bmf1 = bmf0.split(v0,v1)
+                        v0.co = cl_cut.get_closest_point(v0.co)
+                        edges += list(set(bmf0.edges) & set(bmf1.edges))
+                    self.rfcontext.select(edges, supparts=False, only=False)
+                    return
+        
         count = self.count  # default starting count
         if sel_loop_pos is not None: count = sel_loop_pos[2]
         if sel_loop_neg is not None: count = sel_loop_neg[2]
@@ -158,10 +175,48 @@ class RFTool_Contours(RFTool):
         # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
 
-        def insert_verts_edges(pts, dists, connected, offset=0):
-            nonlocal verts, edges
-            i,dist = 0,0 # dists[0]
-            for c0,c1 in iter_pairs(pts, connected):
+        def bridge(loop):
+            nonlocal faces, verts
+            l = len(loop)
+            def get_vnew(i): return verts[((i%l)+l)%l]
+            def get_vold(i): return loop[((i%l)+l)%l]
+            i0,i3 = 0,0
+            o0,o3 = 1,1
+            for ind in range(l):
+                i1 = i0 + o0
+                i2 = i3 + o3
+                faces += [self.rfcontext.new_face((get_vnew(i0), get_vnew(i1), get_vold(i2), get_vold(i3)))]
+                i0,i3 = i1,i2
+
+        self.pts = []
+        self.cuts = [cl_cut]
+        if cl_pos: self.cuts += [cl_pos]
+        if cl_neg: self.cuts += [cl_neg]
+        if cl_pos and cl_neg:
+            for p0,p1 in zip(cl_pos.pts, cl_neg.pts):
+                p01 = p0 + (p1 - p0) / 2
+                self.pts += [p01]
+                pm = cl_cut.get_closest_point(p01)
+                verts += [self.rfcontext.new_vert_point(pm)]
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
+        elif cl_pos:
+            for pt in cl_pos.get_points_relative_to(cl_cut):
+                self.pts += [pt]
+                pt = cl_cut.get_closest_point(pt)
+                verts += [self.rfcontext.new_vert_point(pt)]
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
+        elif cl_neg:
+            for pt in cl_neg.get_points_relative_to(cl_cut):
+                self.pts += [pt]
+                pt = cl_cut.get_closest_point(pt)
+                verts += [self.rfcontext.new_vert_point(pt)]
+            for v0,v1 in iter_pairs(verts, connected):
+                edges += [self.rfcontext.new_edge((v0, v1))]
+        else:
+            i,dist = 0,0
+            for c0,c1 in iter_pairs(cl_cut.pts, connected):
                 d = (c1-c0).length
                 while dist - d <= 0:
                     # create new vert between c0 and c1
@@ -176,56 +231,6 @@ class RFTool_Contours(RFTool):
             for v0,v1 in iter_pairs(verts, connected):
                 edges += [self.rfcontext.new_edge((v0, v1))]
 
-        def bridge(loop):
-            nonlocal faces, verts
-            # find closest pair of verts between new loop and given loop
-            # vert_pair,dist = None,None
-            # for i0,v0 in enumerate(verts):
-            #     for i1,v1 in enumerate(loop):
-            #         d = (v0.co - v1.co).length
-            #         if vert_pair is None or d < dist:
-            #             vert_pair,dist = (i0,i1),d
-            l = len(loop)
-            def get_vnew(i): return verts[((i%l)+l)%l]
-            def get_vold(i): return loop[((i%l)+l)%l]
-            # i0,i3 = vert_pair
-            # dirs = [
-            #     (1,1,(get_vnew(i0+1).co - get_vold(i3+1).co).length),
-            #     (1,-1,(get_vnew(i0+1).co - get_vold(i3-1).co).length),
-            #     (-1,1,(get_vnew(i0-1).co - get_vold(i3+1).co).length),
-            #     (-1,-1,(get_vnew(i0-1).co - get_vold(i3-1).co).length),
-            #     ]
-            # dirs.sort(key=lambda x:x[2])
-            # o0,o3,_ = dirs[0]
-            i0,i3 = 0,0
-            o0,o3 = 1,1
-            for ind in range(l):
-                i1 = i0 + o0
-                i2 = i3 + o3
-                faces += [self.rfcontext.new_face((get_vnew(i0), get_vnew(i1), get_vold(i2), get_vold(i3)))]
-                i0,i3 = i1,i2
-
-        if cl_pos and cl_neg:
-            for p0,p1 in zip(cl_pos.pts, cl_neg.pts):
-                pm = cl_cut.get_closest_point(p0 + (p1-p0)/2)
-                verts += [self.rfcontext.new_vert_point(pm)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        elif cl_pos:
-            for pt in cl_pos.get_points_relative_to(cl_cut):
-                pt = cl_cut.get_closest_point(pt)
-                verts += [self.rfcontext.new_vert_point(pt)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        elif cl_neg:
-            for pt in cl_neg.get_points_relative_to(cl_cut):
-                pt = cl_cut.get_closest_point(pt)
-                verts += [self.rfcontext.new_vert_point(pt)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        else:
-            insert_verts_edges(cl_cut.pts, dists, connected)
-
         if sel_loop_pos: bridge(cl_pos.verts) # sel_loop_pos[0])
         if sel_loop_neg: bridge(cl_neg.verts) #sel_loop_neg[0])
 
@@ -239,7 +244,7 @@ class RFTool_Contours(RFTool):
         #if sel_loop_neg: self.rfcontext.select(sel_loop_neg[0], supparts=False, only=False)
         self.update()
 
-        self.pts = cl_cut.pts
+        # self.pts = cl_cut.pts
         self.connected = connected
 
     def modal_main(self):
@@ -305,7 +310,7 @@ class RFTool_Contours(RFTool):
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_postview(self):
-        if self.show_cut:
+        if self.show_cut and self.pts:
             self.drawing.line_width(1.0)
             bgl.glColor4f(1,1,0,1)
             bgl.glBegin(bgl.GL_LINE_STRIP)
@@ -326,6 +331,7 @@ class RFTool_Contours(RFTool):
             radius = loop_data['radius']
             count = loop_data['count']
             plane = loop_data['plane']
+            cl = loop_data['cl']
             cos = [point_to_point2d(vert.co) for vert in loop]
             cos = [co for co in cos if co]
             if cos:
@@ -333,23 +339,29 @@ class RFTool_Contours(RFTool):
                 xy.y += 10
                 text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
 
+            # self.drawing.line_width(2.0)
+            # p0 = point_to_point2d(plane.o)
+            # p1 = point_to_point2d(plane.o+plane.n*0.1)
+            # if p0 and p1:
+            #     bgl.glColor4f(1,1,0,0.5)
+            #     draw2D_arrow(p0, p1)
+            # p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+            # if p0 and p1:
+            #     bgl.glColor4f(1,0,1,0.5)
+            #     draw2D_arrow(p0, p1)
+
+        for cl in self.cuts:
+            plane = cl.plane
+            self.drawing.line_width(2.0)
             p0 = point_to_point2d(plane.o)
             p1 = point_to_point2d(plane.o+plane.n*0.1)
             if p0 and p1:
-                d = (p0 - p1) * 0.25
-                c = Vec2D((d.y,-d.x))
-                p2 = p1 + d + c
-                p3 = p1 + d - c
-                
-                self.drawing.line_width(2.0)
                 bgl.glColor4f(1,1,0,0.5)
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glVertex2f(*p0)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p2)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p3)
-                bgl.glEnd()
+                draw2D_arrow(p0, p1)
+            p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+            if p0 and p1:
+                bgl.glColor4f(1,0,1,0.5)
+                draw2D_arrow(p0, p1)
 
         for string_data in self.strings_data:
             string = string_data['string']
