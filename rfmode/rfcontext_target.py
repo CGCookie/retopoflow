@@ -33,6 +33,10 @@ class RFContext_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
+    
+    def nearest2D_face(self, point=None, faces=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
     ####################
     # REWRITE BELOW!!! #
@@ -213,6 +217,9 @@ class RFContext_Target:
 
     def get_selected_faces(self):
         return self.rftarget.get_selected_faces()
+    
+    def get_edge_loop(self, edge):
+        return self.rftarget.get_edge_loop(edge)
 
     def deselect_all(self):
         self.rftarget.deselect_all()
@@ -235,7 +242,7 @@ class RFContext_Target:
         self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True):
-        self.rftarget.select_edge_loop(edge, only=only)
+        self.rftarget.select(self.get_edge_loop(edge), only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
 

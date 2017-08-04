@@ -160,6 +160,16 @@ def edges_of_loop(vert_loop):
         edges += list(e0 & e1)
     return edges
 
+def verts_of_loop(edge_loop):
+    verts = []
+    for e0,e1 in iter_pairs(edge_loop, False):
+        if not verts:
+            v0 = e0.shared_vert(e1)
+            verts += [e0.other_vert(v0), v0]
+        verts += [e1.other_vert(verts[-1])]
+    if len(verts) > 1 and verts[0] == verts[-1]: return verts[:-1]
+    return verts
+
 def loop_plane(vert_loop):
     # average co is pt on plane
     # average cross product (point in same direction) is normal
@@ -206,6 +216,7 @@ def project_loop_to_plane(vert_loop, plane):
     return [plane.project(to_point(v)) for v in vert_loop]
 
 
+
 class Contours_Loop:
     def __init__(self, vert_loop):
         self.set_vert_loop(vert_loop)
@@ -231,9 +242,8 @@ class Contours_Loop:
     def w2l_point(self, co): return self.frame.w2l_point(to_point(co))
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
-        ys = map(self.w2l_point, pts)
-        i,_ = max(enumerate(ys), key=lambda iy:iy[1].y / iy[1].length)
-        return i
+        ys = list(map(self.w2l_point, pts))
+        return max(range(len(ys)), key=lambda i:ys[i].y / ys[i].length)
 
     def align_to(self, other):
         is_opposite = self.get_normal().dot(other.get_normal()) < 0

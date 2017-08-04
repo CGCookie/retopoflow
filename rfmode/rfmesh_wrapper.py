@@ -135,6 +135,12 @@ class RFEdge(BMElemWrapper):
         if o is None: return None
         return RFVert(o)
     
+    def shared_vert(self, bme):
+        bme = self._unwrap(bme)
+        verts = [v for v in self.bmelem.verts if v in bme.verts]
+        if not verts: return None
+        return RFVert(verts[0])
+    
     @property
     def verts(self):
         bmv0,bmv1 = self.bmelem.verts
@@ -193,6 +199,9 @@ class RFFace(BMElemWrapper):
     @property
     def verts(self):
         return [RFVert(bmv) for bmv in self.bmelem.verts]
+    
+    def is_quad(self): return len(self.bmelem.verts)==4
+    def is_triangle(self): return len(self.bmelem.verts)==3
     
     #############################################
     

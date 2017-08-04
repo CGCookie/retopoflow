@@ -432,11 +432,15 @@ class RFMesh():
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
 
-    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D):
+    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D, faces=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
+        if faces is None:
+            faces = self.bme.faces
+        else:
+            faces = [self._unwrap(bmf) for bmf in faces]
         bv,bd = None,None
-        for bmf in self.bme.faces:
+        for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
             pt0 = pts[0]
@@ -550,26 +554,31 @@ class RFMesh():
                         bmf.select = True
         self.dirty()
 
-    def select_edge_loop(self, edge, only=True):
-        if only: self.deselect_all()
+    def get_edge_loop(self, edge):
         bme = self._unwrap(edge)
-        bme.select = True
+        #bme.select = True
         touched = set()
+        edges = []
         def crawl(bme0, bmv01):
-            bme0.select = True
-            bmv01.select = True
-            if bmv01 in touched: return
+            nonlocal edges
+            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
+            #bme0.select = True
+            #bmv01.select = True
+            if bmv01 in touched: return True
             touched.add(bmv01)
-            if len(bmv01.link_edges) > 4: return
-            if len(bmv01.link_faces) > 4: return
+            touched.add(bme0)
+            if len(bmv01.link_edges) > 4: return False
+            if len(bmv01.link_faces) > 4: return False
             bmf0 = bme0.link_faces
             for bme1 in bmv01.link_edges:
                 if any(f in bmf0 for f in bme1.link_faces): continue
                 bmv2 = bme1.other_vert(bmv01)
                 crawl(bme1, bmv2)
-        crawl(bme, bme.verts[0])
+        if crawl(bme, bme.verts[0]): return edges
+        edges.reverse()
         crawl(bme, bme.verts[1])
-        self.dirty()
+        # self.dirty()
+        return edges
 
     def select_all(self):
         for bmv in self.bme.verts: bmv.select = True

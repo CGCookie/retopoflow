@@ -16,7 +16,7 @@ class RFTool_Contours(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['move']  = self.modal_move
-        self.count = 16
+        self.count = 6
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -29,6 +29,7 @@ class RFTool_Contours(RFTool):
 
         self.show_cut = True
         self.pts = []
+        self.cut_pts = []
         self.connected = False
         self.cuts = []
     
@@ -66,9 +67,10 @@ class RFTool_Contours(RFTool):
     def line(self):
         xy0,xy1 = self.rfwidget.line2D
         if (xy1-xy0).length < 0.001: return
+        xy01 = xy0 + (xy1-xy0) / 2
 
         plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
-        ray = self.rfcontext.Point2D_to_Ray(xy0 + (xy1-xy0)/2)
+        ray = self.rfcontext.Point2D_to_Ray(xy01)
 
         crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
         if not crawl: return
@@ -82,6 +84,20 @@ class RFTool_Contours(RFTool):
         self.rfcontext.undo_push('cut')
 
         sel_edges = self.rfcontext.get_selected_edges()
+        
+        # if ray hits target, include the loops, too!
+        visible_faces = self.rfcontext.visible_faces()
+        hit_face = self.rfcontext.nearest2D_face(point=xy01, faces=visible_faces)
+        if hit_face and hit_face.is_quad():
+            edges = hit_face.edges
+            loops = [self.rfcontext.get_edge_loop(edge) for edge in edges]
+            vloops = [verts_of_loop(loop) for loop in loops]
+            cloops = [Contours_Loop(vloop) if vloop else None for vloop in vloops]
+            dots = [abs(cloop.plane.n.dot(cl_cut.plane.n)) if cloop else -1 for cloop in cloops]
+            idx0 = max(enumerate(dots), key=lambda idot:idot[1])[0]
+            idx1 = (idx0 + 2) % 4
+            sel_edges |= set(loops[idx0]) | set(loops[idx1])
+        
         if connected:
             # find two closest selected loops, one on each side
             sel_loops = find_loops(sel_edges)
@@ -178,8 +194,8 @@ class RFTool_Contours(RFTool):
         def bridge(loop):
             nonlocal faces, verts
             l = len(loop)
-            def get_vnew(i): return verts[((i%l)+l)%l]
-            def get_vold(i): return loop[((i%l)+l)%l]
+            def get_vnew(i): return verts[i%l]
+            def get_vold(i): return loop[i%l]
             i0,i3 = 0,0
             o0,o3 = 1,1
             for ind in range(l):
@@ -189,10 +205,11 @@ class RFTool_Contours(RFTool):
                 i0,i3 = i1,i2
 
         self.pts = []
+        self.cut_pts = []
         self.cuts = [cl_cut]
         if cl_pos: self.cuts += [cl_pos]
         if cl_neg: self.cuts += [cl_neg]
-        if cl_pos and cl_neg:
+        if False and cl_pos and cl_neg:
             for p0,p1 in zip(cl_pos.pts, cl_neg.pts):
                 p01 = p0 + (p1 - p0) / 2
                 self.pts += [p01]
@@ -200,14 +217,14 @@ class RFTool_Contours(RFTool):
                 verts += [self.rfcontext.new_vert_point(pm)]
             for v0,v1 in iter_pairs(verts, connected):
                 edges += [self.rfcontext.new_edge((v0, v1))]
-        elif cl_pos:
+        elif False and cl_pos and not cl_neg:
             for pt in cl_pos.get_points_relative_to(cl_cut):
                 self.pts += [pt]
                 pt = cl_cut.get_closest_point(pt)
                 verts += [self.rfcontext.new_vert_point(pt)]
             for v0,v1 in iter_pairs(verts, connected):
                 edges += [self.rfcontext.new_edge((v0, v1))]
-        elif cl_neg:
+        elif False and not cl_pos and cl_neg:
             for pt in cl_neg.get_points_relative_to(cl_cut):
                 self.pts += [pt]
                 pt = cl_cut.get_closest_point(pt)
@@ -239,12 +256,13 @@ class RFTool_Contours(RFTool):
         #if sel_loop_neg:
         #    edges += edges_of_loop(sel_loops[sel_loop_neg[0]])
 
-        self.rfcontext.select(verts + edges, supparts=False, only=False) # + faces)
+        self.rfcontext.select(verts + edges, supparts=False, only=True) # + faces)
         #if sel_loop_pos: self.rfcontext.select(sel_loop_pos[0], supparts=False, only=False)
         #if sel_loop_neg: self.rfcontext.select(sel_loop_neg[0], supparts=False, only=False)
         self.update()
 
         # self.pts = cl_cut.pts
+        self.cut_pts = cl_cut.pts
         self.connected = connected
 
     def modal_main(self):
@@ -317,6 +335,12 @@ class RFTool_Contours(RFTool):
             for pt in self.pts:
                 bgl.glVertex3f(*pt)
             if self.connected: bgl.glVertex3f(*self.pts[0])
+            bgl.glEnd()
+            bgl.glColor4f(0,1,1,1)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for pt in self.cut_pts:
+                bgl.glVertex3f(*pt)
+            if self.connected: bgl.glVertex3f(*self.cut_pts[0])
             bgl.glEnd()
 
     def draw_postpixel(self):
