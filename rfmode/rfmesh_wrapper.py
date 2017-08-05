@@ -1,6 +1,7 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split, vert_splice, face_split
+from ..common.utils import iter_pairs
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -196,6 +197,13 @@ class RFFace(BMElemWrapper):
         for bme in other.bmelem.edges:
             if bme in edges: return bme
     
+    def opposite_edge(self, e):
+        if len(self.bmelem.edges) != 4: return None
+        e = self._unwrap(e)
+        for i,bme in self.bmelem.edges:
+            if bme == e: return RFEdge(self.bmelem.edges[(i+2)%4])
+        return None
+    
     @property
     def verts(self):
         return [RFVert(bmv) for bmv in self.bmelem.verts]
@@ -211,3 +219,38 @@ class RFFace(BMElemWrapper):
         bmvb = BMElemWrapper._unwrap(vert_b)
         bmf_new,bml_new = face_split(bmf, bmva, bmvb)
         return RFFace(bmf_new)
+
+
+class RFEdgeSequence:
+    def __init__(self, sequence):
+        if not sequence:
+            self.verts = []
+            self.edges = []
+            self.loop = False
+            return
+        
+        sequence = list(BMElemWrapper._unwrap(elem) for elem in sequence)
+        
+        if type(sequence[0]) is BMVert:
+            self.verts = sequence
+            self.loop = len(sequence) > 1 and len(set(sequence[0].link_edges) & set(sequence[-1].link_edges)) != 0
+            self.edges = [next(iter(set(v0.link_edges) & set(v1.link_edges))) for v0,v1 in iter_pairs(sequence, self.loop)]
+        elif type(sequence[0]) is BMEdge:
+            self.edges = sequence
+            self.loop = len(sequence) > 2 and len(set(sequence[0].verts) & set(sequence[-1].verts)) != 0
+            print('new: %d, %s (%d)' % (len(sequence), self.loop, len(set(sequence[0].verts) & set(sequence[-1].verts)) if self.loop else -1))
+            self.verts = [next(iter(set(e0.verts) & set(e1.verts))) for e0,e1 in iter_pairs(sequence, self.loop)]
+        else:
+            assert False, 'unhandled type: %s' % str(type(sequence[0]))
+    
+    def __repr__(self):
+        e = min(map(repr, self.edges)) if self.edges else None
+        return '<RFEdgeSequence: %d,%s,%s>' % (len(self.verts),str(self.loop),str(e))
+    
+    def get_verts(self): return [RFVert(bmv) for bmv in self.verts]
+    def get_edges(self): return [RFEdge(bme) for bme in self.edges]
+    def is_loop(self): return self.loop
+    def iter_vert_pairs(self): return iter_pairs(self.get_verts(), self.loop)
+    def iter_edge_pairs(self): return iter_pairs(self.get_edges(), self.loop)
+
+

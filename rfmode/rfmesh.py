@@ -19,7 +19,7 @@ from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
-from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
+from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 
 
 class RFMesh():
@@ -554,16 +554,37 @@ class RFMesh():
                         bmf.select = True
         self.dirty()
 
+    def get_quadwalk_edgesequence(self, edge):
+        bme = self._unwrap(edge)
+        touched = set()
+        edges = []
+        def crawl(bme0, bmv01):
+            nonlocal edges
+            if bme0 not in touched: edges += [bme0]
+            if bmv01 in touched: return True        # wrapped around the loop
+            touched.add(bmv01)
+            touched.add(bme0)
+            if len(bmv01.link_edges) > 4: return False
+            if len(bmv01.link_faces) > 4: return False
+            bmf0 = bme0.link_faces
+            for bme1 in bmv01.link_edges:
+                if any(f in bmf0 for f in bme1.link_faces): continue
+                bmv2 = bme1.other_vert(bmv01)
+                return crawl(bme1, bmv2)
+            return False
+        if not crawl(bme, bme.verts[0]):
+            # did not loop back around, so go other direction
+            edges.reverse()
+            crawl(bme, bme.verts[1])
+        return RFEdgeSequence(edges)
+    
     def get_edge_loop(self, edge):
         bme = self._unwrap(edge)
-        #bme.select = True
         touched = set()
         edges = []
         def crawl(bme0, bmv01):
             nonlocal edges
             if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
-            #bme0.select = True
-            #bmv01.select = True
             if bmv01 in touched: return True
             touched.add(bmv01)
             touched.add(bme0)
@@ -573,12 +594,12 @@ class RFMesh():
             for bme1 in bmv01.link_edges:
                 if any(f in bmf0 for f in bme1.link_faces): continue
                 bmv2 = bme1.other_vert(bmv01)
-                crawl(bme1, bmv2)
-        if crawl(bme, bme.verts[0]): return edges
+                return crawl(bme1, bmv2)
+            return False
+        if crawl(bme, bme.verts[0]): return (edges, True)
         edges.reverse()
         crawl(bme, bme.verts[1])
-        # self.dirty()
-        return edges
+        return (edges, False)
 
     def select_all(self):
         for bmv in self.bme.verts: bmv.select = True

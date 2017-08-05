@@ -4,6 +4,7 @@ import math
 from itertools import chain
 from mathutils import Vector
 from .rftool import RFTool
+from ..common.utils import iter_pairs, hash_cycle
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
 
 
@@ -26,24 +27,6 @@ def to_point(item):
     if t is Point or t is Vector: return item
     return item.co
 
-def iter_pairs(items, wrap):
-    for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
-    if wrap: yield items[-1],items[0]
-
-def rotcycle(cycle, offset):
-    l = len(cycle)
-    return [cycle[(l + ((i - offset) % l)) % l] for i in range(l)]
-
-def hash_cycle(cycle):
-    l = len(cycle)
-    h = [hash(v) for v in cycle]
-    m = min(h)
-    mi = h.index(m)
-    h = rotcycle(h, -mi)
-    if h[1] > h[-1]:
-       h.reverse()
-       h = rotcycle(h, 1)
-    return ' '.join(str(c) for c in h)
 
 def next_edge_in_string(edge0, vert01, ignore_two_faced=False):
     faces0 = edge0.link_faces
@@ -218,21 +201,23 @@ def project_loop_to_plane(vert_loop, plane):
 
 
 class Contours_Loop:
-    def __init__(self, vert_loop):
-        self.set_vert_loop(vert_loop)
+    def __init__(self, vert_loop, connected):
+        self.set_vert_loop(vert_loop, connected)
     
     def __str__(self):
         return '<Contours_Loop: %s>' % str(self.verts)
 
-    def set_vert_loop(self, vert_loop):
+    def set_vert_loop(self, vert_loop, connected):
         self.verts = vert_loop
+        self.connected = connected
+        
         self.pts = [to_point(bmv) for bmv in self.verts]
         self.count = len(self.verts)
         self.plane = loop_plane(self.verts)
         self.up_dir = Direction(self.pts[0] - self.plane.o).normalize()
         self.frame = Frame.from_plane(self.plane, y=self.up_dir)
 
-        self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, True)]
+        self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, self.connected)]
         self.length = sum(self.dists)
         self.radius = sum(self.w2l_point(pt).length for pt in self.pts) / self.count
     
@@ -248,14 +233,18 @@ class Contours_Loop:
     def align_to(self, other):
         is_opposite = self.get_normal().dot(other.get_normal()) < 0
         vert_loop = list(reversed(self.verts)) if is_opposite else self.verts
-        rot_by = other.get_index_of_top(vert_loop)
-        vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
-        self.set_vert_loop(vert_loop)
+        
+        if self.connected:
+            # rotate to align "topmost" vertex
+            rot_by = other.get_index_of_top(vert_loop)
+            vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
+        
+        self.set_vert_loop(vert_loop, self.connected)
     
     def get_closest_point(self, point):
         point = to_point(point)
         cp,cd = None,None
-        for p0,p1 in iter_pairs(self.pts, wrap=True):
+        for p0,p1 in iter_pairs(self.pts, self.connected):
             diff = p1 - p0
             l = diff.length
             d = diff / l
@@ -267,6 +256,9 @@ class Contours_Loop:
     def get_points_relative_to(self, other):
         scale = other.radius / self.radius
         return [other.l2w_point(Vector(self.w2l_point(pt)) * scale) for pt in self.pts]
+    
+    def iter_pts(self):
+        return iter_pairs(self.pts, self.connected)
     
     def move_2D(self, xy_delta:Vec2D):
         pass
