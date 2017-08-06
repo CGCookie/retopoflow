@@ -121,10 +121,13 @@ class RFContext_Target:
     # symmetry utils
     
     def clip_pointloop(self, pointloop, connected):
-        # assuming a loop, not a strip
+        # assuming loop will cross symmetry line exactly zero or two times
         l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point
         pointloop = [w2l_point(pt) for pt in pointloop]
-        if 'x' in self.rftarget.symmetry:
+        if 'x' in self.rftarget.symmetry and any(p.x < 0 for p in pointloop):
+            if connected:
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.x < 0)
+                pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
             npl = []
             for p0,p1 in iter_pairs(pointloop, connected):
                 if p0.x < 0 and p1.x < 0: continue
@@ -281,7 +284,8 @@ class RFContext_Target:
         self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True):
-        self.rftarget.select(self.get_edge_loop(edge)[0], only=only)
+        eloop,connected = self.get_edge_loop(edge)
+        self.rftarget.select(eloop, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
 

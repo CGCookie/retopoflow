@@ -25,6 +25,7 @@ def draw2D_arrow(p0:Point2D, p1:Point2D):
 def to_point(item):
     t = type(item)
     if t is Point or t is Vector: return item
+    if t is tuple: return Point(item)
     return item.co
 
 
@@ -156,18 +157,28 @@ def verts_of_loop(edge_loop):
 def loop_plane(vert_loop):
     # average co is pt on plane
     # average cross product (point in same direction) is normal
+    if not vert_loop: return None
     pt = sum((Vector(to_point(vert)) for vert in vert_loop), Vector()) / len(vert_loop)
     n,cnt = None,0
-    for i0,vert0 in enumerate(vert_loop[:-1]):
-        v0 = to_point(vert0) - pt
-        for vert1 in vert_loop[i0+1:]:
-            v1 = to_point(vert1) - pt
-            c = Vec(v0.cross(v1)).normalize()
-            if cnt == 0: n = c
-            else:
-                if n.dot(c) < 0: n -= c
-                else: n += c
-            cnt += 1
+    for vert0,vert1 in zip(vert_loop[:-1], vert_loop[1:]):
+        vec0 = to_point(vert0) - pt
+        vec1 = to_point(vert1) - pt
+        c = Vec(vec0.cross(vec1)).normalize()
+        if cnt == 0: n = c
+        else:
+            if n.dot(c) < 0: n -= c
+            else: n += c
+    # for i0,vert0 in enumerate(vert_loop[:-1]):
+    #     v0 = to_point(vert0) - pt
+    #     for vert1 in vert_loop[i0+1:]:
+    #         v1 = to_point(vert1) - pt
+    #         c = Vec(v0.cross(v1)).normalize()
+    #         if cnt == 0: n = c
+    #         else:
+    #             if n.dot(c) < 0: n -= c
+    #             else: n += c
+    #         cnt += 1
+    if not n: return Plane(pt, Normal())
     return Plane(pt, Normal(n).normalize())
 
 def loop_radius(vert_loop):
@@ -204,8 +215,8 @@ class Contours_Loop:
     def __init__(self, vert_loop, connected):
         self.set_vert_loop(vert_loop, connected)
     
-    def __str__(self):
-        return '<Contours_Loop: %s>' % str(self.verts)
+    def __repr__(self):
+        return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
     def set_vert_loop(self, vert_loop, connected):
         self.verts = vert_loop

@@ -243,6 +243,12 @@ class Ray(Entity3D):
 
 
 class Plane(Entity3D):
+    @classmethod
+    def from_points(cls, p0:Point, p1:Point, p2:Point):
+        o = Point(((p0.x+p1.x+p2.x)/3, (p0.y+p1.y+p2.y)/3, (p0.z+p1.z+p2.z)/3))
+        n = Normal((p1-p0).cross(p2-p0)).normalize()
+        return cls(o, n)
+    
     def __init__(self, o:Point, n:Normal):
         self.o = o
         self.n = n
@@ -305,7 +311,7 @@ class Plane(Entity3D):
         if s0 == 0 and s1 == 0: return [(p0, p1)]
         if s0 == 0: return [(p0, p0)]
         if s1 == 0: return [(p1, p1)]
-        p01 = intersect_line_plane(p0, p1, self.o, self.n)
+        p01 = Point(intersect_line_plane(p0, p1, self.o, self.n))
         return [(p01, p01)]
 
     def edge_crosses(self, points):

@@ -238,8 +238,10 @@ class RFEdgeSequence:
         elif type(sequence[0]) is BMEdge:
             self.edges = sequence
             self.loop = len(sequence) > 2 and len(set(sequence[0].verts) & set(sequence[-1].verts)) != 0
-            print('new: %d, %s (%d)' % (len(sequence), self.loop, len(set(sequence[0].verts) & set(sequence[-1].verts)) if self.loop else -1))
-            self.verts = [next(iter(set(e0.verts) & set(e1.verts))) for e0,e1 in iter_pairs(sequence, self.loop)]
+            if len(sequence) == 1 and not self.loop:
+                self.verts = sequence[0].verts
+            else:
+                self.verts = [next(iter(set(e0.verts) & set(e1.verts))) for e0,e1 in iter_pairs(sequence, self.loop)]
         else:
             assert False, 'unhandled type: %s' % str(type(sequence[0]))
     
@@ -247,6 +249,7 @@ class RFEdgeSequence:
         e = min(map(repr, self.edges)) if self.edges else None
         return '<RFEdgeSequence: %d,%s,%s>' % (len(self.verts),str(self.loop),str(e))
     
+    def __len__(self): return len(self.edges)
     def get_verts(self): return [RFVert(bmv) for bmv in self.verts]
     def get_edges(self): return [RFEdge(bme) for bme in self.edges]
     def is_loop(self): return self.loop

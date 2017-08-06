@@ -487,6 +487,10 @@ class RFMesh():
 
     ##########################################################
 
+    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
+    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
+    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
+
     def get_selected_verts(self):
         s = set()
         for bmv in self.bme.verts:
@@ -592,6 +596,7 @@ class RFMesh():
             if len(bmv01.link_faces) > 4: return False
             bmf0 = bme0.link_faces
             for bme1 in bmv01.link_edges:
+                if bme1 == bme0: continue
                 if any(f in bmf0 for f in bme1.link_faces): continue
                 bmv2 = bme1.other_vert(bmv01)
                 return crawl(bme1, bmv2)

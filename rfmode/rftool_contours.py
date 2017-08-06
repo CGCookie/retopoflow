@@ -85,9 +85,7 @@ class RFTool_Contours(RFTool):
         pts = [c for (f0,e,f1,c) in crawl]
         connected = crawl[0][0] is not None
         
-        print('before: ' + str((len(pts),connected)))
         pts,connected = self.rfcontext.clip_pointloop(pts, connected)
-        print('after: ' + str((len(pts),connected)))
         
         if not pts: return
         
@@ -99,32 +97,26 @@ class RFTool_Contours(RFTool):
         self.cut_pts = pts
         self.connected = connected
         
-
         sel_edges = self.rfcontext.get_selected_edges()
         
         # if ray hits target, include the loops, too!
         visible_faces = self.rfcontext.visible_faces()
         hit_face = self.rfcontext.nearest2D_face(point=xy01, faces=visible_faces)
         if hit_face and hit_face.is_quad():
-            print('hit quad')
+            # considering loops only at the moment
             edges = hit_face.edges
             eseqs = [self.rfcontext.get_quadwalk_edgesequence(edge) for edge in edges]
-            print(eseqs)
+            eloops = [eseq.get_edges() if len(eseq) else None for eseq in eseqs]
+            cloops = [Contours_Loop(eseq.get_verts(), eseq.is_loop()) if eseq else None for eseq in eseqs]
             
-            eloops = [eseq.get_edges() for eseq in eseqs]
-            cloops = [Contours_Loop(eseq.get_verts(), True) if eseq.is_loop() else None for eseq in eseqs]
-            
-            # loops = [self.rfcontext.get_edge_loop(edge) for edge in edges]
-            # print(loops)
-            # eloops = [loop for loop,_ in loops]
-            # vloops = [(verts_of_loop(loop),is_loop) for loop,is_loop in loops]
-            # cloops = [Contours_Loop(vloop, is_loop) if vloop and is_loop else None for vloop,is_loop in vloops]
             # use loop that is most parallel to cut
             norm = cl_cut.plane.n
             idx0 = max_index([abs(norm.dot(cloop.plane.n)) if cloop else -1 for cloop in cloops])
             idx1 = (idx0 + 2) % 4
             sel_edges |= set(eloops[idx0]) | set(eloops[idx1])
-            print('%d %d' % (idx0,idx1))
+        
+        sel_loop_pos,sel_loop_neg = None,None
+        sel_string_pos,sel_string_neg = None,None
         
         if connected:
             # find two closest selected loops, one on each side
@@ -170,109 +162,90 @@ class RFTool_Contours(RFTool):
                         sel_string_neg = None
                     else:
                         sel_string_pos = None
-            sel_loop_pos = None
-            sel_loop_neg = None
         
-        count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else self.count
-        cl_pos = Contours_Loop(sel_loop_pos[0], True) if sel_loop_pos else None
-        cl_neg = Contours_Loop(sel_loop_neg[0], True) if sel_loop_neg else None
+        count = self.count
+        count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else count
+        count = sel_string_pos[2] if sel_string_pos else sel_string_neg[2] if sel_string_neg else count
+        
+        if connected:
+            cl_pos = Contours_Loop(sel_loop_pos[0], True) if sel_loop_pos else None
+            cl_neg = Contours_Loop(sel_loop_neg[0], True) if sel_loop_neg else None
+        else:
+            cl_pos = Contours_Loop(sel_string_pos[0], False) if sel_string_pos else None
+            cl_neg = Contours_Loop(sel_string_neg[0], False) if sel_string_neg else None
+        
         if cl_pos: self.cuts += [cl_pos]
         if cl_neg: self.cuts += [cl_neg]
         
-        if connected and sel_loop_pos and sel_loop_neg:
-            edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
-            if edges_between:
-                if False:
-                    # ************************************
-                    # ************************************
-                    # TODO: DO **NOT** DELETE, BUT CUT IN!
-                    # ************************************
-                    # ************************************
-                    edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
-                    self.rfcontext.delete_edges(edges_between)
-                else:
-                    # split all edges between pos and neg loops
-                    verts = [edge.split()[1] for edge in edges_between]
-                    edges = []
-                    for v0,v1 in iter_pairs(verts, wrap=True):
-                        # split face by adding edge between v0 and v1
-                        bmf0 = next(iter(set(v0.link_faces) & set(v1.link_faces)))
-                        bmf1 = bmf0.split(v0,v1)
-                        bme01 = next(iter(set(bmf0.edges) & set(bmf1.edges)))
-                        edges += [bme01]
-                        # reposition v0
-                        bmea = next(iter(set(bmf0.edges) & set(v0.link_edges) - set([bme01])))
-                        bmeb = next(iter(set(bmf1.edges) & set(v0.link_edges) - set([bme01])))
-                        va,vb = bmea.other_vert(v0),bmeb.other_vert(v0)
-                        v0.co = cl_cut.get_closest_point(v0.co)
-                    self.rfcontext.select(edges)
-                    return
-        
-        if cl_pos and cl_neg:
-            cl_neg.align_to(cl_pos)
-            cl_cut.align_to(cl_pos)
-            lc,lp,ln = cl_cut.length,cl_pos.length,cl_neg.length
-            dists = [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
-        elif cl_pos:
-            cl_cut.align_to(cl_pos)
-            lc,lp = cl_cut.length,cl_pos.length
-            dists = [0.999 * lc * (d/lp) for d in cl_pos.dists]
-        elif cl_neg:
-            cl_cut.align_to(cl_neg)
-            lc,ln = cl_cut.length,cl_neg.length
-            dists = [0.999 * lc * (d/ln) for d in cl_neg.dists]
+        if connected:
+            if cl_pos and cl_neg:
+                cl_neg.align_to(cl_pos)
+                cl_cut.align_to(cl_pos)
+                lc,lp,ln = cl_cut.length,cl_pos.length,cl_neg.length
+                dists = [0] + [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
+                dists = dists[:-1]
+            elif cl_pos:
+                cl_cut.align_to(cl_pos)
+                lc,lp = cl_cut.length,cl_pos.length
+                dists = [0] + [0.999 * lc * (d/lp) for d in cl_pos.dists]
+                dists = dists[:-1]
+            elif cl_neg:
+                cl_cut.align_to(cl_neg)
+                lc,ln = cl_cut.length,cl_neg.length
+                dists = [0] + [0.999 * lc * (d/ln) for d in cl_neg.dists]
+                dists = dists[:-1]
+            else:
+                step_size = cl_cut.length / count
+                dists = [0] + [0.999 * step_size for i in range(count-1)]
         else:
-            step_size = cl_cut.length / (count - (0 if connected else 1))
-            dists = [0.999 * step_size for i in range(count)]
+            if cl_pos and cl_neg:
+                cl_neg.align_to(cl_pos)
+                cl_cut.align_to(cl_pos)
+                lc,lp,ln = cl_cut.length,cl_pos.length,cl_neg.length
+                dists = [0] + [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
+            elif cl_pos:
+                cl_cut.align_to(cl_pos)
+                lc,lp = cl_cut.length,cl_pos.length
+                dists = [0] + [0.999 * lc * (d/lp) for d in cl_pos.dists]
+            elif cl_neg:
+                cl_cut.align_to(cl_neg)
+                lc,ln = cl_cut.length,cl_neg.length
+                dists = [0] + [0.999 * lc * (d/ln) for d in cl_neg.dists]
+            else:
+                step_size = cl_cut.length / (count-1)
+                dists = [0] + [0.999 * step_size for i in range(count-1)]
         
         # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
 
-        if False and cl_pos and cl_neg:
-            for p0,p1 in zip(cl_pos.pts, cl_neg.pts):
-                p01 = p0 + (p1 - p0) / 2
-                self.pts += [p01]
-                pm = cl_cut.get_closest_point(p01)
-                verts += [self.rfcontext.new_vert_point(pm)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        elif False and cl_pos and not cl_neg:
-            for pt in cl_pos.get_points_relative_to(cl_cut):
-                self.pts += [pt]
-                pt = cl_cut.get_closest_point(pt)
-                verts += [self.rfcontext.new_vert_point(pt)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        elif False and not cl_pos and cl_neg:
-            for pt in cl_neg.get_points_relative_to(cl_cut):
-                self.pts += [pt]
-                pt = cl_cut.get_closest_point(pt)
-                verts += [self.rfcontext.new_vert_point(pt)]
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
-        else:
-            i,dist = 0,0
-            for c0,c1 in cl_cut.iter_pts():
-                d = (c1-c0).length
-                while dist - d <= 0:
-                    # create new vert between c0 and c1
-                    p = c0 + (c1 - c0) * (dist / d)
-                    self.pts += [p]
-                    verts += [self.rfcontext.new_vert_point(p)]
-                    i += 1
-                    if i == len(dists): break
-                    dist += dists[i]
-                dist -= d
+        if sel_loop_pos and sel_loop_neg:
+            edges_between = edges_between_loops(sel_loop_pos[0], sel_loop_neg[0])
+            self.rfcontext.delete_edges(edges_between)
+        if sel_string_pos and sel_string_neg:
+            edges_between = edges_between_loops(sel_string_pos[0], sel_string_neg[0])
+            self.rfcontext.delete_edges(edges_between)
+        
+        i,dist = 0,0
+        for c0,c1 in cl_cut.iter_pts():
+            d = (c1-c0).length
+            while dist - d <= 0:
+                # create new vert between c0 and c1
+                p = c0 + (c1 - c0) * (dist / d)
+                self.pts += [p]
+                verts += [self.rfcontext.new_vert_point(p)]
+                i += 1
                 if i == len(dists): break
-            print('len(dists) == %d, len(verts) == %d' % (len(dists), len(verts)))
-            #assert len(dists)==len(verts), '%d != %d' % (len(dists), len(verts))
-            for v0,v1 in iter_pairs(verts, connected):
-                edges += [self.rfcontext.new_edge((v0, v1))]
+                dist += dists[i]
+            dist -= d
+            if i == len(dists): break
+        assert len(dists)==len(verts), '%d != %d' % (len(dists), len(verts))
+        for v0,v1 in iter_pairs(verts, connected):
+            edges += [self.rfcontext.new_edge((v0, v1))]
 
-        if sel_loop_pos: self.rfcontext.bridge_vertloop(verts, cl_pos.verts, connected)
-        if sel_loop_neg: self.rfcontext.bridge_vertloop(verts, cl_neg.verts, connected)
+        if cl_pos: self.rfcontext.bridge_vertloop(verts, cl_pos.verts, connected)
+        if cl_neg: self.rfcontext.bridge_vertloop(verts, cl_neg.verts, connected)
 
-        self.rfcontext.select(verts + edges, supparts=False)
+        self.rfcontext.select(edges)
         self.update()
 
 
@@ -299,11 +272,10 @@ class RFTool_Contours(RFTool):
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             self.move_cancelled = 'cancel'
-            return 'move'
+            return self.prep_move()
 
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
@@ -323,6 +295,18 @@ class RFTool_Contours(RFTool):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
+        
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        print('%d loops, %s strings' % (len(sel_loops), len(sel_strings)))
+        if sel_loops:
+            # move selected loops
+            self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+            self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+            self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+            self.move_lengths = [cloop.length for cloop in self.move_cloops]
+            return 'move'
 
     @RFTool.dirty_when_done
     def modal_move(self):
@@ -333,11 +317,53 @@ class RFTool_Contours(RFTool):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-
+        
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        set2D_crawl_vert = self.rfcontext.set2D_crawl_vert
-        for bmv,xy in self.bmverts:
-            set2D_crawl_vert(bmv, xy + delta)
+        print(delta)
+        
+        raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
+        for cloop,pts,dists,length in zip(self.move_cloops,self.move_pts,self.move_dists,self.move_lengths):
+            pts = cloop.pts
+            hit_p3d,hit_p2d = [],[]
+            for pt in pts:
+                p2d = project(pt) + delta
+                p3d,_,_,_ = raycast(p2d)
+                if p3d:
+                    hit_p3d += [p3d]
+                    hit_p2d += [p2d]
+            # did we find enough hits to compute a plane?
+            if len(hit_p3d) < 3: continue
+            plane = loop_plane(hit_p3d)
+            ray = self.rfcontext.Point2D_to_Ray(hit_p2d[1])
+            crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
+            if not crawl: continue
+            crawl_pts = [c for (f0,e,f1,c) in crawl]
+            connected = crawl[0][0] is not None
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts: continue
+            if len(crawl_pts) < 4: continue
+            if connected != cloop.connected: continue
+            self.pts = crawl_pts
+            cl_cut = Contours_Loop(crawl_pts, connected)
+            cl_cut.align_to(cloop)
+            lc = cl_cut.length
+            ndists = [0] + [0.999 * lc * (d/length) for d in dists]
+            i,dist = 0,0
+            for c0,c1 in cl_cut.iter_pts():
+                d = (c1-c0).length
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d)
+                    cloop.verts[i].co = p
+                    i += 1
+                    if i == len(ndists)-1: break
+                    dist += ndists[i]
+                dist -= d
+                if i == len(ndists)-1: break
+            #cloop.set_vert_loop(cloop.verts, cloop.connected)
+        
+        #set2D_crawl_vert = self.rfcontext.set2D_crawl_vert
+        #for bmv,xy in self.bmverts: set2D_crawl_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_postview(self):
