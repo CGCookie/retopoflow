@@ -274,6 +274,8 @@ class RFMesh():
                     # found plane!
                     return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
                 if obmv_dot > bmv_dot: return None
+                bmv = obmv
+                bmv_dot = obmv_dot
         
         bmf = walk_to_plane(bmf)
         
