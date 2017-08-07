@@ -24,7 +24,7 @@ import inspect
 import time
 from ...common_utilities import dprint, dcallstack
 
-class Profiler(object):
+class Profiler:
     debug = False
     
     class ProfilerHelper(object):
@@ -56,6 +56,9 @@ class Profiler(object):
         def done(self): pass
     
     def __init__(self):
+        self.clear()
+    
+    def clear(self):
         self.d_start = {}
         self.d_times = {}
         self.d_count = {}

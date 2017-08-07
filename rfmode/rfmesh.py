@@ -185,13 +185,8 @@ class RFMesh():
         return Plane(o, n)
 
     @profiler.profile
-    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
-        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-
-        p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
-        bmf = self.bme.faces[i]
+    def _crawl(self, bmf, plane):
         touched = set()
-
         def crawl(bmf0):
             assert bmf0 not in touched
             touched.add(bmf0)
@@ -233,12 +228,49 @@ class RFMesh():
                         best = ret
             touched.remove(bmf0)
             return best
-        ret = crawl(bmf)
+        return crawl(bmf)
+
+    @profiler.profile
+    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
+        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
+
+        p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
+        bmf = self.bme.faces[i]
+        
+        ret = self._crawl(bmf, plane)
+        
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
         # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
         # print(ret)
         return ret
+
+    @profiler.profile
+    def plane_intersections_crawl(self, plane:Plane):
+        plane = self.xform.w2l_plane(plane)
+        w,l2w_point = self._wrap,self.xform.l2w_point
+        
+        # find all faces that cross the plane
+        pr = profiler.start('finding edges')
+        dot = plane.n.dot
+        o = dot(plane.o)
+        edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
+        pr.done()
+        pr = profiler.start('finding faces')
+        faces = set(bmf for bme in edges for bmf in bme.link_faces)
+        pr.done()
+        
+        rets = []
+        
+        touched = set()
+        for bmf in faces:
+            if bmf in touched: continue
+            ret = self._crawl(bmf, plane)
+            touched |= set(f0 for f0,_,_,_ in ret if f0)
+            touched |= set(f1 for _,_,f1,_ in ret if f1)
+            ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+            rets += [ret]
+        return rets
 
 
     ##########################################################

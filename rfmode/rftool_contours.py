@@ -6,8 +6,9 @@ import math
 from itertools import chain
 from .rftool import RFTool
 from ..lib.common_utilities import showErrorMessage
+from ..lib.classes.profiler.profiler import profiler
 from ..common.utils import max_index
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ..common.ui import UI_Label, UI_IntValue, UI_Image
 from .rftool_contours_utils import *
 # from ..icons import images
@@ -299,13 +300,13 @@ class RFTool_Contours(RFTool):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
-        print('%d loops, %s strings' % (len(sel_loops), len(sel_strings)))
         if sel_loops:
             # move selected loops
             self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
             self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
             self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
             self.move_lengths = [cloop.length for cloop in self.move_cloops]
+            self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
             return 'move'
 
     @RFTool.dirty_when_done
@@ -319,32 +320,22 @@ class RFTool_Contours(RFTool):
             return 'main'
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        print(delta)
         
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
-        for cloop,pts,dists,length in zip(self.move_cloops,self.move_pts,self.move_dists,self.move_lengths):
-            pts = cloop.pts
-            hit_p3d,hit_p2d = [],[]
-            for pt in pts:
-                p2d = project(pt) + delta
-                p3d,_,_,_ = raycast(p2d)
-                if p3d:
-                    hit_p3d += [p3d]
-                    hit_p2d += [p2d]
-            # did we find enough hits to compute a plane?
-            if len(hit_p3d) < 3: continue
-            plane = loop_plane(hit_p3d)
-            ray = self.rfcontext.Point2D_to_Ray(hit_p2d[1])
-            crawl = self.rfcontext.plane_intersection_crawl(ray, plane)
-            if not crawl: continue
-            crawl_pts = [c for (f0,e,f1,c) in crawl]
-            connected = crawl[0][0] is not None
-            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
-            if not crawl_pts: continue
-            if len(crawl_pts) < 4: continue
-            if connected != cloop.connected: continue
-            self.pts = crawl_pts
-            cl_cut = Contours_Loop(crawl_pts, connected)
+        for cloop,pts,dists,length,origin in zip(self.move_cloops,self.move_pts,self.move_dists,self.move_lengths,self.move_origins):
+            depth = self.rfcontext.Point_to_depth(origin)
+            origin_new = self.rfcontext.Point2D_to_Point(self.rfcontext.Point_to_Point2D(origin) + delta, depth)
+            
+            plane_new = Plane(origin_new, cloop.plane.n)
+            crawls = self.rfcontext.plane_intersections_crawl(plane_new)
+            if not crawls: continue
+            crawls_pts = [[c for _,_,_,c in crawl] for crawl in crawls]
+            connecteds = [crawl[0][0] is not None for crawl in crawls]
+            clippeds = [self.rfcontext.clip_pointloop(crawl_pts, connected) for crawl_pts,connected in zip(crawls_pts, connecteds)]
+            cl_cuts = [Contours_Loop(crawl_pts, connected) for crawl_pts,connected in clippeds if connected==cloop.connected and crawl_pts]
+            if not cl_cuts: continue
+            cl_cut = min(cl_cuts, key=lambda cl_cut:(origin - cl_cut.plane.o).length)
+            
             cl_cut.align_to(cloop)
             lc = cl_cut.length
             ndists = [0] + [0.999 * lc * (d/length) for d in dists]
