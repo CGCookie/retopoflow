@@ -272,7 +272,6 @@ class RFTool_Contours(RFTool):
             return
 
         if self.rfcontext.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             self.move_cancelled = 'cancel'
@@ -307,7 +306,19 @@ class RFTool_Contours(RFTool):
             self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
             self.move_lengths = [cloop.length for cloop in self.move_cloops]
             self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+            self.rfcontext.undo_push('move grabbed')
             return 'move'
+        if sel_strings:
+            # move selected loops
+            print([len(string) for string in sel_strings])
+            self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+            self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+            self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+            self.move_lengths = [cloop.length for cloop in self.move_cloops]
+            self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+            self.rfcontext.undo_push('move grabbed')
+            return 'move'
+        
 
     @RFTool.dirty_when_done
     def modal_move(self):
@@ -356,6 +367,7 @@ class RFTool_Contours(RFTool):
             lc = cl_cut.length
             ndists = [0] + [0.999 * lc * (d/length) for d in dists]
             i,dist = 0,0
+            l = len(ndists)-1 if cloop.connected else len(ndists)
             for c0,c1 in cl_cut.iter_pts():
                 d = (c1-c0).length
                 while dist - d <= 0:
@@ -363,10 +375,10 @@ class RFTool_Contours(RFTool):
                     p = c0 + (c1 - c0) * (dist / d)
                     cloop.verts[i].co = p
                     i += 1
-                    if i == len(ndists)-1: break
+                    if i == l: break
                     dist += ndists[i]
                 dist -= d
-                if i == len(ndists)-1: break
+                if i == l: break
             #cloop.set_vert_loop(cloop.verts, cloop.connected)
         
         #set2D_crawl_vert = self.rfcontext.set2D_crawl_vert
