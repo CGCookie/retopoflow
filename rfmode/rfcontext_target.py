@@ -3,6 +3,7 @@ from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
+from ..lib.classes.profiler.profiler import profiler
 
 class RFContext_Target:
     '''
@@ -120,6 +121,7 @@ class RFContext_Target:
     ########################################
     # symmetry utils
     
+    @profiler.profile
     def clip_pointloop(self, pointloop, connected):
         # assuming loop will cross symmetry line exactly zero or two times
         l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point

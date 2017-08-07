@@ -295,6 +295,7 @@ class RFTool_Contours(RFTool):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
+        self.move_prevmouse = None
         
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -321,6 +322,7 @@ class RFTool_Contours(RFTool):
         
 
     @RFTool.dirty_when_done
+    @profiler.profile
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             profiler.printout()
@@ -332,6 +334,11 @@ class RFTool_Contours(RFTool):
             self.rfcontext.undo_cancel()
             profiler.printout()
             return 'main'
+        
+        if not self.rfcontext.actions.timer: return
+        
+        if self.move_prevmouse == self.rfcontext.actions.mouse: return
+        self.move_prevmouse = self.rfcontext.actions.mouse
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         

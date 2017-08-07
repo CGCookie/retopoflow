@@ -106,7 +106,10 @@ class Profiler:
                 t = text
             else:
                 t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            dprint('  %6.2f / %7d = %6.6f - %s' % (tottime, totcount, tottime/totcount, t))
+            fps = totcount/tottime
+            if fps >= 1000: fps = ' 1k+ '
+            else: fps = '%5.1f' % fps
+            dprint('  %6.2f / %7d = %6.6f (%s) - %s' % (tottime, totcount, tottime/totcount, fps, t))
         dprint('')
 
 profiler = Profiler()

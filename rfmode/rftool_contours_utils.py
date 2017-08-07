@@ -6,6 +6,7 @@ from mathutils import Vector
 from .rftool import RFTool
 from ..common.utils import iter_pairs, hash_cycle
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
+from ..lib.classes.profiler.profiler import profiler
 
 
 def draw2D_arrow(p0:Point2D, p1:Point2D):
@@ -218,6 +219,7 @@ class Contours_Loop:
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
+    @profiler.profile
     def set_vert_loop(self, vert_loop, connected):
         self.verts = vert_loop
         self.connected = connected
