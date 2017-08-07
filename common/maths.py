@@ -265,6 +265,8 @@ class Plane(Entity3D):
 
     def distance_to(self, p:Point):
         return abs((p - self.o).dot(self.n))
+    def signed_distance_to(self, p:Point):
+        return (p - self.o).dot(self.n)
 
     def project(self, p:Point):
         return p + self.n * (self.o - p).dot(self.n)

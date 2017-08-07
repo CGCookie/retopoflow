@@ -15,6 +15,7 @@ from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
+from ..common.utils import min_index
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -233,16 +234,54 @@ class RFMesh():
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-
-        p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
+        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
-        
         ret = self._crawl(bmf, plane)
-        
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
-        # print(ret)
+        return ret
+    
+    @profiler.profile
+    def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
+        '''
+        intersect object with ray, walk to plane, then crawl about
+        '''
+        # intersect self with ray
+        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
+        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
+        bmf = self.bme.faces[i]
+        
+        # walk along verts and edges from intersection to plane
+        def walk_to_plane(bmf):
+            bmvs = [bmv for bmv in bmf.verts]
+            bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]
+            if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
+                # bmf crosses plane already
+                return bmf
+            
+            idx = min_index(bmvs_dot)
+            bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
+            touched = set()
+            while True:
+                touched.add(bmv)
+                obmvs = [bme.other_vert(bmv) for bme in bmv.link_edges]
+                obmvs = [obmv for obmv in obmvs if obmv not in touched]
+                if not obmvs: return None
+                obmvs_dot = [plane.signed_distance_to(obmv.co)*sign for obmv in obmvs]
+                idx = min_index(obmvs_dot)
+                obmv,obmv_dot = obmvs[idx],obmvs_dot[idx]
+                if obmv_dot <= 0:
+                    # found plane!
+                    return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
+                if obmv_dot > bmv_dot: return None
+        
+        bmf = walk_to_plane(bmf)
+        
+        # crawl about self along plane
+        ret = self._crawl(bmf, plane)
+        w,l2w_point = self._wrap,self.xform.l2w_point
+        ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+        return ret
         return ret
 
     @profiler.profile
@@ -251,17 +290,18 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
         
         # find all faces that cross the plane
-        pr = profiler.start('finding edges')
+        pr = profiler.start('finding all edges crossing plane')
         dot = plane.n.dot
         o = dot(plane.o)
         edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
         pr.done()
-        pr = profiler.start('finding faces')
+        
+        pr = profiler.start('finding faces crossing plane')
         faces = set(bmf for bme in edges for bmf in bme.link_faces)
         pr.done()
         
+        pr = profiler.start('crawling faces along plane')
         rets = []
-        
         touched = set()
         for bmf in faces:
             if bmf in touched: continue
@@ -270,6 +310,8 @@ class RFMesh():
             touched |= set(f1 for _,_,f1,_ in ret if f1)
             ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
             rets += [ret]
+        pr.done()
+        
         return rets
 
 

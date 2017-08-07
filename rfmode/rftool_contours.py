@@ -312,11 +312,14 @@ class RFTool_Contours(RFTool):
     @RFTool.dirty_when_done
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            profiler.printout()
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            profiler.printout()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
+            profiler.printout()
             return 'main'
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
@@ -324,17 +327,30 @@ class RFTool_Contours(RFTool):
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for cloop,pts,dists,length,origin in zip(self.move_cloops,self.move_pts,self.move_dists,self.move_lengths,self.move_origins):
             depth = self.rfcontext.Point_to_depth(origin)
-            origin_new = self.rfcontext.Point2D_to_Point(self.rfcontext.Point_to_Point2D(origin) + delta, depth)
+            origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
+            origin_new = self.rfcontext.Point2D_to_Point(origin2D_new, depth)
             
             plane_new = Plane(origin_new, cloop.plane.n)
-            crawls = self.rfcontext.plane_intersections_crawl(plane_new)
-            if not crawls: continue
-            crawls_pts = [[c for _,_,_,c in crawl] for crawl in crawls]
-            connecteds = [crawl[0][0] is not None for crawl in crawls]
-            clippeds = [self.rfcontext.clip_pointloop(crawl_pts, connected) for crawl_pts,connected in zip(crawls_pts, connecteds)]
-            cl_cuts = [Contours_Loop(crawl_pts, connected) for crawl_pts,connected in clippeds if connected==cloop.connected and crawl_pts]
-            if not cl_cuts: continue
-            cl_cut = min(cl_cuts, key=lambda cl_cut:(origin - cl_cut.plane.o).length)
+            
+            if False:
+                crawls = self.rfcontext.plane_intersections_crawl(plane_new)
+                if not crawls: continue
+                crawls_pts = [[c for _,_,_,c in crawl] for crawl in crawls]
+                connecteds = [crawl[0][0] is not None for crawl in crawls]
+                clippeds = [self.rfcontext.clip_pointloop(crawl_pts, connected) for crawl_pts,connected in zip(crawls_pts, connecteds)]
+                cl_cuts = [Contours_Loop(crawl_pts, connected) for crawl_pts,connected in clippeds if connected==cloop.connected and crawl_pts]
+                if not cl_cuts: continue
+                cl_cut = min(cl_cuts, key=lambda cl_cut:(origin - cl_cut.plane.o).length)
+            else:
+                ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
+                crawl = self.rfcontext.plane_intersection_walk_crawl(ray_new, plane_new)
+                if not crawl: continue
+                crawl_pts = [c for _,_,_,c in crawl]
+                connected = crawl[0][0] is not None
+                crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+                if not crawl_pts or connected != cloop.connected: continue
+                cl_cut = Contours_Loop(crawl_pts, connected)
+                if not cl_cut: continue
             
             cl_cut.align_to(cloop)
             lc = cl_cut.length
