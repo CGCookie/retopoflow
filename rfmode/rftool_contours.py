@@ -29,7 +29,8 @@ class RFTool_Contours(RFTool):
         self.rfwidget.set_line_callback(self.line)
         self.update()
 
-        self.show_cut = True
+        self.show_cut = False
+        self.show_arrows = False
         self.pts = []
         self.cut_pts = []
         self.connected = False
@@ -182,38 +183,38 @@ class RFTool_Contours(RFTool):
             if cl_pos and cl_neg:
                 cl_neg.align_to(cl_pos)
                 cl_cut.align_to(cl_pos)
-                lc,lp,ln = cl_cut.length,cl_pos.length,cl_neg.length
+                lc,lp,ln = cl_cut.circumference,cl_pos.circumference,cl_neg.circumference
                 dists = [0] + [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
                 dists = dists[:-1]
             elif cl_pos:
                 cl_cut.align_to(cl_pos)
-                lc,lp = cl_cut.length,cl_pos.length
+                lc,lp = cl_cut.circumference,cl_pos.circumference
                 dists = [0] + [0.999 * lc * (d/lp) for d in cl_pos.dists]
                 dists = dists[:-1]
             elif cl_neg:
                 cl_cut.align_to(cl_neg)
-                lc,ln = cl_cut.length,cl_neg.length
+                lc,ln = cl_cut.circumference,cl_neg.circumference
                 dists = [0] + [0.999 * lc * (d/ln) for d in cl_neg.dists]
                 dists = dists[:-1]
             else:
-                step_size = cl_cut.length / count
+                step_size = cl_cut.circumference / count
                 dists = [0] + [0.999 * step_size for i in range(count-1)]
         else:
             if cl_pos and cl_neg:
                 cl_neg.align_to(cl_pos)
                 cl_cut.align_to(cl_pos)
-                lc,lp,ln = cl_cut.length,cl_pos.length,cl_neg.length
+                lc,lp,ln = cl_cut.circumference,cl_pos.circumference,cl_neg.circumference
                 dists = [0] + [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
             elif cl_pos:
                 cl_cut.align_to(cl_pos)
-                lc,lp = cl_cut.length,cl_pos.length
+                lc,lp = cl_cut.circumference,cl_pos.circumference
                 dists = [0] + [0.999 * lc * (d/lp) for d in cl_pos.dists]
             elif cl_neg:
                 cl_cut.align_to(cl_neg)
-                lc,ln = cl_cut.length,cl_neg.length
+                lc,ln = cl_cut.circumference,cl_neg.circumference
                 dists = [0] + [0.999 * lc * (d/ln) for d in cl_neg.dists]
             else:
-                step_size = cl_cut.length / (count-1)
+                step_size = cl_cut.circumference / (count-1)
                 dists = [0] + [0.999 * step_size for i in range(count-1)]
         
         # where new verts, edges, and faces are stored
@@ -305,18 +306,19 @@ class RFTool_Contours(RFTool):
             self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
             self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
             self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
-            self.move_lengths = [cloop.length for cloop in self.move_cloops]
+            self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
             self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+            self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
             self.rfcontext.undo_push('move grabbed')
             return 'move'
         if sel_strings:
             # move selected loops
-            print([len(string) for string in sel_strings])
             self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
             self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
             self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
-            self.move_lengths = [cloop.length for cloop in self.move_cloops]
+            self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
             self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+            self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
             self.rfcontext.undo_push('move grabbed')
             return 'move'
         
@@ -325,71 +327,60 @@ class RFTool_Contours(RFTool):
     @profiler.profile
     def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
-            profiler.printout()
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            profiler.printout()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
-            profiler.printout()
             return 'main'
         
+        # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
-        
         if self.move_prevmouse == self.rfcontext.actions.mouse: return
         self.move_prevmouse = self.rfcontext.actions.mouse
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
-        for cloop,pts,dists,length,origin in zip(self.move_cloops,self.move_pts,self.move_dists,self.move_lengths,self.move_origins):
+        for i_cloop in range(len(self.move_cloops)):
+            cloop  = self.move_cloops[i_cloop]
+            pts    = self.move_pts[i_cloop]
+            dists  = self.move_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
+            origin = self.move_origins[i_cloop]
+            proj_dists = self.move_proj_dists[i_cloop]
+            
             depth = self.rfcontext.Point_to_depth(origin)
             origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
             origin_new = self.rfcontext.Point2D_to_Point(origin2D_new, depth)
-            
             plane_new = Plane(origin_new, cloop.plane.n)
-            
-            if False:
-                crawls = self.rfcontext.plane_intersections_crawl(plane_new)
-                if not crawls: continue
-                crawls_pts = [[c for _,_,_,c in crawl] for crawl in crawls]
-                connecteds = [crawl[0][0] is not None for crawl in crawls]
-                clippeds = [self.rfcontext.clip_pointloop(crawl_pts, connected) for crawl_pts,connected in zip(crawls_pts, connecteds)]
-                cl_cuts = [Contours_Loop(crawl_pts, connected) for crawl_pts,connected in clippeds if connected==cloop.connected and crawl_pts]
-                if not cl_cuts: continue
-                cl_cut = min(cl_cuts, key=lambda cl_cut:(origin - cl_cut.plane.o).length)
-            else:
-                ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
-                crawl = self.rfcontext.plane_intersection_walk_crawl(ray_new, plane_new)
-                if not crawl: continue
-                crawl_pts = [c for _,_,_,c in crawl]
-                connected = crawl[0][0] is not None
-                crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
-                if not crawl_pts or connected != cloop.connected: continue
-                cl_cut = Contours_Loop(crawl_pts, connected)
-                if not cl_cut: continue
+            ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
+            crawl = self.rfcontext.plane_intersection_walk_crawl(ray_new, plane_new)
+            if not crawl: continue
+            crawl_pts = [c for _,_,_,c in crawl]
+            connected = crawl[0][0] is not None
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts or connected != cloop.connected: continue
+            cl_cut = Contours_Loop(crawl_pts, connected)
             
             cl_cut.align_to(cloop)
-            lc = cl_cut.length
-            ndists = [0] + [0.999 * lc * (d/length) for d in dists]
+            lc = cl_cut.circumference
+            ndists = [0] + [0.999 * lc * (d/circumference) for d in dists]
             i,dist = 0,0
             l = len(ndists)-1 if cloop.connected else len(ndists)
             for c0,c1 in cl_cut.iter_pts():
                 d = (c1-c0).length
                 while dist - d <= 0:
                     # create new vert between c0 and c1
-                    p = c0 + (c1 - c0) * (dist / d)
+                    p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
+                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
                     cloop.verts[i].co = p
                     i += 1
                     if i == l: break
                     dist += ndists[i]
                 dist -= d
                 if i == l: break
-            #cloop.set_vert_loop(cloop.verts, cloop.connected)
         
-        #set2D_crawl_vert = self.rfcontext.set2D_crawl_vert
-        #for bmv,xy in self.bmverts: set2D_crawl_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_postview(self):
@@ -421,6 +412,8 @@ class RFTool_Contours(RFTool):
             count = loop_data['count']
             plane = loop_data['plane']
             cl = loop_data['cl']
+            
+            # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in loop]
             cos = [co for co in cos if co]
             if cos:
@@ -428,55 +421,56 @@ class RFTool_Contours(RFTool):
                 xy.y += 10
                 text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
 
-            # self.drawing.line_width(2.0)
-            # p0 = point_to_point2d(plane.o)
-            # p1 = point_to_point2d(plane.o+plane.n*0.1)
-            # if p0 and p1:
-            #     bgl.glColor4f(1,1,0,0.5)
-            #     draw2D_arrow(p0, p1)
-            # p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
-            # if p0 and p1:
-            #     bgl.glColor4f(1,0,1,0.5)
-            #     draw2D_arrow(p0, p1)
-
-        for cl in self.cuts:
-            plane = cl.plane
-            self.drawing.line_width(2.0)
-            p0 = point_to_point2d(plane.o)
-            p1 = point_to_point2d(plane.o+plane.n*0.1)
-            if p0 and p1:
-                bgl.glColor4f(1,1,0,0.5)
-                draw2D_arrow(p0, p1)
-            p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
-            if p0 and p1:
-                bgl.glColor4f(1,0,1,0.5)
-                draw2D_arrow(p0, p1)
+            # draw arrows
+            if self.show_arrows:
+                self.drawing.line_width(2.0)
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,1,0,0.5)
+                    draw2D_arrow(p0, p1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,0,1,0.5)
+                    draw2D_arrow(p0, p1)
 
         for string_data in self.strings_data:
             string = string_data['string']
             count = string_data['count']
             plane = string_data['plane']
+            
+            # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in string]
             cos = [co for co in cos if co]
             if cos:
                 xy = max(cos, key=lambda co:co.y)
                 xy.y += 10
                 text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
-
-            p0 = point_to_point2d(plane.o)
-            p1 = point_to_point2d(plane.o+plane.n*0.1)
-            if p0 and p1:
-                d = (p0 - p1) * 0.25
-                c = Vec2D((d.y,-d.x))
-                p2 = p1 + d + c
-                p3 = p1 + d - c
-                
+            
+            # draw arrows
+            if self.show_arrows:
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,1,0,0.5)
+                    draw2D_arrow(p0, p1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,0,1,0.5)
+                    draw2D_arrow(p0, p1)
+        
+        # draw new cut info
+        if self.show_cut:
+            for cl in self.cuts:
+                plane = cl.plane
                 self.drawing.line_width(2.0)
-                bgl.glColor4f(1,1,0,0.5)
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glVertex2f(*p0)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p2)
-                bgl.glVertex2f(*p1)
-                bgl.glVertex2f(*p3)
-                bgl.glEnd()
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,1,0,0.5)
+                    draw2D_arrow(p0, p1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                if p0 and p1:
+                    bgl.glColor4f(1,0,1,0.5)
+                    draw2D_arrow(p0, p1)
+

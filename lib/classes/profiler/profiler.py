@@ -48,6 +48,8 @@ class Profiler:
             st = self.pr.d_start[self.text]
             en = time.time()
             self.pr.d_times[self.text] = self.pr.d_times.get(self.text,0) + (en-st)
+            self.pr.d_mins[self.text] = min(self.pr.d_mins.get(self.text,float('inf')), (en-st))
+            self.pr.d_maxs[self.text] = max(self.pr.d_maxs.get(self.text,float('-inf')), (en-st))
             self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
             del self.pr.d_start[self.text]
     
@@ -61,6 +63,8 @@ class Profiler:
     def clear(self):
         self.d_start = {}
         self.d_times = {}
+        self.d_mins = {}
+        self.d_maxs = {}
         self.d_count = {}
         self.stack = []
     
@@ -98,9 +102,14 @@ class Profiler:
         if not self.debug: return
         
         dprint('Profiler:')
+        dprint('   total      call   --- seconds / call ---')
+        dprint('    secs /   count =    min,    avg,    max  (  fps) - call stack')
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
             totcount = self.d_count[text]
+            avgt = tottime / totcount
+            mint = self.d_mins[text]
+            maxt = self.d_maxs[text]
             calls = text.split('^')
             if len(calls) == 1:
                 t = text
@@ -109,7 +118,7 @@ class Profiler:
             fps = totcount/tottime
             if fps >= 1000: fps = ' 1k+ '
             else: fps = '%5.1f' % fps
-            dprint('  %6.2f / %7d = %6.6f (%s) - %s' % (tottime, totcount, tottime/totcount, fps, t))
+            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, mint, avgt, maxt, fps, t))
         dprint('')
 
 profiler = Profiler()

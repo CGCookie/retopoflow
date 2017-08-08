@@ -159,26 +159,12 @@ def loop_plane(vert_loop):
     # average co is pt on plane
     # average cross product (point in same direction) is normal
     if not vert_loop: return None
-    pt = sum((Vector(to_point(vert)) for vert in vert_loop), Vector()) / len(vert_loop)
+    vert_loop = [to_point(v) for v in vert_loop]
+    pt = sum((Vector(vert) for vert in vert_loop), Vector()) / len(vert_loop)
     n,cnt = None,0
     for vert0,vert1 in zip(vert_loop[:-1], vert_loop[1:]):
-        vec0 = to_point(vert0) - pt
-        vec1 = to_point(vert1) - pt
-        c = Vec(vec0.cross(vec1)).normalize()
-        if cnt == 0: n = c
-        else:
-            if n.dot(c) < 0: n -= c
-            else: n += c
-    # for i0,vert0 in enumerate(vert_loop[:-1]):
-    #     v0 = to_point(vert0) - pt
-    #     for vert1 in vert_loop[i0+1:]:
-    #         v1 = to_point(vert1) - pt
-    #         c = Vec(v0.cross(v1)).normalize()
-    #         if cnt == 0: n = c
-    #         else:
-    #             if n.dot(c) < 0: n -= c
-    #             else: n += c
-    #         cnt += 1
+        c = Vec((vert0-pt).cross(vert1-pt)).normalize()
+        n = n+c if n else c
     if not n: return Plane(pt, Normal())
     return Plane(pt, Normal(n).normalize())
 
@@ -214,24 +200,25 @@ def project_loop_to_plane(vert_loop, plane):
 
 class Contours_Loop:
     def __init__(self, vert_loop, connected):
-        self.set_vert_loop(vert_loop, connected)
+        self.connected = connected
+        self.set_vert_loop(vert_loop)
     
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
     @profiler.profile
-    def set_vert_loop(self, vert_loop, connected):
+    def set_vert_loop(self, vert_loop):
         self.verts = vert_loop
-        self.connected = connected
-        
         self.pts = [to_point(bmv) for bmv in self.verts]
-        self.count = len(self.verts)
-        self.plane = loop_plane(self.verts)
+        self.count = len(self.pts)
+        self.plane = loop_plane(self.pts)
         self.up_dir = Direction(self.pts[0] - self.plane.o).normalize()
         self.frame = Frame.from_plane(self.plane, y=self.up_dir)
 
-        self.dists = [(p0-p1).length for p0,p1 in iter_pairs(self.pts, self.connected)]
-        self.length = sum(self.dists)
+        proj = self.plane.project
+        self.dists = [(proj(p0)-proj(p1)).length for p0,p1 in iter_pairs(self.pts, self.connected)]
+        self.proj_dists = [self.plane.signed_distance_to(p) for p in self.pts]
+        self.circumference = sum(self.dists)
         self.radius = sum(self.w2l_point(pt).length for pt in self.pts) / self.count
     
     def get_origin(self): return self.plane.o
@@ -252,7 +239,7 @@ class Contours_Loop:
             rot_by = other.get_index_of_top(vert_loop)
             vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         
-        self.set_vert_loop(vert_loop, self.connected)
+        self.set_vert_loop(vert_loop)
     
     def get_closest_point(self, point):
         point = to_point(point)

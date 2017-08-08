@@ -177,7 +177,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.exit = False
 
         pr.done()
-        profiler.printout()
 
     def _init_usersettings(self):
         # user-defined settings
@@ -397,6 +396,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             return
         if self.actions.pressed('redo'):
             self.redo_pop()
+            return
+        
+        if self.actions.pressed('F1'):
+            profiler.printout()
             return
 
         # handle tool shortcut
