@@ -189,6 +189,7 @@ class RFMesh():
     def _crawl(self, bmf, plane):
         touched = set()
         def crawl(bmf0):
+            if not bmf0: return []
             assert bmf0 not in touched
             touched.add(bmf0)
             best = []

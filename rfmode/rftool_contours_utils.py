@@ -213,6 +213,8 @@ class Contours_Loop:
         self.pts = [to_point(bmv) for bmv in self.verts]
         self.count = len(self.pts)
         self.plane = loop_plane(self.pts)
+        if not self.connected:
+            self.plane.o = self.pts[0] + (self.pts[-1] - self.pts[0]) / 2
         self.up_dir = Direction(self.pts[0] - self.plane.o).normalize()
         self.frame = Frame.from_plane(self.plane, y=self.up_dir)
 

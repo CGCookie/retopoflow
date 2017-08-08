@@ -13,6 +13,7 @@ from ..common.ui import UI_Label, UI_IntValue, UI_Image
 from .rftool_contours_utils import *
 # from ..icons import images
 from . import rftool_contours_icon
+from mathutils import Matrix
 
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool):
@@ -20,6 +21,7 @@ class RFTool_Contours(RFTool):
     def init(self):
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
+        self.FSM['rotate'] = self.modal_rotate
         self.count = 16
     
     def name(self): return "Contours"
@@ -275,11 +277,11 @@ class RFTool_Contours(RFTool):
             self.update()
             return
 
-        if self.rfcontext.actions.pressed('grab'):
-            return self.prep_move()
+        if self.rfcontext.actions.pressed('grab'): return self.prep_move()
         
-        if self.rfcontext.actions.pressed('shift'):
-            return self.prep_shift()
+        if self.rfcontext.actions.pressed('shift'): return self.prep_shift()
+        
+        if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
 
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
@@ -361,9 +363,7 @@ class RFTool_Contours(RFTool):
             cl_cut = self.move_cuts[i_cloop]
             if not cl_cut: continue
             verts  = self.move_verts[i_cloop]
-            pts    = self.move_pts[i_cloop]
             dists  = self.move_dists[i_cloop]
-            origin = self.move_origins[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
             
@@ -447,6 +447,99 @@ class RFTool_Contours(RFTool):
             plane_new = Plane(origin_new, cloop.plane.n)
             ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
             crawl = self.rfcontext.plane_intersection_walk_crawl(ray_new, plane_new)
+            if not crawl: continue
+            crawl_pts = [c for _,_,_,c in crawl]
+            connected = crawl[0][0] is not None
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts or connected != cloop.connected: continue
+            cl_cut = Contours_Loop(crawl_pts, connected)
+            
+            cl_cut.align_to(cloop)
+            lc = cl_cut.circumference
+            ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
+            i,dist = 0,ndists[0]
+            l = len(ndists)-1 if cloop.connected else len(ndists)
+            for c0,c1 in cl_cut.iter_pts(repeat=True):
+                d = (c1-c0).length
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
+                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    verts[i].co = p
+                    i += 1
+                    if i == l: break
+                    dist += ndists[i]
+                dist -= d
+                if i == l: break
+            
+            self.rfcontext.update_verts_faces(verts)
+
+    def prep_rotate(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        if not sel_loops and not sel_strings: return
+        
+        # prefer to move loops over strings
+        if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+        
+        self.rfcontext.undo_push('rotate contours')
+        
+        self.mousedown = self.rfcontext.actions.mouse
+        
+        self.rotate_about = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
+        self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
+        
+        self.move_prevmouse = None
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+        
+        return 'rotate'
+    
+    @RFTool.dirty_when_done
+    @profiler.profile
+    def modal_rotate(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+        
+        # only update cut on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.move_prevmouse == self.rfcontext.actions.mouse: return
+        self.move_prevmouse = self.rfcontext.actions.mouse
+        
+        delta = Vec2D(self.rfcontext.actions.mouse - self.rotate_about)
+        rotate = (math.atan2(delta.y, delta.x) - self.rotate_start + math.pi) % (math.pi * 2)
+        
+        raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
+        for i_cloop in range(len(self.move_cloops)):
+            cloop  = self.move_cloops[i_cloop]
+            verts  = self.move_verts[i_cloop]
+            pts    = self.move_pts[i_cloop]
+            dists  = self.move_dists[i_cloop]
+            origin = self.move_origins[i_cloop]
+            proj_dists = self.move_proj_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
+            
+            origin2D = self.rfcontext.Point_to_Point2D(origin)
+            ray = self.rfcontext.Point_to_Ray(origin)
+            rmat = Matrix.Rotation(rotate, 4, -ray.d)
+            normal = rmat * cloop.plane.n
+            plane = Plane(cloop.plane.o, normal)
+            ray = self.rfcontext.Point2D_to_Ray(origin2D)
+            crawl = self.rfcontext.plane_intersection_walk_crawl(ray, plane)
             if not crawl: continue
             crawl_pts = [c for _,_,_,c in crawl]
             connected = crawl[0][0] is not None
@@ -564,4 +657,13 @@ class RFTool_Contours(RFTool):
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
+        
+        if self.mode == 'rotate':
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(1,1,1,0.5)
+            self.drawing.line_width(1.0)
+            bgl.glBegin(bgl.GL_LINES)
+            bgl.glVertex2f(*self.rotate_about)
+            bgl.glVertex2f(*self.rfcontext.actions.mouse)
+            bgl.glEnd()
 
