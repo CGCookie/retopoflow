@@ -368,7 +368,8 @@ class RFTool_Contours(RFTool):
             circumference = self.move_circumferences[i_cloop]
             
             lc = cl_cut.circumference
-            ndists = [cl_cut.offset + shift_offset] + [0.999 * lc * (d/circumference) for d in dists]
+            shft = (cl_cut.offset + shift_offset * lc) % lc
+            ndists = [shft] + [0.999 * lc * (d/circumference) for d in dists]
             i,dist = 0,ndists[0]
             l = len(ndists)-1 if cloop.connected else len(ndists)
             for c0,c1 in cl_cut.iter_pts(repeat=True):
