@@ -199,16 +199,17 @@ def project_loop_to_plane(vert_loop, plane):
 
 
 class Contours_Loop:
-    def __init__(self, vert_loop, connected):
+    def __init__(self, vert_loop, connected, offset=0):
         self.connected = connected
-        self.set_vert_loop(vert_loop)
+        self.set_vert_loop(vert_loop, offset)
     
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
     @profiler.profile
-    def set_vert_loop(self, vert_loop):
+    def set_vert_loop(self, vert_loop, offset):
         self.verts = vert_loop
+        self.offset = offset
         self.pts = [to_point(bmv) for bmv in self.verts]
         self.count = len(self.pts)
         self.plane = loop_plane(self.pts)
@@ -228,7 +229,10 @@ class Contours_Loop:
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
         ys = list(map(self.w2l_point, pts))
-        return max(range(len(ys)), key=lambda i:ys[i].y / ys[i].length)
+        idx = max(range(len(ys)), key=lambda i:ys[i].y / ys[i].length)
+        t = ys[idx]
+        offset = (-self.circumference * (math.atan2(t.y, t.x) - math.pi/2) / (math.pi*2)) % self.circumference
+        return (idx,offset)
 
     def align_to(self, other):
         is_opposite = self.get_normal().dot(other.get_normal()) < 0
@@ -236,10 +240,12 @@ class Contours_Loop:
         
         if self.connected:
             # rotate to align "topmost" vertex
-            rot_by = other.get_index_of_top(vert_loop)
+            rot_by,offset = other.get_index_of_top(vert_loop)
             vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
-        
-        self.set_vert_loop(vert_loop)
+            offset = (self.circumference * offset / other.circumference) % self.circumference
+        else:
+            offset = 0
+        self.set_vert_loop(vert_loop, offset)
     
     def get_closest_point(self, point):
         point = to_point(point)
@@ -257,8 +263,8 @@ class Contours_Loop:
         scale = other.radius / self.radius
         return [other.l2w_point(Vector(self.w2l_point(pt)) * scale) for pt in self.pts]
     
-    def iter_pts(self):
-        return iter_pairs(self.pts, self.connected)
+    def iter_pts(self, repeat=False):
+        return iter_pairs(self.pts, self.connected, repeat=repeat)
     
     def move_2D(self, xy_delta:Vec2D):
         pass

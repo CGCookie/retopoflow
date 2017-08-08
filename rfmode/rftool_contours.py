@@ -274,10 +274,10 @@ class RFTool_Contours(RFTool):
             return
 
         if self.rfcontext.actions.pressed('grab'):
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = None
-            self.move_cancelled = 'cancel'
             return self.prep_move()
+        
+        if self.rfcontext.actions.pressed('shift'):
+            pass
 
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
@@ -296,34 +296,32 @@ class RFTool_Contours(RFTool):
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.rfcontext.get_selected_verts()
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.mousedown = self.rfcontext.actions.mouse
-        self.move_prevmouse = None
         
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
-        if sel_loops:
-            # move selected loops
-            self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
-            self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
-            self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
-            self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
-            self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
-            self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
-            self.rfcontext.undo_push('move grabbed')
-            return 'move'
-        if sel_strings:
-            # move selected loops
-            self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
-            self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
-            self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
-            self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
-            self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
-            self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
-            self.rfcontext.undo_push('move grabbed')
-            return 'move'
+        if not sel_loops and not sel_strings: return
         
-
+        # prefer to move loops over strings
+        if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+        
+        self.rfcontext.undo_push('move grabbed')
+        
+        self.mousedown = self.rfcontext.actions.mouse
+        self.move_prevmouse = None
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+        
+        return 'move'
+    
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_move(self):
@@ -345,6 +343,7 @@ class RFTool_Contours(RFTool):
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
             cloop  = self.move_cloops[i_cloop]
+            verts  = self.move_verts[i_cloop]
             pts    = self.move_pts[i_cloop]
             dists  = self.move_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
@@ -366,23 +365,23 @@ class RFTool_Contours(RFTool):
             
             cl_cut.align_to(cloop)
             lc = cl_cut.circumference
-            ndists = [0] + [0.999 * lc * (d/circumference) for d in dists]
-            i,dist = 0,0
+            ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
+            i,dist = 0,ndists[0]
             l = len(ndists)-1 if cloop.connected else len(ndists)
-            for c0,c1 in cl_cut.iter_pts():
+            for c0,c1 in cl_cut.iter_pts(repeat=True):
                 d = (c1-c0).length
                 while dist - d <= 0:
                     # create new vert between c0 and c1
                     p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
                     p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
-                    cloop.verts[i].co = p
+                    verts[i].co = p
                     i += 1
                     if i == l: break
                     dist += ndists[i]
                 dist -= d
                 if i == l: break
-        
-        self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+            
+            self.rfcontext.update_verts_faces(verts)
 
     def draw_postview(self):
         if self.show_cut:

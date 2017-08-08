@@ -1,8 +1,10 @@
 
-def iter_pairs(items, wrap):
+def iter_pairs(items, wrap, repeat=False):
     if not items: return
-    for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
-    if wrap: yield items[-1],items[0]
+    while True:
+        for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
+        if wrap: yield items[-1],items[0]
+        if not repeat: return
 
 def rotate_cycle(cycle, offset):
     l = len(cycle)
