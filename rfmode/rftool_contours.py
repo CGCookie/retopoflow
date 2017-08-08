@@ -185,21 +185,21 @@ class RFTool_Contours(RFTool):
                 cl_neg.align_to(cl_pos)
                 cl_cut.align_to(cl_pos)
                 lc,lp,ln = cl_cut.circumference,cl_pos.circumference,cl_neg.circumference
-                dists = [0] + [0.999 * lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
+                dists = [0] + [lc * (d0/lp + d1/ln)/2 for d0,d1 in zip(cl_pos.dists,cl_neg.dists)]
                 dists = dists[:-1]
             elif cl_pos:
                 cl_cut.align_to(cl_pos)
                 lc,lp = cl_cut.circumference,cl_pos.circumference
-                dists = [0] + [0.999 * lc * (d/lp) for d in cl_pos.dists]
+                dists = [0] + [lc * (d/lp) for d in cl_pos.dists]
                 dists = dists[:-1]
             elif cl_neg:
                 cl_cut.align_to(cl_neg)
                 lc,ln = cl_cut.circumference,cl_neg.circumference
-                dists = [0] + [0.999 * lc * (d/ln) for d in cl_neg.dists]
+                dists = [0] + [lc * (d/ln) for d in cl_neg.dists]
                 dists = dists[:-1]
             else:
                 step_size = cl_cut.circumference / count
-                dists = [0] + [0.999 * step_size for i in range(count-1)]
+                dists = [0] + [step_size for i in range(count-1)]
         else:
             if cl_pos and cl_neg:
                 cl_neg.align_to(cl_pos)
@@ -217,6 +217,7 @@ class RFTool_Contours(RFTool):
             else:
                 step_size = cl_cut.circumference / (count-1)
                 dists = [0] + [0.999 * step_size for i in range(count-1)]
+        dists[0] = cl_cut.offset
         
         # where new verts, edges, and faces are stored
         verts,edges,faces = [],[],[]
@@ -228,8 +229,8 @@ class RFTool_Contours(RFTool):
             edges_between = edges_between_loops(sel_string_pos[0], sel_string_neg[0])
             self.rfcontext.delete_edges(edges_between)
         
-        i,dist = 0,0
-        for c0,c1 in cl_cut.iter_pts():
+        i,dist = 0,dists[0]
+        for c0,c1 in cl_cut.iter_pts(repeat=True):
             d = (c1-c0).length
             while dist - d <= 0:
                 # create new vert between c0 and c1
@@ -346,9 +347,9 @@ class RFTool_Contours(RFTool):
             verts  = self.move_verts[i_cloop]
             pts    = self.move_pts[i_cloop]
             dists  = self.move_dists[i_cloop]
-            circumference = self.move_circumferences[i_cloop]
             origin = self.move_origins[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
             
             depth = self.rfcontext.Point_to_depth(origin)
             origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
