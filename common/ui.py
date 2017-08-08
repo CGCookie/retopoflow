@@ -43,7 +43,8 @@ class Drawing:
         self.font_id = 0
         self.text_size(12)
     
-    def scale(self, s): return self._dpi_mult * s
+    def scale(self, s): return s * self._dpi_mult
+    def unscale(self, s): return s / self._dpi_mult
     def get_dpi_mult(self): return self._dpi_mult
     def line_width(self, width): bgl.glLineWidth(self.scale(width))
     def point_size(self, size): bgl.glPointSize(self.scale(size))
