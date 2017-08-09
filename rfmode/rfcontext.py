@@ -177,7 +177,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.exit = False
 
         pr.done()
-        profiler.printout()
 
     def _init_usersettings(self):
         # user-defined settings
@@ -398,6 +397,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.actions.pressed('redo'):
             self.redo_pop()
             return
+        
+        if self.actions.pressed('F1'):
+            profiler.printout()
+            return
 
         # handle tool shortcut
         for action,tool in RFTool.action_tool:
@@ -470,6 +473,18 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                 bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
         if not bp: return []
         return bo.plane_intersection_crawl(ray, plane)
+    
+    def plane_intersections_crawl(self, plane:Plane):
+        return [crawl for rfsource in self.rfsources for crawl in rfsource.plane_intersections_crawl(plane)]
+    
+    def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
+        bp,bn,bi,bd,bo = None,None,None,None,None
+        for rfsource in self.rfsources:
+            hp,hn,hi,hd = rfsource.raycast(ray)
+            if bp is None or (hp is not None and hd < bd):
+                bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
+        if not bp: return []
+        return bo.plane_intersection_walk_crawl(ray, plane)
 
     ###################################################
 

@@ -11,7 +11,7 @@ from ..common.ui import (
     UI_WindowManager,
     UI_Button,
     UI_Options,
-    UI_Checkbox,
+    UI_Checkbox, UI_Checkbox2,
     UI_Label,
     UI_Spacer,
     UI_Collapsible,
@@ -53,10 +53,10 @@ class RFContext_Drawing:
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
-        ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', vertical=False))
-        ui_symmetry.add(UI_Checkbox('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
-        ui_symmetry.add(UI_Checkbox('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
-        ui_symmetry.add(UI_Checkbox('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
+        ui_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
+        ui_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
+        ui_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
         window_tool_options.add(UI_Spacer(height=5))
         for tool_name,tool_options in tools_options:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))

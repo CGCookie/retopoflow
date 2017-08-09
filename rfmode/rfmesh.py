@@ -15,11 +15,12 @@ from ..common.maths import Point, Direction, Normal
 from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
+from ..common.utils import min_index
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
-from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace
+from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 
 
 class RFMesh():
@@ -185,14 +186,10 @@ class RFMesh():
         return Plane(o, n)
 
     @profiler.profile
-    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
-        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-
-        p,n,i,d = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
-        bmf = self.bme.faces[i]
+    def _crawl(self, bmf, plane):
         touched = set()
-
         def crawl(bmf0):
+            if not bmf0: return []
             assert bmf0 not in touched
             touched.add(bmf0)
             best = []
@@ -233,12 +230,92 @@ class RFMesh():
                         best = ret
             touched.remove(bmf0)
             return best
-        ret = crawl(bmf)
+        return crawl(bmf)
+
+    @profiler.profile
+    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
+        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
+        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
+        bmf = self.bme.faces[i]
+        ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        # print('crawl: %d %s' % (len(ret), 'connected' if ret[0]==ret[-1] else 'not connected'))
-        # print(ret)
         return ret
+    
+    @profiler.profile
+    def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
+        '''
+        intersect object with ray, walk to plane, then crawl about
+        '''
+        # intersect self with ray
+        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
+        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
+        bmf = self.bme.faces[i]
+        
+        # walk along verts and edges from intersection to plane
+        def walk_to_plane(bmf):
+            bmvs = [bmv for bmv in bmf.verts]
+            bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]
+            if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
+                # bmf crosses plane already
+                return bmf
+            
+            idx = min_index(bmvs_dot)
+            bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
+            touched = set()
+            while True:
+                touched.add(bmv)
+                obmvs = [bme.other_vert(bmv) for bme in bmv.link_edges]
+                obmvs = [obmv for obmv in obmvs if obmv not in touched]
+                if not obmvs: return None
+                obmvs_dot = [plane.signed_distance_to(obmv.co)*sign for obmv in obmvs]
+                idx = min_index(obmvs_dot)
+                obmv,obmv_dot = obmvs[idx],obmvs_dot[idx]
+                if obmv_dot <= 0:
+                    # found plane!
+                    return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
+                if obmv_dot > bmv_dot: return None
+                bmv = obmv
+                bmv_dot = obmv_dot
+        
+        bmf = walk_to_plane(bmf)
+        
+        # crawl about self along plane
+        ret = self._crawl(bmf, plane)
+        w,l2w_point = self._wrap,self.xform.l2w_point
+        ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+        return ret
+        return ret
+
+    @profiler.profile
+    def plane_intersections_crawl(self, plane:Plane):
+        plane = self.xform.w2l_plane(plane)
+        w,l2w_point = self._wrap,self.xform.l2w_point
+        
+        # find all faces that cross the plane
+        pr = profiler.start('finding all edges crossing plane')
+        dot = plane.n.dot
+        o = dot(plane.o)
+        edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
+        pr.done()
+        
+        pr = profiler.start('finding faces crossing plane')
+        faces = set(bmf for bme in edges for bmf in bme.link_faces)
+        pr.done()
+        
+        pr = profiler.start('crawling faces along plane')
+        rets = []
+        touched = set()
+        for bmf in faces:
+            if bmf in touched: continue
+            ret = self._crawl(bmf, plane)
+            touched |= set(f0 for f0,_,_,_ in ret if f0)
+            touched |= set(f1 for _,_,f1,_ in ret if f1)
+            ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+            rets += [ret]
+        pr.done()
+        
+        return rets
 
 
     ##########################################################
@@ -432,11 +509,15 @@ class RFMesh():
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
 
-    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D):
+    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D, faces=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
+        if faces is None:
+            faces = self.bme.faces
+        else:
+            faces = [self._unwrap(bmf) for bmf in faces]
         bv,bd = None,None
-        for bmf in self.bme.faces:
+        for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
             pt0 = pts[0]
@@ -482,6 +563,10 @@ class RFMesh():
 
 
     ##########################################################
+
+    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
+    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
+    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
 
     def get_selected_verts(self):
         s = set()
@@ -550,26 +635,53 @@ class RFMesh():
                         bmf.select = True
         self.dirty()
 
-    def select_edge_loop(self, edge, only=True):
-        if only: self.deselect_all()
+    def get_quadwalk_edgesequence(self, edge):
         bme = self._unwrap(edge)
-        bme.select = True
         touched = set()
+        edges = []
         def crawl(bme0, bmv01):
-            bme0.select = True
-            bmv01.select = True
-            if bmv01 in touched: return
+            nonlocal edges
+            if bme0 not in touched: edges += [bme0]
+            if bmv01 in touched: return True        # wrapped around the loop
             touched.add(bmv01)
-            if len(bmv01.link_edges) > 4: return
-            if len(bmv01.link_faces) > 4: return
+            touched.add(bme0)
+            if len(bmv01.link_edges) > 4: return False
+            if len(bmv01.link_faces) > 4: return False
             bmf0 = bme0.link_faces
             for bme1 in bmv01.link_edges:
                 if any(f in bmf0 for f in bme1.link_faces): continue
                 bmv2 = bme1.other_vert(bmv01)
-                crawl(bme1, bmv2)
-        crawl(bme, bme.verts[0])
+                return crawl(bme1, bmv2)
+            return False
+        if not crawl(bme, bme.verts[0]):
+            # did not loop back around, so go other direction
+            edges.reverse()
+            crawl(bme, bme.verts[1])
+        return RFEdgeSequence(edges)
+    
+    def get_edge_loop(self, edge):
+        bme = self._unwrap(edge)
+        touched = set()
+        edges = []
+        def crawl(bme0, bmv01):
+            nonlocal edges
+            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
+            if bmv01 in touched: return True
+            touched.add(bmv01)
+            touched.add(bme0)
+            if len(bmv01.link_edges) > 4: return False
+            if len(bmv01.link_faces) > 4: return False
+            bmf0 = bme0.link_faces
+            for bme1 in bmv01.link_edges:
+                if bme1 == bme0: continue
+                if any(f in bmf0 for f in bme1.link_faces): continue
+                bmv2 = bme1.other_vert(bmv01)
+                return crawl(bme1, bmv2)
+            return False
+        if crawl(bme, bme.verts[0]): return (edges, True)
+        edges.reverse()
         crawl(bme, bme.verts[1])
-        self.dirty()
+        return (edges, False)
 
     def select_all(self):
         for bmv in self.bme.verts: bmv.select = True

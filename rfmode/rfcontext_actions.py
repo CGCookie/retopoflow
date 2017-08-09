@@ -57,6 +57,8 @@ class Actions:
         # contours
         'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
         'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
+        'shift': {'S'},
+        'rotate': {'SHIFT+S'},
 
         # relax
         'relax selected': {'SHIFT+S'},

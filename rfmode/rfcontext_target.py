@@ -1,6 +1,9 @@
+from itertools import chain
+from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
+from ..lib.classes.profiler.profiler import profiler
 
 class RFContext_Target:
     '''
@@ -33,6 +36,10 @@ class RFContext_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
+    
+    def nearest2D_face(self, point=None, faces=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
     ####################
     # REWRITE BELOW!!! #
@@ -111,6 +118,33 @@ class RFContext_Target:
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
 
+    ########################################
+    # symmetry utils
+    
+    @profiler.profile
+    def clip_pointloop(self, pointloop, connected):
+        # assuming loop will cross symmetry line exactly zero or two times
+        l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point
+        pointloop = [w2l_point(pt) for pt in pointloop]
+        if 'x' in self.rftarget.symmetry and any(p.x < 0 for p in pointloop):
+            if connected:
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.x < 0)
+                pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
+            npl = []
+            for p0,p1 in iter_pairs(pointloop, connected):
+                if p0.x < 0 and p1.x < 0: continue
+                elif p0.x == 0: npl += [p0]
+                elif p0.x > 0 and p1.x > 0: npl += [p0]
+                else:
+                    connected = False
+                    npl += [p0 + (p1 - p0) * (p0.x / (p0.x - p1.x))]
+            pointloop = npl
+        pointloop = [l2w_point(pt) for pt in pointloop]
+        return (pointloop, connected)
+    
+    def clamp_pointloop(self, pointloop, connected):
+        return (pointloop, connected)
+
     #######################################
     # target manipulation functions
     #
@@ -170,6 +204,17 @@ class RFContext_Target:
 
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
+    
+    
+    def bridge_vertloop(self, vloop0, vloop1, connected):
+        assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
+        faces = []
+        for pair0,pair1 in zip(iter_pairs(vloop0, connected), iter_pairs(vloop1, connected)):
+            v00,v01 = pair0
+            v10,v11 = pair1
+            faces += [self.new_face((v00,v01,v11,v10))]
+        return faces
+    
 
     def update_verts_faces(self, verts):
         self.rftarget.update_verts_faces(verts)
@@ -213,6 +258,12 @@ class RFContext_Target:
 
     def get_selected_faces(self):
         return self.rftarget.get_selected_faces()
+    
+    def get_quadwalk_edgesequence(self, edge):
+        return self.rftarget.get_quadwalk_edgesequence(edge)
+    
+    def get_edge_loop(self, edge):
+        return self.rftarget.get_edge_loop(edge)
 
     def deselect_all(self):
         self.rftarget.deselect_all()
@@ -235,7 +286,8 @@ class RFContext_Target:
         self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True):
-        self.rftarget.select_edge_loop(edge, only=only)
+        eloop,connected = self.get_edge_loop(edge)
+        self.rftarget.select(eloop, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
 
