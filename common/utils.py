@@ -1,3 +1,4 @@
+import bpy
 
 def iter_pairs(items, wrap, repeat=False):
     if not items: return
@@ -28,3 +29,22 @@ def max_index(vals, key=None):
 def min_index(vals, key=None):
     if not key: return min(enumerate(vals), key=lambda ival:ival[1])[0]
     return min(enumerate(vals), key=lambda ival:key(ival[1]))[0]
+
+
+def blender_version(op, ver):
+    def nop(*args, **kwargs): pass
+    def nop_decorator(fn): return nop
+    def fn_decorator(fn): return fn
+    
+    major,minor,rev = bpy.app.version
+    blenderver = '%d.%02d' % (major,minor)
+    print('%s %s %s' % (ver, op, blenderver))
+    if   op == '<':  retfn = (blenderver < ver)
+    elif op == '<=': retfn = (blenderver <= ver)
+    elif op == '==': retfn = (blenderver == ver)
+    elif op == '>=': retfn = (blenderver >= ver)
+    elif op == '>':  retfn = (blenderver > ver)
+    elif op == '!=': retfn = (blenderver != ver)
+    else: assert False, 'unhandled op: "%s"' % op
+    return fn_decorator if retfn else nop_decorator
+

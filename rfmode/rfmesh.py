@@ -500,10 +500,13 @@ class RFMesh():
             bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
             diff = bmv1 - bmv0
             l = diff.length
-            d = diff / l
-            margin = l * shorten / 2
-            pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
-            dist = (xy - pp).length
+            if l == 0:
+                dist = (xy - bmv0).length
+            else:
+                d = diff / l
+                margin = l * shorten / 2
+                pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
+                dist = (xy - pp).length
             if dist > max_dist: continue
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)

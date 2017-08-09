@@ -4,6 +4,7 @@ import blf
 from bpy.types import BoolProperty
 import math
 from itertools import chain
+from .utils import blender_version
 
 from .maths import Point2D,Vec2D
 
@@ -14,11 +15,13 @@ def set_cursor(cursor):
             win.cursor_modal_set(cursor)
 
 
+
 class Drawing:
     _instance = None
     _dpi = 72
     _dpi_mult = 1
     
+    @blender_version('<=', '2.78')
     @staticmethod
     def update_dpi():
         Drawing._dpi = bpy.context.user_preferences.system.dpi
@@ -27,6 +30,15 @@ class Drawing:
         Drawing._dpi *= bpy.context.user_preferences.system.pixel_size
         Drawing._dpi = int(Drawing._dpi)
         Drawing._dpi_mult = Drawing._dpi / 72
+    
+    @blender_version('>=', '2.79')
+    @staticmethod
+    def update_dpi():
+        Drawing._dpi = 72 # bpy.context.user_preferences.system.dpi
+        Drawing._dpi *= bpy.context.user_preferences.view.ui_scale
+        Drawing._dpi *= bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi = int(Drawing._dpi)
+        Drawing._dpi_mult = bpy.context.user_preferences.view.ui_scale * bpy.context.user_preferences.system.pixel_size
     
     @staticmethod
     def get_instance():
