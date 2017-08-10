@@ -264,7 +264,8 @@ class RFTool_PolyStrips(RFTool):
             if self.rfcontext.actions.pressed('select'):
                 self.rfcontext.undo_push('select')
                 self.rfcontext.deselect_all()
-            bmf = self.rfcontext.nearest2D_face_mouse()
+            faces = self.rfcontext.visible_faces()
+            bmf = self.rfcontext.nearest2D_face(faces=faces)
             if bmf and not bmf.select:
                 self.rfcontext.select(bmf, supparts=False, only=False)
             return
@@ -272,7 +273,8 @@ class RFTool_PolyStrips(RFTool):
         if self.rfcontext.actions.using('select add'):
             if self.rfcontext.actions.pressed('select add'):
                 self.rfcontext.undo_push('select add')
-            bmf = self.rfcontext.nearest2D_face_mouse()
+            faces = self.rfcontext.visible_faces()
+            bmf = self.rfcontext.nearest2D_face(faces=faces)
             if bmf and not bmf.select:
                 self.rfcontext.select(bmf, supparts=False, only=False)
             return

@@ -60,10 +60,6 @@ class RFContext_Target:
         xy = self.get_point2D(point)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
 
-    def nearest2D_face_mouse(self):
-        # if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.nearest2D_face_point(self.actions.mouse)
-
 
     ########################################
     # find target entities in world space
