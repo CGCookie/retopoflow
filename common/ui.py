@@ -493,8 +493,8 @@ class UI_Image(UI_Element):
         del texbuffer
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
     
-    def _get_width(self): return self.dpi_mult * self.width
-    def _get_height(self): return self.dpi_mult * self.height
+    def _get_width(self): return self.drawing.scale(self.width)
+    def _get_height(self): return self.drawing.scale(self.height)
     
     def set_width(self, w): self.width = w
     def set_height(self, h): self.height = h
@@ -502,7 +502,7 @@ class UI_Image(UI_Element):
     
     def _draw(self):
         cx,cy = self.pos + self.size / 2
-        w,h = self.width,self.height
+        w,h = self.drawing.scale(self.width),self.drawing.scale(self.height)
         l,t = cx-w/2, cy-h/2
         
         bgl.glColor4f(1,1,1,1)
