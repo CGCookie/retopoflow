@@ -159,6 +159,8 @@ class RFTool_PolyPen(RFTool):
         self.move_done_released = ['insert', 'insert alt0']
         self.move_cancelled = 'cancel'
 
+
+
         if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
             nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
@@ -171,12 +173,19 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
             if not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1 = self.rfcontext.new2D_vert_mouse()
                 if not bmv1:
                     self.rfcontext.undo_cancel()
                     return 'main'
-                bme = self.rfcontext.new_edge((bmv0, bmv1))
-                self.rfcontext.select(bme)
+                if d is not None and d < 15:
+                    bme0,bmv2 = nearest_edge.split()
+                    bmv1.merge(bmv2)
+                    bme = self.rfcontext.new_edge((bmv0, bmv1))
+                    self.rfcontext.select(bmv1)
+                else:
+                    bme = self.rfcontext.new_edge((bmv0, bmv1))
+                    self.rfcontext.select(bme)
             elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
                 if self.nearest_vert:
                     bmv1 = self.nearest_vert
@@ -260,10 +269,14 @@ class RFTool_PolyPen(RFTool):
             self.bmverts = [(bmv1, xy)]
             return 'move'
 
+        nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
         bmv = self.rfcontext.new2D_vert_mouse()
         if not bmv:
             self.rfcontext.undo_cancel()
             return 'main'
+        if d is not None and d < 15:
+            bme0,bmv2 = nearest_edge.split()
+            bmv.merge(bmv2)
         self.rfcontext.select(bmv)
         self.mousedown = self.rfcontext.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
