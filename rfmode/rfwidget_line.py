@@ -35,7 +35,7 @@ class RFWidget_Line:
         ctr = p0 + (p1-p0)/2
         
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glLineWidth(2.0)
+        self.drawing.line_width(2.0)
         
         glEnableStipple(enable=True)
         bgl.glColor4f(1,1,1,0.5)
@@ -45,7 +45,7 @@ class RFWidget_Line:
         bgl.glEnd()
         glEnableStipple(enable=False)
         
-        # bgl.glLineWidth(1.0)
+        # self.drawing.line_width(1.0)
         bgl.glColor4f(cr, cg, cb, 0.25)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         for px,py in self.points:

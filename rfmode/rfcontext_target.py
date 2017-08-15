@@ -1,6 +1,9 @@
+from itertools import chain
+from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
+from ..lib.classes.profiler.profiler import profiler
 
 class RFContext_Target:
     '''
@@ -14,28 +17,33 @@ class RFContext_Target:
         if point.is_2D(): return point
         return self.Point_to_Point2D(point)
 
-    def nearest2D_vert_point(self, point, verts=None, max_dist=None):
-        xy = self.get_point2D(point)
+    def nearest2D_vert(self, point=None, max_dist=None, verts=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
-    def nearest2D_vert_mouse(self, verts=None, max_dist=None):
-        return self.nearest2D_vert_point(self.actions.mouse, verts=verts, max_dist=max_dist)
-
-    def nearest2D_verts_point(self, point, max_dist:float):
+    def nearest2D_verts(self, point=None, max_dist:float=10, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D)
+        max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D, verts=verts)
 
-    def nearest2D_verts_mouse(self, max_dist:float):
-        return self.nearest2D_verts_point(self.actions.mouse, max_dist)
+    def nearest2D_edge(self, point=None, max_dist=None, edges=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
-    def nearest_edges_Point(self, point, max_dist:float):
-        return self.rftarget.nearest_bmedges_Point(point, max_dist)
+    def nearest2D_edges(self, point=None, max_dist:float=10, edges=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
 
-    def nearest_edge_Point(self, point:Point, edges=None):
-        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
+    def nearest2D_face(self, point=None, faces=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
-    def nearest2D_edge_Point2D(self, point:Point2D, edges=None):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges)
+    ####################
+    # REWRITE BELOW!!! #
+    ####################
 
     def nearest2D_face_Point2D(self, point:Point2D, faces=None):
         return self.rftarget.nearest2D_bmface_Point2D(point, self.Point_to_Point2D, faces=faces)
@@ -45,6 +53,15 @@ class RFContext_Target:
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
 
     def nearest2D_face_mouse(self):
+        return self.nearest2D_face_point(self.actions.mouse)
+
+    def nearest2D_face_point(self, point):
+        # if max_dist: max_dist = self.drawing.scale(max_dist)
+        xy = self.get_point2D(point)
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+
+    def nearest2D_face_mouse(self):
+        # if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.nearest2D_face_point(self.actions.mouse)
 
 
@@ -78,20 +95,16 @@ class RFContext_Target:
     def nearest_edge_Point(self, point:Point, edges=None):
         return self.rftarget.nearest_bmedge_Point(point, edges=edges)
 
-    def nearest2D_edge_Point2D(self, point:Point2D, edges=None, max_dist=None):
-        return self.rftarget.nearest2D_bmedge_Point2D(point, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
+    def nearest_edges_Point(self, point, max_dist:float):
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest_bmedges_Point(point, max_dist)
 
-    def nearest2D_edge_mouse(self, edges=None, max_dist=None):
-        return self.nearest2D_edge_Point2D(self.actions.mouse, edges=edges, max_dist=max_dist)
+    def nearest_edge_Point(self, point:Point, edges=None):
+        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
 
-    def nearest2D_face_point(self, point):
-        xy = self.get_point2D(point)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
-
-    def nearest2D_face_mouse(self):
-        return self.nearest2D_face_point(self.actions.mouse)
 
     #######################################
+    # get visible geometry
 
     def visible_verts(self):
         return self.rftarget.visible_verts(self.is_visible)
@@ -102,6 +115,33 @@ class RFContext_Target:
     def visible_faces(self, verts=None):
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
+
+    ########################################
+    # symmetry utils
+
+    @profiler.profile
+    def clip_pointloop(self, pointloop, connected):
+        # assuming loop will cross symmetry line exactly zero or two times
+        l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point
+        pointloop = [w2l_point(pt) for pt in pointloop]
+        if 'x' in self.rftarget.symmetry and any(p.x < 0 for p in pointloop):
+            if connected:
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.x < 0)
+                pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
+            npl = []
+            for p0,p1 in iter_pairs(pointloop, connected):
+                if p0.x < 0 and p1.x < 0: continue
+                elif p0.x == 0: npl += [p0]
+                elif p0.x > 0 and p1.x > 0: npl += [p0]
+                else:
+                    connected = False
+                    npl += [p0 + (p1 - p0) * (p0.x / (p0.x - p1.x))]
+            pointloop = npl
+        pointloop = [l2w_point(pt) for pt in pointloop]
+        return (pointloop, connected)
+
+    def clamp_pointloop(self, pointloop, connected):
+        return (pointloop, connected)
 
     #######################################
     # target manipulation functions
@@ -163,11 +203,28 @@ class RFContext_Target:
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
 
+
+    def bridge_vertloop(self, vloop0, vloop1, connected):
+        assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
+        faces = []
+        for pair0,pair1 in zip(iter_pairs(vloop0, connected), iter_pairs(vloop1, connected)):
+            v00,v01 = pair0
+            v10,v11 = pair1
+            faces += [self.new_face((v00,v01,v11,v10))]
+        return faces
+
+
     def update_verts_faces(self, verts):
         self.rftarget.update_verts_faces(verts)
 
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
+
+    def delete_selection(self):
+        self.rftarget.delete_selection()
+
+    def delete_verts(self, verts):
+        self.rftarget.delete_verts(verts)
 
     def delete_edges(self, edges):
         self.rftarget.delete_edges(edges)
@@ -186,6 +243,9 @@ class RFContext_Target:
     def dirty(self):
         self.rftarget.dirty()
 
+    def get_target_version(self):
+        return self.rftarget.get_version()
+
     ###################################################
 
     def get_selected_verts(self):
@@ -196,6 +256,12 @@ class RFContext_Target:
 
     def get_selected_faces(self):
         return self.rftarget.get_selected_faces()
+
+    def get_quadwalk_edgesequence(self, edge):
+        return self.rftarget.get_quadwalk_edgesequence(edge)
+
+    def get_edge_loop(self, edge):
+        return self.rftarget.get_edge_loop(edge)
 
     def deselect_all(self):
         self.rftarget.deselect_all()
@@ -218,7 +284,8 @@ class RFContext_Target:
         self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True):
-        self.rftarget.select_edge_loop(edge, only=only)
+        eloop,connected = self.get_edge_loop(edge)
+        self.rftarget.select(eloop, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
 
