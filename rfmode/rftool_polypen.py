@@ -73,13 +73,16 @@ class RFTool_PolyPen(RFTool):
 
         if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
-            bmv,d = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
+            bmv,_ = self.rfcontext.nearest2D_vert_mouse(max_dist=15)
+            bme,_ = self.rfcontext.nearest2D_edge_mouse(max_dist=15)
             if bmv:
                 self.rfcontext.select(bmv)
+            elif bme:
+                self.rfcontext.select(bme)
             else:
-                bme,_ = self.rfcontext.nearest2D_edge_mouse()
-                if bme:
-                    self.rfcontext.select(bme)
+                bmf = self.rfcontext.nearest2D_face_mouse()
+                if bmf:
+                    self.rfcontext.select(bmf)
             self.prep_move()
             self.move_done_pressed = 'confirm'
             self.move_done_released = ['select']
