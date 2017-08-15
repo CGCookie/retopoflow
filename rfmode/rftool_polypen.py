@@ -181,7 +181,14 @@ class RFTool_PolyPen(RFTool):
                 if d is not None and d < 15:
                     bme0,bmv2 = nearest_edge.split()
                     bmv1.merge(bmv2)
-                    bme = self.rfcontext.new_edge((bmv0, bmv1))
+                    bmf = None
+                    for f0 in bmv0.link_faces:
+                        for f1 in bmv1.link_faces:
+                            if f0 == f1:
+                                bmf = f0
+                                break
+                    if bmf is not None:
+                        bmf.split(bmv0, bmv1)
                     self.rfcontext.select(bmv1)
                 else:
                     bme = self.rfcontext.new_edge((bmv0, bmv1))
