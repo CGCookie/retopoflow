@@ -298,8 +298,10 @@ class RFTool_PolyPen(RFTool):
     def modal_move(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            # call function for going through visible verts and merging them if they are colocated
             return 'main'
         if self.move_done_released and all(released(item) for item in self.move_done_released):
+            # call function for going through visible verts and merging them if they are colocated
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
@@ -308,7 +310,12 @@ class RFTool_PolyPen(RFTool):
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
-            set2D_vert(bmv, xy + delta)
+            # get visible verts before entering modal move
+            # check visible verts, if xy + delta is within 5 pixels,
+            if (xy + delta)  < rfcontext.drawing.scale(5) :
+                set2D_vert(bmv, bmv0.co)
+            else:
+                set2D_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_lines(self, coords):
