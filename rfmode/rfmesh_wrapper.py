@@ -181,9 +181,11 @@ class RFEdge(BMElemWrapper):
 
     def collapse(self):
         bme = BMElemWrapper._unwrap(self)
+        bmv0,bmv1 = bme.verts
         del_faces = [f for f in bme.link_faces if len(f.verts) == 3]
         for bmf in del_faces: self.rftarget.bme.faces.remove(bmf)
         bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
+        return bmv0 if bmv0.is_valid else bmv1
 
 
 class RFFace(BMElemWrapper):

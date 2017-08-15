@@ -308,20 +308,25 @@ class RFTool_PolyPen(RFTool):
         # TODO: remove colocated faces
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
+        update_verts = []
         for bmv,xy in self.bmverts:
             xy_updated = xy + delta
             for bmv1,xy1 in self.vis_bmverts:
+                if not bmv1.is_valid: continue
                 if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
                     shared_edge = bmv.shared_edge(bmv1)
                     origCO = bmv1.co
                     if shared_edge:
-                        print(shared_edge)
-                        shared_edge.collapse()
+                        bmv1 = shared_edge.collapse()
                         bmv1.co = origCO
                     else:
                         bmv1.merge(bmv)
-                        self.rfcontext.select(bmv1)
+                    self.rfcontext.select(bmv1)
+                    update_verts += [bmv1]
                     break
+        if update_verts:
+            self.rfcontext.update_verts_faces(update_verts)
+            self.update()
 
     @RFTool.dirty_when_done
     def modal_move(self):
