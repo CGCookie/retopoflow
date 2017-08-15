@@ -313,10 +313,8 @@ class RFTool_PolyPen(RFTool):
             for bmv1,xy1 in self.vis_bmverts:
                 if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
                     shared_edge = bmv.shared_edge(bmv1)
-                    origCO = bmv1.co
                     if shared_edge:
                         shared_edge.collapse()
-                        bmv1.co = origCO
                     else:
                         bmv1.merge(bmv)
                     self.rfcontext.select(bmv1)

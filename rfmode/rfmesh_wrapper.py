@@ -115,6 +115,11 @@ class RFVert(BMElemWrapper):
         bmv1 = BMElemWrapper._unwrap(other)
         return any(bmv1 in bme.verts for bme in bmv0.link_edges)
 
+    def shared_edge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        return RFEdge(next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None))
+
     def merge(self, other):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
@@ -174,7 +179,7 @@ class RFEdge(BMElemWrapper):
         return RFEdge(bme_new), RFVert(bmv_new)
 
     def collapse(self):
-        bmesh.ops.collapse(self.rftarget.bme, [BMElemWrapper._unwrap(self)], True)
+        bmesh.ops.collapse(self.rftarget.bme, edges=[BMElemWrapper._unwrap(self)], uvs=True)
 
 
 class RFFace(BMElemWrapper):
