@@ -180,7 +180,10 @@ class RFEdge(BMElemWrapper):
         return RFEdge(bme_new), RFVert(bmv_new)
 
     def collapse(self):
-        bmesh.ops.collapse(self.rftarget.bme, edges=[BMElemWrapper._unwrap(self)], uvs=True)
+        bme = BMElemWrapper._unwrap(self)
+        del_faces = [f for f in bme.link_faces if len(f.verts) == 3]
+        for bmf in del_faces: self.rftarget.bme.faces.remove(bmf)
+        bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
 
 
 class RFFace(BMElemWrapper):
