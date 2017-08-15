@@ -81,12 +81,12 @@ class RFTool_PolyPen(RFTool):
         # get visible geometry near mouse
         nearby_verts = self.rfcontext.nearest2D_verts(verts=self.vis_verts)
         nearby_edges = self.rfcontext.nearest2D_edges(edges=self.vis_edges)
-        nearby_faces = self.rfcontext.nearest2D_faces(faces=self.vis_faces)
+        nearby_face = self.rfcontext.nearest2D_face(faces=self.vis_faces)
 
         # get hover geometry in sorted order
         self.hover_verts = [v for v,_ in sorted(nearby_verts, key=lambda vd:vd[1])]
         self.hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
-        self.hover_faces = [f for f,_ in sorted(nearby_faces, key=lambda fd:fd[1])]
+        self.hover_faces = [nearby_face]
 
         # get nearest geometry
         self.nearest_vert = next(iter(self.hover_verts), None)
@@ -111,7 +111,6 @@ class RFTool_PolyPen(RFTool):
             else: self.rfcontext.undo_push('select add')
 
             sel = self.nearest_vert or self.nearest_edge or self.nearest_face
-            print(self.nearest_vert, self.nearest_edge, self.nearest_face)
             self.rfcontext.select(sel, only=sel_only)
 
             if not sel_only: return     # do not move selection if adding
