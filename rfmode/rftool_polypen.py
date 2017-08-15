@@ -146,10 +146,14 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.dirty()
             return
 
+    def set_vis_bmverts(self):
+        print("setting self.vis_bmverts")
+        self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
+
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.sel_verts
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in bmverts]
+        self.set_vis_bmverts()
         self.mousedown = self.rfcontext.actions.mouse
 
     @RFTool.dirty_when_done
@@ -189,7 +193,8 @@ class RFTool_PolyPen(RFTool):
                                 bmf = f0
                                 break
                     if bmf is not None:
-                        bmf.split(bmv0, bmv1)
+                        if not bmv0.share_edge(bmv1):
+                            bmf.split(bmv0, bmv1)
                     self.rfcontext.select(bmv1)
                 else:
                     bme = self.rfcontext.new_edge((bmv0, bmv1))
@@ -211,6 +216,7 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
         if self.next_state == 'edge-face' or self.next_state == 'edges-face':
@@ -244,6 +250,7 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv2, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
         if self.next_state == 'tri-quad':
@@ -275,6 +282,7 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
         nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
@@ -293,21 +301,26 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.undo_cancel()
             return 'main'
         self.bmverts = [(bmv, xy)]
+        self.set_vis_bmverts()
         return 'move'
 
     def mergeSnapped(self):
         """ Merging colocated visible verts """
-        try:
-            delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-            set2D_vert = self.rfcontext.set2D_vert
-            for bmv,xy in self.bmverts:
-                xy_updated = xy + delta
-                for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(5):
-                        bmv.merge(bmv1)
-                        break
-        except:
-            pass
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        for bmv,xy in self.bmverts:
+            xy_updated = xy + delta
+            for bmv1,xy1 in self.vis_bmverts:
+                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                    shared_edge = bmv.shared_edge(bmv1)
+                    origCO = bmv1.co
+                    if shared_edge:
+                        shared_edge.collapse()
+                        bmv1.co = origCO
+                    else:
+                        bmv1.merge(bmv)
+                    self.rfcontext.select(bmv1)
+                    break
 
     @RFTool.dirty_when_done
     def modal_move(self):
@@ -328,14 +341,11 @@ class RFTool_PolyPen(RFTool):
             xy_updated = xy + delta
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
-            try:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(5):
-                        set2D_vert(bmv, xy1)
-                    else:
-                        set2D_vert(bmv, xy_updated)
-            except:
-                set2D_vert(bmv, xy_updated)
+            for bmv1,xy1 in self.vis_bmverts:
+                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                    set2D_vert(bmv, xy1)
+                else:
+                    set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_lines(self, coords):
