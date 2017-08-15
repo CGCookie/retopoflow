@@ -313,9 +313,11 @@ class RFTool_PolyPen(RFTool):
             for bmv1,xy1 in self.vis_bmverts:
                 if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
                     shared_edge = bmv.shared_edge(bmv1)
+                    origCO = bmv1.co
                     if shared_edge:
                         print(shared_edge)
                         shared_edge.collapse()
+                        bmv1.co = origCO
                     else:
                         bmv1.merge(bmv)
                         self.rfcontext.select(bmv1)
@@ -326,6 +328,7 @@ class RFTool_PolyPen(RFTool):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.mergeSnapped()
+
             return 'main'
         if self.move_done_released and all(released(item) for item in self.move_done_released):
             self.mergeSnapped()
