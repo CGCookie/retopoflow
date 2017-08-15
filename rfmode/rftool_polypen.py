@@ -147,7 +147,6 @@ class RFTool_PolyPen(RFTool):
             return
 
     def set_vis_bmverts(self):
-        print("setting self.vis_bmverts")
         self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
 
     def prep_move(self, bmverts=None):
@@ -306,6 +305,7 @@ class RFTool_PolyPen(RFTool):
 
     def mergeSnapped(self):
         """ Merging colocated visible verts """
+        # TODO: remove colocated faces
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
