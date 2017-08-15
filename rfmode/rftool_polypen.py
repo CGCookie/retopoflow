@@ -308,7 +308,10 @@ class RFTool_PolyPen(RFTool):
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
-            set2D_vert(bmv, xy + delta)
+            xy_updated = xy + delta
+            # check if xy_updated is "close" to any visible verts (in image plane)
+            # if so, snap xy_updated to vert position (in image plane)
+            set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_lines(self, coords):
