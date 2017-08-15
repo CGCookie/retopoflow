@@ -360,6 +360,10 @@ class RFTool_PolyPen(RFTool):
             self.set_next_state()
 
             if self.next_state == 'new vertex':
+                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                if d is not None and d < 15:
+                    self.draw_lines([nearest_edge.verts[0].co, hit_pos])
+                    self.draw_lines([nearest_edge.verts[1].co, hit_pos])
                 return
 
             if self.next_state == 'vert-edge':
@@ -369,6 +373,10 @@ class RFTool_PolyPen(RFTool):
                     p0 = self.nearest_vert.co
                 else:
                     p0 = hit_pos
+                    nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                    if d is not None and d < 15:
+                        self.draw_lines([nearest_edge.verts[0].co, p0])
+                        self.draw_lines([nearest_edge.verts[1].co, p0])
                 self.draw_lines([bmv0.co, p0])
                 return
 
