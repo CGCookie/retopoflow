@@ -110,6 +110,11 @@ class RFVert(BMElemWrapper):
     
     #############################################
     
+    def share_edge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        return any(bmv1 in bme.verts for bme in bmv0.link_edges)
+    
     def merge(self, other):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
