@@ -791,7 +791,7 @@ class RFTarget(RFMesh):
         rftarget = RFTarget()
         del RFTarget.creating
         rftarget.__setup__(obj)
-        BMElemWrapper.wrap(rftarget)
+        rftarget.rewrap()
 
         pr.done()
 
@@ -831,6 +831,9 @@ class RFTarget(RFMesh):
             if k not in {'prev_state'} and k in rftarget.__dict__: continue
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
+
+    def rewrap(self):
+        BMElemWrapper.wrap(self)
 
     def commit(self):
         self.write_editmesh()
