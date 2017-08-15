@@ -39,7 +39,13 @@ class RFContext_Target:
 
     def nearest2D_face(self, point=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
+
+    def nearest2D_faces(self, point=None, max_dist:float=10, faces=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmfaces_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
     ####################
     # REWRITE BELOW!!! #

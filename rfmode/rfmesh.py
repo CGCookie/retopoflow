@@ -123,7 +123,7 @@ class RFMesh():
 
     def clean(self):
         pass
-    
+
     def get_version(self):
         return self.version
 
@@ -241,7 +241,7 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
         return ret
-    
+
     @profiler.profile
     def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
         '''
@@ -251,7 +251,7 @@ class RFMesh():
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
         _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
-        
+
         # walk along verts and edges from intersection to plane
         def walk_to_plane(bmf):
             bmvs = [bmv for bmv in bmf.verts]
@@ -259,7 +259,7 @@ class RFMesh():
             if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
                 # bmf crosses plane already
                 return bmf
-            
+
             idx = min_index(bmvs_dot)
             bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
             touched = set()
@@ -277,9 +277,9 @@ class RFMesh():
                 if obmv_dot > bmv_dot: return None
                 bmv = obmv
                 bmv_dot = obmv_dot
-        
+
         bmf = walk_to_plane(bmf)
-        
+
         # crawl about self along plane
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
@@ -291,18 +291,18 @@ class RFMesh():
     def plane_intersections_crawl(self, plane:Plane):
         plane = self.xform.w2l_plane(plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
-        
+
         # find all faces that cross the plane
         pr = profiler.start('finding all edges crossing plane')
         dot = plane.n.dot
         o = dot(plane.o)
         edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
         pr.done()
-        
+
         pr = profiler.start('finding faces crossing plane')
         faces = set(bmf for bme in edges for bmf in bme.link_faces)
         pr.done()
-        
+
         pr = profiler.start('crawling faces along plane')
         rets = []
         touched = set()
@@ -314,7 +314,7 @@ class RFMesh():
             ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
             rets += [ret]
         pr.done()
-        
+
         return rets
 
 
@@ -479,10 +479,13 @@ class RFMesh():
             bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
             diff = bmv1 - bmv0
             l = diff.length
-            d = diff / l
-            margin = l * shorten / 2
-            pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
-            dist = (xy - pp).length
+            if l == 0:
+                dist = (xy - bmv0).length
+            else:
+                d = diff / l
+                margin = l * shorten / 2
+                pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
+                dist = (xy - pp).length
             if dist > dist2D: continue
             nearest += [(self._wrap_bmedge(bme), dist)]
         return nearest
@@ -511,6 +514,30 @@ class RFMesh():
             if be is None or dist < bd: be,bd,bpp = bme,dist,pp
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
+
+    def nearest2D_bmfaces_Point2D(self, xy:Point2D, Point_to_Point2D, faces=None):
+        # TODO: compute distance from camera to point
+        # TODO: sort points based on 3d distance
+        if faces is None:
+            faces = self.bme.faces
+        else:
+            faces = [self._unwrap(bmf) for bmf in faces]
+        nearest = []
+        for bmf in faces:
+            pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
+            pts = [pt for pt in pts if pt]
+            pt0 = pts[0]
+            # TODO: Get dist?
+            for pt1,pt2 in zip(pts[1:-1],pts[2:]):
+                if intersect_point_tri(xy, pt0, pt1, pt2):
+                    nearest += [(self._wrap_bmface(bmf), dist)]
+            #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
+            #d2d = (xy - p2d).length
+            #if p2d is None: continue
+            #if bv is None or d2d < bd: bv,bd = bmv,d2d
+        #if bv is None: return (None,None)
+        #return (self._wrap_bmvert(bv),bd)
+        return nearest
 
     def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D, faces=None):
         # TODO: compute distance from camera to point
@@ -661,7 +688,7 @@ class RFMesh():
             edges.reverse()
             crawl(bme, bme.verts[1])
         return RFEdgeSequence(edges)
-    
+
     def get_edge_loop(self, edge):
         bme = self._unwrap(edge)
         touched = set()
@@ -826,7 +853,7 @@ class RFTarget(RFMesh):
         self.mirror_mod.use_x = 'x' in self.symmetry
         self.mirror_mod.use_y = 'y' in self.symmetry
         self.mirror_mod.use_z = 'z' in self.symmetry
-    
+
     def enable_symmetry(self, axis): self.symmetry.add(axis)
     def disable_symmetry(self, axis): self.symmetry.discard(axis)
     def has_symmetry(self, axis): return axis in self.symmetry
@@ -854,7 +881,7 @@ class RFTarget(RFMesh):
         self.delete_edges(edges, del_empty_verts=del_empty_verts)
         verts = set(v for v in self.bme.verts if v.select)
         self.delete_verts(verts)
-        
+
 
     def delete_verts(self, verts):
         for bmv in map(self._unwrap, verts): self.bme.verts.remove(bmv)
