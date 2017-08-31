@@ -359,10 +359,10 @@ class Frame:
                 y = Direction(z.cross(x))
                 z = Direction(z)
 
-        self.o = o
-        self.x = x.normalize()
-        self.y = y.normalize()
-        self.z = z.normalize()
+        self.o = Point(o)
+        self.x = x
+        self.y = y
+        self.z = z
 
         self.fn_l2w_typed = {
             Point:      self.l2w_point,
@@ -384,6 +384,14 @@ class Frame:
             # Plane:      self.w2l_plane,
             # BMVert:     self.w2l_bmvert,
         }
+
+    def __str__(self):
+        return '<Frame (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (
+            self.o.x,self.o.y,self.o.z,
+            self.x.x,self.x.y,self.x.z,
+            self.y.x,self.y.y,self.y.z,
+            self.z.x,self.z.y,self.z.z,
+            )
 
     def _dot_fns(self): return self.x.dot,self.y.dot,self.z.dot
     def _dots(self, v): return (self.x.dot(v), self.y.dot(v), self.z.dot(v))
