@@ -574,7 +574,7 @@ class RFMesh():
         else:
             edges = [self._unwrap(bme) for bme in edges]
         l2w_point = self.xform.l2w_point
-        nearest = []
+        be,bd,bpp = None,None,None
         for bme in edges:
             bmv0 = Point_to_Point2D(l2w_point(bme.verts[0].co))
             bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
