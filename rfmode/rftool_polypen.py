@@ -81,12 +81,12 @@ class RFTool_PolyPen(RFTool):
         # get visible geometry near mouse
         nearby_verts = self.rfcontext.nearest2D_verts(verts=self.vis_verts)
         nearby_edges = self.rfcontext.nearest2D_edges(edges=self.vis_edges)
-        nearby_faces = [] # TODO: get nearby faces
-        
+        nearby_face = self.rfcontext.nearest2D_face(faces=self.vis_faces)
+
         # get hover geometry in sorted order
         self.hover_verts = [v for v,_ in sorted(nearby_verts, key=lambda vd:vd[1])]
         self.hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
-        self.hover_faces = [f for f,_ in sorted(nearby_faces, key=lambda fd:fd[1])]
+        self.hover_faces = [nearby_face]
         
         # get nearest geometry
         self.nearest_vert = next(iter(self.hover_verts), None)
@@ -146,9 +146,13 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.dirty()
             return
 
+    def set_vis_bmverts(self):
+        self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
+
     def prep_move(self, bmverts=None):
         if not bmverts: bmverts = self.sel_verts
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.set_vis_bmverts()
         self.mousedown = self.rfcontext.actions.mouse
 
     @RFTool.dirty_when_done
@@ -171,12 +175,27 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
             if not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1 = self.rfcontext.new2D_vert_mouse()
                 if not bmv1:
                     self.rfcontext.undo_cancel()
                     return 'main'
-                bme = self.rfcontext.new_edge((bmv0, bmv1))
-                self.rfcontext.select(bme)
+                if d is not None and d < self.rfcontext.drawing.scale(15):
+                    bme0,bmv2 = nearest_edge.split()
+                    bmv1.merge(bmv2)
+                    bmf = None
+                    for f0 in bmv0.link_faces:
+                        for f1 in bmv1.link_faces:
+                            if f0 == f1:
+                                bmf = f0
+                                break
+                    if bmf is not None:
+                        if not bmv0.share_edge(bmv1):
+                            bmf.split(bmv0, bmv1)
+                    self.rfcontext.select(bmv1)
+                else:
+                    bme = self.rfcontext.new_edge((bmv0, bmv1))
+                    self.rfcontext.select(bme)
             elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
                 if self.nearest_vert:
                     bmv1 = self.nearest_vert
@@ -194,6 +213,7 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
         if self.next_state == 'edge-face' or self.next_state == 'edges-face':
@@ -227,6 +247,7 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv2, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
         if self.next_state == 'tri-quad':
@@ -258,12 +279,17 @@ class RFTool_PolyPen(RFTool):
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
+            self.set_vis_bmverts()
             return 'move'
 
+        nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
         bmv = self.rfcontext.new2D_vert_mouse()
         if not bmv:
             self.rfcontext.undo_cancel()
             return 'main'
+        if d is not None and d < self.rfcontext.drawing.scale(15):
+            bme0,bmv2 = nearest_edge.split()
+            bmv.merge(bmv2)
         self.rfcontext.select(bmv)
         self.mousedown = self.rfcontext.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
@@ -272,14 +298,41 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.undo_cancel()
             return 'main'
         self.bmverts = [(bmv, xy)]
+        self.set_vis_bmverts()
         return 'move'
+
+    def mergeSnapped(self):
+        """ Merging colocated visible verts """
+        # TODO: remove colocated faces
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        update_verts = []
+        for bmv,xy in self.bmverts:
+            xy_updated = xy + delta
+            for bmv1,xy1 in self.vis_bmverts:
+                if not bmv1.is_valid: continue
+                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                    shared_edge = bmv.shared_edge(bmv1)
+                    if shared_edge:
+                        bmv1 = shared_edge.collapse()
+                    else:
+                        bmv1.merge(bmv)
+                    self.rfcontext.select(bmv1)
+                    update_verts += [bmv1]
+                    break
+        if update_verts:
+            self.rfcontext.update_verts_faces(update_verts)
+            self.update()
 
     @RFTool.dirty_when_done
     def modal_move(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            self.mergeSnapped()
+
             return 'main'
         if self.move_done_released and all(released(item) for item in self.move_done_released):
+            self.mergeSnapped()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
@@ -288,7 +341,14 @@ class RFTool_PolyPen(RFTool):
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
-            set2D_vert(bmv, xy + delta)
+            xy_updated = xy + delta
+            # check if xy_updated is "close" to any visible verts (in image plane)
+            # if so, snap xy_updated to vert position (in image plane)
+            for bmv1,xy1 in self.vis_bmverts:
+                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                    set2D_vert(bmv, xy1)
+                else:
+                    set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_lines(self, coords):
@@ -336,10 +396,14 @@ class RFTool_PolyPen(RFTool):
         if self.rfcontext.actions.shift or self.rfcontext.actions.ctrl:
             hit_pos = self.rfcontext.actions.hit_pos
             if not hit_pos: return
-            
+
             self.set_next_state()
 
             if self.next_state == 'new vertex':
+                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                if d is not None and d < self.rfcontext.drawing.scale(15):
+                    self.draw_lines([nearest_edge.verts[0].co, hit_pos])
+                    self.draw_lines([nearest_edge.verts[1].co, hit_pos])
                 return
 
             if self.next_state == 'vert-edge':
@@ -349,6 +413,10 @@ class RFTool_PolyPen(RFTool):
                     p0 = self.nearest_vert.co
                 else:
                     p0 = hit_pos
+                    nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                    if d is not None and d < self.rfcontext.drawing.scale(15):
+                        self.draw_lines([nearest_edge.verts[0].co, p0])
+                        self.draw_lines([nearest_edge.verts[1].co, p0])
                 self.draw_lines([bmv0.co, p0])
                 return
 

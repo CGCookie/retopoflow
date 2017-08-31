@@ -299,6 +299,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.tool = state['tool']
         self.tool_state = state['tool_state']
         self.rftarget = state['rftarget']
+        self.rftarget.rewrap()
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
         if self.tool: self.tool.update()

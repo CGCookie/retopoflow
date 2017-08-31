@@ -33,16 +33,16 @@ class BMElemWrapper:
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
         BMElemWrapper.symmetry   = rftarget.symmetry
-    
+
     @staticmethod
     def _unwrap(bmelem):
         if bmelem is None: return None
         if isinstance(bmelem, BMElemWrapper): return bmelem.bmelem
         return bmelem
-    
+
     def __init__(self, bmelem):
         self.bmelem = bmelem
-    
+
     def __repr__(self):
         return '<BMElemWrapper: %s>' % repr(self.bmelem)
     def __hash__(self):
@@ -54,27 +54,27 @@ class BMElemWrapper:
         return self.bmelem == other
     def __ne__(self, other):
         return not self.__eq__(other)
-    
+
     @property
     def hide(self): return self.bmelem.hide
     @hide.setter
     def hide(self, v): self.bmelem.hide = v
-    
+
     @property
     def index(self): return self.bmelem.index
     @index.setter
     def index(self, v): self.bmelem.index = v
-    
+
     @property
     def select(self): return self.bmelem.select
     @select.setter
     def select(self, v): self.bmelem.select = v
-    
+
     @property
     def tag(self): return self.bmelem.tag
     @tag.setter
     def tag(self, v): self.bmelem.tag = v
-    
+
     def __getattr__(self, k):
         if k in self.__dict__:
             return getattr(self, k)
@@ -84,7 +84,7 @@ class BMElemWrapper:
 class RFVert(BMElemWrapper):
     def __repr__(self):
         return '<RFVert: %s>' % repr(self.bmelem)
-    
+
     @property
     def co(self): return self.l2w_point(self.bmelem.co)
     @co.setter
@@ -93,23 +93,34 @@ class RFVert(BMElemWrapper):
         if 'x' in self.symmetry:
             co.x = max(0, co.x)
         self.bmelem.co = co
-    
+
     @property
     def normal(self): return self.l2w_normal(self.bmelem.normal)
-    
+
     @normal.setter
     def normal(self, norm): self.bmelem.normal = self.w2l_normal(norm)
-    
+
     @property
     def link_edges(self):
         return [RFEdge(bme) for bme in self.bmelem.link_edges]
-    
+
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
-    
+
     #############################################
-    
+
+    def share_edge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        return any(bmv1 in bme.verts for bme in bmv0.link_edges)
+
+    def shared_edge(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        bme = next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
+        return RFEdge(bme) if bme else None
+
     def merge(self, other):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
@@ -119,17 +130,17 @@ class RFVert(BMElemWrapper):
 class RFEdge(BMElemWrapper):
     def __repr__(self):
         return '<RFEdge: %s>' % repr(self.bmelem)
-    
+
     @property
     def seam(self): return self.bmelem.seam
     @seam.setter
     def seam(self, v): self.bmelem.seam = v
-    
+
     @property
     def smooth(self): return self.bmelem.smooth
     @smooth.setter
     def smooth(self, v): self.bmelem.smooth = v
-    
+
     def other_vert(self, bmv):
         bmv = self._unwrap(bmv)
         o = self.bmelem.other_vert(bmv)
@@ -146,52 +157,60 @@ class RFEdge(BMElemWrapper):
     def verts(self):
         bmv0,bmv1 = self.bmelem.verts
         return (RFVert(bmv0), RFVert(bmv1))
-    
+
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
-    
+
     #############################################
-    
+
     def normal(self):
         n,c = Vector(),0
         for bmf in self.bmelem.link_faces:
             n += bmf.normal
             c += 1
         return n / max(1,c)
-    
+
     #############################################
-    
+
     def split(self, vert=None, fac=0.5):
         bme = BMElemWrapper._unwrap(self)
         bmv = BMElemWrapper._unwrap(vert) or bme.verts[0]
         bme_new,bmv_new = edge_split(bme, bmv, fac)
         return RFEdge(bme_new), RFVert(bmv_new)
 
+    def collapse(self):
+        bme = BMElemWrapper._unwrap(self)
+        bmv0,bmv1 = bme.verts
+        del_faces = [f for f in bme.link_faces if len(f.verts) == 3]
+        for bmf in del_faces: self.rftarget.bme.faces.remove(bmf)
+        bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
+        return bmv0 if bmv0.is_valid else bmv1
+
 
 class RFFace(BMElemWrapper):
     def __repr__(self):
         return '<RFFace: %s>' % repr(self.bmelem)
-    
+
     @property
     def material_index(self): return self.bmelem.material_index
     @material_index.setter
     def material_index(self, v): self.bmelem.material_index = v
-    
+
     @property
     def normal(self): return self.l2w_normal(self.bmelem.normal)
     @normal.setter
     def normal(self, v): self.bmelem.normal = self.w2l_normal(v)
-    
+
     @property
     def smooth(self): return self.bmelem.smooth
     @smooth.setter
     def smooth(self, v): self.bmelem.smooth = v
-    
+
     @property
     def edges(self):
         return [RFEdge(bme) for bme in self.bmelem.edges]
-    
+
     def shared_edge(self, other):
         edges = set(self.bmelem.edges)
         for bme in other.bmelem.edges:
@@ -255,5 +274,4 @@ class RFEdgeSequence:
     def is_loop(self): return self.loop
     def iter_vert_pairs(self): return iter_pairs(self.get_verts(), self.loop)
     def iter_edge_pairs(self): return iter_pairs(self.get_edges(), self.loop)
-
 

@@ -666,4 +666,3 @@ class RFTool_Contours(RFTool):
             bgl.glVertex2f(*self.rotate_about)
             bgl.glVertex2f(*self.rfcontext.actions.mouse)
             bgl.glEnd()
-
