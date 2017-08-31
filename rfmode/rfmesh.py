@@ -126,12 +126,9 @@ class RFMesh():
     
     def get_version(self):
         return self.version
-<<<<<<< HEAD
-=======
 
     def get_version(self):
         return self.version
->>>>>>> hinting
 
     def get_bvh(self):
         if not hasattr(self, 'bvh') or self.bvh_version != self.version:
@@ -246,7 +243,6 @@ class RFMesh():
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-<<<<<<< HEAD
         return ret
     
     @profiler.profile
@@ -291,9 +287,6 @@ class RFMesh():
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        return ret
-=======
->>>>>>> hinting
         return ret
     
     @profiler.profile
