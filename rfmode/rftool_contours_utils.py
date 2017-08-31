@@ -233,11 +233,9 @@ class Contours_Loop:
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
         pts_local = [self.w2l_point(pt+self.frame.o) for pt in pts]
-        print(pts_local)
         idx = max(range(len(pts_local)), key=lambda i:pts_local[i].y) # / pts_local[i].length)
         t = pts_local[idx]
         offset = ((math.pi/2 - math.atan2(t.y, t.x)) * self.circumference / (math.pi*2)) % self.circumference
-        print((t, idx, offset))
         return (idx,offset)
 
     def align_to(self, other):
@@ -252,9 +250,6 @@ class Contours_Loop:
         else:
             offset = 0
         self.set_vert_loop(vert_loop, offset)
-        print(str(self.frame))
-        print(str(other.frame))
-        print('%f / %f' % (offset, self.circumference))
     
     def get_closest_point(self, point):
         point = to_point(point)
