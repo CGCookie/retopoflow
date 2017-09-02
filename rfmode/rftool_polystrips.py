@@ -9,7 +9,7 @@ from mathutils.geometry import intersect_point_tri_2d
 from ..common.ui import UI_Image
 from . import rftool_polystrips_icon
 
-from ..lib.common_utilities import showErrorMessage
+from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
 from .rftool_polystrips_utils import *
@@ -36,6 +36,7 @@ class RFTool_PolyStrips(RFTool):
         self.sel_cbpts = []
         self.strokes = []
         self.stroke_cbs = CubicBezierSpline()
+        self.visible_faces = None
         self.update()
     
     def get_ui_icon(self):
@@ -96,7 +97,9 @@ class RFTool_PolyStrips(RFTool):
         self.rfcontext.undo_push('stroke')
         
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        vis_faces = self.rfcontext.visible_faces()
+        vis_verts = self.rfcontext.visible_verts()
+        vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
+        vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
         vis_faces2D = [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in vis_faces]
         
         def get_state(point:Point2D):
@@ -180,25 +183,51 @@ class RFTool_PolyStrips(RFTool):
                 bmv0,bmv1 = bme_end.verts
                 merge(lp2, lp3, bmv0, bmv1)
         
+        def absorb(cb, bme):
+            if not bme: return cb
+            Point_to_Point2D = self.rfcontext.Point_to_Point2D
+            # tessellate curve to points, absorb points into bme0 and bme3, then refit
+            pts = cb.tessellate_uniform_points()
+            v0,v1 = bme.verts
+            p0,p1 = Point_to_Point2D(v0.co),Point_to_Point2D(v1.co)
+            d01 = p1 - p0
+            len2D = d01.length
+            d01.normalize()
+            def dist2D(pt):
+                pt2D = Point_to_Point2D(pt)
+                d = max(0, min(len2D, d01.dot(pt2D-p0)))
+                pt = p0 + d01 * d
+                return (pt - pt2D).length
+            npts = [pt for pt in pts if dist2D(pt) > len2D * 0.65]
+            if len(npts) > 2:
+                cb = CubicBezier.create_from_points(npts)
+            dprint('absorb: %d -> %d' % (len(pts), len(npts)))
+            return cb
+        
         def stroke_to_quads(stroke):
-            nonlocal bmfaces, all_bmfaces, vis_faces2D
-            cbs = CubicBezierSpline.create_from_points([stroke], radius/20.0)
-            nearest_edges_Point = self.rfcontext.nearest_edges_Point
-            
+            nonlocal bmfaces, all_bmfaces, vis_faces2D, vis_edges, radius
+            cbs = CubicBezierSpline.create_from_points([stroke], radius/60.0)
+            nearest2D_edge = self.rfcontext.nearest2D_edge
+            radius2D = self.rfcontext.size_to_size2D(radius, stroke[0])
+           
             for cb in cbs:
                 # pre-pass curve to see if we cross existing geo
                 p0,_,_,p3 = cb.points()
-                bmes0 = nearest_edges_Point(p0, radius)
-                bmes3 = nearest_edges_Point(p3, radius)
-                #print('close to %d and %d' % (len(bmes0), len(bmes3)))
-                bme0 = None if not bmes0 else sorted(bmes0, key=lambda d:d[1])[0][0]
-                bme3 = None if not bmes3 else sorted(bmes3, key=lambda d:d[1])[0][0]
+                bme0,d0 = nearest2D_edge(p0, radius2D, edges=vis_edges)
+                bme3,d3 = nearest2D_edge(p3, radius2D, edges=vis_edges)
+                
+                # print((len(vis_edges), radius2D,bme0,d0,bme3,d3))
+                # bme0,bme3 = None,None
+                
+                cb = absorb(cb, bme0)
+                cb = absorb(cb, bme3)
                 
                 # post-pass to create
                 bmfaces = []
                 insert(cb, bme0, bme3)
                 all_bmfaces += bmfaces
-                vis_faces2D += [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in bmfaces]
+                # vis_edges |= set(bme for bmf in bmfaces for bme in bmf.edges)
+                # vis_faces2D += [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in bmfaces]
             
             self.stroke_cbs = self.stroke_cbs + cbs
         
@@ -230,11 +259,49 @@ class RFTool_PolyStrips(RFTool):
             map(self.rfcontext.update_face_normal, all_bmfaces)
             self.rfcontext.select(all_bmfaces)
         
+        def merge_faces():
+            nonlocal all_bmfaces
+            # go through all the faces and merge newly created faces that overlap
+            Point_to_Point2D = self.rfcontext.Point_to_Point2D
+            done = False
+            while not done:
+                done = True
+                max_i0,max_i1,max_overlap = -1,-1,0.5
+                for i0,bmf0 in enumerate(all_bmfaces):
+                    if not bmf0.is_valid: continue
+                    for i1,bmf1 in enumerate(all_bmfaces):
+                        if i1 <= i0: continue
+                        if not bmf1.is_valid: continue
+                        if any(bmf0 in bme.link_faces for bme in bmf1.edges): continue
+                        overlap = bmf0.overlap2D(bmf1, Point_to_Point2D)
+                        if overlap > max_overlap:
+                            max_i0 = i0
+                            max_i1 = i1
+                            max_overlap = overlap
+                if max_i0 != -1:
+                    dprint('%s overlaps %s by %f' % (str(bmf0), str(bmf1), overlap))
+                    bmf0 = all_bmfaces[max_i0]
+                    bmf1 = all_bmfaces[max_i1]
+                    bmf0.merge(bmf1)
+                    for vert in bmf0.verts:
+                        self.rfcontext.clean_duplicate_bmedges(vert)
+                    done = False
+        
         try:
             process_stroke()
         except Exception as e:
             Logger.add('Unhandled exception raised while processing stroke\n' + str(e))
+            dprint('Unhandled exception raised while processing stroke\n' + str(e))
             showErrorMessage('Unhandled exception raised while processing stroke.\nPlease try again.')
+            raise e
+        try:
+            merge_faces()
+        except Exception as e:
+            Logger.add('Unhandled exception raised while merging faces\n' + str(e))
+            dprint('Unhandled exception raised while merging faces\n' + str(e))
+            showErrorMessage('Unhandled exception raised while merging faces.\nPlease try again.')
+            raise e
+    
     
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -264,8 +331,9 @@ class RFTool_PolyStrips(RFTool):
             if self.rfcontext.actions.pressed('select'):
                 self.rfcontext.undo_push('select')
                 self.rfcontext.deselect_all()
-            faces = self.rfcontext.visible_faces()
-            bmf = self.rfcontext.nearest2D_face(faces=faces)
+            if not self.visible_faces:
+                self.visible_faces = self.rfcontext.visible_faces()
+            bmf = self.rfcontext.nearest2D_face(faces=self.visible_faces)
             if bmf and not bmf.select:
                 self.rfcontext.select(bmf, supparts=False, only=False)
             return
@@ -273,11 +341,14 @@ class RFTool_PolyStrips(RFTool):
         if self.rfcontext.actions.using('select add'):
             if self.rfcontext.actions.pressed('select add'):
                 self.rfcontext.undo_push('select add')
-            faces = self.rfcontext.visible_faces()
-            bmf = self.rfcontext.nearest2D_face(faces=faces)
+            if not self.visible_faces:
+                self.visible_faces = self.rfcontext.visible_faces()
+            bmf = self.rfcontext.nearest2D_face(faces=self.visible_faces)
             if bmf and not bmf.select:
                 self.rfcontext.select(bmf, supparts=False, only=False)
             return
+        
+        self.visible_faces = None
         
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()

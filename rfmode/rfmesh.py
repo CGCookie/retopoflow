@@ -1028,8 +1028,10 @@ class RFTarget(RFMesh):
                 # remove bme1 and recreate attached faces
                 lbmv = list(bme1.link_faces[0].verts)
                 bmf = self._wrap_bmface(bme1.link_faces[0])
+                s = bmf.select
                 self.bme.edges.remove(bme1)
                 mapping[bmf] = self.new_face(lbmv)
+                mapping[bmf].select = s
                 #self.create_face(lbmv)
                 handled = True
             if not handled:

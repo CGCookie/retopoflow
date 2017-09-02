@@ -94,13 +94,7 @@ class RFContext_Target:
         return self.nearest_verts_point(self.actions.mouse, max_dist)
 
     def nearest_edges_Point(self, point, max_dist:float):
-        return self.rftarget.nearest_bmedges_Point(point, max_dist)
-
-    def nearest_edge_Point(self, point:Point, edges=None):
-        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
-
-    def nearest_edges_Point(self, point, max_dist:float):
-        if max_dist: max_dist = self.drawing.scale(max_dist)
+        max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest_bmedges_Point(point, max_dist)
 
     def nearest_edge_Point(self, point:Point, edges=None):

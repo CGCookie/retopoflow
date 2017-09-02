@@ -587,6 +587,56 @@ class BBox:
     def Point_within(self, point:Point, margin=0):
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
 
+# https://rosettacode.org/wiki/Determine_if_two_triangles_overlap#C.2B.2B
+def triangle2D_det(p0, p1, p2):
+    return p0.x * (p1.y - p2.y) + p1.x * (p2.y - p0.y) + p2.x * (p0.y - p1.y)
+def triangle2D_boundary_collision_check(p0, p1, p2, eps):
+    return triangle2D_det(p0, p1, p2) < eps
+def triangle2D_collision_check(p0, p1, p2, eps):
+    return triangle2D_det(p0, p1, p2) <= eps
+def triangle2D_overlap(triangle0, triangle1, eps=0.0):
+    _chk = triangle2D_collision_check
+    def chk(e0, e1, p0, p1, p2): return _chk(e0,e1,p0,eps) and _chk(e0,e1,p1,eps) and _chk(e0,e1,p2,eps)
+    a0,a1,a2 = triangle0
+    b0,b1,b2 = triangle1
+    if chk(a0, a1, b0, b1, b2) or chk(a1, a2, b0, b1, b2) or chk(a2, a0, b0, b1, b2): return False
+    if chk(b0, b1, a0, a1, a2) or chk(b1, b2, a0, a1, a2) or chk(b2, b0, a0, a1, a2): return False
+    return True
+
+def triangle2D_area(p0, p1, p2):
+    a = Vector((p0.x, p0.y, 0.0))
+    b = Vector((p1.x, p1.y, 0.0))
+    c = Vector((p2.x, p2.y, 0.0))
+    return (b-a).cross(c-a).length / 2
+
+def segment2D_intersection(a0,a1, b0,b1):
+    # get distance from b0 to a0---a1
+    dir_a0a1 = a1 - a0
+    dist_a0a1 = max(0.00000001, dir_a0a1.length)
+    dir_a0a1 /= dist_a0a1
+    vec_a0b0 = b0 - a0
+    closest_b0_a0a1 = a0 + dir_a0a1 * dir_a0a1.dot(vec_a0b0)
+    pdir_a0a1_b0 = b0 - closest_b0_a0a1
+    dist_a0a1_b0 = pdir_a0a1_b0.length
+    if dist_a0a1_b0 == 0:
+        # b0 is on a0-a1 line
+        return b0
+    pdir_a0a1_b0 /= dist_a0a1_b0
+    dir_b0b1 = b1 - b0
+    dist_b0b1 = max(0.00000001, dir_b0b1.length)
+    dir_b0b1 /= dist_b0b1
+    dot = dir_b0b1.dot(pdir_a0a1_b0)
+    if abs(dot) <= 0.0000001:
+        # a0-a1 and b0-b1 are nearly parallel
+        return None
+    dist_intersection_b0b1 = dist_a0a1_b0 / dot
+    if dist_intersection_b0b1 < 0 or dist_intersection_b0b1 > dist_b0b1: return None
+    intersection = b0 + dir_b0b1 * dist_intersection_b0b1
+    # dist_intersection_a0a1 = dir_a0a1.dot(intersection - a0)
+    # if dist_intersection_a0a1 < 0 or dist_intersection_a0a1 > dist_a0a1: return None
+    return intersection
+    
+
 
 if __name__ == '__main__':
     # run tests

@@ -2,6 +2,8 @@ import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split, vert_splice, face_split
 from ..common.utils import iter_pairs
+from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
+from ..common.maths import Vec2D
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -170,7 +172,11 @@ class RFEdge(BMElemWrapper):
             n += bmf.normal
             c += 1
         return n / max(1,c)
-
+    
+    def calc_length(self):
+        v0,v1 = self.bmelem.verts
+        return (self.l2w_point(v0.co) - self.l2w_point(v1.co)).length
+    
     #############################################
 
     def split(self, vert=None, fac=0.5):
@@ -229,6 +235,74 @@ class RFFace(BMElemWrapper):
     
     def is_quad(self): return len(self.bmelem.verts)==4
     def is_triangle(self): return len(self.bmelem.verts)==3
+    
+    #############################################
+    
+    def overlap2D(self, other, Point_to_Point2D):
+        return self.overlap2D_center(other, Point_to_Point2D)
+    
+    def overlap2D_center(self, other, Point_to_Point2D):
+        verts0 = list(map(Point_to_Point2D, [v.co for v in self.bmelem.verts]))
+        verts1 = list(map(Point_to_Point2D, [v.co for v in self._unwrap(other).verts]))
+        center0 = sum(map(Vec2D, verts0), Vec2D((0,0))) / len(verts0)
+        center1 = sum(map(Vec2D, verts1), Vec2D((0,0))) / len(verts1)
+        radius0 = sum((v-center0).length for v in verts0) / len(verts0)
+        radius1 = sum((v-center1).length for v in verts1) / len(verts1)
+        ratio = 1 - (center0-center1).length / (radius0 + radius1)
+        return max(0, ratio)
+    
+    def overlap2D_Sutherland_Hodgman(self, other, Point_to_Point2D):
+        # computes area in image space of overlap between self and other
+        # this is done by clipping other to self by iterating through all of edges in self
+        # and clipping to the "inside" half-space.
+        # Sutherland-Hodgman Algorithm https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+        
+        # NOTE: assumes self and other are convex! (not a terrible assumption)
+        
+        verts0 = list(map(Point_to_Point2D, [v.co for v in self.bmelem.verts]))
+        verts1 = list(map(Point_to_Point2D, [v.co for v in self._unwrap(other).verts]))
+        
+        for v00,v01 in zip(verts0, verts0[1:]+verts0[:1]):
+            # other polygon (verts1) by line v00-v01
+            len1 = len(verts1)
+            sides = [triangle2D_det(v00, v01, v1)<=0 for v1 in verts1]
+            intersections = [segment2D_intersection(v00, v01, v10, v11) for v10,v11 in zip(verts1,verts1[1:]+verts1[:1])]
+            nverts1 = []
+            for i0 in range(len1):
+                i1 = (i0+1) % len1
+                v10,v11 = verts1[i0],verts1[i1]
+                s10,s11 = sides[i0],sides[i1]
+                
+                if s10 and s11:
+                    # both outside. might intersect
+                    if intersections[i0]:
+                        nverts1 += [intersections[i0]]
+                elif not s11:
+                    if s10:
+                        # v10 is outside, v11 is inside
+                        if intersections[i0]:
+                            nverts1 += [intersections[i0]]
+                    nverts1 += [v11]
+            verts1 = nverts1
+            print(verts1)
+        
+        if len(verts1) < 3: return 0
+        v0 = verts1[0]
+        return sum(triangle2D_area(v0,v1,v2) for v1,v2 in zip(verts1[1:-1],verts1[2:]))
+    
+    def merge(self, other):
+        # find vert of other that is closest to self's v0
+        verts0,verts1 = list(self.bmelem.verts),list(other.bmelem.verts)
+        l = len(verts0)
+        assert l == len(verts1), 'RFFaces must have same vert count'
+        self.rftarget.bme.faces.remove(self._unwrap(other))
+        offset = min(range(l), key=lambda i:(verts1[i].co - verts0[0].co).length)
+        # assuming verts are in same rotational order (should be)
+        for i0 in range(l):
+            i1 = (i0 + offset) % l
+            vert_splice(verts1[i1], verts0[i0])
+        #for v in verts0:
+        #    self.rftarget.clean_duplicate_bmedges(v)
     
     #############################################
     

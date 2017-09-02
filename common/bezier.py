@@ -158,6 +158,42 @@ def fit_cubicbezier_spline(l_co, error_scale, depth=0, t0=0, t3=-1, allow_split=
 
 class CubicBezier:
     split_default = 100
+    segments_default = 100
+    
+    @staticmethod
+    def create_from_points(pts_list):
+        '''
+        Estimates best spline to fit given points
+        '''
+        count = len(pts_list)
+        if count == 0: assert False
+        if count == 1: assert False
+        if count == 2:
+            p0,p3 = pts_list
+            diff = p3-p0
+            p1,p2 = p0+diff*0.33,p0+diff*0.66
+            return CubicBezier(p0, p1, p2, p3)
+        if count == 3:
+            p0,p03,p3 = pts_list
+            d003,d303 = (p03-p0),(p03-p3)
+            p1,p2 = p0+d003*0.5,p3+d303*0.5
+            return CubicBezier(p0, p1, p2, p3)
+        l_d  = [0] + [(p0-p1).length for p0,p1 in zip(pts_list[:-1],pts_list[1:])]
+        l_ad = [s for d,s in iter_running_sum(l_d)]
+        dist = sum(l_d)
+        if dist <= 0:
+            p0 = pts_list[0]
+            return CubicBezier(p0, p0, p0, p0)
+        l_t  = [ad/dist for ad in l_ad]
+        
+        ex,x0,x1,x2,x3 = fit_cubicbezier([pt[0] for pt in pts_list], l_t)
+        ey,y0,y1,y2,y3 = fit_cubicbezier([pt[1] for pt in pts_list], l_t)
+        ez,z0,z1,z2,z3 = fit_cubicbezier([pt[2] for pt in pts_list], l_t)
+        p0 = Point((x0,y0,z0))
+        p1 = Point((x1,y1,z1))
+        p2 = Point((x2,y2,z2))
+        p3 = Point((x3,y3,z3))
+        return CubicBezier(p0, p1, p2, p3)
     
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3
@@ -259,6 +295,12 @@ class CubicBezier:
         ps = [self.eval(t) for t in ts]
         ds = [0] + [fn_dist(p,q) for p,q in zip(ps[:-1],ps[1:])]
         return [(t,p,d) for t,p,d in zip(ts,ps,ds)]
+    
+    def tessellate_uniform_points(self, segments=None):
+        segments = segments or self.segments_default
+        ts = [i/(segments-1) for i in range(segments)]
+        ps = [self.eval(t) for t in ts]
+        return ps
 
 
 
