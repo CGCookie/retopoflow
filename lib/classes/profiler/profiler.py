@@ -25,7 +25,7 @@ import time
 from ...common_utilities import dprint, dcallstack
 
 class Profiler:
-    debug = True
+    debug = False
     
     class ProfilerHelper(object):
         def __init__(self, pr, text):

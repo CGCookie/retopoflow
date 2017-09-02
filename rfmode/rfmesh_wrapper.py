@@ -123,6 +123,11 @@ class RFVert(BMElemWrapper):
         bme = next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
         return RFEdge(bme) if bme else None
 
+    def shared_faces(self, other):
+        bmv0 = BMElemWrapper._unwrap(self)
+        bmv1 = BMElemWrapper._unwrap(other)
+        return [RFFace(bmf) for bmf in bmv0.link_faces if bmv1 in bmf.verts]
+
     def merge(self, other):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
