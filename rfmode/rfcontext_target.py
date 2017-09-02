@@ -36,10 +36,18 @@ class RFContext_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
-    
-    def nearest2D_face(self, point=None, faces=None):
+
+    # TODO: implement max_dist
+    def nearest2D_face(self, point=None, max_dist=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
+
+    # TODO: fix this function! Izzza broken
+    def nearest2D_faces(self, point=None, max_dist:float=10, faces=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        if max_dist: max_dist = self.drawing.scale(max_dist)
+        return self.rftarget.nearest2D_bmfaces_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
     ####################
     # REWRITE BELOW!!! #
@@ -69,7 +77,6 @@ class RFContext_Target:
         xyz,_,_,_ = self.raycast_sources_Point2D(point)
         return xyz
 
-
     def nearest_vert_point(self, point, verts=None):
         xyz = self.get_point3D(point)
         if xyz is None: return None
@@ -85,7 +92,6 @@ class RFContext_Target:
 
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
-
 
     def nearest_edges_Point(self, point, max_dist:float):
         return self.rftarget.nearest_bmedges_Point(point, max_dist)
@@ -211,6 +217,14 @@ class RFContext_Target:
             faces += [self.new_face((v00,v01,v11,v10))]
         return faces
     
+    def bridge_vertloop(self, vloop0, vloop1, connected):
+        assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
+        faces = []
+        for pair0,pair1 in zip(iter_pairs(vloop0, connected), iter_pairs(vloop1, connected)):
+            v00,v01 = pair0
+            v10,v11 = pair1
+            faces += [self.new_face((v00,v01,v11,v10))]
+        return faces
 
     def update_verts_faces(self, verts):
         self.rftarget.update_verts_faces(verts)

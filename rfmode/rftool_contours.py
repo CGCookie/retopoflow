@@ -554,6 +554,7 @@ class RFTool_Contours(RFTool):
             l = len(ndists)-1 if cloop.connected else len(ndists)
             for c0,c1 in cl_cut.iter_pts(repeat=True):
                 d = (c1-c0).length
+                d = max(0.00000001, d)
                 while dist - d <= 0:
                     # create new vert between c0 and c1
                     p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
@@ -666,4 +667,3 @@ class RFTool_Contours(RFTool):
             bgl.glVertex2f(*self.rotate_about)
             bgl.glVertex2f(*self.rfcontext.actions.mouse)
             bgl.glEnd()
-
