@@ -132,6 +132,17 @@ class Point(Vector, Entity3D):
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y,self.z = v
+    
+    @staticmethod
+    def average(points):
+        x,y,z,c = 0,0,0,0
+        for p in points:
+            x += p.x
+            y += p.y
+            z += p.z
+            c += 1
+        if c == 0: return Point((0,0,0))
+        return Point((x/c, y/c, z/c))
 
 
 class Direction2D(Vector, Entity2D):
