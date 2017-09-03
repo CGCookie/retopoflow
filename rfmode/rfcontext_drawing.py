@@ -48,6 +48,7 @@ class RFContext_Drawing:
         self.tool_window.add(UI_Button('Exit', self.quit, align=0))
         
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
+        window_info.add(UI_Label('ver: 2.0.0'))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))

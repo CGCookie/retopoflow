@@ -101,7 +101,13 @@ void main() {
         }
         
         // MAGIC!
-        gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l)*vDotOffset - clip*vOffset*0.10;
+        //gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l)*vDotOffset - clip*vOffset*0.10;
+        gl_FragDepth =
+            gl_FragCoord.z
+            - 0.001*(2.0-d)/(l*l)*vDotOffset
+            - clip*vOffset*0.10
+            + 0.0001*pow(max(0.0, 1.0-d), 10.0)*l
+            ;
     } else {
         // orthographic projection
         vec3 v = vec3(0,0,hclip) + vPosition.xyz / vPosition.w;
