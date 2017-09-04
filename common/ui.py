@@ -661,6 +661,9 @@ class UI_Checkbox2(UI_Container):
         
         super()._draw()
 
+class UI_BoolValue(UI_Checkbox):
+    pass
+
 class UI_IntValue(UI_Container):
     def __init__(self, label, fn_get_value, fn_set_value):
         super().__init__(vertical=False)
