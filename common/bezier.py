@@ -357,8 +357,8 @@ class CubicBezierSpline:
             assert False, "unhandled type: %s (%s)" % (str(other),str(t))
     
     def __len__(self): return len(self.cbs)
-    
     def __iter__(self): return self.cbs.__iter__()
+    def __getitem__(self, idx): return self.cbs[idx]
     
     def eval(self, t):
         if t < 0.0:
