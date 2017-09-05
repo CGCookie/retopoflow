@@ -236,6 +236,7 @@ class RFMode(Operator):
                         space.show_manipulator = False
         
         # add callback handlers
+        self.cb_pr_handle = SpaceView3D.draw_handler_add(self.draw_callback_preview,   (bpy.context, ), 'WINDOW', 'PRE_VIEW')
         self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
         self.cb_pp_handle = SpaceView3D.draw_handler_add(self.draw_callback_postpixel, (bpy.context, ), 'WINDOW', 'POST_PIXEL')
         # darken other spaces
@@ -300,6 +301,9 @@ class RFMode(Operator):
             self.rfctx.timer = None
         
         # remove callback handlers
+        if hasattr(self, 'cb_pr_handle'):
+            SpaceView3D.draw_handler_remove(self.cb_pr_handle, "WINDOW")
+            del self.cb_pr_handle
         if hasattr(self, 'cb_pv_handle'):
             SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
             del self.cb_pv_handle
@@ -386,6 +390,13 @@ class RFMode(Operator):
     ####################################################################
     # Draw handler function
     
+    def draw_callback_preview(self, context):
+        if not still_registered(self): return
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
+        try:    self.rfctx.draw_preview()
+        except: self.handle_exception()
+        bgl.glPopAttrib()                           # restore OpenGL attributes
+
     def draw_callback_postview(self, context):
         if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
