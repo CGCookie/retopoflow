@@ -1,7 +1,6 @@
 import bpy
 import bgl
 import blf
-import png
 from bpy.types import BoolProperty
 import math
 from itertools import chain
