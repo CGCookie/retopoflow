@@ -235,6 +235,10 @@ class RFTool_PolyStrips_Ops:
             dprint('Unhandled exception raised while merging faces\n' + str(e))
             showErrorMessage('Unhandled exception raised while merging faces.\nPlease try again.')
             raise e
+        
+        for bmf in all_bmfaces:
+            for bmv in bmf.verts:
+                self.rfcontext.snap_vert(bmv)
     
     def change_count(self, delta):
         # find first strip that is simple enough to modify
@@ -260,6 +264,9 @@ class RFTool_PolyStrips_Ops:
             self.rfcontext.delete_faces(bmf_strip)
             faces = self.insert_strip(cb, count_new, radius, bme_start=bme0 if c0 else None, bme_end=bme1 if c1 else None)
             self.rfcontext.select(faces)
+            for bmf in faces:
+                for bmv in bmf.verts:
+                    self.rfcontext.snap_vert(bmv)
             break
 
         # pass
