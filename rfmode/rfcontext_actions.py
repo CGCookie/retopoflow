@@ -218,17 +218,16 @@ class Actions:
                 self.mousedown_right = self.mousedown
 
         ftype = kmi_details(event)
-        if 'WHEELUPMOUSE' in ftype or 'WHEELDOWNMOUSE' in ftype:
-            # mouse wheel actions have no release, so handle specially
-            self.just_pressed = ftype
+        if pressed:
+            if event.type not in self.now_pressed:
+                self.just_pressed = ftype
+            if 'WHEELUPMOUSE' in ftype or 'WHEELDOWNMOUSE' in ftype:
+                # mouse wheel actions have no release, so handle specially
+                self.just_pressed = ftype
+            self.now_pressed[event.type] = ftype
         else:
-            if pressed:
-                if event.type not in self.now_pressed:
-                    self.just_pressed = ftype
-                self.now_pressed[event.type] = ftype
-            else:
-                if event.type in self.now_pressed:
-                    del self.now_pressed[event.type]
+            if event.type in self.now_pressed:
+                del self.now_pressed[event.type]
 
     def convert(self, actions):
         t = type(actions)
