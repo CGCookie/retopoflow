@@ -26,6 +26,7 @@ class RFTool_PolyPen(RFTool):
         
         self.target_version = None
         self.view_version = None
+        self.defer_recomputing = False
 
     def get_ui_icon(self):
         icon = load_icon('polypen_32.png')
@@ -47,7 +48,7 @@ class RFTool_PolyPen(RFTool):
         recompute |= self.target_version != target_version
         recompute |= self.view_version != view_version
         
-        if recompute:
+        if recompute and not self.defer_recomputing:
             # print('recompute! ' + str(view_version))
             
             self.target_version = target_version
@@ -154,6 +155,7 @@ class RFTool_PolyPen(RFTool):
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.set_vis_bmverts()
         self.mousedown = self.rfcontext.actions.mouse
+        self.defer_recomputing = True
 
     @RFTool.dirty_when_done
     def modal_insert(self):
@@ -328,13 +330,15 @@ class RFTool_PolyPen(RFTool):
     def modal_move(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            self.defer_recomputing = False
             self.mergeSnapped()
-
             return 'main'
         if self.move_done_released and all(released(item) for item in self.move_done_released):
+            self.defer_recomputing = False
             self.mergeSnapped()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
 
@@ -347,8 +351,9 @@ class RFTool_PolyPen(RFTool):
             for bmv1,xy1 in self.vis_bmverts:
                 if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
                     set2D_vert(bmv, xy1)
-                else:
-                    set2D_vert(bmv, xy_updated)
+                    break
+            else:
+                set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
     def draw_lines(self, coords):
