@@ -55,8 +55,8 @@ class Actions:
         'dissolve': {'SHIFT+X','SHIFT+DELETE'},
 
         # contours
-        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW'},
-        'decrease count': {'MINUS','SHIFT+DOWN_ARROW'},
+        'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
+        'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
         'shift': {'S'},
         'rotate': {'SHIFT+S'},
 
@@ -104,19 +104,20 @@ class Actions:
             return
         keyconfig = bpy.context.window_manager.keyconfigs[keyconfig_name]
         for kmi in keyconfig.keymaps['3D View'].keymap_items:
-            if kmi.name in self.navigation_events:
-                self.keymap['navigate'].add(kmi_details(kmi))
+            if kmi.name not in self.navigation_events: continue
+            if kmi.active: self.keymap['navigate'].add(kmi_details(kmi))
+            else: self.keymap['navigate'].discard(kmi_details(kmi))
         for map_name in ['Screen', 'Window']:
             for kmi in keyconfig.keymaps[map_name].keymap_items:
-                if kmi.idname in self.window_actions:
-                    self.keymap['window actions'].add(kmi_details(kmi))
+                if kmi.idname not in self.window_actions: continue
+                if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
+                else: self.keymap['window actions'].discard(kmi_details(kmi))
             
 
     def __init__(self):
         self.keymap = deepcopy(self.default_keymap)
         self.load_keymap('Blender')
         self.load_keymap('Blender User')
-        #print('navigation: ' + str(self.keymap['navigate']))
 
         self.context = None
         self.region = None
@@ -217,13 +218,17 @@ class Actions:
                 self.mousedown_right = self.mousedown
 
         ftype = kmi_details(event)
-        if pressed:
-            if event.type not in self.now_pressed:
-                self.just_pressed = ftype
-            self.now_pressed[event.type] = ftype
+        if 'WHEELUPMOUSE' in ftype or 'WHEELDOWNMOUSE' in ftype:
+            # mouse wheel actions have no release, so handle specially
+            self.just_pressed = ftype
         else:
-            if event.type in self.now_pressed:
-                del self.now_pressed[event.type]
+            if pressed:
+                if event.type not in self.now_pressed:
+                    self.just_pressed = ftype
+                self.now_pressed[event.type] = ftype
+            else:
+                if event.type in self.now_pressed:
+                    del self.now_pressed[event.type]
 
     def convert(self, actions):
         t = type(actions)
