@@ -7,7 +7,6 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from mathutils.geometry import intersect_point_tri_2d
 from ..common.ui import UI_Image
-from . import rftool_polystrips_icon
 from ..common.utils import iter_pairs
 
 from ..lib.common_utilities import showErrorMessage, dprint

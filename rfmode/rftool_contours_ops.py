@@ -11,8 +11,6 @@ from ..common.utils import max_index
 from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ..common.ui import UI_Label, UI_IntValue, UI_Image
 from .rftool_contours_utils import *
-# from ..icons import images
-from . import rftool_contours_icon
 from mathutils import Matrix
 
 class RFTool_Contours_Ops:

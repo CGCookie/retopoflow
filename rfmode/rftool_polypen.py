@@ -5,7 +5,7 @@ import bgl
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image
-from . import rftool_polypen_icon
+from .load_icon import load_icon
 
 
 @RFTool.action_call('polypen tool')
@@ -28,7 +28,7 @@ class RFTool_PolyPen(RFTool):
         self.view_version = None
 
     def get_ui_icon(self):
-        icon = rftool_polypen_icon.image
+        icon = load_icon('polypen_32.png')
         self.ui_icon = UI_Image(icon)
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
