@@ -38,6 +38,7 @@ class RFTool_PolyStrips_Ops:
             nonlocal vis_faces2D
             point3D = self.rfcontext.get_point3D(point)
             if not point3D: return ('off', None)
+            if self.rfcontext.is_point_on_mirrored_side(point3D): return ('off',None)
             for bmf,cos in vis_faces2D:
                 co0 = cos[0]
                 for co1,co2 in zip(cos[1:-1],cos[2:]):
@@ -178,7 +179,8 @@ class RFTool_PolyStrips_Ops:
                 if state == 'src':
                     stroke = []
                     while stroke2D and state == 'src':
-                        stroke.append(self.rfcontext.get_point3D(pt))
+                        pt3d = self.rfcontext.get_point3D(pt)
+                        stroke.append(pt3d)
                         pt,state,face1 = next_state()
                     if len(stroke) > 10:
                         stroke_to_quads(stroke)
@@ -237,6 +239,7 @@ class RFTool_PolyStrips_Ops:
             raise e
         
         for bmf in all_bmfaces:
+            if not bmf.is_valid: continue
             for bmv in bmf.verts:
                 self.rfcontext.snap_vert(bmv)
     
@@ -265,6 +268,7 @@ class RFTool_PolyStrips_Ops:
             faces = self.insert_strip(cb, count_new, radius, bme_start=bme0 if c0 else None, bme_end=bme1 if c1 else None)
             self.rfcontext.select(faces)
             for bmf in faces:
+                if not bmf.is_valid: continue
                 for bmv in bmf.verts:
                     self.rfcontext.snap_vert(bmv)
             break

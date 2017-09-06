@@ -140,6 +140,13 @@ class RFContext_Target:
     
     def clamp_pointloop(self, pointloop, connected):
         return (pointloop, connected)
+    
+    def is_point_on_mirrored_side(self, point):
+        p = self.rftarget.xform.w2l_point(point)
+        if 'x' in self.rftarget.symmetry and p.x < 0: return True
+        if 'y' in self.rftarget.symmetry and p.y < 0: return True
+        if 'z' in self.rftarget.symmetry and p.z < 0: return True
+        return False
 
     #######################################
     # target manipulation functions
