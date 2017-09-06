@@ -1,7 +1,7 @@
 import bpy
 import math
 from .rftool import RFTool
-from .load_icon import load_icon
+from .load_image import load_image_bin
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
 
@@ -39,7 +39,7 @@ class RFTool_Relax(RFTool):
             }
     
     def get_ui_icon(self):
-        icon = load_icon('relax_32.png')
+        icon = load_image_bin('relax_32.png')
         self.ui_icon = UI_Image(icon)
         self.ui_icon.set_size(16, 16)
         return self.ui_icon

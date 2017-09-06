@@ -12,7 +12,7 @@ from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ..common.ui import UI_Label, UI_IntValue, UI_Image
 from .rftool_contours_utils import *
 from .rftool_contours_ops import RFTool_Contours_Ops
-from .load_icon import load_icon
+from .load_image import load_image_bin
 from mathutils import Matrix
 
 @RFTool.action_call('contours tool')
@@ -47,7 +47,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         return [self.ui_count]
     
     def get_ui_icon(self):
-        icon = load_icon('contours_32.png')
+        icon = load_image_bin('contours_32.png')
         self.ui_icon = UI_Image(icon)
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
