@@ -1,6 +1,7 @@
 import bpy
 import bgl
 import blf
+import png
 from bpy.types import BoolProperty
 import math
 from itertools import chain
@@ -9,7 +10,8 @@ from .utils import blender_version
 from .maths import Point2D,Vec2D
 
 def set_cursor(cursor):
-    # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
+    # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,
+    # PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
     for wm in bpy.data.window_managers:
         for win in wm.windows:
             win.cursor_modal_set(cursor)
@@ -277,10 +279,11 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True):
+    def __init__(self, vertical=True, background=None):
         super().__init__()
         self.vertical = vertical
         self.ui_items = []
+        self.background = background
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
@@ -303,6 +306,17 @@ class UI_Container(UI_Element):
     def _draw(self):
         l,t = self.pos
         w,h = self.size
+        
+        if self.background:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.background)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l, t)
+            bgl.glVertex2f(l+w, t)
+            bgl.glVertex2f(l+w, t-h)
+            bgl.glVertex2f(l, t-h)
+            bgl.glEnd()
+        
         if self.vertical:
             y = t
             for ui in self.ui_items:
@@ -593,6 +607,10 @@ class UI_Graphic(UI_Element):
 
 
 class UI_Checkbox(UI_Container):
+    '''
+    [ ] Label
+    [V] Label
+    '''
     def __init__(self, label, fn_get_checked, fn_set_checked, options={}):
         spacing = options.get('spacing', 4)
         super().__init__(vertical=False)
@@ -615,6 +633,10 @@ class UI_Checkbox(UI_Container):
 
 
 class UI_Checkbox2(UI_Container):
+    '''
+    Label
+    Label  <- highlighted if checked
+    '''
     def __init__(self, label, fn_get_checked, fn_set_checked, options={}):
         super().__init__()
         self.margin = 0
@@ -708,6 +730,9 @@ class UI_IntValue(UI_Container):
 
 
 class UI_HBFContainer(UI_Container):
+    '''
+    container with header, body, and footer
+    '''
     def __init__(self, vertical=True):
         super().__init__()
         self.margin = 0
@@ -742,11 +767,11 @@ class UI_HBFContainer(UI_Container):
 
 
 class UI_Collapsible(UI_Container):
-    def __init__(self, title, collapsed=False, equal=False, vertical=True):
+    def __init__(self, title, collapsed=True, equal=False, vertical=True):
         super().__init__()
         self.margin = 0
         
-        self.header = UI_Container()
+        self.header = UI_Container(background=(0,0,0,0.2))
         self.body = UI_Container(vertical=vertical) if not equal else UI_EqualContainer(vertical=vertical)
         self.footer = UI_Container()
         
@@ -792,6 +817,7 @@ class UI_Collapsible(UI_Container):
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
+        if self.collapsed: return self
         return self.body.hover_ui(mouse) or self
     
     def mouse_up(self, mouse):
