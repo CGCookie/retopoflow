@@ -36,6 +36,8 @@ from ..lib.common_utilities import print_exception, print_exception2, showErrorM
 from ..lib.classes.logging.logger import Logger
 from ..lib.common_utilities import dprint
 
+from ..common.ui import set_cursor
+
 from .rfcontext import RFContext
 from .rftool import RFTool
 from .rf_recover import RFRecover
@@ -284,7 +286,7 @@ class RFMode(Operator):
         
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
         
-        self.rfctx.set_cursor('CROSSHAIR')
+        set_cursor('CROSSHAIR')
         
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
@@ -330,7 +332,7 @@ class RFMode(Operator):
             if self.show_toolshelf: bpy.ops.view3d.toolshelf()
             if self.show_properties: bpy.ops.view3d.properties()
         
-        self.rfctx.restore_cursor()
+        set_cursor('DEFAULT')
        
         # restore space info
         for space,data in self.space_info.items():

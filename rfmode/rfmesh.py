@@ -1,6 +1,7 @@
 import sys
 import math
 import copy
+import json
 
 import bpy
 import bgl
@@ -908,6 +909,19 @@ class RFTarget(RFMesh):
             if k not in {'prev_state'} and k in rftarget.__dict__: continue
             setattr(rftarget, k, copy.deepcopy(v, memo))
         return rftarget
+
+    def to_json(self):
+        data = {
+            'verts': None,
+            'edges': None,
+            'faces': None,
+            'symmetry': list(self.symmetry)
+        }
+        self.bme.verts.ensure_lookup_table()
+        data['verts'] = [list(bmv.co) for bmv in self.bme.verts]
+        data['edges'] = [list(bmv.index for bmv in bme.verts) for bme in self.bme.edges]
+        data['faces'] = [list(bmv.index for bmv in bmf.verts) for bmf in self.bme.faces]
+        return data
 
     def rewrap(self):
         BMElemWrapper.wrap(self)

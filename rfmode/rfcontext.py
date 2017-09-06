@@ -29,6 +29,7 @@ from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.classes.profiler.profiler import profiler
+from ..common.ui import set_cursor
 
 from .rfmesh import RFSource, RFTarget, RFMeshRender
 
@@ -271,14 +272,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     ###################################################
     # mouse cursor functions
 
-    def set_cursor(self, cursor):
-        # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
-        for wm in bpy.data.window_managers:
-            for win in wm.windows:
-                win.cursor_modal_set(cursor)
-
-    def restore_cursor(self): self.set_cursor('DEFAULT')
-
     def set_tool(self, tool):
         if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
@@ -310,21 +303,40 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.undo.append(self._create_state(action))
         while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
         self.redo.clear()
+        self.instrument_write(action)
 
     def undo_pop(self):
         if not self.undo: return
         self.redo.append(self._create_state('undo'))
         self._restore_state(self.undo.pop())
+        self.instrument_write('undo')
 
     def undo_cancel(self):
         if not self.undo: return
         self._restore_state(self.undo.pop())
+        self.instrument_write('cancel (undo)')
 
     def redo_pop(self):
         if not self.redo: return
         self.undo.append(self._create_state('redo'))
         self._restore_state(self.redo.pop())
+        self.instrument_write('redo')
 
+    def instrument_write(self, action):
+        if True: return         # disabled for now...
+        
+        tb_name = 'RetopoFlow_instrumentation'
+        if tb_name not in bpy.data.texts: bpy.data.texts.new(tb_name)
+        tb = bpy.data.texts[tb_name]
+        
+        target_json = self.rftarget.to_json()
+        data = {'action': action, 'target': target_json}
+        data_str = json.dumps(data, separators=[',',':'])
+        
+        # write data to end of textblock
+        tb.write('')        # position cursor to end
+        tb.write(data_str)
+        tb.write('\n')
 
     ###################################################
 
@@ -363,7 +375,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True
-            if not self.actions.trackpad: self.set_cursor('HAND')
+            if not self.actions.trackpad: set_cursor('HAND')
             self.rfwidget.clear()
             return {'pass'}
         if self.nav:
@@ -418,10 +430,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         # update rfwidget and cursor
         if self.actions.valid_mouse():
             self.rfwidget.update()
-            self.set_cursor(self.rfwidget.mouse_cursor())
+            set_cursor(self.rfwidget.mouse_cursor())
         else:
             self.rfwidget.clear()
-            self.set_cursor('DEFAULT')
+            set_cursor('DEFAULT')
 
         if self.rfwidget.modal():
             if self.tool and self.actions.valid_mouse():
