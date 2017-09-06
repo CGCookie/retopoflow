@@ -860,7 +860,7 @@ class UI_Window(UI_Padding):
         pos = options.get('pos', None)
         sticky = options.get('sticky', None)
         vertical = options.get('vertical', True)
-        padding = options.get('padding', 2)
+        padding = options.get('padding', 0)
         visible = options.get('visible', True)
         movable = options.get('movable', True)
         
@@ -872,8 +872,11 @@ class UI_Window(UI_Padding):
         
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
-        self.hbf_title = UI_Label(title, align=0)
-        self.hbf_title_rule = UI_Rule()
+        self.hbf.header.margin = 1
+        self.hbf.header.background = (0,0,0,0.2)
+        self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
+        self.hbf_title.margin = 1
+        self.hbf_title_rule = UI_Rule(color=(0,0,0,0.1))
         self.hbf.add(self.hbf_title, header=True)
         self.hbf.add(self.hbf_title_rule, header=True)
         self.set_ui_item(self.hbf)
