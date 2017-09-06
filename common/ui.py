@@ -777,9 +777,10 @@ class UI_Collapsible(UI_Container):
         
         self.header.margin = 0
         # self.body.margin = 0
-        # self.footer.margin = 0
+        self.footer.margin = 0
         
         self.title = self.header.add(UI_Container(vertical=False))
+        self.title.margin = 0
         self.title_arrow = self.title.add(UI_Graphic('triangle down'))
         self.title_label = self.title.add(UI_Label(title))
         # self.header.add(UI_Rule(color=(0,0,0,0.25)))
