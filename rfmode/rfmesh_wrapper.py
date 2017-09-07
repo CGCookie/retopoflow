@@ -182,6 +182,10 @@ class RFEdge(BMElemWrapper):
         v0,v1 = self.bmelem.verts
         return (self.l2w_point(v0.co) - self.l2w_point(v1.co)).length
     
+    def calc_center(self):
+        v0,v1 = self.bmelem.verts
+        return self.l2w_point((v0.co + v1.co) / 2)
+    
     #############################################
 
     def split(self, vert=None, fac=0.5):

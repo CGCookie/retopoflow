@@ -244,6 +244,32 @@ class RFTool_PolyStrips_Ops:
                 self.rfcontext.snap_vert(bmv)
     
     def change_count(self, delta):
+        if len(self.strips) == 0:
+            if delta <= 0: return
+            # check if there is a single selected quad that could be turned into a strip
+            bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
+            for bmf in bmquads:
+                bmes = [bme if len(bme.link_faces) == 2 else None for bme in bmf.edges]
+                if bmes[0] and not bmes[1] and bmes[2] and not bmes[3]:
+                    break
+                if not bmes[0] and bmes[1] and not bmes[2] and bmes[3]:
+                    break
+            else:
+                return
+            bme0,bme1 = bmes[0] or bmes[1],bmes[2] or bmes[3]
+            p0,p1 = bme0.calc_center(),bme1.calc_center()
+            radius = (bme0.calc_length()+bme1.calc_length()) / 4
+            dprint('changing quad into strip (%d)' % (delta))
+            self.rfcontext.delete_faces([bmf])
+            cb = CubicBezier.create_from_points([p0,p1])
+            faces = self.insert_strip(cb, 1+delta, radius, bme_start=bme0, bme_end=bme1)
+            self.rfcontext.select(faces)
+            for bmf in faces:
+                if not bmf.is_valid: continue
+                for bmv in bmf.verts:
+                    self.rfcontext.snap_vert(bmv)
+            return
+        
         # find first strip that is simple enough to modify
         for strip in self.strips:
             if len(strip) != 1:
@@ -261,9 +287,9 @@ class RFTool_PolyStrips_Ops:
             cb = strip.cbs[0]
             radius = sum(rad for bme,_,rad,_,_,_ in strip.bmes) / len(strip.bmes)
             count = len(bmf_strip)
-            count_new = max(count + delta, 0 if c0 and c1 else 2)
+            count_new = max(count + delta, 1 if c0 and c1 else 2)
+            dprint('changing strip count: %d > %d (%d)' % (count,count_new, delta))
             if count == count_new: return
-            dprint('changing strip count: %d > %d' % (count,count_new))
             self.rfcontext.delete_faces(bmf_strip)
             faces = self.insert_strip(cb, count_new, radius, bme_start=bme0 if c0 else None, bme_end=bme1 if c1 else None)
             self.rfcontext.select(faces)
@@ -311,7 +337,7 @@ class RFTool_PolyStrips_Ops:
             bmv2,bmv3 = bme_end.verts
             if bmv0 == bmv2 or bmv0 == bmv3 or bmv1 == bmv2 or bmv1 == bmv3: return
         
-        if steps == 0:
+        if steps == 1:
             if bme_start == None or bme_end == None: return
             bmv0,bmv1 = bme_start.verts
             bmv2,bmv3 = bme_end.verts
