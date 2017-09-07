@@ -262,15 +262,17 @@ class RFTool_PolyPen(RFTool):
             bme0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
             bmv0,bmv2 = bme0.verts
             bme1,bmv1 = bme0.split()
+            bme0.select = True
+            bme1.select = True
             self.rfcontext.select(bmv1.link_edges)
             if self.nearest_vert and not self.nearest_vert.select:
                 self.nearest_vert.merge(bmv1)
                 bmv1 = self.nearest_vert
                 self.rfcontext.clean_duplicate_bmedges(bmv1)
                 for bme in bmv1.link_edges: bme.select &= len(bme.link_faces)==1
-                # else:
-                #     self.rfcontext.undo_cancel()
-                #     return 'main'
+                bme01,bme12 = bmv0.shared_edge(bmv1),bmv1.shared_edge(bmv2)
+                if len(bme01.link_faces) == 1: bme01.select = True
+                if len(bme12.link_faces) == 1: bme12.select = True
             else:
                 bmv1.co = hit_pos
             self.mousedown = self.rfcontext.actions.mousedown
