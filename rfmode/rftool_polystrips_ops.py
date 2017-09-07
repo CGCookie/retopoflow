@@ -258,6 +258,7 @@ class RFTool_PolyStrips_Ops:
                     break
             else:
                 return
+            self.rfcontext.undo_push('change PS segment count')
             bme0,bme1 = bmes[0] or bmes[1],bmes[2] or bmes[3]
             p0,p1 = bme0.calc_center(),bme1.calc_center()
             radius = (bme0.calc_length()+bme1.calc_length()) / 4
@@ -283,6 +284,8 @@ class RFTool_PolyStrips_Ops:
             if sum(1 for f in bmf_strip for e in f.edges for f_ in e.link_faces if f_ not in dontcount) != 0:
                 # skip, because there are faces attached :(
                 continue
+            
+            self.rfcontext.undo_push('change PS segment count')
             
             c0,c1 = len(bme0.link_faces)==2,len(bme1.link_faces)==2
             
