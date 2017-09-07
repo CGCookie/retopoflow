@@ -85,6 +85,7 @@ class RFTool_PolyStrips_Strip:
         if len(self.bme0.link_faces) == 1: bmes = [(self.bme0, bmf_strip[0].normal)] + bmes
         if len(self.bme1.link_faces) == 1: bmes = bmes + [(self.bme1, bmf_strip[-1].normal)]
         for bme,norm in bmes:
+            if not bme.is_valid: continue
             bmvs = bme.verts
             halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
             diffdir = halfdiff.normalized()

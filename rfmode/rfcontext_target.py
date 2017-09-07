@@ -290,6 +290,10 @@ class RFContext_Target:
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
+    
+    def reselect(self):
+        if self.tool: self.tool.update()
+        self.update_rot_object()
 
     def select_toggle(self):
         self.rftarget.select_toggle()

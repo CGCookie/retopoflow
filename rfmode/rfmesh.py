@@ -717,6 +717,7 @@ class RFMesh():
     def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
         if not hasattr(elems, '__len__'): elems = [elems]
+        elems = [e for e in elems if e.is_valid]
         if subparts:
             nelems = set(elems)
             for elem in elems:

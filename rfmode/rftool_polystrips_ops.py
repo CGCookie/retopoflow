@@ -238,6 +238,8 @@ class RFTool_PolyStrips_Ops:
             showErrorMessage('Unhandled exception raised while merging faces.\nPlease try again.')
             raise e
         
+        self.rfcontext.reselect()
+        
         for bmf in all_bmfaces:
             if not bmf.is_valid: continue
             for bmv in bmf.verts:
