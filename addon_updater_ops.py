@@ -938,7 +938,6 @@ def register(bl_info):
 	updater.fake_install = False  # Set to true to test callback/reloading
 
 	updater.version_min_update = (1,3,0)  # min allowed to install, >=
-	updater.version_max_update = (2,0,0)  # max allowed to install, <
 	updater.skip_tag = skip_tag_function  # min and max used in this function
 
 
