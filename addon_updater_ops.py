@@ -57,6 +57,16 @@ class addon_updater_install_popup(bpy.types.Operator):
 	bl_idname = updater.addon+".updater_install_popup"
 	bl_description = "Popup menu to check and display current updates available"
 
+	# if true, run clean install - ie remove all files before adding new
+	# equivalent to deleting the addon and reinstalling, except the
+	# updater folder/backup folder remains
+	clean_install = bpy.props.BoolProperty(
+		name="Clean install",
+		description="If enabled, completely clear the addon's folder before installing new update, creating a fresh install",
+		default=False,
+		options={'HIDDEN'}
+	)
+
 	def invoke(self, context, event):
 		return context.window_manager.invoke_props_dialog(self)
 
@@ -99,7 +109,10 @@ class addon_updater_install_popup(bpy.types.Operator):
 		if updater.manual_only==True:
 			bpy.ops.wm.url_open(url=updater.website)
 		elif updater.update_ready == True:
-			res = updater.run_update(force=False, callback=post_update_callback)
+			res = updater.run_update(
+							force=False,
+							callback=post_update_callback,
+							clean=self.clean_install)
 			# should return 0, if not something happened
 			if updater.verbose:
 				if res==0: print("Updater returned successful")
@@ -150,12 +163,22 @@ class addon_updater_check_now(bpy.types.Operator):
 
 		return {'FINISHED'}
 
+
 class addon_updater_update_now(bpy.types.Operator):
 	bl_label = "Update "+updater.addon+" addon now"
 	bl_idname = updater.addon+".updater_update_now"
 	bl_description = "Update to the latest version of the {x} addon".format(
 														x=updater.addon)
 
+	# if true, run clean install - ie remove all files before adding new
+	# equivalent to deleting the addon and reinstalling, except the
+	# updater folder/backup folder remains
+	clean_install = bpy.props.BoolProperty(
+		name="Clean install",
+		description="If enabled, completely clear the addon's folder before installing new update, creating a fresh install",
+		default=False,
+		options={'HIDDEN'}
+	)
 
 	def execute(self,context):
 
@@ -169,8 +192,9 @@ class addon_updater_update_now(bpy.types.Operator):
 			# if it fails, offer to open the website instead
 			try:
 				res = updater.run_update(
-						force=False,
-						callback=post_update_callback)
+								force=False,
+								callback=post_update_callback,
+								clean=self.clean_install)
 
 				# should return 0, if not something happened
 				if updater.verbose:
@@ -217,6 +241,16 @@ class addon_updater_update_target(bpy.types.Operator):
 		items=target_version
 		)
 
+	# if true, run clean install - ie remove all files before adding new
+	# equivalent to deleting the addon and reinstalling, except the
+	# updater folder/backup folder remains
+	clean_install = bpy.props.BoolProperty(
+		name="Clean install",
+		description="If enabled, completely clear the addon's folder before installing new update, creating a fresh install",
+		default=False,
+		options={'HIDDEN'}
+	)
+
 	@classmethod
 	def poll(cls, context):
 		if updater.invalidupdater == True: return False
@@ -244,9 +278,10 @@ class addon_updater_update_target(bpy.types.Operator):
 			return {'CANCELLED'}
 
 		res = updater.run_update(
-				force=False,
-				revert_tag=self.target,
-				callback=post_update_callback)
+						force=False,
+						revert_tag=self.target,
+						callback=post_update_callback,
+						clean=self.clean_install)
 
 		# should return 0, if not something happened
 		if updater.verbose:
@@ -264,7 +299,7 @@ class addon_updater_install_manually(bpy.types.Operator):
 	bl_description = "Proceed to manually install update"
 
 	error = bpy.props.StringProperty(
-		name="Error Occured",
+		name="Error Occurred",
 		default="",
 		options={'HIDDEN'}
 		)
@@ -293,7 +328,7 @@ class addon_updater_install_manually(bpy.types.Operator):
 			col.label("Press the download button below and install")
 			col.label("the zip file like a normal addon.")
 
-		# if check hasn't happened, ie accidentally called this menu
+		# if check hasn't happened, i.e. accidentally called this menu
 		# allow to check here
 
 		row = layout.row()
@@ -326,7 +361,7 @@ class addon_updater_updated_successful(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 
 	error = bpy.props.StringProperty(
-		name="Error Occured",
+		name="Error Occurred",
 		default="",
 		options={'HIDDEN'}
 		)
@@ -345,7 +380,7 @@ class addon_updater_updated_successful(bpy.types.Operator):
 		if self.error != "":
 			col = layout.column()
 			col.scale_y = 0.7
-			col.label("Error occured, did not install", icon="ERROR")
+			col.label("Error occurred, did not install", icon="ERROR")
 			col.label(updater.error_msg, icon="BLANK1")
 			rw = col.row()
 			rw.scale_y = 2
@@ -542,7 +577,7 @@ def background_update_callback(update_ready):
 
 # a callback for once the updater has completed
 # Only makes sense to use this if "auto_reload_post_update" == False,
-# ie don't auto-restart the addon
+# i.e. don't auto-restart the addon
 def post_update_callback(res=None):
 
 	# in case of error importing updater
@@ -820,7 +855,7 @@ def update_settings_ui(self, context):
 		col.scale_y = 2
 		col.operator("wm.url_open",
 				"Download "+str(updater.update_version)).url=updater.website
-	else: # ie that updater.update_ready == False
+	else: # i.e. that updater.update_ready == False
 		subcol = col.row(align=True)
 		subcol.scale_y = 1
 		split = subcol.split(align=True)
@@ -873,10 +908,11 @@ def update_settings_ui(self, context):
 # input is a tag text, e.g. "v1.2.3"
 # output is True for skipping this tag number, 
 # False if the tag is allowed (default for all)
-def skip_tag_function(tag):
+# Note: here, "self" is the acting updater shared class instance
+def skip_tag_function(self, tag):
 
 	# in case of error importing updater
-	if updater.invalidupdater == True:
+	if self.invalidupdater == True:
 		return False
 
 	# ---- write any custom code here, return true to disallow version ---- #
@@ -886,22 +922,22 @@ def skip_tag_function(tag):
 	#	return True
 	# ---- write any custom code above, return true to disallow version --- #
 
-	if updater.include_branches == True:
-		for branch in updater.include_branch_list:
+	if self.include_branches == True:
+		for branch in self.include_branch_list:
 			if tag["name"].lower() == branch: return False
 
 	# function converting string to tuple, ignoring e.g. leading 'v'
-	tupled = updater.version_tuple_from_text(tag["name"])
+	tupled = self.version_tuple_from_text(tag["name"])
 	if type(tupled) != type( (1,2,3) ): return True
 	
 	# select the min tag version - change tuple accordingly
-	if updater.version_min_update != None:
-		if tupled < updater.version_min_update:
+	if self.version_min_update != None:
+		if tupled < self.version_min_update:
 			return True # skip if current version below this
 	
 	# select the max tag version
-	if updater.version_max_update != None:
-		if tupled >= updater.version_max_update:
+	if self.version_max_update != None:
+		if tupled >= self.version_max_update:
 			return True # skip if current version at or above this
 	
 	# in all other cases, allow showing the tag for updating/reverting
@@ -919,17 +955,17 @@ def register(bl_info):
 	# See output to verify this register function is working properly
 	# print("Running updater reg")
 
-	updater.clear_state()  # clear internal vars, avoids relaoding oddities
+	updater.clear_state()  # clear internal vars, avoids reloading oddities
 	updater.engine = "Github"  # leverages github
 
 	updater.user = "cgcookie"
 	updater.repo = "retopoflow"
-	updater.addon =  "RetopoFlow"  # optional, default gets from __package__ name
+	updater.addon =  "RetopoFlow" 
 	updater.website = "https://cgcookiemarkets.com/all-products/retopoflow/" # optional
 	updater.use_releases = False  # ie use tags instead of releases, default True
 	updater.current_version = bl_info["version"]
 
-	# Below: ie  make users restart blender to load
+	# Below: make users restart blender to load
 	# instead of auto-reload which can cause issues
 	updater.auto_reload_post_update = False  # False is the default value
 
@@ -939,6 +975,13 @@ def register(bl_info):
 
 	updater.version_min_update = (1,3,0)  # min allowed to install, >=
 	updater.skip_tag = skip_tag_function  # min and max used in this function
+
+	# don't backup the pycache folder, do backup everything else
+	updater.backup_ignore_patterns = ["__pycache__"]
+	# no rules for overwriting
+	updater.overwrite_patterns = []
+	# rules for pre-removing prior to download, to ensure clearing of files to next version
+	updater.remove_pre_update_patterns = ["*.py","*.pyc","help*.txt","*.png","*.md"]
 
 
 	# The register line items for all operators/panels
