@@ -19,7 +19,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
 
         # explicitly call to check for update in background
         # note: built-in checks ensure it runs at most once
-        addon_updater_ops.check_for_update_background(context)
+        addon_updater_ops.check_for_update_background()
 
         settings = common_utilities.get_settings()
         icons = load_icons()
@@ -42,6 +42,8 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         col.operator('cgcookie.rf_recover_clear', icon_value=icons.get('rf_recover_icon').icon_id)
         col.operator("wm.open_log", "Open Error Log")
 
+        addon_updater_ops.update_notice_box_ui(self, context)
+
 class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
     '''RetopoFlow Tools'''
     bl_category = "Retopology"
@@ -54,7 +56,7 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
 
         # explicitly call to check for update in background
         # note: built-in checks ensure it runs at most once
-        addon_updater_ops.check_for_update_background(context)
+        addon_updater_ops.check_for_update_background()
 
         settings = common_utilities.get_settings()
         
@@ -163,6 +165,10 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
     
     def draw(self, context):
         layout = self.layout
+
+        # explicitly call to check for update in background
+        # note: built-in checks ensure it runs at most once
+        addon_updater_ops.check_for_update_background()
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
