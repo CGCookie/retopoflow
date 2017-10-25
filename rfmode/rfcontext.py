@@ -30,6 +30,7 @@ from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import set_cursor
+from ..common.decorators import stats_wrapper
 
 from .rfmesh import RFSource, RFTarget, RFMeshRender
 
@@ -134,6 +135,15 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         return RFContext.get_target() is not None
 
     @staticmethod
+    def is_in_valid_mode():
+        for area in bpy.context.screen.areas:
+            if area.type != 'VIEW_3D': continue
+            if area.spaces[0].local_view:
+                # currently in local view
+                return False
+        return True
+
+    @staticmethod
     def get_sources():
         return [o for o in bpy.context.scene.objects if RFContext.is_valid_source(o)]
 
@@ -142,6 +152,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         o = bpy.context.active_object
         return o if RFContext.is_valid_target(o) else None
 
+    @stats_wrapper
     def __init__(self, starting_tool):
         pr = profiler.start()
 
@@ -205,6 +216,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
 
+    @stats_wrapper
     @profiler.profile
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
@@ -251,6 +263,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
 
+    @stats_wrapper
     @profiler.profile
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''

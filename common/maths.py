@@ -5,6 +5,7 @@ from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane
 from ..lib.classes.profiler.profiler import profiler
+from ..common.decorators import stats_wrapper, stats_report
 
 
 '''
@@ -12,29 +13,6 @@ The types below wrap the mathutils.Vector class, distinguishing among the
 different types of geometric entities that are typically represented using
 a vanilla Vector.
 '''
-
-stats = {
-    'Vec2D': 0,
-    'Vec': 0,
-    'Point2D': 0,
-    'Point': 0,
-    'Direction2D': 0,
-    'Direction': 0,
-    'Normal': 0,
-    'Ray': 0,
-    'XForm': 0,
-    'BBox': 0,
-}
-def stats_report():
-    return
-    print('Maths Stats Report')
-    print('------------------')
-    l = max(len(k) for k in stats)
-    for k in sorted(stats):
-        pk = k + ' ' * (l-len(k))
-        v = stats[k]
-        print('%s : %d' % (pk,v))
-
 
 
 float_inf = float('inf')
@@ -50,8 +28,8 @@ class Entity3D:
 
 
 class Vec2D(Vector, Entity2D):
+    @stats_wrapper
     def __init__(self, *args, **kwargs):
-        stats['Vec2D'] += 1
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec2D (%0.4f, %0.4f)>' % (self.x,self.y)
@@ -61,8 +39,8 @@ class Vec2D(Vector, Entity2D):
 
 
 class Vec(Vector, Entity3D):
+    @stats_wrapper
     def __init__(self, *args, **kwargs):
-        stats['Vec'] += 1
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -81,8 +59,8 @@ class Vec(Vector, Entity3D):
 
 
 class Point2D(Vector, Entity2D):
+    @stats_wrapper
     def __init__(self, *args, **kwargs):
-        stats['Point2D'] += 1
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point2D (%0.4f, %0.4f)>' % (self.x,self.y)
@@ -108,8 +86,8 @@ class Point2D(Vector, Entity2D):
 
 
 class Point(Vector, Entity3D):
+    @stats_wrapper
     def __init__(self, *args, **kwargs):
-        stats['Point'] += 1
         Vector.__init__(*args, **kwargs)
     def __str__(self):
         return '<Point (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -146,8 +124,8 @@ class Point(Vector, Entity3D):
 
 
 class Direction2D(Vector, Entity2D):
+    @stats_wrapper
     def __init__(self, t=None):
-        stats['Direction2D'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction2D (%0.4f, %0.4f)>' % (self.x,self.y)
@@ -169,8 +147,8 @@ class Direction2D(Vector, Entity2D):
 
 
 class Direction(Vector, Entity3D):
+    @stats_wrapper
     def __init__(self, t=None):
-        stats['Direction'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Direction (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -199,8 +177,8 @@ class Direction(Vector, Entity3D):
 
 
 class Normal(Vector, Entity3D):
+    @stats_wrapper
     def __init__(self, t=None):
-        stats['Normal'] += 1
         if t is not None: self.from_vector(t)
     def __str__(self):
         return '<Normal (%0.4f, %0.4f, %0.4f)>' % (self.x,self.y,self.z)
@@ -228,8 +206,8 @@ class Normal(Vector, Entity3D):
 
 
 class Ray(Entity3D):
+    @stats_wrapper
     def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=float_inf):   # sys.float_info.max
-        stats['Ray'] += 1
         o,d = Point(o),Direction(d)
         self.o = o + min_dist * d
         self.d = d
@@ -284,12 +262,16 @@ class Plane(Entity3D):
 
     def polygon_intersects(self, points):
         return abs(sum(self.side(p) for p in points)) != len(points)
+        
+    @stats_wrapper
+    def triangle_intersect(self, points):
+        return abs(sum(self.side(p) for p in points)) != 3
 
     @profiler.profile
     def triangle_intersection(self, points):
-        p0,p1,p2 = map(Point, points)
         s0,s1,s2 = map(self.side, points)
         if abs(s0+s1+s2) == 3: return []    # all points on same side of plane
+        p0,p1,p2 = map(Point, points)
         if s0 == 0 or s1 == 0 or s2 == 0:   # at least one point on plane
             # handle if all points in plane
             if s0 == 0 and s1 == 0 and s2 == 0: return [(p0,p1), (p1,p2), (p2,p0)]
@@ -316,11 +298,15 @@ class Plane(Entity3D):
         print('%s %s %s' % (str(p01), str(p12), str(p20)))
         assert False
 
+    @stats_wrapper
+    def edge_intersect(self, points):
+        return abs(sum(self.side(p) for p in points)) != 2
+
     @profiler.profile
     def edge_intersection(self, points):
-        p0,p1 = map(Point, points)
         s0,s1 = map(self.side, points)
         if abs(s0 + s1) == 2: return []   # points on same side
+        p0,p1 = map(Point, points)
         if s0 == 0 and s1 == 0: return [(p0, p1)]
         if s0 == 0: return [(p0, p0)]
         if s1 == 0: return [(p1, p1)]
@@ -340,6 +326,7 @@ class Frame:
     def from_plane(plane:Plane, x:Direction=None, y:Direction=None):
         return Frame(plane.o, x=x, y=y, z=Direction(plane.n))
 
+    @stats_wrapper
     def __init__(self, o:Point, x:Direction=None, y:Direction=None, z:Direction=None):
         c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
         assert c!=0, "Must specify at least one direction"
@@ -458,8 +445,8 @@ class XForm:
             d[smat] = m
         return d[smat]
 
+    @stats_wrapper
     def __init__(self, mx:Matrix=None):
-        stats['XForm'] += 1
         if mx is None: mx = Matrix()
         self.assign(mx)
 
@@ -575,8 +562,8 @@ class XForm:
 
 
 class BBox:
+    @stats_wrapper
     def __init__(self, from_bmverts=None, from_coords=None):
-        stats['BBox'] += 1
         assert from_bmverts or from_coords
         if from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
         else: from_coords = list(from_coords)

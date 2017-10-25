@@ -17,6 +17,7 @@ from ..common.maths import Point2D, Vec2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
 from ..common.utils import min_index
+from ..common.decorators import stats_wrapper
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -40,6 +41,7 @@ class RFMesh():
         return RFMesh.__version
 
     @staticmethod
+    @stats_wrapper
     def hash_object(obj:bpy.types.Object):
         if obj is None: return None
         pr = profiler.start()
@@ -59,6 +61,7 @@ class RFMesh():
         return hashed
 
     @staticmethod
+    @stats_wrapper
     def hash_bmesh(bme:BMesh):
         if bme is None: return None
         pr = profiler.start()
@@ -77,6 +80,7 @@ class RFMesh():
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
 
+    @stats_wrapper
     @profiler.profile
     def __setup__(self, obj, deform=False, bme=None, triangulate=False):
         self.obj = obj
@@ -171,16 +175,21 @@ class RFMesh():
 
     ##########################################################
 
+    @stats_wrapper
     @profiler.profile
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
         plane_local = self.xform.w2l_plane(plane)
         triangle_intersection = plane_local.triangle_intersection
+        triangle_intersect = plane_local.triangle_intersect
         l2w_point = self.xform.l2w_point
+        verts_pos = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) >= 0 }
+        faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
         intersection = [
             (l2w_point(p0),l2w_point(p1))
-            for bmf in self.bme.faces
+            for bmf in faces
             for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
+            # if triangle_intersect(bmv.co for bmv in bmf.verts)
             ]
         return intersection
 
@@ -816,6 +825,7 @@ class RFSource(RFMesh):
     __cache = {}
 
     @staticmethod
+    @stats_wrapper
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 
@@ -861,6 +871,7 @@ class RFTarget(RFMesh):
     '''
 
     @staticmethod
+    @stats_wrapper
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 

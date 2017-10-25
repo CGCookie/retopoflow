@@ -42,7 +42,7 @@ from .rfcontext import RFContext
 from .rftool import RFTool
 from .rf_recover import RFRecover
 
-from ..common.maths import stats_report
+from ..common.decorators import stats_report, stats_wrapper
 
 '''
 
@@ -102,7 +102,7 @@ class RFMode(Operator):
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
-        return RFContext.has_valid_source()
+        return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
@@ -526,6 +526,7 @@ class RFMode(Operator):
 
 rfmode_tools = {}
 
+@stats_wrapper
 def setup_tools():
     for rft in RFTool:
         def classfactory(rft):
