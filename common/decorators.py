@@ -18,6 +18,7 @@ def stats_wrapper(fn):
         'filename': filename,
         'clsname': clsname,
         'linenum': linenum,
+        'fileline': '%s:%d' % (filename,linenum),
         'fnname': fnname,
         'count': 0,
         'total time': 0,
@@ -45,8 +46,8 @@ def stats_report():
     cols = [
         ('class','clsname','%s'),
         ('func','fnname','%s'),
-        ('file','filename','%s'),
-        ('line','linenum','% 10d'),
+        ('location','fileline','%s'),
+        # ('line','linenum','% 10d'),
         ('count','count','% 8d'),
         ('total (sec)','total time', '% 10.4f'),
         ('avg (sec)','average time', '% 10.6f'),

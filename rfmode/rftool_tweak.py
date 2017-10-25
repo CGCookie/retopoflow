@@ -1,7 +1,7 @@
 import bpy
 import math
 from .rftool import RFTool
-from .load_image import load_image_bin
+from .load_image import load_image_png
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image
 
@@ -20,7 +20,7 @@ class RFTool_Tweak(RFTool):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 0.5, 1.0))
     
     def get_ui_icon(self):
-        icon = load_image_bin('tweak_32.png')
+        icon = load_image_png('tweak_32.png')
         self.ui_icon = UI_Image(icon)
         self.ui_icon.set_size(16, 16)
         return self.ui_icon

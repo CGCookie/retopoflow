@@ -83,9 +83,12 @@ class RFMesh():
     @stats_wrapper
     @profiler.profile
     def __setup__(self, obj, deform=False, bme=None, triangulate=False):
+        pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
         self.hash = RFMesh.hash_object(self.obj)
+        pr.done()
+        
         if bme != None:
             self.bme = bme
         else:
@@ -114,9 +117,11 @@ class RFMesh():
             bmesh.ops.triangulate(self.bme, faces=faces)
             pr.done()
 
+        pr = profiler.start('setup finishing')
         self.selection_center = Point((0,0,0))
         self.store_state()
         self.dirty()
+        pr.done()
 
 
     ##########################################################
@@ -180,17 +185,25 @@ class RFMesh():
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
         plane_local = self.xform.w2l_plane(plane)
+        l2w_point = self.xform.l2w_point
+        
+        # res = bmesh.ops.bisect_plane(self.bme, geom=list(self.bme.verts)+list(self.bme.edges)+list(self.bme.faces), dist=0.0000001, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
+        # verts = {bmv for bmv in self.bme.verts if plane_local.side(bmv.co) == 0}
+        # print(len(verts))
+        # intersection = [(l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)) for bme in self.bme.edges if bme.verts[0] in verts and bme.verts[1] in verts]
+        # print(len(intersection))
+        # return intersection
+        
         triangle_intersection = plane_local.triangle_intersection
         triangle_intersect = plane_local.triangle_intersect
-        l2w_point = self.xform.l2w_point
         verts_pos = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) >= 0 }
         faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
         intersection = [
             (l2w_point(p0),l2w_point(p1))
             for bmf in faces
             for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
-            # if triangle_intersect(bmv.co for bmv in bmf.verts)
             ]
+        # print(len(intersection))
         return intersection
 
     def get_yz_plane(self):

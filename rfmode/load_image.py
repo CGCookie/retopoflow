@@ -1,5 +1,6 @@
 import os
 import pickle
+from ..ext import png
 
 path_icons = os.path.join(os.path.dirname(__file__), '..', 'icons')
 
@@ -8,10 +9,10 @@ def get_image_path(fn, ext=''):
     return os.path.join(path_icons, fn)
 
 def load_image_png(fn):
-    import png
+    #import png
     # assuming 4 channels per pixel!
     w,h,d,m = png.Reader(get_image_path(fn)).read()
-    icon = [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
+    return [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
     return icon
 
 def write_image_bin(fn, image):
