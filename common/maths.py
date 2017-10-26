@@ -1,6 +1,7 @@
 import sys
 import bpy
 import bgl
+from math import sqrt
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane
@@ -81,6 +82,10 @@ class Point2D(Vector, Entity2D):
         elif t is Point2D:
             return Vec2D((self.x-other.x, self.y-other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def distance_to(self, other)->float:
+        return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
+    def distance_squared_to(self, other)->float:
+        return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y = v
 
@@ -206,6 +211,14 @@ class Normal(Vector, Entity3D):
 
 
 class Ray(Entity3D):
+    __slots__ = ['o','d','max']
+    
+    @staticmethod
+    def from_segment(a:Point, b:Point):
+        v = b - a
+        dist = v.length
+        return Ray(a, v/dist, max_dist=dist)
+    
     @stats_wrapper
     def __init__(self, o:Point, d:Direction, min_dist:float=0.0, max_dist:float=float_inf):   # sys.float_info.max
         o,d = Point(o),Direction(d)

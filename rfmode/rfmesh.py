@@ -2,6 +2,7 @@ import sys
 import math
 import copy
 import json
+import random
 
 import bpy
 import bgl
@@ -13,7 +14,7 @@ from mathutils.kdtree import KDTree
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
 from ..common.maths import Point, Direction, Normal
-from ..common.maths import Point2D, Vec2D
+from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
 from ..common.utils import min_index
@@ -568,26 +569,24 @@ class RFMesh():
     def nearest2D_bmedges_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D, edges=None, shorten=0.01):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
-        if edges is None:
-            edges = self.bme.edges
-        else:
-            edges = [self._unwrap(bme) for bme in edges]
+        edges = self.bme.edges if edges is None else [self._unwrap(bme) for bme in edges]
         l2w_point = self.xform.l2w_point
         nearest = []
+        dist2D2 = dist2D * dist2D
+        s0,s1 = shorten/2,1-shorten/2
+        proj = lambda bmv: Point_to_Point2D(l2w_point(bmv.co))
         for bme in edges:
-            bmv0 = Point_to_Point2D(l2w_point(bme.verts[0].co))
-            bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
-            diff = bmv1 - bmv0
-            l = diff.length
-            if l == 0:
-                dist = (xy - bmv0).length
+            v0,v1 = proj(bme.verts[0]),proj(bme.verts[1])
+            l2 = v0.distance_squared_to(v1)
+            if l2 == 0:
+                pp = v0
             else:
-                d = diff / l
-                margin = l * shorten / 2
-                pp = bmv0 + d * max(margin, min(l-margin, (xy - bmv0).dot(d)))
-                dist = (xy - pp).length
-            if dist > dist2D: continue
-            nearest += [(self._wrap_bmedge(bme), dist)]
+                l = math.sqrt(l2)
+                d = (v1 - v0) / l
+                pp = v0 + d * max(l*s0, min(l*s1, d.dot(xy-v0)))
+            dist2 = pp.distance_squared_to(xy)
+            if dist2 > dist2D2: continue
+            nearest.append((self._wrap_bmedge(bme), math.sqrt(dist2)))
         return nearest
 
     def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
@@ -738,6 +737,7 @@ class RFMesh():
 
     def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
+        if elems is None: return
         if not hasattr(elems, '__len__'): elems = [elems]
         elems = [e for e in elems if e.is_valid]
         if subparts:
