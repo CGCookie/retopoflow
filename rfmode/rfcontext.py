@@ -273,6 +273,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         zy_plane = self.rftarget.get_yz_plane()
         self.zy_intersections = []
         for rfs in self.rfsources:
+            #rfs.plane_split(zy_plane)
+            #rfs.triangulate()
             self.zy_intersections += rfs.plane_intersection(zy_plane)
 
     def commit(self):

@@ -167,7 +167,7 @@ class RFContext_Target:
 
     def snap2D_vert(self, vert:RFVert):
         xy = self.Point_to_Point2D(vert.co)
-        xyz,norm,_,_ = self.raycast_sources_Point2D()
+        xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         vert.co = xyz
         vert.normal = norm

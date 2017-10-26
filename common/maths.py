@@ -282,6 +282,7 @@ class Plane(Entity3D):
 
     @profiler.profile
     def triangle_intersection(self, points):
+        assert len(points) == 3, 'triangle intersection on non triangle (%d)' % (len(points),)
         s0,s1,s2 = map(self.side, points)
         if abs(s0+s1+s2) == 3: return []    # all points on same side of plane
         p0,p1,p2 = map(Point, points)
@@ -612,17 +613,38 @@ class Accel2D:
         
         self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
         self.map_v_v2D = {v:v2d for v,v2d in zip(verts,self.v2Ds)}
-        self.min = Point2D((min(x for x,_ in self.v2Ds), min(y for _,y in self.v2Ds)))
-        self.max = Point2D((max(x for x,_ in self.v2Ds), max(y for _,y in self.v2Ds)))
+        if self.v2Ds:
+            self.min = Point2D((min(x-0.001 for x,_ in self.v2Ds), min(y-0.001 for _,y in self.v2Ds)))
+            self.max = Point2D((max(x+0.001 for x,_ in self.v2Ds), max(y+0.001 for _,y in self.v2Ds)))
+        else:
+            self.min = Point2D((0,0))
+            self.max = Point2D((1,1))
         self.size = self.max - self.min
         
+        pr = profiler.start('initializing grid')
         self.bins = [[set() for j in range(self.bin_rows)] for i in range(self.bin_cols)]
+        pr.done()
+        
+        pr = profiler.start('inserting verts')
         for v,v2d in zip(verts,self.v2Ds):
             i,j = self.compute_ij(v2d)
             self.bins[i][j].add(v)
+        pr.done()
+        
+        pr = profiler.start('inserting edges')
         for e in edges:
-            v0,v1 = e.verts
-            self._put_edge(e, self.map_v_v2D[v0], self.map_v_v2D[v1])
+            v0,v1 = self.map_v_v2D[e.verts[0]],self.map_v_v2D[e.verts[1]]
+            ij0,ij1 = self.compute_ij(v0),self.compute_ij(v1)
+            mini,minj = min(ij0[0], ij1[0]),min(ij0[1], ij1[1])
+            maxi,maxj = max(ij0[0], ij1[0]),max(ij0[1], ij1[1])
+            for i in range(mini,maxi+1):
+                for j in range(minj,maxj+1):
+                    self.bins[i][j].add(e)
+            # v0,v1 = e.verts
+            # self._put_edge(e, self.map_v_v2D[v0], self.map_v_v2D[v1])
+        pr.done()
+        
+        pr = profiler.start('inserting faces')
         for f in faces:
             v2ds = [self.map_v_v2D[v] for v in f.verts]
             if not v2ds: continue
@@ -635,16 +657,13 @@ class Accel2D:
             #v0 = v2ds[0]
             #for v1,v2 in zip(v2ds[1:-1],v2ds[2:]):
             #    self._put_face(f, v0, v1, v2)
+        pr.done()
     
     def _put_edge(self, e, v0, v1, depth=0):
         i0,j0 = self.compute_ij(v0)
         i1,j1 = self.compute_ij(v1)
         if i0 == i1 and j0 == j1:
             self.bins[i0][j0].add(e)
-            return
-        if depth == 6:
-            self.bins[i0][j0].add(e)
-            self.bins[i1][j1].add(e)
             return
         if i0 == i1:
             i = i0
@@ -655,6 +674,10 @@ class Accel2D:
             j = j0
             for i in range(min(i0,i1),max(i0,i1)+1):
                 self.bins[i][j].add(e)
+            return
+        if depth == 6:
+            self.bins[i0][j0].add(e)
+            self.bins[i1][j1].add(e)
             return
         vm = v0 + (v1 - v0) / 2
         self._put_edge(e, v0, vm, depth=depth+1)

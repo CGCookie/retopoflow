@@ -87,10 +87,12 @@ class Profiler:
         if not self.debug: return fn
         
         frame = inspect.currentframe().f_back
-        filename = os.path.basename( frame.f_code.co_filename )
+        f_locals = frame.f_locals
+        filename = os.path.basename(frame.f_code.co_filename)
+        clsname = f_locals['__qualname__'] if '__qualname__' in f_locals else ''
         linenum = frame.f_lineno
         fnname = fn.__name__ #frame.f_code.co_name
-        text = '%s (%s:%d)' % (fnname, filename, linenum)
+        text = '%s%s (%s:%d)' % (clsname + ('.' if clsname else ''), fnname, filename, linenum)
         def wrapper(*args, **kwargs):
             pr = self.start(text=text)
             ret = fn(*args, **kwargs)

@@ -29,9 +29,10 @@ class RFTool_PolyPen(RFTool):
         self.accel2D = None
         self.target_version = None
         self.view_version = None
-        self.defer_recomputing = False
         self.mouse_prev = None
         self.recompute = True
+        self.defer_recomputing = False
+        self.selecting = False
 
     def get_ui_icon(self):
         icon = load_image_png('polypen_32.png')
@@ -39,9 +40,11 @@ class RFTool_PolyPen(RFTool):
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     
+    @profiler.profile
     def update(self):
         # selection has changed, undo/redo was called, etc.
-        self.target_version = None
+        #self.target_version = None
+        self.target_version = self.rfcontext.get_target_version() if self.selecting else None
         self.set_next_state()
     
     @profiler.profile
@@ -82,27 +85,27 @@ class RFTool_PolyPen(RFTool):
             self.accel2D = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, p2p)
             pr.done()
             
-            # get selected geometry
-            pr = profiler.start('determining selected geometry')
-            self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
-            self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
-            self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
-            num_verts = len(self.sel_verts)
-            num_edges = len(self.sel_edges)
-            num_faces = len(self.sel_faces)
-            pr.done()
-            
-            # determine next state based on current selection
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
-                self.next_state = 'vert-edge'
-            elif num_edges == 1 and num_faces == 0:
-                self.next_state = 'edge-face'
-            elif num_edges == 2 and num_faces == 0:
-                self.next_state = 'edges-face'
-            elif num_verts == 3 and num_edges == 3 and num_faces == 1:
-                self.next_state = 'tri-quad'
-            else:
-                self.next_state = 'new vertex'
+        # get selected geometry
+        pr = profiler.start('determining selected geometry')
+        self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
+        self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
+        self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
+        num_verts = len(self.sel_verts)
+        num_edges = len(self.sel_edges)
+        num_faces = len(self.sel_faces)
+        pr.done()
+        
+        # determine next state based on current selection
+        if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            self.next_state = 'vert-edge'
+        elif num_edges == 1 and num_faces == 0:
+            self.next_state = 'edge-face'
+        elif num_edges == 2 and num_faces == 0:
+            self.next_state = 'edges-face'
+        elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+            self.next_state = 'tri-quad'
+        else:
+            self.next_state = 'new vertex'
         
         # get visible geometry near mouse
         pr = profiler.start('getting vis geo near mouse')
@@ -139,6 +142,8 @@ class RFTool_PolyPen(RFTool):
             return 'insert alt0'
 
         if self.rfcontext.actions.pressed(['select','select add'], unpress=False):
+            pr = profiler.start('selecting geometry')
+            
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
             
@@ -146,9 +151,14 @@ class RFTool_PolyPen(RFTool):
             else: self.rfcontext.undo_push('select add')
             
             sel = self.nearest_vert or self.nearest_edge or self.nearest_face
+            self.selecting = True
             self.rfcontext.select(sel, only=sel_only)
+            self.selecting = False
             
-            if not sel_only: return     # do not move selection if adding
+            if not sel_only:
+                # do not move selection if adding
+                pr.done()
+                return
             
             self.prep_move()
             self.move_done_pressed = 'confirm'
@@ -156,6 +166,7 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel no select'
             self.rfcontext.undo_push('move single')
             
+            pr.done()
             return 'move'
 
         if self.rfcontext.actions.pressed('grab'):

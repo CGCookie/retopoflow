@@ -111,12 +111,7 @@ class RFMesh():
                 bmv.select = emv.select
             pr.done()
 
-        if triangulate:
-            pr = profiler.start('triangulation')
-            faces = [face for face in self.bme.faces if len(face.verts) != 3]
-            dprint('%d non-triangles' % len(faces))
-            bmesh.ops.triangulate(self.bme, faces=faces)
-            pr.done()
+        if triangulate: self.triangulate()
 
         pr = profiler.start('setup finishing')
         self.selection_center = Point((0,0,0))
@@ -135,9 +130,6 @@ class RFMesh():
     def clean(self):
         pass
     
-    def get_version(self):
-        return self.version
-
     def get_version(self):
         return self.version
 
@@ -180,6 +172,19 @@ class RFMesh():
 
 
     ##########################################################
+
+    @profiler.profile
+    def triangulate(self):
+        faces = [face for face in self.bme.faces if len(face.verts) != 3]
+        dprint('%d non-triangles' % len(faces))
+        bmesh.ops.triangulate(self.bme, faces=faces)
+
+    @profiler.profile
+    def plane_split(self, plane:Plane):
+        plane_local = self.xform.w2l_plane(plane)
+        dist = 0.00000001
+        geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+        bmesh.ops.bisect_plane(self.bme, geom=geom, dist=dist, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
 
     @stats_wrapper
     @profiler.profile

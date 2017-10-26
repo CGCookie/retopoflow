@@ -243,7 +243,7 @@ class RFTool_PolyStrips_Ops:
         for bmf in all_bmfaces:
             if not bmf.is_valid: continue
             for bmv in bmf.verts:
-                self.rfcontext.snap_vert(bmv)
+                self.rfcontext.snap2D_vert(bmv)
     
     def change_count(self, delta):
         if len(self.strips) == 0:
