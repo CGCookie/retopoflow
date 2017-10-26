@@ -625,9 +625,16 @@ class Accel2D:
             self._put_edge(e, self.map_v_v2D[v0], self.map_v_v2D[v1])
         for f in faces:
             v2ds = [self.map_v_v2D[v] for v in f.verts]
-            v0 = v2ds[0]
-            for v1,v2 in zip(v2ds[1:-1],v2ds[2:]):
-                self._put_face(f, v0, v1, v2)
+            if not v2ds: continue
+            ijs = list(map(self.compute_ij, v2ds))
+            mini,minj = min(i for (i,j) in ijs), min(j for (i,j) in ijs)
+            maxi,maxj = max(i for (i,j) in ijs), max(j for (i,j) in ijs)
+            for i in range(mini,maxi+1):
+                for j in range(minj,maxj+1):
+                    self.bins[i][j].add(f)
+            #v0 = v2ds[0]
+            #for v1,v2 in zip(v2ds[1:-1],v2ds[2:]):
+            #    self._put_face(f, v0, v1, v2)
     
     def _put_edge(self, e, v0, v1, depth=0):
         i0,j0 = self.compute_ij(v0)
@@ -686,10 +693,10 @@ class Accel2D:
         delta = Vec2D((within,within))
         i0,j0 = self.compute_ij(v2d-delta)
         i1,j1 = self.compute_ij(v2d+delta)
-        l = []
+        l = set()
         for i in range(i0,i1+1):
             for j in range(j0,j1+1):
-                l += self.bins[i][j]
+                l |= self.bins[i][j]
         return l
     
     @profiler.profile
