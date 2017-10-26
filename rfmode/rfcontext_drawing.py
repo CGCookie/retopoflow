@@ -6,6 +6,7 @@ import time
 
 from .rftool import RFTool
 
+from ..lib.classes.profiler.profiler import profiler
 from ..common.maths import Point, Point2D
 from ..common.ui import Drawing
 from ..common.ui import (
@@ -15,7 +16,7 @@ from ..common.ui import (
     UI_Checkbox, UI_Checkbox2,
     UI_Label,
     UI_Spacer,
-    UI_Collapsible,
+    UI_Container, UI_Collapsible,
     UI_IntValue,
     )
 
@@ -53,6 +54,11 @@ class RFContext_Drawing:
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))
+        
+        if profiler.debug:
+            info_profiler = info_debug.add(UI_Collapsible('Profiler', collapsed=False, vertical=False))
+            info_profiler.add(UI_Button('Print', profiler.printout, align=0))
+            info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
@@ -128,30 +134,38 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
-        self.draw_yz_mirror()
+        self.draw_mirror('x')
+        self.draw_mirror('y')
+        self.draw_mirror('z')
 
         self.rftarget_draw.draw()
         self.tool.draw_postview()
         self.rfwidget.draw_postview()
 
-    def draw_yz_mirror(self):
-        if 'x' not in self.rftarget.symmetry: return
+    def draw_mirror(self, which):
+        if which not in self.rftarget.symmetry: return
+        intersections,(r,g,b) = {
+            'x':(self.zy_intersections,(1.0,0.5,0.5)),
+            'y':(self.xz_intersections,(0.5,1.0,0.5)),
+            'z':(self.xy_intersections,(0.5,0.5,1.0)),
+            }[which]
+        
         self.drawing.line_width(3.0)
         bgl.glDepthMask(bgl.GL_FALSE)
         bgl.glDepthRange(0.0, 0.9999)
 
-        bgl.glColor4f(0.5, 1.0, 1.0, 0.15)
+        bgl.glColor4f(r, g, b, 0.15)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glBegin(bgl.GL_LINES)
-        for p0,p1 in self.zy_intersections:
+        for p0,p1 in intersections:
             bgl.glVertex3f(*p0)
             bgl.glVertex3f(*p1)
         bgl.glEnd()
 
-        bgl.glColor4f(0.5, 1.0, 1.0, 0.01)
+        bgl.glColor4f(r, g, b, 0.01)
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glBegin(bgl.GL_LINES)
-        for p0,p1 in self.zy_intersections:
+        for p0,p1 in intersections:
             bgl.glVertex3f(*p0)
             bgl.glVertex3f(*p1)
         bgl.glEnd()

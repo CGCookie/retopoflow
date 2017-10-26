@@ -153,9 +153,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         return o if RFContext.is_valid_target(o) else None
 
     @stats_wrapper
+    @profiler.profile
     def __init__(self, starting_tool):
-        pr = profiler.start()
-
         RFContext.instance = self
         self.undo = []  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []  # redo stack of causing actions, FSM state, tool states, and rftargets
@@ -187,8 +186,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.show_fps = True
 
         self.exit = False
-
-        pr.done()
 
     def _init_usersettings(self):
         # user-defined settings
@@ -270,11 +267,17 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         print('%d sources' % len(self.rfsources))
 
+        xy_plane = self.rftarget.get_xy_plane()
+        xz_plane = self.rftarget.get_xz_plane()
         zy_plane = self.rftarget.get_yz_plane()
+        self.xy_intersections = []
+        self.xz_intersections = []
         self.zy_intersections = []
         for rfs in self.rfsources:
             #rfs.plane_split(zy_plane)
             #rfs.triangulate()
+            self.xy_intersections += rfs.plane_intersection(xy_plane)
+            self.xz_intersections += rfs.plane_intersection(xz_plane)
             self.zy_intersections += rfs.plane_intersection(zy_plane)
 
     def commit(self):
@@ -428,6 +431,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         
         if self.actions.pressed('F1'):
             profiler.printout()
+            return
+        if self.actions.pressed('F2'):
+            print('Clearing profiler')
+            profiler.clear()
             return
 
         # handle tool shortcut

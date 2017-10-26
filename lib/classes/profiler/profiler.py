@@ -68,15 +68,19 @@ class Profiler:
         self.d_count = {}
         self.stack = []
     
-    def start(self, text=None):
+    def start(self, text=None, addFile=True):
         if not self.debug: return self.ProfilerHelper_Ignore()
         
-        if not text:
-            frame = inspect.currentframe().f_back
-            filename = os.path.basename( frame.f_code.co_filename )
-            linenum = frame.f_lineno
-            fnname = frame.f_code.co_name
-            text = '%s (%s:%d)' % (fnname, filename, linenum)
+        frame = inspect.currentframe().f_back
+        filename = os.path.basename( frame.f_code.co_filename )
+        linenum = frame.f_lineno
+        fnname = frame.f_code.co_name
+        if addFile:
+            text = text or fnname
+            space = ' '*(30-len(text))
+            text = '%s%s (%s:%d)' % (text, space, filename, linenum)
+        else:
+            text = text or fnname
         return self.ProfilerHelper(self, text)
     
     def __del__(self):
@@ -92,9 +96,11 @@ class Profiler:
         clsname = f_locals['__qualname__'] if '__qualname__' in f_locals else ''
         linenum = frame.f_lineno
         fnname = fn.__name__ #frame.f_code.co_name
-        text = '%s%s (%s:%d)' % (clsname + ('.' if clsname else ''), fnname, filename, linenum)
+        if clsname: fnname = clsname + '.' + fnname
+        space = ' '*(30-len(fnname))
+        text = '%s%s (%s:%d)' % (fnname, space, filename, linenum)
         def wrapper(*args, **kwargs):
-            pr = self.start(text=text)
+            pr = self.start(text=text, addFile=False)
             ret = fn(*args, **kwargs)
             pr.done()
             return ret
@@ -103,9 +109,10 @@ class Profiler:
     def printout(self):
         if not self.debug: return
         
-        dprint('Profiler:')
-        dprint('   total      call   --- seconds / call ---')
-        dprint('    secs /   count =    min,    avg,    max  (  fps) - call stack')
+        dprint('Profiler:', l=0)
+        dprint('   total      call   --- seconds / call ---', l=0)
+        dprint('    secs /   count =    min,    avg,    max  (  fps) - call stack', l=0)
+        dprint('--------------------------------------------------------------------------------------', l=0)
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
             totcount = self.d_count[text]
@@ -120,7 +127,8 @@ class Profiler:
             fps = totcount/tottime
             if fps >= 1000: fps = ' 1k+ '
             else: fps = '%5.1f' % fps
-            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, mint, avgt, maxt, fps, t))
-        dprint('')
+            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, mint, avgt, maxt, fps, t), l=0)
+        dprint('', l=0)
+        dprint('', l=0)
 
 profiler = Profiler()

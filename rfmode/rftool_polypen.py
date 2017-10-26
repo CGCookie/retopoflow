@@ -86,16 +86,34 @@ class RFTool_PolyPen(RFTool):
             pr.done()
             
         # get selected geometry
-        pr = profiler.start('determining selected geometry')
+        pr = profiler.start('getting selected geometry')
         self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
         self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
         self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
+        pr.done()
+        
+        # get visible geometry near mouse
+        pr = profiler.start('getting nearby and hovered geometry')
+        max_dist = self.drawing.scale(10)
+        geom = self.accel2D.get(mouse_cur, max_dist)
+        verts,edges,faces = ([g for g in geom if type(g) is t] for t in [RFVert,RFEdge,RFFace])
+        nearby_verts = self.rfcontext.nearest2D_verts(verts=verts, max_dist=10)
+        nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10)
+        nearby_face  = self.rfcontext.nearest2D_face(faces=faces, max_dist=10)
+        # get hover geometry in sorted order
+        self.hover_verts = [v for v,_ in sorted(nearby_verts, key=lambda vd:vd[1])]
+        self.hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
+        self.hover_faces = [nearby_face]
+        # get nearest geometry
+        self.nearest_vert = next(iter(self.hover_verts), None)
+        self.nearest_edge = next(iter(self.hover_edges), None)
+        self.nearest_face = next(iter(self.hover_faces), None)
+        pr.done()
+        
+        # determine next state based on current selection, hovered geometry
         num_verts = len(self.sel_verts)
         num_edges = len(self.sel_edges)
         num_faces = len(self.sel_faces)
-        pr.done()
-        
-        # determine next state based on current selection
         if num_verts == 1 and num_edges == 0 and num_faces == 0:
             self.next_state = 'vert-edge'
         elif num_edges == 1 and num_faces == 0:
@@ -106,29 +124,6 @@ class RFTool_PolyPen(RFTool):
             self.next_state = 'tri-quad'
         else:
             self.next_state = 'new vertex'
-        
-        # get visible geometry near mouse
-        pr = profiler.start('getting vis geo near mouse')
-        max_dist = self.drawing.scale(10)
-        geom = self.accel2D.get(mouse_cur, max_dist)
-        verts = [g for g in geom if type(g) is RFVert]
-        edges = [g for g in geom if type(g) is RFEdge]
-        faces = [g for g in geom if type(g) is RFFace]
-        nearby_verts = self.rfcontext.nearest2D_verts(verts=verts, max_dist=10) #self.vis_verts)
-        nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10) #self.vis_edges)
-        nearby_face = self.rfcontext.nearest2D_face(faces=faces, max_dist=10) #self.vis_faces)
-        pr.done()
-
-        pr = profiler.start('getting hovered geo')
-        # get hover geometry in sorted order
-        self.hover_verts = [v for v,_ in sorted(nearby_verts, key=lambda vd:vd[1])]
-        self.hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
-        self.hover_faces = [nearby_face]
-        # get nearest geometry
-        self.nearest_vert = next(iter(self.hover_verts), None)
-        self.nearest_edge = next(iter(self.hover_edges), None)
-        self.nearest_face = next(iter(self.hover_faces), None)
-        pr.done()
         
 
     @profiler.profile

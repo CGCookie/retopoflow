@@ -83,7 +83,7 @@ class RFMesh():
 
     @stats_wrapper
     @profiler.profile
-    def __setup__(self, obj, deform=False, bme=None, triangulate=False):
+    def __setup__(self, obj, deform=False, bme=None, triangulate=False, selection=True):
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
@@ -99,17 +99,18 @@ class RFMesh():
             self.bme = bmesh.new()
             self.bme.from_mesh(eme)
             pr.done()
-
-            pr = profiler.start('selection')
-            self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
-            # copy selection from editmesh
-            for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
-                bmf.select = emf.select
-            for bme,eme in zip(self.bme.edges, self.obj.data.edges):
-                bme.select = eme.select
-            for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
-                bmv.select = emv.select
-            pr.done()
+            
+            if selection:
+                pr = profiler.start('copying selection')
+                self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
+                # copy selection from editmesh
+                for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+                    bmf.select = emf.select
+                for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+                    bme.select = eme.select
+                for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+                    bmv.select = emv.select
+                pr.done()
 
         if triangulate: self.triangulate()
 
@@ -202,16 +203,34 @@ class RFMesh():
         
         triangle_intersection = plane_local.triangle_intersection
         triangle_intersect = plane_local.triangle_intersect
-        verts_pos = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) >= 0 }
-        faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
+        pr = profiler.start('vert sides')
+        verts_pos = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) > 0 }
+        #verts_neg = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) < 0 }
+        pr.done()
+        #faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
+        pr = profiler.start('split edges')
+        edges = { bme for bme in self.bme.edges if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos) }
+        pr.done()
+        pr = profiler.start('split faces')
+        faces = { bmf for bme in edges for bmf in bme.link_faces }
+        pr.done()
+        pr = profiler.start('intersections')
         intersection = [
             (l2w_point(p0),l2w_point(p1))
             for bmf in faces
             for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
             ]
-        # print(len(intersection))
+        pr.done()
         return intersection
 
+    def get_xy_plane(self):
+        o = self.xform.l2w_point(Point((0,0,0)))
+        n = self.xform.l2w_normal(Normal((0,0,1)))
+        return Plane(o, n)
+    def get_xz_plane(self):
+        o = self.xform.l2w_point(Point((0,0,0)))
+        n = self.xform.l2w_normal(Normal((0,1,0)))
+        return Plane(o, n)
     def get_yz_plane(self):
         o = self.xform.l2w_point(Point((0,0,0)))
         n = self.xform.l2w_normal(Normal((1,0,0)))
@@ -842,11 +861,9 @@ class RFSource(RFMesh):
     __cache = {}
 
     @staticmethod
-    @stats_wrapper
+    @profiler.profile
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
-
-        pr = profiler.start()
 
         # check cache
         rfsource = None
@@ -868,15 +885,13 @@ class RFSource(RFMesh):
 
         src = RFSource.__cache[obj.data.name]
 
-        pr.done()
-
         return src
 
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
 
     def __setup__(self, obj:bpy.types.Object):
-        super().__setup__(obj, deform=True, triangulate=True)
+        super().__setup__(obj, deform=True, triangulate=True, selection=False)
         self.ensure_lookup_tables()
 
 
@@ -888,19 +903,15 @@ class RFTarget(RFMesh):
     '''
 
     @staticmethod
-    @stats_wrapper
+    @profiler.profile
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
-
-        pr = profiler.start()
 
         RFTarget.creating = True
         rftarget = RFTarget()
         del RFTarget.creating
         rftarget.__setup__(obj)
         rftarget.rewrap()
-
-        pr.done()
 
         return rftarget
 
