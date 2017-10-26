@@ -85,7 +85,7 @@ class Point2D(Vector, Entity2D):
     def distance_to(self, other)->float:
         return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
     def distance_squared_to(self, other)->float:
-        return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
+        return (self.x-other.x)**2+(self.y-other.y)**2
     def as_vector(self): return Vector(self)
     def from_vector(self, v): self.x,self.y = v
 
@@ -597,6 +597,109 @@ class BBox:
 
     def Point_within(self, point:Point, margin=0):
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
+
+
+class Accel2D:
+    bin_cols = 20
+    bin_rows = 20
+    
+    @profiler.profile
+    def __init__(self, verts, edges, faces, Point_to_Point2D):
+        self.verts = verts
+        self.edges = edges
+        self.faces = faces
+        self.Point_to_Point2D = Point_to_Point2D
+        
+        self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
+        self.map_v_v2D = {v:v2d for v,v2d in zip(verts,self.v2Ds)}
+        self.min = Point2D((min(x for x,_ in self.v2Ds), min(y for _,y in self.v2Ds)))
+        self.max = Point2D((max(x for x,_ in self.v2Ds), max(y for _,y in self.v2Ds)))
+        self.size = self.max - self.min
+        
+        self.bins = [[set() for j in range(self.bin_rows)] for i in range(self.bin_cols)]
+        for v,v2d in zip(verts,self.v2Ds):
+            i,j = self.compute_ij(v2d)
+            self.bins[i][j].add(v)
+        for e in edges:
+            v0,v1 = e.verts
+            self._put_edge(e, self.map_v_v2D[v0], self.map_v_v2D[v1])
+        for f in faces:
+            v2ds = [self.map_v_v2D[v] for v in f.verts]
+            v0 = v2ds[0]
+            for v1,v2 in zip(v2ds[1:-1],v2ds[2:]):
+                self._put_face(f, v0, v1, v2)
+    
+    def _put_edge(self, e, v0, v1, depth=0):
+        i0,j0 = self.compute_ij(v0)
+        i1,j1 = self.compute_ij(v1)
+        if i0 == i1 and j0 == j1:
+            self.bins[i0][j0].add(e)
+            return
+        if depth == 6:
+            self.bins[i0][j0].add(e)
+            self.bins[i1][j1].add(e)
+            return
+        if i0 == i1:
+            i = i0
+            for j in range(min(j0,j1),max(j0,j1)+1):
+                self.bins[i][j].add(e)
+            return
+        if j0 == j1:
+            j = j0
+            for i in range(min(i0,i1),max(i0,i1)+1):
+                self.bins[i][j].add(e)
+            return
+        vm = v0 + (v1 - v0) / 2
+        self._put_edge(e, v0, vm, depth=depth+1)
+        self._put_edge(e, vm, v1, depth=depth+1)
+    
+    def _put_face(self, f, v0, v1, v2, depth=0):
+        i0,j0 = self.compute_ij(v0)
+        i1,j1 = self.compute_ij(v1)
+        i2,j2 = self.compute_ij(v2)
+        if i0 == i1 and i0 == i2 and j0 == j1 and j0 == j2:
+            self.bins[i0][j0].add(f)
+            return
+        if i0 == i1 and j0 == j1:
+            self._put_edge(f, v0, v2, depth=depth)
+            return
+        if i0 == i2 and j0 == j2:
+            self._put_edge(f, v0, v1, depth=depth)
+            return
+        if i1 == i2 and j1 == j2:
+            self._put_edge(f, v1, v2, depth=depth)
+            return
+        if depth == 6:
+            self.bins[i0][j0].add(f)
+            self.bins[i1][j1].add(f)
+            self.bins[i2][j2].add(f)
+            return
+        v01 = v0 + (v1 - v0) / 2
+        v12 = v1 + (v2 - v1) / 2
+        v20 = v2 + (v0 - v2) / 2
+        self._put_face(f, v0, v01, v20, depth=depth+1)
+        self._put_face(f, v1, v12, v01, depth=depth+1)
+        self._put_face(f, v2, v20, v12, depth=depth+1)
+    
+    @profiler.profile
+    def get(self, v2d, within):
+        delta = Vec2D((within,within))
+        i0,j0 = self.compute_ij(v2d-delta)
+        i1,j1 = self.compute_ij(v2d+delta)
+        l = []
+        for i in range(i0,i1+1):
+            for j in range(j0,j1+1):
+                l += self.bins[i][j]
+        return l
+    
+    @profiler.profile
+    def compute_ij(self, v2d):
+        n = v2d - self.min
+        i = max(0, min(self.bin_cols-1, int(self.bin_cols * n.x / self.size.x)))
+        j = max(0, min(self.bin_rows-1, int(self.bin_rows * n.y / self.size.y)))
+        return (i,j)
+    
+
 
 # https://rosettacode.org/wiki/Determine_if_two_triangles_overlap#C.2B.2B
 def triangle2D_det(p0, p1, p2):

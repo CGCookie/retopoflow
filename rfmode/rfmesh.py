@@ -572,16 +572,15 @@ class RFMesh():
         edges = self.bme.edges if edges is None else [self._unwrap(bme) for bme in edges]
         l2w_point = self.xform.l2w_point
         nearest = []
-        dist2D2 = dist2D * dist2D
+        dist2D2 = dist2D**2
         s0,s1 = shorten/2,1-shorten/2
         proj = lambda bmv: Point_to_Point2D(l2w_point(bmv.co))
         for bme in edges:
             v0,v1 = proj(bme.verts[0]),proj(bme.verts[1])
-            l2 = v0.distance_squared_to(v1)
-            if l2 == 0:
+            l = v0.distance_to(v1)
+            if l == 0:
                 pp = v0
             else:
-                l = math.sqrt(l2)
                 d = (v1 - v0) / l
                 pp = v0 + d * max(l*s0, min(l*s1, d.dot(xy-v0)))
             dist2 = pp.distance_squared_to(xy)

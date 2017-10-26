@@ -3,12 +3,12 @@ import bmesh
 import math
 import bgl
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image
 from .load_image import load_image_png
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
-
+from .rfmesh import RFVert, RFEdge, RFFace
 
 @RFTool.action_call('polypen tool')
 class RFTool_PolyPen(RFTool):
@@ -26,6 +26,7 @@ class RFTool_PolyPen(RFTool):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
         self.next_state = None
         
+        self.accel2D = None
         self.target_version = None
         self.view_version = None
         self.defer_recomputing = False
@@ -54,13 +55,14 @@ class RFTool_PolyPen(RFTool):
         mouse_moved = 1 if not mouse_prev else mouse_prev.distance_squared_to(mouse_cur)
         self.mouse_prev = mouse_cur
         
-        if mouse_moved > 0:
-            self.recompute = True
-            return
-        
         recompute = self.recompute
         recompute |= self.target_version != target_version
         recompute |= self.view_version != view_version
+        
+        if mouse_moved > 0:
+            # mouse is still moving, so defer recomputing until mouse has stopped
+            self.recompute = recompute
+            return
         
         self.recompute = False
         
@@ -73,6 +75,11 @@ class RFTool_PolyPen(RFTool):
             self.vis_verts = self.rfcontext.visible_verts()
             self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
             self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
+            pr.done()
+            
+            pr = profiler.start('creating 2D acceleration structure')
+            p2p = self.rfcontext.Point_to_Point2D
+            self.accel2D = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, p2p)
             pr.done()
             
             # get selected geometry
@@ -99,9 +106,14 @@ class RFTool_PolyPen(RFTool):
         
         # get visible geometry near mouse
         pr = profiler.start('getting vis geo near mouse')
-        nearby_verts = self.rfcontext.nearest2D_verts(verts=self.vis_verts)
-        nearby_edges = self.rfcontext.nearest2D_edges(edges=self.vis_edges)
-        nearby_face = self.rfcontext.nearest2D_face(faces=self.vis_faces)
+        max_dist = self.drawing.scale(10)
+        geom = self.accel2D.get(mouse_cur, max_dist)
+        verts = [g for g in geom if type(g) is RFVert]
+        edges = [g for g in geom if type(g) is RFEdge]
+        faces = [g for g in geom if type(g) is RFFace]
+        nearby_verts = self.rfcontext.nearest2D_verts(verts=verts, max_dist=10) #self.vis_verts)
+        nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10) #self.vis_edges)
+        nearby_face = self.rfcontext.nearest2D_face(faces=faces, max_dist=10) #self.vis_faces)
         pr.done()
 
         pr = profiler.start('getting hovered geo')
@@ -447,8 +459,8 @@ class RFTool_PolyPen(RFTool):
 
     @profiler.profile
     def draw_postview(self):
-        if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
-            return
+        if self.rfcontext.nav: return
+        if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
 

@@ -59,7 +59,7 @@ class RFContext_Spaces:
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         if not xy: return None
         o = self.Point2D_to_Origin(xy)
-        return Ray.from_segment(o, xyz)
+        #return Ray.from_segment(o, xyz)
         d = self.Point2D_to_Vec(xy)
         dist = (o - xyz).length
         return Ray(o, d, min_dist=min_dist, max_dist=dist+max_dist_offset)
