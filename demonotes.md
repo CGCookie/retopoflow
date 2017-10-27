@@ -1,0 +1,23 @@
+- adjusting ps segment count on thin surfaces causes problems [screencap](https://cl.ly/mNg5)
+- adjusting ps segment count can sometimes split strip in two, preventing changing count further
+- adjusting counts push to undo stack multiple times
+- undo stack actions should be more informative (for instrumentation)
+- integrate edge-patches
+- symmetry along y and z
+
+- PP: quad from three verts??
+- tweak connected
+- turning on symmetry should snap/merge target geo on other side?
+- button to snap target to source
+- settings need to be saved between sessions
+- polypen crashes (trying to create edge between verts that have edge?)
+- dissolve edges, verts, faces, etc in pp
+
+- "add edge loops with something like loop cut"
+- reimplement f2
+    - fill in gap between strips with single button
+- work in blender 2.8
+- update blender button tooltips
+- snap merge upon move
+- deselect in PS?
+- change radius of strip, similar to segment count

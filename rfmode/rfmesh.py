@@ -186,13 +186,56 @@ class RFMesh():
         dist = 0.00000001
         geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
         bmesh.ops.bisect_plane(self.bme, geom=geom, dist=dist, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
-
-    @stats_wrapper
+    
+    @profiler.profile
+    def plane_split_negative(self, plane:Plane):
+        return None
+        
+        map_bmv_i = {bmv:i for i,bmv in enumerate(self.bme.verts)}
+        verts = [bmv.co for bmv in self.bme.verts]
+        edges = [(map_bmv_i[bmv] for bmv in bme.verts) for bme in self.bme.edges]
+        faces = [(map_bmv_i[bmv] for bmv in bmf.verts) for bmf in self.bme.faces]
+        return None
+        
+        l2w_point = self.xform.l2w_point
+        plane_local = self.xform.w2l_plane(plane)
+        side = plane_local.side
+        triangle_intersection = plane_local.triangle_intersection
+        triangle_intersect = plane_local.triangle_intersect
+        
+        pr = profiler.start('copying')
+        bme = self.bme.copy()
+        pr.done()
+        
+        pr = profiler.start('vert sides')
+        verts_pos = { bmv for bmv in self.bme.verts if side(bmv.co) > 0 }
+        pr.done()
+        pr = profiler.start('split edges')
+        edges = { bme for bme in self.bme.edges if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos) }
+        pr.done()
+        pr = profiler.start('split faces')
+        faces = { bmf for bme in edges for bmf in bme.link_faces }
+        pr.done()
+        pr = profiler.start('culling all positive faces')
+        cull = [ bmf for bmf in bme.faces if all(bmv in verts_pos for bmv in bmf.verts) ]
+        pr.done()
+        pr = profiler.start('intersections')
+        intersection = [
+            (l2w_point(p0),l2w_point(p1))
+            for bmf in faces
+            for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
+            ]
+        pr.done()
+        return bme
+    
     @profiler.profile
     def plane_intersection(self, plane:Plane):
         # TODO: do not duplicate vertices!
-        plane_local = self.xform.w2l_plane(plane)
         l2w_point = self.xform.l2w_point
+        plane_local = self.xform.w2l_plane(plane)
+        side = plane_local.side
+        triangle_intersection = plane_local.triangle_intersection
+        triangle_intersect = plane_local.triangle_intersect
         
         # res = bmesh.ops.bisect_plane(self.bme, geom=list(self.bme.verts)+list(self.bme.edges)+list(self.bme.faces), dist=0.0000001, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
         # verts = {bmv for bmv in self.bme.verts if plane_local.side(bmv.co) == 0}
@@ -201,10 +244,8 @@ class RFMesh():
         # print(len(intersection))
         # return intersection
         
-        triangle_intersection = plane_local.triangle_intersection
-        triangle_intersect = plane_local.triangle_intersect
         pr = profiler.start('vert sides')
-        verts_pos = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) > 0 }
+        verts_pos = { bmv for bmv in self.bme.verts if side(bmv.co) > 0 }
         #verts_neg = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) < 0 }
         pr.done()
         #faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}

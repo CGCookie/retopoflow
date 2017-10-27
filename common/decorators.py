@@ -3,6 +3,8 @@ import time
 import inspect
 
 def stats_wrapper(fn):
+    return fn
+    
     if not hasattr(stats_report, 'stats'):
         stats_report.stats = dict()
     frame = inspect.currentframe().f_back
@@ -37,6 +39,8 @@ def stats_wrapper(fn):
     return wrapped
 
 def stats_report():
+    return
+    
     stats = stats_report.stats if hasattr(stats_report, 'stats') else dict()
     l = max(len(k) for k in stats)
     def fmt(s): return s + ' '*(l-len(s))
