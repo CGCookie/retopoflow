@@ -92,8 +92,9 @@ class RFVert(BMElemWrapper):
     @co.setter
     def co(self, co):
         co = self.w2l_point(co)
-        if 'x' in self.symmetry:
-            co.x = max(0, co.x)
+        if 'x' in self.symmetry: co.x = max(0, co.x)
+        if 'y' in self.symmetry: co.y = max(0, co.y)
+        if 'z' in self.symmetry: co.z = max(0, co.z)
         self.bmelem.co = co
 
     @property

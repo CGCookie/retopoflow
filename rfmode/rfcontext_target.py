@@ -141,6 +141,32 @@ class RFContext_Target:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.x / (p0.x - p1.x))]
             pointloop = npl
+        if 'y' in self.rftarget.symmetry and any(p.y < 0 for p in pointloop):
+            if connected:
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.y < 0)
+                pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
+            npl = []
+            for p0,p1 in iter_pairs(pointloop, connected):
+                if p0.y < 0 and p1.y < 0: continue
+                elif p0.y == 0: npl += [p0]
+                elif p0.y > 0 and p1.y > 0: npl += [p0]
+                else:
+                    connected = False
+                    npl += [p0 + (p1 - p0) * (p0.y / (p0.y - p1.y))]
+            pointloop = npl
+        if 'z' in self.rftarget.symmetry and any(p.z < 0 for p in pointloop):
+            if connected:
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.z < 0)
+                pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
+            npl = []
+            for p0,p1 in iter_pairs(pointloop, connected):
+                if p0.z < 0 and p1.z < 0: continue
+                elif p0.z == 0: npl += [p0]
+                elif p0.z > 0 and p1.z > 0: npl += [p0]
+                else:
+                    connected = False
+                    npl += [p0 + (p1 - p0) * (p0.z / (p0.z - p1.z))]
+            pointloop = npl
         pointloop = [l2w_point(pt) for pt in pointloop]
         return (pointloop, connected)
     
