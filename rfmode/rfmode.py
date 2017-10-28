@@ -204,7 +204,7 @@ class RFMode(Operator):
         for o in self.selected_objects: o.select = False
         
         tool = self.context_start_tool()
-        self.rfctx = RFContext(tool)
+        self.rfctx = RFContext(self, tool)
     
     def context_start_tool(self): return None
     
@@ -275,6 +275,7 @@ class RFMode(Operator):
             ]
         self.tag_redraw_all()
         
+        self.maximize_area = False
         self.show_toolshelf = bpy.context.area.regions[1].width > 1
         self.show_properties = bpy.context.area.regions[3].width > 1
         self.region_overlap = bpy.context.user_preferences.system.use_region_overlap
@@ -291,6 +292,10 @@ class RFMode(Operator):
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
+    
+    def ui_toggle_maximize_area(self):
+        bpy.ops.screen.screen_full_area(use_hide_panels=False)
+        self.maximize_area = not self.maximize_area
     
     def ui_end(self):
         if not hasattr(self, 'rfctx'): return
@@ -331,6 +336,8 @@ class RFMode(Operator):
         if self.region_overlap:
             if self.show_toolshelf: bpy.ops.view3d.toolshelf()
             if self.show_properties: bpy.ops.view3d.properties()
+        if self.maximize_area:
+            bpy.ops.screen.screen_full_area(use_hide_panels=False)
         
         set_cursor('DEFAULT')
        

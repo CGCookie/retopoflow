@@ -61,6 +61,7 @@ class RFContext_Drawing:
             info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
+        window_tool_options.add(UI_Button('Maximize', self.rfmode.ui_toggle_maximize_area))
         ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
         ui_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
         ui_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))

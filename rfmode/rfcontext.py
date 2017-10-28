@@ -154,11 +154,13 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
 
     @stats_wrapper
     @profiler.profile
-    def __init__(self, starting_tool):
+    def __init__(self, rfmode, starting_tool):
         RFContext.instance = self
         self.undo = []  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []  # redo stack of causing actions, FSM state, tool states, and rftargets
-
+        
+        self.rfmode = rfmode
+        
         self.FSM = {}
         self.FSM['main'] = self.modal_main
         self.mode = 'main'
