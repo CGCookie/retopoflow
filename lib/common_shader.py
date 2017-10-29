@@ -104,6 +104,8 @@ class Shader():
                 bgl.glUniform1f(l, varValue)
             elif t == 'bool':
                 bgl.glUniform1i(l, 1 if varValue else 0)
+            elif t == 'vec3':
+                bgl.glUniform3f(l, *varValue)
             elif t == 'vec4':
                 bgl.glUniform4f(l, *varValue)
             else:

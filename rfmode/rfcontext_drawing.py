@@ -19,6 +19,7 @@ from ..common.ui import (
     UI_Container, UI_Collapsible,
     UI_IntValue,
     )
+from ..lib import common_drawing_bmesh as bmegl
 
 
 class RFContext_Drawing:
@@ -27,6 +28,7 @@ class RFContext_Drawing:
     def set_symmetry(self, axis, enable):
         if enable: self.rftarget.enable_symmetry(axis)
         else: self.rftarget.disable_symmetry(axis)
+        #for rfs in self.rfsources: rfs.dirty()
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
     
@@ -128,6 +130,7 @@ class RFContext_Drawing:
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPopMatrix()
 
+    @profiler.profile
     def draw_postview(self):
         if not self.actions.r3d: return
 
@@ -135,42 +138,20 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
-        self.draw_mirror('x')
-        self.draw_mirror('y')
-        self.draw_mirror('z')
-
+        pr = profiler.start('render sources')
+        ft = self.rftarget.get_frame()
+        for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+            fs = rs.get_frame()
+            ft_ = fs.w2l_frame(ft)
+            rfs.draw(self.rftarget.symmetry, ft_)
+        pr.done()
+        
+        pr = profiler.start('render target')
         self.rftarget_draw.draw()
+        pr.done()
+        
+        pr = profiler.start('render other')
         self.tool.draw_postview()
         self.rfwidget.draw_postview()
+        pr.done()
 
-    def draw_mirror(self, which):
-        if which not in self.rftarget.symmetry: return
-        intersections,(r,g,b) = {
-            'x':(self.zy_intersections,(1.0,0.5,0.5)),
-            'y':(self.xz_intersections,(0.5,1.0,0.5)),
-            'z':(self.xy_intersections,(0.5,0.5,1.0)),
-            }[which]
-        
-        self.drawing.line_width(3.0)
-        bgl.glDepthMask(bgl.GL_FALSE)
-        bgl.glDepthRange(0.0, 0.9999)
-
-        bgl.glColor4f(r, g, b, 0.15)
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glBegin(bgl.GL_LINES)
-        for p0,p1 in intersections:
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-        bgl.glEnd()
-
-        bgl.glColor4f(r, g, b, 0.01)
-        bgl.glDepthFunc(bgl.GL_GREATER)
-        bgl.glBegin(bgl.GL_LINES)
-        for p0,p1 in intersections:
-            bgl.glVertex3f(*p0)
-            bgl.glVertex3f(*p1)
-        bgl.glEnd()
-
-        bgl.glDepthRange(0.0, 1.0)
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthMask(bgl.GL_TRUE)

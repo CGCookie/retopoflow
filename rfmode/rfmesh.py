@@ -13,7 +13,7 @@ from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
-from ..common.maths import Point, Direction, Normal
+from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
@@ -83,7 +83,7 @@ class RFMesh():
 
     @stats_wrapper
     @profiler.profile
-    def __setup__(self, obj, deform=False, bme=None, triangulate=False, selection=True):
+    def __setup__(self, obj, deform=False, bme=None, triangulate=False, selection=True, keepeme=False):
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
@@ -94,10 +94,11 @@ class RFMesh():
             self.bme = bme
         else:
             pr = profiler.start('edit mesh > bmesh')
-            eme = self.obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
-            eme.update()
+            self.eme = self.obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
+            self.eme.update()
             self.bme = bmesh.new()
-            self.bme.from_mesh(eme)
+            self.bme.from_mesh(self.eme)
+            if not keepeme: del self.eme
             pr.done()
             
             if selection:
@@ -111,6 +112,8 @@ class RFMesh():
                 for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
                     bmv.select = emv.select
                 pr.done()
+            else:
+                self.deselect_all()
 
         if triangulate: self.triangulate()
 
@@ -121,6 +124,11 @@ class RFMesh():
         pr.done()
 
 
+    ##########################################################
+    
+    def get_frame(self):
+        return self.xform.to_frame()
+    
     ##########################################################
 
     def dirty(self):
@@ -190,11 +198,17 @@ class RFMesh():
     @profiler.profile
     def plane_split_negative(self, plane:Plane):
         return None
+        pr = profiler.start('verts')
+        verts = [emv.co for emv in self.eme.vertices]
+        pr.done()
         
-        map_bmv_i = {bmv:i for i,bmv in enumerate(self.bme.verts)}
-        verts = [bmv.co for bmv in self.bme.verts]
-        edges = [(map_bmv_i[bmv] for bmv in bme.verts) for bme in self.bme.edges]
-        faces = [(map_bmv_i[bmv] for bmv in bmf.verts) for bmf in self.bme.faces]
+        pr = profiler.start('edges')
+        edges = [tuple(eme.vertices) for eme in self.eme.edges]
+        pr.done()
+        
+        pr = profiler.start('faces')
+        faces = [tuple(emf.vertices) for emf in self.eme.polygons]
+        pr.done()
         return None
         
         l2w_point = self.xform.l2w_point
@@ -932,7 +946,8 @@ class RFSource(RFMesh):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
 
     def __setup__(self, obj:bpy.types.Object):
-        super().__setup__(obj, deform=True, triangulate=True, selection=False)
+        super().__setup__(obj, deform=True, triangulate=True, selection=False, keepeme=True)
+        self.symmetry = set()
         self.ensure_lookup_tables()
 
 
@@ -1152,6 +1167,7 @@ class RFMeshRender():
 
     ALWAYS_DIRTY = False
 
+    @profiler.profile
     def __init__(self, rfmesh, opts):
         self.opts = opts
         self.replace_rfmesh(rfmesh)
@@ -1167,11 +1183,13 @@ class RFMeshRender():
         if hasattr(self, 'bglMatrix'):
             del self.bglMatrix
 
+    @profiler.profile
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
         self.bmesh = rfmesh.bme
         self.rfmesh_version = None
 
+    @profiler.profile
     def _draw(self):
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
@@ -1215,24 +1233,30 @@ class RFMeshRender():
         bgl.glDepthRange(0, 1)
         bgl.glPopMatrix()
 
+    @profiler.profile
     def clean(self):
         # return if rfmesh hasn't changed
         self.rfmesh.clean()
         if self.rfmesh_version == self.rfmesh.version: return
+        pr = profiler.start('cleaning')
         self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         self._draw()
         bgl.glEndList()
+        pr.done()
 
-    def draw(self):
+    @profiler.profile
+    def draw(self, symmetry=None, frame:Frame=None):
         try:
             if self.ALWAYS_DIRTY:
                 self.rfmesh.clean()
                 bmegl.bmeshShader.enable()
+                bmegl.glSetMirror(symmetry, frame)
                 self._draw()
             else:
                 self.clean()
                 bmegl.bmeshShader.enable()
+                bmegl.glSetMirror(symmetry, frame)
                 bgl.glCallList(self.bglCallList)
         except:
             print_exception()

@@ -431,6 +431,19 @@ class Frame:
 
     def w2l_normal(self, n:Normal)->Normal: return Normal(self._dots(n)).normalize()
     def l2w_normal(self, n:Normal)->Normal: return Normal(self._mults(n)).normalize()
+    
+    def w2l_frame(self, f):
+        o = self.w2l_point(f.o)
+        x = self.w2l_direction(f.x)
+        y = self.w2l_direction(f.y)
+        z = self.w2l_direction(f.z)
+        return Frame(o=o, x=x, y=y, z=z)
+    def l2w_frame(self, f):
+        o = self.l2w_point(f.o)
+        x = self.l2w_direction(f.x)
+        y = self.l2w_direction(f.y)
+        z = self.l2w_direction(f.z)
+        return Frame(o=o, x=x, y=y, z=z)
 
     def rotate_about_z(self, radians:float):
         c,s = math.cos(radians),math.sin(radians)
@@ -519,6 +532,12 @@ class XForm:
     def __iter__(self):
         for v in self.mx_p: yield v
 
+    def to_frame(self):
+        o = Point(self.mx_p * Point((0,0,0)))
+        x = Direction(self.mx_d * Direction((1,0,0)))
+        y = Direction(self.mx_d * Direction((0,1,0)))
+        z = Direction(self.mx_d * Direction((0,0,1)))
+        return Frame(o=o, x=x, y=y, z=z)
 
     def l2w_typed(self, data):
         ''' dispatched conversion '''

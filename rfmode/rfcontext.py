@@ -269,26 +269,16 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         print('%d sources' % len(self.rfsources))
 
-        xy_plane = self.rftarget.get_xy_plane()
-        xz_plane = self.rftarget.get_xz_plane()
-        zy_plane = self.rftarget.get_yz_plane()
-        self.xy_intersections = []
-        self.xz_intersections = []
-        self.zy_intersections = []
-        pr = profiler.start('getting intersections')
-        for rfs in self.rfsources:
-            #rfs.plane_split(zy_plane)
-            #rfs.triangulate()
-            self.xy_intersections += rfs.plane_intersection(xy_plane)
-            self.xz_intersections += rfs.plane_intersection(xz_plane)
-            self.zy_intersections += rfs.plane_intersection(zy_plane)
-        pr.done()
-        pr = profiler.start('getting negative halves')
-        for rfs in self.rfsources:
-            self.xy_neg_bme = rfs.plane_split_negative(xy_plane)
-            self.xz_neg_bme = rfs.plane_split_negative(xz_plane)
-            self.yz_neg_bme = rfs.plane_split_negative(zy_plane)
-        pr.done()
+        # HACK! TODO: FIXME!
+        color_select = self.settings.theme_colors_selection[self.settings.theme]
+        color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
+        opts = {
+            'poly color': (1.0, 1.0, 1.0, 0.20),
+            'poly offset': 0.000010,
+            'line width': 0.0,
+            'point size': 0.0,
+        }
+        self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
 
     def commit(self):
         #self.rftarget.commit()

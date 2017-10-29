@@ -29,6 +29,8 @@ from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
 from .common_shader import Shader
 from .common_utilities import invert_matrix, matrix_normal
+from ..common.maths import Point,Direction,Frame
+from .classes.profiler.profiler import profiler
 
 import math
 
@@ -37,6 +39,7 @@ import math
 
 #https://www.blender.org/api/blender_python_api_2_77_1/bgl.html
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
+#https://www.khronos.org/opengl/wiki/Built-in_Variable_(GLSL)
 shaderVertSource = '''
 #version 110
 
@@ -48,6 +51,7 @@ attribute float dotoffset;
 attribute float selected;
 attribute float hidden;
 
+varying vec4  vMPosition;
 varying vec4  vPosition;
 varying vec3  vNormal;
 varying float vOffset;
@@ -65,6 +69,7 @@ void main() {
     //gl_FrontColor = gl_Color;
     gl_BackColor = gl_Color;
     
+    vMPosition = gl_Vertex;
     vPosition = gl_ModelViewMatrix * gl_Vertex;
     vNormal = normalize(gl_NormalMatrix * gl_Normal);
     vOffset = offset;
@@ -79,14 +84,43 @@ uniform float clip_start;
 uniform float clip_end;
 uniform float object_scale;
 
+uniform vec3 mirroring;
+uniform vec3 mirror_o;
+uniform vec3 mirror_x;
+uniform vec3 mirror_y;
+uniform vec3 mirror_z;
+
+varying vec4  vMPosition;
 varying vec4  vPosition;
 varying vec3  vNormal;
 varying float vOffset;
 varying float vDotOffset;
 
+vec4 coloring(vec4 c) {
+    float m = 1.0;
+    if(mirroring.x > 0.5) {
+        if(dot(vMPosition.xyz - mirror_o, mirror_x) < 0.0) {
+            c *= vec4(1.0, 0.5, 0.5, 1.0);
+            m = 0.5;
+        }
+    }
+    if(mirroring.y > 0.5) {
+        if(dot(vMPosition.xyz - mirror_o, mirror_y) > 0.0) {
+            c *= vec4(0.5, 1.0, 0.5, 1.0);
+            m = 0.5;
+        }
+    }
+    if(mirroring.z > 0.5) {
+        if(dot(vMPosition.xyz - mirror_o, mirror_z) < 0.0) {
+            c *= vec4(0.5, 0.5, 1.0, 1.0);
+            m = 0.5;
+        }
+    }
+    return vec4(c.rgb*m, c.a);
+}
+
 void main() {
     float clip = clip_end - clip_start;
-    float hclip = clip / 2.0;
     
     float alpha = gl_Color.a;
     
@@ -110,7 +144,7 @@ void main() {
             ;
     } else {
         // orthographic projection
-        vec3 v = vec3(0,0,hclip) + vPosition.xyz / vPosition.w;
+        vec3 v = vec3(0,0,clip*0.5) + vPosition.xyz / vPosition.w;
         float l = length(v);
         float d = dot(vNormal, v/l);
         if(d <= 0.0) {
@@ -124,7 +158,7 @@ void main() {
     }
     
     //gl_FragColor = vec4(gl_Color.rgb * d, alpha);
-    gl_FragColor = vec4(gl_Color.rgb, alpha);
+    gl_FragColor = coloring(vec4(gl_Color.rgb, alpha));
 }
 '''
 
@@ -168,10 +202,12 @@ def glEnableBackfaceCulling(enable=True):
 
 def glSetOptions(prefix, opts):
     if not opts: return
+    
     prefix = '%s '%prefix if prefix else ''
     def set_if_set(opt, cb):
         opt = '%s%s' % (prefix, opt)
-        if opt in opts: cb(opts[opt])
+        if opt in opts:
+            cb(opts[opt])
     dpi_mult = opts.get('dpi mult', 1.0)
     set_if_set('offset',         lambda v: bmeshShader.assign('offset', v))
     set_if_set('dotoffset',      lambda v: bmeshShader.assign('dotoffset', v))
@@ -182,6 +218,19 @@ def glSetOptions(prefix, opts):
     set_if_set('size',           lambda v: bgl.glPointSize(v*dpi_mult))
     set_if_set('stipple',        lambda v: glEnableStipple(v))
 
+def glSetMirror(symmetry=None, f:Frame=None):
+    mirroring = (0,0,0)
+    if symmetry and f:
+        mx = 1.0 if 'x' in symmetry else 0.0
+        my = 1.0 if 'y' in symmetry else 0.0
+        mz = 1.0 if 'z' in symmetry else 0.0
+        mirroring = (mx,my,mz)
+        bmeshShader.assign('mirror_o', f.o)
+        bmeshShader.assign('mirror_x', f.x)
+        bmeshShader.assign('mirror_y', f.y)
+        bmeshShader.assign('mirror_z', f.z)
+    bmeshShader.assign('mirroring', mirroring)
+    
 
 def glDrawBMFace(bmf, opts=None, enableShader=True):
     glDrawBMFaces([bmf], opts=opts, enableShader=enableShader)
@@ -249,6 +298,7 @@ def glDrawBMEdges(lbme, opts=None, enableShader=True):
     if opts and 'line width' in opts and opts['line width'] <= 0.0: return
     glSetOptions('line', opts)
     if enableShader: bmeshShader.enable()
+    
     dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_LINES)
     for bme in lbme:
@@ -298,6 +348,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
     if opts and 'point size' in opts and opts['point size'] <= 0.0: return
     glSetOptions('point', opts)
     if enableShader: bmeshShader.enable()
+    
     dn = opts['normal'] if opts and 'normal' in opts else 0.0
     bgl.glBegin(bgl.GL_POINTS)
     for bmv in lbmv:
@@ -332,6 +383,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
 
 
 class BMeshRender():
+    @profiler.profile
     def __init__(self, target_obj, target_mx=None, source_bvh=None, source_mx=None):
         self.calllist = None
         if type(target_obj) is bpy.types.Object:
@@ -369,6 +421,7 @@ class BMeshRender():
     def dirty(self):
         self.is_dirty = True
     
+    @profiler.profile
     def clean(self, opts=None):
         if not self.is_dirty: return
         
@@ -395,6 +448,7 @@ class BMeshRender():
         bgl.glPopMatrix()
         bgl.glEndList()
     
+    @profiler.profile
     def draw(self, opts=None):
         try:
             self.clean(opts=opts)
