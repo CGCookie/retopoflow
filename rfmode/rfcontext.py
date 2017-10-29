@@ -277,6 +277,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             'poly offset': 0.000010,
             'line width': 0.0,
             'point size': 0.0,
+            'no selection': True,
         }
         self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
 

@@ -979,6 +979,7 @@ class RFTarget(RFMesh):
         # if Mirror modifier is attached, set up symmetry to match
         self.symmetry = set()
         self.mirror_mod = None
+        self.mirror_obj = None
         for mod in self.obj.modifiers:
             if mod.type != 'MIRROR': continue
             self.mirror_mod = mod
@@ -986,6 +987,7 @@ class RFTarget(RFMesh):
             if mod.use_x: self.symmetry.add('x')
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
+            self.mirror_obj = mod.mirror_object.name if mod.mirror_object else None
         if not self.mirror_mod:
             # add mirror modifier
             bpy.ops.object.modifier_add(type='MIRROR')
@@ -1157,6 +1159,14 @@ class RFTarget(RFMesh):
     #     for bmv in bmverts:
     #         bmv.co = w2l(update_fn(bmv, l2w(bmv.co)))
     #     self.dirty()
+    
+    def snap_all_verts(self, nearest):
+        for v in self.get_verts():
+            xyz,norm,_,_ = nearest(v.co)
+            v.co = xyz
+            v.normal = norm
+        self.dirty()
+
 
 
 
@@ -1201,6 +1211,7 @@ class RFMeshRender():
 
         bgl.glDisable(bgl.GL_CULL_FACE)
 
+        pr = profiler.start('geometry in front')
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glEnable(bgl.GL_CULL_FACE)
@@ -1213,7 +1224,9 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        pr.done()
 
+        pr = profiler.start('geometry behind')
         bgl.glDepthFunc(bgl.GL_GREATER)
         bgl.glDepthMask(bgl.GL_FALSE)
         # bgl.glDisable(bgl.GL_CULL_FACE)
@@ -1226,6 +1239,7 @@ class RFMeshRender():
         bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
         bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
         bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)

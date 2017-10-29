@@ -235,44 +235,49 @@ def glSetMirror(symmetry=None, f:Frame=None):
 def glDrawBMFace(bmf, opts=None, enableShader=True):
     glDrawBMFaces([bmf], opts=opts, enableShader=enableShader)
 
+@profiler.profile
 def glDrawBMFaces(lbmf, opts=None, enableShader=True):
-    glSetOptions('poly', opts)
+    opts_ = opts or {}
+    nosel = opts_.get('no selection', False)
+    mx = opts_.get('mirror x', False)
+    my = opts_.get('mirror y', False)
+    mz = opts_.get('mirror z', False)
+    dn = opts_.get('normal', 0.0)
+    
+    def render(sx, sy, sz):
+        for bmf in lbmf:
+            if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
+            if bmf.smooth:
+                c0,n0 = bmf.verts[0].co,bmf.verts[0].normal
+                c2,n2 = bmf.verts[1].co,bmf.verts[1].normal
+                for bmv2 in bmf.verts[2:]:
+                    c1,n1,c2,n2 = c2,n2,bmv2.co,bmv2.normal
+                    bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
+                    bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+                    bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)
+                    bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+                    bgl.glNormal3f(sx*n2.x, sy*n2.y, sz*n2.z)
+                    bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
+            else:
+                bgl.glNormal3f(sx*bmf.normal.x, sy*bmf.normal.y, sz*bmf.normal.z)
+                c0,c2 = bmf.verts[0].co,bmf.verts[1].co
+                for bmv2 in bmf.verts[2:]:
+                    c1,c2 = c2,bmv2.co
+                    bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+                    bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+                    bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
+    
     if enableShader: bmeshShader.enable()
     
-    dn = opts['normal'] if opts and 'normal' in opts else 0.0
+    glSetOptions('poly', opts)
     bgl.glBegin(bgl.GL_TRIANGLES)
-    for bmf in lbmf:
-        bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
-        bgl.glNormal3f(*bmf.normal)
-        bmv0 = bmf.verts[0]
-        for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
-            if bmf.smooth: bgl.glNormal3f(*bmv0.normal)
-            bgl.glVertex3f(*(bmv0.co)) #+bmv0.normal*dn))
-            if bmf.smooth: bgl.glNormal3f(*bmv1.normal)
-            bgl.glVertex3f(*(bmv1.co)) #+bmv1.normal*dn))
-            if bmf.smooth: bgl.glNormal3f(*bmv2.normal)
-            bgl.glVertex3f(*(bmv2.co)) #+bmv2.normal*dn))
+    render(1, 1, 1)
     bgl.glEnd()
     bgl.glDisable(bgl.GL_LINE_STIPPLE)
     
-    mx = opts.get('mirror x', False) if opts else False
-    my = opts.get('mirror y', False) if opts else False
-    mz = opts.get('mirror z', False) if opts else False
     if mx or my or mz:
         glSetOptions('poly mirror', opts)
         bgl.glBegin(bgl.GL_TRIANGLES)
-        def render(sx, sy, sz):
-            for bmf in lbmf:
-                bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
-                bgl.glNormal3f(sx*bmf.normal.x, sy*bmf.normal.y, sz*bmf.normal.z)
-                bmv0 = bmf.verts[0]
-                for bmv1,bmv2 in zip(bmf.verts[1:-1],bmf.verts[2:]):
-                    if bmf.smooth: bgl.glNormal3f(sx*bmv0.normal.x, sy*bmv0.normal.y, sz*bmv0.normal.z)
-                    bgl.glVertex3f(sx*bmv0.co.x, sy*bmv0.co.y, sz*bmv0.co.z)
-                    if bmf.smooth: bgl.glNormal3f(sx*bmv1.normal.x, sy*bmv1.normal.y, sz*bmv1.normal.z)
-                    bgl.glVertex3f(sx*bmv1.co.x, sy*bmv1.co.y, sz*bmv1.co.z)
-                    if bmf.smooth: bgl.glNormal3f(sx*bmv2.normal.x, sy*bmv2.normal.y, sz*bmv2.normal.z)
-                    bgl.glVertex3f(sx*bmv2.co.x, sy*bmv2.co.y, sz*bmv2.co.z)
         if mx: render(-1,  1,  1)
         if my: render( 1, -1,  1)
         if mz: render( 1,  1, -1)
@@ -294,38 +299,38 @@ def glDrawBMFaceVerts(bmf, opts=None, enableShader=True):
 def glDrawBMEdge(bme, opts=None, enableShader=True):
     glDrawBMEdges([bme], opts=opts, enableShader=enableShader)
 
+@profiler.profile
 def glDrawBMEdges(lbme, opts=None, enableShader=True):
-    if opts and 'line width' in opts and opts['line width'] <= 0.0: return
-    glSetOptions('line', opts)
+    opts_ = opts or {}
+    if opts_.get('line width', 1.0) <= 0.0: return
+    nosel = opts_.get('no selection', False)
+    mx = opts_.get('mirror x', False)
+    my = opts_.get('mirror y', False)
+    mz = opts_.get('mirror z', False)
+    dn = opts_.get('normal', 0.0)
+    
+    def render(sx, sy, sz):
+        for bme in lbme:
+            if not nosel: bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
+            bmv0,bmv1 = bme.verts
+            c0,n0,c1,n1 = bmv0.co,bmv0.normal,bmv1.co,bmv1.normal
+            c0,c1 = c0+n0*dn,c1+n1*dn
+            bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
+            bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+            bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)
+            bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+    
     if enableShader: bmeshShader.enable()
     
-    dn = opts['normal'] if opts and 'normal' in opts else 0.0
+    glSetOptions('line', opts)
     bgl.glBegin(bgl.GL_LINES)
-    for bme in lbme:
-        bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
-        bmv0,bmv1 = bme.verts
-        bgl.glNormal3f(*bmv0.normal)
-        bgl.glVertex3f(*(bmv0.co+bmv0.normal*dn))
-        bgl.glNormal3f(*bmv1.normal)
-        bgl.glVertex3f(*(bmv1.co+bmv1.normal*dn))
+    render(1,1,1)
     bgl.glEnd()
     bgl.glDisable(bgl.GL_LINE_STIPPLE)
     
-    mx = opts.get('mirror x', False) if opts else False
-    my = opts.get('mirror y', False) if opts else False
-    mz = opts.get('mirror z', False) if opts else False
     if mx or my or mz:
         glSetOptions('line mirror', opts)
         bgl.glBegin(bgl.GL_LINES)
-        def render(sx, sy, sz):
-            for bme in lbme:
-                bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
-                bmv0,bmv1 = bme.verts
-                co0,co1 = bmv0.co,bmv1.co
-                bgl.glNormal3f(sx*bmv0.normal.x, sy*bmv0.normal.y, sz*bmv0.normal.z)
-                bgl.glVertex3f(sx*co0.x, sy*co0.y, sz*co0.z)
-                bgl.glNormal3f(sx*bmv1.normal.x, sy*bmv1.normal.y, sz*bmv1.normal.z)
-                bgl.glVertex3f(sx*co1.x, sy*co1.y, sz*co1.z)
         if mx: render(-1,  1,  1)
         if my: render( 1, -1,  1)
         if mz: render( 1,  1, -1)
@@ -344,31 +349,34 @@ def glDrawBMEdgeVerts(bme, opts=None, enableShader=True):
 def glDrawBMVert(bmv, opts=None, enableShader=True):
     glDrawBMVerts([bmv], opts=opts, enableShader=enableShader)
 
+@profiler.profile
 def glDrawBMVerts(lbmv, opts=None, enableShader=True):
-    if opts and 'point size' in opts and opts['point size'] <= 0.0: return
-    glSetOptions('point', opts)
-    if enableShader: bmeshShader.enable()
+    opts_ = opts or {}
+    if opts_.get('point size', 1.0) <= 0.0: return
+    nosel = opts_.get('no selection', False)
+    mx = opts_.get('mirror x', False)
+    my = opts_.get('mirror y', False)
+    mz = opts_.get('mirror z', False)
+    dn = opts_.get('normal', 0.0)
     
-    dn = opts['normal'] if opts and 'normal' in opts else 0.0
+    def render(sx, sy, sz):
+        for bmv in lbmv:
+            if not nosel: bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
+            c,n = bmv.co,bmv.normal
+            c = c + dn * n
+            bgl.glNormal3f(sx*n.x, sy*n.y, sz*n.z)
+            bgl.glVertex3f(sx*c.x, sy*c.y, sz*c.z)
+    
+    if enableShader: bmeshShader.enable()
+    glSetOptions('point', opts)
     bgl.glBegin(bgl.GL_POINTS)
-    for bmv in lbmv:
-        bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
-        bgl.glNormal3f(*bmv.normal)
-        bgl.glVertex3f(*(bmv.co+bmv.normal*dn))
+    render(1,1,1)
     bgl.glEnd()
     bgl.glDisable(bgl.GL_LINE_STIPPLE)
     
-    mx = opts.get('mirror x', False) if opts else False
-    my = opts.get('mirror y', False) if opts else False
-    mz = opts.get('mirror z', False) if opts else False
     if mx or my or mz:
         glSetOptions('point mirror', opts)
         bgl.glBegin(bgl.GL_POINTS)
-        def render(sx, sy, sz):
-            for bmv in lbmv:
-                bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
-                bgl.glNormal3f(sx*bmv.normal.x, sy*bmv.normal.y, sz*bmv.normal.z)
-                bgl.glVertex3f(sx*bmv.co.x, sy*bmv.co.y, sz*bmv.co.z)
         if mx: render(-1,  1,  1)
         if my: render( 1, -1,  1)
         if mz: render( 1,  1, -1)

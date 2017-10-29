@@ -180,6 +180,10 @@ class RFContext_Target:
         if 'z' in self.rftarget.symmetry and p.z < 0: return True
         return False
 
+    def snap_all_verts(self):
+        self.undo_push('snap all verts')
+        self.rftarget.snap_all_verts(self.nearest_sources_Point)
+
     #######################################
     # target manipulation functions
     #

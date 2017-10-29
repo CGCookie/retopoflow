@@ -199,6 +199,8 @@ class UI_Element:
     def mouse_down(self, mouse): pass
     def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
+    
+    def mouse_cursor(self): return 'DEFAULT'
 
 
 class UI_Spacer(UI_Element):
@@ -375,6 +377,8 @@ class UI_Button(UI_Container):
     
     def hover_ui(self, mouse):
         return self if super().hover_ui(mouse) else None
+    
+    def mouse_cursor(self): return 'HAND'
     
     def _draw(self):
         l,t = self.pos
@@ -979,7 +983,7 @@ class UI_Window(UI_Padding):
     def modal_main(self):
         ui_hover = self.hover_ui(self.mouse)
         if not ui_hover: return
-        set_cursor('DEFAULT')
+        set_cursor(ui_hover.mouse_cursor()) #'DEFAULT')
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
             if self.movable and ui_hover in self.ui_grab:
                 self.mouse_down = self.mouse
