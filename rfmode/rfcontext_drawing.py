@@ -73,6 +73,9 @@ class RFContext_Drawing:
             # window_tool_options.add(UI_Spacer(height=5))
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)
+        
+        self.window_reporting = self.window_manager.create_window('Reporting', {'sticky':5, 'visible':False, 'movable':False})
+        self.ui_reporting = self.window_reporting.add(UI_Label(''))
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix

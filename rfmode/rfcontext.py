@@ -32,7 +32,8 @@ from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import set_cursor
 from ..common.decorators import stats_wrapper
 
-from .rfmesh import RFSource, RFTarget, RFMeshRender
+from .rfmesh import RFSource, RFTarget
+from .rfmesh_render import RFMeshRender
 
 from .rftool import RFTool
 from .rfwidget import RFWidget
@@ -273,11 +274,12 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         color_select = self.settings.theme_colors_selection[self.settings.theme]
         color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
         opts = {
-            'poly color': (0.8, 0.8, 0.8, 0.50),
-            'poly offset': 0.000010,
+            'poly color': (0.5, 0.5, 0.5, 0.50),
+            'poly offset': 0.00000090,
             'line width': 0.0,
             'point size': 0.0,
             'no selection': True,
+            'no below': True,
         }
         self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
 
