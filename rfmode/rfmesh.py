@@ -98,7 +98,9 @@ class RFMesh():
             self.eme.update()
             self.bme = bmesh.new()
             self.bme.from_mesh(self.eme)
-            if not keepeme: del self.eme
+            if not keepeme:
+                del self.eme
+                self.eme = None
             pr.done()
             
             if selection:
@@ -1197,6 +1199,7 @@ class RFMeshRender():
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
         self.bmesh = rfmesh.bme
+        self.emesh = rfmesh.eme
         self.rfmesh_version = None
 
     @profiler.profile

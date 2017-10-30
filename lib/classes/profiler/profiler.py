@@ -41,7 +41,13 @@ class Profiler:
                 dprint('WARNING: calling ProfilerHelper.done!')
                 self.done()
         def done(self):
-            assert self.pr.stack[-1] == self
+            while self.pr.stack and self.pr.stack[-1] != self:
+                self.pr.stack.pop()
+            if not self.pr.stack:
+                if self.text in self.pr.d_start:
+                    del self.pr.d_start[self.text]
+                return
+            #assert self.pr.stack[-1] == self
             assert not self._is_done
             self.pr.stack.pop()
             self._is_done = True

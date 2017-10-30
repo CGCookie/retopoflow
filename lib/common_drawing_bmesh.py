@@ -100,20 +100,20 @@ vec4 coloring(vec4 c) {
     float m = 1.0;
     if(mirroring.x > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_x) < 0.0) {
-            c *= vec4(1.0, 0.5, 0.5, 1.0);
-            m = 0.5;
+            c *= vec4(1.0, 0.8, 0.8, 1.0);
+            m = 0.8;
         }
     }
     if(mirroring.y > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_y) > 0.0) {
-            c *= vec4(0.5, 1.0, 0.5, 1.0);
-            m = 0.5;
+            c *= vec4(0.8, 1.0, 0.8, 1.0);
+            m = 0.8;
         }
     }
     if(mirroring.z > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_z) < 0.0) {
-            c *= vec4(0.5, 0.5, 1.0, 1.0);
-            m = 0.5;
+            c *= vec4(0.8, 0.8, 1.0, 1.0);
+            m = 0.8;
         }
     }
     return vec4(c.rgb*m, c.a);
@@ -248,10 +248,10 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
         for bmf in lbmf:
             if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
             if bmf.smooth:
-                c0,n0 = bmf.verts[0].co,bmf.verts[0].normal
-                c2,n2 = bmf.verts[1].co,bmf.verts[1].normal
-                for bmv2 in bmf.verts[2:]:
-                    c1,n1,c2,n2 = c2,n2,bmv2.co,bmv2.normal
+                v0,v2 = bmf.verts[:2]
+                c0,n0,c2,n2 = v0.co,v0.normal,v2.co,v2.normal
+                for v3 in bmf.verts[2:]:
+                    c1,n1,c2,n2 = c2,n2,v3.co,v3.normal
                     bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
                     bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
                     bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)

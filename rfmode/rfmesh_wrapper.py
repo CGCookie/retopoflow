@@ -243,6 +243,11 @@ class RFFace(BMElemWrapper):
     def verts(self):
         return [RFVert(bmv) for bmv in self.bmelem.verts]
     
+    def get_vert_co(self):
+        return [self.l2w_point(bmv.co) for bmv in self.bmelem.verts]
+    def get_vert_normal(self):
+        return [self.l2w_normal(bmv.normal) for bmv in self.bmelem.verts]
+    
     def is_quad(self): return len(self.bmelem.verts)==4
     def is_triangle(self): return len(self.bmelem.verts)==3
     

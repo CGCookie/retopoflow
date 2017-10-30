@@ -273,7 +273,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         color_select = self.settings.theme_colors_selection[self.settings.theme]
         color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
         opts = {
-            'poly color': (1.0, 1.0, 1.0, 0.20),
+            'poly color': (0.8, 0.8, 0.8, 0.50),
             'poly offset': 0.000010,
             'line width': 0.0,
             'point size': 0.0,
