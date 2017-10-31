@@ -75,8 +75,6 @@ def register():
     register_common_utilities()
 
     bpy.utils.register_class(RetopoFlowPreferences)
-    bpy.app.handlers.scene_update_post.append(check_source_target_objects)
-    
     bpy.utils.register_class(CGC_Polystrips)
     bpy.utils.register_class(CGC_Tweak)
     bpy.utils.register_class(CGC_Contours)
@@ -84,28 +82,28 @@ def register():
     bpy.utils.register_class(CGC_LoopCut)
     bpy.utils.register_class(CGC_loopslide)
     bpy.utils.register_class(CGC_Polypen)
-    
+
     # bpy.utils.register_class(RFMode)
     for idname,rft in rfmode_tools.items():
         # print('registering '+idname)
         bpy.utils.register_class(rft)
-    
+
     bpy.utils.register_class(RFRecover)
     bpy.utils.register_class(RFRecover_Clear)
-    
+
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
-    
+
     bpy.utils.register_class(OpenLog)
 
     # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
-   
+
     # Create the retopology menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
-    kmi.properties.name = 'object.retopology_menu' 
+    kmi.properties.name = 'object.retopology_menu'
     kmi.active = True
     addon_keymaps.append((km, kmi))
 
@@ -116,14 +114,14 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
-    
+
     bpy.utils.unregister_class(RFRecover_Clear)
     bpy.utils.unregister_class(RFRecover)
-    
+
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)
     # bpy.utils.unregister_class(RFMode)
-    
+
     bpy.utils.unregister_class(CGC_Polystrips)
     bpy.utils.unregister_class(CGC_Tweak)
     bpy.utils.unregister_class(CGC_Contours)
@@ -131,17 +129,15 @@ def unregister():
     bpy.utils.unregister_class(CGC_LoopCut)
     bpy.utils.unregister_class(CGC_loopslide)
     bpy.utils.unregister_class(CGC_Polypen)
-
-    bpy.app.handlers.scene_update_post.remove(check_source_target_objects)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # addon updater unregister
     addon_updater_ops.unregister()
-    
+
     clear_icons()
 
     bpy.utils.unregister_class(OpenLog)
-    
+
     # Remove add-on hotkeys
     for km,kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
