@@ -237,29 +237,37 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
             'poly offset': 0.000010,
+            'poly dotoffset': 1.0,
             'poly mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.10),
             'poly mirror color selected': (color_select[0], color_select[1], color_select[2], 0.10),
             'poly mirror offset': 0.000010,
+            'poly mirror dotoffset': 1.0,
 
             'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'line color selected': (color_select[0], color_select[1], color_select[2], 1.00),
             'line width': 2.0,
             'line offset': 0.000012,
+            'line dotoffset': 1.0,
             'line mirror stipple': False,
             'line mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
             'line mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
             'line mirror width': 1.5,
             'line mirror offset': 0.000012,
+            'line mirror dotoffset': 1.0,
             'line mirror stipple': False,
 
             'point color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
             'point color selected': (color_select[0], color_select[1], color_select[2], 1.00),
             'point size': 5.0,
             'point offset': 0.000015,
+            'point dotoffset': 1.0,
             'point mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
             'point mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
             'point mirror size': 3.0,
             'point mirror offset': 0.000015,
+            'point mirror dotoffset': 1.0,
+            
+            'focus mult': 1.0,
         }
         self.rftarget_draw = RFMeshRender(self.rftarget, opts)
 
@@ -274,12 +282,15 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         color_select = self.settings.theme_colors_selection[self.settings.theme]
         color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
         opts = {
-            'poly color': (0.5, 0.5, 0.5, 0.50),
-            'poly offset': 0.00000090,
+            'poly color': (0.0, 0.0, 0.0, 0.0),
+            'poly offset': 0.000001,
+            'poly dotoffset': 0.01,
             'line width': 0.0,
             'point size': 0.0,
             'no selection': True,
             'no below': True,
+            
+            'focus mult': 0.01,
         }
         self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
 

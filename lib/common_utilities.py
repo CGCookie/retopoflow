@@ -252,7 +252,7 @@ def setup_target_object( new_object, original_object, bmesh ):
 def dprint(s, l=2):
     settings = get_settings()
     if not settings:
-        print(s)
+        print('DEBUG(%i): %s' % (l, s))
     elif settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
 

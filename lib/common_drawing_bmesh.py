@@ -84,6 +84,8 @@ uniform float clip_start;
 uniform float clip_end;
 uniform float object_scale;
 
+uniform float focus_mult;
+
 uniform vec3 mirroring;
 uniform vec3 mirror_o;
 uniform vec3 mirror_x;
@@ -97,30 +99,33 @@ varying float vOffset;
 varying float vDotOffset;
 
 vec4 coloring(vec4 c) {
-    float m = 1.0;
+    vec4 mixer = vec4(0.6, 0.6, 0.6, 0.0);
     if(mirroring.x > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_x) < 0.0) {
-            c *= vec4(1.0, 0.8, 0.8, 1.0);
-            m = 0.8;
+            mixer.r = 1.0;
+            mixer.a = 0.5;
         }
     }
     if(mirroring.y > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_y) > 0.0) {
-            c *= vec4(0.8, 1.0, 0.8, 1.0);
-            m = 0.8;
+            mixer.g = 1.0;
+            mixer.a = 0.5;
         }
     }
     if(mirroring.z > 0.5) {
         if(dot(vMPosition.xyz - mirror_o, mirror_z) < 0.0) {
-            c *= vec4(0.8, 0.8, 1.0, 1.0);
-            m = 0.8;
+            mixer.b = 1.0;
+            mixer.a = 0.5;
         }
     }
-    return vec4(c.rgb*m, c.a);
+    c.rgb = c.rgb * (1.0 - mixer.a) + mixer.rgb * mixer.a;
+    c.a = c.a * (1.0 - mixer.a) + mixer.a;
+    return c;
 }
 
 void main() {
     float clip = clip_end - clip_start;
+    float focus = 0.04;
     
     float alpha = gl_Color.a;
     
@@ -128,37 +133,43 @@ void main() {
         // perspective projection
         vec3 v = vPosition.xyz / vPosition.w;
         float l = length(v);
-        float d = -dot(vNormal, v/l);
+        float l_clip = (l - clip_start) / clip;
+        float d = -dot(vNormal, v) / l;
         if(d <= 0.0) {
             alpha *= 0.5;
             //discard;
         }
         
+        float focus_push = focus_mult * sign(focus - l_clip) * pow(abs(focus - l_clip), 4.0) * 400.0;
+        
         // MAGIC!
-        //gl_FragDepth = gl_FragCoord.z - 0.001*(2.0-d)/(l*l)*vDotOffset - clip*vOffset*0.10;
         gl_FragDepth =
             gl_FragCoord.z
-            - 0.001*(2.0-d)/(l*l)*vDotOffset
-            - clip*vOffset*0.10
-            + 0.0001*pow(max(0.0, 1.0-d), 10.0)*l
+            - vOffset    * l_clip * 200.0
+            - vDotOffset * l_clip * 0.0001 * (1.0 - d)
+            - focus_push
             ;
     } else {
         // orthographic projection
-        vec3 v = vec3(0,0,clip*0.5) + vPosition.xyz / vPosition.w;
+        vec3 v = vec3(0, 0, clip * 0.5) + vPosition.xyz / vPosition.w;
         float l = length(v);
-        float d = dot(vNormal, v/l);
+        float l_clip = (l - clip_start) / clip;
+        float d = dot(vNormal, v) / l;
         if(d <= 0.0) {
             alpha *= 0.5;
             //discard;
         }
         
         // MAGIC!
-        //gl_FragDepth = gl_FragCoord.z * (1.0000 + 0.001*d);
-        gl_FragDepth = gl_FragCoord.z - clip*(0.01*vOffset + 0.0000001*(1.0-d)*vDotOffset);
+        gl_FragDepth =
+            gl_FragCoord.z
+            - vOffset    * l_clip * 1.0
+            + vDotOffset * l_clip * 0.000001 * (1.0 - d)
+            ;
     }
     
-    //gl_FragColor = vec4(gl_Color.rgb * d, alpha);
     gl_FragColor = coloring(vec4(gl_Color.rgb, alpha));
+    // gl_FragColor.r = focus_push;
 }
 '''
 
@@ -243,6 +254,8 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     my = opts_.get('mirror y', False)
     mz = opts_.get('mirror z', False)
     dn = opts_.get('normal', 0.0)
+    
+    bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
     
     def render(sx, sy, sz):
         for bmf in lbmf:

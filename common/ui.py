@@ -4,7 +4,7 @@ import blf
 from bpy.types import BoolProperty
 import math
 from itertools import chain
-from .utils import blender_version
+from .decorators import blender_version
 
 from .maths import Point2D,Vec2D
 

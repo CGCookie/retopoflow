@@ -1,6 +1,7 @@
 import os
 import time
 import inspect
+import bpy
 
 def stats_wrapper(fn):
     return fn
@@ -82,3 +83,22 @@ def timed_call(label):
             return ret
         return wrapped
     return wrapper
+
+
+def blender_version(op, ver):
+    def nop(*args, **kwargs): pass
+    def nop_decorator(fn): return nop
+    def fn_decorator(fn): return fn
+    
+    major,minor,rev = bpy.app.version
+    blenderver = '%d.%02d' % (major,minor)
+    #dprint('%s %s %s' % (ver, op, blenderver))
+    if   op == '<':  retfn = (blenderver < ver)
+    elif op == '<=': retfn = (blenderver <= ver)
+    elif op == '==': retfn = (blenderver == ver)
+    elif op == '>=': retfn = (blenderver >= ver)
+    elif op == '>':  retfn = (blenderver > ver)
+    elif op == '!=': retfn = (blenderver != ver)
+    else: assert False, 'unhandled op: "%s"' % op
+    return fn_decorator if retfn else nop_decorator
+

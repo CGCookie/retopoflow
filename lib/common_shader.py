@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 import bpy
 import re
+from ..lib.common_utilities import dprint
 
 
 class Shader():
@@ -48,14 +49,13 @@ class Shader():
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
         
-        print('RetopoFlow Shader Info')
+        dprint('RetopoFlow Shader Info')
         logv = self.shader_compile(self.shaderVert)
         logf = self.shader_compile(self.shaderFrag)
-        
         if len(logv.strip()):
-            print('  vert log:\n' + '\n'.join(('    '+l) for l in logv.splitlines()))
+            dprint('  vert log:\n' + '\n'.join(('    '+l) for l in logv.splitlines()))
         if len(logf.strip()):
-            print('  frag log:\n' + '\n'.join(('    '+l) for l in logf.splitlines()))
+            dprint('  frag log:\n' + '\n'.join(('    '+l) for l in logf.splitlines()))
         
         bgl.glAttachShader(self.shaderProg, self.shaderVert)
         bgl.glAttachShader(self.shaderProg, self.shaderFrag)
@@ -80,8 +80,8 @@ class Shader():
                 'location': locate(self.shaderProg, n),
                 }
         
-        print('  attribs: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
-        print('  uniforms: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
+        dprint('  attribs: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
+        dprint('  uniforms: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
         
         self.funcStart = funcStart
     
