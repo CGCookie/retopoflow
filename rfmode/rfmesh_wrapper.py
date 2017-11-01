@@ -1,9 +1,11 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice, face_split
+from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
 from ..common.maths import Vec2D
+from ..lib.common_utilities import dprint
+
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -315,7 +317,14 @@ class RFFace(BMElemWrapper):
         # assuming verts are in same rotational order (should be)
         for i0 in range(l):
             i1 = (i0 + offset) % l
-            vert_splice(verts1[i1], verts0[i0])
+            bme = next((bme for bme in verts0[i0].link_edges if verts1[i1] in bme.verts), None)
+            if bme:
+                # issue #372
+                # TODO: handle better
+                dprint('bme: ' + str(bme))
+                pass
+            else:
+                vert_splice(verts1[i1], verts0[i0])
         #for v in verts0:
         #    self.rftarget.clean_duplicate_bmedges(v)
     
