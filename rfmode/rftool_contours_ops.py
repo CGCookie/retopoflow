@@ -192,6 +192,7 @@ class RFTool_Contours_Ops:
         
         i,dist = 0,dists[0]
         for c0,c1 in cl_cut.iter_pts(repeat=True):
+            if c0 == c1: continue
             d = (c1-c0).length
             while dist - d <= 0:
                 # create new vert between c0 and c1
