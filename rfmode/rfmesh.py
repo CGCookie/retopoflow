@@ -42,10 +42,10 @@ class RFMesh():
         return RFMesh.__version
 
     @staticmethod
-    @stats_wrapper
+    @profiler.profile
     def hash_object(obj:bpy.types.Object):
         if obj is None: return None
-        pr = profiler.start()
+        pr = profiler.start('computing hash on object')
         assert type(obj) is bpy.types.Object, "Only call RFMesh.hash_object on mesh objects!"
         assert type(obj.data) is bpy.types.Mesh, "Only call RFMesh.hash_object on mesh objects!"
         # get object data to act as a hash
@@ -62,10 +62,10 @@ class RFMesh():
         return hashed
 
     @staticmethod
-    @stats_wrapper
+    @profiler.profile
     def hash_bmesh(bme:BMesh):
         if bme is None: return None
-        pr = profiler.start()
+        pr = profiler.start('computing hash on bmesh')
         assert type(bme) is BMesh, 'Only call RFMesh.hash_bmesh on BMesh objects!'
         counts = (len(bme.verts), len(bme.edges), len(bme.faces))
         bbox   = BBox(from_bmverts=self.bme.verts)
@@ -101,6 +101,7 @@ class RFMesh():
             if not keepeme:
                 del self.eme
                 self.eme = None
+                #pass
             pr.done()
             
             if selection:

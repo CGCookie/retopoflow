@@ -56,6 +56,7 @@ class Profiler:
             self.pr.d_times[self.text] = self.pr.d_times.get(self.text,0) + (en-st)
             self.pr.d_mins[self.text] = min(self.pr.d_mins.get(self.text,float('inf')), (en-st))
             self.pr.d_maxs[self.text] = max(self.pr.d_maxs.get(self.text,float('-inf')), (en-st))
+            self.pr.d_last[self.text] = (en-st)
             self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
             del self.pr.d_start[self.text]
     
@@ -71,6 +72,7 @@ class Profiler:
         self.d_times = {}
         self.d_mins = {}
         self.d_maxs = {}
+        self.d_last = {}
         self.d_count = {}
         self.stack = []
     
@@ -116,15 +118,16 @@ class Profiler:
         if not self.debug: return
         
         dprint('Profiler:', l=0)
-        dprint('   total      call   --- seconds / call ---', l=0)
-        dprint('    secs /   count =    min,    avg,    max  (  fps) - call stack', l=0)
-        dprint('--------------------------------------------------------------------------------------', l=0)
+        dprint('   total      call   ------- seconds / call -------', l=0)
+        dprint('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack', l=0)
+        dprint('----------------------------------------------------------------------------------------------', l=0)
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
             totcount = self.d_count[text]
             avgt = tottime / totcount
             mint = self.d_mins[text]
             maxt = self.d_maxs[text]
+            last = self.d_last[text]
             calls = text.split('^')
             if len(calls) == 1:
                 t = text
@@ -133,8 +136,37 @@ class Profiler:
             fps = totcount/tottime
             if fps >= 1000: fps = ' 1k+ '
             else: fps = '%5.1f' % fps
-            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, mint, avgt, maxt, fps, t), l=0)
+            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, last, mint, avgt, maxt, fps, t), l=0)
         dprint('', l=0)
         dprint('', l=0)
+    
+    def printfile(self, filehandle):
+        # $ # to watch the file from terminal (bash) use:
+        # $ watch --interval 0.1 cat filename
+        
+        if not self.debug: return
+        
+        filehandle.write('Profiler:\n')
+        filehandle.write('   total      call   ------- seconds / call -------\n')
+        filehandle.write('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack\n')
+        filehandle.write('----------------------------------------------------------------------------------------------\n')
+        for text in sorted(self.d_times):
+            tottime = self.d_times[text]
+            totcount = self.d_count[text]
+            avgt = tottime / totcount
+            mint = self.d_mins[text]
+            maxt = self.d_maxs[text]
+            last = self.d_last[text]
+            calls = text.split('^')
+            if len(calls) == 1:
+                t = text
+            else:
+                t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
+            fps = totcount/tottime
+            if fps >= 1000: fps = ' 1k+ '
+            else: fps = '%5.1f' % fps
+            filehandle.write('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s\n' % (tottime, totcount, last, mint, avgt, maxt, fps, t))
+        filehandle.write('\n')
+        filehandle.write('\n')
 
 profiler = Profiler()

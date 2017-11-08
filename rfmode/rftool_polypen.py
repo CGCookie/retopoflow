@@ -360,6 +360,8 @@ class RFTool_PolyPen(RFTool):
                     if shared_edge:
                         bmv1 = shared_edge.collapse()
                     else:
+                        shared_faces = bmv.shared_faces(bmv1)
+                        self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
                         bmv1.merge(bmv)
                     self.rfcontext.select(bmv1)
                     update_verts += [bmv1]
@@ -369,6 +371,7 @@ class RFTool_PolyPen(RFTool):
             self.update()
 
     @RFTool.dirty_when_done
+    @profiler.profile
     def modal_move(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
