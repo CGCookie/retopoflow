@@ -77,7 +77,8 @@ def find_all_rftools(root=None):
                         found = True
             except Exception as e:
                 if 'rftool' in rft:
-                    dprint('Could not import ' + rft)
+                    dprint('************* ERROR! *************')
+                    dprint('>>>>> Could not import ' + rft)
                     dprint(e)
                 pass
     return found
@@ -289,6 +290,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             'point size': 0.0,
             'no selection': True,
             'no below': True,
+            'triangles only': True,     # source bmeshes are triangles only!
             
             'focus mult': 0.01,
         }

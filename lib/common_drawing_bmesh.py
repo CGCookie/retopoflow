@@ -246,6 +246,11 @@ def glSetMirror(symmetry=None, f:Frame=None):
 def glDrawBMFace(bmf, opts=None, enableShader=True):
     glDrawBMFaces([bmf], opts=opts, enableShader=enableShader)
 
+def triangulateFace(verts):
+    v0 = verts[0]
+    for v1,v2 in zip(verts[1:-1], verts[2:]):
+        yield (v0,v1,v2)
+
 @profiler.profile
 def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     opts_ = opts or {}
@@ -257,14 +262,12 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     
     bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
     
-    def render(sx, sy, sz):
+    def render_general(sx, sy, sz):
         for bmf in lbmf:
             if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
             if bmf.smooth:
-                v0,v2 = bmf.verts[:2]
-                c0,n0,c2,n2 = v0.co,v0.normal,v2.co,v2.normal
-                for v3 in bmf.verts[2:]:
-                    c1,n1,c2,n2 = c2,n2,v3.co,v3.normal
+                for v0,v1,v2 in triangulateFace(bmf.verts):
+                    c0,n0,c1,n1,c2,n2 = v0.co,v0.normal,v1.co,v1.normal,v2.co,v2.normal
                     bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
                     bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
                     bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)
@@ -273,12 +276,78 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
                     bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
             else:
                 bgl.glNormal3f(sx*bmf.normal.x, sy*bmf.normal.y, sz*bmf.normal.z)
-                c0,c2 = bmf.verts[0].co,bmf.verts[1].co
-                for bmv2 in bmf.verts[2:]:
-                    c1,c2 = c2,bmv2.co
+                for v0,v1,v2 in triangulateFace(bmf.verts):
+                    c0,c1,c2 = v0.co,v1.co,v2.co
                     bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
                     bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
                     bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
+    def render_triangles(sx, sy, sz):
+        for bmf in lbmf:
+            if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
+            if bmf.smooth:
+                v0,v1,v2 = bmf.verts
+                c0,n0,c1,n1,c2,n2 = v0.co,v0.normal,v1.co,v1.normal,v2.co,v2.normal
+                bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
+                bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+                bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)
+                bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+                bgl.glNormal3f(sx*n2.x, sy*n2.y, sz*n2.z)
+                bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
+            else:
+                v0,v1,v2 = bmf.verts
+                c0,c1,c2 = v0.co,v1.co,v2.co
+                bgl.glNormal3f(sx*bmf.normal.x, sy*bmf.normal.y, sz*bmf.normal.z)
+                bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+                bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+                bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
+    
+    render = render_triangles if opts_.get('triangles only', False) else render_general
+    
+    if enableShader: bmeshShader.enable()
+    
+    glSetOptions('poly', opts)
+    bgl.glBegin(bgl.GL_TRIANGLES)
+    render(1, 1, 1)
+    bgl.glEnd()
+    bgl.glDisable(bgl.GL_LINE_STIPPLE)
+    
+    if mx or my or mz:
+        glSetOptions('poly mirror', opts)
+        bgl.glBegin(bgl.GL_TRIANGLES)
+        if mx: render(-1,  1,  1)
+        if my: render( 1, -1,  1)
+        if mz: render( 1,  1, -1)
+        if mx and my: render(-1, -1,  1)
+        if mx and mz: render(-1,  1, -1)
+        if my and mz: render( 1, -1, -1)
+        if mx and my and mz: render(-1, -1, -1)
+        bgl.glEnd()
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+    
+    if enableShader: bmeshShader.disable()
+
+@profiler.profile
+def glDrawSimpleFaces(lsf, opts=None, enableShader=True):
+    opts_ = opts or {}
+    nosel = opts_.get('no selection', False)
+    mx = opts_.get('mirror x', False)
+    my = opts_.get('mirror y', False)
+    mz = opts_.get('mirror z', False)
+    dn = opts_.get('normal', 0.0)
+    
+    bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
+    bmeshShader.assign('selected', 0.0)
+    
+    def render(sx, sy, sz):
+        for sf in lsf:
+            for v0,v1,v2 in triangulateFace(sf):
+                (c0,n0),(c1,n1),(c2,n2) = v0,v1,v2
+                bgl.glNormal3f(sx*n0.x, sy*n0.y, sz*n0.z)
+                bgl.glVertex3f(sx*c0.x, sy*c0.y, sz*c0.z)
+                bgl.glNormal3f(sx*n1.x, sy*n1.y, sz*n1.z)
+                bgl.glVertex3f(sx*c1.x, sy*c1.y, sz*c1.z)
+                bgl.glNormal3f(sx*n2.x, sy*n2.y, sz*n2.z)
+                bgl.glVertex3f(sx*c2.x, sy*c2.y, sz*c2.z)
     
     if enableShader: bmeshShader.enable()
     

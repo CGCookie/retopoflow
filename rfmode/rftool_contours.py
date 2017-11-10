@@ -93,9 +93,13 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.update()
             return
 
-        if self.rfcontext.actions.pressed('grab'): return self.prep_move()
+        if self.rfcontext.actions.pressed('grab'):
+            ''' grab for translations '''
+            return self.prep_move()
         
-        if self.rfcontext.actions.pressed('shift'): return self.prep_shift()
+        if self.rfcontext.actions.pressed('shift'):
+            ''' rotation of loops '''
+            return self.prep_shift()
         
         if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
 

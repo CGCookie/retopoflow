@@ -3,6 +3,7 @@ import math
 import copy
 import json
 import random
+import traceback
 
 import bpy
 import bgl
@@ -296,6 +297,9 @@ class RFMesh():
 
     @profiler.profile
     def _crawl(self, bmf, plane):
+        '''
+        crawl about RFMesh along plane starting with bmf
+        '''
         touched = set()
         def crawl(bmf0):
             if not bmf0: return []
@@ -324,6 +328,7 @@ class RFMesh():
                         continue
                     else:
                         # recursively crawl on!
+                        print(bmf1)
                         ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
 
                     if bmf0 == bmf:
@@ -337,9 +342,18 @@ class RFMesh():
                             best = best + ret
                     elif len(ret) > len(best):
                         best = ret
-            touched.remove(bmf0)
+            #touched.remove(bmf0)
             return best
-        return crawl(bmf)
+        
+        try:
+            res = crawl(bmf)
+        except KeyboardInterrupt as e:
+            print('breaking')
+            ex_type,ex_val,tb = sys.exc_info()
+            traceback.print_tb(tb)
+            res = []
+        
+        return res
 
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
@@ -870,6 +884,37 @@ class RFMesh():
             edges.reverse()
             crawl(bme, bme.verts[1])
         return RFEdgeSequence(edges)
+    
+    def get_face_loop(self, edge):
+        bme_start = self._unwrap(edge)
+        edges = [self._wrap_bmedge(bme_start)]
+        looped = False
+        def crawl(bme0, bmf0):
+            nonlocal edges, bme_start, looped
+            touched = set()
+            while True:
+                assert bmf0 not in touched
+                touched.add(bmf0)
+                lbme = list(bmf0.edges)
+                if len(lbme) != 4: return
+                
+                bme1 = next(lbme[(i+2)%4] for i,e in enumerate(lbme) if e == bme0)
+                if bme1 == bme_start:
+                    looped = True
+                    return
+                edges.append(self._wrap_bmedge(bme1))
+                bmf1 = next((bmf for bmf in bme1.link_faces if bmf != bmf0), None)
+                if not bmf1: return
+                bme0,bmf0 = bme1,bmf1
+        
+        lf = list(bme_start.link_faces)
+        if len(lf) == 0:
+            return ([], False)
+        crawl(bme_start, lf[0])
+        if not looped and len(lf) >= 2:
+            edges.reverse()
+            crawl(bme_start, lf[1])
+        return (edges, looped)
     
     def get_edge_loop(self, edge):
         bme = self._unwrap(edge)

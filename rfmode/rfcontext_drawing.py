@@ -21,6 +21,8 @@ from ..common.ui import (
     )
 from ..lib import common_drawing_bmesh as bmegl
 
+from ..version import retopoflow_version
+
 
 class RFContext_Drawing:
     def quit(self): self.exit = True
@@ -52,7 +54,7 @@ class RFContext_Drawing:
         self.tool_window.add(UI_Button('Exit', self.quit, align=0))
         
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
-        window_info.add(UI_Label('ver: 2.0.0'))
+        window_info.add(UI_Label('ver: %s' % retopoflow_version))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))
@@ -63,12 +65,16 @@ class RFContext_Drawing:
             info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
-        window_tool_options.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
-        window_tool_options.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
-        ui_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
-        ui_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
-        ui_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
-        ui_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        
+        dd_general = window_tool_options.add(UI_Collapsible('General', collapsed=False))
+        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
+        dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
+        
+        dd_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
+        dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
+        dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
+        dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))

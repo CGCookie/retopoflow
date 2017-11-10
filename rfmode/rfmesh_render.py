@@ -2,7 +2,10 @@ import sys
 import math
 import copy
 import json
+import time
 import random
+
+from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import bgl
@@ -32,6 +35,7 @@ class RFMeshRender():
     '''
 
     ALWAYS_DIRTY = False
+    # executor = ThreadPoolExecutor()
 
     @profiler.profile
     def __init__(self, rfmesh, opts):
@@ -55,6 +59,53 @@ class RFMeshRender():
         self.bmesh = rfmesh.bme
         self.emesh = rfmesh.eme
         self.rfmesh_version = None
+    
+    @profiler.profile
+    def _gather_data(self):
+        self.eme_verts = None
+        self.eme_edges = None
+        self.eme_faces = None
+        self.bme_verts = None
+        self.bme_edges = None
+        self.bme_faces = None
+        
+        # note: do not profile this function if using ThreadPoolExecutor!!!!
+        @profiler.profile
+        def gather_emesh():
+            if not self.emesh: return
+            start = time.time()
+            #self.eme_verts = [(emv.co, emv.normal) for emv in self.emesh.vertices]
+            self.eme_verts = [(emv.co,emv.normal) for emv in self.emesh.vertices]
+            self.eme_edges = [[self.eme_verts[iv] for iv in eme.vertices] for eme in self.emesh.edges]
+            self.eme_faces = [[self.eme_verts[iv] for iv in emf.vertices] for emf in self.emesh.polygons]
+            end = time.time()
+            print('Gathered edit mesh data!')
+            print('start: %f' % start)
+            print('end:   %f' % end)
+            print('delta: %f' % (end-start))
+            print('counts: %d %d %d' % (len(self.eme_verts), len(self.eme_edges), len(self.eme_faces)))
+        
+        # note: do not profile this function if using ThreadPoolExecutor!!!!
+        @profiler.profile
+        def gather_bmesh():
+            start = time.time()
+            #bme_vert_dict = {bmv:(bmv.co,bmv.normal) for bmv in self.bmesh.verts}
+            bme_vert_dict = {bmv:bmv.co for bmv in self.bmesh.verts}
+            self.bme_verts = bme_vert_dict.values() # [(bmv.co, bmv.normal) for bmv in self.bmesh.verts]
+            self.bme_edges = [[bme_vert_dict[bmv] for bmv in bme.verts] for bme in self.bmesh.edges]
+            self.bme_faces = [[bme_vert_dict[bmv] for bmv in bmf.verts] for bmf in self.bmesh.faces]
+            end = time.time()
+            print('Gathered BMesh data!')
+            print('start: %f' % start)
+            print('end:   %f' % end)
+            print('delta: %f' % (end-start))
+            print('counts: %d %d %d' % (len(self.bme_verts), len(self.bme_edges), len(self.bme_faces)))
+        
+        # print('>>>>>>>>>>> pre run <<<<<<<<<<<<<')
+        # self._gather_data_submit = self.executor.submit(gather)
+        # gather_emesh()
+        # gather_bmesh()
+        # print('>>>>>>>>>>> post run <<<<<<<<<<<<<')
 
     @profiler.profile
     def _draw(self):
@@ -78,9 +129,12 @@ class RFMeshRender():
         opts['line mirror hidden'] = 0.0
         opts['point hidden'] = 0.0
         opts['point mirror hidden'] = 0.0
-        bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
-        bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
-        bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+        if self.eme_faces:
+            bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
+        else:
+            bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
+            bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
+            bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
         pr.done()
 
         if not opts.get('no below', False):
@@ -94,9 +148,12 @@ class RFMeshRender():
             opts['line mirror hidden']  = 0.95
             opts['point hidden']        = 0.95
             opts['point mirror hidden'] = 0.95
-            bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
-            bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
-            bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+            if self.eme_faces:
+                bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
+            else:
+                bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
+                bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
+                bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
@@ -110,6 +167,7 @@ class RFMeshRender():
         # return if rfmesh hasn't changed
         self.rfmesh.clean()
         if self.rfmesh_version == self.rfmesh.version: return
+        self._gather_data()
         pr = profiler.start('cleaning')
         self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)

@@ -19,6 +19,7 @@ def load_icons():
 	rf_icons.load( "rf_polystrips_icon", os.path.join(icons_dir, "polystrips_32.png"), 'IMAGE')
 	rf_icons.load( "rf_polypen_icon", os.path.join(icons_dir, "polypen_32.png"), 'IMAGE')
 	rf_icons.load( "rf_tweak_icon", os.path.join(icons_dir, "tweak_32.png"), 'IMAGE')
+	rf_icons.load( "rf_loops_icon", os.path.join(icons_dir, "loops_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopcut_icon", os.path.join(icons_dir, "loop_cut_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopdelete_icon", os.path.join(icons_dir, "loop_delete_32.png"), 'IMAGE')
 	rf_icons.load( "rf_loopslide_icon", os.path.join(icons_dir, "loop_slide_32.png"), 'IMAGE')

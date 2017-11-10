@@ -72,6 +72,26 @@ def stats_report():
         printrow(i)
 
 
+def limit_recursion(count, def_ret):
+    def wrapper(fn):
+        calls = 0
+        def wrapped(*args, **kwargs):
+            if calls == count:
+                #raise RecursionError
+                ret = def_ret
+            else:
+                try:
+                    calls += 1
+                    ret = fn(*args, **kwargs)
+                except RecursionError:
+                    #raise RecursionError
+                    ret = def_ret
+                finally:
+                    calls -= 1
+            return ret
+    return wrapper
+
+
 def timed_call(label):
     def wrapper(fn):
         def wrapped(*args, **kwargs):

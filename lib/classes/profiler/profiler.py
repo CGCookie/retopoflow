@@ -112,6 +112,8 @@ class Profiler:
             ret = fn(*args, **kwargs)
             pr.done()
             return ret
+        wrapper.__name__ = fn.__name__
+        wrapper.__doc__ = fn.__doc__
         return wrapper
     
     def printout(self):

@@ -312,6 +312,9 @@ class RFContext_Target:
     def get_edge_loop(self, edge):
         return self.rftarget.get_edge_loop(edge)
 
+    def get_face_loop(self, edge):
+        return self.rftarget.get_face_loop(edge)
+
     def deselect_all(self):
         self.rftarget.deselect_all()
         if self.tool: self.tool.update()

@@ -57,11 +57,14 @@ class Actions:
         # contours
         'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
         'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
-        'shift': {'S'},
+        'shift': {'S'},             # rotation of loops
         'rotate': {'SHIFT+S'},
 
         # relax
         'relax selected': {'SHIFT+S'},
+        
+        # loops
+        'slide': {'S'},
 
         # widget
         'brush radius': {'F'},
