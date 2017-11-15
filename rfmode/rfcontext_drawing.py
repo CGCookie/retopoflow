@@ -21,7 +21,7 @@ from ..common.ui import (
     )
 from ..lib import common_drawing_bmesh as bmegl
 
-from ..version import retopoflow_version
+from ..options import retopoflow_version, options
 
 
 class RFContext_Drawing:
@@ -58,11 +58,27 @@ class RFContext_Drawing:
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))
+        info_debug.add(UI_Button('Reset Options', options.reset, align=0))
         
-        if profiler.debug:
-            info_profiler = info_debug.add(UI_Collapsible('Profiler', collapsed=False, vertical=False))
-            info_profiler.add(UI_Button('Print', profiler.printout, align=0))
-            info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
+        def set_profiler_visible():
+            nonlocal prof_print, prof_reset, prof_disable, prof_enable
+            v = profiler.debug
+            prof_print.visible = v
+            prof_reset.visible = v
+            prof_disable.visible = v
+            prof_enable.visible = not v
+        def enable_profiler():
+            profiler.enable()
+            set_profiler_visible()
+        def disable_profiler():
+            profiler.disable()
+            set_profiler_visible()
+        info_profiler = info_debug.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
+        prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
+        prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
+        prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
+        prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
+        set_profiler_visible()
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         

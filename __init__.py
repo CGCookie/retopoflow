@@ -43,6 +43,8 @@ import bpy
 from .lib.common_utilities import bversion, check_source_target_objects
 from .lib.common_utilities import register as register_common_utilities
 
+from .options import options
+
 
 #Menus, Panels, Interface and Icons
 from .interface import CGCOOKIE_OT_retopoflow2_panel, CGCOOKIE_OT_retopoflow1_panel, CGCOOKIE_OT_retopoflow_menu
@@ -142,4 +144,6 @@ def unregister():
     for km,kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
+    
+    options.close()
 

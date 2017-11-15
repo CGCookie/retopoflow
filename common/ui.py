@@ -168,8 +168,10 @@ class UI_Element:
         self.pos = None
         self.size = None
         self.margin = 4
+        self.visible = True
     
     def __hover_ui(self, mouse):
+        if not self.visible: return None
         if not self.pos or not self.size: return None
         x,y = mouse
         l,t = self.pos
@@ -181,6 +183,7 @@ class UI_Element:
     def hover_ui(self, mouse): return self.__hover_ui(mouse)
     
     def draw(self, left, top, width, height):
+        if not self.visible: return
         m = self.margin
         self.pos = Point2D((left+m, top-m))
         self.size = Vec2D((width-m*2, height-m*2))
@@ -189,8 +192,8 @@ class UI_Element:
         self._draw()
         #self.drawing.disable_clipping()
     
-    def get_width(self): return self._get_width() + self.margin*2
-    def get_height(self): return self._get_height() + self.margin*2
+    def get_width(self): return (self._get_width() + self.margin*2) if self.visible else 0
+    def get_height(self): return (self._get_height() + self.margin*2) if self.visible else 0
     
     def _get_width(self): return 0
     def _get_height(self): return 0

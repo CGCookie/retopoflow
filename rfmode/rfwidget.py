@@ -26,6 +26,7 @@ import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 from ..common.ui import Drawing
+from ..options import options
 
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_move import RFWidget_Move
@@ -37,6 +38,30 @@ from .rfwidget_line import RFWidget_Line
 class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line):
     instance = None
     rfcontext = None
+    
+    points = [(math.cos(d*math.pi/180.0),math.sin(d*math.pi/180.0)) for d in range(0,361,10)]
+    ox = Direction((1,0,0))
+    oy = Direction((0,1,0))
+    oz = Direction((0,0,1))
+    
+    # brushfalloff properties
+    radius = 50.0
+    falloff = 1.5
+    strength = 0.5
+    
+    # brushstroke properties
+    size = 20.0
+    tightness = 0.95
+    stroke2D = []
+    stroke2D_left = []
+    stroke2D_right = []
+    stroke_callback = None
+    
+    # line properties
+    line2D = []
+    line_callback = None
+    
+    scale = 0.0
     
     @staticmethod
     def new(rfcontext):
@@ -51,11 +76,6 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     
     def __init__(self):
         assert hasattr(RFWidget, 'creating'), 'Do not create new RFWidget directly!  Use RFWidget.new()'
-        
-        self.points = [(math.cos(d*math.pi/180.0),math.sin(d*math.pi/180.0)) for d in range(0,361,10)]
-        self.ox = Direction((1,0,0))
-        self.oy = Direction((0,1,0))
-        self.oz = Direction((0,0,1))
         
         self.widgets = {
             'default': {
@@ -101,25 +121,6 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         
         self.change_var = None
         self.change_fn = None
-        
-        # brushfalloff properties
-        self.radius = 50.0
-        self.falloff = 1.5
-        self.strength = 0.5
-        
-        # brushstroke properties
-        self.size = 20.0
-        self.tightness = 0.95
-        self.stroke2D = []
-        self.stroke2D_left = []
-        self.stroke2D_right = []
-        self.stroke_callback = None
-        
-        # line properties
-        self.line2D = []
-        self.line_callback = None
-        
-        self.scale = 0.0
         
         self.reset()
     

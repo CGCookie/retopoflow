@@ -23,9 +23,10 @@ import os
 import inspect
 import time
 from ...common_utilities import dprint, dcallstack
+from ....options import options
 
 class Profiler:
-    debug = False
+    debug = options['profiler']
     
     class ProfilerHelper(object):
         def __init__(self, pr, text):
@@ -66,6 +67,14 @@ class Profiler:
     
     def __init__(self):
         self.clear()
+    
+    def disable(self):
+        self.debug = False
+        options['profiler'] = False
+    
+    def enable(self):
+        self.debug = True
+        options['profiler'] = True
     
     def clear(self):
         self.d_start = {}
