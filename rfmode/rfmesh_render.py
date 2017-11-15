@@ -35,7 +35,10 @@ class RFMeshRender():
     '''
 
     ALWAYS_DIRTY = False
-    # executor = ThreadPoolExecutor()
+    
+    GATHERDATA_EMESH = False
+    GATHERDATA_BMESH = False
+    executor = ThreadPoolExecutor() if False else None
 
     @profiler.profile
     def __init__(self, rfmesh, opts):
@@ -69,9 +72,11 @@ class RFMeshRender():
         self.bme_edges = None
         self.bme_faces = None
         
+        if not self.GATHERDATA_EMESH and not self.GATHERDATA_BMESH: return
+        
         # note: do not profile this function if using ThreadPoolExecutor!!!!
-        @profiler.profile
         def gather_emesh():
+            if not self.GATHERDATA_EMESH: return
             if not self.emesh: return
             start = time.time()
             #self.eme_verts = [(emv.co, emv.normal) for emv in self.emesh.vertices]
@@ -79,15 +84,15 @@ class RFMeshRender():
             self.eme_edges = [[self.eme_verts[iv] for iv in eme.vertices] for eme in self.emesh.edges]
             self.eme_faces = [[self.eme_verts[iv] for iv in emf.vertices] for emf in self.emesh.polygons]
             end = time.time()
-            print('Gathered edit mesh data!')
-            print('start: %f' % start)
-            print('end:   %f' % end)
-            print('delta: %f' % (end-start))
-            print('counts: %d %d %d' % (len(self.eme_verts), len(self.eme_edges), len(self.eme_faces)))
+            dprint('Gathered edit mesh data!')
+            dprint('start: %f' % start)
+            dprint('end:   %f' % end)
+            dprint('delta: %f' % (end-start))
+            dprint('counts: %d %d %d' % (len(self.eme_verts), len(self.eme_edges), len(self.eme_faces)))
         
         # note: do not profile this function if using ThreadPoolExecutor!!!!
-        @profiler.profile
         def gather_bmesh():
+            if not self.GATHERDATA_BMESH: return
             start = time.time()
             #bme_vert_dict = {bmv:(bmv.co,bmv.normal) for bmv in self.bmesh.verts}
             bme_vert_dict = {bmv:bmv.co for bmv in self.bmesh.verts}
@@ -95,17 +100,20 @@ class RFMeshRender():
             self.bme_edges = [[bme_vert_dict[bmv] for bmv in bme.verts] for bme in self.bmesh.edges]
             self.bme_faces = [[bme_vert_dict[bmv] for bmv in bmf.verts] for bmf in self.bmesh.faces]
             end = time.time()
-            print('Gathered BMesh data!')
-            print('start: %f' % start)
-            print('end:   %f' % end)
-            print('delta: %f' % (end-start))
-            print('counts: %d %d %d' % (len(self.bme_verts), len(self.bme_edges), len(self.bme_faces)))
+            dprint('Gathered BMesh data!')
+            dprint('start: %f' % start)
+            dprint('end:   %f' % end)
+            dprint('delta: %f' % (end-start))
+            dprint('counts: %d %d %d' % (len(self.bme_verts), len(self.bme_edges), len(self.bme_faces)))
         
-        # print('>>>>>>>>>>> pre run <<<<<<<<<<<<<')
-        # self._gather_data_submit = self.executor.submit(gather)
-        # gather_emesh()
-        # gather_bmesh()
-        # print('>>>>>>>>>>> post run <<<<<<<<<<<<<')
+        pr = profiler.start('Gathering data for RFMesh')
+        if self.executor:
+            self._gather_emesh_submit = self.executor.submit(gather_emesh)
+            self._gather_bmesh_submit = self.executor.submit(gather_bmesh)
+        else:
+            profiler.profile(gather_emesh)()
+            profiler.profile(gather_bmesh)()
+        pr.done()
 
     @profiler.profile
     def _draw(self):

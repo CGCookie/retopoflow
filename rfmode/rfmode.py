@@ -35,6 +35,7 @@ from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 from ..lib.classes.logging.logger import Logger
 from ..lib.common_utilities import dprint
+from ..lib.classes.profiler.profiler import profiler
 
 from ..common.ui import set_cursor
 
@@ -496,6 +497,8 @@ class RFMode(Operator):
         #     #dprint(context)
         #     #dprint(context.space_data)
         #     return {'RUNNING_MODAL'}
+        
+        profiler.printfile()
 
         # TODO: can we not redraw only when necessary?
         self.tag_redraw()

@@ -27,6 +27,7 @@ from ....options import options
 
 class Profiler:
     debug = options['profiler']
+    filename = 'profiler_data.txt'
     
     class ProfilerHelper(object):
         def __init__(self, pr, text):
@@ -84,6 +85,7 @@ class Profiler:
         self.d_last = {}
         self.d_count = {}
         self.stack = []
+        self.last_profile_out = 0
     
     def start(self, text=None, addFile=True):
         if not self.debug: return self.ProfilerHelper_Ignore()
@@ -151,33 +153,39 @@ class Profiler:
         dprint('', l=0)
         dprint('', l=0)
     
-    def printfile(self, filehandle):
+    def printfile(self, interval=0.25):
         # $ # to watch the file from terminal (bash) use:
         # $ watch --interval 0.1 cat filename
         
         if not self.debug: return
         
-        filehandle.write('Profiler:\n')
-        filehandle.write('   total      call   ------- seconds / call -------\n')
-        filehandle.write('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack\n')
-        filehandle.write('----------------------------------------------------------------------------------------------\n')
-        for text in sorted(self.d_times):
-            tottime = self.d_times[text]
-            totcount = self.d_count[text]
-            avgt = tottime / totcount
-            mint = self.d_mins[text]
-            maxt = self.d_maxs[text]
-            last = self.d_last[text]
-            calls = text.split('^')
-            if len(calls) == 1:
-                t = text
-            else:
-                t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-            fps = totcount/tottime
-            if fps >= 1000: fps = ' 1k+ '
-            else: fps = '%5.1f' % fps
-            filehandle.write('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s\n' % (tottime, totcount, last, mint, avgt, maxt, fps, t))
-        filehandle.write('\n')
-        filehandle.write('\n')
+        if time.time() < self.last_profile_out + interval: return
+        self.last_profile_out = time.time()
+        
+        path,_ = os.path.split(os.path.abspath(__file__))
+        filename = os.path.join(path, '..', '..', '..', self.filename)      # .. back to retopoflow root
+        with open(filename, 'wt') as filehandle:
+            filehandle.write('Profiler:\n')
+            filehandle.write('   total      call   ------- seconds / call -------\n')
+            filehandle.write('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack\n')
+            filehandle.write('----------------------------------------------------------------------------------------------\n')
+            for text in sorted(self.d_times):
+                tottime = self.d_times[text]
+                totcount = self.d_count[text]
+                avgt = tottime / totcount
+                mint = self.d_mins[text]
+                maxt = self.d_maxs[text]
+                last = self.d_last[text]
+                calls = text.split('^')
+                if len(calls) == 1:
+                    t = text
+                else:
+                    t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
+                fps = totcount/tottime
+                if fps >= 1000: fps = ' 1k+ '
+                else: fps = '%5.1f' % fps
+                filehandle.write('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s\n' % (tottime, totcount, last, mint, avgt, maxt, fps, t))
+            filehandle.write('\n')
+            filehandle.write('\n')
 
 profiler = Profiler()
