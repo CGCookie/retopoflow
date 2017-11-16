@@ -14,14 +14,14 @@ from ..common.ui import (
     UI_Button,
     UI_Options,
     UI_Checkbox, UI_Checkbox2,
-    UI_Label,
-    UI_Spacer,
+    UI_Label, UI_WrappedLabel,
+    UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible,
     UI_IntValue,
     )
 from ..lib import common_drawing_bmesh as bmegl
 
-from ..options import retopoflow_version, options
+from ..options import retopoflow_version, options, firsttime_message
 
 
 class RFContext_Drawing:
@@ -53,8 +53,16 @@ class RFContext_Drawing:
         self.tool_window.add(self.tool_selection)
         self.tool_window.add(UI_Button('Exit', self.quit, align=0))
         
+        def show_reporting():
+            options['welcome'] = True
+            self.window_reporting.visible = options['welcome']
+        def hide_reporting():
+            options['welcome'] = False
+            self.window_reporting.visible = options['welcome']
+        
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
         window_info.add(UI_Label('ver: %s' % retopoflow_version))
+        window_info.add(UI_Button('Show Welcome!', show_reporting, align=0))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
         self.window_debug_save = info_debug.add(UI_Label('save: inf'))
@@ -96,8 +104,11 @@ class RFContext_Drawing:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)
         
-        self.window_reporting = self.window_manager.create_window('Reporting', {'sticky':5, 'visible':False, 'movable':False})
-        self.ui_reporting = self.window_reporting.add(UI_Label(''))
+        self.window_reporting = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.90)})
+        self.window_reporting.add(UI_Rule())
+        self.ui_reporting = self.window_reporting.add(UI_WrappedLabel(firsttime_message))
+        self.window_reporting.add(UI_Rule())
+        self.window_reporting.add(UI_Button('Close', hide_reporting, align=0))
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix

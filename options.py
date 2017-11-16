@@ -4,10 +4,17 @@ import shelve
 
 retopoflow_version = "2.0.0 beta"
 
+firsttime_message = '''
+Welcome to RetopoFlow 2.0.0 beta!
+
+What you see is here is a major rewrite of the code base.  We have worked hard to make this as production ready as possible.  However, if you find bugs, please let us know so that we may fix them!  Screenshots, .blend files, and instructions on reproducing the bug is very helpful.
+'''[1:-1]  # skip first and final \n
+
 class Options:
     options_filename = 'rf_options'
     default_options = {
         'profiler': False,
+        'welcome': True,
     }
     
     def __init__(self):

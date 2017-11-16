@@ -169,6 +169,24 @@ class UI_Element:
         self.size = None
         self.margin = 4
         self.visible = True
+        self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
+        self.scissor_enabled = None
+    
+    def set_scissor(self):
+        l,t = self.pos
+        w,h = self.size
+        rgn = self.context.region
+        rl,rt,rw,rh = rgn.x,rgn.y,rgn.width,rgn.height
+        
+        bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, self.scissor_buffer)
+        self.scissor_enabled = bgl.glIsEnabled(bgl.GL_SCISSOR_TEST) == bgl.GL_TRUE
+        bgl.glEnable(bgl.GL_SCISSOR_TEST)
+        bgl.glScissor(int(rl+l), int(rt+t-h), int(w+1), int(h+1))
+        
+    def reset_scissor(self):
+        if self.scissor_enabled: bgl.glEnable(bgl.GL_SCISSOR_TEST)
+        else: bgl.glDisable(bgl.GL_SCISSOR_TEST)
+        bgl.glScissor(*self.scissor_buffer)
     
     def __hover_ui(self, mouse):
         if not self.visible: return None
@@ -188,9 +206,10 @@ class UI_Element:
         self.pos = Point2D((left+m, top-m))
         self.size = Vec2D((width-m*2, height-m*2))
         self.predraw()
-        #self.drawing.set_clipping(left, top-height, left+width, top)
+        
+        self.set_scissor()
         self._draw()
-        #self.drawing.disable_clipping()
+        self.reset_scissor()
     
     def get_width(self): return (self._get_width() + self.margin*2) if self.visible else 0
     def get_height(self): return (self._get_height() + self.margin*2) if self.visible else 0
@@ -220,11 +239,11 @@ class UI_Label(UI_Element):
     def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1):
         super().__init__()
         self.set_label(label)
+        self.set_bgcolor(bgcolor)
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
         self.align = align
-        self.bgcolor = bgcolor
     
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
@@ -257,6 +276,77 @@ class UI_Label(UI_Element):
         else:
             self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
 
+
+class UI_WrappedLabel(UI_Element):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((300, 36)), line_height=14, bgcolor=None):
+        super().__init__()
+        self.set_label(label)
+        self.set_bgcolor(bgcolor)
+        self.color = color
+        self.min_size = min_size
+        self.line_height = line_height
+        self.wrapped_size = min_size
+    
+    def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
+    
+    def set_label(self, label):
+        self.text = str(label)
+        self.last_size = None
+    
+    def predraw(self):
+        if self.last_size == self.size: return
+        mwidth = self.size.x
+        twidth = self.drawing.get_text_width
+        swidth = twidth(' ')
+        wrapped = []
+        def wrap(t):
+            words = t.split(' ')
+            words.reverse()
+            lines = []
+            line = []
+            width = 0
+            while words:
+                word = words.pop()
+                wordwidth = twidth(word) + swidth
+                if line and wordwidth + width >= mwidth:
+                    lines.append(' '.join(line))
+                    line = []
+                    width = 0
+                line.append(word)
+                width += wordwidth
+            lines.append(' '.join(line))
+            return lines
+        lines = self.text.split('\n')
+        self.wrapped_lines = [wrapped_line for line in lines for wrapped_line in wrap(line)]
+        self.last_size = self.size
+        w = max(twidth(l) for l in self.wrapped_lines)
+        h = self.line_height * len(self.wrapped_lines)
+        self.wrapped_size = Vec2D((w, h))
+        
+    def _get_width(self): return self.min_size.x #wrapped_size.x + 24
+    def _get_height(self): return self.wrapped_size.y
+    
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        twidth = self.drawing.get_text_width
+        theight = self.drawing.get_text_height
+        
+        if self.bgcolor:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
+        y = t
+        for line in self.wrapped_lines:
+            lheight = theight(line)
+            self.drawing.text_draw2D(line, Point2D((l, y)), self.color)
+            y -= self.line_height #lheight
 
 
 class UI_Rule(UI_Element):
@@ -869,12 +959,14 @@ class UI_Window(UI_Padding):
         padding = options.get('padding', 0)
         visible = options.get('visible', True)
         movable = options.get('movable', True)
+        bgcolor = options.get('bgcolor', (0,0,0,0.25))
         
         super().__init__(padding=padding)
         self.margin = 0
         
         self.visible = visible
         self.movable = movable
+        self.bgcolor = bgcolor
         
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
@@ -895,8 +987,6 @@ class UI_Window(UI_Padding):
         self.FSM['move'] = self.modal_move
         self.FSM['down'] = self.modal_down
         self.state = 'main'
-        
-        self.win_width,self.win_height = 1,1
     
     def show(self): self.visible = True
     def hide(self): self.visible = False
@@ -905,9 +995,10 @@ class UI_Window(UI_Padding):
     
     def update_pos(self, pos:Point2D=None, sticky=None):
         m = self.screen_margin
-        sw,sh = self.context.region.width,self.context.region.height
-        cw,ch = round(sw/2),round(sh/2)
         w,h = self.get_width(),self.get_height()
+        rgn = self.context.region
+        sw,sh = rgn.width,rgn.height
+        cw,ch = round((sw-w)/2),round((sh+h)/2)
         
         if sticky is not None:
             self.sticky = sticky
@@ -932,7 +1023,9 @@ class UI_Window(UI_Padding):
             0: self.pos,
         }
         l,t = positions[self.sticky]
-        l,t = max(m, min(sw-m-w,l)),max(m+h, min(sh-m,t))     # clamp position so window is always seen
+        # clamp position so window is always seen
+        l = max(m,   min(sw-m-w,l))
+        t = max(m+h, min(sh-m,  t))
         
         self.pos = Point2D((l,t))
         self.size = Vec2D((w,h))
@@ -940,7 +1033,6 @@ class UI_Window(UI_Padding):
     def draw_postpixel(self):
         if not self.visible: return
         
-        bgl.glEnable(bgl.GL_BLEND)
         self.drawing.text_size(12)
         
         self.update_pos()
@@ -948,8 +1040,10 @@ class UI_Window(UI_Padding):
         l,t = self.pos
         w,h = self.size
         
+        bgl.glEnable(bgl.GL_BLEND)
+        
         # draw background
-        bgl.glColor4f(0,0,0,0.25)
+        bgl.glColor4f(*self.bgcolor)
         bgl.glBegin(bgl.GL_QUADS)
         bgl.glVertex2f(l,t)
         bgl.glVertex2f(l,t-h)
@@ -970,8 +1064,6 @@ class UI_Window(UI_Padding):
         self.draw(l, t, w, h)
     
     def modal(self, context, event):
-        if context.region:
-            self.win_width,self.win_height = context.region.width,context.region.height
         self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.context = context
         self.event = event
