@@ -80,6 +80,7 @@ class Actions:
         'polypen tool': {'E'},
         'relax tool': {'R'},
         'move tool': {'T'},
+        'loops tool': {'Y'},
         }
 
     navigation_events = {

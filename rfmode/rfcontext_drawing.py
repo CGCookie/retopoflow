@@ -94,7 +94,7 @@ class RFContext_Drawing:
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
         window_info.add(UI_Label('ver: %s' % retopoflow_version))
         window_info.add(UI_Button('Show Welcome!', show_reporting, align=0))
-        window_info.add(UI_Button('Open GitHub', open_github, align=0))
+        window_info.add(UI_Button('Report Issue', open_github, align=0))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         fps_save = info_debug.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
