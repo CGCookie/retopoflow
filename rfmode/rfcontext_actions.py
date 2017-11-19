@@ -31,6 +31,8 @@ class Actions:
         # common
         'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
         'window actions': set(),                        # to be filled in by self.load_keymap()
+        
+        'tool help': {'F1'},
 
         'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},

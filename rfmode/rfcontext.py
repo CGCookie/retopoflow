@@ -392,6 +392,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
 
         if self.actions.using('autosave'):
             return {'pass'}
+        
+        if self.actions.pressed('tool help'):
+            self.toggle_tool_help()
+            return {}
 
         use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
         auto_save_time = context.user_preferences.filepaths.auto_save_time * 60
@@ -407,6 +411,12 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
                 self.time_to_save = auto_save_time
 
+        ret = self.window_manager.modal(context, event)
+        if ret and 'hover' in ret:
+            self.rfwidget.clear()
+            if self.exit: return {'confirm'}
+            return {}
+
         # user pressing nav key?
         if self.actions.navigating() or (self.actions.timer and self.nav):
             # let Blender handle navigation
@@ -419,12 +429,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.nav = False
             self.rfwidget.update()
         
-        ret = self.window_manager.modal(context, event)
-        if 'hover' in ret:
-            self.rfwidget.clear()
-            if self.exit: return {'confirm'}
-            return {}
-
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
 

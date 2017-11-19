@@ -14,9 +14,9 @@ from ..common.ui import (
     UI_Button,
     UI_Options,
     UI_Checkbox, UI_Checkbox2,
-    UI_Label, UI_WrappedLabel,
+    UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
-    UI_Container, UI_Collapsible,
+    UI_Container, UI_Collapsible, UI_Scrollable,
     UI_IntValue,
     )
 from ..lib import common_drawing_bmesh as bmegl
@@ -33,6 +33,13 @@ class RFContext_Drawing:
         #for rfs in self.rfsources: rfs.dirty()
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
+    
+    def toggle_tool_help(self):
+        if self.window_help.visible:
+            self.window_help.visible = False
+        else:
+            self.ui_helplabel.set_markdown(self.tool.helptext())
+            self.window_help.visible = True
     
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
@@ -76,14 +83,18 @@ class RFContext_Drawing:
         
         def show_reporting():
             options['welcome'] = True
-            self.window_reporting.visible = options['welcome']
+            self.window_welcome.visible = options['welcome']
         def hide_reporting():
             options['welcome'] = False
-            self.window_reporting.visible = options['welcome']
+            self.window_welcome.visible = options['welcome']
+        
+        def open_github():
+            bpy.ops.wm.url_open(url="https://github.com/CGCookie/retopoflow/issues")
         
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
         window_info.add(UI_Label('ver: %s' % retopoflow_version))
         window_info.add(UI_Button('Show Welcome!', show_reporting, align=0))
+        window_info.add(UI_Button('Open GitHub', open_github, align=0))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
         fps_save = info_debug.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
@@ -116,6 +127,7 @@ class RFContext_Drawing:
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         
         dd_general = window_tool_options.add(UI_Collapsible('General', collapsed=False))
+        dd_general.add(UI_Button('Tool Help', self.toggle_tool_help, align=0))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
         dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
         
@@ -129,11 +141,19 @@ class RFContext_Drawing:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)
         
-        self.window_reporting = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
-        self.window_reporting.add(UI_Rule())
-        self.ui_reporting = self.window_reporting.add(UI_WrappedLabel(firsttime_message))
-        self.window_reporting.add(UI_Rule())
-        self.window_reporting.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4)))
+        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
+        self.window_welcome.add(UI_Rule())
+        self.window_welcome.add(UI_Markdown(firsttime_message))
+        self.window_welcome.add(UI_Rule())
+        self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        
+        self.window_help = self.window_manager.create_window('Tool Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
+        self.window_help.add(UI_Rule())
+        self.ui_helplabel = UI_Markdown('help text here!')
+        # self.window_help.add(UI_Scrollable(self.ui_helplabel))
+        self.window_help.add(self.ui_helplabel)
+        self.window_help.add(UI_Rule())
+        self.window_help.add(UI_Button('Close', self.toggle_tool_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix

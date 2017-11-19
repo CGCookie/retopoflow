@@ -9,20 +9,45 @@ firsttime_message = '''
 Welcome to RetopoFlow 2.0.0 beta!
 
 What you see is here is a complete rewrite of the code base.
-RetopoFlow 2.0 works like another any Blender mode, and it will also feel distinct.
+RetopoFlow 2.0 works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
+
+Major changes from version 1.x:
+
+- All tools work within the RF Mode.  In fact, shortcut keys (ex: Q,W,E,R,T,Y) will switch quickly between the tools.
+- All tools use the current selection for their context.  For example, PolyStrips can edit any strip of quads by simply selecting them.
+- The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
+- Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
+- All tools render similarly, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
 
 Note:
 We have worked hard to make this as production ready as possible, but please let us know if you find bugs so that we can fix them!
-Be sure to submit screenshots, .blend files, and instructions on reproducing the bug.
+Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our GitHub bug tracker at https://github.com/CGCookie/retopoflow/issues.
 '''
 
+help_contours = '''
+Contours Help
 
-# process message similarly to Markdown
-firsttime_message = firsttime_message[1:-1]                         # skip first and final \n
-firsttime_message = re.sub(r'\n\n\n*', r'\n\n', firsttime_message)  # 2+ \n => \n\n
-paragraphs = firsttime_message.split('\n\n')                        # split into paragraphs
-paragraphs = [re.sub(r'\n', '  ', p) for p in paragraphs]           # join sentences of paragraphs
-firsttime_message = '\n\n'.join(paragraphs)                         # join paragraphs
+Drawing:
+
+- SELECTMOUSE: select stroke
+- CTRL+LMB: draw contour stroke perpendicular to form. newly created contour extends selection if applicable.
+
+Transform:
+
+- G: slide / grab
+- S: shift loop
+- SHIFT+S: rotate
+
+Other:
+
+- X: delete
+- SHIFT+X: dissolve
+- SHIFT+UP / SHIFT+DOWN: increase / decrease counts
+
+Tips:
+
+- Extrude Contours from an existing edgeloop by selecting it in Edit Mode before starting Contours.
+'''
 
 
 class Options:

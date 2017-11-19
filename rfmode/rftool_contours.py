@@ -15,6 +15,9 @@ from .rftool_contours_ops import RFTool_Contours_Ops
 from .load_image import load_image_png
 from mathutils import Matrix
 
+from ..options import help_contours
+
+
 @RFTool.action_call('contours tool')
 class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
@@ -26,7 +29,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
-    def description(self): return 'Contours!!'
+    def description(self): return 'Contours'
+    
+    def helptext(self): return help_contours
 
     def start(self):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))

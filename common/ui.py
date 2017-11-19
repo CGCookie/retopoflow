@@ -1,3 +1,4 @@
+import re
 import bpy
 import bgl
 import blf
@@ -288,8 +289,9 @@ class UI_Label(UI_Element):
             self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
 
 
+
 class UI_WrappedLabel(UI_Element):
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((400, 36)), line_height=14, bgcolor=None):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), line_height=14, bgcolor=None):
         super().__init__()
         self.set_label(label)
         self.set_bgcolor(bgcolor)
@@ -301,6 +303,14 @@ class UI_WrappedLabel(UI_Element):
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
     def set_label(self, label):
+        # process message similarly to Markdown
+        label = re.sub(r'^\n*', r'', label)                 # remove leading \n
+        label = re.sub(r'\n*$', r'', label)                 # remove trailing \n
+        label = re.sub(r'\n\n\n*', r'\n\n', label)          # 2+ \n => \n\n
+        paras = label.split('\n\n')                         # split into paragraphs
+        paras = [re.sub(r'\n', '  ', p) for p in paras]     # join sentences of paragraphs
+        label = '\n\n'.join(paras)                          # join paragraphs
+        
         self.text = str(label)
         self.last_size = None
     
@@ -334,7 +344,7 @@ class UI_WrappedLabel(UI_Element):
         h = self.line_height * len(self.wrapped_lines)
         self.wrapped_size = Vec2D((w, h))
         
-    def _get_width(self): return self.min_size.x #wrapped_size.x + 24
+    def _get_width(self): return max(self.wrapped_size.x, self.min_size.x)
     def _get_height(self): return self.wrapped_size.y
     
     def _draw(self):
@@ -390,6 +400,7 @@ class UI_Container(UI_Element):
         self.ui_items = []
         self.background = background
         self.margin = margin
+        self.offset = 0
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
@@ -410,6 +421,8 @@ class UI_Container(UI_Element):
     def _draw(self):
         l,t = self.pos
         w,h = self.size
+        
+        t += self.offset
         
         if self.background:
             bgl.glEnable(bgl.GL_BLEND)
@@ -436,7 +449,8 @@ class UI_Container(UI_Element):
                 x += ew
                 w -= ew
     
-    def add(self, ui_item):
+    def add(self, ui_item, only=False):
+        if only: self.ui_items.clear()
         self.ui_items.append(ui_item)
         return ui_item
 
@@ -462,14 +476,44 @@ class UI_EqualContainer(UI_Container):
                 x += ew
                 w -= ew
 
+class UI_Markdown(UI_Container):
+    def __init__(self, markdown, min_size=Vec2D((600, 36)), line_height=14):
+        super().__init__(margin=0)
+        self.min_size = min_size
+        self.line_height = line_height
+        self.set_markdown(markdown)
+    
+    def set_markdown(self, mdown):
+        # process message similarly to Markdown
+        mdown = re.sub(r'^\n*', r'', mdown)                 # remove leading \n
+        mdown = re.sub(r'\n*$', r'', mdown)                 # remove trailing \n
+        mdown = re.sub(r'\n\n\n*', r'\n\n', mdown)          # 2+ \n => \n\n
+        paras = mdown.split('\n\n')                         # split into paragraphs
+        
+        container = UI_Container()
+        for p in paras:
+            if p.startswith('- '):
+                # unordered list!
+                ul = container.add(UI_Container())
+                for litext in p.split('\n'):
+                    litext = re.sub(r'- +', r'', litext)
+                    li = ul.add(UI_Container(margin=0, vertical=False))
+                    li.add(UI_Label('-')).margin=0
+                    li.add(UI_Spacer(width=8))
+                    li.add(UI_WrappedLabel(litext, min_size=self.min_size, line_height=self.line_height)).margin=0
+            else:
+                p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
+                container.add(UI_WrappedLabel(p, min_size=self.min_size, line_height=self.line_height))
+        self.add(container, only=True)
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, margin=None):
         super().__init__()
         self.add(UI_Label(label, icon=icon, tooltip=tooltip, color=color, align=align))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
+        if margin is not None: self.margin=margin
     
     def mouse_down(self, mouse):
         self.pressed = True
@@ -858,22 +902,55 @@ class UI_HBFContainer(UI_Container):
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
-        ui = self.header.hover_ui(mouse)
-        if ui: return ui
-        ui = self.body.hover_ui(mouse)
-        if ui: return ui
-        ui = self.footer.hover_ui(mouse)
-        if ui: return ui
-        return self
+        ui = self.header.hover_ui(mouse) or self.body.hover_ui(mouse) or self.footer.hover_ui(mouse)
+        return ui or self
     
     def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
     def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
+    
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        hh = self.header._get_height()
+        fh = self.footer._get_height()
+        
+        if self.background:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.background)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l, t)
+            bgl.glVertex2f(l+w, t)
+            bgl.glVertex2f(l+w, t-h)
+            bgl.glVertex2f(l, t-h)
+            bgl.glEnd()
+        
+        self.header.draw(l,t,w,hh)
+        self.body.draw(l,t-hh,w,h-hh-fh)
+        self.footer.draw(l,t-h+fh,w,fh)
     
     def add(self, ui_item, header=False, footer=False):
         if header: self.header.add(ui_item)
         elif footer: self.footer.add(ui_item)
         else: self.body.add(ui_item)
         return ui_item
+
+
+class UI_Scrollable(UI_Container):
+    def __init__(self, content, min_size=Vec2D((400,400))):
+        class Scrollbar(UI_HBFContainer):
+            def __init__(self):
+                super().__init__()
+                self.scroll = 0
+                self.add(UI_Button('^', self.scroll_up, align=0), header=True)
+                self.add(UI_Button('v', self.scroll_down, align=0), footer=True)
+            def scroll_up(self):
+                pass
+            def scroll_down(self):
+                pass
+        super().__init__(margin=0, vertical=False)
+        self.min_size = min_size
+        self.add(content)
+        self.scrollbar = self.add(Scrollbar())
 
 
 class UI_Collapsible(UI_Container):
@@ -985,6 +1062,7 @@ class UI_Window(UI_Padding):
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
         self.hbf.header.margin = 1
+        self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
         self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
         self.hbf_title.margin = 1
@@ -1038,11 +1116,21 @@ class UI_Window(UI_Padding):
         }
         l,t = positions[self.sticky]
         # clamp position so window is always seen
+        w = min(w, sw-m*2)
+        h = min(h, sh-m*2)
         l = max(m,   min(sw-m-w,l))
         t = max(m+h, min(sh-m,  t))
         
         self.pos = Point2D((l,t))
         self.size = Vec2D((w,h))
+        
+        if self.hbf.body.pos and self.hbf.body.size:
+            offset = self.hbf.body.offset
+            l,t = self.hbf.body.pos
+            w,h = self.hbf.body.size
+            ah = self.hbf.body._get_height()
+            offset = max(0, min(ah-h, offset))
+            self.hbf.body.offset = offset
     
     def draw_postpixel(self):
         if not self.visible: return
@@ -1102,6 +1190,15 @@ class UI_Window(UI_Padding):
             self.ui_down = ui_hover
             self.ui_down.mouse_down(self.mouse)
             return 'down'
+        if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            offset = self.hbf.body.offset
+            offset += 24 * (-1 if 'UP' in self.event.type else 1)
+            l,t = self.hbf.body.pos
+            w,h = self.hbf.body.size
+            ah = self.hbf.body._get_height()
+            offset = max(0, min(ah-h, offset))
+            self.hbf.body.offset = offset
+            return
     
     def modal_move(self):
         set_cursor('HAND')
