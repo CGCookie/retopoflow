@@ -6,7 +6,7 @@ import math
 from itertools import chain
 from .decorators import blender_version
 
-from .maths import Point2D,Vec2D
+from .maths import Point2D, Vec2D, clamp
 
 def set_cursor(cursor):
     # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,
@@ -163,7 +163,6 @@ class Drawing:
 class UI_Element:
     def __init__(self):
         self.drawing = Drawing.get_instance()
-        self.dpi_mult = self.drawing.get_dpi_mult()
         self.context = bpy.context
         self.pos = None
         self.size = None
@@ -172,7 +171,7 @@ class UI_Element:
         self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
         self.scissor_enabled = None
     
-    def set_scissor(self):
+    def set_scissor(self, allow_expand=False):
         l,t = self.pos
         w,h = self.size
         rgn = self.context.region
@@ -180,12 +179,22 @@ class UI_Element:
         
         bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, self.scissor_buffer)
         self.scissor_enabled = bgl.glIsEnabled(bgl.GL_SCISSOR_TEST) == bgl.GL_TRUE
-        bgl.glEnable(bgl.GL_SCISSOR_TEST)
-        bgl.glScissor(int(rl+l), int(rt+t-h), int(w+1), int(h+1))
+        sl,st,sw,sh = int(rl+l),int(rt+t-h),int(w+1),int(h+1)
+        if self.scissor_enabled:
+            if not allow_expand:
+                # clamp l,t,w,h to current scissor
+                cl,ct,cw,ch = self.scissor_buffer
+                cr,cb = cl+cw,ct+ch
+                sr,sb = sl+sw,st+sh
+                sl,sr,st,sb = clamp(sl,cl,cr),clamp(sr,cl,cr),clamp(st,ct,cb),clamp(sb,ct,cb)
+                sw,sh = sr-sl,sb-st
+        else:
+            bgl.glEnable(bgl.GL_SCISSOR_TEST)
+        bgl.glScissor(sl, st, sw, sh)
         
     def reset_scissor(self):
-        if self.scissor_enabled: bgl.glEnable(bgl.GL_SCISSOR_TEST)
-        else: bgl.glDisable(bgl.GL_SCISSOR_TEST)
+        if not self.scissor_enabled:
+            bgl.glDisable(bgl.GL_SCISSOR_TEST)
         bgl.glScissor(*self.scissor_buffer)
     
     def __hover_ui(self, mouse):
@@ -231,8 +240,8 @@ class UI_Spacer(UI_Element):
         self.width = width
         self.height = height
         self.margin = 0
-    def _get_width(self): return self.width * self.dpi_mult
-    def _get_height(self): return self.height * self.dpi_mult
+    def _get_width(self): return self.drawing.scale(self.width)
+    def _get_height(self): return self.drawing.scale(self.height)
 
 
 class UI_Label(UI_Element):
@@ -249,6 +258,7 @@ class UI_Label(UI_Element):
     
     def set_label(self, label):
         self.text = str(label)
+        self.drawing.text_size(12)
         self.text_width = self.drawing.get_text_width(self.text)
         self.text_height = self.drawing.get_line_height(self.text)
     
@@ -256,6 +266,7 @@ class UI_Label(UI_Element):
     def _get_height(self): return self.text_height
     
     def _draw(self):
+        self.drawing.text_size(12)
         l,t = self.pos
         w,h = self.size
         
@@ -278,7 +289,7 @@ class UI_Label(UI_Element):
 
 
 class UI_WrappedLabel(UI_Element):
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((300, 36)), line_height=14, bgcolor=None):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((400, 36)), line_height=14, bgcolor=None):
         super().__init__()
         self.set_label(label)
         self.set_bgcolor(bgcolor)
@@ -356,8 +367,8 @@ class UI_Rule(UI_Element):
         self.thickness = thickness
         self.color = color
         self.padding = padding
-    def _get_width(self): return self.dpi_mult * (self.padding*2 + 1)
-    def _get_height(self): return self.dpi_mult * (self.padding*2 + self.thickness)
+    def _get_width(self): return self.drawing.scale(self.padding*2 + 1)
+    def _get_height(self): return self.drawing.scale(self.padding*2 + self.thickness)
     def _draw(self):
         left,top = self.pos
         width,height = self.size
@@ -373,11 +384,12 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True, background=None):
+    def __init__(self, vertical=True, background=None, margin=4):
         super().__init__()
         self.vertical = vertical
         self.ui_items = []
         self.background = background
+        self.margin = margin
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
@@ -388,14 +400,12 @@ class UI_Container(UI_Element):
     
     def _get_width(self):
         if not self.ui_items: return 0
-        if self.vertical:
-            return max(ui.get_width() for ui in self.ui_items)
-        return sum(ui.get_width() for ui in self.ui_items)
+        fn = max if self.vertical else sum
+        return fn(ui.get_width() for ui in self.ui_items)
     def _get_height(self):
         if not self.ui_items: return 0
-        if self.vertical:
-            return sum(ui.get_height() for ui in self.ui_items)
-        return max(ui.get_height() for ui in self.ui_items)
+        fn = sum if self.vertical else max
+        return fn(ui.get_height() for ui in self.ui_items)
     
     def _draw(self):
         l,t = self.pos
@@ -454,11 +464,12 @@ class UI_EqualContainer(UI_Container):
 
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None):
         super().__init__()
         self.add(UI_Label(label, icon=icon, tooltip=tooltip, color=color, align=align))
         self.fn_callback = fn_callback
         self.pressed = False
+        self.bgcolor = bgcolor
     
     def mouse_down(self, mouse):
         self.pressed = True
@@ -478,6 +489,16 @@ class UI_Button(UI_Container):
         w,h = self.size
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
+        
+        if self.bgcolor:
+            bgl.glColor4f(*self.bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
         bgl.glColor4f(0,0,0,0.1)
         
         if self.pressed:
@@ -502,46 +523,38 @@ class UI_Button(UI_Container):
 
 
 class UI_Options(UI_Container):
-    def __init__(self, fn_callback):
-        super().__init__()
+    color_select = (0.27, 0.50, 0.72, 0.90)
+    color_unselect = None
+    
+    def __init__(self, fn_callback, vertical=True):
+        super().__init__(vertical=vertical)
         self.fn_callback = fn_callback
         self.options = {}
+        self.labels = set()
         self.selected = None
     
-    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
         class UI_Option(UI_Container):
-            def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1):
+            def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
                 super().__init__(vertical=False)
-                self.ui_label = UI_Label(label, tooltip=tooltip, color=color, align=align)
-                self.ui_icon = icon
-                # self.ui_label.margin = 4
-                if self.ui_icon:
-                    # self.ui_icon.margin = 4
-                    self.add(self.ui_icon)
-                    self.add(UI_Spacer(width=4))
-                self.add(self.ui_label)
                 self.margin = 0
                 self.label = label
                 self.options = options
+                if not showlabel: label = None
+                if icon:           self.add(icon)
+                if icon and label: self.add(UI_Spacer(width=4))
+                if label:          self.add(UI_Label(label, tooltip=tooltip, color=color, align=align))
             
             def hover_ui(self, mouse):
                 return self if super().hover_ui(mouse) else None
             
             def _draw(self):
-                if self.label == self.options.selected:
-                    l,t = self.pos
-                    w,h = self.size
-                    bgl.glEnable(bgl.GL_BLEND)
-                    bgl.glColor4f(0.27,0.50,0.72,0.90)
-                    bgl.glBegin(bgl.GL_QUADS)
-                    bgl.glVertex2f(l,t)
-                    bgl.glVertex2f(l,t-h)
-                    bgl.glVertex2f(l+w,t-h)
-                    bgl.glVertex2f(l+w,t)
-                    bgl.glEnd()
+                self.background = UI_Options.color_select if self.label == self.options.selected else UI_Options.color_unselect
                 super()._draw()
         
-        option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align)
+        assert label not in self.labels, "All option labels must be unique!"
+        self.labels.add(label)
+        option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
         super().add(option)
         self.options[option] = label
         if not self.selected: self.selected = label
@@ -642,13 +655,13 @@ class UI_Graphic(UI_Element):
     
     def set_graphic(self, graphic): self._graphic = graphic
     
-    def _get_width(self): return self.dpi_mult * self.width
-    def _get_height(self): return self.dpi_mult * self.height
+    def _get_width(self): return self.drawing.scale(self.width)
+    def _get_height(self): return self.drawing.scale(self.height)
     
     def _draw(self):
         cx = self.pos.x + self.size.x / 2
         cy = self.pos.y - self.size.y / 2
-        w,h = self.dpi_mult * self.width,self.dpi_mult * self.height
+        w,h = self.drawing.scale(self.width),self.drawing.scale(self.height)
         l,t = cx-w/2, cy+h/2
         
         self.drawing.line_width(1.0)
@@ -712,10 +725,11 @@ class UI_Checkbox(UI_Container):
         super().__init__(vertical=False)
         self.margin = 0
         self.chk = UI_Graphic()
-        self.lbl = UI_Label(label)
         self.add(self.chk)
-        self.add(UI_Spacer(width=spacing))
-        self.add(self.lbl)
+        if label:
+            self.lbl = UI_Label(label)
+            self.add(UI_Spacer(width=spacing))
+            self.add(self.lbl)
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
     
@@ -936,9 +950,9 @@ class UI_Padding(UI_Element):
         return ui or self
     
     def _get_width(self):
-        return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_width())
+        return self.drawing.scale(self.padding*2) + (0 if not self.ui_item else self.ui_item.get_width())
     def _get_height(self):
-        return self.dpi_mult * (self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
+        return self.drawing.scale(self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
     
     def _draw(self):
         if not self.ui_item: return

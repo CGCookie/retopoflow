@@ -37,6 +37,7 @@ from .lib.classes.textbox.textbox import TextBox
 from . import key_maps
 from .lib import common_utilities
 from .lib.common_utilities import print_exception, showErrorMessage
+from .options import options
 
 class ModalOperator(Operator):
 
@@ -44,12 +45,12 @@ class ModalOperator(Operator):
     
     def initialize(self, helpText=None, FSM=None):
         # create a log file for error writing
-        if 'RetopoFlow_log' not in bpy.data.texts:
+        if options['log_filename'] not in bpy.data.texts:
             bpy.ops.text.new()
             self.log = bpy.data.texts[-1]
-            self.log.name = 'RetopoFlow_log'
+            self.log.name = options['log_filename']
         else:
-            self.log = bpy.data.texts['RetopoFlow_log']
+            self.log = bpy.data.texts[options['log_filename']]
 
         self.settings = common_utilities.get_settings()
         self.keymap = key_maps.rtflow_default_keymap_generate()

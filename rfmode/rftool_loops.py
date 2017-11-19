@@ -10,31 +10,17 @@ from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..common.utils import iter_pairs
+from ..lib.common_drawing_bmesh import glEnableStipple
 
 @RFTool.action_call('loops tool')
 class RFTool_Loops(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        # self.FSM['relax'] = self.modal_relax
-        # self.FSM['relax selected'] = self.modal_relax_selected
-        # self.move_boundary = False
-        # self.move_hidden = False
-        pass
+        self.FSM['slide'] = self.modal_slide
     
     def name(self): return "Loops"
     def icon(self): return "rf_loops_icon"
     def description(self): return 'Loops creation, shifting, and deletion'
-    
-    # def get_move_boundary(self): return self.move_boundary
-    # def set_move_boundary(self, v): self.move_boundary = v
-    # def get_move_hidden(self): return self.move_hidden
-    # def set_move_hidden(self, v): self.move_hidden = v
-    # def get_ui_options(self):
-    #     return [
-    #         UI_Label('Move:'),
-    #         UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
-    #         UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
-    #     ]
     
     ''' Called the tool is being switched into '''
     def start(self):
@@ -153,14 +139,18 @@ class RFTool_Loops(RFTool):
             # insert edge loop / strip, select it, prep slide!
             if not self.edges_: return
             
+            self.rfcontext.undo_push('insert edge %s' % ('loop' if self.edge_loop else 'strip'))
+            
             new_verts = []
+            new_edges = []
+            # create new verts by splitting all the edges
             for e,c0,c1 in self.edges_:
                 c = c0 + (c1 - c0) * self.percent
                 ne,nv = e.split()
                 nv.co = c
                 self.rfcontext.snap_vert(nv)
                 new_verts += [nv]
-            new_edges = []
+            # create new edges by connecting newly created verts and splitting faces
             for v0,v1 in iter_pairs(new_verts, self.edge_loop):
                 f0 = v0.shared_faces(v1)[0]
                 f1 = f0.split(v0, v1)
@@ -183,10 +173,26 @@ class RFTool_Loops(RFTool):
     
     def prep_slide(self):
         # make sure that the selected edges form an edge loop or strip
-        # TODO: make this more sophisticated, allowing for two parallel loops/strips to be slid
+        # TODO: make this more sophisticated, allowing for two or more non-intersecting loops/strips to be slid
         
         sel_verts = self.rfcontext.get_selected_verts()
         sel_edges = self.rfcontext.get_selected_edges()
+        
+        def all_connected():
+            touched = set()
+            working = { next(iter(sel_verts)) }
+            while working:
+                cur = working.pop()
+                if cur in touched: continue
+                touched.add(cur)
+                for e in cur.link_edges:
+                    if e not in sel_edges: continue
+                    v = e.other_vert(cur)
+                    working.add(v)
+            return len(touched) == len(sel_verts)
+        
+        if not sel_verts: return
+        if not all_connected(): return
         
         # each selected edge should have two unselected faces
         # each selected vert should have exactly two unselected edges that act as neighbors
@@ -194,7 +200,7 @@ class RFTool_Loops(RFTool):
         for bme in sel_edges:
             lbmf = [bmf for bmf in bme.link_faces if bmf.select == False]
             if len(lbmf) != 2:
-                dprint('edge has %d unselected faces' % len(lbmf))
+                dprint('edge has %d!=2 unselected faces' % len(lbmf))
                 return
             bmv0,bmv1 = bme.verts
             for bmv in bme.verts:
@@ -205,7 +211,7 @@ class RFTool_Loops(RFTool):
                         neighbors[bmv].add(bmv_e.other_vert(bmv))
         for bmv in neighbors:
             if len(neighbors[bmv]) != 2:
-                dprint('vert has %d neighbors' % len(neighbors[bmv]))
+                dprint('vert has %d!=2 neighbors' % len(neighbors[bmv]))
                 return
             neighbors[bmv] = list(neighbors[bmv])
         
@@ -221,10 +227,14 @@ class RFTool_Loops(RFTool):
         
         # give neighbors a "side"
         
+        self.rfcontext.undo_push('slide edge loop/strip')
         dprint('good!')
         
         #sel_loops = find_loops(sel_edges)
         return
+    
+    def modal_slide(self):
+        pass
     
     @profiler.profile
     def draw_postview(self):
@@ -238,6 +248,7 @@ class RFTool_Loops(RFTool):
             
             def draw():
                 if not self.edges: return
+                glEnableStipple(enable=True)
                 if self.edge_loop:
                     bgl.glBegin(bgl.GL_LINE_LOOP)
                 else:
@@ -246,6 +257,7 @@ class RFTool_Loops(RFTool):
                     c = c0 + (c1 - c0) * self.percent
                     bgl.glVertex3f(*c)
                 bgl.glEnd()
+                glEnableStipple(enable=False)
                 
             
             self.drawing.point_size(5.0)

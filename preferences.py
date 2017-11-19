@@ -469,55 +469,55 @@ class RetopoFlowPreferences(AddonPreferences):
 
         row = layout.row(align=True)
         row.prop(self, "theme", "Theme")
-        row.prop(self,"show_help")
-        row.prop(self,"help_def")
+        # row.prop(self,"show_help")
+        # row.prop(self,"help_def")
         
-        ## Polystrips 
-        row = layout.row(align=True)
-        row.label("POLYSTRIPS SETTINGS:")
+        # ## Polystrips 
+        # row = layout.row(align=True)
+        # row.label("POLYSTRIPS SETTINGS:")
 
-        row = layout.row(align=True)
-        row.prop(self, "show_segment_count")
+        # row = layout.row(align=True)
+        # row.prop(self, "show_segment_count")
 
-        ##Contours
-        row = layout.row(align=True)
-        row.label("CONTOURS SETTINGS:")
+        # ##Contours
+        # row = layout.row(align=True)
+        # row.label("CONTOURS SETTINGS:")
 
-        # Interaction Settings
-        row = layout.row(align=True)
-        row.prop(self, "use_x_ray", "Enable X-Ray at Mesh Creation")
-        row.prop(self, "smooth_method", text="Smoothing Method")
+        # # Interaction Settings
+        # row = layout.row(align=True)
+        # row.prop(self, "use_x_ray", "Enable X-Ray at Mesh Creation")
+        # row.prop(self, "smooth_method", text="Smoothing Method")
 
-        # Widget Settings
-        row = layout.row()
-        row.prop(self,"draw_widget", text="Display Widget")
+        # # Widget Settings
+        # row = layout.row()
+        # row.prop(self,"draw_widget", text="Display Widget")
 
-        ## Debug Settings
-        box = layout.box().column(align=False)
-        row = box.row()
-        row.label(text="Debug Settings")
+        # ## Debug Settings
+        # box = layout.box().column(align=False)
+        # row = box.row()
+        # row.label(text="Debug Settings")
 
-        row = box.row()
-        row.prop(self, "show_debug", text="Show Debug Settings")
+        # row = box.row()
+        # row.prop(self, "show_debug", text="Show Debug Settings")
         
-        if self.show_debug:
-            row = box.row()
-            row.prop(self, "new_method")
-            row.prop(self, "debug")
+        # if self.show_debug:
+        #     row = box.row()
+        #     row.prop(self, "new_method")
+        #     row.prop(self, "debug")
             
             
-            row = box.row()
-            row.prop(self, "vert_inds", text="Show Vertex Indices")
-            row.prop(self, "simple_vert_inds", text="Show Simple Indices")
+        #     row = box.row()
+        #     row.prop(self, "vert_inds", text="Show Vertex Indices")
+        #     row.prop(self, "simple_vert_inds", text="Show Simple Indices")
 
-            row = box.row()
-            row.prop(self, "show_verts", text="Show Raw Vertices")
-            row.prop(self, "raw_vert_size")
+        #     row = box.row()
+        #     row.prop(self, "show_verts", text="Show Raw Vertices")
+        #     row.prop(self, "raw_vert_size")
             
-            row = box.row()
-            row.prop(self, "show_backbone", text="Show Backbone")
-            row.prop(self, "show_nodes", text="Show Cut Nodes")
-            row.prop(self, "show_ring_inds", text="Show Ring Indices")
+        #     row = box.row()
+        #     row.prop(self, "show_backbone", text="Show Backbone")
+        #     row.prop(self, "show_nodes", text="Show Cut Nodes")
+        #     row.prop(self, "show_ring_inds", text="Show Ring Indices")
 
 
         # updater draw function

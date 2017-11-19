@@ -173,22 +173,35 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         layout.operator_context = 'INVOKE_DEFAULT'
 
         icons = load_icons()
-        contours_icon = icons.get("rf_contours_icon")
-        polystrips_icon = icons.get("rf_polystrips_icon")
-        polypen_icon = icons.get("rf_polypen_icon")
+        
+        col = layout.column(align=True)
+        col.alignment = 'CENTER'
+        # col.operator("cgcookie.rfmode")
+        for ids,rft in RFTool.get_tools():
+            icon_name = rft.rf_icon
+            if icon_name is not None:
+                icon = icons.get(icon_name)
+                col.operator(ids, icon_value=icon.icon_id)
+            else:
+                col.operator(ids)
+        
+        # icons = load_icons()
+        # contours_icon = icons.get("rf_contours_icon")
+        # polystrips_icon = icons.get("rf_polystrips_icon")
+        # polypen_icon = icons.get("rf_polypen_icon")
 
-        layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
-        layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
-        layout.operator("cgcookie.polypen", icon_value=polypen_icon.icon_id)
+        # layout.operator("cgcookie.contours", icon_value=contours_icon.icon_id)
+        # layout.operator("cgcookie.polystrips", icon_value=polystrips_icon.icon_id)
+        # layout.operator("cgcookie.polypen", icon_value=polypen_icon.icon_id)
 
 
-        if context.mode =='EDIT_MESH':
-            icons = load_icons()
-            loopcut_icon = icons.get("rf_loopcut_icon")
-            loopslide_icon = icons.get("rf_loopslide_icon")
-            tweak_icon = icons.get("rf_tweak_icon")
+        # if context.mode =='EDIT_MESH':
+        #     icons = load_icons()
+        #     loopcut_icon = icons.get("rf_loopcut_icon")
+        #     loopslide_icon = icons.get("rf_loopslide_icon")
+        #     tweak_icon = icons.get("rf_tweak_icon")
 
-            layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
-            layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
-            layout.operator("cgcookie.loop_slide", text="Loop Slide", icon_value=loopslide_icon.icon_id)
+        #     layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
+        #     layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
+        #     layout.operator("cgcookie.loop_slide", text="Loop Slide", icon_value=loopslide_icon.icon_id)
 

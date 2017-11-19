@@ -32,6 +32,8 @@ from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import set_cursor
 from ..common.decorators import stats_wrapper
 
+from ..options import options
+
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
 
@@ -310,7 +312,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if hasattr(self, 'tool') and self.tool == tool: return
         self.tool       = tool                  # currently selected tool
         self.tool_state = self.tool.start()     # current tool state
-        self.tool_selection.set_option(tool.name())
+        self.tool_selection_min.set_option(tool.name())
+        self.tool_selection_max.set_option(tool.name())
 
     ###################################################
     # undo / redo stack operations
@@ -357,9 +360,9 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.instrument_write('redo')
 
     def instrument_write(self, action):
-        if True: return         # disabled for now...
+        if not options['instrument']: return
         
-        tb_name = 'RetopoFlow_instrumentation'
+        tb_name = options['instrument_filename']
         if tb_name not in bpy.data.texts: bpy.data.texts.new(tb_name)
         tb = bpy.data.texts[tb_name]
         
@@ -398,7 +401,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             if self.time_to_save <= 0:
                 # tempdir = bpy.app.tempdir
                 tempdir = context.user_preferences.filepaths.temporary_directory
-                filepath = os.path.join(tempdir, 'retopoflow_backup.blend')
+                filepath = os.path.join(tempdir, 'RetopoFlow_backup.blend')
                 dprint('auto saving to %s' % filepath)
                 if os.path.exists(filepath): os.remove(filepath)
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)

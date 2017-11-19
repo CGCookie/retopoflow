@@ -85,11 +85,17 @@ class RFTool(metaclass=SingletonRegisterClass):
     ''' a base class for all RetopoFlow Tools '''
     def __init__(self):
         self.FSM = {}
-        self.init()
-        self.FSM['main'] = self.modal_main
-        self.mode = 'main'
+        self._success = False
+        try:
+            self.init()
+            self.FSM['main'] = self.modal_main
+            self.mode = 'main'
+            self._success = True
+        except Exception as e:
+            print('ERROR: caught exception ' + str(e))
     
     def modal(self):
+        if not self._success: return
         nmode = self.FSM[self.mode]()
         if nmode: self.mode = nmode
     
@@ -98,6 +104,7 @@ class RFTool(metaclass=SingletonRegisterClass):
     
     ''' Called the tool is being switched into. Returns initial state '''
     def start(self):
+        if not self._success: return
         self.rfwidget.set_widget('default')
         self.mode = 'main'
         return None

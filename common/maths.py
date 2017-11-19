@@ -798,7 +798,9 @@ def segment2D_intersection(a0,a1, b0,b1):
     # dist_intersection_a0a1 = dir_a0a1.dot(intersection - a0)
     # if dist_intersection_a0a1 < 0 or dist_intersection_a0a1 > dist_a0a1: return None
     return intersection
-    
+
+
+def clamp(v, min_v, max_v): return max(min_v, min(max_v, v))
 
 
 if __name__ == '__main__':

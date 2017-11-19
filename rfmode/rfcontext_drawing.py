@@ -42,16 +42,37 @@ class RFContext_Drawing:
             for ids,rft in RFTool.get_tools():
                 if rft.bl_label == lbl:
                     self.set_tool(rft.rft_class())
+        
         self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
-        self.tool_selection = UI_Options(options_callback)
+        self.tool_max = UI_Container(margin=0)
+        self.tool_min = UI_Container(margin=0, vertical=False)
+        self.tool_selection_max = UI_Options(options_callback, vertical=True)
+        self.tool_selection_min = UI_Options(options_callback, vertical=False)
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_selection.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
+            self.tool_selection_max.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
+            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label,ui_options))
-        self.tool_window.add(self.tool_selection)
-        self.tool_window.add(UI_Button('Exit', self.quit, align=0))
+        def get_tool_collapsed():
+            b = options['tools_min']
+            self.tool_min.visible = b
+            self.tool_max.visible = not b
+            return b
+        def set_tool_collapsed(b):
+            options['tools_min'] = b
+            self.tool_min.visible = b
+            self.tool_max.visible = not b
+        get_tool_collapsed()
+        self.tool_max.add(self.tool_selection_max)
+        self.tool_max.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
+        self.tool_max.add(UI_Button('Exit', self.quit, align=0))
+        self.tool_min.add(self.tool_selection_min)
+        self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed))
+        self.tool_window.add(self.tool_max)
+        self.tool_window.add(self.tool_min)
+        
         
         def show_reporting():
             options['welcome'] = True
@@ -64,8 +85,12 @@ class RFContext_Drawing:
         window_info.add(UI_Label('ver: %s' % retopoflow_version))
         window_info.add(UI_Button('Show Welcome!', show_reporting, align=0))
         info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
-        self.window_debug_fps = info_debug.add(UI_Label('fps: 0.00'))
-        self.window_debug_save = info_debug.add(UI_Label('save: inf'))
+        fps_save = info_debug.add(UI_Container(vertical=False))
+        self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
+        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
+        def get_instrument(): return options['instrument']
+        def set_instrument(v): options['instrument'] = v
+        info_debug.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
         info_debug.add(UI_Button('Reset Options', options.reset, align=0))
         
         def set_profiler_visible():
@@ -104,11 +129,11 @@ class RFContext_Drawing:
             ui_options = window_tool_options.add(UI_Collapsible(tool_name))
             for tool_option in tool_options: ui_options.add(tool_option)
         
-        self.window_reporting = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.90)})
+        self.window_reporting = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
         self.window_reporting.add(UI_Rule())
         self.ui_reporting = self.window_reporting.add(UI_WrappedLabel(firsttime_message))
         self.window_reporting.add(UI_Rule())
-        self.window_reporting.add(UI_Button('Close', hide_reporting, align=0))
+        self.window_reporting.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4)))
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix

@@ -1,5 +1,6 @@
 import bpy
 from ...common_utilities import showErrorMessage
+from ....options import options
 
 class OpenLog(bpy.types.Operator):
     """Open log text files in new window"""
@@ -8,10 +9,10 @@ class OpenLog(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return 'RetopoFlow_log' in bpy.data.texts
+        return options['log_filename'] in bpy.data.texts
 
     def execute(self, context):
-        self.openTextFile('RetopoFlow_log')
+        self.openTextFile(options['log_filename'])
         return {'FINISHED'}
 
     def openTextFile(self, filename):

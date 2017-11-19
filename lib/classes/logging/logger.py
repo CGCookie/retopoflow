@@ -1,22 +1,24 @@
 import bpy
+from ....options import options
+
 # from ...common_utilities import showErrorMessage
 
 class Logger:
     @classmethod
     def add(cls, line):
-        if 'RetopoFlow_log' not in bpy.data.texts:
+        if options['log_filename'] not in bpy.data.texts:
             # create a log file for error writing
             bpy.ops.text.new()
-            bpy.data.texts[-1].name = 'RetopoFlow_log'
+            bpy.data.texts[-1].name = options['log_filename']
         
         divider = '=' * 80
         
-        log = bpy.data.texts['RetopoFlow_log']
+        log = bpy.data.texts[options['log_filename']]
         log.write("\n\n" + divider + "\n" + line)
     
     @classmethod
     def openTextFile(cls):
-        if 'RetopoFlow_log' not in bpy.data.texts:
+        if options['log_filename'] not in bpy.data.texts:
             showErrorMessage('Log file not found')
             return
 
@@ -29,7 +31,7 @@ class Logger:
         # load the text file into the correct space
         for space in area.spaces:
             if space.type == 'TEXT_EDITOR':
-                space.text = bpy.data.texts[filename]
+                space.text = bpy.data.texts[options['log_filename']]
 
 def showErrorMessage(message, wrap=80):
     if not message: return

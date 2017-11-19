@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 bl_info = {
     "name":        "RetopoFlow",
-    "description": "A suite of dedicated retopology tools for Blender",
+    "description": "A retopology-focused mode with dedicated retopology tools for Blender",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
     "version":     (2, 0, 0),
     "blender":     (2, 7, 8),
@@ -77,13 +77,13 @@ def register():
     register_common_utilities()
 
     bpy.utils.register_class(RetopoFlowPreferences)
-    bpy.utils.register_class(CGC_Polystrips)
-    bpy.utils.register_class(CGC_Tweak)
-    bpy.utils.register_class(CGC_Contours)
-    bpy.utils.register_class(CGC_EyeDropper)
-    bpy.utils.register_class(CGC_LoopCut)
-    bpy.utils.register_class(CGC_loopslide)
-    bpy.utils.register_class(CGC_Polypen)
+    #bpy.utils.register_class(CGC_Polystrips)
+    #bpy.utils.register_class(CGC_Tweak)
+    #bpy.utils.register_class(CGC_Contours)
+    #bpy.utils.register_class(CGC_EyeDropper)
+    #bpy.utils.register_class(CGC_LoopCut)
+    #bpy.utils.register_class(CGC_loopslide)
+    #bpy.utils.register_class(CGC_Polypen)
 
     # bpy.utils.register_class(RFMode)
     for idname,rft in rfmode_tools.items():
@@ -94,7 +94,7 @@ def register():
     bpy.utils.register_class(RFRecover_Clear)
 
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
+    #bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     bpy.utils.register_class(OpenLog)
@@ -114,7 +114,7 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
+    # bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
 
     bpy.utils.unregister_class(RFRecover_Clear)
@@ -124,13 +124,13 @@ def unregister():
         bpy.utils.unregister_class(rft)
     # bpy.utils.unregister_class(RFMode)
 
-    bpy.utils.unregister_class(CGC_Polystrips)
-    bpy.utils.unregister_class(CGC_Tweak)
-    bpy.utils.unregister_class(CGC_Contours)
-    bpy.utils.unregister_class(CGC_EyeDropper)
-    bpy.utils.unregister_class(CGC_LoopCut)
-    bpy.utils.unregister_class(CGC_loopslide)
-    bpy.utils.unregister_class(CGC_Polypen)
+    # bpy.utils.unregister_class(CGC_Polystrips)
+    # bpy.utils.unregister_class(CGC_Tweak)
+    # bpy.utils.unregister_class(CGC_Contours)
+    # bpy.utils.unregister_class(CGC_EyeDropper)
+    # bpy.utils.unregister_class(CGC_LoopCut)
+    # bpy.utils.unregister_class(CGC_loopslide)
+    # bpy.utils.unregister_class(CGC_Polypen)
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # addon updater unregister

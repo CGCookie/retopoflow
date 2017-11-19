@@ -48,6 +48,8 @@ from bpy.app.handlers import persistent
 
 from .classes.logging.logger import Logger
 
+from ..options import options
+
 
 def bversion():
     bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
@@ -98,7 +100,7 @@ def print_exception():
 
     # write error to log text object
     Logger.add(errormsg)
-    #bpy.data.texts['RetopoFlow_log'].write(errormsg + '\n')
+    #bpy.data.texts[options['log_filename']].write(errormsg + '\n')
 
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
