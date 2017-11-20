@@ -94,6 +94,10 @@ class RFContext_Drawing:
         def disable_profiler():
             profiler.disable()
             update_profiler_visible()
+        def get_debug_level():
+            return self.settings.debug
+        def set_debug_level(v):
+            self.settings.debug = v
         
         
         self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
@@ -130,6 +134,11 @@ class RFContext_Drawing:
         container.add(UI_Button('Welcome!', show_reporting, align=0))
         container.add(UI_Button('Report Issue', open_github, align=0))
         info_adv = window_info.add(UI_Collapsible('Advanced', collapsed=True))
+        
+        fps_save = info_adv.add(UI_Container(vertical=False))
+        self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
+        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
+        
         container_theme = info_adv.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
@@ -138,11 +147,8 @@ class RFContext_Drawing:
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
         
-        fps_save = info_adv.add(UI_Container(vertical=False))
-        self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
-        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
+        info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
-        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         
         info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
         prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
@@ -150,6 +156,8 @@ class RFContext_Drawing:
         prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
         prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
         update_profiler_visible()
+        
+        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         
