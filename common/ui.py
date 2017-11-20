@@ -2,6 +2,7 @@ import re
 import bpy
 import bgl
 import blf
+import random
 from bpy.types import BoolProperty
 import math
 from itertools import chain
@@ -419,10 +420,10 @@ class UI_Container(UI_Element):
         return fn(ui.get_height() for ui in self.ui_items)
     
     def _draw(self):
-        l,t = self.pos
+        l,t_ = self.pos
         w,h = self.size
+        t = t_ + self.offset
         
-        t += self.offset
         
         if self.background:
             bgl.glEnable(bgl.GL_BLEND)
@@ -448,6 +449,28 @@ class UI_Container(UI_Element):
                 ui.draw(x,t,ew,h)
                 x += ew
                 w -= ew
+        
+        if self.offset > 0:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glColor4f(0.25,0.25,0.25,1.0)
+            bgl.glVertex2f(l, t_+1)
+            bgl.glVertex2f(l+w, t_+1)
+            bgl.glColor4f(0.25,0.25,0.25,0.0)
+            bgl.glVertex2f(l+w, t_-30)
+            bgl.glVertex2f(l, t_-30)
+            bgl.glEnd()
+        if h+self.offset+2 < self._get_height():
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glColor4f(0.25,0.25,0.25,1.0)
+            bgl.glVertex2f(l, t_-h)
+            bgl.glVertex2f(l+w, t_-h)
+            bgl.glColor4f(0.25,0.25,0.25,0.0)
+            bgl.glVertex2f(l+w, t_-h+30)
+            bgl.glVertex2f(l, t_-h+30)
+            bgl.glEnd()
+        
     
     def add(self, ui_item, only=False):
         if only: self.ui_items.clear()
@@ -1089,6 +1112,7 @@ class UI_Window(UI_Padding):
         m = self.screen_margin
         w,h = self.get_width(),self.get_height()
         rgn = self.context.region
+        if not rgn: return
         sw,sh = rgn.width,rgn.height
         cw,ch = round((sw-w)/2),round((sh+h)/2)
         
