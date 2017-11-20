@@ -28,41 +28,41 @@ class RetopoFlowPreferences(AddonPreferences):
     # Theme definitions
     theme = EnumProperty(
         items=[
-            ('blue', 'Blue', 'Blue color scheme'),
-            ('green', 'Green', 'Green color scheme'),
-            ('orange', 'Orange', 'Orange color scheme'),
+            ('Blue', 'Blue', 'Blue color scheme'),
+            ('Green', 'Green', 'Green color scheme'),
+            ('Orange', 'Orange', 'Orange color scheme'),
             ],
         name='theme',
-        default='blue'
+        default='Blue'
         )
 
     def rgba_to_float(r, g, b, a):
         return (r/255.0, g/255.0, b/255.0, a/255.0)
 
     theme_colors_active = {
-        'blue': rgba_to_float(78, 207, 81, 255),
-        'green': rgba_to_float(26, 111, 255, 255),
-        'orange': rgba_to_float(207, 135, 78, 255)
+        'Blue': rgba_to_float(26, 111, 255, 255),
+        'Green': rgba_to_float(78, 207, 81, 255),
+        'Orange': rgba_to_float(207, 135, 78, 255)
     }
     theme_colors_selection = {
-        'blue': rgba_to_float(78, 207, 81, 255),
-        'green': rgba_to_float(26, 111, 255, 255),
-        'orange': rgba_to_float(207, 135, 78, 255)
+        'Blue': rgba_to_float(26, 111, 255, 255),
+        'Green': rgba_to_float(78, 207, 81, 255),
+        'Orange': rgba_to_float(207, 135, 78, 255)
     }
     theme_colors_mesh = {
-        'blue': rgba_to_float(26, 111, 255, 255),
-        'green': rgba_to_float(78, 207, 81, 255),
-        'orange': rgba_to_float(26, 111, 255, 255)
+        'Blue': rgba_to_float(78, 207, 81, 255),
+        'Green': rgba_to_float(26, 111, 255, 255),
+        'Orange': rgba_to_float(26, 111, 255, 255)
     }
     theme_colors_frozen = {
-        'blue': rgba_to_float(255, 255, 255, 255),
-        'green': rgba_to_float(255, 255, 255, 255),
-        'orange': rgba_to_float(255, 255, 255, 255)
+        'Blue': rgba_to_float(255, 255, 255, 255),
+        'Green': rgba_to_float(255, 255, 255, 255),
+        'Orange': rgba_to_float(255, 255, 255, 255)
     }
     theme_colors_warning = {
-        'blue': rgba_to_float(182, 31, 0, 125),
-        'green': rgba_to_float(182, 31, 0, 125),
-        'orange': rgba_to_float(182, 31, 0, 125)
+        'Blue': rgba_to_float(182, 31, 0, 125),
+        'Green': rgba_to_float(182, 31, 0, 125),
+        'Orange': rgba_to_float(182, 31, 0, 125)
     }
 
     # User settings
@@ -467,8 +467,8 @@ class RetopoFlowPreferences(AddonPreferences):
         
         layout = self.layout
 
-        row = layout.row(align=True)
-        row.prop(self, "theme", "Theme")
+        # row = layout.row(align=True)
+        # row.prop(self, "theme", "Theme")
         # row.prop(self,"show_help")
         # row.prop(self,"help_def")
         

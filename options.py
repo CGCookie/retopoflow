@@ -74,13 +74,14 @@ help_contours = '''
 # Contours Help
 
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
-For example, it’s ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
+For example, it's ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
 
 The tool works by drawing strokes perpendicular to the form to define the contour of the shape.
-Immediately upon drawing the first stroke, a preview mesh is generated, showing you exactly what you’ll get.
+Immediately upon drawing the first stroke, a preview mesh is generated, showing you exactly what you'll get.
 You can draw as many strokes as you like, in any order, from any direction.
 
 ![](help_contours.png)
+
 
 ## Drawing
 
@@ -111,6 +112,14 @@ You can draw as many strokes as you like, in any order, from any direction.
 help_polystrips = '''
 # PolyStrips Help
 
+The PolyStrips tool provides quick and easy ways to create the key face loops needed to retopologize a complex model.
+For example, if you need to retopologize a human face, creatures, or any other complex organic or hard-surface object.
+
+PolyStrips works by hand-drawing stokes on to the high-resolution source object.
+The strokes are instantly converted into spline-based strips of polygons, which can be used to quickly map out the key topology flow.
+Clean mesh previews are generated on the fly, showing you the exact mesh that will be created.
+
+
 ## Drawing
 
 - SELECT / SHIFT+SELECT: select quads
@@ -135,6 +144,10 @@ help_polystrips = '''
 help_polypen = '''
 # PolyPen Help
 
+The PolyPen tool provides everything you need for fast retopology in those scenarios where you need absolute control of every vertex position (e.g., low-poly game models).
+This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
+
+
 ## Drawing
 
 - SELECT / SHIFT+SELECT: select geometry
@@ -155,6 +168,8 @@ help_polypen = '''
 help_tweak = '''
 # Tweak Help
 
+The Tweak tool allows you to easily adjust the vertex positions using a brush.
+
 - ACTION: move vertices that are within brush
 - F: adjust brush size
 - CTRL+F: adjust falloff
@@ -163,6 +178,8 @@ help_tweak = '''
 
 help_relax = '''
 # Relax Help
+
+The Relax tool allows you to easily relax the vertex positions using a brush.
 
 - ACTION: relax vertices that are within brush
 - F: adjust brush size
@@ -179,6 +196,8 @@ help_relax = '''
 help_loops = '''
 # Loops Help
 
+The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
+
 - CTRL+ACTION: insert edge loop
 - SELECT / SHIFT+SELECT: select edge loop
 - S: slide edge loop
@@ -186,17 +205,21 @@ help_loops = '''
 
 
 class Options:
-    options_filename = 'rf_options'
-    default_options = {
-        'profiler': False,
-        'welcome': True,
-        'instrument': False,
-        'instrument_filename': 'RetopoFlow_instrument',
-        'log_filename': 'RetopoFlow_log',
-        'backup_filename': 'RetopoFlow_backup',
-        'tools_min': False,
+    options_filename = 'rf_options'     # the filename of the Shelve object
+                                        # will be located at root of RF plugin
+    
+    default_options = {                 # all the default settings for unset or reset
+        'profiler':             False,
+        'welcome':              True,
+        'tools_min':            False,
+        'instrument':           False,
+        'color theme':          'Green',
+        'instrument_filename':  'RetopoFlow_instrument',
+        'log_filename':         'RetopoFlow_log',
+        'backup_filename':      'RetopoFlow_backup',
     }
-    db = None
+    
+    db = None                           # current Shelve object
     
     def __init__(self):
         if not Options.db:

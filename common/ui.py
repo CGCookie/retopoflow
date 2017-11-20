@@ -266,7 +266,7 @@ class UI_Spacer(UI_Element):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12, shadowcolor=None):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12, shadowcolor=None, margin=4):
         super().__init__()
         self.icon = icon
         self.tooltip = tooltip
@@ -274,6 +274,7 @@ class UI_Label(UI_Element):
         self.shadowcolor = shadowcolor
         self.align = align
         self.textsize = textsize
+        self.margin = margin
         self.set_label(label)
         self.set_bgcolor(bgcolor)
     
@@ -639,16 +640,17 @@ class UI_Button(UI_Container):
 
 
 
-class UI_Options(UI_Container):
+class UI_Options(UI_EqualContainer):
     color_select = (0.27, 0.50, 0.72, 0.90)
     color_unselect = None
     
-    def __init__(self, fn_callback, vertical=True):
+    def __init__(self, fn_get_option, fn_set_option, vertical=True, margin=4):
         super().__init__(vertical=vertical)
-        self.fn_callback = fn_callback
+        self.fn_get_option = fn_get_option
+        self.fn_set_option = fn_set_option
         self.options = {}
         self.labels = set()
-        self.selected = None
+        self.margin = margin
     
     def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
         class UI_Option(UI_Container):
@@ -666,7 +668,9 @@ class UI_Options(UI_Container):
                 return self if super().hover_ui(mouse) else None
             
             def _draw(self):
-                self.background = UI_Options.color_select if self.label == self.options.selected else UI_Options.color_unselect
+                selected = self.options.fn_get_option()
+                is_selected = self.label == selected
+                self.background = UI_Options.color_select if is_selected else UI_Options.color_unselect
                 super()._draw()
         
         assert label not in self.labels, "All option labels must be unique!"
@@ -674,12 +678,10 @@ class UI_Options(UI_Container):
         option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
         super().add(option)
         self.options[option] = label
-        if not self.selected: self.selected = label
     
     def set_option(self, label):
-        if self.selected == label: return
-        self.selected = label
-        self.fn_callback(self.selected)
+        if self.fn_get_option() == label: return
+        self.fn_set_option(label)
     
     def add(self, *args, **kwargs):
         assert False, "Do not call UI_Options.add()"
@@ -1018,24 +1020,6 @@ class UI_HBFContainer(UI_Container):
         elif footer: self.footer.add(ui_item)
         else: self.body.add(ui_item)
         return ui_item
-
-
-class UI_Scrollable(UI_Container):
-    def __init__(self, content, min_size=Vec2D((400,400))):
-        class Scrollbar(UI_HBFContainer):
-            def __init__(self):
-                super().__init__()
-                self.scroll = 0
-                self.add(UI_Button('^', self.scroll_up, align=0), header=True)
-                self.add(UI_Button('v', self.scroll_down, align=0), footer=True)
-            def scroll_up(self):
-                pass
-            def scroll_down(self):
-                pass
-        super().__init__(margin=0, vertical=False)
-        self.min_size = min_size
-        self.add(content)
-        self.scrollbar = self.add(Scrollbar())
 
 
 class UI_Collapsible(UI_Container):

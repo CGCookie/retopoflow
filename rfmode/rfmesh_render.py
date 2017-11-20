@@ -42,12 +42,11 @@ class RFMeshRender():
 
     @profiler.profile
     def __init__(self, rfmesh, opts):
-        self.opts = opts
-        self.replace_rfmesh(rfmesh)
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
         self.drawing = Drawing.get_instance()
-        self.opts['dpi mult'] = self.drawing.get_dpi_mult()
+        self.replace_rfmesh(rfmesh)
+        self.replace_opts(opts)
 
     def __del__(self):
         if hasattr(self, 'bglCallList'):
@@ -56,6 +55,12 @@ class RFMeshRender():
         if hasattr(self, 'bglMatrix'):
             del self.bglMatrix
 
+    @profiler.profile
+    def replace_opts(self, opts):
+        self.opts = opts
+        self.opts['dpi mult'] = self.drawing.get_dpi_mult()
+        self.rfmesh_version = None
+    
     @profiler.profile
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh

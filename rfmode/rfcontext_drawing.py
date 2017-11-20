@@ -16,7 +16,7 @@ from ..common.ui import (
     UI_Checkbox, UI_Checkbox2,
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
-    UI_Container, UI_Collapsible, UI_Scrollable,
+    UI_Container, UI_Collapsible,
     UI_IntValue,
     )
 from ..lib import common_drawing_bmesh as bmegl
@@ -45,16 +45,62 @@ class RFContext_Drawing:
         self.drawing = Drawing.get_instance()
         self.window_manager = UI_WindowManager()
         
-        def options_callback(lbl):
+        def get_selected_tool():
+            return self.tool.name()
+        def set_selected_tool(name):
             for ids,rft in RFTool.get_tools():
-                if rft.bl_label == lbl:
+                if rft.bl_label == name:
                     self.set_tool(rft.rft_class())
+        def update_tool_collapsed():
+            b = options['tools_min']
+            self.tool_min.visible = b
+            self.tool_max.visible = not b
+        def get_tool_collapsed():
+            update_tool_collapsed()
+            return options['tools_min']
+        def set_tool_collapsed(b):
+            options['tools_min'] = b
+            update_tool_collapsed()
+        def show_reporting():
+            options['welcome'] = True
+            self.window_welcome.visible = options['welcome']
+        def hide_reporting():
+            options['welcome'] = False
+            self.window_welcome.visible = options['welcome']
+        
+        def open_github():
+            bpy.ops.wm.url_open(url="https://github.com/CGCookie/retopoflow/issues")
+        
+        def get_theme():
+            return options['color theme']
+        def set_theme(v):
+            options['color theme'] = v
+            self.replace_opts()
+        def reset_options():
+            options.reset()
+            self.replace_opts()
+        def get_instrument(): return options['instrument']
+        def set_instrument(v): options['instrument'] = v
+        def update_profiler_visible():
+            nonlocal prof_print, prof_reset, prof_disable, prof_enable
+            v = profiler.debug
+            prof_print.visible = v
+            prof_reset.visible = v
+            prof_disable.visible = v
+            prof_enable.visible = not v
+        def enable_profiler():
+            profiler.enable()
+            update_profiler_visible()
+        def disable_profiler():
+            profiler.disable()
+            update_profiler_visible()
+        
         
         self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
         self.tool_max = UI_Container(margin=0)
         self.tool_min = UI_Container(margin=0, vertical=False)
-        self.tool_selection_max = UI_Options(options_callback, vertical=True)
-        self.tool_selection_min = UI_Options(options_callback, vertical=False)
+        self.tool_selection_max = UI_Options(get_selected_tool, set_selected_tool, vertical=True)
+        self.tool_selection_min = UI_Options(get_selected_tool, set_selected_tool, vertical=False)
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
@@ -62,15 +108,6 @@ class RFContext_Drawing:
             self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label,ui_options))
-        def get_tool_collapsed():
-            b = options['tools_min']
-            self.tool_min.visible = b
-            self.tool_max.visible = not b
-            return b
-        def set_tool_collapsed(b):
-            options['tools_min'] = b
-            self.tool_min.visible = b
-            self.tool_max.visible = not b
         get_tool_collapsed()
         self.tool_max.add(self.tool_selection_max)
         
@@ -87,49 +124,32 @@ class RFContext_Drawing:
         self.tool_window.add(self.tool_min)
         
         
-        def show_reporting():
-            options['welcome'] = True
-            self.window_welcome.visible = options['welcome']
-        def hide_reporting():
-            options['welcome'] = False
-            self.window_welcome.visible = options['welcome']
-        
-        def open_github():
-            bpy.ops.wm.url_open(url="https://github.com/CGCookie/retopoflow/issues")
-        
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
         window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version))
         container = window_info.add(UI_Container(margin=0, vertical=False))
         container.add(UI_Button('Welcome!', show_reporting, align=0))
         container.add(UI_Button('Report Issue', open_github, align=0))
         info_adv = window_info.add(UI_Collapsible('Advanced', collapsed=True))
+        container_theme = info_adv.add(UI_Container(vertical=False))
+        container_theme.add(UI_Label('Theme:', margin=4))
+        opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
+        opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
+        opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
+        opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
+        opt_theme.set_option(options['color theme'])
+        
         fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf'))
-        def get_instrument(): return options['instrument']
-        def set_instrument(v): options['instrument'] = v
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
-        info_adv.add(UI_Button('Reset Options', options.reset, align=0))
+        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         
-        def set_profiler_visible():
-            nonlocal prof_print, prof_reset, prof_disable, prof_enable
-            v = profiler.debug
-            prof_print.visible = v
-            prof_reset.visible = v
-            prof_disable.visible = v
-            prof_enable.visible = not v
-        def enable_profiler():
-            profiler.enable()
-            set_profiler_visible()
-        def disable_profiler():
-            profiler.disable()
-            set_profiler_visible()
         info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
         prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
         prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
         prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
         prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
-        set_profiler_visible()
+        update_profiler_visible()
         
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         

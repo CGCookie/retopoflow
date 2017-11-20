@@ -219,23 +219,54 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
 
-    @stats_wrapper
     @profiler.profile
     def _init_target(self):
         ''' target is the active object.  must be selected and visible '''
-
-        # if user has modified the edit mesh, toggle into object then edit mode to update
-        # if bpy.context.mode == 'EDIT_MESH':
-        #    bpy.ops.object.mode_set(mode='OBJECT')
-        #    bpy.ops.object.mode_set(mode='EDIT')
-
         self.tar_object = RFContext.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object)
+        opts = self.get_target_render_options()
+        self.rftarget_draw = RFMeshRender(self.rftarget, opts)
 
-        # HACK! TODO: FIXME!
-        color_select = self.settings.theme_colors_selection[self.settings.theme]
-        color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
+    @profiler.profile
+    def _init_sources(self):
+        ''' find all valid source objects, which are mesh objects that are visible and not active '''
+        self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
+        dprint('%d sources found' % len(self.rfsources))
+        opts = self.get_source_render_options()
+        self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
+    
+    @profiler.profile
+    def replace_opts(self, target=True, sources=False):
+        if not hasattr(self, 'rftarget_draw'): return
+        if target:
+            target_opts = self.get_target_render_options()
+            self.rftarget_draw.replace_opts(target_opts)
+        if sources:
+            source_opts = self.get_source_render_options()
+            for rfsd in self.rfsources_draw:
+               rfsd.replace_opts(source_opts)
+    
+    def get_source_render_options(self):
+        color_select = self.settings.theme_colors_selection[options['color theme']]
+        color_frozen = self.settings.theme_colors_frozen[options['color theme']]
+        opts = {
+            'poly color': (0.0, 0.0, 0.0, 0.0),
+            'poly offset': 0.000001,
+            'poly dotoffset': 0.01,
+            'line width': 0.0,
+            'point size': 0.0,
+            'no selection': True,
+            'no below': True,
+            'triangles only': True,     # source bmeshes are triangles only!
+            
+            'focus mult': 0.01,
+        }
+        return opts
+        
+    def get_target_render_options(self):
+        color_select = self.settings.theme_colors_selection[options['color theme']]
+        color_frozen = self.settings.theme_colors_frozen[options['color theme']]
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
@@ -272,31 +303,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             
             'focus mult': 1.0,
         }
-        self.rftarget_draw = RFMeshRender(self.rftarget, opts)
-
-    @stats_wrapper
-    @profiler.profile
-    def _init_sources(self):
-        ''' find all valid source objects, which are mesh objects that are visible and not active '''
-        self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
-        print('%d sources' % len(self.rfsources))
-
-        # HACK! TODO: FIXME!
-        color_select = self.settings.theme_colors_selection[self.settings.theme]
-        color_frozen = self.settings.theme_colors_frozen[self.settings.theme]
-        opts = {
-            'poly color': (0.0, 0.0, 0.0, 0.0),
-            'poly offset': 0.000001,
-            'poly dotoffset': 0.01,
-            'line width': 0.0,
-            'point size': 0.0,
-            'no selection': True,
-            'no below': True,
-            'triangles only': True,     # source bmeshes are triangles only!
-            
-            'focus mult': 0.01,
-        }
-        self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
+        return opts
 
     def commit(self):
         #self.rftarget.commit()
