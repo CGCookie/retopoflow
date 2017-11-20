@@ -7,7 +7,6 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from mathutils.geometry import intersect_point_tri_2d
 from ..common.ui import UI_Image
-from .load_image import load_image_png
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 
 from ..lib.common_utilities import showErrorMessage, dprint
@@ -44,8 +43,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.update()
     
     def get_ui_icon(self):
-        icon = load_image_png('polystrips_32.png')
-        self.ui_icon = UI_Image(icon)
+        self.ui_icon = UI_Image('polystrips_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     

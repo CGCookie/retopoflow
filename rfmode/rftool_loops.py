@@ -3,7 +3,6 @@ import math
 import random
 import bgl
 from .rftool import RFTool
-from .load_image import load_image_png
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
 from ..lib.common_utilities import dprint
@@ -37,8 +36,7 @@ class RFTool_Loops(RFTool):
         self.nearest_edge = None
     
     def get_ui_icon(self):
-        icon = load_image_png('loops_32.png')
-        self.ui_icon = UI_Image(icon)
+        self.ui_icon = UI_Image('loops_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     

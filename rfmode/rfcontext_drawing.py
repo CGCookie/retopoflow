@@ -20,7 +20,6 @@ from ..common.ui import (
     UI_IntValue,
     )
 from ..lib import common_drawing_bmesh as bmegl
-from .load_image import load_image_png
 
 from ..options import retopoflow_version, options, firsttime_message
 
@@ -76,7 +75,7 @@ class RFContext_Drawing:
         self.tool_max.add(self.tool_selection_max)
         
         extra = self.tool_max.add(UI_Container())
-        #help_icon = UI_Image(load_image_png('help_32.png'))
+        #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
         extra.add(UI_Button('Tool Help', self.toggle_tool_help, align=0, margin=0)) # , icon=help_icon
         extra.add(UI_Button('Collapse', lambda: set_tool_collapsed(True), align=0, margin=0))

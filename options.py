@@ -3,15 +3,25 @@ import re
 import json
 import shelve
 
-retopoflow_version = "2.0.0 beta"
+retopoflow_version = "2.0.0"
 
 firsttime_message = '''
-# Welcome to RetopoFlow 2.0.0 beta!
+# Welcome to RetopoFlow {version}!
 
-What you see is here is a complete rewrite of the code base.
-RetopoFlow 2.0 works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
+RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
+The tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
 
-## Major changes from version 1.x
+The RetopoFlow tools automatically generate geometry by drawing on an existing surface, snapping the new mesh to the source surface at all times, meaning you never have to worry about your mesh conforming to the original model (no Shrinkwrap modifier required!).
+Additionally, all mesh generation is quad-based (except for PolyPen).
+
+
+
+## Major Changes from Version 1.3.1
+
+What you see behind this message is here is a complete rewrite of the code base.
+RetopoFlow 2.0 now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
+We focused our 2.0 development on two main items: stability and a consistent, intuitive, and efficient user experience.
+With an established and solid framework, we will focus more on features with future releases.
 
 - Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, and Y will switch quickly between the tools.
 - Each tool has been simplified to do perform its job well.
@@ -30,12 +40,12 @@ RetopoFlow 2.0 works like another any Blender mode, especially Edit Mode, but it
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
 
+- Give us a rating with comments on the Blender Market. (requires purchasing a copy through Blender Market)
 - Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
-- Give us a rating with comments on the Blender Market.
 - Consider donating to our drink funds :)
 
 We have worked hard to make this as production ready as possible.
-We focused on stability and bug handling in addition to adding features and improving overall speed.
+We focused on stability and bug handling in addition to focusing features and improving overall speed.
 However, if you find a bug, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
 
@@ -46,7 +56,7 @@ Below is a list of known issues that we are working on.
 
 - Very large source meshes cause a very long start-up time.  Temporary workaround: reduce the number of faces by using Decimate Modifier.
 - Very large target meshes causes slowness in some tools.
-- Some of the tools are still missing features from their 1.x version.
+- Some of the tools are still missing features from version 1.3.1.
 
 
 ## Final Words
@@ -56,10 +66,21 @@ We thank you for using RetopoFlow, and we look forward to hearing back from you!
 Cheers!
 
 --The RetopoFlow Team
-'''
+'''.format(version=retopoflow_version)
+
+
 
 help_contours = '''
 # Contours Help
+
+The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
+For example, it’s ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
+
+The tool works by drawing strokes perpendicular to the form to define the contour of the shape.
+Immediately upon drawing the first stroke, a preview mesh is generated, showing you exactly what you’ll get.
+You can draw as many strokes as you like, in any order, from any direction.
+
+![](help_contours.png)
 
 ## Drawing
 

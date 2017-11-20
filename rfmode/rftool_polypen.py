@@ -5,7 +5,6 @@ import bgl
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image
-from .load_image import load_image_png
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
@@ -38,8 +37,7 @@ class RFTool_PolyPen(RFTool):
         self.selecting = False
 
     def get_ui_icon(self):
-        icon = load_image_png('polypen_32.png')
-        self.ui_icon = UI_Image(icon)
+        self.ui_icon = UI_Image('polypen_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     

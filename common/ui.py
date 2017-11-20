@@ -1,3 +1,4 @@
+import os
 import re
 import bpy
 import bgl
@@ -7,6 +8,8 @@ from bpy.types import BoolProperty
 import math
 from itertools import chain
 from .decorators import blender_version
+from ..ext import png
+
 
 from .maths import Point2D, Vec2D, clamp
 
@@ -16,6 +19,22 @@ def set_cursor(cursor):
     for wm in bpy.data.window_managers:
         for win in wm.windows:
             win.cursor_modal_set(cursor)
+
+
+path_images = os.path.join(os.path.dirname(__file__), '..', 'icons')
+
+def get_image_path(fn, ext=''):
+    if ext: fn = '%s.%s' % (fn,ext)
+    return os.path.join(path_images, fn)
+
+def load_image_png(fn):
+    if not hasattr(load_image_png, 'cache'):
+        load_image_png.cache = {}
+    if not fn in load_image_png.cache: 
+        # assuming 4 channels per pixel!
+        w,h,d,m = png.Reader(get_image_path(fn)).read()
+        load_image_png.cache[fn] = [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
+    return load_image_png.cache[fn]
 
 
 
@@ -247,11 +266,12 @@ class UI_Spacer(UI_Element):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12, shadowcolor=None):
         super().__init__()
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
+        self.shadowcolor = shadowcolor
         self.align = align
         self.textsize = textsize
         self.set_label(label)
@@ -283,23 +303,28 @@ class UI_Label(UI_Element):
             bgl.glVertex2f(l+w,t)
             bgl.glEnd()
         
-        if self.align < 0:
-            self.drawing.text_draw2D(self.text, Point2D((l, t)), self.color)
-        elif self.align == 0:
-            self.drawing.text_draw2D(self.text, Point2D((l+(w-self.text_width)/2, t)), self.color)
-        else:
-            self.drawing.text_draw2D(self.text, Point2D((l+w-self.width, t)), self.color)
+        if self.shadowcolor:
+            if self.align < 0:    loc = Point2D((l+2, t-2))
+            elif self.align == 0: loc = Point2D((l+(w-self.text_width)/2+2, t-2))
+            else:                 loc = Point2D((l+w-self.width+2, t-2))
+            self.drawing.text_draw2D(self.text, loc, self.shadowcolor)
+        
+        if self.align < 0:    loc = Point2D((l, t))
+        elif self.align == 0: loc = Point2D((l+(w-self.text_width)/2, t))
+        else:                 loc = Point2D((l+w-self.width, t))
+        self.drawing.text_draw2D(self.text, loc, self.color)
 
 
 
 class UI_WrappedLabel(UI_Element):
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=4):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=4, shadowcolor=None):
         super().__init__()
         self.margin = margin
         self.textsize = textsize
         self.set_label(label)
         self.set_bgcolor(bgcolor)
         self.color = color
+        self.shadowcolor = shadowcolor
         self.min_size = min_size
         self.wrapped_size = min_size
         self.drawing.text_size(self.textsize)
@@ -371,6 +396,8 @@ class UI_WrappedLabel(UI_Element):
         y = t
         for line in self.wrapped_lines:
             lheight = theight(line)
+            if self.shadowcolor:
+                self.drawing.text_draw2D(line, Point2D((l+2, y-2)), self.shadowcolor)
             self.drawing.text_draw2D(line, Point2D((l, y)), self.color)
             y -= self.line_height #lheight
 
@@ -522,14 +549,14 @@ class UI_Markdown(UI_Container):
                 # h1 heading!
                 h1text = re.sub(r'# +', r'', p)
                 container.add(UI_Spacer(height=4))
-                h1 = container.add(UI_WrappedLabel(h1text, textsize=20))
+                h1 = container.add(UI_WrappedLabel(h1text, textsize=20, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=14))
             elif p.startswith('## '):
                 # h2 heading!
                 h2text = re.sub(r'## +', r'', p)
-                container.add(UI_Spacer(height=6))
-                h2 = container.add(UI_WrappedLabel(h2text, textsize=16))
-                container.add(UI_Spacer(height=6))
+                container.add(UI_Spacer(height=8))
+                h2 = container.add(UI_WrappedLabel(h2text, textsize=16, shadowcolor=(0,0,0,0.5)))
+                container.add(UI_Spacer(height=4))
             elif p.startswith('- '):
                 # unordered list!
                 ul = container.add(UI_Container())
@@ -539,6 +566,11 @@ class UI_Markdown(UI_Container):
                     li.add(UI_Label('-')).margin=0
                     li.add(UI_Spacer(width=8))
                     li.add(UI_WrappedLabel(litext, min_size=self.min_size)).margin=0
+            elif p.startswith('!['):
+                # image!
+                m = re.match(r'^!\[(?P<caption>.*)\]\((?P<filename>.*)\)$', p)
+                fn = m.group('filename')
+                img = container.add(UI_Image(fn))
             else:
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
                 container.add(UI_WrappedLabel(p, min_size=self.min_size))
@@ -681,15 +713,15 @@ class UI_Options(UI_Container):
 class UI_Image(UI_Element):
     def __init__(self, image_data):
         super().__init__()
+        if type(image_data) is str: image_data = load_image_png(image_data)
         self.height,self.width,self.depth = len(image_data),len(image_data[0]),len(image_data[0][0])
         assert self.depth == 4
         
         image_flat = [d for r in image_data for c in r for d in c]
         
-        texbuffer = bgl.Buffer(bgl.GL_INT, [1])
-        bgl.glGenTextures(1, texbuffer)
-        self.texture_id = texbuffer.to_list()[0]
-        del texbuffer
+        self.texbuffer = bgl.Buffer(bgl.GL_INT, [1])
+        bgl.glGenTextures(1, self.texbuffer)
+        self.texture_id = self.texbuffer[0]
         
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
         bgl.glTexEnvf(bgl.GL_TEXTURE_ENV, bgl.GL_TEXTURE_ENV_MODE, bgl.GL_MODULATE)
@@ -700,6 +732,9 @@ class UI_Image(UI_Element):
         bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self.width, self.height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
         del texbuffer
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+    
+    def __del__(self):
+        bgl.glDeleteTextures(1, self.texbuffer)
     
     def _get_width(self): return self.drawing.scale(self.width)
     def _get_height(self): return self.drawing.scale(self.height)
