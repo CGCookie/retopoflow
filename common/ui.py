@@ -326,16 +326,14 @@ class UI_WrappedLabel(UI_Element):
             words.reverse()
             lines = []
             line = []
-            width = 0
             while words:
                 word = words.pop()
-                wordwidth = twidth(word) + swidth
-                if line and wordwidth + width >= mwidth:
+                nline = line + [word]
+                if line and twidth(' '.join(nline)) >= mwidth:
                     lines.append(' '.join(line))
-                    line = []
-                    width = 0
-                line.append(word)
-                width += wordwidth
+                    line = [word]
+                else:
+                    line = nline
             lines.append(' '.join(line))
             return lines
         lines = self.text.split('\n')
@@ -453,20 +451,20 @@ class UI_Container(UI_Element):
         if self.offset > 0:
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glBegin(bgl.GL_QUADS)
-            bgl.glColor4f(0.25,0.25,0.25,1.0)
+            bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
             bgl.glVertex2f(l, t_+1)
             bgl.glVertex2f(l+w, t_+1)
-            bgl.glColor4f(0.25,0.25,0.25,0.0)
+            bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
             bgl.glVertex2f(l+w, t_-30)
             bgl.glVertex2f(l, t_-30)
             bgl.glEnd()
         if h+self.offset+2 < self._get_height():
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glBegin(bgl.GL_QUADS)
-            bgl.glColor4f(0.25,0.25,0.25,1.0)
+            bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
             bgl.glVertex2f(l, t_-h)
             bgl.glVertex2f(l+w, t_-h)
-            bgl.glColor4f(0.25,0.25,0.25,0.0)
+            bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
             bgl.glVertex2f(l+w, t_-h+30)
             bgl.glVertex2f(l, t_-h+30)
             bgl.glEnd()
