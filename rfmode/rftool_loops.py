@@ -3,7 +3,7 @@ import math
 import random
 import bgl
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
 from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -227,14 +227,28 @@ class RFTool_Loops(RFTool):
         
         # give neighbors a "side"
         
+        nearest_sel_edge,_ = self.rfcontext.nearest2D_edge(edges=sel_edges)
+        v0,v1 = nearest_sel_edge.verts
+        p0,p1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
+        delta = (p1-p0).normalized()
+        self.edge_p0 = p0
+        self.tangent = Direction2D((delta.y, -delta.x))
+        self.mouse = self.rfcontext.actions.mouse
+        #print(self.rfcontext.actions.mouse)
+        
         self.rfcontext.undo_push('slide edge loop/strip')
-        dprint('good!')
         
         #sel_loops = find_loops(sel_edges)
-        return
+        return 'slide'
     
     def modal_slide(self):
-        pass
+        if self.rfcontext.actions.released('insert'): return 'main'
+        
+        self.mouse_delta = self.rfcontext.actions.mouse - self.mouse
+        dot = self.mouse_delta.dot(self.tangent)
+        dprint(dot)
+        #dprint('sliding ' + str(random.random()))
+        #print(self.rfcontext.actions.mouse)
     
     @profiler.profile
     def draw_postview(self):
@@ -243,7 +257,7 @@ class RFTool_Loops(RFTool):
         #if not hit_pos: return
         self.set_next_state()
         if not self.nearest_edge: return
-        if self.rfcontext.actions.ctrl:
+        if self.rfcontext.actions.ctrl and self.mode == 'main':
             # draw new edge strip/loop
             
             def draw():
