@@ -4,6 +4,7 @@ from .rftool import RFTool
 from .load_image import load_image_png
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
+from ..options import help_relax
 
 @RFTool.action_call('relax tool')
 class RFTool_Relax(RFTool):
@@ -17,6 +18,7 @@ class RFTool_Relax(RFTool):
     def name(self): return "Relax"
     def icon(self): return "rf_relax_icon"
     def description(self): return 'Relax topology by changing length of edges to average'
+    def helptext(self): return help_relax
     
     def get_move_boundary(self): return self.move_boundary
     def set_move_boundary(self, v): self.move_boundary = v

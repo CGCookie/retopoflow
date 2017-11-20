@@ -11,7 +11,7 @@ from ..common.maths import Point, Point2D
 from ..common.ui import Drawing
 from ..common.ui import (
     UI_WindowManager,
-    UI_Button,
+    UI_Button, UI_Image,
     UI_Options,
     UI_Checkbox, UI_Checkbox2,
     UI_Label, UI_WrappedLabel, UI_Markdown,
@@ -20,6 +20,7 @@ from ..common.ui import (
     UI_IntValue,
     )
 from ..lib import common_drawing_bmesh as bmegl
+from .load_image import load_image_png
 
 from ..options import retopoflow_version, options, firsttime_message
 
@@ -73,8 +74,14 @@ class RFContext_Drawing:
             self.tool_max.visible = not b
         get_tool_collapsed()
         self.tool_max.add(self.tool_selection_max)
-        self.tool_max.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        self.tool_max.add(UI_Button('Exit', self.quit, align=0))
+        
+        extra = self.tool_max.add(UI_Container())
+        #help_icon = UI_Image(load_image_png('help_32.png'))
+        #help_icon.set_size(16, 16)
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, align=0, margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Collapse', lambda: set_tool_collapsed(True), align=0, margin=0))
+        #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
+        extra.add(UI_Button('Exit', self.quit, align=0, margin=0))
         self.tool_min.add(self.tool_selection_min)
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed))
         self.tool_window.add(self.tool_max)
@@ -92,17 +99,18 @@ class RFContext_Drawing:
             bpy.ops.wm.url_open(url="https://github.com/CGCookie/retopoflow/issues")
         
         window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
-        window_info.add(UI_Label('ver: %s' % retopoflow_version))
-        window_info.add(UI_Button('Show Welcome!', show_reporting, align=0))
-        window_info.add(UI_Button('Report Issue', open_github, align=0))
-        info_debug = window_info.add(UI_Collapsible('Debug', collapsed=True))
-        fps_save = info_debug.add(UI_Container(vertical=False))
+        window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version))
+        container = window_info.add(UI_Container(margin=0, vertical=False))
+        container.add(UI_Button('Welcome!', show_reporting, align=0))
+        container.add(UI_Button('Report Issue', open_github, align=0))
+        info_adv = window_info.add(UI_Collapsible('Advanced', collapsed=True))
+        fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf'))
         def get_instrument(): return options['instrument']
         def set_instrument(v): options['instrument'] = v
-        info_debug.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
-        info_debug.add(UI_Button('Reset Options', options.reset, align=0))
+        info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
+        info_adv.add(UI_Button('Reset Options', options.reset, align=0))
         
         def set_profiler_visible():
             nonlocal prof_print, prof_reset, prof_disable, prof_enable
@@ -117,7 +125,7 @@ class RFContext_Drawing:
         def disable_profiler():
             profiler.disable()
             set_profiler_visible()
-        info_profiler = info_debug.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
+        info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
         prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
         prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
         prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
@@ -127,7 +135,6 @@ class RFContext_Drawing:
         window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
         
         dd_general = window_tool_options.add(UI_Collapsible('General', collapsed=False))
-        dd_general.add(UI_Button('Tool Help', self.toggle_tool_help, align=0))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
         dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
         

@@ -247,20 +247,21 @@ class UI_Spacer(UI_Element):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12):
         super().__init__()
-        self.set_label(label)
-        self.set_bgcolor(bgcolor)
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
         self.align = align
+        self.textsize = textsize
+        self.set_label(label)
+        self.set_bgcolor(bgcolor)
     
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
     def set_label(self, label):
         self.text = str(label)
-        self.drawing.text_size(12)
+        self.drawing.text_size(self.textsize)
         self.text_width = self.drawing.get_text_width(self.text)
         self.text_height = self.drawing.get_line_height(self.text)
     
@@ -268,7 +269,7 @@ class UI_Label(UI_Element):
     def _get_height(self): return self.text_height
     
     def _draw(self):
-        self.drawing.text_size(12)
+        self.drawing.text_size(self.textsize)
         l,t = self.pos
         w,h = self.size
         
@@ -292,14 +293,17 @@ class UI_Label(UI_Element):
 
 
 class UI_WrappedLabel(UI_Element):
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), line_height=14, bgcolor=None):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=4):
         super().__init__()
+        self.margin = margin
+        self.textsize = textsize
         self.set_label(label)
         self.set_bgcolor(bgcolor)
         self.color = color
         self.min_size = min_size
-        self.line_height = line_height
         self.wrapped_size = min_size
+        self.drawing.text_size(self.textsize)
+        self.line_height = self.drawing.get_line_height()
     
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
@@ -317,6 +321,7 @@ class UI_WrappedLabel(UI_Element):
     
     def predraw(self):
         if self.last_size == self.size: return
+        self.drawing.text_size(self.textsize)
         mwidth = self.size.x
         twidth = self.drawing.get_text_width
         swidth = twidth(' ')
@@ -351,6 +356,7 @@ class UI_WrappedLabel(UI_Element):
         w,h = self.size
         twidth = self.drawing.get_text_width
         theight = self.drawing.get_text_height
+        self.drawing.text_size(self.textsize)
         
         if self.bgcolor:
             bgl.glEnable(bgl.GL_BLEND)
@@ -498,10 +504,9 @@ class UI_EqualContainer(UI_Container):
                 w -= ew
 
 class UI_Markdown(UI_Container):
-    def __init__(self, markdown, min_size=Vec2D((600, 36)), line_height=14):
+    def __init__(self, markdown, min_size=Vec2D((600, 36))):
         super().__init__(margin=0)
         self.min_size = min_size
-        self.line_height = line_height
         self.set_markdown(markdown)
     
     def set_markdown(self, mdown):
@@ -513,7 +518,19 @@ class UI_Markdown(UI_Container):
         
         container = UI_Container()
         for p in paras:
-            if p.startswith('- '):
+            if p.startswith('# '):
+                # h1 heading!
+                h1text = re.sub(r'# +', r'', p)
+                container.add(UI_Spacer(height=4))
+                h1 = container.add(UI_WrappedLabel(h1text, textsize=20))
+                container.add(UI_Spacer(height=14))
+            elif p.startswith('## '):
+                # h2 heading!
+                h2text = re.sub(r'## +', r'', p)
+                container.add(UI_Spacer(height=6))
+                h2 = container.add(UI_WrappedLabel(h2text, textsize=16))
+                container.add(UI_Spacer(height=6))
+            elif p.startswith('- '):
                 # unordered list!
                 ul = container.add(UI_Container())
                 for litext in p.split('\n'):
@@ -521,16 +538,19 @@ class UI_Markdown(UI_Container):
                     li = ul.add(UI_Container(margin=0, vertical=False))
                     li.add(UI_Label('-')).margin=0
                     li.add(UI_Spacer(width=8))
-                    li.add(UI_WrappedLabel(litext, min_size=self.min_size, line_height=self.line_height)).margin=0
+                    li.add(UI_WrappedLabel(litext, min_size=self.min_size)).margin=0
             else:
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
-                container.add(UI_WrappedLabel(p, min_size=self.min_size, line_height=self.line_height))
+                container.add(UI_WrappedLabel(p, min_size=self.min_size))
         self.add(container, only=True)
 
 class UI_Button(UI_Container):
     def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, margin=None):
-        super().__init__()
-        self.add(UI_Label(label, icon=icon, tooltip=tooltip, color=color, align=align))
+        super().__init__(vertical=False)
+        if icon:
+            self.add(icon)
+            self.add(UI_Spacer(width=4))
+        self.add(UI_Label(label, tooltip=tooltip, color=color, align=align))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
@@ -777,6 +797,15 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(l+2,t-2)
             bgl.glVertex2f(cx,t-h+2)
             bgl.glVertex2f(l+w-2,t-2)
+            bgl.glEnd()
+        
+        elif self._graphic == 'dash':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l+2,cy-2)
+            bgl.glVertex2f(l+w-2,cy-2)
+            bgl.glVertex2f(l+w-2,cy+2)
+            bgl.glVertex2f(l+2,cy+2)
             bgl.glEnd()
 
 

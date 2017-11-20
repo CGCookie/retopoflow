@@ -14,6 +14,8 @@ from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
 from .rftool_polystrips_utils import *
+from ..options import help_polystrips
+
 
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
@@ -27,6 +29,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
     def description(self): return 'Strips of quads made easy'
+    def helptext(self): return help_polystrips
     
     def start(self):
         self.mode = 'main'

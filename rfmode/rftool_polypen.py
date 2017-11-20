@@ -10,6 +10,8 @@ from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 
+from ..options import help_polypen
+
 @RFTool.action_call('polypen tool')
 class RFTool_PolyPen(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
@@ -21,6 +23,7 @@ class RFTool_PolyPen(RFTool):
     def name(self): return "PolyPen"
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
+    def helptext(self): return help_polypen
 
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
