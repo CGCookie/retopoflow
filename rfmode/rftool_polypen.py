@@ -18,6 +18,7 @@ class RFTool_PolyPen(RFTool):
         self.FSM['insert'] = self.modal_insert
         self.FSM['insert alt0'] = self.modal_insert
         self.FSM['move']  = self.modal_move
+        self.FSM['move after select'] = self.modal_move_after_select
 
     def name(self): return "PolyPen"
     def icon(self): return "rf_polypen_icon"
@@ -157,13 +158,8 @@ class RFTool_PolyPen(RFTool):
                 return
             
             self.prep_move()
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = ['select']
-            self.move_cancelled = 'cancel no select'
-            self.rfcontext.undo_push('move single')
-            
             pr.done()
-            return 'move'
+            return 'move after select'
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
@@ -371,6 +367,17 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.update_verts_faces(update_verts)
             self.update()
 
+    @profiler.profile
+    def modal_move_after_select(self):
+        if self.rfcontext.actions.released(['select','select add']):
+            return 'main'
+        if (self.rfcontext.actions.mouse - self.mousedown).length > 7:
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = ['select']
+            self.move_cancelled = 'cancel no select'
+            self.rfcontext.undo_push('move after select')
+            return 'move'
+    
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_move(self):
