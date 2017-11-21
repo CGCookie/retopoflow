@@ -17,6 +17,7 @@ class RFTool_Loops(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['slide'] = self.modal_slide
+        self.FSM['slide after select'] = self.modal_slide_after_select
     
     def name(self): return "Loops"
     def icon(self): return "rf_loops_icon"
@@ -115,7 +116,7 @@ class RFTool_Loops(RFTool):
     def modal_main(self):
         self.set_next_state()
         
-        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
+        if self.rfcontext.actions.pressed('select', unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
             
@@ -130,20 +131,19 @@ class RFTool_Loops(RFTool):
             self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
             
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = ['select']
-            self.move_cancelled = 'cancel no select'
-            
-            return self.prep_slide()
+            self.prep_edit()
+            if not self.edit_ok: return
+            return 'slide after select'
         
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
-            
+            self.prep_edit()
+            if not self.edit_ok: return
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             self.move_cancelled = 'cancel'
-            
-            return self.prep_slide()
+            self.rfcontext.undo_push('slide edge loop/strip')
+            return 'slide'
         
         if self.rfcontext.actions.pressed('insert'):
             # insert edge loop / strip, select it, prep slide!
@@ -168,11 +168,27 @@ class RFTool_Loops(RFTool):
             self.rfcontext.dirty()
             self.rfcontext.select(new_edges)
             
+            self.prep_edit()
+            if not self.edit_ok: return
             self.move_done_pressed = None
             self.move_done_released = ['insert', 'insert alt0']
             self.move_cancelled = 'cancel'
-            
-            return self.prep_slide()
+            self.rfcontext.undo_push('slide edge loop/strip')
+            return 'slide'
+        
+        if self.rfcontext.actions.pressed('dissolve'):
+            self.prep_edit()
+            if not self.edit_ok: return
+            self.rfcontext.undo_push('dissolve')
+            # dissolve each key of neighbors into its right neighbor (arbitrarily chosen, but it's the right one!)
+            for bmv in self.neighbors.keys():
+                _,bmvr = self.neighbors[bmv]
+                bmv.co = bmvr.co
+                bme = bmv.shared_edge(bmvr)
+                bmv = bme.collapse()
+                self.rfcontext.clean_duplicate_bmedges(bmv)
+            self.rfcontext.deselect_all()
+            self.rfcontext.dirty()
         
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
@@ -180,9 +196,11 @@ class RFTool_Loops(RFTool):
             self.rfcontext.dirty()
             return
     
-    def prep_slide(self):
+    def prep_edit(self):
         # make sure that the selected edges form an edge loop or strip
         # TODO: make this more sophisticated, allowing for two or more non-intersecting loops/strips to be slid
+        
+        self.edit_ok = False
         
         sel_verts = self.rfcontext.get_selected_verts()
         sel_edges = self.rfcontext.get_selected_edges()
@@ -235,7 +253,11 @@ class RFTool_Loops(RFTool):
             bmv0l,_ = neighbors[bmv0]
             bmfls = bmv0.shared_faces(bmv0l)
             for bmfl in bmfls:
-                bmv1 = next(bmv for bmv in bmfl.verts if bmv in neighbors and bmv != bmv0)
+                bmv1s = [bmv for bmv in bmfl.verts if bmv != bmv0 and bmv in neighbors]
+                if len(bmv1s) != 1:
+                    dprint('unexpected count of valid candidates')
+                    return
+                bmv1 = bmv1s[0]
                 bmv1l,bmv1r = neighbors[bmv1]
                 if bmv1l not in bmfl.verts:
                     # swap!
@@ -252,11 +274,18 @@ class RFTool_Loops(RFTool):
         self.mouse_down = self.rfcontext.actions.mouse
         a,b = c1 - c0, cc - c0
         self.percent_start = a.dot(b) / a.dot(a)
-        
-        self.rfcontext.undo_push('slide edge loop/strip')
-        
-        #sel_loops = find_loops(sel_edges)
-        return 'slide'
+        self.edit_ok = True
+    
+    @profiler.profile
+    def modal_slide_after_select(self):
+        if self.rfcontext.actions.released(['select','select add']):
+            return 'main'
+        if (self.rfcontext.actions.mouse - self.mouse_down).length > 7:
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = ['select']
+            self.move_cancelled = 'cancel no select'
+            self.rfcontext.undo_push('slide edge loop/strip')
+            return 'slide'
     
     @RFTool.dirty_when_done
     @profiler.profile
@@ -277,15 +306,11 @@ class RFTool_Loops(RFTool):
         
         mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
         a,b = self.vector, self.tangent.dot(mouse_delta) * self.tangent
-        percent = a.dot(b) / a.dot(a)
-        print(self.percent_start, percent)
-        percent = clamp(percent + self.percent_start, 0, 1)
+        percent = clamp(self.percent_start + a.dot(b) / a.dot(a), 0, 1)
         for v in self.neighbors.keys():
             v0,v1 = self.neighbors[v]
             v.co = v0.co + (v1.co - v0.co) * percent
             self.rfcontext.snap_vert(v)
-        #dprint('sliding ' + str(random.random()))
-        #print(self.rfcontext.actions.mouse)
     
     @profiler.profile
     def draw_postview(self):
