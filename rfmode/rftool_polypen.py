@@ -217,6 +217,31 @@ class RFTool_PolyPen(RFTool):
         sel_verts = self.sel_verts
         sel_edges = self.sel_edges
         sel_faces = self.sel_faces
+        
+        print(self.next_state)
+        
+        # overriding
+        # if hovering over a selected edge, knife it!
+        if self.nearest_edge.select:
+            if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
+                print('knifing selected, hovered edge')
+                bmv = self.rfcontext.new2D_vert_mouse()
+                if not bmv:
+                    self.rfcontext.undo_cancel()
+                    return 'main'
+                bme0,bmv2 = self.nearest_edge.split()
+                bmv.merge(bmv2)
+                self.rfcontext.select(bmv)
+                self.mousedown = self.rfcontext.actions.mousedown
+                xy = self.rfcontext.Point_to_Point2D(bmv.co)
+                if not xy:
+                    print('Could not insert: ' + str(bmv.co))
+                    self.rfcontext.undo_cancel()
+                    return 'main'
+                self.bmverts = [(bmv, xy)]
+                self.set_vis_bmverts()
+                return 'move'
+                
 
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
@@ -238,6 +263,9 @@ class RFTool_PolyPen(RFTool):
                     if bmf is not None:
                         if not bmv0.share_edge(bmv1):
                             bmf.split(bmv0, bmv1)
+                    if not bmv0.shared_faces(bmv1):
+                        bme = self.rfcontext.new_edge((bmv0, bmv1))
+                        self.rfcontext.select(bme)
                     self.rfcontext.select(bmv1)
                 else:
                     bme = self.rfcontext.new_edge((bmv0, bmv1))
