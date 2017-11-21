@@ -5,6 +5,7 @@ from .lib.common_utilities import bversion
 from . import addon_updater_ops
 
 from .rfmode.rftool import RFTool
+from .rfmode.rfmode import RFMode
 
 from .icons import load_icons
 
@@ -24,8 +25,26 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
         icons = load_icons()
         
+        if RFMode.large_target():
+            box = layout.box()
+            box.alert = True
+            col = box.column(align=True)
+            col.alignment = 'EXPAND'
+            col.label("WARNING:", icon="ERROR")
+            col.label("Target is large!")
+            col.label("RetopoFlow will load slowly.")
+        if RFMode.large_sources():
+            box = layout.box()
+            box.alert = True
+            col = box.column(align=True)
+            col.alignment = 'EXPAND'
+            col.label("WARNING:", icon="ERROR")
+            col.label("Source is large!")
+            col.label("RetopoFlow will load slowly.")
+        
         col = layout.column(align=True)
         col.alignment = 'CENTER'
+        
         # col.operator("cgcookie.rfmode")
         for ids,rft in RFTool.get_tools():
             icon_name = rft.rf_icon

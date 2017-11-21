@@ -105,6 +105,33 @@ class RFMode(Operator):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
         return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
     
+    @staticmethod
+    @profiler.profile
+    def get_polygon_count(obj, check_modifiers=True):
+        if not obj: return 0
+        if obj.type != 'MESH': return 0
+        count = len(obj.data.polygons)
+        if check_modifiers:
+            for mod in obj.modifiers:
+                if mod.type == 'SUBSURF':
+                    # each level of subdivision roughly quadruples the poly count
+                    count *= 4 ** mod.levels
+        return count
+    
+    @staticmethod
+    @profiler.profile
+    def large_target():
+        count = RFMode.get_polygon_count(RFContext.get_target(), check_modifiers=False)
+        return count > 5000
+    
+    @staticmethod
+    @profiler.profile
+    def large_sources():
+        count = 0
+        for s in RFContext.get_sources():
+            count += RFMode.get_polygon_count(s)
+        return count > 100000
+    
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
         if not still_registered(self):
