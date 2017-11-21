@@ -157,7 +157,7 @@ class RFTool_PolyPen(RFTool):
                 pr.done()
                 return
             
-            self.prep_move()
+            self.prep_move(defer_recomputing=False)
             pr.done()
             return 'move after select'
 
@@ -183,16 +183,23 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.delete_selection()
             self.rfcontext.dirty()
             return
+        
+        if self.rfcontext.actions.pressed('dissolve'):
+            self.rfcontext.undo_push('dissolve')
+            for bmv in self.sel_verts:
+                bmv.dissolve()
+            self.rfcontext.dirty()
+            return
 
     def set_vis_bmverts(self):
         self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
 
-    def prep_move(self, bmverts=None):
+    def prep_move(self, bmverts=None, defer_recomputing=True):
         if not bmverts: bmverts = self.sel_verts
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.set_vis_bmverts()
         self.mousedown = self.rfcontext.actions.mouse
-        self.defer_recomputing = True
+        self.defer_recomputing = defer_recomputing
 
     @RFTool.dirty_when_done
     def modal_insert(self):

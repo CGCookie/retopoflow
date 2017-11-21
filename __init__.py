@@ -45,7 +45,6 @@ from .lib.common_utilities import register as register_common_utilities
 
 from .options import options
 
-
 #Menus, Panels, Interface and Icons
 from .interface import CGCOOKIE_OT_retopoflow2_panel, CGCOOKIE_OT_retopoflow1_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
@@ -77,15 +76,17 @@ def register():
     register_common_utilities()
 
     bpy.utils.register_class(RetopoFlowPreferences)
-    #bpy.utils.register_class(CGC_Polystrips)
-    #bpy.utils.register_class(CGC_Tweak)
-    #bpy.utils.register_class(CGC_Contours)
-    #bpy.utils.register_class(CGC_EyeDropper)
-    #bpy.utils.register_class(CGC_LoopCut)
-    #bpy.utils.register_class(CGC_loopslide)
-    #bpy.utils.register_class(CGC_Polypen)
+    
+    if options['version 1.3']:
+        bpy.utils.register_class(CGC_Polystrips)
+        bpy.utils.register_class(CGC_Tweak)
+        bpy.utils.register_class(CGC_Contours)
+        bpy.utils.register_class(CGC_EyeDropper)
+        bpy.utils.register_class(CGC_LoopCut)
+        bpy.utils.register_class(CGC_loopslide)
+        bpy.utils.register_class(CGC_Polypen)
+        bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
 
-    # bpy.utils.register_class(RFMode)
     for idname,rft in rfmode_tools.items():
         # print('registering '+idname)
         bpy.utils.register_class(rft)
@@ -94,7 +95,6 @@ def register():
     bpy.utils.register_class(RFRecover_Clear)
 
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
-    #bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     bpy.utils.register_class(OpenLog)
@@ -114,7 +114,6 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    # bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
 
     bpy.utils.unregister_class(RFRecover_Clear)
@@ -122,15 +121,17 @@ def unregister():
 
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)
-    # bpy.utils.unregister_class(RFMode)
 
-    # bpy.utils.unregister_class(CGC_Polystrips)
-    # bpy.utils.unregister_class(CGC_Tweak)
-    # bpy.utils.unregister_class(CGC_Contours)
-    # bpy.utils.unregister_class(CGC_EyeDropper)
-    # bpy.utils.unregister_class(CGC_LoopCut)
-    # bpy.utils.unregister_class(CGC_loopslide)
-    # bpy.utils.unregister_class(CGC_Polypen)
+    if options['version 1.3']:
+        bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
+        bpy.utils.unregister_class(CGC_Polystrips)
+        bpy.utils.unregister_class(CGC_Tweak)
+        bpy.utils.unregister_class(CGC_Contours)
+        bpy.utils.unregister_class(CGC_EyeDropper)
+        bpy.utils.unregister_class(CGC_LoopCut)
+        bpy.utils.unregister_class(CGC_loopslide)
+        bpy.utils.unregister_class(CGC_Polypen)
+    
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # addon updater unregister

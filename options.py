@@ -159,6 +159,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 - G: translate
 - X: delete selection
+- SHIFT+X: dissolve selection
 
 ## Tips
 
@@ -213,6 +214,7 @@ class Options:
         'welcome':              True,
         'tools_min':            False,
         'instrument':           False,
+        'version 1.3':          False,
         'color theme':          'Green',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',

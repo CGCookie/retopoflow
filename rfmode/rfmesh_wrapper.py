@@ -1,6 +1,6 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge
+from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
 from ..common.maths import Vec2D
@@ -135,6 +135,10 @@ class RFVert(BMElemWrapper):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
         vert_splice(bmv1, bmv0)
+    
+    def dissolve(self):
+        bmv = BMElemWrapper._unwrap(self)
+        vert_dissolve(bmv)
 
 
 class RFEdge(BMElemWrapper):

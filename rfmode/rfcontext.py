@@ -459,10 +459,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.redo_pop()
             return
         
-        if self.actions.pressed('F1'):
+        if self.actions.pressed('F2'):
             profiler.printout()
             return
-        if self.actions.pressed('F2'):
+        if self.actions.pressed('F3'):
             print('Clearing profiler')
             profiler.clear()
             return
