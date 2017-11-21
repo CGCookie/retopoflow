@@ -3,7 +3,7 @@ import math
 import random
 import bgl
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
 from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -129,10 +129,20 @@ class RFTool_Loops(RFTool):
                 return
             self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
-            return
+            
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = ['select']
+            self.move_cancelled = 'cancel no select'
+            
+            return self.prep_slide()
         
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
+            
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            self.move_cancelled = 'cancel'
+            
             return self.prep_slide()
         
         if self.rfcontext.actions.pressed('insert'):
@@ -157,19 +167,18 @@ class RFTool_Loops(RFTool):
                 new_edges += [f0.shared_edge(f1)]
             self.rfcontext.dirty()
             self.rfcontext.select(new_edges)
+            
+            self.move_done_pressed = None
+            self.move_done_released = ['insert', 'insert alt0']
+            self.move_cancelled = 'cancel'
+            
             return self.prep_slide()
         
-        # if self.rfcontext.actions.pressed('action'):
-        #     self.rfcontext.undo_push('relax')
-        #     return 'relax'
-        
-        # if self.rfcontext.actions.pressed('relax selected'):
-        #     self.rfcontext.undo_push('relax selected')
-        #     self.sel_verts = self.rfcontext.get_selected_verts()
-        #     self.selected = [(v,0.0) for v in self.sel_verts]
-        #     self.sel_edges = self.rfcontext.get_selected_edges()
-        #     self.sel_faces = self.rfcontext.get_selected_faces()
-        #     return 'relax selected'
+        if self.rfcontext.actions.pressed('delete'):
+            self.rfcontext.undo_push('delete')
+            self.rfcontext.delete_selection()
+            self.rfcontext.dirty()
+            return
     
     def prep_slide(self):
         # make sure that the selected edges form an edge loop or strip
@@ -215,38 +224,66 @@ class RFTool_Loops(RFTool):
                 return
             neighbors[bmv] = list(neighbors[bmv])
         
-        for bme in sel_edges:
-            bmv0,bmv1 = bme.verts
-            bmf0,bmf1 = bme.link_faces
+        # swap neighbors to place neighbors on corresponding sides
+        bmv0 = next(iter(sel_verts))
+        touched = set()
+        working = { bmv0 }
+        while working:
+            bmv0 = working.pop()
+            if bmv0 in touched: continue
+            touched.add(bmv0)
+            bmv0l,_ = neighbors[bmv0]
+            bmfls = bmv0.shared_faces(bmv0l)
+            for bmfl in bmfls:
+                bmv1 = next(bmv for bmv in bmfl.verts if bmv in neighbors and bmv != bmv0)
+                bmv1l,bmv1r = neighbors[bmv1]
+                if bmv1l not in bmfl.verts:
+                    # swap!
+                    neighbors[bmv1] = [bmv1r,bmv1l]
+                working.add(bmv1)
             
-            # if type(neighbors[bmv0]) is set:
-            # ne0,ne1 = neighbors[bmv]
-            # c,n = bmv.co,bmv.normal
-            # c0,c1 = ne0.co,ne1.co
-            # if n.dot()
-        
-        # give neighbors a "side"
-        
-        nearest_sel_edge,_ = self.rfcontext.nearest2D_edge(edges=sel_edges)
-        v0,v1 = nearest_sel_edge.verts
-        p0,p1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
-        delta = (p1-p0).normalized()
-        self.edge_p0 = p0
-        self.tangent = Direction2D((delta.y, -delta.x))
-        self.mouse = self.rfcontext.actions.mouse
-        #print(self.rfcontext.actions.mouse)
+        nearest_sel_vert,_ = self.rfcontext.nearest2D_vert(verts=sel_verts)
+        v0,v1 = neighbors[nearest_sel_vert]
+        cc = self.rfcontext.Point_to_Point2D(nearest_sel_vert.co)
+        c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
+        self.vector = c1 - c0
+        self.tangent = Direction2D(self.vector)
+        self.neighbors = neighbors
+        self.mouse_down = self.rfcontext.actions.mouse
+        a,b = c1 - c0, cc - c0
+        self.percent_start = a.dot(b) / a.dot(a)
         
         self.rfcontext.undo_push('slide edge loop/strip')
         
         #sel_loops = find_loops(sel_edges)
         return 'slide'
     
+    @RFTool.dirty_when_done
+    @profiler.profile
     def modal_slide(self):
-        if self.rfcontext.actions.released('insert'): return 'main'
+        released = self.rfcontext.actions.released
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            #self.defer_recomputing = False
+            #self.mergeSnapped()
+            return 'main'
+        if self.move_done_released and all(released(item) for item in self.move_done_released):
+            #self.defer_recomputing = False
+            #self.mergeSnapped()
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            #self.defer_recomputing = False
+            self.rfcontext.undo_cancel()
+            return 'main'
         
-        self.mouse_delta = self.rfcontext.actions.mouse - self.mouse
-        dot = self.mouse_delta.dot(self.tangent)
-        dprint(dot)
+        mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
+        a,b = self.vector, self.tangent.dot(mouse_delta) * self.tangent
+        percent = a.dot(b) / a.dot(a)
+        print(self.percent_start, percent)
+        percent = clamp(percent + self.percent_start, 0, 1)
+        for v in self.neighbors.keys():
+            v0,v1 = self.neighbors[v]
+            v.co = v0.co + (v1.co - v0.co) * percent
+            self.rfcontext.snap_vert(v)
         #dprint('sliding ' + str(random.random()))
         #print(self.rfcontext.actions.mouse)
     
@@ -297,93 +334,3 @@ class RFTool_Loops(RFTool):
             bgl.glDepthFunc(bgl.GL_LEQUAL)
             bgl.glDepthRange(0, 1)
             
-        
-    # @RFTool.dirty_when_done
-    # def modal_relax(self):
-    #     if self.rfcontext.actions.released('action'):
-    #         return 'main'
-    #     if self.rfcontext.actions.pressed('cancel'):
-    #         self.rfcontext.undo_cancel()
-    #         return 'main'
-        
-    #     if not self.rfcontext.actions.timer: return
-        
-    #     hit_pos = self.rfcontext.actions.hit_pos
-    #     if not hit_pos: return
-        
-    #     radius = self.rfwidget.get_scaled_radius()
-    #     nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
-    #     # collect data for smoothing
-    #     verts,edges,faces,vert_dist = set(),set(),set(),dict()
-    #     for bmv,d in nearest:
-    #         verts.add(bmv)
-    #         edges.update(bmv.link_edges)
-    #         faces.update(bmv.link_faces)
-    #         vert_dist[bmv] = self.rfwidget.get_strength_dist(d) #/radius
-    #     self._relax(verts, edges, faces, vert_dist)
-    
-    # @RFTool.dirty_when_done
-    # def modal_relax_selected(self):
-    #     if self.rfcontext.actions.released('relax selected'):
-    #         return 'main'
-    #     if self.rfcontext.actions.pressed('cancel'):
-    #         self.rfcontext.undo_cancel()
-    #         return 'main'
-    #     if not self.rfcontext.actions.timer: return
-    #     self._relax(self.sel_verts, self.sel_edges, self.sel_faces)
-    
-    # def _relax(self, verts, edges, faces, vert_dist=None):
-    #     if not verts or not edges: return
-    #     vert_dist = vert_dist or {}
-        
-    #     time_delta = self.rfcontext.actions.time_delta
-    #     strength = 100.0 * self.rfwidget.strength * time_delta
-    #     radius = self.rfwidget.get_scaled_radius()
-        
-    #     # compute average edge length
-    #     avgDist = sum(bme.calc_length() for bme in edges) / len(edges)
-        
-    #     # capture all verts involved in relaxing
-    #     chk_verts = set(verts)
-    #     chk_verts |= {bmv for bme in edges for bmv in bme.verts}
-    #     chk_verts |= {bmv for bmf in faces for bmv in bmf.verts}
-    #     divco = {bmv:Point(bmv.co) for bmv in chk_verts}
-        
-    #     # perform smoothing
-    #     touched = set()
-    #     for bmv0 in verts:
-    #         d = vert_dist.get(bmv0, 0)
-    #         lbme,lbmf = bmv0.link_edges,bmv0.link_faces
-    #         if not lbme: continue
-    #         # push edges closer to average edge length
-    #         for bme in lbme:
-    #             if bme not in edges: continue
-    #             if bme in touched: continue
-    #             touched.add(bme)
-    #             bmv1 = bme.other_vert(bmv0)
-    #             diff = bmv1.co - bmv0.co
-    #             m = (avgDist - diff.length) * (1.0 - d) * 0.1
-    #             divco[bmv1] += diff * m * strength
-    #             divco[bmv0] -= diff * m * strength
-    #         # attempt to "square" up the faces
-    #         for bmf in lbmf:
-    #             if bmf not in faces: continue
-    #             if bmf in touched: continue
-    #             touched.add(bmf)
-    #             cnt = len(bmf.verts)
-    #             ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
-    #             fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
-    #             for bmv in bmf.verts:
-    #                 diff = (bmv.co - ctr)
-    #                 m = (fd - diff.length)* (1.0- d) / cnt
-    #                 divco[bmv] += diff * m * strength
-        
-    #     # update
-    #     for bmv,co in divco.items():
-    #         if bmv not in verts: continue
-    #         if not self.move_boundary:
-    #             if bmv in self.verts_nonmanifold: continue
-    #         if not self.move_hidden:
-    #             if not self.rfcontext.is_visible(bmv.co, bmv.normal): continue
-    #         p,_,_,_ = self.rfcontext.nearest_sources_Point(co)
-    #         bmv.co = p
