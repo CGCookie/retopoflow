@@ -59,3 +59,11 @@ target/
 
 # updater
 retopoflow_updater/updater_status.json
+
+# RF options files
+rf_options.bak
+rf_options.dat
+rf_options.dir
+
+# Profiler output file
+profiler_data.txt
