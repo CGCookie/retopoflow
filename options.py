@@ -99,7 +99,12 @@ RetopoFlow Mode
 The tools in RetopoFlow 1.3 were disjoint set of tools, where you would need to quit one tool in order to start another.
 Also, because we wrote RF 1.3 tools independently, the visualizations and settings were not consistent.
 
-In RetopoFlow 2.0, we 
+In RetopoFlow 2.0, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode).
+Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
+
+When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and panels will be added to the 3D view.
+These panels allow you to switch between RF tools, set tool options, and set RF options.
+Also, a one-time Welcome message will greet you.
 
 '''
 
