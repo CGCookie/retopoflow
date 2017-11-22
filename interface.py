@@ -25,6 +25,9 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         settings = common_utilities.get_settings()
         icons = load_icons()
         
+        col = layout.column(align=True)
+        col.operator("wm.open_quickstart", "Quick Start Guide")
+        
         if RFMode.large_target():
             box = layout.box()
             box.alert = True

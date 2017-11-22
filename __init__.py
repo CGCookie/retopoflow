@@ -65,6 +65,7 @@ from .op_polypen.polypen_modal import CGC_Polypen
 
 from .rfmode.rfmode import RFMode, rfmode_tools
 from .rfmode.rf_recover import RFRecover, RFRecover_Clear
+from .rfmode.rf_quickstart import OpenQuickStart
 
 # updater import
 from . import addon_updater_ops
@@ -98,6 +99,7 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     bpy.utils.register_class(OpenLog)
+    bpy.utils.register_class(OpenQuickStart)
 
     # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -140,6 +142,7 @@ def unregister():
     clear_icons()
 
     bpy.utils.unregister_class(OpenLog)
+    bpy.utils.unregister_class(OpenQuickStart)
 
     # Remove add-on hotkeys
     for km,kmi in addon_keymaps:

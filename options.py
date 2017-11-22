@@ -16,7 +16,7 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
 
-## Major Changes from Version 1.3.1
+## Major Changes from Version 1.x
 
 What you see behind this message is here is a complete rewrite of the code base.
 RetopoFlow 2.0 now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
@@ -56,7 +56,7 @@ Below is a list of known issues that we are working on.
 
 - Very large source meshes cause a very long start-up time.  Temporary workaround: reduce the number of faces by using Decimate Modifier.
 - Very large target meshes causes slowness in some tools.
-- Some of the tools are still missing features from version 1.3.1.
+- Some of the tools are still missing features from version 1.x.
 
 
 ## Final Words
@@ -67,6 +67,42 @@ Cheers!
 
 --The RetopoFlow Team
 '''.format(version=retopoflow_version)
+
+
+help_quickstart = '''
+RetopoFlow 2.0 Quick Start Guide
+================================
+
+We wrote this guide to help you get started as quickly a possible with the new RetopoFlow 2.0.
+More detailed help is available after you start RF.
+
+
+Target and Source Objects
+-------------------------
+
+In RetopoFlow 1.3 you were required to select explicitly the source and target objects, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow.
+
+The target object is either:
+
+- the active mesh object if it is also selected (Object Mode)
+- the mesh object currently being edited (Edit Mode)
+- otherwise, a newly created mesh object
+
+Any mesh object that is visible and not the target object is considered a source object.
+This means that you can hide or move objects to hidden layers to change which source objects will be retopologized.
+Note: only newly created or edited target geometry will snap to the source.
+
+
+RetopoFlow Mode
+---------------
+
+The tools in RetopoFlow 1.3 were disjoint set of tools, where you would need to quit one tool in order to start another.
+Also, because we wrote RF 1.3 tools independently, the visualizations and settings were not consistent.
+
+In RetopoFlow 2.0, we 
+
+'''
+
 
 
 
@@ -219,6 +255,7 @@ class Options:
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',
+        'quickstart_filename':  'RetopoFlow_quickstart',
     }
     
     db = None                           # current Shelve object
