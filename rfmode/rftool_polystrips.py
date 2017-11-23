@@ -6,9 +6,9 @@ from mathutils.geometry import intersect_point_tri_2d
 from .rftool import RFTool
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 from .rftool_polystrips_utils import *
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
-from ..common.ui import UI_Image
+from ..common.ui import UI_Image, UI_IntValue
 
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
@@ -45,6 +45,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.ui_icon = UI_Image('polystrips_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
+    def get_scale_falloff(self): return options['polystrips scale falloff']
+    def set_scale_falloff(self, v): options['polystrips scale falloff'] = clamp(v, -10, 10)
+    def get_ui_options(self):
+        self.ui_scale_falloff = UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff)
+        return [self.ui_scale_falloff]
     
     def update(self):
         self.strips = []
@@ -86,7 +91,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def update_strip_viz(self):
         self.strip_pts = [[cb.eval(i/10) for i in range(10+1)] for strip in self.strips for cb in strip]
     
-    
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
@@ -94,12 +98,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.hovering_strips.clear()
         for strip in self.strips:
             for cb in strip:
-                for cbpt in cb:
+                for i,cbpt in enumerate(cb):
                     v = Point_to_Point2D(cbpt)
                     if v is None: continue
                     if (mouse - v).length < self.drawing.scale(options['select dist']):
                         self.hovering_handles.append(cbpt)
-                        self.hovering_strips.add(strip)
+                        self.hovering_strips.add((strip,i))
         if self.hovering_handles:
             self.rfwidget.set_widget('move')
         else:
@@ -111,7 +115,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         if self.hovering_handles and self.rfcontext.actions.pressed('action alt0'):
             return self.prep_rotate()
         
-        if self.hovering_handles and self.rfcontext.actions.pressed('action alt1'):
+        if self.rfcontext.actions.pressed('action alt1'):
             return self.prep_scale()
         
         if self.rfcontext.actions.using('select'):
@@ -190,14 +194,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @RFTool.dirty_when_done
     def modal_rotate(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.released(self.move_done_released):
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
             return 'main'
         
@@ -237,14 +238,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @RFTool.dirty_when_done
     def modal_handle(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.released(self.move_done_released):
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
             return 'main'
         
@@ -255,7 +253,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             #xyz = oco + delta.x * rt - delta.y * up
             if xyz: cbpt.xyz = xyz
         
-        for strip in self.hovering_strips:
+        for strip,_ in self.hovering_strips:
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
         
         self.update_strip_viz()
@@ -274,14 +272,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @RFTool.dirty_when_done
     def modal_move(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.released(self.move_done_released):
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
-            self.rfwidget.set_widget('brush stroke')
+        if self.rfcontext.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
             return 'main'
 
@@ -293,11 +288,56 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.update()
     
     def prep_scale(self):
+        # only scale outer handles
+        self.scale_strips = [(s,i) for s,i in self.hovering_strips if i in [0,3]]
+        if not self.scale_strips: return
+        self.mousedown = self.rfcontext.actions.mouse
+        self.rfwidget.set_widget('default')
+        self.rfcontext.undo_push('scale')
+        self.move_done_pressed = None
+        self.move_done_released = {'insert', 'insert alt0', 'insert alt1'}
+        self.move_cancelled = 'cancel'
+        
+        falloff = 2 ** (self.get_scale_falloff() / 10)
+        
+        self.scale_bmf = {}
+        self.scale_bmv = {}
+        for strip,iend in self.scale_strips:
+            if iend == 0: s0,s1 = 1,0
+            else: s0,s1 = 0,1
+            l = len(strip.bmf_strip)
+            for ibmf,bmf in enumerate(strip.bmf_strip):
+                if bmf in self.scale_bmf: continue
+                p = ibmf/(l-1)
+                s = (s0 + (s1-s0) * p) ** falloff
+                self.scale_bmf[bmf] = s
+        for bmf in self.scale_bmf.keys():
+            c = bmf.center()
+            s = self.scale_bmf[bmf]
+            for bmv in bmf.verts:
+                if bmv not in self.scale_bmv:
+                    self.scale_bmv[bmv] = []
+                self.scale_bmv[bmv] += [(c, bmv.co-c, s)]
         return 'scale'
     
     @RFTool.dirty_when_done
     def modal_scale(self):
-        return 'main'
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.rfcontext.actions.pressed(self.move_cancelled):
+            self.rfcontext.undo_cancel()
+            return 'main'
+        
+        delta = self.rfcontext.actions.mouse.x - self.mousedown.x
+        scale = delta / self.drawing.scale(100)
+        for bmv in self.scale_bmv.keys():
+            l = self.scale_bmv[bmv]
+            n = Vector()
+            for c,v,sc in l:
+                n += c + v * max(0, 1 + scale * sc)
+            bmv.co = n / len(l)
     
     
     def draw_postview(self):

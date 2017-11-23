@@ -274,6 +274,8 @@ class Options:
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',
         'quickstart_filename':  'RetopoFlow_quickstart',
+        
+        'polystrips scale falloff': -1,
     }
     
     db = None                           # current Shelve object

@@ -34,7 +34,8 @@ class Actions:
         
         'action': {'LEFTMOUSE'},
         'action alt0': {'SHIFT+LEFTMOUSE'},
-        'action alt1': {'CTRL+LEFTMOUSE'},
+        'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
+        
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
@@ -56,6 +57,7 @@ class Actions:
         'insert': {'CTRL+LEFTMOUSE'},
         'insert alt0': {'SHIFT+LEFTMOUSE'},
         'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
+        
         'grab': {'G'},
         'delete': {'X','DELETE'},
         'dissolve': {'SHIFT+X','SHIFT+DELETE'},
@@ -262,6 +264,7 @@ class Actions:
 
 
     def using(self, actions):
+        if actions is None: return False
         actions = self.convert(actions)
         return any(p in actions for p in self.now_pressed.values())
     
@@ -272,6 +275,7 @@ class Actions:
         return False
 
     def pressed(self, actions, unpress=True, ignoremods=False):
+        if actions is None: return False
         actions = self.convert(actions)
         just_pressed = self.just_pressed if not ignoremods else strip_mods(self.just_pressed)
         ret = just_pressed in actions
@@ -279,6 +283,7 @@ class Actions:
         return ret
 
     def released(self, actions):
+        if actions is None: return False
         return not self.using(actions)
 
     def warp_mouse(self, xy:Point2D):

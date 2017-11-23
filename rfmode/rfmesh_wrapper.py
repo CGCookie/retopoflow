@@ -1,9 +1,10 @@
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve
+from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
-from ..common.maths import Vec2D
+from ..common.maths import Vec2D, Point
 from ..lib.common_utilities import dprint
 
 
@@ -256,6 +257,12 @@ class RFFace(BMElemWrapper):
     
     def is_quad(self): return len(self.bmelem.verts)==4
     def is_triangle(self): return len(self.bmelem.verts)==3
+    
+    def center(self):
+        c = Vector()
+        for bmv in self.bmelem.verts:
+            c += bmv.co
+        return Point(c / len(self.bmelem.verts))
     
     #############################################
     
