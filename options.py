@@ -260,12 +260,16 @@ class Options:
                                         # will be located at root of RF plugin
     
     default_options = {                 # all the default settings for unset or reset
-        'profiler':             False,
-        'welcome':              True,
-        'tools_min':            False,
-        'instrument':           False,
-        'version 1.3':          False,
+        'welcome':              True,   # show welcome message?
+        'tools_min':            False,  # minimize tools window?
+        'profiler':             False,  # enable profiler?
+        'instrument':           False,  # enable instrumentation?
+        'version 1.3':          False,  # show RF 1.3 panel?
+        
+        'select dist':          10,     # pixels away to select
+        
         'color theme':          'Green',
+        
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',

@@ -13,18 +13,16 @@ from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
 from .rftool_polystrips_utils import *
-from ..options import help_polystrips
+from ..options import options, help_polystrips
 
 
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def init(self):
-        self.FSM['move bmf']     = self.modal_move_bmf
-        self.FSM['manip bezier'] = self.modal_manip_bezier
-        self.FSM['rotate']       = self.modal_rotate
-        self.FSM['scale']        = self.modal_scale
-        
-        self.point_size = 10
+        self.FSM['handle'] = self.modal_handle
+        self.FSM['move']   = self.modal_move
+        self.FSM['rotate'] = self.modal_rotate
+        self.FSM['scale']  = self.modal_scale
     
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
@@ -99,7 +97,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 for cbpt in cb:
                     v = Point_to_Point2D(cbpt)
                     if v is None: continue
-                    if (mouse - v).length < self.point_size:
+                    if (mouse - v).length < self.drawing.scale(options['select dist']):
                         self.hovering.append(cbpt)
                         self.hovering_strips.add(strip)
         if self.hovering:
@@ -108,7 +106,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfwidget.set_widget('brush stroke')
         
         if self.hovering and self.rfcontext.actions.pressed('action'):
-            return self.prep_manip()
+            return self.prep_handle()
         
         if self.hovering and self.rfcontext.actions.pressed('action alt0'):
             return self.prep_rotate()
@@ -218,7 +216,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         self.update_strip_viz()
     
-    def prep_manip(self):
+    def prep_handle(self):
         cbpts = list(self.hovering)
         for strip in self.strips:
             for cb in strip:
@@ -232,10 +230,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
-        return 'manip bezier'
+        return 'handle'
     
     @RFTool.dirty_when_done
-    def modal_manip_bezier(self):
+    def modal_handle(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.rfwidget.set_widget('brush stroke')
             return 'main'
@@ -269,10 +267,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.move_done_pressed = 'confirm'
         self.move_done_released = None
         self.move_cancelled = 'cancel'
-        return 'move bmf'
+        return 'move'
     
     @RFTool.dirty_when_done
-    def modal_move_bmf(self):
+    def modal_move(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.rfwidget.set_widget('brush stroke')
             return 'main'
@@ -327,7 +325,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         def draw(alphamult):
             # draw control points
-            self.drawing.point_size(self.point_size)
+            self.drawing.point_size(10)
             bgl.glColor4f(1,1,1,0.5*alphamult)
             bgl.glBegin(bgl.GL_POINTS)
             for strip in self.strips:
