@@ -32,21 +32,25 @@ class Actions:
         'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
         'window actions': set(),                        # to be filled in by self.load_keymap()
         
-        'tool help': {'F1'},
-
-        'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
-        'alt action': {'SHIFT+LEFTMOUSE'},
-        # 'action alt1': {'CTRL+LEFTMOUSE'},
+        'action alt0': {'SHIFT+LEFTMOUSE'},
+        'action alt1': {'CTRL+LEFTMOUSE'},
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
+        
+        'tool help': {'F1'},
+
+        'autosave': {'TIMER_AUTOSAVE'},
+        
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'cancel no select': {'ESC'},
         'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
+        'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        
         'undo': {'CTRL+Z'},
         'redo': {'CTRL+SHIFT+Z'},
-        'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        
         'edit mode': {'TAB'},
 
         'insert': {'CTRL+LEFTMOUSE'},

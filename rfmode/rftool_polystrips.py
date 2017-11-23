@@ -19,9 +19,10 @@ from ..options import help_polystrips
 @RFTool.action_call('polystrips tool')
 class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def init(self):
-        self.FSM['move bmf'] = self.modal_move_bmf
+        self.FSM['move bmf']     = self.modal_move_bmf
         self.FSM['manip bezier'] = self.modal_manip_bezier
-        self.FSM['rotate outer'] = self.modal_rotate_outer
+        self.FSM['rotate']       = self.modal_rotate
+        self.FSM['scale']        = self.modal_scale
         
         self.point_size = 10
     
@@ -109,7 +110,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         if self.hovering and self.rfcontext.actions.pressed('action'):
             return self.prep_manip()
         
-        if self.hovering and self.rfcontext.actions.pressed('alt action'):
+        if self.hovering and self.rfcontext.actions.pressed('action alt0'):
             return self.prep_rotate()
         
         if self.rfcontext.actions.using('select'):
@@ -181,13 +182,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
         self.move_done_pressed = 'confirm'
-        self.move_done_released = 'alt action'
+        self.move_done_released = 'action alt0'
         self.move_cancelled = 'cancel'
-        self.rfcontext.undo_push('rotate outer')
-        return 'rotate outer'
+        self.rfcontext.undo_push('rotate')
+        return 'rotate'
     
     @RFTool.dirty_when_done
-    def modal_rotate_outer(self):
+    def modal_rotate(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.rfwidget.set_widget('brush stroke')
             return 'main'
@@ -289,7 +290,14 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             set2D_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
         self.update()
-        
+    
+    def prep_scale(self):
+        return 'scale'
+    
+    @RFTool.dirty_when_done
+    def modal_scale(self):
+        return 'main'
+    
     
     def draw_postview(self):
         self.draw_spline()
@@ -317,96 +325,57 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def draw_spline(self):
         if not self.strips: return
         
+        def draw(alphamult):
+            # draw control points
+            self.drawing.point_size(self.point_size)
+            bgl.glColor4f(1,1,1,0.5*alphamult)
+            bgl.glBegin(bgl.GL_POINTS)
+            for strip in self.strips:
+                for cb in strip:
+                    p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                    bgl.glVertex3f(*p0)
+                    bgl.glVertex3f(*p1)
+                    bgl.glVertex3f(*p2)
+                    bgl.glVertex3f(*p3)
+            bgl.glEnd()
+            
+            # draw outer-inner lines
+            self.drawing.line_width(2.0)
+            bgl.glColor4f(1,0.5,0.5,0.4*alphamult)
+            bgl.glBegin(bgl.GL_LINES)
+            for strip in self.strips:
+                for cb in strip:
+                    p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                    bgl.glVertex3f(*p0)
+                    bgl.glVertex3f(*p1)
+                    bgl.glVertex3f(*p2)
+                    bgl.glVertex3f(*p3)
+            bgl.glEnd()
+            
+            # draw curve
+            self.drawing.line_width(2.0)
+            bgl.glColor4f(1,1,1,0.5*alphamult)
+            bgl.glBegin(bgl.GL_LINES)
+            for pts in self.strip_pts:
+                v0 = None
+                for v1 in pts:
+                    if v0:
+                        bgl.glVertex3f(*v0)
+                        bgl.glVertex3f(*v1)
+                    v0 = v1
+            bgl.glEnd()
+
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-        ######################################
+        
         # draw in front of geometry
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        
-        # draw control points
-        self.drawing.point_size(self.point_size)
-        bgl.glColor4f(1,1,1,0.5)
-        bgl.glBegin(bgl.GL_POINTS)
-        for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        bgl.glEnd()
-        
-        # draw outer-inner lines
-        self.drawing.line_width(2.0)
-        bgl.glColor4f(1,0.5,0.5,0.4)
-        bgl.glBegin(bgl.GL_LINES)
-        for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        bgl.glEnd()
-        
-        # draw curve
-        self.drawing.line_width(2.0)
-        bgl.glColor4f(1,1,1,0.5)
-        bgl.glBegin(bgl.GL_LINES)
-        for pts in self.strip_pts:
-            v0 = None
-            for v1 in pts:
-                if v0:
-                    bgl.glVertex3f(*v0)
-                    bgl.glVertex3f(*v1)
-                v0 = v1
-        bgl.glEnd()
-        
-        ######################################
+        draw(1.0)
         # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        
-        # draw control points
-        self.drawing.point_size(self.point_size)
-        bgl.glColor4f(1,1,1,0.25)
-        bgl.glBegin(bgl.GL_POINTS)
-        for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        bgl.glEnd()
-        
-        # draw outer-inner lines
-        self.drawing.line_width(2.0)
-        bgl.glColor4f(1,0.5,0.5,0.2)
-        bgl.glBegin(bgl.GL_LINES)
-        for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                bgl.glVertex3f(*p0)
-                bgl.glVertex3f(*p1)
-                bgl.glVertex3f(*p2)
-                bgl.glVertex3f(*p3)
-        bgl.glEnd()
-        
-        # draw curve
-        self.drawing.line_width(2.0)
-        bgl.glColor4f(1,1,1,0.25)
-        bgl.glBegin(bgl.GL_LINES)
-        for pts in self.strip_pts:
-            v0 = None
-            for v1 in pts:
-                if v0:
-                    bgl.glVertex3f(*v0)
-                    bgl.glVertex3f(*v1)
-                v0 = v1
-        bgl.glEnd()
+        draw(0.5)
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
