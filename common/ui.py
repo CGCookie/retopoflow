@@ -928,7 +928,7 @@ class UI_BoolValue(UI_Checkbox):
     pass
 
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_print_value=None):
         super().__init__(vertical=False)
         # self.margin = 0
         self.lbl = UI_Label(label)
@@ -939,6 +939,7 @@ class UI_IntValue(UI_Container):
         self.add(self.val)
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
+        self.fn_print_value = fn_print_value
     
     def hover_ui(self, mouse):
         return self if super().hover_ui(mouse) else None
@@ -952,7 +953,8 @@ class UI_IntValue(UI_Container):
         self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
     
     def predraw(self):
-        self.val.set_label(self.fn_get_value())
+        fn = self.fn_print_value if self.fn_print_value else self.fn_get_value
+        self.val.set_label(fn())
     
     def _draw(self):
         l,t = self.pos
@@ -968,6 +970,7 @@ class UI_IntValue(UI_Container):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
         super()._draw()
+
 
 
 class UI_HBFContainer(UI_Container):

@@ -47,8 +47,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         return self.ui_icon
     def get_scale_falloff(self): return options['polystrips scale falloff']
     def set_scale_falloff(self, v): options['polystrips scale falloff'] = clamp(v, -10, 10)
+    def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
+    def get_scale_falloff_print(self): return '%0.2f' % self.get_scale_falloff_actual()
     def get_ui_options(self):
-        self.ui_scale_falloff = UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff)
+        self.ui_scale_falloff = UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print)
         return [self.ui_scale_falloff]
     
     def update(self):
@@ -298,7 +300,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.move_done_released = {'insert', 'insert alt0', 'insert alt1'}
         self.move_cancelled = 'cancel'
         
-        falloff = 2 ** (self.get_scale_falloff() / 10)
+        falloff = self.get_scale_falloff_actual()
         
         self.scale_bmf = {}
         self.scale_bmv = {}
