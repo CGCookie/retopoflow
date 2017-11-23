@@ -27,6 +27,8 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         
         col = layout.column(align=True)
         col.operator("wm.open_quickstart", "Quick Start Guide")
+        col.operator("wm.open_webissues",  "Report an Issue")
+        #col.operator("wm.open_webtip",     "Buy Us a Drink")
         
         if RFMode.large_target():
             box = layout.box()

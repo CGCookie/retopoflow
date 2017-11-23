@@ -5,6 +5,15 @@ import shelve
 
 retopoflow_version = "2.0.0"
 
+retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
+
+# XXX: JUST A TEST!!!
+# TODO: REPLACE WITH ACTUAL, COOKIE-RELATED ACCOUNT!! :)
+# NOTE: can add number to url to start the amount off
+# ex: https://paypal.me/retopoflow/5
+retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
+
+
 firsttime_message = '''
 # Welcome to RetopoFlow {version}!
 

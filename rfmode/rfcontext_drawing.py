@@ -21,7 +21,13 @@ from ..common.ui import (
     )
 from ..lib import common_drawing_bmesh as bmegl
 
-from ..options import retopoflow_version, options, firsttime_message
+from ..options import (
+    retopoflow_version,
+    retopoflow_issues_url,
+    retopoflow_tip_url,
+    options,
+    firsttime_message,
+    )
 
 
 class RFContext_Drawing:
@@ -69,7 +75,9 @@ class RFContext_Drawing:
             self.window_welcome.visible = options['welcome']
         
         def open_github():
-            bpy.ops.wm.url_open(url="https://github.com/CGCookie/retopoflow/issues")
+            bpy.ops.wm.url_open(url=retopoflow_issues_url)
+        def open_tip():
+            bpy.ops.wm.url_open(url=retopoflow_tip_url)
         
         def get_theme():
             return options['color theme']
@@ -128,24 +136,17 @@ class RFContext_Drawing:
         self.tool_window.add(self.tool_min)
         
         
-        window_info = self.window_manager.create_window('Info', {'sticky':1, 'visible':True})
-        window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version))
+        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'sticky':1, 'visible':True})
+        #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, align=0))
-        container.add(UI_Button('Report Issue', open_github, align=0))
+        container.add(UI_Button('Welcome!', show_reporting, align=0, margin=0))
+        container.add(UI_Button('Report Issue', open_github, align=0, margin=0))
+        window_info.add(UI_Button('Buy us a drink', open_tip, align=0, margin=0))
         info_adv = window_info.add(UI_Collapsible('Advanced', collapsed=True))
         
         fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf'))
-        
-        container_theme = info_adv.add(UI_Container(vertical=False))
-        container_theme.add(UI_Label('Theme:', margin=4))
-        opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
-        opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
-        opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
-        opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
-        opt_theme.set_option(options['color theme'])
         
         info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
@@ -164,6 +165,14 @@ class RFContext_Drawing:
         dd_general = window_tool_options.add(UI_Collapsible('General', collapsed=False))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
         dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
+        container_theme = dd_general.add(UI_Container(vertical=False))
+        container_theme.add(UI_Label('Theme:', margin=4))
+        opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
+        opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
+        opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
+        opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
+        opt_theme.set_option(options['color theme'])
+        
         
         dd_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
