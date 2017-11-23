@@ -247,7 +247,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object)
         opts = self.get_target_render_options()
-        self.rftarget_draw = RFMeshRender(self.rftarget, opts)
+        self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 
     @profiler.profile
     def _init_sources(self):
@@ -255,7 +255,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()
-        self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
+        self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
     
     @profiler.profile
     def replace_opts(self, target=True, sources=False):

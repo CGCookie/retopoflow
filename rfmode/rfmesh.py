@@ -39,7 +39,7 @@ from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
-from ..common.utils import min_index
+from ..common.utils import min_index, hash_object, hash_bmesh
 from ..common.decorators import stats_wrapper
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
@@ -47,6 +47,7 @@ from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 from .rfmesh_render import RFMeshRender
+
 
 class RFMesh():
     '''
@@ -63,38 +64,6 @@ class RFMesh():
         RFMesh.__version += 1
         return RFMesh.__version
 
-    @staticmethod
-    @profiler.profile
-    def hash_object(obj:bpy.types.Object):
-        if obj is None: return None
-        pr = profiler.start('computing hash on object')
-        assert type(obj) is bpy.types.Object, "Only call RFMesh.hash_object on mesh objects!"
-        assert type(obj.data) is bpy.types.Mesh, "Only call RFMesh.hash_object on mesh objects!"
-        # get object data to act as a hash
-        me = obj.data
-        counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
-        if me.vertices:
-            bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-        else:
-            bbox = (None, None)
-        vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
-        xform  = tuple(e for l in obj.matrix_world for e in l)
-        hashed = (counts, bbox, vsum, xform, hash(obj))      # ob.name???
-        pr.done()
-        return hashed
-
-    @staticmethod
-    @profiler.profile
-    def hash_bmesh(bme:BMesh):
-        if bme is None: return None
-        pr = profiler.start('computing hash on bmesh')
-        assert type(bme) is BMesh, 'Only call RFMesh.hash_bmesh on BMesh objects!'
-        counts = (len(bme.verts), len(bme.edges), len(bme.faces))
-        bbox   = BBox(from_bmverts=self.bme.verts)
-        vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
-        hashed = (counts, tuple(bbox.min), tuple(bbox.max), vsum)
-        pr.done()
-        return hashed
 
 
     def __init__(self):
@@ -109,7 +78,7 @@ class RFMesh():
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
-        self.hash = RFMesh.hash_object(self.obj)
+        self.hash = hash_object(self.obj)
         pr.done()
         
         if bme != None:
@@ -994,7 +963,7 @@ class RFSource(RFMesh):
         if obj.data.name in RFSource.__cache:
             # does cache match current state?
             rfsource = RFSource.__cache[obj.data.name]
-            hashed = RFMesh.hash_object(obj)
+            hashed = hash_object(obj)
             #print(str(rfsource.hash))
             #print(str(hashed))
             if rfsource.hash != hashed:
