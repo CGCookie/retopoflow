@@ -243,7 +243,7 @@ class RFTool_PolyPen(RFTool):
         
         # overriding
         # if hovering over a selected edge, knife it!
-        if self.nearest_edge.select:
+        if self.nearest_edge and self.nearest_edge.select:
             if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
                 print('knifing selected, hovered edge')
                 bmv = self.rfcontext.new2D_vert_mouse()
