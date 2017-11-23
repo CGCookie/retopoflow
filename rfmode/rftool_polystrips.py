@@ -2,17 +2,17 @@ import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_point_tri_2d
 from .rftool import RFTool
+from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
+from .rftool_polystrips_utils import *
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
-from mathutils.geometry import intersect_point_tri_2d
 from ..common.ui import UI_Image
-from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
-from .rftool_polystrips_utils import *
 from ..options import options, help_polystrips
 
 
@@ -33,7 +33,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.mode = 'main'
         self.rfwidget.set_widget('brush stroke', color=(1.0, 0.5, 0.5))
         self.rfwidget.set_stroke_callback(self.stroke)
-        self.hovering = []
+        self.hovering_handles = []
         self.hovering_strips = set()
         self.sel_cbpts = []
         self.strokes = []
@@ -90,7 +90,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
-        self.hovering.clear()
+        self.hovering_handles.clear()
         self.hovering_strips.clear()
         for strip in self.strips:
             for cb in strip:
@@ -98,18 +98,21 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                     v = Point_to_Point2D(cbpt)
                     if v is None: continue
                     if (mouse - v).length < self.drawing.scale(options['select dist']):
-                        self.hovering.append(cbpt)
+                        self.hovering_handles.append(cbpt)
                         self.hovering_strips.add(strip)
-        if self.hovering:
+        if self.hovering_handles:
             self.rfwidget.set_widget('move')
         else:
             self.rfwidget.set_widget('brush stroke')
         
-        if self.hovering and self.rfcontext.actions.pressed('action'):
+        if self.hovering_handles and self.rfcontext.actions.pressed('action'):
             return self.prep_handle()
         
-        if self.hovering and self.rfcontext.actions.pressed('action alt0'):
+        if self.hovering_handles and self.rfcontext.actions.pressed('action alt0'):
             return self.prep_rotate()
+        
+        if self.hovering_handles and self.rfcontext.actions.pressed('action alt1'):
+            return self.prep_scale()
         
         if self.rfcontext.actions.using('select'):
             if self.rfcontext.actions.pressed('select'):
@@ -160,8 +163,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         for strip in self.strips:
             for cb in strip:
                 p0,p1,p2,p3 = cb.points()
-                if p1 in self.hovering: inner,outer = p1,p0
-                if p2 in self.hovering: inner,outer = p2,p3
+                if p1 in self.hovering_handles: inner,outer = p1,p0
+                if p2 in self.hovering_handles: inner,outer = p2,p3
         if not inner or not outer: return ''
         self.sel_cbpts = []
         self.mod_strips = set()
@@ -217,7 +220,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.update_strip_viz()
     
     def prep_handle(self):
-        cbpts = list(self.hovering)
+        cbpts = list(self.hovering_handles)
         for strip in self.strips:
             for cb in strip:
                 p0,p1,p2,p3 = cb.points()
