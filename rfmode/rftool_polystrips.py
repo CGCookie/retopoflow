@@ -357,12 +357,9 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             bgl.glColor4f(1,1,1,0.5*alphamult)
             bgl.glBegin(bgl.GL_LINES)
             for pts in self.strip_pts:
-                v0 = None
-                for v1 in pts:
-                    if v0:
-                        bgl.glVertex3f(*v0)
-                        bgl.glVertex3f(*v1)
-                    v0 = v1
+                for v0,v1 in zip(pts[:-1],pts[1:]):
+                    bgl.glVertex3f(*v0)
+                    bgl.glVertex3f(*v1)
             bgl.glEnd()
 
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
