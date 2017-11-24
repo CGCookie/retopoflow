@@ -51,7 +51,7 @@ class RFTool_Relax(RFTool):
     
     def get_ui_options(self):
         return [
-            UI_Label('Move:'),
+            UI_Label('Relax:'),
             UI_BoolValue('Selected Only', self.get_move_selected, self.set_move_selected),
             UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
             UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
@@ -60,11 +60,6 @@ class RFTool_Relax(RFTool):
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
-        # scan through all edges, finding all non-manifold edges
-        self.verts_nonmanifold = {
-            v for e in self.rfcontext.rftarget.get_edges()
-            for v in e.verts if len(e.link_faces) != 2
-            }
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('relax_32.png')
@@ -165,12 +160,13 @@ class RFTool_Relax(RFTool):
         
         # update
         sel_only = self.get_move_selected()
+        hidden = self.get_move_hidden()
+        boundary = self.get_move_boundary()
+        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
         for bmv,co in divco.items():
             if bmv not in verts: continue
             if sel_only and not bmv.select: continue
-            if not self.get_move_boundary():
-                if bmv in self.verts_nonmanifold: continue
-            if not self.get_move_hidden():
-                if not self.rfcontext.is_visible(bmv.co, bmv.normal): continue
+            if not boundary and bmv.is_boundary: continue
+            if not hidden and not is_visible(bmv): continue
             p,_,_,_ = self.rfcontext.nearest_sources_Point(co)
             bmv.co = p
