@@ -148,7 +148,7 @@ class RFTool_Contours_Ops:
                     else:
                         sel_string_pos = None
         
-        count = count or self.count
+        count = count or self.get_count()
         count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else count
         count = sel_string_pos[2] if sel_string_pos else sel_string_neg[2] if sel_string_neg else count
         

@@ -305,6 +305,8 @@ class Options:
         'backup_filename':      'RetopoFlow_backup',
         'quickstart_filename':  'RetopoFlow_quickstart',
         
+        'contours count':   16,
+        
         'polystrips scale falloff': -1,
         
         'relax selected': False,

@@ -35,7 +35,7 @@ from .rftool_contours_utils import *
 from .rftool_contours_ops import RFTool_Contours_Ops
 from mathutils import Matrix
 
-from ..options import help_contours
+from ..options import options, help_contours
 
 
 @RFTool.action_call('contours tool')
@@ -45,7 +45,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
         self.FSM['rotate'] = self.modal_rotate
-        self.count = 16
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -65,8 +64,8 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.connected = False
         self.cuts = []
     
-    def get_count(self): return self.count
-    def set_count(self, v): self.count = max(3, v)
+    def get_count(self): return options['contours count']
+    def set_count(self, v): options['contours count'] = max(3, v)
     def get_ui_options(self):
         self.ui_count = UI_IntValue('Count', self.get_count, self.set_count)
         return [self.ui_count]
