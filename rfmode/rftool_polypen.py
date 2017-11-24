@@ -190,15 +190,6 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
-        # if self.rfcontext.actions.pressed('SPACE'):
-        #     bmes = self.sel_edges
-        #     bmvs = []
-        #     for bme in bmes:
-        #         _,bmv = bme.split()
-        #         bmvs.append(bmv)
-        #     self.rfcontext.select(bmvs)
-        #     self.rfcontext.dirty()
-        
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
             self.rfcontext.delete_selection()
@@ -416,6 +407,7 @@ class RFTool_PolyPen(RFTool):
                         shared_faces = bmv.shared_faces(bmv1)
                         self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
                         bmv1.merge(bmv)
+                        self.rfcontext.clean_duplicate_bmedges(bmv1)
                     self.rfcontext.select(bmv1)
                     update_verts += [bmv1]
                     break
