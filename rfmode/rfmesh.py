@@ -918,12 +918,27 @@ class RFMesh():
             touched.add(bme0)
             if len(bmv01.link_edges) > 4: return False
             if len(bmv01.link_faces) > 4: return False
-            bmf0 = bme0.link_faces
-            for bme1 in bmv01.link_edges:
-                if bme1 == bme0: continue
-                if any(f in bmf0 for f in bme1.link_faces): continue
-                bmv2 = bme1.other_vert(bmv01)
-                return crawl(bme1, bmv2)
+            if len(bmv01.link_faces) == 4:
+                # find next edge that doesn't share face with bme0
+                bmf0 = bme0.link_faces
+                for bme1 in bmv01.link_edges:
+                    if bme1 == bme0: continue
+                    if any(f in bmf0 for f in bme1.link_faces): continue
+                    bmv2 = bme1.other_vert(bmv01)
+                    return crawl(bme1, bmv2)
+            else:
+                # find the edge that's pointing in the most similar direction
+                best_bme,best_dot = None,-1
+                d0 = (bme0.verts[1].co - bme0.verts[0].co).normalized()
+                bmf0 = bme0.link_faces
+                for bme1 in bmv01.link_edges:
+                    if bme1 == bme0: continue
+                    if any(f in bmf0 for f in bme1.link_faces): continue
+                    d1 = (bme1.verts[1].co - bme1.verts[0].co).normalized()
+                    d = abs(d0.dot(d1))
+                    if d > best_dot: best_bme,best_dot = bme1,d
+                if best_bme:
+                    return crawl(best_bme, best_bme.other_vert(bmv01))
             return False
         if crawl(bme, bme.verts[0]): return (edges, True)
         edges.reverse()
