@@ -318,7 +318,6 @@ class RFMesh():
                         continue
                     else:
                         # recursively crawl on!
-                        print(bmf1)
                         ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
 
                     if bmf0 == bmf:

@@ -213,7 +213,7 @@ class RFMode(Operator):
     def context_start(self):
         # should we generate new target object?
         if not RFContext.has_valid_target():
-            print('generating new target')
+            dprint('generating new target')
             tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
             tar_editmesh = bpy.data.meshes.new(tar_name)

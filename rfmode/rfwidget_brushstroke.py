@@ -24,6 +24,7 @@ import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
 from ..lib.common_drawing_bmesh import glEnableStipple
+from ..lib.common_utilities import dprint
 
 class RFWidget_BrushStroke:
     def size_to_dist(self): return self.size
@@ -56,7 +57,6 @@ class RFWidget_BrushStroke:
             if len(self.stroke2D) > 5:
                 delta = actions.mouse - self.stroke2D[-5]
                 if abs(delta.x) > 2 or abs(delta.y) > 2:
-                    print(self.get_scaled_radius())
                     delta = delta.normalized() * self.get_scaled_radius()
                     ortho = Vec2D((-delta.y, delta.x))
                     self.stroke2D_left.append(actions.mouse + ortho)

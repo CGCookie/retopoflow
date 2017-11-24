@@ -29,6 +29,7 @@ from ..common.ui import UI_Image
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
+from ..lib.common_utilities import dprint
 
 from ..options import help_polypen
 
@@ -230,13 +231,11 @@ class RFTool_PolyPen(RFTool):
         sel_edges = self.sel_edges
         sel_faces = self.sel_faces
         
-        print(self.next_state)
-        
         # overriding
         # if hovering over a selected edge, knife it!
         if self.nearest_edge and self.nearest_edge.select:
             if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
-                print('knifing selected, hovered edge')
+                #print('knifing selected, hovered edge')
                 bmv = self.rfcontext.new2D_vert_mouse()
                 if not bmv:
                     self.rfcontext.undo_cancel()
@@ -247,7 +246,7 @@ class RFTool_PolyPen(RFTool):
                 self.mousedown = self.rfcontext.actions.mousedown
                 xy = self.rfcontext.Point_to_Point2D(bmv.co)
                 if not xy:
-                    print('Could not insert: ' + str(bmv.co))
+                    #print('Could not insert: ' + str(bmv.co))
                     self.rfcontext.undo_cancel()
                     return 'main'
                 self.bmverts = [(bmv, xy)]
@@ -295,7 +294,7 @@ class RFTool_PolyPen(RFTool):
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                print('Could not insert: ' + str(bmv1.co))
+                dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
@@ -329,7 +328,7 @@ class RFTool_PolyPen(RFTool):
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
             if not xy:
-                print('Could not insert: ' + str(bmv2.co))
+                dprint('Could not insert: ' + str(bmv2.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv2, xy)]
@@ -363,7 +362,7 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                print('Could not insert: ' + str(bmv3.co))
+                dprint('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
@@ -382,7 +381,7 @@ class RFTool_PolyPen(RFTool):
         self.mousedown = self.rfcontext.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
         if not xy:
-            print('Could not insert: ' + str(bmv.co))
+            dprint('Could not insert: ' + str(bmv.co))
             self.rfcontext.undo_cancel()
             return 'main'
         self.bmverts = [(bmv, xy)]

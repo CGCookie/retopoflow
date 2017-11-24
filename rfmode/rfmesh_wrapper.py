@@ -333,7 +333,6 @@ class RFFace(BMElemWrapper):
                             nverts1 += [intersections[i0]]
                     nverts1 += [v11]
             verts1 = nverts1
-            print(verts1)
         
         if len(verts1) < 3: return 0
         v0 = verts1[0]
