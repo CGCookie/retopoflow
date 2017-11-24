@@ -23,7 +23,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A retopology-focused mode with dedicated retopology tools for Blender",
-    "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
+    "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version":     (2, 0, 0),
     "blender":     (2, 7, 8),
     "location":    "View 3D > Tool Shelf",
