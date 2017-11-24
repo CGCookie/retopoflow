@@ -620,7 +620,12 @@ class XForm:
 class BBox:
     @stats_wrapper
     def __init__(self, from_bmverts=None, from_coords=None):
-        assert from_bmverts or from_coords
+        if not from_bmverts or not from_coords:
+            self.min = None
+            self.max = None
+            self.mx,self.my,self.mz = float('nan'),float('nan'),float('nan')
+            self.Mx,self.My,self.Mz = float('nan'),float('nan'),float('nan')
+            return
         if from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
         else: from_coords = list(from_coords)
         mx,my,mz = from_coords[0]
@@ -639,6 +644,7 @@ class BBox:
     def __repr__(self): return self.__str__()
 
     def Point_within(self, point:Point, margin=0):
+        if not self.min or not self.max: return True
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
 
 

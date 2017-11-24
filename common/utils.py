@@ -96,6 +96,6 @@ def hash_bmesh(bme:BMesh):
     counts = (len(bme.verts), len(bme.edges), len(bme.faces))
     bbox   = BBox(from_bmverts=bme.verts)
     vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
-    hashed = (counts, tuple(bbox.min), tuple(bbox.max), vsum)
+    hashed = (counts, tuple(bbox.min) if bbox.min else None, tuple(bbox.max) if bbox.max else None, vsum)
     pr.done()
     return hashed
