@@ -23,8 +23,8 @@ import bpy
 import math
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
-from ..common.ui import UI_Image
-from ..options import help_tweak
+from ..common.ui import UI_Image, UI_BoolValue, UI_Label
+from ..options import options, help_tweak
 
 @RFTool.action_call('move tool')
 class RFTool_Tweak(RFTool):
@@ -36,6 +36,23 @@ class RFTool_Tweak(RFTool):
     def icon(self): return "rf_tweak_icon"
     def description(self): return 'Moves vertices with falloff'
     def helptext(self): return help_tweak
+    
+    def get_move_boundary(self): return options['tweak boundary']
+    def set_move_boundary(self, v): options['tweak boundary'] = v
+    
+    def get_move_hidden(self): return options['tweak hidden']
+    def set_move_hidden(self, v): options['tweak hidden'] = v
+    
+    def get_move_selected(self): return options['tweak selected']
+    def set_move_selected(self, v): options['tweak selected'] = v
+    
+    def get_ui_options(self):
+        return [
+            UI_Label('Tweak:'),
+            UI_BoolValue('Selected Only', self.get_move_selected, self.set_move_selected),
+            UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
+            UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
+        ]
     
     ''' Called the tool is being switched into '''
     def start(self):
@@ -56,19 +73,20 @@ class RFTool_Tweak(RFTool):
                 return
             Point_to_Point2D = self.rfcontext.Point_to_Point2D
             get_strength_dist = self.rfwidget.get_strength_dist
+            sel_only = self.get_move_selected()
+            hidden = self.get_move_hidden()
+            boundary = self.get_move_boundary()
+            is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
             self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
+            if sel_only:
+                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
+            if not boundary:
+                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
+            if not hidden:
+                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
             self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-            #self.rfcontext.select([bmv for bmv,_,_ in self.bmverts])
             self.mousedown = self.rfcontext.actions.mousedown
             return 'move'
-        
-        # if self.rfcontext.eventd.press in {'RIGHTMOUSE'}:
-        #     self.rfcontext.undo_push('tweak move single')
-        #     bmv,d3d = self.rfcontext.nearest2D_vert_mouse()
-        #     self.bmverts = [(bmv, Point(bmv.co), 0.0)]
-        #     self.rfcontext.select(bmv)
-        #     self.mousedown = self.rfcontext.eventd.mousedown
-        #     return 'move'
         
     
     @RFTool.dirty_when_done

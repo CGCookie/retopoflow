@@ -246,6 +246,13 @@ The Tweak tool allows you to easily adjust the vertex positions using a brush.
 - F: adjust brush size
 - CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
+
+## Options
+
+- By default, Tweak will not move vertices that are on the boundary.
+- By default, Tweak will only move vertices that are visible.
+- By default, Tweak will move all vertices under the brush.
+- These options are adjustable under the Tweak Options panel.
 '''
 
 help_relax = '''
@@ -303,6 +310,10 @@ class Options:
         'relax selected': False,
         'relax boundary': False,
         'relax hidden':   False,
+        
+        'tweak selected': False,
+        'tweak boundary': True,
+        'tweak hidden':   False,
     }
     
     db = None                           # current Shelve object
