@@ -58,6 +58,14 @@ def load_image_png(fn):
     return load_image_png.cache[fn]
 
 
+class GetSet:
+    def __init__(self, fn_get, fn_set):
+        self.fn_get = fn_get
+        self.fn_set = fn_set
+    def get(self): return self.fn_get()
+    def set(self, v): return self.fn_set(v)
+
+
 
 class Drawing:
     _instance = None
@@ -1044,7 +1052,7 @@ class UI_HBFContainer(UI_Container):
 
 
 class UI_Collapsible(UI_Container):
-    def __init__(self, title, collapsed=True, equal=False, vertical=True):
+    def __init__(self, title, collapsed=True, fn_collapsed=None, equal=False, vertical=True):
         super().__init__()
         self.margin = 0
         
@@ -1064,7 +1072,16 @@ class UI_Collapsible(UI_Container):
         
         self.footer.add(UI_Rule(color=(0,0,0,0.25)))
         
-        self.collapsed = collapsed
+        def get_collapsed(): return fn_collapsed.get() if fn_collapsed else self.collapsed
+        def set_collapsed(v):
+            if fn_collapsed:
+                fn_collapsed.set(v)
+                self.collapsed = fn_collapsed.get()
+            else:
+                self.collapsed = v
+        
+        self.collapsed = fn_collapsed.get() if fn_collapsed else collapsed
+        self.fn_collapsed = GetSet(get_collapsed, set_collapsed)
         
         self.versions = {
             False: [self.header, self.body, self.footer],
@@ -1077,13 +1094,13 @@ class UI_Collapsible(UI_Container):
         
         super().add(self.header)
     
-    def expand(self): self.collapsed = False
-    def collapse(self): self.collapsed = True
+    def expand(self): self.fn_collapsed.set(False)
+    def collapse(self): self.fn_collapsed.set(True)
     
     def predraw(self):
-        #self.title.set_bgcolor(self.bgcolors[self.collapsed])
-        self.title_arrow.set_graphic(self.graphics[self.collapsed])
-        self.ui_items = self.versions[self.collapsed]
+        #self.title.set_bgcolor(self.bgcolors[self.fn_collapsed.get()])
+        self.title_arrow.set_graphic(self.graphics[self.fn_collapsed.get()])
+        self.ui_items = self.versions[self.fn_collapsed.get()]
     
     def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
     def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
@@ -1095,11 +1112,14 @@ class UI_Collapsible(UI_Container):
     
     def hover_ui(self, mouse):
         if not super().hover_ui(mouse): return None
-        if self.collapsed: return self
+        if self.fn_collapsed.get(): return self
         return self.body.hover_ui(mouse) or self
     
     def mouse_up(self, mouse):
-        self.collapsed = not self.collapsed
+        if self.fn_collapsed.get():
+            self.expand()
+        else:
+            self.collapse()
 
 
 class UI_Padding(UI_Element):
@@ -1134,20 +1154,26 @@ class UI_Window(UI_Padding):
     screen_margin = 5
     
     def __init__(self, title, options):
-        pos = options.get('pos', None)
-        sticky = options.get('sticky', None)
         vertical = options.get('vertical', True)
         padding = options.get('padding', 0)
-        visible = options.get('visible', True)
-        movable = options.get('movable', True)
-        bgcolor = options.get('bgcolor', (0,0,0,0.25))
         
         super().__init__(padding=padding)
         self.margin = 0
         
-        self.visible = visible
-        self.movable = movable
-        self.bgcolor = bgcolor
+        fn_sticky = options.get('fn_pos', None)
+        def get_sticky(): return fn_sticky.get() if fn_sticky else self.sticky
+        def set_sticky(v):
+            if fn_sticky:
+                fn_sticky.set(v)
+                self.sticky = fn_sticky.get()
+            else:
+                self.sticky = v
+        
+        self.sticky    = fn_sticky.get() if fn_sticky else options.get('pos', 5)
+        self.fn_sticky = GetSet(get_sticky, set_sticky)
+        self.visible   = options.get('visible', True)
+        self.movable   = options.get('movable', True)
+        self.bgcolor   = options.get('bgcolor', (0,0,0,0.25))
         
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
@@ -1161,7 +1187,7 @@ class UI_Window(UI_Padding):
         self.hbf.add(self.hbf_title_rule, header=True)
         self.set_ui_item(self.hbf)
         
-        self.update_pos(pos=pos or Point2D((0,0)), sticky=sticky)
+        self.update_pos()
         self.ui_grab = [self, self.hbf_title, self.hbf_title_rule]
         
         self.FSM = {}
@@ -1175,38 +1201,38 @@ class UI_Window(UI_Padding):
     
     def add(self, *args, **kwargs): return self.hbf.add(*args, **kwargs)
     
-    def update_pos(self, pos:Point2D=None, sticky=None):
+    def update_pos(self):
         m = self.screen_margin
         w,h = self.get_width(),self.get_height()
         rgn = self.context.region
         if not rgn: return
         sw,sh = rgn.width,rgn.height
         cw,ch = round((sw-w)/2),round((sh+h)/2)
-        
-        if sticky is not None:
-            self.sticky = sticky
-            self.pos = pos or self.pos
-        elif pos:
-            self.pos = pos
-            self.sticky = 0
-            l,t = self.pos
-            stick_top,stick_bot = t >= sh - m, t <= m + h
-            stick_left,stick_right = l <= m, l >= sw - m - w
-            if stick_top:
-                if stick_left: self.sticky = 7
-                if stick_right: self.sticky = 9
-            elif stick_bot:
-                if stick_left: self.sticky = 1
-                if stick_right: self.sticky = 3
-        
-        positions = {
+        sticky_positions = {
             7: (0, sh), 8: (cw, sh), 9: (sw, sh),
             4: (0, ch), 5: (cw, ch), 6: (sw, ch),
             1: (0, 0),  2: (cw, 0),  3: (sw, 0),
-            0: self.pos,
         }
-        l,t = positions[self.sticky]
+        
+        sticky = self.fn_sticky.get()
+        if type(sticky) is not int:
+            l,t = sticky
+            stick_t,stick_b = t >= sh - m, t <= m + h
+            stick_l,stick_r = l <= m, l >= sw - m - w
+            nsticky = None
+            if stick_t:
+                if stick_l: nsticky = 7
+                if stick_r: nsticky = 9
+            elif stick_b:
+                if stick_l: nsticky = 1
+                if stick_r: nsticky = 3
+            if nsticky:
+                self.fn_sticky.set(nsticky)
+                sticky = self.fn_sticky.get()
+        pos = sticky_positions[sticky] if type(sticky) is int else sticky
+        
         # clamp position so window is always seen
+        l,t = pos
         w = min(w, sw-m*2)
         h = min(h, sh-m*2)
         l = max(m,   min(sw-m-w,l))
@@ -1296,7 +1322,8 @@ class UI_Window(UI_Padding):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             return 'main'
         diff = self.mouse - self.mouse_down
-        self.update_pos(pos=self.pos_prev + diff)
+        self.fn_sticky.set(self.pos_prev + diff)
+        self.update_pos()
         self.mouse_prev = self.mouse
     
     def modal_down(self):

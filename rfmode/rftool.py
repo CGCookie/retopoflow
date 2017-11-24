@@ -40,6 +40,7 @@ from ..lib.common_utilities import print_exception, showErrorMessage
 from ..common.metaclasses import SingletonRegisterClass
 from ..common.ui import Drawing
 from .rfwidget import RFWidget_Default
+from ..options import options
 
 
 class RFTool(metaclass=SingletonRegisterClass):
@@ -108,6 +109,13 @@ class RFTool(metaclass=SingletonRegisterClass):
         self.rfwidget.set_widget('default')
         self.mode = 'main'
         return None
+    
+    def update_tool_options(self):
+        if not options['tools autocollapse']: return
+        for k in options.keys():
+            if not k.startswith('tool ') or not k.endswith(' collapsed'): continue
+            t = k.split(' ')[1]
+            options[k] = (t != self.name().lower())
     
     def update(self): pass
     

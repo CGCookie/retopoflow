@@ -58,6 +58,8 @@ class RFTool_PolyPen(RFTool):
         self.recompute = True
         self.defer_recomputing = False
         self.selecting = False
+        
+        self.update_tool_options()
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polypen_32.png')

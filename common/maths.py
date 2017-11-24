@@ -103,6 +103,8 @@ class Point2D(Vector, Entity2D):
         elif t is Point2D:
             return Vec2D((self.x-other.x, self.y-other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def __iter__(self):
+        return iter((self.x, self.y))
     def distance_to(self, other)->float:
         return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
     def distance_squared_to(self, other)->float:

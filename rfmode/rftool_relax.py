@@ -60,6 +60,7 @@ class RFTool_Relax(RFTool):
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
+        self.update_tool_options()
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('relax_32.png')

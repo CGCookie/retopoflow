@@ -39,6 +39,7 @@ from ..common.ui import (
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible,
     UI_IntValue,
+    GetSet,
     )
 from ..lib import common_drawing_bmesh as bmegl
 
@@ -110,6 +111,8 @@ class RFContext_Drawing:
             self.replace_opts()
         def get_instrument(): return options['instrument']
         def set_instrument(v): options['instrument'] = v
+        def get_autocollapse(): return options['tools autocollapse']
+        def set_autocollapse(v): options['tools autocollapse'] = v
         def update_profiler_visible():
             nonlocal prof_print, prof_reset, prof_disable, prof_enable
             v = profiler.debug
@@ -128,8 +131,23 @@ class RFContext_Drawing:
         def set_debug_level(v):
             self.settings.debug = v
         
+        def wrap_pos_option(key):
+            def get():
+                v = options[key]
+                if type(v) is int: return v
+                return Point2D(v)
+            def set(v):
+                if type(v) is int: options[key] = v
+                else: options[key] = tuple(v)
+            return GetSet(get, set)
+        def wrap_bool_option(key, default_val):
+            key = key.lower()
+            def get(): return options[key]
+            def set(v): options[key] = v
+            options.set_default(key, default_val)
+            return GetSet(get, set)
         
-        self.tool_window = self.window_manager.create_window('Tools', {'sticky':7})
+        self.tool_window = self.window_manager.create_window('Tools', {'fn_pos':wrap_pos_option('tools pos')})
         self.tool_max = UI_Container(margin=0)
         self.tool_min = UI_Container(margin=0, vertical=False)
         self.tool_selection_max = UI_Options(get_selected_tool, set_selected_tool, vertical=True)
@@ -157,7 +175,7 @@ class RFContext_Drawing:
         self.tool_window.add(self.tool_min)
         
         
-        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'sticky':1, 'visible':True})
+        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
         container.add(UI_Button('Welcome!', show_reporting, align=0, margin=0))
@@ -181,9 +199,9 @@ class RFContext_Drawing:
         
         info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         
-        window_tool_options = self.window_manager.create_window('Options', {'sticky':9})
+        window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
         
-        dd_general = window_tool_options.add(UI_Collapsible('General', collapsed=False))
+        dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
         dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
         container_theme = dd_general.add(UI_Container(vertical=False))
@@ -193,16 +211,17 @@ class RFContext_Drawing:
         opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
+        dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse))
         
         
-        dd_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False))
+        dd_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False, fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
         dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
         dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
         
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
-            ui_options = window_tool_options.add(UI_Collapsible(tool_name))
+            ui_options = window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
             for tool_option in tool_options: ui_options.add(tool_option)
         
         self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})

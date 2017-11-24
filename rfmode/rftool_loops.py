@@ -56,6 +56,8 @@ class RFTool_Loops(RFTool):
         self.recompute = True
         self.defer_recomputing = False
         self.nearest_edge = None
+        
+        self.update_tool_options()
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('loops_32.png')

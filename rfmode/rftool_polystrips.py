@@ -61,6 +61,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.stroke_cbs = CubicBezierSpline()
         self.visible_faces = None
         self.update()
+        self.update_tool_options()
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polystrips_32.png')

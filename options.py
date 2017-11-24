@@ -296,6 +296,12 @@ class Options:
         'instrument':           False,  # enable instrumentation?
         'version 1.3':          False,  # show RF 1.3 panel?
         
+        'tools pos':    7,
+        'info pos':     1,
+        'options pos':  9,
+        
+        'tools autocollapse': True,
+        
         'select dist':          10,     # pixels away to select
         
         'color theme':          'Green',
@@ -331,11 +337,14 @@ class Options:
     def __setitem__(self, key, val):
         Options.db[key] = val
         Options.db.sync()
+    def keys(self): return Options.db.keys()
     def reset(self):
         keys = list(Options.db.keys())
         for key in keys:
             del Options.db[key]
         Options.db.sync()
+    def set_default(self, key, val):
+        Options.default_options[key] = val
     def set_defaults(self, d_key_vals):
         for key in d_key_vals:
             Options.default_options[key] = d_key_vals[key]
