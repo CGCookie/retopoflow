@@ -1297,7 +1297,8 @@ class UI_Window(UI_Padding):
     def modal_main(self):
         ui_hover = self.hover_ui(self.mouse)
         if not ui_hover: return
-        set_cursor(ui_hover.mouse_cursor()) #'DEFAULT')
+        set_cursor(ui_hover.mouse_cursor())
+        
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
             if self.movable and ui_hover in self.ui_grab:
                 self.mouse_down = self.mouse
@@ -1307,9 +1308,13 @@ class UI_Window(UI_Padding):
             self.ui_down = ui_hover
             self.ui_down.mouse_down(self.mouse)
             return 'down'
-        if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
-            offset = self.hbf.body.offset
-            offset += 24 * (-1 if 'UP' in self.event.type else 1)
+        
+        if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADPAN'}:
+            if self.event.type == 'TRACKPADPAN':
+                move = self.event.mouse_y - self.event.mouse_prev_y
+            else:
+                move = 24 * (-1 if 'UP' in self.event.type else 1)
+            offset = self.hbf.body.offset + move
             l,t = self.hbf.body.pos
             w,h = self.hbf.body.size
             ah = self.hbf.body._get_height()
