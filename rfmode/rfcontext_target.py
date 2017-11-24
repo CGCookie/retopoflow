@@ -301,6 +301,15 @@ class RFContext_Target:
 
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         self.rftarget.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
+    
+    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
+        self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
+
+    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+        self.rftarget.dissolve_edges(edges, use_verts, use_face_split)
+
+    def dissolve_faces(self, faces, use_verts=False):
+        self.rftarget.dissolve_faces(faces, use_verts)
 
     def clean_duplicate_bmedges(self, vert):
         return self.rftarget.clean_duplicate_bmedges(vert)

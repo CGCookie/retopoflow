@@ -199,10 +199,16 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.dirty()
             return
         
-        if self.rfcontext.actions.pressed('dissolve'):
-            self.rfcontext.undo_push('dissolve')
-            for bmv in self.sel_verts:
-                bmv.dissolve()
+        if self.rfcontext.actions.pressed({'dissolve vert', 'dissolve edge', 'dissolve face'}, unpress=False):
+            if self.rfcontext.actions.pressed('dissolve vert') and self.sel_verts:
+                self.rfcontext.undo_push('dissolve vert')
+                self.rfcontext.dissolve_verts(self.sel_verts)
+            elif self.rfcontext.actions.pressed('dissolve edge') and self.sel_edges:
+                self.rfcontext.undo_push('dissolve edge')
+                self.rfcontext.dissolve_edges(self.sel_edges)
+            elif self.rfcontext.actions.pressed('dissolve face') and self.sel_faces:
+                self.rfcontext.undo_push('dissolve face')
+                self.rfcontext.dissolve_faces(self.sel_faces)
             self.rfcontext.dirty()
             return
 

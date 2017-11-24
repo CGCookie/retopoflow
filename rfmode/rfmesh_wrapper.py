@@ -21,7 +21,8 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve
+from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve, face_join
+from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
@@ -230,7 +231,6 @@ class RFEdge(BMElemWrapper):
         for bmf in del_faces: self.rftarget.bme.faces.remove(bmf)
         bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
         return bmv0 if bmv0.is_valid else bmv1
-
 
 class RFFace(BMElemWrapper):
     def __repr__(self):

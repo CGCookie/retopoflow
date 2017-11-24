@@ -30,6 +30,7 @@ import bpy
 import bgl
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
@@ -1134,6 +1135,18 @@ class RFTarget(RFMesh):
         if del_empty_verts:
             for bmv in verts:
                 if len(bmv.link_faces) == 0: self.bme.verts.remove(bmv)
+
+    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
+        verts = list(map(self._unwrap, verts))
+        dissolve_verts(self.bme, verts=verts, use_face_split=use_face_split, use_boundary_tear=use_boundary_tear)
+
+    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+        edges = list(map(self._unwrap, edges))
+        dissolve_edges(self.bme, edges=edges, use_verts=use_verts, use_face_split=use_face_split)
+
+    def dissolve_faces(self, faces, use_verts=False):
+        faces = list(map(self._unwrap, faces))
+        dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
         faces = set(f for v in verts for f in self._unwrap(v).link_faces)

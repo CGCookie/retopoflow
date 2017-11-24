@@ -230,7 +230,9 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 - G: translate
 - X: delete selection
-- SHIFT+X: dissolve selection
+- SHIFT+X: dissolve selected verts
+- CTRL+X: dissolve selected edges
+- CTRL+SHIFT+X: dissolve selected faces
 
 ## Tips
 
