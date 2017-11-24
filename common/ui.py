@@ -656,9 +656,6 @@ class UI_Button(UI_Container):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
         super()._draw()
-    
-
-
 
 
 class UI_Options(UI_EqualContainer):

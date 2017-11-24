@@ -255,6 +255,7 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 - ACTION: relax vertices that are within brush
 - F: adjust brush size
+- SHIFT+S: relax all selected vertices
 - CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
 
@@ -262,6 +263,7 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 - By default, Relax will not move vertices that are on the boundary.
 - By default, Relax will only move vertices that are visible.
+- By default, Relax will move all vertices under the brush.
 - These options are adjustable under the Relax Options panel.
 '''
 
@@ -297,6 +299,10 @@ class Options:
         'quickstart_filename':  'RetopoFlow_quickstart',
         
         'polystrips scale falloff': -1,
+        
+        'relax selected': False,
+        'relax boundary': False,
+        'relax hidden':   False,
     }
     
     db = None                           # current Shelve object

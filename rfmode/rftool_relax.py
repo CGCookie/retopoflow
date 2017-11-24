@@ -23,8 +23,8 @@ import bpy
 import math
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
-from ..common.ui import UI_Image,UI_BoolValue,UI_Label
-from ..options import help_relax
+from ..common.ui import UI_Image, UI_BoolValue, UI_Label
+from ..options import options, help_relax
 
 @RFTool.action_call('relax tool')
 class RFTool_Relax(RFTool):
@@ -40,13 +40,19 @@ class RFTool_Relax(RFTool):
     def description(self): return 'Relax topology by changing length of edges to average'
     def helptext(self): return help_relax
     
-    def get_move_boundary(self): return self.move_boundary
-    def set_move_boundary(self, v): self.move_boundary = v
-    def get_move_hidden(self): return self.move_hidden
-    def set_move_hidden(self, v): self.move_hidden = v
+    def get_move_boundary(self): return options['relax boundary']
+    def set_move_boundary(self, v): options['relax boundary'] = v
+    
+    def get_move_hidden(self): return options['relax hidden']
+    def set_move_hidden(self, v): options['relax hidden'] = v
+    
+    def get_move_selected(self): return options['relax selected']
+    def set_move_selected(self, v): options['relax selected'] = v
+    
     def get_ui_options(self):
         return [
             UI_Label('Move:'),
+            UI_BoolValue('Selected Only', self.get_move_selected, self.set_move_selected),
             UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
             UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
         ]
@@ -73,7 +79,6 @@ class RFTool_Relax(RFTool):
         if self.rfcontext.actions.pressed('relax selected'):
             self.rfcontext.undo_push('relax selected')
             self.sel_verts = self.rfcontext.get_selected_verts()
-            self.selected = [(v,0.0) for v in self.sel_verts]
             self.sel_edges = self.rfcontext.get_selected_edges()
             self.sel_faces = self.rfcontext.get_selected_faces()
             return 'relax selected'
@@ -159,11 +164,13 @@ class RFTool_Relax(RFTool):
                     divco[bmv] += diff * m * strength
         
         # update
+        sel_only = self.get_move_selected()
         for bmv,co in divco.items():
             if bmv not in verts: continue
-            if not self.move_boundary:
+            if sel_only and not bmv.select: continue
+            if not self.get_move_boundary():
                 if bmv in self.verts_nonmanifold: continue
-            if not self.move_hidden:
+            if not self.get_move_hidden():
                 if not self.rfcontext.is_visible(bmv.co, bmv.normal): continue
             p,_,_,_ = self.rfcontext.nearest_sources_Point(co)
             bmv.co = p
