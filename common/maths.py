@@ -620,7 +620,7 @@ class XForm:
 class BBox:
     @stats_wrapper
     def __init__(self, from_bmverts=None, from_coords=None):
-        if not from_bmverts or not from_coords:
+        if not (from_bmverts or from_coords):
             self.min = None
             self.max = None
             self.mx,self.my,self.mz = float('nan'),float('nan'),float('nan')

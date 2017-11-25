@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import math
 import bgl
+import random
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
 
@@ -47,7 +48,7 @@ class RFWidget_BrushFalloff:
     
     def brushfalloff_mouse_cursor(self):
         if self.mode == 'main':
-             return 'NONE' if self.hit else 'CROSSHAIR'
+            return 'NONE' if self.hit else 'CROSSHAIR'
         return 'MOVE_X'
     
     def brushfalloff_postview(self):

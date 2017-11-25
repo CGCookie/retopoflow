@@ -23,6 +23,7 @@ https://github.com/CGCookie/retopoflow
 
 import math
 import bgl
+import random
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 from ..common.ui import Drawing

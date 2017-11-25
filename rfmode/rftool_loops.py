@@ -72,6 +72,7 @@ class RFTool_Loops(RFTool):
     
     @profiler.profile
     def set_next_state(self):
+        self.edges_ = None
         # TODO: optimize this!!!
         target_version = self.rfcontext.get_target_version()
         view_version = self.rfcontext.get_view_version()
@@ -136,7 +137,12 @@ class RFTool_Loops(RFTool):
             c0,c1 = next((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge)
             c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
             a,b = c1 - c0, mouse_cur - c0
-            self.percent = a.dot(b) / a.dot(a);
+            adota = a.dot(a)
+            if adota <= 0.0000001:
+                self.percent = 0
+                self.edges = None
+                return
+            self.percent = a.dot(b) / adota;
         
     def modal_main(self):
         self.set_next_state()
@@ -187,7 +193,11 @@ class RFTool_Loops(RFTool):
                 new_verts += [nv]
             # create new edges by connecting newly created verts and splitting faces
             for v0,v1 in iter_pairs(new_verts, self.edge_loop):
-                f0 = v0.shared_faces(v1)[0]
+                f0 = next(iter(v0.shared_faces(v1)), None)
+                if not f0:
+                    print('something unexpected happened')
+                    self.rfcontext.undo_cancel()
+                    return
                 f1 = f0.split(v0, v1)
                 new_edges += [f0.shared_edge(f1)]
             self.rfcontext.dirty()
