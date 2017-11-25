@@ -30,7 +30,7 @@ import math
 from itertools import chain
 from .decorators import blender_version
 from ..ext import png
-
+from concurrent.futures import ThreadPoolExecutor
 
 from .maths import Point2D, Vec2D, clamp
 
@@ -750,41 +750,66 @@ class UI_Options(UI_EqualContainer):
 
 
 class UI_Image(UI_Element):
-    def __init__(self, image_data):
+    executor = ThreadPoolExecutor()
+    
+    def __init__(self, image_data, async=True):
         super().__init__()
-        if type(image_data) is str: image_data = load_image_png(image_data)
-        self.height,self.width,self.depth = len(image_data),len(image_data[0]),len(image_data[0][0])
-        assert self.depth == 4
-        
-        image_flat = [d for r in image_data for c in r for d in c]
+        self.image_data = image_data
+        self.width,self.height = 10,10 # placeholder
+        self.image_width,self.image_height = 10,10
+        self.size_set = False
+        self.loaded = False
+        self.buffered = False
+        self.deleted = False
         
         self.texbuffer = bgl.Buffer(bgl.GL_INT, [1])
         bgl.glGenTextures(1, self.texbuffer)
         self.texture_id = self.texbuffer[0]
         
+        if async: self.executor.submit(self.load_image)
+        else: self.load_image()
+    
+    def load_image(self):
+        image_data = self.image_data
+        if type(image_data) is str: image_data = load_image_png(image_data)
+        self.image_height,self.image_width,self.image_depth = len(image_data),len(image_data[0]),len(image_data[0][0])
+        assert self.image_depth == 4
+        self.image_flat = [d for r in image_data for c in r for d in c]
+        self.loaded = True
+    
+    def buffer_image(self):
+        if not self.loaded: return
+        if self.buffered: return
+        if self.deleted: return
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
         bgl.glTexEnvf(bgl.GL_TEXTURE_ENV, bgl.GL_TEXTURE_ENV_MODE, bgl.GL_MODULATE)
         bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_LINEAR)
         bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, bgl.GL_LINEAR)
         # texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width,self.height,self.depth], image_data)
-        texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width*self.height*self.depth], image_flat)
-        bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self.width, self.height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
+        image_size = self.image_width*self.image_height*self.image_depth
+        texbuffer = bgl.Buffer(bgl.GL_BYTE, [image_size], self.image_flat)
+        bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self.image_width, self.image_height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
         del texbuffer
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+        self.buffered = True
     
     def __del__(self):
+        self.deleted = True
         bgl.glDeleteTextures(1, self.texbuffer)
     
-    def _get_width(self): return self.drawing.scale(self.width)
-    def _get_height(self): return self.drawing.scale(self.height)
+    def _get_width(self): return self.drawing.scale(self.width if self.size_set else self.image_width)
+    def _get_height(self): return self.drawing.scale(self.height if self.size_set else self.image_height)
     
-    def set_width(self, w): self.width = w
-    def set_height(self, h): self.height = h
-    def set_size(self, w, h): self.width,self.height = w,h
+    def set_width(self, w): self.width,self.size_set = w,True
+    def set_height(self, h): self.height,self.size_set = h,True
+    def set_size(self, w, h): self.width,self.height,self.size_set = w,h,True
     
     def _draw(self):
+        self.buffer_image()
+        if not self.buffered: return
+        
         cx,cy = self.pos + self.size / 2
-        w,h = self.drawing.scale(self.width),self.drawing.scale(self.height)
+        w,h = self._get_width(),self._get_height()
         l,t = cx-w/2, cy-h/2
         
         bgl.glColor4f(1,1,1,1)
@@ -1186,6 +1211,8 @@ class UI_Window(UI_Padding):
         self.movable   = options.get('movable', True)
         self.bgcolor   = options.get('bgcolor', (0,0,0,0.25))
         
+        self.fn_event_handler = options.get('event handler', None)
+        
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
         self.hbf.header.margin = 1
@@ -1399,6 +1426,9 @@ class UI_WindowManager:
                 if ret:
                     self.active = win
                     break
+        if self.active:
+            if self.active.fn_event_handler:
+                self.active.fn_event_handler(context, event)
         return ret
 
 

@@ -106,7 +106,17 @@ class RFContext_Drawing:
             nonlocal win
             self.window_manager.delete_window(win)
         
-        win = self.window_manager.create_window(title, {'sticky':5, 'movable':False, 'bgcolor':bgcolor})
+        def event_handler(context, event):
+            if event.type == 'ESC' and event.value == 'RELEASE':
+                close()
+        
+        opts = {
+            'sticky': 5,
+            'movable': False,
+            'bgcolor': bgcolor,
+            'event handler': event_handler,
+            }
+        win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
         win.add(UI_Markdown(message, min_size=Vec2D((300,36))))
         win.add(UI_Rule())
