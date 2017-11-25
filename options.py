@@ -24,7 +24,7 @@ import re
 import json
 import shelve
 
-retopoflow_version = "2.0.0"
+retopoflow_version = '2.0.0 beta'
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
@@ -305,7 +305,7 @@ class Options:
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
-        'version 1.3':          False,  # show RF 1.3 panel?
+        'version 1.3':          True,   # show RF 1.3 panel?
         
         'tools pos':    7,
         'info pos':     1,
