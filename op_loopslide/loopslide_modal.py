@@ -138,10 +138,10 @@ class CGC_loopslide(ModalOperator, loopslide_UI_fns, loopslide_UI_Modal, loopsli
     
     def update(self,context, eventd):
         '''Place update stuff here'''
-        self.loopslide.move_loop(self.bme, select=True)
-        self.trg_bvh = self.loop_slide.update_trg_bvh(self.trg_bme)
-        self.loopcut.push_to_edit_mesh(self.bme)
-        self.loopcut.clear()
+        # self.loopslide.move_loop(self.bme, select=True)
+        # self.trg_bvh = self.loop_slide.update_trg_bvh(self.trg_bme)
+        # self.loopcut.push_to_edit_mesh(self.bme)
+        # self.loopcut.clear()
         return ''
 
     
