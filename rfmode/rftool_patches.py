@@ -111,7 +111,7 @@ class RFTool_Patches(RFTool):
                 l0,l1 = l[-2],l[-1]
                 if len(neighbors[l1]) == 1: break
                 edge = next((e for e in neighbors[l1] if e != l0), None)
-                if not edge:
+                if not self.rfcontext.alert_assert(edge, throw=False):
                     # should not ever reach here!
                     break
                 l += [edge]
@@ -135,9 +135,14 @@ class RFTool_Patches(RFTool):
                 e0,e1 = strip[-1],strip[-2]
                 v1 = e0.other_vert(e0.shared_vert(e1))
             return v1.co - v0.co
-        def get_verts(strip):
-            l = [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1],strip[1:])]
-            return [strip[0].other_vert(l[0])] + l + [strip[-1].other_vert(l[-1])]
+        def get_verts(strip, start_verts=None):
+            if len(strip) == 1:
+                l = list(strip[0].verts)
+            else:
+                l = [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1],strip[1:])]
+                l = [strip[0].other_vert(l[0])] + l + [strip[-1].other_vert(l[-1])]
+            if start_verts and l[0] not in start_verts: l.reverse()
+            return l
         def make_strips_L(strip0, strip1):
             # possibly reverse strip0 and/or strip1 so strip0[0] and strip1[0] share a vertex, forming L
             if   strip0[0].shared_vert(strip1[0]): pass             # no need to reverse strips
@@ -152,6 +157,8 @@ class RFTool_Patches(RFTool):
         # TODO: ensure that sides have appropriate counts!
         
         self.rfcontext.undo_push('patch')
+        
+        dprint('len(strips) = %d' % len(strips))
         
         if len(strips) == 2:
             s0,s1 = strips
@@ -177,8 +184,11 @@ class RFTool_Patches(RFTool):
                 
                 # generate other 2 sides, creating a rectangle that is filled below
                 lv0,lv1 = get_verts(s0),get_verts(s1)
-                s2,last_bmv = duplicate_strip(s0, lv1[-1])
-                s3,_ = duplicate_strip(s1, lv0[-1], to_bmv=last_bmv)
+                endv0,endv1 = {lv0[0], lv0[-1]}, {lv1[0], lv1[-1]}
+                v01 = lv0[-1] if lv0[0] in endv1 else lv0[0]
+                v11 = lv1[-1] if lv1[0] in endv0 else lv1[0]
+                s2,last_bmv = duplicate_strip(s0, v11)
+                s3,last_bmv = duplicate_strip(s1, v01, to_bmv=last_bmv)
                 strips += [s2, s3]
             else:
                 # ||-shaped
