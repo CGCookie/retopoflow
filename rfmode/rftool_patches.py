@@ -25,9 +25,7 @@ from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_patches
-
-
-# bmesh.ops.holes_fill
+from ..lib.common_utilities import dprint
 
 
 @RFTool.action_call('patches tool')
@@ -87,7 +85,7 @@ class RFTool_Patches(RFTool):
                 strip.add(edge)
                 remaining_edges.remove(edge)
                 if len(edge.link_faces) != 1:
-                    print('A selected edge has unhandled number of link_faces (%d)' % len(strip.link_faces))
+                    self.rfcontext.alert_user('Patches', 'A selected edge is not on the boundary', level='note')
                     return
                 v0,v1 = edge.verts
                 face = next(iter(edge.link_faces))
@@ -184,26 +182,26 @@ class RFTool_Patches(RFTool):
                 strips += [s2, s3]
             else:
                 # ||-shaped
-                print('||')
+                self.rfcontext.alert_user('Patches', '||-shaped selections not yet handled', level='note')
                 self.rfcontext.undo_cancel()
         
         if len(strips) == 3:
             s0,s1,s2 = strips
             t01,t02,t12 = touching_strips(s0,s1),touching_strips(s0,s2),touching_strips(s1,s2)
             if t01 and t02 and t12:
-                print('triangle')
+                self.rfcontext.alert_user('Patches', 'Triangle selections not yet handled', level='note')
                 self.rfcontext.undo_cancel()
             elif t01 and t02 and not t12:
-                print('C0')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
                 self.rfcontext.undo_cancel()
             elif t01 and t12 and not t02:
-                print('C1')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
                 self.rfcontext.undo_cancel()
             elif t02 and t12 and not t01:
-                print('C2')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
                 self.rfcontext.undo_cancel()
             else:
-                print('unhandled len(strips) == 3')
+                self.rfcontext.alert_user('Patches', 'Unhandled shape of three selected strips', level='warning')
                 self.rfcontext.undo_cancel()
             return
         
@@ -213,7 +211,8 @@ class RFTool_Patches(RFTool):
             t12,t13,t23 = touching_strips(s1,s2),touching_strips(s1,s3),touching_strips(s2,s3)
             ct = sum(1 if t else 0 for t in [t01,t02,t03,t12,t13,t23])
             if ct != 4:
-                print('unhandled len(strips) == 4, ct = %d' % ct)
+                self.rfcontext.alert_user('Patches', 'Unhandled shape of four selected strips', level='warning')
+                dprint('unhandled len(strips) == 4, ct = %d' % ct)
                 self.rfcontext.undo_cancel()
                 return
             
@@ -232,7 +231,7 @@ class RFTool_Patches(RFTool):
             
             # ensure counts are same!
             if len(s0) != len(s2) or len(s1) != len(s3):
-                print('segment counts do not match')
+                self.rfcontext.alert_user('Patches', 'Opposite strips must have same edge count', level='warning')
                 self.rfcontext.undo_cancel()
                 return
             
@@ -267,7 +266,8 @@ class RFTool_Patches(RFTool):
                     self.rfcontext.new_face(verts)
             return
         
-        print('unhandled len(strips) == %d' % len(strips))
+        self.rfcontext.alert_user('Patches', 'Unhandled strip count', level='warning')
+        dprint('unhandled len(strips) == %d' % len(strips))
         self.rfcontext.undo_cancel()
         return
         

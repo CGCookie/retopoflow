@@ -220,6 +220,11 @@ class UI_Element:
         self.visible = True
         self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
         self.scissor_enabled = None
+        self.deleted = False
+    
+    def delete(self):
+        self.deleted = True
+        self._delete()
     
     def set_scissor(self, allow_expand=False):
         l,t = self.pos
@@ -247,6 +252,8 @@ class UI_Element:
             bgl.glDisable(bgl.GL_SCISSOR_TEST)
         bgl.glScissor(*self.scissor_buffer)
     
+    def hover_ui(self, mouse): return self._hover_ui(mouse)
+    def _hover_ui(self, mouse): return self.__hover_ui(mouse)
     def __hover_ui(self, mouse):
         if not self.visible: return None
         if not self.pos or not self.size: return None
@@ -257,7 +264,6 @@ class UI_Element:
         if y > t or y <= t - h: return None
         return self
     
-    def hover_ui(self, mouse): return self.__hover_ui(mouse)
     
     def draw(self, left, top, width, height):
         if not self.visible: return
@@ -273,6 +279,7 @@ class UI_Element:
     def get_width(self): return (self._get_width() + self.margin*2) if self.visible else 0
     def get_height(self): return (self._get_height() + self.margin*2) if self.visible else 0
     
+    def _delete(self): return
     def _get_width(self): return 0
     def _get_height(self): return 0
     def _draw(self): pass
@@ -464,8 +471,12 @@ class UI_Container(UI_Element):
         self.margin = margin
         self.offset = 0
     
-    def hover_ui(self, mouse):
-        if not super().hover_ui(mouse): return None
+    def _delete(self):
+        for ui_item in self.ui_items:
+            ui_item.delete()
+    
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
         for ui in self.ui_items:
             hover = ui.hover_ui(mouse)
             if hover: return hover
@@ -626,8 +637,8 @@ class UI_Button(UI_Container):
         if self.pressed: self.fn_callback()
         self.pressed = False
     
-    def hover_ui(self, mouse):
-        return self if super().hover_ui(mouse) else None
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
     
     def mouse_cursor(self): return 'HAND'
     
@@ -690,8 +701,8 @@ class UI_Options(UI_EqualContainer):
                 if icon and label: self.add(UI_Spacer(width=4))
                 if label:          self.add(UI_Label(label, tooltip=tooltip, color=color, align=align))
             
-            def hover_ui(self, mouse):
-                return self if super().hover_ui(mouse) else None
+            def _hover_ui(self, mouse):
+                return self if super()._hover_ui(mouse) else None
             
             def _draw(self):
                 selected = self.options.fn_get_option()
@@ -712,13 +723,13 @@ class UI_Options(UI_EqualContainer):
     def add(self, *args, **kwargs):
         assert False, "Do not call UI_Options.add()"
     
-    def hover_ui(self, mouse):
-        return self if super().hover_ui(mouse) else None
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
     
     def mouse_down(self, mouse): self.mouse_up(mouse)
     def mouse_move(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
-        ui = super().hover_ui(mouse)
+        ui = super()._hover_ui(mouse)
         if ui is None or ui == self: return
         self.set_option(self.options[ui])
     
@@ -890,8 +901,8 @@ class UI_Checkbox(UI_Container):
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
     
-    def hover_ui(self, mouse):
-        return self if super().hover_ui(mouse) else None
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
     
     def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
     
@@ -911,8 +922,8 @@ class UI_Checkbox2(UI_Container):
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
     
-    def hover_ui(self, mouse):
-        return self if super().hover_ui(mouse) else None
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
     def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
     
     def _draw(self):
@@ -967,8 +978,8 @@ class UI_IntValue(UI_Container):
         self.fn_set_value = fn_set_value
         self.fn_print_value = fn_print_value
     
-    def hover_ui(self, mouse):
-        return self if super().hover_ui(mouse) else None
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
     
     def mouse_down(self, mouse):
         self.down_mouse = mouse
@@ -1016,8 +1027,8 @@ class UI_HBFContainer(UI_Container):
         super().add(self.body)
         super().add(self.footer)
     
-    def hover_ui(self, mouse):
-        if not super().hover_ui(mouse): return None
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
         ui = self.header.hover_ui(mouse) or self.body.hover_ui(mouse) or self.footer.hover_ui(mouse)
         return ui or self
     
@@ -1110,8 +1121,8 @@ class UI_Collapsible(UI_Container):
         else: self.body.add(ui_item)
         return ui_item
     
-    def hover_ui(self, mouse):
-        if not super().hover_ui(mouse): return None
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
         if self.fn_collapsed.get(): return self
         return self.body.hover_ui(mouse) or self
     
@@ -1131,8 +1142,8 @@ class UI_Padding(UI_Element):
     
     def set_ui_item(self, ui_item): self.ui_item = ui_item
     
-    def hover_ui(self, mouse):
-        if not super().hover_ui(mouse): return None
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
         ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
         return ui or self
     
@@ -1347,6 +1358,13 @@ class UI_WindowManager:
         win = UI_Window(title, options)
         self.windows.append(win)
         return win
+    
+    def delete_window(self, win):
+        win.delete()
+        if win == self.active: self.clear_active()
+        if win in self.windows: self.windows.remove(win)
+    
+    def clear_active(self): self.active = None
     
     def draw_postpixel(self):
         for win in self.windows:

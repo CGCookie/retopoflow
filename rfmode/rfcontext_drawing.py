@@ -65,9 +65,33 @@ class RFContext_Drawing:
     def toggle_tool_help(self):
         if self.window_help.visible:
             self.window_help.visible = False
+            self.window_manager.clear_active()
         else:
             self.ui_helplabel.set_markdown(self.tool.helptext())
             self.window_help.visible = True
+    
+    def alert_user(self, title=None, message=None, level='warning'):
+        level = level.lower()
+        if level in {'warning'}:
+            bgcolor = (0.35, 0.25, 0.15, 0.95)
+            title = 'Warning' + (': %s' % title if title else '')
+        elif level in {'error'}:
+            bgcolor = (0.30, 0.15, 0.15, 0.95)
+            title = 'Error' + (': %s' % title if title else '!')
+        else:
+            bgcolor = (0.20, 0.20, 0.30, 0.95)
+            title = 'Note' + (': %s' % title if title else '')
+        
+        def close():
+            nonlocal win
+            self.window_manager.delete_window(win)
+        
+        win = self.window_manager.create_window(title, {'sticky':5, 'movable':False, 'bgcolor':bgcolor})
+        win.add(UI_Rule())
+        win.add(UI_Label(message))
+        win.add(UI_Rule())
+        win.add(UI_Button('Close', close, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        
     
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
@@ -95,6 +119,7 @@ class RFContext_Drawing:
         def hide_reporting():
             options['welcome'] = False
             self.window_welcome.visible = options['welcome']
+            self.window_manager.clear_active()
         
         def open_github():
             bpy.ops.wm.url_open(url=retopoflow_issues_url)
