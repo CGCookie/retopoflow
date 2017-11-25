@@ -54,6 +54,8 @@ class RFTool(metaclass=SingletonRegisterClass):
         'PolyPen',
         'Relax',
         'Tweak',
+        'Loops',
+        'Patches',
     ]
     order = None
     

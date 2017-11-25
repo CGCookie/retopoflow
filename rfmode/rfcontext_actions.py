@@ -97,6 +97,9 @@ class Actions:
         
         # loops
         'slide': {'S'},
+        
+        # patches
+        'fill': {'F'},
 
         # widget
         'brush radius': {'F'},
@@ -111,6 +114,7 @@ class Actions:
         'relax tool': {'R'},
         'move tool': {'T'},
         'loops tool': {'Y'},
+        'patches tool': {'U'},
         }
 
     navigation_events = {

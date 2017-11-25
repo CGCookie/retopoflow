@@ -30,7 +30,7 @@ import bpy
 import bgl
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
+from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces, holes_fill
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
@@ -944,6 +944,31 @@ class RFMesh():
         edges.reverse()
         crawl(bme, bme.verts[1])
         return (edges, False)
+    
+    def get_inner_edge_loop(self, edge):
+        # returns edge loop that follows the inside, boundary
+        bme = self._unwrap(edge)
+        if len(bme.link_faces) != 1: return ([], False)
+        touched = set()
+        edges = []
+        def crawl(bme0, bmv01):
+            nonlocal edges
+            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
+            if bmv01 in touched: return True
+            touched.add(bmv01)
+            touched.add(bme0)
+            bmf0 = bme0.link_faces
+            for bme1 in bmv01.link_edges:
+                if bme1 == bme0: continue
+                if len(bme1.link_faces) != 1: continue
+                if any(f in bmf0 for f in bme1.link_faces): continue
+                bmv2 = bme1.other_vert(bmv01)
+                return crawl(bme1, bmv2)
+            return False
+        if crawl(bme, bme.verts[0]): return (edges, True)
+        edges.reverse()
+        crawl(bme, bme.verts[1])
+        return (edges, False)
 
     def select_all(self):
         for bmv in self.bme.verts: bmv.select = True
@@ -1118,6 +1143,11 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
+    
+    def holes_fill(self, edges, sides):
+        edges = list(map(self._unwrap, edges))
+        ret = holes_fill(self.bme, edges=edges, sides=sides)
+        print(ret)
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True):
         faces = set(f for f in self.bme.faces if f.select)

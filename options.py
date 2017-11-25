@@ -282,8 +282,17 @@ help_loops = '''
 The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
 
 - CTRL+ACTION: insert edge loop
-- SELECT / SHIFT+SELECT: select edge loop
+- SELECT: select edge loop
 - S: slide edge loop
+'''
+
+help_patches = '''
+# Patches Help
+
+Add simple patches!
+
+- SELECT: select inner edge loop
+- F: fill selected inner edge loop
 '''
 
 

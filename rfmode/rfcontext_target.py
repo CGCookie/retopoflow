@@ -283,6 +283,9 @@ class RFContext_Target:
             v10,v11 = pair1
             faces += [self.new_face((v00,v01,v11,v10))]
         return faces
+    
+    def holes_fill(self, edges, sides):
+        self.rftarget.holes_fill(edges, sides)
 
     def update_verts_faces(self, verts):
         self.rftarget.update_verts_faces(verts)
@@ -341,6 +344,9 @@ class RFContext_Target:
     
     def get_edge_loop(self, edge):
         return self.rftarget.get_edge_loop(edge)
+    
+    def get_inner_edge_loop(self, edge):
+        return self.rftarget.get_inner_edge_loop(edge)
 
     def get_face_loop(self, edge):
         return self.rftarget.get_face_loop(edge)
@@ -371,6 +377,12 @@ class RFContext_Target:
 
     def select_edge_loop(self, edge, only=True):
         eloop,connected = self.get_edge_loop(edge)
+        self.rftarget.select(eloop, only=only)
+        if self.tool: self.tool.update()
+        self.update_rot_object()
+
+    def select_inner_edge_loop(self, edge, only=True):
+        eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
