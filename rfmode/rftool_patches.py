@@ -52,8 +52,12 @@ class RFTool_Patches(RFTool):
         return self.ui_icon
     
     def modal_main(self):
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('select')
+        if self.rfcontext.actions.pressed({'select', 'select add'}, unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select')
+            self.rfcontext.actions.unpress()
+            
+            if sel_only: self.rfcontext.undo_push('select')
+            else: self.rfcontext.undo_push('select add')
             
             edges = self.rfcontext.visible_edges()
             edges = [edge for edge in edges if len(edge.link_faces) == 1]
@@ -61,7 +65,7 @@ class RFTool_Patches(RFTool):
             if not edge:
                 self.rfcontext.deselect_all()
             else:
-                self.rfcontext.select_inner_edge_loop(edge)
+                self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
         
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
@@ -136,85 +140,136 @@ class RFTool_Patches(RFTool):
         def get_verts(strip):
             l = [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1],strip[1:])]
             return [strip[0].other_vert(l[0])] + l + [strip[-1].other_vert(l[-1])]
+        def make_strips_L(strip0, strip1):
+            # possibly reverse strip0 and/or strip1 so strip0[0] and strip1[0] share a vertex, forming L
+            if   strip0[0].shared_vert(strip1[0]): pass             # no need to reverse strips
+            elif strip0[-1].shared_vert(strip1[0]): strip0.reverse()
+            elif strip0[0].shared_vert(strip1[-1]): strip1.reverse()
+            else:
+                strip0.reverse()
+                strip1.reverse()
+        def align_strips(strip0, strip1):
+            if strip_vector(strip0).dot(strip_vector(strip1)) < 0: strip1.reverse()
         
         # TODO: ensure that sides have appropriate counts!
         
         self.rfcontext.undo_push('patch')
+        
         if len(strips) == 2:
             s0,s1 = strips
             if touching_strips(s0,s1):
-                print('L')
+                # L-shaped
+                make_strips_L(s0, s1)
+                
+                def duplicate_strip(strip, from_bmv, to_bmv=None):
+                    lverts = get_verts(strip)
+                    nstrip = []
+                    pairs = zip(lverts[:-1],lverts[1:]) if not to_bmv else zip(lverts[:-2],lverts[1:-1])
+                    for v10,v11 in pairs:
+                        diff = v11.co - v10.co
+                        nv = self.rfcontext.new_vert_point(from_bmv.co + diff)
+                        ne = self.rfcontext.new_edge([from_bmv,nv])
+                        nstrip += [ne]
+                        from_bmv = nv
+                    if to_bmv:
+                        nv = to_bmv
+                        ne = self.rfcontext.new_edge([from_bmv,nv])
+                        nstrip += [ne]
+                    return (nstrip,nv)
+                
+                # generate other 2 sides, creating a rectangle that is filled below
+                lv0,lv1 = get_verts(s0),get_verts(s1)
+                s2,last_bmv = duplicate_strip(s0, lv1[-1])
+                s3,_ = duplicate_strip(s1, lv0[-1], to_bmv=last_bmv)
+                strips += [s2, s3]
             else:
+                # ||-shaped
                 print('||')
-        elif len(strips) == 3:
+                self.rfcontext.undo_cancel()
+        
+        if len(strips) == 3:
             s0,s1,s2 = strips
             t01,t02,t12 = touching_strips(s0,s1),touching_strips(s0,s2),touching_strips(s1,s2)
             if t01 and t02 and t12:
                 print('triangle')
+                self.rfcontext.undo_cancel()
             elif t01 and t02 and not t12:
                 print('C0')
+                self.rfcontext.undo_cancel()
             elif t01 and t12 and not t02:
                 print('C1')
+                self.rfcontext.undo_cancel()
             elif t02 and t12 and not t01:
                 print('C2')
+                self.rfcontext.undo_cancel()
             else:
                 print('unhandled len(strips) == 3')
-        elif len(strips) == 4:
+                self.rfcontext.undo_cancel()
+            return
+        
+        if len(strips) == 4:
             s0,s1,s2,s3 = strips
             t01,t02,t03 = touching_strips(s0,s1),touching_strips(s0,s2),touching_strips(s0,s3)
             t12,t13,t23 = touching_strips(s1,s2),touching_strips(s1,s3),touching_strips(s2,s3)
             ct = sum(1 if t else 0 for t in [t01,t02,t03,t12,t13,t23])
-            if ct == 4:
-                if   not t01: s0,s1,s2,s3 = s0,s2,s1,s3
-                elif not t02: s0,s1,s2,s3 = s0,s1,s2,s3
-                elif not t03: s0,s1,s2,s3 = s0,s1,s3,s2
-                # don't know rotation order, though
-                if len(s0) != len(s2) or len(s1) != len(s3):
-                    print('segment counts do not match')
-                    return
-                # reverse s0 and s1 so s0[0] and s1[0] share a vertex
-                if   s0[0].shared_vert(s1[0]): pass             # no need to reverse strips
-                elif s0[-1].shared_vert(s1[0]): s0.reverse()
-                elif s0[0].shared_vert(s1[-1]): s1.reverse()
-                else:
-                    s0.reverse()
-                    s1.reverse()
-                # align s2 to s0 and s3 to s1
-                if strip_vector(s0).dot(strip_vector(s2)) < 0: s2.reverse()
-                if strip_vector(s1).dot(strip_vector(s3)) < 0: s3.reverse()
-                lv0,lv1,lv2,lv3 = get_verts(s0),get_verts(s1),get_verts(s2),get_verts(s3)
-                # construct new points
-                pts = {}
-                for i in range(0,len(s0)+1):
-                    v0,v2 = lv0[i],lv2[i]
-                    for j in range(0,len(s1)+1):
-                        v1,v3 = lv1[j],lv3[j]
-                        if   i == 0:       pts[(i,j)] = v1
-                        elif i == len(s0): pts[(i,j)] = v3
-                        elif j == 0:       pts[(i,j)] = v0
-                        elif j == len(s1): pts[(i,j)] = v2
-                        else:
-                            pi,pj = i / len(s0),j / len(s1)
-                            pti = v0.co + (v2.co - v0.co) * pj
-                            ptj = v1.co + (v3.co - v1.co) * pi
-                            pt = pti + (ptj - pti) * 0.5
-                            pts[(i,j)] = self.rfcontext.new_vert_point(pt)
-                # construct new faces
-                for i0 in range(0,len(s0)):
-                    i1 = i0 + 1
-                    for j0 in range(0,len(s1)):
-                        j1 = j0 + 1
-                        verts = [pts[(i0,j0)], pts[(i1,j0)], pts[(i1,j1)], pts[(i0,j1)]]
-                        self.rfcontext.new_face(verts)
-            else:
+            if ct != 4:
                 print('unhandled len(strips) == 4, ct = %d' % ct)
-        else:
-            print('unhandled len(strips) == %d' % len(strips))
+                self.rfcontext.undo_cancel()
+                return
+            
+            # rectangle
+            
+            # permute strips so they are in the following configuration
+            # note: don't know rotation order, yet; may be flipped, but s0/s2 and s1/s3 are opposite
+            #       s1
+            #     V----V
+            #  s0 |    | s2
+            #     V----V
+            #       s3
+            if   not t01: s0,s1,s2,s3 = s0,s2,s1,s3
+            elif not t02: s0,s1,s2,s3 = s0,s1,s2,s3
+            elif not t03: s0,s1,s2,s3 = s0,s1,s3,s2
+            
+            # ensure counts are same!
+            if len(s0) != len(s2) or len(s1) != len(s3):
+                print('segment counts do not match')
+                self.rfcontext.undo_cancel()
+                return
+            
+            make_strips_L(s0, s1)   # ensure that s0[0] and s1[0] share a vertex
+            align_strips(s0, s2)    # align s2 to s0
+            align_strips(s1, s3)    # align s3 to s1
+            
+            # construct new points
+            lv0,lv1,lv2,lv3 = get_verts(s0),get_verts(s1),get_verts(s2),get_verts(s3)
+            pts = {}
+            for i in range(0,len(s0)+1):
+                v0,v2 = lv0[i],lv2[i]
+                for j in range(0,len(s1)+1):
+                    v1,v3 = lv1[j],lv3[j]
+                    if   i == 0:       pts[(i,j)] = v1
+                    elif i == len(s0): pts[(i,j)] = v3
+                    elif j == 0:       pts[(i,j)] = v0
+                    elif j == len(s1): pts[(i,j)] = v2
+                    else:
+                        pi,pj = i / len(s0),j / len(s1)
+                        pti = v0.co + (v2.co - v0.co) * pj
+                        ptj = v1.co + (v3.co - v1.co) * pi
+                        pt = pti + (ptj - pti) * 0.5
+                        pts[(i,j)] = self.rfcontext.new_vert_point(pt)
+            
+            # construct new faces
+            for i0 in range(0,len(s0)):
+                i1 = i0 + 1
+                for j0 in range(0,len(s1)):
+                    j1 = j0 + 1
+                    verts = [pts[(i0,j0)], pts[(i1,j0)], pts[(i1,j1)], pts[(i0,j1)]]
+                    self.rfcontext.new_face(verts)
+            return
         
-        #print(strips)
-        
-        #self.rfcontext.undo_push('fill patch')
-        #self.rfcontext.holes_fill(self.rfcontext.get_selected_edges(), 4)
+        print('unhandled len(strips) == %d' % len(strips))
+        self.rfcontext.undo_cancel()
+        return
         
     
     def draw_postview(self): pass

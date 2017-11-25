@@ -381,9 +381,9 @@ class RFContext_Target:
         if self.tool: self.tool.update()
         self.update_rot_object()
 
-    def select_inner_edge_loop(self, edge, only=True):
+    def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
-        self.rftarget.select(eloop, only=only)
+        self.rftarget.select(eloop, **kwargs)
         if self.tool: self.tool.update()
         self.update_rot_object()
 
