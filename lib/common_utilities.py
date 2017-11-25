@@ -82,7 +82,7 @@ def get_dpi_factor():
     return get_dpi() / 72
 
 # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
-def print_exception():
+def get_exception_info():
     exc_type, exc_obj, tb = sys.exc_info()
     
     errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
@@ -94,17 +94,15 @@ def print_exception():
             pfilename = filename
             errormsg += '         %s\n' % (filename)
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
-    
+    return errormsg
+
+def print_exception():
+    errormsg = get_exception_info()
     print(errormsg)
     print_exception.count += 1
-
-    # write error to log text object
-    Logger.add(errormsg)
-    #bpy.data.texts[options['log_filename']].write(errormsg + '\n')
-
+    Logger.add(errormsg)        # write error to log text object
     if print_exception.count < 10:
         showErrorMessage(errormsg, wrap=240)
-
     return errormsg
 
 

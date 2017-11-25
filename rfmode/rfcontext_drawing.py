@@ -28,7 +28,7 @@ import time
 from .rftool import RFTool
 
 from ..lib.classes.profiler.profiler import profiler
-from ..common.maths import Point, Point2D
+from ..common.maths import Point, Point2D, Vec2D
 from ..common.ui import Drawing
 from ..common.ui import (
     UI_WindowManager,
@@ -70,6 +70,12 @@ class RFContext_Drawing:
             self.ui_helplabel.set_markdown(self.tool.helptext())
             self.window_help.visible = True
     
+    def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
+        if must_be_true_condition: return True
+        self.alert_user(title=title, message=message, level='assert')
+        if throw: assert False
+        return False
+    
     def alert_user(self, title=None, message=None, level='warning'):
         level = level.lower()
         if level in {'warning'}:
@@ -78,6 +84,20 @@ class RFContext_Drawing:
         elif level in {'error'}:
             bgcolor = (0.30, 0.15, 0.15, 0.95)
             title = 'Error' + (': %s' % title if title else '!')
+        elif level in {'assert'}:
+            bgcolor = (0.30, 0.15, 0.15, 0.95)
+            title = 'Assert Error' + (': %s' % title if title else '!')
+            msg = 'An internal assertion has failed.\n' + \
+                  'This was unexpected.\n' + \
+                  'If this happens again, please report as bug so we can fix it.'
+            message = msg + (('\n\n%s' % message) if message else '')
+        elif level in {'exception'}:
+            bgcolor = (0.30, 0.15, 0.15, 0.95)
+            title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
+            msg = 'An unhandled exception was thrown.\n' + \
+                  'This was unexpected.\n' + \
+                  'If this happens again, please report as bug so we can fix it.'
+            message = msg + (('\n\n%s' % message) if message else '')
         else:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
@@ -88,7 +108,7 @@ class RFContext_Drawing:
         
         win = self.window_manager.create_window(title, {'sticky':5, 'movable':False, 'bgcolor':bgcolor})
         win.add(UI_Rule())
-        win.add(UI_Label(message))
+        win.add(UI_Markdown(message, min_size=Vec2D((300,36))))
         win.add(UI_Rule())
         win.add(UI_Button('Close', close, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         

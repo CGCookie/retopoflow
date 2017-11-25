@@ -46,7 +46,7 @@ from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
-from ..lib.common_utilities import get_settings, dprint
+from ..lib.common_utilities import get_settings, dprint, get_exception_info
 from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
@@ -458,8 +458,15 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.nav = False
             self.rfwidget.update()
         
-        nmode = self.FSM[self.mode]()
-        if nmode: self.mode = nmode
+        try:
+            nmode = self.FSM[self.mode]()
+            if nmode: self.mode = nmode
+        except Exception as e:
+            message = get_exception_info()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='exception')
+            #raise e
 
         if self.actions.pressed('done') or self.exit:
             # all done!
