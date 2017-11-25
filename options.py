@@ -289,10 +289,23 @@ The Loops tool allows you to insert new edge loops along a face loop and slide a
 help_patches = '''
 # Patches Help
 
-Add simple patches!
+The Patches tool helps fill in holes in your topology.
+Select the strip of boundary edges that you wish to fill.
 
-- SELECT: select inner edge loop
+- SELECT / SHIFT+SELECT: select inner edge loop
 - F: fill selected inner edge loop
+
+## Notes
+
+All boundary edges must be adjacent to exactly one face.
+
+The Patches tool currently only handles a limited number of scenarios (listed below).
+More support coming soon!
+
+![](help_patches_2sides_beforeafter.png)
+
+- 2 edges: L shape, | | shape
+- 4 edges: Rectangle shape
 '''
 
 
