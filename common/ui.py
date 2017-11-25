@@ -1205,6 +1205,7 @@ class UI_Window(UI_Padding):
         self.FSM['main'] = self.modal_main
         self.FSM['move'] = self.modal_move
         self.FSM['down'] = self.modal_down
+        self.FSM['scroll'] = self.modal_scroll
         self.state = 'main'
     
     def show(self): self.visible = True
@@ -1332,6 +1333,24 @@ class UI_Window(UI_Padding):
             offset = max(0, min(ah-h, offset))
             self.hbf.body.offset = offset
             return
+        
+        if self.event.type == 'MIDDLEMOUSE' and self.event.value == 'PRESS':
+            self.mouse_down = self.mouse
+            self.mouse_prev = self.mouse
+            return 'scroll'
+    
+    def modal_scroll(self):
+        set_cursor('HAND')
+        if self.event.type == 'MIDDLEMOUSE' and self.event.value == 'RELEASE':
+            return 'main'
+        move = (self.mouse.y - self.mouse_prev.y)
+        offset = self.hbf.body.offset + move
+        l,t = self.hbf.body.pos
+        w,h = self.hbf.body.size
+        ah = self.hbf.body._get_height()
+        offset = max(0, min(ah-h, offset))
+        self.hbf.body.offset = offset
+        self.mouse_prev = self.mouse
     
     def modal_move(self):
         set_cursor('HAND')
