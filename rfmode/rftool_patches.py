@@ -135,13 +135,14 @@ class RFTool_Patches(RFTool):
                 e0,e1 = strip[-1],strip[-2]
                 v1 = e0.other_vert(e0.shared_vert(e1))
             return v1.co - v0.co
-        def get_verts(strip, start_verts=None):
+        def get_verts(strip, rev):
             if len(strip) == 1:
                 l = list(strip[0].verts)
+                if rev: l.reverse()
             else:
                 l = [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1],strip[1:])]
                 l = [strip[0].other_vert(l[0])] + l + [strip[-1].other_vert(l[-1])]
-            if start_verts and l[0] not in start_verts: l.reverse()
+            #if start_verts and l[0] not in start_verts: l.reverse()
             return l
         def make_strips_L(strip0, strip1):
             # possibly reverse strip0 and/or strip1 so strip0[0] and strip1[0] share a vertex, forming L
@@ -151,8 +152,14 @@ class RFTool_Patches(RFTool):
             else:
                 strip0.reverse()
                 strip1.reverse()
-        def align_strips(strip0, strip1):
-            if strip_vector(strip0).dot(strip_vector(strip1)) < 0: strip1.reverse()
+            rev0 = strip0[0].verts[0] not in strip1[0].verts
+            rev1 = strip1[0].verts[0] not in strip0[0].verts
+            return (rev0,rev1)
+        def align_strips(strip0, strip1, rev):
+            if strip_vector(strip0).dot(strip_vector(strip1)) < 0:
+                strip1.reverse()
+                rev = not rev
+            return rev
         
         # TODO: ensure that sides have appropriate counts!
         
@@ -164,10 +171,10 @@ class RFTool_Patches(RFTool):
             s0,s1 = strips
             if touching_strips(s0,s1):
                 # L-shaped
-                make_strips_L(s0, s1)
+                rev0,rev1 = make_strips_L(s0, s1)
                 
-                def duplicate_strip(strip, from_bmv, to_bmv=None):
-                    lverts = get_verts(strip)
+                def duplicate_strip(strip, from_bmv, rev, to_bmv=None):
+                    lverts = get_verts(strip, rev)
                     nstrip = []
                     pairs = zip(lverts[:-1],lverts[1:]) if not to_bmv else zip(lverts[:-2],lverts[1:-1])
                     for v10,v11 in pairs:
@@ -183,12 +190,10 @@ class RFTool_Patches(RFTool):
                     return (nstrip,nv)
                 
                 # generate other 2 sides, creating a rectangle that is filled below
-                lv0,lv1 = get_verts(s0),get_verts(s1)
-                endv0,endv1 = {lv0[0], lv0[-1]}, {lv1[0], lv1[-1]}
-                v01 = lv0[-1] if lv0[0] in endv1 else lv0[0]
-                v11 = lv1[-1] if lv1[0] in endv0 else lv1[0]
-                s2,last_bmv = duplicate_strip(s0, v11)
-                s3,last_bmv = duplicate_strip(s1, v01, to_bmv=last_bmv)
+                lv0,lv1 = get_verts(s0, rev0),get_verts(s1, rev1)
+                v01,v11 = lv0[-1],lv1[-1]
+                s2,last_bmv = duplicate_strip(s0, v11, rev0)
+                s3,last_bmv = duplicate_strip(s1, v01, rev1, to_bmv=last_bmv)
                 strips += [s2, s3]
             else:
                 # ||-shaped
@@ -245,12 +250,12 @@ class RFTool_Patches(RFTool):
                 self.rfcontext.undo_cancel()
                 return
             
-            make_strips_L(s0, s1)   # ensure that s0[0] and s1[0] share a vertex
-            align_strips(s0, s2)    # align s2 to s0
-            align_strips(s1, s3)    # align s3 to s1
+            rev0,rev1 = make_strips_L(s0, s1)   # ensure that s0[0] and s1[0] share a vertex
+            rev2 = align_strips(s0, s2, rev0)    # align s2 to s0
+            rev3 = align_strips(s1, s3, rev1)    # align s3 to s1
             
             # construct new points
-            lv0,lv1,lv2,lv3 = get_verts(s0),get_verts(s1),get_verts(s2),get_verts(s3)
+            lv0,lv1,lv2,lv3 = get_verts(s0,rev0),get_verts(s1,rev1),get_verts(s2,rev2),get_verts(s3,rev3)
             pts = {}
             for i in range(0,len(s0)+1):
                 v0,v2 = lv0[i],lv2[i]
