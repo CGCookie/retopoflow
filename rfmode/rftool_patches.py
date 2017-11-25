@@ -160,6 +160,33 @@ class RFTool_Patches(RFTool):
                 strip1.reverse()
                 rev = not rev
             return rev
+        def duplicate_strip(strip, from_bmv, rev, to_bmv=None):
+            lverts = get_verts(strip, rev)
+            nstrip = []
+            pairs = zip(lverts[:-1],lverts[1:]) if not to_bmv else zip(lverts[:-2],lverts[1:-1])
+            for v10,v11 in pairs:
+                diff = v11.co - v10.co
+                nv = self.rfcontext.new_vert_point(from_bmv.co + diff)
+                ne = self.rfcontext.new_edge([from_bmv,nv])
+                nstrip += [ne]
+                from_bmv = nv
+            if to_bmv:
+                nv = to_bmv
+                ne = self.rfcontext.new_edge([from_bmv,nv])
+                nstrip += [ne]
+            return (nstrip,nv)
+        def create_strip(v0, v1, count):
+            nstrip = []
+            pt0,vec10 = v0.co, v1.co - v0.co
+            for i in range(count-1):
+                p = (i+1) / count
+                nv = self.rfcontext.new_vert_point(pt0 + vec10 * p)
+                ne = self.rfcontext.new_edge([v0, nv])
+                nstrip += [ne]
+                v0 = nv
+            ne = self.rfcontext.new_edge([v0, v1])
+            nstrip += [ne]
+            return nstrip
         
         # TODO: ensure that sides have appropriate counts!
         
@@ -172,23 +199,6 @@ class RFTool_Patches(RFTool):
             if touching_strips(s0,s1):
                 # L-shaped
                 rev0,rev1 = make_strips_L(s0, s1)
-                
-                def duplicate_strip(strip, from_bmv, rev, to_bmv=None):
-                    lverts = get_verts(strip, rev)
-                    nstrip = []
-                    pairs = zip(lverts[:-1],lverts[1:]) if not to_bmv else zip(lverts[:-2],lverts[1:-1])
-                    for v10,v11 in pairs:
-                        diff = v11.co - v10.co
-                        nv = self.rfcontext.new_vert_point(from_bmv.co + diff)
-                        ne = self.rfcontext.new_edge([from_bmv,nv])
-                        nstrip += [ne]
-                        from_bmv = nv
-                    if to_bmv:
-                        nv = to_bmv
-                        ne = self.rfcontext.new_edge([from_bmv,nv])
-                        nstrip += [ne]
-                    return (nstrip,nv)
-                
                 # generate other 2 sides, creating a rectangle that is filled below
                 lv0,lv1 = get_verts(s0, rev0),get_verts(s1, rev1)
                 v01,v11 = lv0[-1],lv1[-1]
@@ -197,8 +207,24 @@ class RFTool_Patches(RFTool):
                 strips += [s2, s3]
             else:
                 # ||-shaped
-                self.rfcontext.alert_user('Patches', '||-shaped selections not yet handled', level='note')
-                self.rfcontext.undo_cancel()
+                # ensure counts are same!
+                if len(s0) != len(s1):
+                    self.rfcontext.alert_user('Patches', 'Opposite strips must have same edge count', level='warning')
+                    self.rfcontext.undo_cancel()
+                    return
+                # generate connecting 2 sides, creating a rectangle that is filled below
+                rev1 = align_strips(s0, s1, False)
+                lv0,lv1 = get_verts(s0,False),get_verts(s1,rev1)
+                v00,v01,v10,v11 = lv0[0],lv0[-1],lv1[0],lv1[-1]
+                d23 = ((v10.co - v00.co).length + (v11.co - v01.co).length) / 2
+                d01 = ((v01.co - v00.co).length + (v11.co - v10.co).length) / 2
+                count = max(1, round(d23 * len(s0) / d01))
+                dprint('count = %d' % count)
+                s2 = create_strip(v00, v10, count)
+                s3 = create_strip(v01, v11, count)
+                strips += [s2, s3]
+                #self.rfcontext.alert_user('Patches', '||-shaped selections not yet handled', level='note')
+                #self.rfcontext.undo_cancel()
         
         if len(strips) == 3:
             s0,s1,s2 = strips
