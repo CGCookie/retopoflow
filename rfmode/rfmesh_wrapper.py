@@ -1,4 +1,5 @@
 import bmesh
+import math
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve
 from ..common.utils import iter_pairs
@@ -93,6 +94,7 @@ class RFVert(BMElemWrapper):
     def co(self): return self.l2w_point(self.bmelem.co)
     @co.setter
     def co(self, co):
+        assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
         co = self.w2l_point(co)
         if 'x' in self.symmetry: co.x = max(0, co.x)
         if 'y' in self.symmetry: co.y = min(0, co.y)

@@ -85,6 +85,15 @@ class RFMesh():
     @stats_wrapper
     @profiler.profile
     def __setup__(self, obj, deform=False, bme=None, triangulate=False, selection=True, keepeme=False):
+        hasnan = any(math.isnan(v) for emv in obj.data.vertices for v in emv.co)
+        if hasnan:
+            dprint('Mesh data contains NaN in vertex coordinate!')
+            dprint('Cleaning mesh')
+            obj.data.validate(verbose=True, clean_customdata=False)
+        else:
+            # cleaning mesh quietly
+            obj.data.validate(verbose=False, clean_customdata=False)
+        
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
