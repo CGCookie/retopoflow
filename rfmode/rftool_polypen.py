@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson, Christopher Gearhart
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import bpy
 import bmesh
 import math
@@ -8,6 +29,7 @@ from ..common.ui import UI_Image
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
+from ..lib.common_utilities import dprint
 
 from ..options import help_polypen
 
@@ -36,6 +58,8 @@ class RFTool_PolyPen(RFTool):
         self.recompute = True
         self.defer_recomputing = False
         self.selecting = False
+        
+        self.update_tool_options()
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polypen_32.png')
@@ -169,25 +193,22 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
-        # if self.rfcontext.actions.pressed('SPACE'):
-        #     bmes = self.sel_edges
-        #     bmvs = []
-        #     for bme in bmes:
-        #         _,bmv = bme.split()
-        #         bmvs.append(bmv)
-        #     self.rfcontext.select(bmvs)
-        #     self.rfcontext.dirty()
-        
         if self.rfcontext.actions.pressed('delete'):
             self.rfcontext.undo_push('delete')
             self.rfcontext.delete_selection()
             self.rfcontext.dirty()
             return
         
-        if self.rfcontext.actions.pressed('dissolve'):
-            self.rfcontext.undo_push('dissolve')
-            for bmv in self.sel_verts:
-                bmv.dissolve()
+        if self.rfcontext.actions.pressed({'dissolve vert', 'dissolve edge', 'dissolve face'}, unpress=False):
+            if self.rfcontext.actions.pressed('dissolve vert') and self.sel_verts:
+                self.rfcontext.undo_push('dissolve vert')
+                self.rfcontext.dissolve_verts(self.sel_verts)
+            elif self.rfcontext.actions.pressed('dissolve edge') and self.sel_edges:
+                self.rfcontext.undo_push('dissolve edge')
+                self.rfcontext.dissolve_edges(self.sel_edges)
+            elif self.rfcontext.actions.pressed('dissolve face') and self.sel_faces:
+                self.rfcontext.undo_push('dissolve face')
+                self.rfcontext.dissolve_faces(self.sel_faces)
             self.rfcontext.dirty()
             return
 
@@ -218,13 +239,11 @@ class RFTool_PolyPen(RFTool):
         sel_edges = self.sel_edges
         sel_faces = self.sel_faces
         
-        print(self.next_state)
-        
         # overriding
         # if hovering over a selected edge, knife it!
-        if self.nearest_edge.select:
+        if self.nearest_edge and self.nearest_edge.select:
             if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
-                print('knifing selected, hovered edge')
+                #print('knifing selected, hovered edge')
                 bmv = self.rfcontext.new2D_vert_mouse()
                 if not bmv:
                     self.rfcontext.undo_cancel()
@@ -235,7 +254,7 @@ class RFTool_PolyPen(RFTool):
                 self.mousedown = self.rfcontext.actions.mousedown
                 xy = self.rfcontext.Point_to_Point2D(bmv.co)
                 if not xy:
-                    print('Could not insert: ' + str(bmv.co))
+                    #print('Could not insert: ' + str(bmv.co))
                     self.rfcontext.undo_cancel()
                     return 'main'
                 self.bmverts = [(bmv, xy)]
@@ -283,7 +302,7 @@ class RFTool_PolyPen(RFTool):
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                print('Could not insert: ' + str(bmv1.co))
+                dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
@@ -317,7 +336,7 @@ class RFTool_PolyPen(RFTool):
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
             if not xy:
-                print('Could not insert: ' + str(bmv2.co))
+                dprint('Could not insert: ' + str(bmv2.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv2, xy)]
@@ -351,7 +370,7 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                print('Could not insert: ' + str(bmv3.co))
+                dprint('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)]
@@ -370,7 +389,7 @@ class RFTool_PolyPen(RFTool):
         self.mousedown = self.rfcontext.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
         if not xy:
-            print('Could not insert: ' + str(bmv.co))
+            dprint('Could not insert: ' + str(bmv.co))
             self.rfcontext.undo_cancel()
             return 'main'
         self.bmverts = [(bmv, xy)]
@@ -395,6 +414,7 @@ class RFTool_PolyPen(RFTool):
                         shared_faces = bmv.shared_faces(bmv1)
                         self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
                         bmv1.merge(bmv)
+                        self.rfcontext.clean_duplicate_bmedges(bmv1)
                     self.rfcontext.select(bmv1)
                     update_verts += [bmv1]
                     break

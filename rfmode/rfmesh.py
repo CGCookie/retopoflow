@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import sys
 import math
 import copy
@@ -9,6 +30,7 @@ import bpy
 import bgl
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces, holes_fill
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
@@ -18,7 +40,7 @@ from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
-from ..common.utils import min_index
+from ..common.utils import min_index, hash_object, hash_bmesh
 from ..common.decorators import stats_wrapper
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
@@ -26,6 +48,7 @@ from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 from .rfmesh_render import RFMeshRender
+
 
 class RFMesh():
     '''
@@ -42,38 +65,6 @@ class RFMesh():
         RFMesh.__version += 1
         return RFMesh.__version
 
-    @staticmethod
-    @profiler.profile
-    def hash_object(obj:bpy.types.Object):
-        if obj is None: return None
-        pr = profiler.start('computing hash on object')
-        assert type(obj) is bpy.types.Object, "Only call RFMesh.hash_object on mesh objects!"
-        assert type(obj.data) is bpy.types.Mesh, "Only call RFMesh.hash_object on mesh objects!"
-        # get object data to act as a hash
-        me = obj.data
-        counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
-        if me.vertices:
-            bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-        else:
-            bbox = (None, None)
-        vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
-        xform  = tuple(e for l in obj.matrix_world for e in l)
-        hashed = (counts, bbox, vsum, xform, hash(obj))      # ob.name???
-        pr.done()
-        return hashed
-
-    @staticmethod
-    @profiler.profile
-    def hash_bmesh(bme:BMesh):
-        if bme is None: return None
-        pr = profiler.start('computing hash on bmesh')
-        assert type(bme) is BMesh, 'Only call RFMesh.hash_bmesh on BMesh objects!'
-        counts = (len(bme.verts), len(bme.edges), len(bme.faces))
-        bbox   = BBox(from_bmverts=self.bme.verts)
-        vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
-        hashed = (counts, tuple(bbox.min), tuple(bbox.max), vsum)
-        pr.done()
-        return hashed
 
 
     def __init__(self):
@@ -97,7 +88,7 @@ class RFMesh():
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
-        self.hash = RFMesh.hash_object(self.obj)
+        self.hash = hash_object(self.obj)
         pr.done()
         
         if bme != None:
@@ -337,7 +328,6 @@ class RFMesh():
                         continue
                     else:
                         # recursively crawl on!
-                        print(bmf1)
                         ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
 
                     if bmf0 == bmf:
@@ -937,9 +927,49 @@ class RFMesh():
             touched.add(bme0)
             if len(bmv01.link_edges) > 4: return False
             if len(bmv01.link_faces) > 4: return False
+            if len(bmv01.link_faces) == 4:
+                # find next edge that doesn't share face with bme0
+                bmf0 = bme0.link_faces
+                for bme1 in bmv01.link_edges:
+                    if bme1 == bme0: continue
+                    if any(f in bmf0 for f in bme1.link_faces): continue
+                    bmv2 = bme1.other_vert(bmv01)
+                    return crawl(bme1, bmv2)
+            else:
+                # find the edge that's pointing in the most similar direction
+                best_bme,best_dot = None,-1
+                d0 = (bme0.verts[1].co - bme0.verts[0].co).normalized()
+                bmf0 = bme0.link_faces
+                for bme1 in bmv01.link_edges:
+                    if bme1 == bme0: continue
+                    if any(f in bmf0 for f in bme1.link_faces): continue
+                    d1 = (bme1.verts[1].co - bme1.verts[0].co).normalized()
+                    d = abs(d0.dot(d1))
+                    if d > best_dot: best_bme,best_dot = bme1,d
+                if best_bme:
+                    return crawl(best_bme, best_bme.other_vert(bmv01))
+            return False
+        if crawl(bme, bme.verts[0]): return (edges, True)
+        edges.reverse()
+        crawl(bme, bme.verts[1])
+        return (edges, False)
+    
+    def get_inner_edge_loop(self, edge):
+        # returns edge loop that follows the inside, boundary
+        bme = self._unwrap(edge)
+        if len(bme.link_faces) != 1: return ([], False)
+        touched = set()
+        edges = []
+        def crawl(bme0, bmv01):
+            nonlocal edges
+            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
+            if bmv01 in touched: return True
+            touched.add(bmv01)
+            touched.add(bme0)
             bmf0 = bme0.link_faces
             for bme1 in bmv01.link_edges:
                 if bme1 == bme0: continue
+                if len(bme1.link_faces) != 1: continue
                 if any(f in bmf0 for f in bme1.link_faces): continue
                 bmv2 = bme1.other_vert(bmv01)
                 return crawl(bme1, bmv2)
@@ -982,7 +1012,7 @@ class RFSource(RFMesh):
         if obj.data.name in RFSource.__cache:
             # does cache match current state?
             rfsource = RFSource.__cache[obj.data.name]
-            hashed = RFMesh.hash_object(obj)
+            hashed = hash_object(obj)
             #print(str(rfsource.hash))
             #print(str(hashed))
             if rfsource.hash != hashed:
@@ -1122,6 +1152,11 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
+    
+    def holes_fill(self, edges, sides):
+        edges = list(map(self._unwrap, edges))
+        ret = holes_fill(self.bme, edges=edges, sides=sides)
+        print(ret)
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True):
         faces = set(f for f in self.bme.faces if f.select)
@@ -1154,6 +1189,18 @@ class RFTarget(RFMesh):
         if del_empty_verts:
             for bmv in verts:
                 if len(bmv.link_faces) == 0: self.bme.verts.remove(bmv)
+
+    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
+        verts = list(map(self._unwrap, verts))
+        dissolve_verts(self.bme, verts=verts, use_face_split=use_face_split, use_boundary_tear=use_boundary_tear)
+
+    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+        edges = list(map(self._unwrap, edges))
+        dissolve_edges(self.bme, edges=edges, use_verts=use_verts, use_face_split=use_face_split)
+
+    def dissolve_faces(self, faces, use_verts=False):
+        faces = list(map(self._unwrap, faces))
+        dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
         faces = set(f for v in verts for f in self._unwrap(v).link_faces)

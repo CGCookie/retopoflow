@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import bpy
 from copy import deepcopy
 
@@ -32,29 +53,38 @@ class Actions:
         'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
         'window actions': set(),                        # to be filled in by self.load_keymap()
         
-        'tool help': {'F1'},
-
-        'autosave': {'TIMER_AUTOSAVE'},
         'action': {'LEFTMOUSE'},
-        'alt action': {'SHIFT+LEFTMOUSE'},
-        # 'action alt1': {'CTRL+LEFTMOUSE'},
+        'action alt0': {'SHIFT+LEFTMOUSE'},
+        'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
+        
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
+        
+        'tool help': {'F1'},
+
+        'autosave': {'TIMER_AUTOSAVE'},
+        
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'cancel no select': {'ESC'},
         'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
+        'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        
         'undo': {'CTRL+Z'},
         'redo': {'CTRL+SHIFT+Z'},
-        'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        
         'edit mode': {'TAB'},
 
         'insert': {'CTRL+LEFTMOUSE'},
         'insert alt0': {'SHIFT+LEFTMOUSE'},
         'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
+        
         'grab': {'G'},
         'delete': {'X','DELETE'},
         'dissolve': {'SHIFT+X','SHIFT+DELETE'},
+        'dissolve vert': {'SHIFT+X','SHIFT+DELETE'},
+        'dissolve edge': {'CTRL+X','CTRL+DELETE'},
+        'dissolve face': {'CTRL+SHIFT+X', 'CTRL+SHIFT+DELETE'},
 
         # contours
         'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
@@ -67,6 +97,9 @@ class Actions:
         
         # loops
         'slide': {'S'},
+        
+        # patches
+        'fill': {'F'},
 
         # widget
         'brush radius': {'F'},
@@ -81,6 +114,7 @@ class Actions:
         'relax tool': {'R'},
         'move tool': {'T'},
         'loops tool': {'Y'},
+        'patches tool': {'U'},
         }
 
     navigation_events = {
@@ -258,6 +292,7 @@ class Actions:
 
 
     def using(self, actions):
+        if actions is None: return False
         actions = self.convert(actions)
         return any(p in actions for p in self.now_pressed.values())
     
@@ -268,6 +303,7 @@ class Actions:
         return False
 
     def pressed(self, actions, unpress=True, ignoremods=False):
+        if actions is None: return False
         actions = self.convert(actions)
         just_pressed = self.just_pressed if not ignoremods else strip_mods(self.just_pressed)
         ret = just_pressed in actions
@@ -275,6 +311,7 @@ class Actions:
         return ret
 
     def released(self, actions):
+        if actions is None: return False
         return not self.using(actions)
 
     def warp_mouse(self, xy:Point2D):

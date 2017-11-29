@@ -1,10 +1,33 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import bmesh
 import math
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve
+from bmesh.utils import edge_split, vert_splice, face_split, vert_collapse_edge, vert_dissolve, face_join
+from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
+from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
-from ..common.maths import Vec2D
+from ..common.maths import Vec2D, Point
 from ..lib.common_utilities import dprint
 
 
@@ -211,7 +234,6 @@ class RFEdge(BMElemWrapper):
         bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
         return bmv0 if bmv0.is_valid else bmv1
 
-
 class RFFace(BMElemWrapper):
     def __repr__(self):
         return '<RFFace: %s>' % repr(self.bmelem)
@@ -258,6 +280,12 @@ class RFFace(BMElemWrapper):
     
     def is_quad(self): return len(self.bmelem.verts)==4
     def is_triangle(self): return len(self.bmelem.verts)==3
+    
+    def center(self):
+        c = Vector()
+        for bmv in self.bmelem.verts:
+            c += bmv.co
+        return Point(c / len(self.bmelem.verts))
     
     #############################################
     
@@ -307,7 +335,6 @@ class RFFace(BMElemWrapper):
                             nverts1 += [intersections[i0]]
                     nverts1 += [v11]
             verts1 = nverts1
-            print(verts1)
         
         if len(verts1) < 3: return 0
         v0 = verts1[0]

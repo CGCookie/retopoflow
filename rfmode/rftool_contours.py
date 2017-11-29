@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import bpy
 import bgl
 import blf
@@ -14,7 +35,7 @@ from .rftool_contours_utils import *
 from .rftool_contours_ops import RFTool_Contours_Ops
 from mathutils import Matrix
 
-from ..options import help_contours
+from ..options import options, help_contours
 
 
 @RFTool.action_call('contours tool')
@@ -24,7 +45,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
         self.FSM['rotate'] = self.modal_rotate
-        self.count = 16
     
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
@@ -43,9 +63,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.cut_pts = []
         self.connected = False
         self.cuts = []
+        
+        self.update_tool_options()
     
-    def get_count(self): return self.count
-    def set_count(self, v): self.count = max(3, v)
+    def get_count(self): return options['contours count']
+    def set_count(self, v): options['contours count'] = max(3, v)
     def get_ui_options(self):
         self.ui_count = UI_IntValue('Count', self.get_count, self.set_count)
         return [self.ui_count]

@@ -23,7 +23,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A retopology-focused mode with dedicated retopology tools for Blender",
-    "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore",
+    "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version":     (2, 0, 0),
     "blender":     (2, 7, 8),
     "location":    "View 3D > Tool Shelf",
@@ -65,6 +65,9 @@ from .op_polypen.polypen_modal import CGC_Polypen
 
 from .rfmode.rfmode import RFMode, rfmode_tools
 from .rfmode.rf_recover import RFRecover, RFRecover_Clear
+from .rfmode.rf_quickstart import OpenQuickStart
+from .rfmode.rf_webissues import OpenWebIssues
+from .rfmode.rf_webtip import OpenWebTip
 
 # updater import
 from . import addon_updater_ops
@@ -98,6 +101,9 @@ def register():
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
 
     bpy.utils.register_class(OpenLog)
+    bpy.utils.register_class(OpenQuickStart)
+    bpy.utils.register_class(OpenWebIssues)
+    bpy.utils.register_class(OpenWebTip)
 
     # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
@@ -140,11 +146,12 @@ def unregister():
     clear_icons()
 
     bpy.utils.unregister_class(OpenLog)
+    bpy.utils.unregister_class(OpenQuickStart)
+    bpy.utils.unregister_class(OpenWebIssues)
+    bpy.utils.unregister_class(OpenWebTip)
 
     # Remove add-on hotkeys
     for km,kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
-    
-    options.close()
 

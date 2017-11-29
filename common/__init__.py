@@ -19,5 +19,5 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["bezier", "maths", "metaclasses"]
+__all__ = ['bezier', 'decorators', 'maths', 'metaclasses', 'ui', 'utils']
 

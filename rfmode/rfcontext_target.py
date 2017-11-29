@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 from itertools import chain
 from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
@@ -262,6 +283,9 @@ class RFContext_Target:
             v10,v11 = pair1
             faces += [self.new_face((v00,v01,v11,v10))]
         return faces
+    
+    def holes_fill(self, edges, sides):
+        self.rftarget.holes_fill(edges, sides)
 
     def update_verts_faces(self, verts):
         self.rftarget.update_verts_faces(verts)
@@ -280,6 +304,15 @@ class RFContext_Target:
 
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         self.rftarget.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
+    
+    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
+        self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
+
+    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+        self.rftarget.dissolve_edges(edges, use_verts, use_face_split)
+
+    def dissolve_faces(self, faces, use_verts=False):
+        self.rftarget.dissolve_faces(faces, use_verts)
 
     def clean_duplicate_bmedges(self, vert):
         return self.rftarget.clean_duplicate_bmedges(vert)
@@ -311,6 +344,9 @@ class RFContext_Target:
     
     def get_edge_loop(self, edge):
         return self.rftarget.get_edge_loop(edge)
+    
+    def get_inner_edge_loop(self, edge):
+        return self.rftarget.get_inner_edge_loop(edge)
 
     def get_face_loop(self, edge):
         return self.rftarget.get_face_loop(edge)
@@ -342,6 +378,12 @@ class RFContext_Target:
     def select_edge_loop(self, edge, only=True):
         eloop,connected = self.get_edge_loop(edge)
         self.rftarget.select(eloop, only=only)
+        if self.tool: self.tool.update()
+        self.update_rot_object()
+
+    def select_inner_edge_loop(self, edge, **kwargs):
+        eloop,connected = self.get_inner_edge_loop(edge)
+        self.rftarget.select(eloop, **kwargs)
         if self.tool: self.tool.update()
         self.update_rot_object()
 

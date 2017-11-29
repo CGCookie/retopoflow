@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import sys
 import bpy
 import bgl
@@ -82,6 +103,8 @@ class Point2D(Vector, Entity2D):
         elif t is Point2D:
             return Vec2D((self.x-other.x, self.y-other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    def __iter__(self):
+        return iter((self.x, self.y))
     def distance_to(self, other)->float:
         return sqrt((self.x-other.x)**2+(self.y-other.y)**2)
     def distance_squared_to(self, other)->float:
@@ -597,7 +620,12 @@ class XForm:
 class BBox:
     @stats_wrapper
     def __init__(self, from_bmverts=None, from_coords=None):
-        assert from_bmverts or from_coords
+        if not (from_bmverts or from_coords):
+            self.min = None
+            self.max = None
+            self.mx,self.my,self.mz = float('nan'),float('nan'),float('nan')
+            self.Mx,self.My,self.Mz = float('nan'),float('nan'),float('nan')
+            return
         if from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
         else: from_coords = list(from_coords)
         mx,my,mz = from_coords[0]
@@ -616,6 +644,7 @@ class BBox:
     def __repr__(self): return self.__str__()
 
     def Point_within(self, point:Point, margin=0):
+        if not self.min or not self.max: return True
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
 
 

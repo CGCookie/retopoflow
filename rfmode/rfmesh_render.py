@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import sys
 import math
 import copy
@@ -26,6 +47,7 @@ from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
+from ..common.utils import hash_object, hash_bmesh
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 
 
@@ -39,9 +61,24 @@ class RFMeshRender():
     GATHERDATA_EMESH = False
     GATHERDATA_BMESH = False
     executor = ThreadPoolExecutor() if False else None
-
+    
+    cache = {}
+    
+    @staticmethod
+    @profiler.profile
+    def new(rfmesh, opts):
+        ho = hash_object(rfmesh.obj)
+        hb = hash_bmesh(rfmesh.bme)
+        h = (ho,hb)
+        if h not in RFMeshRender.cache:
+            RFMeshRender.creating = True
+            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts)
+            del RFMeshRender.creating
+        return RFMeshRender.cache[h]
+    
     @profiler.profile
     def __init__(self, rfmesh, opts):
+        assert hasattr(RFMeshRender, 'creating'), 'Do not create new RFMeshRender directly!  Use RFMeshRender.new()'
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
         self.drawing = Drawing.get_instance()

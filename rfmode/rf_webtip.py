@@ -19,12 +19,17 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-class RFWidget_Default:
-    def default_modal_main(self):
-        pass
-    def default_mouse_cursor(self):
-        return 'CROSSHAIR'
-    def default_postview(self):
-        pass
-    def default_postpixel(self):
-        pass
+import bpy
+from ..options import retopoflow_tip_url
+
+class OpenWebTip(bpy.types.Operator):
+    bl_idname = "wm.open_webtip"
+    bl_label = "Tip Page"
+    
+    @classmethod
+    def poll(cls, context): return True
+
+    def execute(self, context):
+        bpy.ops.wm.url_open(url=retopoflow_tip_url)
+        return {'FINISHED'}
+

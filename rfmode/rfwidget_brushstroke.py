@@ -1,8 +1,30 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import math
 import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
 from ..lib.common_drawing_bmesh import glEnableStipple
+from ..lib.common_utilities import dprint
 
 class RFWidget_BrushStroke:
     def size_to_dist(self): return self.size
@@ -35,7 +57,6 @@ class RFWidget_BrushStroke:
             if len(self.stroke2D) > 5:
                 delta = actions.mouse - self.stroke2D[-5]
                 if abs(delta.x) > 2 or abs(delta.y) > 2:
-                    print(self.get_scaled_radius())
                     delta = delta.normalized() * self.get_scaled_radius()
                     ortho = Vec2D((-delta.y, delta.x))
                     self.stroke2D_left.append(actions.mouse + ortho)

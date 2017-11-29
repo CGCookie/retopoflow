@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2017 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import re
 import os
 import sys
@@ -8,6 +29,7 @@ import time
 import glob
 import inspect
 import pickle
+import random
 import binascii
 import importlib
 
@@ -24,7 +46,7 @@ from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
-from ..lib.common_utilities import get_settings, dprint
+from ..lib.common_utilities import get_settings, dprint, get_exception_info
 from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
@@ -226,7 +248,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object)
         opts = self.get_target_render_options()
-        self.rftarget_draw = RFMeshRender(self.rftarget, opts)
+        self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 
     @profiler.profile
     def _init_sources(self):
@@ -234,7 +256,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()
-        self.rfsources_draw = [RFMeshRender(rfs, opts) for rfs in self.rfsources]
+        self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
     
     @profiler.profile
     def replace_opts(self, target=True, sources=False):
@@ -436,8 +458,15 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.nav = False
             self.rfwidget.update()
         
-        nmode = self.FSM[self.mode]()
-        if nmode: self.mode = nmode
+        try:
+            nmode = self.FSM[self.mode]()
+            if nmode: self.mode = nmode
+        except Exception as e:
+            message = get_exception_info()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='exception')
+            #raise e
 
         if self.actions.pressed('done') or self.exit:
             # all done!

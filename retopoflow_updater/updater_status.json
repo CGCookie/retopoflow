@@ -1,9 +1,9 @@
 {
-    "version_text": {},
-    "just_restored": false,
+    "ignore": false,
+    "just_updated": false,
+    "update_ready": false,
     "last_check": "",
     "backup_date": "",
-    "update_ready": false,
-    "ignore": false,
-    "just_updated": false
+    "just_restored": false,
+    "version_text": {}
 }

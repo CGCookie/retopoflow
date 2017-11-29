@@ -60,6 +60,8 @@ class loopslide_UI_Modal():
         if eventd['press'] in self.keymap['action'] or eventd['press'] in self.keymap['confirm']:
             self.loopslide.calc_snaps(self.trg_bme, snap = True)
             self.loopslide.move_loop(self.trg_bme)
+            self.trg_bvh = self.loopslide.update_trg_bvh(self.trg_bme)
+            self.loopslide.push_to_edit_mesh(self.trg_bme)
             self.loopslide.clear()
             return 'main'
         
