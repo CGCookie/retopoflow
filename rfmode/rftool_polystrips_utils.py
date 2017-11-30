@@ -135,6 +135,7 @@ class RFTool_PolyStrips_Strip:
         length = self.cbs.approximate_totlength_tessellation()
         for bme,t,rad,rot,off_cross,off_der in self.bmes:
             pos,norm,_,_ = raycast_sources_Point(self.cbs.eval(t))
+            if not norm: continue
             der = self.cbs.eval_derivative(t).normalized()
             cross = der.cross(norm).normalized()
             center = pos + der * off_der + cross * off_cross
