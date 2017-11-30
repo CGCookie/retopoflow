@@ -82,7 +82,7 @@ shaderFragSource = '''
 uniform bool  perspective;
 uniform float clip_start;
 uniform float clip_end;
-uniform float object_scale;
+uniform float view_distance;
 
 uniform float focus_mult;
 
@@ -126,6 +126,7 @@ vec4 coloring(vec4 c) {
 void main() {
     float clip = clip_end - clip_start;
     float focus = 0.04;
+    focus = (view_distance - clip_start) / clip + 0.04;
     
     float alpha = gl_Color.a;
     
@@ -141,6 +142,7 @@ void main() {
         }
         
         float focus_push = focus_mult * sign(focus - l_clip) * pow(abs(focus - l_clip), 4.0) * 400.0;
+        float dist_push = pow(view_distance, 3.0) * 0.000001;
         
         // MAGIC!
         gl_FragDepth =
@@ -178,6 +180,7 @@ def setupBMeshShader(shader):
     shader.assign('perspective', r3d.view_perspective != 'ORTHO')
     shader.assign('clip_start', spc.clip_start)
     shader.assign('clip_end', spc.clip_end)
+    shader.assign('view_distance', r3d.view_distance)
 
 bmeshShader = Shader(shaderVertSource, shaderFragSource, setupBMeshShader)
 
