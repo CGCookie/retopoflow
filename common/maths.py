@@ -25,7 +25,7 @@ import bgl
 from math import sqrt
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
-from mathutils.geometry import intersect_line_plane
+from mathutils.geometry import intersect_line_plane, intersect_point_tri
 from ..lib.classes.profiler.profiler import profiler
 from ..common.decorators import stats_wrapper, stats_report
 
@@ -654,10 +654,13 @@ class Accel2D:
     
     @profiler.profile
     def __init__(self, verts, edges, faces, Point_to_Point2D):
-        self.verts = verts
-        self.edges = edges
-        self.faces = faces
+        self.verts = list(verts) if verts else []
+        self.edges = list(edges) if edges else []
+        self.faces = list(faces) if faces else []
         self.Point_to_Point2D = Point_to_Point2D
+        self.vert_type = type(self.verts[0]) if self.verts else None
+        self.edge_type = type(self.edges[0]) if self.edges else None
+        self.face_type = type(self.faces[0]) if self.faces else None
         
         self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
         self.map_v_v2D = {v:v2d for v,v2d in zip(verts,self.v2Ds)}
@@ -769,6 +772,26 @@ class Accel2D:
             for j in range(j0,j1+1):
                 l |= self.bins[i][j]
         return l
+    
+    @profiler.profile
+    def nearest_face(self, v2d):
+        ########################################
+        # XXXX: ONLY FINDING FACE UNDER V2D!!! #
+        ########################################
+        
+        Point_to_Point2D = self.Point_to_Point2D
+        i,j = self.compute_ij(v2d)
+        faces = self.bins[i][j]
+        face_type = self.face_type
+        for bmf in faces:
+            if type(bmf) is not face_type: continue
+            pts = [Point_to_Point2D(bmv.co) for bmv in bmf.verts]
+            pts = [pt for pt in pts if pt]
+            pt0 = pts[0]
+            for pt1,pt2 in zip(pts[1:-1],pts[2:]):
+                if intersect_point_tri(v2d, pt0, pt1, pt2):
+                    return bmf
+        return None
     
     @profiler.profile
     def compute_ij(self, v2d):

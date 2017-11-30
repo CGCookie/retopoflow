@@ -131,12 +131,15 @@ class RFContext_Target:
     #######################################
     # get visible geometry
 
+    @profiler.profile
     def visible_verts(self):
         return self.rftarget.visible_verts(self.is_visible)
 
+    @profiler.profile
     def visible_edges(self, verts=None):
         return self.rftarget.visible_edges(self.is_visible, verts=verts)
 
+    @profiler.profile
     def visible_faces(self, verts=None):
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
