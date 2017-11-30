@@ -138,6 +138,15 @@ class Drawing:
     def disable_clipping(self):
         blf.disable(self.font_id, blf.CLIPPING)
     
+    def enable_stipple(self):
+        bgl.glLineStipple(4, 0x5555)
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
+    def disable_stipple(self):
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+    def set_stipple(self, enable):
+        if enable: self.enable_stipple()
+        else: self.disable_stipple()
+    
     def text_draw2D(self, text, pos:Point2D, color, dropshadow=None):
         lines = str(text).split('\n')
         l,t = round(pos[0]),round(pos[1])

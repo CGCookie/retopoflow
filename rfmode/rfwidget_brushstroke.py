@@ -23,8 +23,8 @@ import math
 import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
-from ..lib.common_drawing_bmesh import glEnableStipple
 from ..lib.common_utilities import dprint
+from ..options import themes
 
 class RFWidget_BrushStroke:
     def size_to_dist(self): return self.size
@@ -151,8 +151,8 @@ class RFWidget_BrushStroke:
         
         if self.mode == 'stroke':
             self.drawing.line_width(2.0)
-            glEnableStipple(enable=True)
-            bgl.glColor4f(1,1,1,0.5)
+            self.drawing.enable_stipple()
+            bgl.glColor4f(*themes['stroke'])
             bgl.glBegin(bgl.GL_LINE_STRIP)
             for x,y in self.stroke2D:
                 bgl.glVertex2f(x,y)
@@ -167,7 +167,7 @@ class RFWidget_BrushStroke:
             for x,y in self.stroke2D_right:
                 bgl.glVertex2f(x,y)
             bgl.glEnd()
-            glEnableStipple(enable=False)
+            self.drawing.disable_stipple()
             return
         
         

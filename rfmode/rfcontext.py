@@ -54,7 +54,7 @@ from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import set_cursor
 from ..common.decorators import stats_wrapper
 
-from ..options import options
+from ..options import options, themes
 
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
@@ -270,8 +270,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                rfsd.replace_opts(source_opts)
     
     def get_source_render_options(self):
-        color_select = self.settings.theme_colors_selection[options['color theme']]
-        color_frozen = self.settings.theme_colors_frozen[options['color theme']]
         opts = {
             'poly color': (0.0, 0.0, 0.0, 0.0),
             'poly offset': 0.000001,
@@ -287,8 +285,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         return opts
         
     def get_target_render_options(self):
-        color_select = self.settings.theme_colors_selection[options['color theme']]
-        color_frozen = self.settings.theme_colors_frozen[options['color theme']]
+        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
+        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
         opts = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),

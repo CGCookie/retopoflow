@@ -23,7 +23,7 @@ import math
 import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
-from ..lib.common_drawing_bmesh import glEnableStipple
+from ..options import themes
 
 class RFWidget_Line:
     def line_modal_main(self):
@@ -58,13 +58,13 @@ class RFWidget_Line:
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(2.0)
         
-        glEnableStipple(enable=True)
-        bgl.glColor4f(1,1,1,0.5)
+        self.drawing.enable_stipple()
+        bgl.glColor4f(*themes['stroke'])
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(*p0)
         bgl.glVertex2f(*p1)
         bgl.glEnd()
-        glEnableStipple(enable=False)
+        self.drawing.disable_stipple()
         
         # self.drawing.line_width(1.0)
         bgl.glColor4f(cr, cg, cb, 0.25)

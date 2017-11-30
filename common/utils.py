@@ -99,3 +99,4 @@ def hash_bmesh(bme:BMesh):
     hashed = (counts, tuple(bbox.min) if bbox.min else None, tuple(bbox.max) if bbox.max else None, vsum)
     pr.done()
     return hashed
+

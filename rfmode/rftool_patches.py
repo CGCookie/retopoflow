@@ -105,8 +105,11 @@ class RFTool_Patches(RFTool):
         def order_edge_strip(edges):
             nonlocal neighbors
             if len(edges) == 1: return list(edges)
-            l = [next(e for e in edges if len(neighbors[e])==1)]
-            l += [neighbors[l[0]][0]]
+            e_first = next((e for e in edges if len(neighbors[e])==1), None)
+            if not e_first:
+                # could not find corner (selection is a loop?)
+                return None
+            l = [e_first, neighbors[e_first][0]]
             while True:
                 l0,l1 = l[-2],l[-1]
                 if len(neighbors[l1]) == 1: break
@@ -118,6 +121,9 @@ class RFTool_Patches(RFTool):
             #assert len(l) == len(edges)
             return l
         strips = [order_edge_strip(edges) for edges in strips]
+        if any(strip is None for strip in strips):
+            self.rfcontext.alert_user('Patches', 'Cannot fill loops, yet', level='note')
+            return
         
         def touching_strips(strip0, strip1):
             # do the strips share a vert?

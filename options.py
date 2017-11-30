@@ -338,6 +338,7 @@ class Options:
         'contours count':   16,
         
         'polystrips scale falloff': -1,
+        'polystrips draw curve': False,
         
         'relax selected': False,
         'relax boundary': False,
@@ -368,10 +369,51 @@ class Options:
             del Options.db[key]
         Options.db.sync()
     def set_default(self, key, val):
-        Options.default_options[key] = val
+        if key not in Options.db: Options.db[key] = val
+        #Options.default_options[key] = val
     def set_defaults(self, d_key_vals):
         for key in d_key_vals:
-            Options.default_options[key] = d_key_vals[key]
+            self.set_default(key, d_key_vals[key])
+            #Options.default_options[key] = d_key_vals[key]
+
+def rgba_to_float(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
+class Themes:
+    themes = {
+        'Blue': {
+            'mesh':    rgba_to_float( 78, 207,  81, 255),
+            'frozen':  rgba_to_float(255, 255, 255, 255),
+            'new':     rgba_to_float( 40, 255,  40, 255),
+            'select':  rgba_to_float( 26, 111, 255, 255),
+            'active':  rgba_to_float( 26, 111, 255, 255),
+            'warning': rgba_to_float(182,  31,   0, 125),
+            
+            'stroke':  rgba_to_float( 40, 255,  40, 255),
+        },
+        'Green': {
+            'mesh':    rgba_to_float( 26, 111, 255, 255),
+            'frozen':  rgba_to_float(255, 255, 255, 255),
+            'new':     rgba_to_float( 40, 255,  40, 255),
+            'select':  rgba_to_float( 78, 207,  81, 255),
+            'active':  rgba_to_float( 78, 207,  81, 255),
+            'warning': rgba_to_float(182,  31,   0, 125),
+            
+            'stroke':  rgba_to_float( 40, 255,  40, 255),
+        },
+        'Orange': {
+            'mesh':    rgba_to_float( 26, 111, 255, 255),
+            'frozen':  rgba_to_float(255, 255, 255, 255),
+            'new':     rgba_to_float( 40, 255,  40, 255),
+            'select':  rgba_to_float(207, 135,  78, 255),
+            'active':  rgba_to_float(207, 135,  78, 255),
+            'warning': rgba_to_float(182,  31,   0, 125),
+            
+            'stroke':  rgba_to_float( 40, 255,  40, 255),
+        },
+    }
+    
+    def __getitem__(self, key): return self.themes[options['color theme']][key]
+
 
 # set all the default values!
 options = Options()
+themes = Themes()

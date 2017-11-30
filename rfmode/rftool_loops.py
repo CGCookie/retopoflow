@@ -30,7 +30,6 @@ from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..common.utils import iter_pairs
-from ..lib.common_drawing_bmesh import glEnableStipple
 from ..options import help_loops
 
 @RFTool.action_call('loops tool')
@@ -359,7 +358,7 @@ class RFTool_Loops(RFTool):
             
             def draw():
                 if not self.edges_: return
-                glEnableStipple(enable=True)
+                self.drawing.enable_stipple()
                 if self.edge_loop:
                     bgl.glBegin(bgl.GL_LINE_LOOP)
                 else:
@@ -368,8 +367,7 @@ class RFTool_Loops(RFTool):
                     c = c0 + (c1 - c0) * self.percent
                     bgl.glVertex3f(*c)
                 bgl.glEnd()
-                glEnableStipple(enable=False)
-                
+                self.drawing.disable_stipple()
             
             self.drawing.point_size(5.0)
             self.drawing.line_width(2.0)

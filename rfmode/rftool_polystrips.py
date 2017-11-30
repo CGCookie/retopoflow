@@ -29,8 +29,7 @@ from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 from .rftool_polystrips_utils import *
 from ..common.maths import Point,Point2D,Vec2D,Vec,clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
-from ..common.ui import UI_Image, UI_IntValue
-
+from ..common.ui import UI_Image, UI_IntValue, UI_BoolValue
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
@@ -72,8 +71,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
     def get_scale_falloff_print(self): return '%0.2f' % self.get_scale_falloff_actual()
     def get_ui_options(self):
-        self.ui_scale_falloff = UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print)
-        return [self.ui_scale_falloff]
+        def get_draw_curve(): return options['polystrips draw curve']
+        def set_draw_curve(v): options['polystrips draw curve'] = v
+        return [
+            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print),
+            UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
+        ]
     
     def update(self):
         self.strips = []
@@ -391,41 +394,61 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         if not self.strips: return
         
         def draw(alphamult):
+            # draw outer-inner lines
+            self.drawing.line_width(4.0)
+            bgl.glBegin(bgl.GL_LINES)
+            for strip in self.strips:
+                for cb in strip:
+                    p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                    bgl.glColor4f(1.00, 1.00, 1.00, 0.75 * alphamult)
+                    bgl.glVertex3f(*p0)
+                    bgl.glColor4f(1.00, 1.00, 1.00, 0.15 * alphamult)
+                    bgl.glVertex3f(*p1)
+                    bgl.glColor4f(1.00, 1.00, 1.00, 0.15 * alphamult)
+                    bgl.glVertex3f(*p2)
+                    bgl.glColor4f(1.00, 1.00, 1.00, 0.75 * alphamult)
+                    bgl.glVertex3f(*p3)
+            bgl.glEnd()
+            
             # draw control points
-            self.drawing.point_size(10)
-            bgl.glColor4f(1,1,1,0.5*alphamult)
+            self.drawing.point_size(20)
             bgl.glBegin(bgl.GL_POINTS)
             for strip in self.strips:
                 for cb in strip:
                     p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                    bgl.glColor4f(0.00, 0.00, 0.00, 0.5*alphamult)
                     bgl.glVertex3f(*p0)
+                    bgl.glVertex3f(*p3)
+                    bgl.glColor4f(0.75, 0.75, 0.75, 0.5*alphamult)
                     bgl.glVertex3f(*p1)
                     bgl.glVertex3f(*p2)
-                    bgl.glVertex3f(*p3)
             bgl.glEnd()
-            
-            # draw outer-inner lines
-            self.drawing.line_width(2.0)
-            bgl.glColor4f(1,0.5,0.5,0.4*alphamult)
-            bgl.glBegin(bgl.GL_LINES)
+            self.drawing.point_size(15)
+            bgl.glBegin(bgl.GL_POINTS)
             for strip in self.strips:
                 for cb in strip:
                     p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                    bgl.glColor4f(1.00, 1.00, 1.00, 1.0*alphamult)
                     bgl.glVertex3f(*p0)
+                    bgl.glVertex3f(*p3)
+                    bgl.glColor4f(0.25, 0.25, 0.25, 1.0*alphamult)
                     bgl.glVertex3f(*p1)
                     bgl.glVertex3f(*p2)
-                    bgl.glVertex3f(*p3)
             bgl.glEnd()
             
             # draw curve
-            self.drawing.line_width(2.0)
-            bgl.glColor4f(1,1,1,0.5*alphamult)
-            bgl.glBegin(bgl.GL_LINES)
-            for pts in self.strip_pts:
-                for v0,v1 in zip(pts[:-1],pts[1:]):
-                    bgl.glVertex3f(*v0)
-                    bgl.glVertex3f(*v1)
-            bgl.glEnd()
+            if options['polystrips draw curve']:
+                self.drawing.line_width(2.0)
+                self.drawing.enable_stipple()
+                bgl.glColor4f(1,1,1,1.0*alphamult)
+                bgl.glBegin(bgl.GL_LINES)
+                for pts in self.strip_pts:
+                    for v0,v1 in zip(pts[:-1],pts[1:]):
+                        bgl.glVertex3f(*v0)
+                        bgl.glVertex3f(*v1)
+                bgl.glEnd()
+                self.drawing.disable_stipple()
+
 
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
         bgl.glEnable(bgl.GL_BLEND)
