@@ -48,7 +48,8 @@ def_rf_key_map['view cursor'] = {'C'}
 def_rf_key_map['undo'] = {'CTRL+Z'}
 def_rf_key_map['help'] = {'SHIFT+SLASH'}
 def_rf_key_map['snap cursor'] = {'SHIFT+S'}
-def_rf_key_map['navigate'] = set() #To be filled in last
+# def_rf_key_map['navigate'] = set() #To be filled in last
+def_rf_key_map['navigate'] = {'SHIFT+F'} #Fly Mode
 def_rf_key_map['up count'] = {'SHIFT+NUMPAD_PLUS','SHIFT+WHEELUPMOUSE'}     
 def_rf_key_map['dn count'] = {'SHIFT+NUMPAD_MINUS','SHIFT+WHEELDOWNMOUSE'}
 
@@ -102,7 +103,8 @@ navigation_events = {
     'NDOF Pan View': 'view3d.ndof_pan',
     'NDOF Move View': 'view3d.ndof_all',
     'View Selected': 'view3d.view_selected',
-    'Center View to Cursor': 'view3d.view_center_cursor'
+    'Center View to Cursor': 'view3d.view_center_cursor',
+    'View Navigation': 'view3d.navigate' #Need to enable Fly Mode
     }
 
 def navigation_language():
