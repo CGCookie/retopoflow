@@ -95,13 +95,13 @@ class RFTool_Relax(RFTool):
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
         # collect data for smoothing
-        verts,edges,faces,vert_dist = set(),set(),set(),dict()
+        verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv,d in nearest:
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_dist[bmv] = self.rfwidget.get_strength_dist(d) #/radius
-        self._relax(verts, edges, faces, vert_dist)
+            vert_strength[bmv] = self.rfwidget.get_strength_dist(d) #/radius
+        self._relax(verts, edges, faces, vert_strength)
     
     @RFTool.dirty_when_done
     def modal_relax_selected(self):
@@ -113,13 +113,14 @@ class RFTool_Relax(RFTool):
         if not self.rfcontext.actions.timer: return
         self._relax(self.sel_verts, self.sel_edges, self.sel_faces)
     
-    def _relax(self, verts, edges, faces, vert_dist=None):
+    def _relax(self, verts, edges, faces, vert_strength=None):
         if not verts or not edges: return
-        vert_dist = vert_dist or {}
+        vert_strength = vert_strength or {}
         
         time_delta = self.rfcontext.actions.time_delta
         strength = 100.0 * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
+        mult = 1.0 / radius
         
         # compute average edge length
         avgDist = sum(bme.calc_length() for bme in edges) / len(edges)
@@ -133,7 +134,7 @@ class RFTool_Relax(RFTool):
         # perform smoothing
         touched = set()
         for bmv0 in verts:
-            d = vert_dist.get(bmv0, 0)
+            d = vert_strength.get(bmv0, 1)
             lbme,lbmf = bmv0.link_edges,bmv0.link_faces
             if not lbme: continue
             # push edges closer to average edge length
@@ -143,7 +144,7 @@ class RFTool_Relax(RFTool):
                 touched.add(bme)
                 bmv1 = bme.other_vert(bmv0)
                 diff = bmv1.co - bmv0.co
-                m = (avgDist - diff.length) * (1.0 - d) * 0.1
+                m = (avgDist - diff.length) * (1.0 - d) * 0.1 * mult
                 divco[bmv1] += diff * m * strength
                 divco[bmv0] -= diff * m * strength
             # attempt to "square" up the faces
@@ -156,7 +157,7 @@ class RFTool_Relax(RFTool):
                 fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0- d) / cnt
+                    m = (fd - diff.length)* (1.0- d) / cnt * mult
                     divco[bmv] += diff * m * strength
         
         # update
