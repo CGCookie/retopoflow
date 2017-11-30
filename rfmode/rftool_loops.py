@@ -195,7 +195,7 @@ class RFTool_Loops(RFTool):
             for v0,v1 in iter_pairs(new_verts, self.edge_loop):
                 f0 = next(iter(v0.shared_faces(v1)), None)
                 if not f0:
-                    print('something unexpected happened')
+                    self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
                     self.rfcontext.undo_cancel()
                     return
                 f1 = f0.split(v0, v1)
@@ -262,7 +262,7 @@ class RFTool_Loops(RFTool):
         for bme in sel_edges:
             lbmf = [bmf for bmf in bme.link_faces if bmf.select == False]
             if len(lbmf) != 2:
-                dprint('edge has %d!=2 unselected faces' % len(lbmf))
+                self.rfcontext.alert_user('Loops', 'A selected edge has %d unselected faces (expected 2)' % len(lbmf), level='note')
                 return
             bmv0,bmv1 = bme.verts
             for bmv in bme.verts:
@@ -273,7 +273,7 @@ class RFTool_Loops(RFTool):
                         neighbors[bmv].add(bmv_e.other_vert(bmv))
         for bmv in neighbors:
             if len(neighbors[bmv]) != 2:
-                dprint('vert has %d!=2 neighbors' % len(neighbors[bmv]))
+                self.rfcontext.alert_user('Loops', 'A vertex has %d neighbors (expected 2)' % len(neighbors[bmv]), level='note')
                 return
             neighbors[bmv] = list(neighbors[bmv])
         
@@ -290,7 +290,7 @@ class RFTool_Loops(RFTool):
             for bmfl in bmfls:
                 bmv1s = [bmv for bmv in bmfl.verts if bmv != bmv0 and bmv in neighbors]
                 if len(bmv1s) != 1:
-                    dprint('unexpected count of valid candidates')
+                    self.rfcontext.alert_user('Loops', 'Face has an unexpected count of valid candidates (%d)' % len(bmv1s), level='note')
                     return
                 bmv1 = bmv1s[0]
                 bmv1l,bmv1r = neighbors[bmv1]
@@ -358,7 +358,7 @@ class RFTool_Loops(RFTool):
             # draw new edge strip/loop
             
             def draw():
-                if not self.edges: return
+                if not self.edges_: return
                 glEnableStipple(enable=True)
                 if self.edge_loop:
                     bgl.glBegin(bgl.GL_LINE_LOOP)

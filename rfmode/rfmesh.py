@@ -891,8 +891,8 @@ class RFMesh():
         def crawl(bme0, bmf0):
             nonlocal edges, bme_start, looped
             touched = set()
-            while True:
-                assert bmf0 not in touched
+            while bmf0 not in touched:
+                #assert bmf0 not in touched
                 touched.add(bmf0)
                 lbme = list(bmf0.edges)
                 if len(lbme) != 4: return
