@@ -169,7 +169,7 @@ def cubic_bezier_find_closest_t_approx_distance(p0,p1,p2,p3, dist, threshold=0.1
     
 def cubic_bezier_t_of_s(p0,p1,p2,p3, steps = 100):
     '''
-    returns a dictionary mapping of arclen values ot t values
+    returns a dictionary mapping of pathlen values to t values
     approximated at steps along the curve.  Dumber method than
     the decastelejue subdivision.
     '''
@@ -233,8 +233,6 @@ def cubic_bezier_t_of_s_dynamic(p0,p1,p2,p3, initial_step = 50):
             
     dprint('initial dt %f, final dt %f' % (1/initial_step, dt), l=4)
     return s_t_map
-
-
 
 def cubic_bezier_fit_value(l_v, l_t):
     def compute_error(v0,v1,v2,v3,l_v,l_t):

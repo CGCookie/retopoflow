@@ -305,7 +305,6 @@ def iter_running_sum(lw):
         s += w
         yield (w,s)
 
-
 def invert_matrix(mat):
     smat,d = str(mat),invert_matrix.__dict__
     if smat not in d:
@@ -317,7 +316,6 @@ def matrix_normal(mat):
     if smat not in d:
         d[smat] = invert_matrix(mat).transposed().to_3x3()
     return d[smat]
-
 
 def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
     '''
@@ -860,12 +858,33 @@ def vector_angle_between(v0, v1, vcross):
     d = v0.cross(v1).dot(vcross)
     return a if d<0 else 2*math.pi - a
 
+def vector_angle_between_near_parallel(v0, v1, vcross):
+    a = v0.angle(v1)
+    d = v0.cross(v1).dot(vcross)
+    return a if d<0 else 2*math.pi - a
+
 def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     if len(l_objs) <= 1:  return l_objs
     o0,v0 = l_objs[0],l_vecs[0]
     l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
     l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
     return [l_objs[i] for i in l_inds]
+
+def delta_angles(vec_about, l_vecs):
+    '''
+    will find the difference betwen each element and the next element in the list
+    '''
+    
+    l_angles = [vector_angle_between(v0,v1,vec_about) for v0, v1 in zip(l_vecs[:-1] + [l_vecs[-1]],
+                                                                        l_vecs[1:]+[l_vecs[0]])]
+    return l_angles
+
+
+def rotate_items(loop):
+    ''' rotates items in loop such that id(loop[0]) is the min '''
+    im = loop.index(min(loop, key=lambda it:id(it)))
+    c = len(loop)
+    return [loop[(im+i)%c] for i in range(c)]
 
 
 #adapted from opendentalcad then to pie menus now here

@@ -1,0 +1,27 @@
+Edge-Patches Help (click to hide help):
+
+Do these steps
+
+DRAWING:
+-LMB, draw a patch
+-P to refresh patches check for patches
+-RMB to select the patch
+
+PATCH FILLING:
+-Select the patch
+-L to Solve the patch (wait a few seconds, there
+are sleep commands beacuse the ILP library will
+crash if blender asks it for something before it
+is finished.
+
+-G to generate geometry
+-Z to randomly try another patch solution
+-J to relax the patch
+-Look in console for reporting
+
+ESC to cancel,
+There will be a mesh object
+
+GENERATE MESH:
+- ENTER / RETURN: confirm retopology and generate mesh
+- ESC: cancel operation

@@ -35,7 +35,7 @@ class LoopCut(object):
         self.pct = .5 
     
     def find_face_loop(self,bme, ed, select = False):
-        '''takes a bmface and bmedgse'''
+        '''takes a bmedge, and walkd perpendicular to it'''
         #reality check
         if not len(ed.link_faces): return
         

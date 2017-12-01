@@ -7,7 +7,8 @@ mesh_cache = {}
 
 contour_cache = {}
 contour_undo_cache = []
-polystrips_undo_cache = [] #TODO, implement this
+polystrips_undo_cache = []
+edgepatches_undo_cache = []
 polypen_undo_cache = []
 tweak_undo_cache = []
 

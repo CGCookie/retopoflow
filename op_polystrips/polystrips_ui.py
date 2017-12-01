@@ -417,7 +417,7 @@ class Polystrips_UI:
             # user did not click on the object
             if not eventd['shift']:
                 # clear selection if shift is not held
-                self.act_gvert,self.act_gedge,self.act_gvert = None,None,None
+                self.act_gvert,self.act_gedge,self.act_gpatch = None,None,None
                 self.sel_gedges.clear()
                 self.sel_gverts.clear()
             return ''
