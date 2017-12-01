@@ -231,10 +231,11 @@ class RFMode(Operator):
         self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
         for o in self.selected_objects: o.select = False
         
-        tool = self.context_start_tool()
-        self.rfctx = RFContext(self, tool)
+        starting_tool = self.context_start_tool()
+        self.rfctx = RFContext(self, starting_tool)
     
-    def context_start_tool(self): return None
+    def context_start_tool(self):
+        assert False, "Each RFTool should overwrite this!"
     
     def context_end(self):
         if hasattr(self, 'rfctx'):

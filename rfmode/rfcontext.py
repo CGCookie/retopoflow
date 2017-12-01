@@ -184,36 +184,32 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         RFContext.instance = self
         self.undo = []  # undo stack of causing actions, FSM state, tool states, and rftargets
         self.redo = []  # redo stack of causing actions, FSM state, tool states, and rftargets
-        
         self.rfmode = rfmode
-        
-        self.FSM = {}
-        self.FSM['main'] = self.modal_main
+        self.FSM = {'main': self.modal_main}
         self.mode = 'main'
-
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
         self._init_drawing()            # set up drawing utilities
-
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects
-
         self._init_rotate_about_active()    # must happen *AFTER* target is initialized!
-
-        if starting_tool:
-            self.set_tool(starting_tool)
-        else:
-            self.set_tool(RFTool_Move())
-
         self.fps_time = time.time()
         self.frames = 0
         self.timer = None
         self.time_to_save = None
         self.fps = 0
-        self.show_fps = True
-
         self.exit = False
+        self.set_tool(starting_tool)
+        
+        # touching undo stack to work around weird bug
+        # to reproduce:
+        #     start PS, select a strip, drag a handle but then cancel, exit RF
+        #     start PS again, drag (already selected) handle... but strip does not move
+        # i believe the bug has something to do with caching of RFMesh, but i'm not sure
+        # pushing and then canceling an undo will flush the cache enough to circumvent it
+        self.undo_push('initial')
+        self.undo_cancel()
 
     def _init_usersettings(self):
         # user-defined settings
@@ -223,7 +219,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfwidget = RFWidget.new(self)  # init widgets
         RFTool.init_tools(self)             # init tools
         self.nav = False                    # not currently navigating
-        #self.set_tool(RFTool_Move())        # set default tool
 
     def _init_rotate_about_active(self):
         self._end_rotate_about_active()
@@ -335,10 +330,13 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     ###################################################
     # mouse cursor functions
 
-    def set_tool(self, tool):
-        if hasattr(self, 'tool') and self.tool == tool: return
-        self.tool       = tool                  # currently selected tool
-        self.tool_state = self.tool.start()     # current tool state
+    def set_tool(self, tool, forceUpdate=False):
+        if not forceUpdate and hasattr(self, 'tool') and self.tool == tool: return
+        self.tool = tool
+        self.tool.start()
+        self.tool.update_tool_options()
+        self.tool.update()
+        # update tool window
         self.tool_selection_min.set_option(tool.name())
         self.tool_selection_max.set_option(tool.name())
 
@@ -349,17 +347,14 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         return {
             'action':       action,
             'tool':         self.tool,
-            'tool_state':   copy.deepcopy(self.tool_state),
             'rftarget':     copy.deepcopy(self.rftarget),
             }
     def _restore_state(self, state):
-        self.tool = state['tool']
-        self.tool_state = state['tool_state']
         self.rftarget = state['rftarget']
         self.rftarget.rewrap()
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
-        if self.tool: self.tool.update()
+        self.set_tool(state['tool'], forceUpdate=True)
 
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions

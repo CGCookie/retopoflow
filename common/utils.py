@@ -100,3 +100,9 @@ def hash_bmesh(bme:BMesh):
     pr.done()
     return hashed
 
+class UniqueCounter():
+    __counter = 0
+    @staticmethod
+    def next():
+        UniqueCounter.__counter += 1
+        return UniqueCounter.__counter

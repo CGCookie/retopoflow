@@ -70,7 +70,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.defer_recomputing = False
         
         self.update()
-        self.update_tool_options()
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polystrips_32.png')
@@ -106,7 +105,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         # find strips between knots
         touched = set()
-        self.strips = []
         for bmf0 in knots:
             bme0,bme1,bme2,bme3 = bmf0.edges
             edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf0.edges]
@@ -132,7 +130,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def update_accel_struct(self):
-        target_version = self.rfcontext.get_target_version()
+        target_version = self.rfcontext.get_target_version(selection=False)
         view_version = self.rfcontext.get_view_version()
         
         recompute = self.recompute

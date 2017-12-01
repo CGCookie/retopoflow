@@ -63,8 +63,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.cut_pts = []
         self.connected = False
         self.cuts = []
-        
-        self.update_tool_options()
     
     def get_count(self): return options['contours count']
     def set_count(self, v): options['contours count'] = max(3, v)

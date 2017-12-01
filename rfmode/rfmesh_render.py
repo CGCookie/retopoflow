@@ -216,10 +216,11 @@ class RFMeshRender():
     def clean(self):
         # return if rfmesh hasn't changed
         self.rfmesh.clean()
-        if self.rfmesh_version == self.rfmesh.version: return
+        ver = self.rfmesh.get_version()
+        if self.rfmesh_version == ver: return
         self._gather_data()
         pr = profiler.start('cleaning')
-        self.rfmesh_version = self.rfmesh.version   # make not dirty first in case bad things happen while drawing
+        self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
         bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
         self._draw()
         bgl.glEndList()

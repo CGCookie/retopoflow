@@ -24,7 +24,7 @@ import bpy
 import math
 from mathutils import Vector, Matrix
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec, clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
 
 def find_opposite_edge(bmf, bme):
@@ -105,8 +105,10 @@ class RFTool_PolyStrips_Strip:
         self.bme1 = find_opposite_edge(bmf_strip[-1], bmes[-1][0])
         if len(self.bme0.link_faces) == 1: bmes = [(self.bme0, bmf_strip[0].normal)] + bmes
         if len(self.bme1.link_faces) == 1: bmes = bmes + [(self.bme1, bmf_strip[-1].normal)]
+        if any(not bme.is_valid for (bme,_) in bmes):
+            # filter out invalid edges (see commit 88e4fde4)
+            bmes = [(bme,norm) for (bme,norm) in bmes if bme.is_valid]
         for bme,norm in bmes:
-            if not bme.is_valid: continue
             bmvs = bme.verts
             halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
             diffdir = halfdiff.normalized()
@@ -118,11 +120,10 @@ class RFTool_PolyStrips_Strip:
             rad = halfdiff.length
             cross = der.cross(norm).normalized()
             off = center - pos
-            off_cross = cross.dot(off)
-            off_der = der.dot(off)
-            rot = math.acos(max(-0.99999,min(0.99999,diffdir.dot(cross))))
+            off_cross,off_der,off_norm = cross.dot(off),der.dot(off),norm.dot(off)
+            rot = math.acos(clamp(diffdir.dot(cross), -0.9999999, 0.9999999))
             if diffdir.dot(der) < 0: rot = -rot
-            self.bmes += [(bme, t, rad, rot, off_cross, off_der)]
+            self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
     
     def __len__(self): return len(self.cbs)
     
@@ -133,12 +134,12 @@ class RFTool_PolyStrips_Strip:
     def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
         self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
         length = self.cbs.approximate_totlength_tessellation()
-        for bme,t,rad,rot,off_cross,off_der in self.bmes:
+        for bme,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
             pos,norm,_,_ = raycast_sources_Point(self.cbs.eval(t))
             if not norm: continue
             der = self.cbs.eval_derivative(t).normalized()
             cross = der.cross(norm).normalized()
-            center = pos + der * off_der + cross * off_cross
+            center = pos + der * off_der + cross * off_cross + norm * off_norm
             rotcross = (Matrix.Rotation(rot, 3, norm) * cross).normalized()
             p0 = center - rotcross * rad
             p1 = center + rotcross * rad

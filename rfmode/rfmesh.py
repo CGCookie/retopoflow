@@ -40,7 +40,7 @@ from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
-from ..common.utils import min_index, hash_object, hash_bmesh
+from ..common.utils import min_index, hash_object, hash_bmesh, UniqueCounter
 from ..common.decorators import stats_wrapper
 from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
@@ -48,6 +48,7 @@ from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 from .rfmesh_render import RFMeshRender
+
 
 
 class RFMesh():
@@ -58,14 +59,6 @@ class RFMesh():
     - handling snapping and raycasting
     - translates to/from local space (transformations)
     '''
-
-    __version = 0
-    @staticmethod
-    def generate_version_number():
-        RFMesh.__version += 1
-        return RFMesh.__version
-
-
 
     def __init__(self):
         assert False, 'Do not create new RFMesh directly!  Use RFSource.new() or RFTarget.new()'
@@ -135,36 +128,41 @@ class RFMesh():
     
     ##########################################################
 
-    def dirty(self):
+    def dirty(self, selectionOnly=False):
         # TODO: add option for dirtying only selection or geo+topo
-        if hasattr(self, 'bvh'): del self.bvh
-        self.version = RFMesh.generate_version_number()
+        if not selectionOnly:
+            if hasattr(self, 'bvh'): del self.bvh
+            self._version = UniqueCounter.next()
+        self._version_selection = UniqueCounter.next()
 
     def clean(self):
         pass
     
-    def get_version(self):
-        return self.version
+    def get_version(self, selection=True):
+        return self._version + self._version_selection
 
     def get_bvh(self):
-        if not hasattr(self, 'bvh') or self.bvh_version != self.version:
+        ver = self.get_version(selection=False)
+        if not hasattr(self, 'bvh') or self.bvh_version != ver:
             self.bvh = BVHTree.FromBMesh(self.bme)
-            self.bvh_version = self.version
+            self.bvh_version = ver
         return self.bvh
 
     def get_bbox(self):
-        if not hasattr(self, 'bbox') or self.bbox_version != self.version:
+        ver = self.get_version(selection=False)
+        if not hasattr(self, 'bbox') or self.bbox_version != ver:
             self.bbox = BBox(from_bmverts=self.bme.verts)
-            self.bbox_version = self.version
+            self.bbox_version = ver
         return self.bbox
 
     def get_kdtree(self):
-        if not hasattr(self, 'kdt') or self.kdt_version != self.version:
+        ver = self.get_version(selection=False)
+        if not hasattr(self, 'kdt') or self.kdt_version != ver:
             self.kdt = KDTree(len(self.bme.verts))
             for i,bmv in enumerate(self.bme.verts):
                 self.kdt.insert(bmv.co, i)
             self.kdt.balance()
-            self.kdt_version = self.version
+            self.kdt_version = ver
         return self.kdt
 
     ##########################################################
@@ -820,14 +818,14 @@ class RFMesh():
         for bmv in self.bme.verts: bmv.select = False
         for bme in self.bme.edges: bme.select = False
         for bmf in self.bme.faces: bmf.select = False
-        self.dirty()
+        self.dirty(selectionOnly=True)
 
     def deselect(self, elems):
         if not hasattr(elems, '__len__'):
             elems.select = False
         else:
             for bmelem in elems: bmelem.select = False
-        self.dirty()
+        self.dirty(selectionOnly=True)
 
     def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
@@ -858,7 +856,7 @@ class RFMesh():
                 for bmf in elem.link_faces:
                     if all(bmv.select for bmv in bmf.verts):
                         bmf.select = True
-        self.dirty()
+        self.dirty(selectionOnly=True)
 
     def get_quadwalk_edgesequence(self, edge):
         bme = self._unwrap(edge)
@@ -983,7 +981,7 @@ class RFMesh():
         for bmv in self.bme.verts: bmv.select = True
         for bme in self.bme.edges: bme.select = True
         for bmf in self.bme.faces: bmf.select = True
-        self.dirty()
+        self.dirty(selectionOnly=True)
 
     def select_toggle(self):
         sel = False
@@ -1120,8 +1118,8 @@ class RFTarget(RFMesh):
 
     def clean(self):
         super().clean()
-        if self.editmesh_version == self.version: return
-        self.editmesh_version = self.version
+        if self.editmesh_version == self.get_version(): return
+        self.editmesh_version = self.get_version()
         self.bme.to_mesh(self.obj.data)
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
