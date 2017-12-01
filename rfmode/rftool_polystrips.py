@@ -167,20 +167,16 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                     if v is None: continue
                     if (mouse - v).length < self.drawing.scale(options['select dist']):
                         self.hovering_handles.append(cbpt)
-                        self.hovering_strips.add((strip,i))
+                        self.hovering_strips.add((strip,cb,i))
         pr.done()
         
-        if self.hovering_handles:
-            self.rfwidget.set_widget('move')
-        else:
-            self.rfwidget.set_widget('brush stroke')
+        self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
         
-        if self.hovering_handles and self.rfcontext.actions.pressed('action'):
+        # handle edits
+        if self.rfcontext.actions.pressed('action'):
             return self.prep_handle()
-        
-        if self.hovering_handles and self.rfcontext.actions.pressed('action alt0'):
+        if self.rfcontext.actions.pressed('action alt0'):
             return self.prep_rotate()
-        
         if self.rfcontext.actions.pressed('action alt1'):
             return self.prep_scale()
         
@@ -237,6 +233,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def prep_rotate(self):
+        if not self.hovering_handles: return
+        
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         inner,outer = None,None
         for strip in self.strips:
@@ -298,6 +296,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def prep_handle(self):
+        if not self.hovering_handles: return
         cbpts = list(self.hovering_handles)
         for strip in self.strips:
             for cb in strip:
@@ -331,7 +330,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             #xyz = oco + delta.x * rt - delta.y * up
             if xyz: cbpt.xyz = xyz
         
-        for strip,_ in self.hovering_strips:
+        for strip,_,_ in self.hovering_strips:
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
         
         self.update_strip_viz()
@@ -370,7 +369,35 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     @profiler.profile
     def prep_scale(self):
         # only scale outer handles
-        self.scale_strips = [(s,i) for s,i in self.hovering_strips if i in [0,3]]
+        handle_inner = next(((s,cb,i) for (s,cb,i) in self.hovering_strips if i in [1,2]), None)
+        if not handle_inner: return
+        
+        strip,curve,iinner = handle_inner
+        handle_outer = curve.points()[0 if iinner == 1 else 3]
+        # find other curves with outer handles at same location
+        
+        self.scale_strips = []
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                d0,d3 = (p0-handle_outer).length,(p3-handle_outer).length
+                if d0 < 0.01:
+                    self.scale_strips.append((strip, 0))
+                if d3 < 0.01:
+                    self.scale_strips.append((strip, 3))
+                print(d0,d3)
+        
+        print(self.scale_strips)
+        return
+        handle_outer = s
+        
+        for strip in self.strips:
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                if p0 in cbpts and p1 not in cbpts: cbpts.append(p1)
+                if p3 in cbpts and p2 not in cbpts: cbpts.append(p2)
+        
+        self.scale_strips = [(s,i) for s,i in self.hovering_strips if i in [1,2]]
         if not self.scale_strips: return
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
@@ -383,9 +410,9 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         self.scale_bmf = {}
         self.scale_bmv = {}
-        for strip,iend in self.scale_strips:
-            if iend == 0: s0,s1 = 1,0
-            else: s0,s1 = 0,1
+        for strip,iinner in self.scale_strips:
+            iend = 0 if iinner == 1 else 3
+            s0,s1 = (1,0) if iend == 0 else (0,1)
             l = len(strip.bmf_strip)
             for ibmf,bmf in enumerate(strip.bmf_strip):
                 if bmf in self.scale_bmf: continue
