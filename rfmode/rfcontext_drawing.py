@@ -87,16 +87,26 @@ class RFContext_Drawing:
         elif level in {'assert'}:
             bgcolor = (0.30, 0.15, 0.15, 0.95)
             title = 'Assert Error' + (': %s' % title if title else '!')
-            msg = 'An internal assertion has failed.\n' + \
-                  'This was unexpected.\n' + \
-                  'If this happens again, please report as bug so we can fix it.'
+            blender_version = '%d.%02d.%d' % bpy.app.version
+            msg = '\n'.join([
+                'An internal assertion has failed.',
+                'This was unexpected.',
+                'If this happens again, please report as bug so we can fix it.',
+                '',
+                'RetopoFlow: %s, Blender: %s' % (retopoflow_version, blender_version),
+                ])
             message = msg + (('\n\n%s' % message) if message else '')
         elif level in {'exception'}:
-            bgcolor = (0.30, 0.15, 0.15, 0.95)
+            bgcolor = (0.15, 0.07, 0.07, 0.95)
             title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
-            msg = 'An unhandled exception was thrown.\n' + \
-                  'This was unexpected.\n' + \
-                  'If this happens again, please report as bug so we can fix it.'
+            blender_version = '%d.%02d.%d' % bpy.app.version
+            msg = '\n'.join([
+                'An unhandled exception was thrown.',
+                'This was unexpected.',
+                'If this happens again, please report as bug so we can fix it.',
+                '',
+                'RetopoFlow: %s, Blender: %s' % (retopoflow_version, blender_version),
+                ])
             message = msg + (('\n\n%s' % message) if message else '')
         else:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
