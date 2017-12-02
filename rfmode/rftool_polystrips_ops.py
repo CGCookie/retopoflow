@@ -311,7 +311,7 @@ class RFTool_PolyStrips_Ops:
             c0,c1 = len(bme0.link_faces)==2,len(bme1.link_faces)==2
             
             cb = strip.cbs[0]
-            radius = sum(rad for bme,_,rad,_,_,_ in strip.bmes) / len(strip.bmes)
+            radius = sum(rad for bme,_,rad,_,_,_,_ in strip.bmes) / len(strip.bmes)
             count = len(bmf_strip)
             count_new = max(count + delta, 1 if c0 and c1 else 2)
             #dprint('changing strip count: %d > %d (%d)' % (count,count_new, delta))
