@@ -24,6 +24,7 @@ import bgl
 import blf
 import math
 import time
+import urllib
 
 from .rftool import RFTool
 
@@ -37,7 +38,7 @@ from ..common.ui import (
     UI_Checkbox, UI_Checkbox2,
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
-    UI_Container, UI_Collapsible,
+    UI_Container, UI_Collapsible, UI_EqualContainer,
     UI_IntValue,
     GetSet,
     )
@@ -78,30 +79,25 @@ class RFContext_Drawing:
     
     def alert_user(self, title=None, message=None, level='warning'):
         level = level.lower()
+        blender_version = '%d.%02d.%d' % bpy.app.version
         if level in {'warning'}:
             bgcolor = (0.35, 0.25, 0.15, 0.95)
             title = 'Warning' + (': %s' % title if title else '')
         elif level in {'error'}:
             bgcolor = (0.30, 0.15, 0.15, 0.95)
             title = 'Error' + (': %s' % title if title else '!')
-        elif level in {'assert'}:
-            bgcolor = (0.30, 0.15, 0.15, 0.95)
-            title = 'Assert Error' + (': %s' % title if title else '!')
-            blender_version = '%d.%02d.%d' % bpy.app.version
+        elif level in {'assert', 'exception'}:
+            if level == 'assert':
+                bgcolor = (0.30, 0.15, 0.15, 0.95)
+                title = 'Assert Error' + (': %s' % title if title else '!')
+                desc = 'An internal assertion has failed.'
+            else:
+                bgcolor = (0.15, 0.07, 0.07, 0.95)
+                title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
+                desc = 'An unhandled exception was thrown.'
+            message_orig = message
             msg = '\n'.join([
-                'An internal assertion has failed.',
-                'This was unexpected.',
-                'If this happens again, please report as bug so we can fix it.',
-                '',
-                'RetopoFlow: %s, Blender: %s' % (retopoflow_version, blender_version),
-                ])
-            message = msg + (('\n\n%s' % message) if message else '')
-        elif level in {'exception'}:
-            bgcolor = (0.15, 0.07, 0.07, 0.95)
-            title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
-            blender_version = '%d.%02d.%d' % bpy.app.version
-            msg = '\n'.join([
-                'An unhandled exception was thrown.',
+                desc,
                 'This was unexpected.',
                 'If this happens again, please report as bug so we can fix it.',
                 '',
@@ -111,10 +107,34 @@ class RFContext_Drawing:
         else:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
+            message = message or 'a note'
+        
+        '''
+        TODO: ADD BUTTON TO REPORT ERROR
+        TODO: ADD BUTTON TO TAKE SCREENSHOT
+        '''
         
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
+        def screenshot():
+            bpy.ops.screen.screenshot(filepath=options['screenshot filename'])
+        def report():
+            data = {
+                'title': '%s: %s' % (self.tool.name(), title),
+                'body': '\n'.join([
+                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
+                    'Provide as much information as you can so that we can reproduce the problem and fix it.',
+                    'Screenshots and .blend files are very helpful.'
+                    'Also, change the title of this bug report to something descriptive and helpful.',
+                    'Thank you!',
+                    '-------------------------------------',
+                    'RetopoFlow: %s' % retopoflow_version,
+                    'Blender: %s' % blender_version,
+                    ] + (['',message_orig] if message_orig else []))
+            }
+            url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
+            bpy.ops.wm.url_open(url=url)
         
         def event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
@@ -130,7 +150,11 @@ class RFContext_Drawing:
         win.add(UI_Rule())
         win.add(UI_Markdown(message, min_size=Vec2D((300,36))))
         win.add(UI_Rule())
-        win.add(UI_Button('Close', close, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        container.add(UI_Button('Close', close, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        if level in {'assert', 'exception'}:
+            container.add(UI_Button('Screenshot', screenshot, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            container.add(UI_Button('Report', report, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
     
     def _init_drawing(self):

@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
-from ..options import retopoflow_issues_url
+from ..options import options
 
 class OpenWebIssues(bpy.types.Operator):
     bl_idname = "wm.open_webissues"
@@ -30,6 +30,6 @@ class OpenWebIssues(bpy.types.Operator):
     def poll(cls, context): return True
 
     def execute(self, context):
-        bpy.ops.wm.url_open(url=retopoflow_issues_url)
+        bpy.ops.wm.url_open(url=options['github issues url'])
         return {'FINISHED'}
 

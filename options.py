@@ -320,6 +320,9 @@ class Options:
         'instrument':           False,  # enable instrumentation?
         'version 1.3':          True,   # show RF 1.3 panel?
         
+        'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
+        'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
+        
         'tools pos':    7,
         'info pos':     1,
         'options pos':  9,
@@ -330,6 +333,7 @@ class Options:
         
         'color theme':          'Green',
         
+        'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',
