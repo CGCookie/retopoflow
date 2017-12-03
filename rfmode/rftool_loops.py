@@ -259,7 +259,7 @@ class RFTool_Loops(RFTool):
         for bme in sel_edges:
             lbmf = [bmf for bmf in bme.link_faces if bmf.select == False]
             if len(lbmf) != 2:
-                self.rfcontext.alert_user('Loops', 'A selected edge has %d unselected faces (expected 2)' % len(lbmf), level='note')
+                self.rfcontext.alert_user('Loops', 'A selected edge has %d unselected faces (expected 2)' % len(lbmf))
                 return
             bmv0,bmv1 = bme.verts
             for bmv in bme.verts:
@@ -270,7 +270,7 @@ class RFTool_Loops(RFTool):
                         neighbors[bmv].add(bmv_e.other_vert(bmv))
         for bmv in neighbors:
             if len(neighbors[bmv]) != 2:
-                self.rfcontext.alert_user('Loops', 'A vertex has %d neighbors (expected 2)' % len(neighbors[bmv]), level='note')
+                self.rfcontext.alert_user('Loops', 'A vertex has %d neighbors (expected 2)' % len(neighbors[bmv]))
                 return
             neighbors[bmv] = list(neighbors[bmv])
         
@@ -287,7 +287,7 @@ class RFTool_Loops(RFTool):
             for bmfl in bmfls:
                 bmv1s = [bmv for bmv in bmfl.verts if bmv != bmv0 and bmv in neighbors]
                 if len(bmv1s) != 1:
-                    self.rfcontext.alert_user('Loops', 'Face has an unexpected count of valid candidates (%d)' % len(bmv1s), level='note')
+                    self.rfcontext.alert_user('Loops', 'Face has an unexpected count of valid candidates (%d)' % len(bmv1s))
                     return
                 bmv1 = bmv1s[0]
                 bmv1l,bmv1r = neighbors[bmv1]

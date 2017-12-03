@@ -270,6 +270,10 @@ class RFTool_PolyStrips_Ops:
         if len(self.strips) == 0:
             if delta <= 0: return
             # check if there is a single selected quad that could be turned into a strip
+            #  [ | | | | ]
+            #      |O|      <- with this selected, split into two
+            #  [ | | | | ]
+            
             bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
             for bmf in bmquads:
                 bmes = [bme if len(bme.link_faces) == 2 else None for bme in bmf.edges]
@@ -278,6 +282,7 @@ class RFTool_PolyStrips_Ops:
                 if not bmes[0] and bmes[1] and not bmes[2] and bmes[3]:
                     break
             else:
+                self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
                 return
             self.rfcontext.undo_push('change PS segment count')
             bme0,bme1 = bmes[0] or bmes[1],bmes[2] or bmes[3]
@@ -311,7 +316,7 @@ class RFTool_PolyStrips_Ops:
             c0,c1 = len(bme0.link_faces)==2,len(bme1.link_faces)==2
             
             cb = strip.cbs[0]
-            radius = sum(rad for bme,_,rad,_,_,_ in strip.bmes) / len(strip.bmes)
+            radius = sum(rad for bme,_,rad,_,_,_,_ in strip.bmes) / len(strip.bmes)
             count = len(bmf_strip)
             count_new = max(count + delta, 1 if c0 and c1 else 2)
             #dprint('changing strip count: %d > %d (%d)' % (count,count_new, delta))

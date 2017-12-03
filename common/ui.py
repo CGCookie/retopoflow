@@ -559,8 +559,8 @@ class UI_Container(UI_Element):
         return ui_item
 
 class UI_EqualContainer(UI_Container):
-    def __init__(self, vertical=True):
-        super().__init__(vertical=vertical)
+    def __init__(self, vertical=True, margin=4):
+        super().__init__(vertical=vertical, margin=margin)
     
     def _draw(self):
         l,t = self.pos
@@ -649,7 +649,7 @@ class UI_Button(UI_Container):
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
     
-    def mouse_cursor(self): return 'HAND'
+    def mouse_cursor(self): return 'DEFAULT'
     
     def _draw(self):
         l,t = self.pos
@@ -1426,7 +1426,7 @@ class UI_WindowManager:
             win.draw_postpixel()
     
     def modal(self, context, event):
-        if self.active:
+        if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None
         else:

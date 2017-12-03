@@ -454,6 +454,11 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         try:
             nmode = self.FSM[self.mode]()
             if nmode: self.mode = nmode
+        except AssertionError as e:
+            message = get_exception_info()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='assert')
         except Exception as e:
             message = get_exception_info()
             print(message)
