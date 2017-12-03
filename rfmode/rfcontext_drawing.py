@@ -78,8 +78,8 @@ class RFContext_Drawing:
         if throw: assert False
         return False
     
-    def alert_user(self, title=None, message=None, level='warning'):
-        level = level.lower()
+    def alert_user(self, title=None, message=None, level=None):
+        level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
         if level in {'warning'}:
             bgcolor = (0.35, 0.25, 0.15, 0.95)
@@ -128,7 +128,7 @@ class RFContext_Drawing:
                 filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
                 filepath = os.path.join(filepath, ss_filename)
             bpy.ops.screen.screenshot(filepath=filepath)
-            self.alert_user(message='Saved screenshot to "%s"' % filepath, level='note')
+            self.alert_user(message='Saved screenshot to "%s"' % filepath)
             
         def report():
             data = {

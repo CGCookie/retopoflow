@@ -84,7 +84,7 @@ class RFTool_Patches(RFTool):
                 strip.add(edge)
                 remaining_edges.remove(edge)
                 if len(edge.link_faces) != 1:
-                    self.rfcontext.alert_user('Patches', 'A selected edge is not on the boundary', level='note')
+                    self.rfcontext.alert_user('Patches', 'A selected edge is not on the boundary')
                     return
                 v0,v1 = edge.verts
                 face = next(iter(edge.link_faces))
@@ -121,7 +121,7 @@ class RFTool_Patches(RFTool):
             return l
         strips = [order_edge_strip(edges) for edges in strips]
         if any(strip is None for strip in strips):
-            self.rfcontext.alert_user('Patches', 'Cannot fill loops, yet', level='note')
+            self.rfcontext.alert_user('Patches', 'Cannot fill loops, yet')
             return
         
         def touching_strips(strip0, strip1):
@@ -228,23 +228,23 @@ class RFTool_Patches(RFTool):
                 s2 = create_strip(v00, v10, count)
                 s3 = create_strip(v01, v11, count)
                 strips += [s2, s3]
-                #self.rfcontext.alert_user('Patches', '||-shaped selections not yet handled', level='note')
+                #self.rfcontext.alert_user('Patches', '||-shaped selections not yet handled')
                 #self.rfcontext.undo_cancel()
         
         if len(strips) == 3:
             s0,s1,s2 = strips
             t01,t02,t12 = touching_strips(s0,s1),touching_strips(s0,s2),touching_strips(s1,s2)
             if t01 and t02 and t12:
-                self.rfcontext.alert_user('Patches', 'Triangle selections not yet handled', level='note')
+                self.rfcontext.alert_user('Patches', 'Triangle selections not yet handled')
                 self.rfcontext.undo_cancel()
             elif t01 and t02 and not t12:
-                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled')
                 self.rfcontext.undo_cancel()
             elif t01 and t12 and not t02:
-                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled')
                 self.rfcontext.undo_cancel()
             elif t02 and t12 and not t01:
-                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled', level='note')
+                self.rfcontext.alert_user('Patches', 'C-shaped selections not yet handled')
                 self.rfcontext.undo_cancel()
             else:
                 self.rfcontext.alert_user('Patches', 'Unhandled shape of three selected strips', level='warning')
