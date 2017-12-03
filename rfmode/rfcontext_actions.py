@@ -154,15 +154,15 @@ class Actions:
                 else: self.keymap['window actions'].discard(kmi_details(kmi))
             
 
-    def __init__(self):
+    def __init__(self, context):
         self.keymap = deepcopy(self.default_keymap)
         self.load_keymap('Blender')
         self.load_keymap('Blender User')
 
-        self.context = None
-        self.region = None
-        self.r3d = None
-        self.size = (-1, -1)
+        self.context = context
+        self.region = context.region
+        self.size = (context.region.width,context.region.height)
+        self.r3d = context.space_data.region_3d
 
         self.actions_using = set()
         self.actions_pressed = set()
@@ -328,7 +328,7 @@ class Actions:
 
 class RFContext_Actions:
     def _init_actions(self):
-        self.actions = Actions()
+        self.actions = Actions(self.rfmode.context)
 
     def _process_event(self, context, event):
         #if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)

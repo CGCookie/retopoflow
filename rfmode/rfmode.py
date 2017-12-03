@@ -185,6 +185,7 @@ class RFMode(Operator):
             bpy.ops.object.mode_set(mode='OBJECT')
         
         self.area = context.area
+        self.context = context
         
         self.context_start()
         self.ui_start()
