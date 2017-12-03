@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import bpy
 import bgl
 import blf
@@ -118,7 +119,17 @@ class RFContext_Drawing:
             nonlocal win
             self.window_manager.delete_window(win)
         def screenshot():
-            bpy.ops.screen.screenshot(filepath=options['screenshot filename'])
+            ss_filename = options['screenshot filename']
+            if bpy.data.filepath == '':
+                # startup file
+                filepath = os.path.abspath(ss_filename)
+            else:
+                # loaded .blend file
+                filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
+                filepath = os.path.join(filepath, ss_filename)
+            bpy.ops.screen.screenshot(filepath=filepath)
+            self.alert_user(message='Saved screenshot to "%s"' % filepath, level='note')
+            
         def report():
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),

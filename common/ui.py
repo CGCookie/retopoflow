@@ -1426,7 +1426,7 @@ class UI_WindowManager:
             win.draw_postpixel()
     
     def modal(self, context, event):
-        if self.active:
+        if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None
         else:
