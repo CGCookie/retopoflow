@@ -110,11 +110,6 @@ class RFContext_Drawing:
             title = 'Note' + (': %s' % title if title else '')
             message = message or 'a note'
         
-        '''
-        TODO: ADD BUTTON TO REPORT ERROR
-        TODO: ADD BUTTON TO TAKE SCREENSHOT
-        '''
-        
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
