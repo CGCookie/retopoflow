@@ -30,7 +30,7 @@ import urllib
 from .rftool import RFTool
 
 from ..lib.classes.profiler.profiler import profiler
-from ..common.maths import Point, Point2D, Vec2D
+from ..common.maths import Point, Point2D, Vec2D, clamp
 from ..common.ui import Drawing
 from ..common.ui import (
     UI_WindowManager,
@@ -47,6 +47,7 @@ from ..lib import common_drawing_bmesh as bmegl
 
 from ..options import (
     retopoflow_version,
+    retopoflow_profiler,
     retopoflow_issues_url,
     retopoflow_tip_url,
     options,
@@ -222,9 +223,11 @@ class RFContext_Drawing:
             profiler.disable()
             update_profiler_visible()
         def get_debug_level():
-            return self.settings.debug
+            return options['debug level']
+            # return self.settings.debug
         def set_debug_level(v):
-            self.settings.debug = v
+            options['debug level'] = clamp(v, 0, 5)
+            #self.settings.debug = v
         
         def wrap_pos_option(key):
             def get():
@@ -285,12 +288,13 @@ class RFContext_Drawing:
         info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
         
-        info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
-        prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
-        prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
-        prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
-        prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
-        update_profiler_visible()
+        if retopoflow_profiler:
+            info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
+            prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
+            prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
+            prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
+            prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
+            update_profiler_visible()
         
         info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         

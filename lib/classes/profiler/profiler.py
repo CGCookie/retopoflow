@@ -23,25 +23,29 @@ import os
 import inspect
 import time
 from ...common_utilities import dprint, dcallstack
-from ....options import options
+from ....options import options, retopoflow_profiler
 
 class Profiler:
     debug = options['profiler']
     filename = 'profiler_data.txt'
+    broken = False
     
     class ProfilerHelper(object):
         def __init__(self, pr, text):
             full_text = (pr.stack[-1].text+'^' if pr.stack else '') + text
-            assert full_text not in pr.d_start, '"%s" found in profiler already?'%text
+            if full_text in pr.d_start:
+                Profiler.broken = True
+                assert False, '"%s" found in profiler already?'%text
             self.pr = pr
             self.text = full_text
             self._is_done = False
             self.pr.d_start[self.text] = time.time()
             self.pr.stack += [self]
         def __del__(self):
+            if Profiler.broken: return
             if not self._is_done:
-                dprint('WARNING: calling ProfilerHelper.done!')
-                self.done()
+                Profiler.broken = True
+                assert False, 'Deleting Profiler before finished'
         def done(self):
             while self.pr.stack and self.pr.stack[-1] != self:
                 self.pr.stack.pop()
@@ -88,7 +92,8 @@ class Profiler:
         self.last_profile_out = 0
     
     def start(self, text=None, addFile=True):
-        if not self.debug: return self.ProfilerHelper_Ignore()
+        assert not Profiler.broken
+        if not retopoflow_profiler or not self.debug: return self.ProfilerHelper_Ignore()
         
         frame = inspect.currentframe().f_back
         filename = os.path.basename( frame.f_code.co_filename )
@@ -107,7 +112,7 @@ class Profiler:
         pass
     
     def profile(self, fn):
-        if not self.debug: return fn
+        if not retopoflow_profiler or not self.debug: return fn
         
         frame = inspect.currentframe().f_back
         f_locals = frame.f_locals
@@ -119,6 +124,7 @@ class Profiler:
         space = ' '*(30-len(fnname))
         text = '%s%s (%s:%d)' % (fnname, space, filename, linenum)
         def wrapper(*args, **kwargs):
+            assert not Profiler.broken
             pr = self.start(text=text, addFile=False)
             ret = fn(*args, **kwargs)
             pr.done()
@@ -128,7 +134,7 @@ class Profiler:
         return wrapper
     
     def printout(self):
-        if not self.debug: return
+        if not retopoflow_profiler or not self.debug: return
         
         dprint('Profiler:', l=0)
         dprint('   total      call   ------- seconds / call -------', l=0)
@@ -157,7 +163,7 @@ class Profiler:
         # $ # to watch the file from terminal (bash) use:
         # $ watch --interval 0.1 cat filename
         
-        if not self.debug: return
+        if not retopoflow_profiler or not self.debug: return
         
         if time.time() < self.last_profile_out + interval: return
         self.last_profile_out = time.time()

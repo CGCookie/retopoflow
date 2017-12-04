@@ -160,6 +160,7 @@ class RFMeshRender():
     @profiler.profile
     def _draw(self):
         opts = dict(self.opts)
+        opts['vertex dict'] = {}
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
 
         # do not change attribs if they're not set
@@ -214,17 +215,20 @@ class RFMeshRender():
 
     @profiler.profile
     def clean(self):
-        # return if rfmesh hasn't changed
-        self.rfmesh.clean()
-        ver = self.rfmesh.get_version()
-        if self.rfmesh_version == ver: return
-        self._gather_data()
-        pr = profiler.start('cleaning')
-        self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
-        bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
-        self._draw()
-        bgl.glEndList()
-        pr.done()
+        try:
+            # return if rfmesh hasn't changed
+            self.rfmesh.clean()
+            ver = self.rfmesh.get_version()
+            if self.rfmesh_version == ver: return
+            self._gather_data()
+            pr = profiler.start('cleaning')
+            self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
+            bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
+            self._draw()
+            bgl.glEndList()
+            pr.done()
+        except Exception as e:
+            pass
 
     @profiler.profile
     def draw(self, symmetry=None, frame:Frame=None):

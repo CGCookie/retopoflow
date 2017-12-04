@@ -26,6 +26,10 @@ import shelve
 
 retopoflow_version = '2.0.0 beta'
 
+# the following enables / disables profiler code, overriding the options['profiler']
+# TODO: make this False before shipping!
+retopoflow_profiler = True
+
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
 # XXX: JUST A TEST!!!
@@ -310,8 +314,8 @@ More support coming soon!
 
 
 class Options:
-    options_filename = 'rf_options'     # the filename of the Shelve object
-                                        # will be located at root of RF plugin
+    options_filename = 'RetopoFlow_options' # the filename of the Shelve object
+                                            # will be located at root of RF plug-in
     
     default_options = {                 # all the default settings for unset or reset
         'welcome':              True,   # show welcome message?
@@ -319,6 +323,7 @@ class Options:
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
         'version 1.3':          True,   # show RF 1.3 panel?
+        'debug level':          0,      # debug level, 0--5 (for printing to console)
         
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',

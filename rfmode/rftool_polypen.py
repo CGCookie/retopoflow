@@ -68,13 +68,13 @@ class RFTool_PolyPen(RFTool):
     def update(self):
         # selection has changed, undo/redo was called, etc.
         #self.target_version = None
-        self.target_version = self.rfcontext.get_target_version() if self.selecting else None
+        #self.target_version = self.rfcontext.get_target_version() if self.selecting else None
         self.set_next_state()
     
     @profiler.profile
     def set_next_state(self):
         # TODO: optimize this!!!
-        target_version = self.rfcontext.get_target_version()
+        target_version = self.rfcontext.get_target_version(selection=False)
         view_version = self.rfcontext.get_view_version()
         
         mouse_cur = self.rfcontext.actions.mouse

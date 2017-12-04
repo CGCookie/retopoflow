@@ -515,6 +515,11 @@ class RFMode(Operator):
             # something bad happened, so bail!
             self.framework_end()
             return {'CANCELLED'}
+        
+        if profiler.broken:
+            # something bad happened, so bail!
+            self.framework_end()
+            return {'CANCELLED'}
 
         # # handle strange edge cases
         # if not context.area:

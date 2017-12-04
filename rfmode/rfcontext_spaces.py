@@ -25,6 +25,7 @@ from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from ..lib.common_utilities import dprint
+from ..lib.classes.profiler.profiler import profiler
 
 from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, XForm, Plane
@@ -76,6 +77,7 @@ class RFContext_Spaces:
         oxyz = region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy)
         return (xyz - oxyz).length
     
+    @profiler.profile
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         if not xy: return None

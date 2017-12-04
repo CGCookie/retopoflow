@@ -97,6 +97,8 @@ class Shader():
                 bgl.glVertexAttrib1f(l, varValue)
             elif t == 'int':
                 bgl.glVertexAttrib1i(l, varValue)
+            elif t == 'vec3':
+                bgl.glVertexAttrib3f(l, *varValue)
             else:
                 assert False, 'Unhandled type %s for attrib %s' % (t, varName)
         elif q in {'uniform'}:

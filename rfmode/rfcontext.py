@@ -575,6 +575,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     
     ###################################################
 
+    @profiler.profile
     def is_visible(self, point:Point, normal:Normal):
         ray = self.Point_to_Ray(point, max_dist_offset=-0.01)
         if not ray: return False

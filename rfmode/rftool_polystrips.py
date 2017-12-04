@@ -172,6 +172,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
         
+        self.update_accel_struct()
+        
         # handle edits
         if self.rfcontext.actions.pressed('action'):
             return self.prep_handle()
@@ -179,8 +181,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             return self.prep_rotate()
         if self.rfcontext.actions.pressed('action alt1'):
             return self.prep_scale()
-        
-        self.update_accel_struct()
         
         if self.rfcontext.actions.using('select'):
             self.defer_recomputing = True

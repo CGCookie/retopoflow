@@ -250,11 +250,8 @@ def setup_target_object( new_object, original_object, bmesh ):
     return dest_obj
 
 def dprint(s, l=2):
-    settings = get_settings()
-    if not settings:
-        print('DEBUG(%i): %s' % (l, s))
-    elif settings.debug >= l:
-        print('DEBUG(%i): %s' % (l, s))
+    if options['debug level'] < l: return
+    print('DEBUG(%i): %s' % (l, s))
 
 def dcallstack(l=2):
     ''' print out the calling stack, skipping the first (call to dcallstack) '''

@@ -139,7 +139,7 @@ class RFMesh():
         pass
     
     def get_version(self, selection=True):
-        return self._version + self._version_selection
+        return self._version + (self._version_selection if selection else 0)
 
     def get_bvh(self):
         ver = self.get_version(selection=False)
@@ -557,6 +557,7 @@ class RFMesh():
             maxdist -= d
         return hits
 
+    @profiler.profile
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -758,7 +759,8 @@ class RFMesh():
 
     def _visible_verts(self, is_visible):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
-        is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
+        #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
+        is_vis = lambda bmv: is_visible(l2w_point(bmv.co), None)
         return { bmv for bmv in self.bme.verts if is_vis(bmv) }
 
     def _visible_edges(self, is_visible, bmvs=None):
