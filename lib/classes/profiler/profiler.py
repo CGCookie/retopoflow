@@ -43,9 +43,9 @@ class Profiler:
             self.pr.stack += [self]
         def __del__(self):
             if Profiler.broken: return
-            if not self._is_done:
-                Profiler.broken = True
-                assert False, 'Deleting Profiler before finished'
+            if self._is_done: return
+            Profiler.broken = True
+            #assert False, 'Deleting Profiler before finished'
         def done(self):
             while self.pr.stack and self.pr.stack[-1] != self:
                 self.pr.stack.pop()
@@ -92,7 +92,8 @@ class Profiler:
         self.last_profile_out = 0
     
     def start(self, text=None, addFile=True):
-        assert not Profiler.broken
+        #assert not Profiler.broken
+        if Profiler.broken: return self.ProfilerHelper_Ignore()
         if not retopoflow_profiler or not self.debug: return self.ProfilerHelper_Ignore()
         
         frame = inspect.currentframe().f_back
@@ -124,11 +125,19 @@ class Profiler:
         space = ' '*(30-len(fnname))
         text = '%s%s (%s:%d)' % (fnname, space, filename, linenum)
         def wrapper(*args, **kwargs):
-            assert not Profiler.broken
+            #assert not Profiler.broken
+            if Profiler.broken: return fn(*args, **kwargs)
             pr = self.start(text=text, addFile=False)
-            ret = fn(*args, **kwargs)
-            pr.done()
-            return ret
+            ret = None
+            try:
+                ret = fn(*args, **kwargs)
+                pr.done()
+                return ret
+            except Exception as e:
+                pr.done()
+                print('CAUGHT EXCEPTION ' + str(e))
+                print(text)
+                raise e
         wrapper.__name__ = fn.__name__
         wrapper.__doc__ = fn.__doc__
         return wrapper

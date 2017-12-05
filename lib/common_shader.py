@@ -115,6 +115,16 @@ class Shader():
         else:
             assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
     
+    def enableVertexAttribArray(self, varName):
+        assert varName in self.shaderVars, 'Variable %s not found' % varName
+        v = self.shaderVars[varName]
+        bgl.glEnableVertexAttribArray(v)
+    
+    def disableVertexAttribArray(self, varName):
+        assert varName in self.shaderVars, 'Variable %s not found' % varName
+        v = self.shaderVars[varName]
+        bgl.glDisableVertexAttribArray(v)
+    
     def useFor(self,funcCallback):
         try:
             bgl.glUseProgram(self.shaderProg)

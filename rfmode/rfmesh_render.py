@@ -51,6 +51,28 @@ from ..common.utils import hash_object, hash_bmesh
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 
 
+class RFMeshRender_Simple_Vert:
+    def __init__(self, bmv):
+        self.co = bmv.co
+        self.normal = bmv.normal
+        self.select = bmv.select
+class RFMeshRender_Simple_Edge:
+    def __init__(self, bme, dverts):
+        self.verts = [dverts[bmv] for bmv in bme.verts]
+        self.select = bme.select
+class RFMeshRender_Simple_Face:
+    def __init__(self, bmf, dverts):
+        self.verts = [dverts[bmv] for bmv in bmf.verts]
+        self.select = bmf.select
+        self.smooth = bmf.smooth
+        self.normal = bmf.normal
+class RFMeshRender_Simple:
+    def __init__(self, bmesh):
+        self.verts = [RFMeshRender_Simple_Vert(bmv) for bmv in bmesh.verts]
+        self.dverts = {bmv:v for bmv,v in zip(bmesh.verts, self.verts)}
+        self.edges = [RFMeshRender_Simple_Edge(bme, self.dverts) for bme in bmesh.edges]
+        self.faces = [RFMeshRender_Simple_Face(bmf, self.dverts) for bmf in bmesh.faces]
+
 class RFMeshRender():
     '''
     RFMeshRender handles rendering RFMeshes.
@@ -82,6 +104,17 @@ class RFMeshRender():
         self.bglCallList = bgl.glGenLists(1)
         self.bglMatrix = rfmesh.xform.to_bglMatrix()
         self.drawing = Drawing.get_instance()
+        
+        self.vao = bgl.Buffer(bgl.GL_INT, 1)
+        bgl.glGenVertexArrays(1, self.vao)
+        bgl.glBindVertexArray(self.vao[0])
+        self.vbo = bgl.Buffer(bgl.GL_INT, 10)
+        bgl.glGenBuffers(10, self.vbo)
+        bgl.glBindVertexArray(0)
+        self.n_faces = 0
+        self.n_edges = 0
+        self.n_verts = 0
+        
         self.replace_rfmesh(rfmesh)
         self.replace_opts(opts)
 
@@ -113,6 +146,57 @@ class RFMeshRender():
         self.bme_verts = None
         self.bme_edges = None
         self.bme_faces = None
+        
+        def triangulateFace(verts):
+            iv = iter(verts)
+            v0,v2 = next(iv),next(iv)
+            for v3 in iv:
+                v1,v2 = v2,v3
+                yield (v0,v1,v2)
+        def buffer(vbo_id, data):
+            sizeOfFloat = 4
+            buf = bgl.Buffer(bgl.GL_FLOAT, len(data), data)
+            bgl.glBindVertexArray(self.vao[0])
+            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_id)
+            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, len(data) * sizeOfFloat, buf, bgl.GL_STATIC_DRAW)
+            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
+            bgl.glBindVertexArray(0)
+            del buf
+        
+        pr = profiler.start('triangulating faces')
+        tri_faces = [(bmf, [bmv for bmvs in triangulateFace(bmf.verts) for bmv in bmvs]) for bmf in self.bmesh.faces]
+        pr.done()
+        
+        pr = profiler.start('gathering')
+        buf_data = {
+            'vert vco': [v for bmv in self.bmesh.verts for v in bmv.co],
+            'vert vno': [v for bmv in self.bmesh.verts for v in bmv.normal],
+            'vert sel': [1.0 if bmv.select else 0.0 for bmv in self.bmesh.verts],
+            'edge vco': [v for bme in self.bmesh.edges for bmv in bme.verts for v in bmv.co],
+            'edge vno': [v for bme in self.bmesh.edges for bmv in bme.verts for v in bmv.normal],
+            'edge sel': [1.0 if bme.select else 0.0 for bme in self.bmesh.edges for bmv in bme.verts],
+            'face vco': [v for bmf,verts in tri_faces for bmv in verts for v in bmv.co],
+            'face vno': [v for bmf,verts in tri_faces for bmv in verts for v in bmv.normal],
+            'face fno': [v for bmf,verts in tri_faces for bmv in verts for v in bmf.normal],
+            'face sel': [1.0 if bmf.select else 0.0 for bmf,verts in tri_faces for bmv in verts],
+        }
+        pr.done()
+        
+        pr = profiler.start('buffering')
+        buffer(self.vbo[0], buf_data['vert vco'])
+        buffer(self.vbo[1], buf_data['vert vno'])
+        buffer(self.vbo[2], buf_data['vert sel'])
+        buffer(self.vbo[3], buf_data['edge vco'])
+        buffer(self.vbo[4], buf_data['edge vno'])
+        buffer(self.vbo[5], buf_data['edge sel'])
+        buffer(self.vbo[6], buf_data['face vco'])
+        buffer(self.vbo[7], buf_data['face vno'])
+        buffer(self.vbo[8], buf_data['face fno'])
+        buffer(self.vbo[9], buf_data['face sel'])
+        self.n_verts = len(buf_data['vert sel'])
+        self.n_edges = len(buf_data['edge sel'])
+        self.n_faces = len(buf_data['face sel'])
+        pr.done()
         
         if not self.GATHERDATA_EMESH and not self.GATHERDATA_BMESH: return
         
@@ -162,6 +246,10 @@ class RFMeshRender():
         opts = dict(self.opts)
         opts['vertex dict'] = {}
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
+        
+        pr = profiler.start('gathering simple mesh')
+        simple = RFMeshRender_Simple(self.bmesh)
+        pr.done()
 
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
@@ -183,9 +271,10 @@ class RFMeshRender():
         if self.eme_faces:
             bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
         else:
-            bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
-            bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
-            bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+            #bmegl.glDrawBufferedTriangles(self.vao[0], self.n_faces, opts=opts, enableShader=False)
+            bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
+            bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
+            bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
         pr.done()
 
         if not opts.get('no below', False):
@@ -202,9 +291,9 @@ class RFMeshRender():
             if self.eme_faces:
                 bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
             else:
-                bmegl.glDrawBMFaces(self.bmesh.faces, opts=opts, enableShader=False)
-                bmegl.glDrawBMEdges(self.bmesh.edges, opts=opts, enableShader=False)
-                bmegl.glDrawBMVerts(self.bmesh.verts, opts=opts, enableShader=False)
+                bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
+                bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
+                bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
