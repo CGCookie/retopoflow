@@ -102,28 +102,52 @@ class RFMeshRender():
     def __init__(self, rfmesh, opts):
         assert hasattr(RFMeshRender, 'creating'), 'Do not create new RFMeshRender directly!  Use RFMeshRender.new()'
         self.bglCallList = bgl.glGenLists(1)
-        self.bglMatrix = rfmesh.xform.to_bglMatrix()
+        self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
+        self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
         self.drawing = Drawing.get_instance()
         
         #self.vao = bgl.Buffer(bgl.GL_INT, 1)
         #bgl.glGenVertexArrays(1, self.vao)
         #bgl.glBindVertexArray(self.vao[0])
-        self.vbos = bgl.Buffer(bgl.GL_INT, 10)
-        bgl.glGenBuffers(10, self.vbos)
+        self.vbos = bgl.Buffer(bgl.GL_INT, 9)
+        bgl.glGenBuffers(9, self.vbos)
+        self.buffered_verts = {
+            'count':    0,
+            'type':     bgl.GL_POINTS,
+            'vbo pos':  self.vbos[0],
+            'vbo norm': self.vbos[1],
+            'vbo sel':  self.vbos[2],
+        }
+        self.buffered_edges = {
+            'count':    0,
+            'type':     bgl.GL_LINES,
+            'vbo pos':  self.vbos[3],
+            'vbo norm': self.vbos[4],
+            'vbo sel':  self.vbos[5],
+        }
+        self.buffered_faces = {
+            'count':    0,
+            'type':     bgl.GL_TRIANGLES,
+            'vbo pos':  self.vbos[6],
+            'vbo norm': self.vbos[7],
+            'vbo sel':  self.vbos[8],
+        }
         #bgl.glBindVertexArray(0)
-        self.n_faces = 0
-        self.n_edges = 0
-        self.n_verts = 0
         
         self.replace_rfmesh(rfmesh)
         self.replace_opts(opts)
 
     def __del__(self):
+        if hasattr(self, 'buf_matrix_model'):
+            del self.buf_matrix_model
+        if hasattr(self, 'buf_matrix_normal'):
+            del self.buf_matrix_normal
         if hasattr(self, 'bglCallList'):
             bgl.glDeleteLists(self.bglCallList, 1)
             del self.bglCallList
-        if hasattr(self, 'bglMatrix'):
-            del self.bglMatrix
+        if hasattr(self, 'vbos'):
+            bgl.glDeleteBuffers(9, self.vbos)
+            del self.vbos
 
     @profiler.profile
     def replace_opts(self, opts):
@@ -153,12 +177,21 @@ class RFMeshRender():
             for v3 in iv:
                 v1,v2 = v2,v3
                 yield (v0,v1,v2)
-        def buffer(vbo, data):
+        def buffer(buffer_obj, pos, norm, sel):
             sizeOfFloat = 4
-            buf = bgl.Buffer(bgl.GL_FLOAT, len(data), data)
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
-            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, len(data)*sizeOfFloat, buf, bgl.GL_STATIC_DRAW)
+            count = len(pos)
+            buf_pos  = bgl.Buffer(bgl.GL_FLOAT, [count, 3], pos)
+            buf_norm = bgl.Buffer(bgl.GL_FLOAT, [count, 3], norm)
+            buf_sel  = bgl.Buffer(bgl.GL_FLOAT, count, sel)
+            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo pos'])
+            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 3 * sizeOfFloat, buf_pos,  bgl.GL_STATIC_DRAW)
+            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo norm'])
+            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 3 * sizeOfFloat, buf_norm, bgl.GL_STATIC_DRAW)
+            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo sel'])
+            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 1 * sizeOfFloat, buf_sel,  bgl.GL_STATIC_DRAW)
             bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
+            buffer_obj['count'] = count
+            del buf_pos, buf_norm, buf_sel
         def sel(g): return 1.0 if g.select else 0.0
         
         pr = profiler.start('triangulating faces')
@@ -167,33 +200,22 @@ class RFMeshRender():
         
         pr = profiler.start('gathering')
         buf_data = {
-            'vert vco': [v        for bmv in self.bmesh.verts for v in bmv.co],
-            'vert vno': [v        for bmv in self.bmesh.verts for v in bmv.normal],
-            'vert sel': [sel(bmv) for bmv in self.bmesh.verts],
-            'edge vco': [v        for bme in self.bmesh.edges for bmv in bme.verts for v in bmv.co],
-            'edge vno': [v        for bme in self.bmesh.edges for bmv in bme.verts for v in bmv.normal],
-            'edge sel': [sel(bme) for bme in self.bmesh.edges for bmv in bme.verts],
-            'face vco': [v        for bmf,verts in tri_faces for bmv in verts for v in bmv.co],
-            'face vno': [v        for bmf,verts in tri_faces for bmv in verts for v in bmv.normal],
-            'face fno': [v        for bmf,verts in tri_faces for bmv in verts for v in bmf.normal],
-            'face sel': [sel(bmf) for bmf,verts in tri_faces for bmv in verts],
+            'vert vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
+            'vert vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
+            'vert sel': [sel(bmv)          for bmv in self.bmesh.verts],
+            'edge vco': [tuple(bmv.co)     for bme in self.bmesh.edges for bmv in bme.verts],
+            'edge vno': [tuple(bmv.normal) for bme in self.bmesh.edges for bmv in bme.verts],
+            'edge sel': [sel(bme)          for bme in self.bmesh.edges for bmv in bme.verts],
+            'face vco': [tuple(bmv.co)     for bmf,verts in tri_faces for bmv in verts],
+            'face vno': [tuple(bmv.normal) for bmf,verts in tri_faces for bmv in verts],
+            'face sel': [sel(bmf)          for bmf,verts in tri_faces for bmv in verts],
         }
         pr.done()
         
         pr = profiler.start('buffering')
-        buffer(self.vbos[0], buf_data['vert vco'])
-        buffer(self.vbos[1], buf_data['vert vno'])
-        buffer(self.vbos[2], buf_data['vert sel'])
-        buffer(self.vbos[3], buf_data['edge vco'])
-        buffer(self.vbos[4], buf_data['edge vno'])
-        buffer(self.vbos[5], buf_data['edge sel'])
-        buffer(self.vbos[6], buf_data['face vco'])
-        buffer(self.vbos[7], buf_data['face vno'])
-        buffer(self.vbos[8], buf_data['face fno'])
-        buffer(self.vbos[9], buf_data['face sel'])
-        self.n_verts = len(buf_data['vert sel'])
-        self.n_edges = len(buf_data['edge sel'])
-        self.n_faces = len(buf_data['face sel'])
+        buffer(self.buffered_verts, buf_data['vert vco'], buf_data['vert vno'], buf_data['vert sel'])
+        buffer(self.buffered_edges, buf_data['edge vco'], buf_data['edge vno'], buf_data['edge sel'])
+        buffer(self.buffered_faces, buf_data['face vco'], buf_data['face vno'], buf_data['face sel'])
         pr.done()
         
         if not self.GATHERDATA_EMESH and not self.GATHERDATA_BMESH: return
@@ -251,102 +273,86 @@ class RFMeshRender():
 
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
-        bgl.glPushMatrix()
-        bgl.glMultMatrixf(self.bglMatrix)
 
         bgl.glDisable(bgl.GL_CULL_FACE)
 
         pr = profiler.start('geometry above')
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
-        # bgl.glEnable(bgl.GL_CULL_FACE)
-        opts['poly hidden'] = 0.0
-        opts['poly mirror hidden'] = 0.0
-        opts['line hidden'] = 0.0
-        opts['line mirror hidden'] = 0.0
-        opts['point hidden'] = 0.0
+        opts['poly hidden']         = 0.0
+        opts['poly mirror hidden']  = 0.0
+        opts['line hidden']         = 0.0
+        opts['line mirror hidden']  = 0.0
+        opts['point hidden']        = 0.0
         opts['point mirror hidden'] = 0.0
-        if self.eme_faces:
-            bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
-        else:
-            #bmegl.glDrawBufferedTriangles(self.vao[0], self.n_faces, opts=opts, enableShader=False)
-            #bmegl.glDrawBufferedTriangles(self.vbo[6],self.vbo[7], self.vbo[9], self.n_faces, opts=opts, enableShader=False)
-            bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
-            bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
-            bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
+        bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
+        bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
+        bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
         pr.done()
 
         if not opts.get('no below', False):
             pr = profiler.start('geometry below')
             bgl.glDepthFunc(bgl.GL_GREATER)
             bgl.glDepthMask(bgl.GL_FALSE)
-            # bgl.glDisable(bgl.GL_CULL_FACE)
             opts['poly hidden']         = 0.95
             opts['poly mirror hidden']  = 0.95
             opts['line hidden']         = 0.95
             opts['line mirror hidden']  = 0.95
             opts['point hidden']        = 0.95
             opts['point mirror hidden'] = 0.95
-            if self.eme_faces:
-                bmegl.glDrawSimpleFaces(self.eme_faces, opts=opts, enableShader=False)
-            else:
-                #bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
-                bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
-                bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
+            bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
+            bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
+            bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
-        # bgl.glEnable(bgl.GL_CULL_FACE)
+        bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
-        bgl.glPopMatrix()
 
     @profiler.profile
     def _draw_buffered(self):
         opts = dict(self.opts)
-        opts['vertex dict'] = {}
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
         
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
-        bgl.glMatrixMode(bgl.GL_MODELVIEW)
-        bgl.glPushMatrix()
-        bgl.glMultMatrixf(self.bglMatrix)
-
+        
         bgl.glDisable(bgl.GL_CULL_FACE)
 
         pr = profiler.start('geometry above')
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
-        # bgl.glEnable(bgl.GL_CULL_FACE)
-        opts['poly hidden'] = 0.0
-        opts['poly mirror hidden'] = 0.0
-        opts['line hidden'] = 0.0
-        opts['line mirror hidden'] = 0.0
-        opts['point hidden'] = 0.0
+        opts['poly hidden']         = 0.0
+        opts['poly mirror hidden']  = 0.0
+        opts['line hidden']         = 0.0
+        opts['line mirror hidden']  = 0.0
+        opts['point hidden']        = 0.0
         opts['point mirror hidden'] = 0.0
-        bmegl.glDrawBufferedTriangles(self.vbos[6],self.vbos[7], self.vbos[9], self.n_faces, opts=opts, enableShader=False)
+        bmegl.glDrawBufferedObject(self.buffered_faces, opts=opts, enableShader=False)
+        bmegl.glDrawBufferedObject(self.buffered_edges, opts=opts, enableShader=False)
+        bmegl.glDrawBufferedObject(self.buffered_verts, opts=opts, enableShader=False)
         pr.done()
 
         if not opts.get('no below', False):
             pr = profiler.start('geometry below')
             bgl.glDepthFunc(bgl.GL_GREATER)
             bgl.glDepthMask(bgl.GL_FALSE)
-            # bgl.glDisable(bgl.GL_CULL_FACE)
             opts['poly hidden']         = 0.95
             opts['poly mirror hidden']  = 0.95
             opts['line hidden']         = 0.95
             opts['line mirror hidden']  = 0.95
             opts['point hidden']        = 0.95
             opts['point mirror hidden'] = 0.95
-            bmegl.glDrawBufferedTriangles(self.vbos[6],self.vbos[7], self.vbos[9], self.n_faces, opts=opts, enableShader=False)
+            bmegl.glDrawBufferedObject(self.buffered_faces, opts=opts, enableShader=False)
+            bmegl.glDrawBufferedObject(self.buffered_edges, opts=opts, enableShader=False)
+            bmegl.glDrawBufferedObject(self.buffered_verts, opts=opts, enableShader=False)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
-        # bgl.glEnable(bgl.GL_CULL_FACE)
+        bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
-        bgl.glPopMatrix()
 
     @profiler.profile
     def clean(self):
@@ -355,30 +361,35 @@ class RFMeshRender():
             self.rfmesh.clean()
             ver = self.rfmesh.get_version()
             if self.rfmesh_version == ver: return
-            self._gather_data()
-            pr = profiler.start('cleaning')
             self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
+            self._gather_data()
+        except Exception as e:
+            pass
+        pr = profiler.start('cleaning')
+        try:
             bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
             self._draw()
             bgl.glEndList()
-            pr.done()
         except Exception as e:
             pass
+        pr.done()
 
     @profiler.profile
-    def draw(self, symmetry=None, frame:Frame=None):
+    def draw(self, buf_matrix_view, buf_matrix_proj, symmetry=None, frame:Frame=None):
         try:
             if self.ALWAYS_DIRTY:
                 self.rfmesh.clean()
                 self._gather_data()
-                bmegl.bmeshShader.enable()
-                bmegl.glSetMirror(symmetry, frame)
-                self._draw()
             else:
                 self.clean()
-                bmegl.bmeshShader.enable()
-                bmegl.glSetMirror(symmetry, frame)
-                bgl.glCallList(self.bglCallList)
+            bmegl.bmeshShader.enable()
+            bmegl.bmeshShader.assign('matrix_m', self.buf_matrix_model)
+            bmegl.bmeshShader.assign('matrix_n', self.buf_matrix_normal)
+            bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
+            bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
+            bmegl.glSetMirror(symmetry, frame)
+            if self.ALWAYS_DIRTY: self._draw()
+            else: bgl.glCallList(self.bglCallList)
             self._draw_buffered()
         except:
             print_exception()

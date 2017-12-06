@@ -93,7 +93,8 @@ class Shader():
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
         q,l,t = v['qualifier'],v['location'],v['type']
-        # print(varName + '=' + str(varValue))
+        if l == -1: return
+        #print(varName + '=' + str(varValue))
         if q in {'in','attribute'}:
             if t == 'float':
                 bgl.glVertexAttrib1f(l, varValue)
@@ -101,6 +102,8 @@ class Shader():
                 bgl.glVertexAttrib1i(l, varValue)
             elif t == 'vec3':
                 bgl.glVertexAttrib3f(l, *varValue)
+            elif t == 'vec4':
+                bgl.glVertexAttrib4f(l, *varValue)
             else:
                 assert False, 'Unhandled type %s for attrib %s' % (t, varName)
         elif q in {'uniform'}:
@@ -112,6 +115,10 @@ class Shader():
                 bgl.glUniform3f(l, *varValue)
             elif t == 'vec4':
                 bgl.glUniform4f(l, *varValue)
+            elif t == 'mat3':
+                bgl.glUniformMatrix3fv(l, 9, bgl.GL_FALSE, varValue)
+            elif t == 'mat4':
+                bgl.glUniformMatrix4fv(l, 16, bgl.GL_FALSE, varValue)
             else:
                 assert False, 'Unhandled type %s for uniform %s' % (t, varName)
         else:

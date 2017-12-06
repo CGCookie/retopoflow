@@ -41,35 +41,41 @@ import math
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
 #https://www.khronos.org/opengl/wiki/Built-in_Variable_(GLSL)
 shaderVertSource = '''
-#version 110
+#version 430
 
 uniform vec4 color;
 uniform vec4 color_selected;
 
-attribute vec3  vert_pos;       // assigning to this will emit a vertex!
-attribute vec3  vert_norm;
-attribute vec3  vert_scale;     // used for mirroring
-attribute float offset;
-attribute float dotoffset;
-attribute float selected;
-attribute float hidden;         // alpha for geometry below surface
+uniform mat4 matrix_m;
+uniform mat3 matrix_n;
+uniform mat4 matrix_v;
+uniform mat4 matrix_p;
 
-varying vec4  vMPosition;
-varying vec4  vPosition;
-varying vec3  vNormal;
-varying float vOffset;
-varying float vDotOffset;
+in vec3  vert_pos;      // position wrt model
+in vec3  vert_norm;     // normal wrt model
+in float selected;      // is vertex selected?
+
+/* can the following be uniforms? */
+in float offset;
+in float dotoffset;
+in float hidden;        // alpha for geometry below surface
+in vec3  vert_scale;    // used for mirroring
+
+out vec4  vMPosition;   // position wrt model
+out vec4  vPosition;    // position wrt camera
+out vec3  vNormal;      // normal wrt world  (should be camera?)
+out float vOffset;
+out float vDotOffset;
+out vec4  vColor;
 
 void main() {
     if(selected > 0.5) {
-        gl_FrontColor.rgb = color_selected.rgb;
-        gl_FrontColor.a = color_selected.a * (1.0 - hidden);
+        vColor.rgb = color_selected.rgb;
+        vColor.a = color_selected.a * (1.0 - hidden);
     } else {
-        gl_FrontColor.rgb = color.rgb;
-        gl_FrontColor.a = color.a * (1.0 - hidden);
+        vColor.rgb = color.rgb;
+        vColor.a = color.a * (1.0 - hidden);
     }
-    //gl_FrontColor = gl_Color;
-    gl_BackColor = gl_Color;
     
     //vec4 pos  = vec4(gl_Vertex.xyz * vert_scale, gl_Vertex.w);
     //vec3 norm = gl_Normal * vert_scale;
@@ -77,15 +83,15 @@ void main() {
     vec3 norm = vert_norm * vert_scale;
     
     vMPosition  = pos;
-    vPosition   = gl_ModelViewMatrix * pos;
-    gl_Position = gl_ModelViewProjectionMatrix * pos;
-    vNormal     = normalize(gl_NormalMatrix * norm);
+    vPosition   = matrix_v * matrix_m * pos;
+    gl_Position = matrix_p * matrix_v * matrix_m * pos;
+    vNormal     = normalize(matrix_n * norm);
     vOffset     = offset;
     vDotOffset  = dotoffset;
 }
 '''
 shaderFragSource = '''
-#version 110
+#version 430
 
 uniform bool  perspective;
 uniform float clip_start;
@@ -100,11 +106,14 @@ uniform vec3 mirror_x;
 uniform vec3 mirror_y;
 uniform vec3 mirror_z;
 
-varying vec4  vMPosition;
-varying vec4  vPosition;
-varying vec3  vNormal;
-varying float vOffset;
-varying float vDotOffset;
+in vec4  vMPosition;
+in vec4  vPosition;
+in vec3  vNormal;
+in float vOffset;
+in float vDotOffset;
+in vec4  vColor;
+
+out vec4  diffuseColor;
 
 vec4 coloring(vec4 c) {
     vec4 mixer = vec4(0.6, 0.6, 0.6, 0.0);
@@ -136,7 +145,7 @@ void main() {
     float focus = 0.04;
     focus = (view_distance - clip_start) / clip + 0.04;
     
-    float alpha = gl_Color.a;
+    float alpha = vColor.a;
     
     if(perspective) {
         // perspective projection
@@ -178,8 +187,7 @@ void main() {
             ;
     }
     
-    gl_FragColor = coloring(vec4(gl_Color.rgb, alpha));
-    // gl_FragColor.r = focus_push;
+    diffuseColor = coloring(vec4(vColor.rgb, alpha));
 }
 '''
 
@@ -380,35 +388,41 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     if enableShader: bmeshShader.disable()
 
 @profiler.profile
-def glDrawBufferedTriangles(vbo_vpos, vbo_vnor, vbo_vsel, count, opts=None, enableShader=True):
+def glDrawBufferedObject(buffered_obj, opts=None, enableShader=True):
     opts_ = opts or {}
-    nosel = opts_.get('no selection', False)
-    mx = opts_.get('mirror x', False)
-    my = opts_.get('mirror y', False)
-    mz = opts_.get('mirror z', False)
-    dn = opts_.get('normal', 0.0)
-    vdict = opts_.get('vertex dict', {})
+    nosel    = opts_.get('no selection', False)
+    mx,my,mz = opts_.get('mirror x', False),opts_.get('mirror y', False),opts_.get('mirror z', False)
+    focus    = opts_.get('focus mult', 1.0)
     
-    bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
+    count     = buffered_obj['count']
+    gl_type   = buffered_obj['type']
+    vbo_vpos  = buffered_obj['vbo pos']
+    vbo_vnorm = buffered_obj['vbo norm']
+    vbo_vsel  = buffered_obj['vbo sel']
     
-    bmeshShader.enableVertexAttribArray('vert_pos')
+    #d = {bgl.GL_POINTS:('p',1), bgl.GL_LINES:('e',2), bgl.GL_TRIANGLES:('t',3)}
+    #print(d[gl_type][0], count / d[gl_type][1])
+    
+    bmeshShader.assign('focus_mult', focus)
+    
     bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vpos)
     bmeshShader.vertexAttribPointer('vert_pos', 3, bgl.GL_FLOAT)
+    bmeshShader.enableVertexAttribArray('vert_pos')
     
-    bmeshShader.enableVertexAttribArray('vert_norm')
-    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vnor)
+    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vnorm)
     bmeshShader.vertexAttribPointer('vert_norm', 3, bgl.GL_FLOAT)
+    bmeshShader.enableVertexAttribArray('vert_norm')
     
-    bmeshShader.enableVertexAttribArray('selected')
     bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vsel)
     bmeshShader.vertexAttribPointer('selected', 1, bgl.GL_FLOAT)
+    bmeshShader.enableVertexAttribArray('selected')
     
     bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
     bgl.glEnableClientState(bgl.GL_VERTEX_ARRAY)
     
     def render(sx, sy, sz):
         bmeshShader.assign('vert_scale', (sx,sy,sz))
-        bgl.glDrawArrays(bgl.GL_TRIANGLES, 0, count)
+        bgl.glDrawArrays(gl_type, 0, count)
     
     if enableShader: bmeshShader.enable()
     

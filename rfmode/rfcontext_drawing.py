@@ -30,7 +30,7 @@ import urllib
 from .rftool import RFTool
 
 from ..lib.classes.profiler.profiler import profiler
-from ..common.maths import Point, Point2D, Vec2D, clamp
+from ..common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ..common.ui import Drawing
 from ..common.ui import (
     UI_WindowManager,
@@ -397,6 +397,9 @@ class RFContext_Drawing:
     @profiler.profile
     def draw_postview(self):
         if not self.actions.r3d: return
+        
+        buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
+        buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.perspective_matrix)
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
@@ -407,11 +410,11 @@ class RFContext_Drawing:
         for rs,rfs in zip(self.rfsources, self.rfsources_draw):
             fs = rs.get_frame()
             ft_ = fs.w2l_frame(ft)
-            rfs.draw(self.rftarget.symmetry, ft_)
+            rfs.draw(buf_matrix_view, buf_matrix_proj, self.rftarget.symmetry, ft_)
         pr.done()
         
         pr = profiler.start('render target')
-        self.rftarget_draw.draw()
+        self.rftarget_draw.draw(buf_matrix_view, buf_matrix_proj)
         pr.done()
         
         pr = profiler.start('render other')

@@ -610,11 +610,13 @@ class XForm:
     def l2w_bmvert(self, bmv:BMVert)->Point: return Point(self.mx_p * bmv.co)
     def w2l_bmevrt(self, bmv:BMVert)->Point: return Point(self.imx_p * bmv.co)
 
-    def to_bglMatrix(self):
-        bglMatrix = bgl.Buffer(bgl.GL_FLOAT, [16])
-        for i,v in enumerate([v for r in self.mx_t for v in r]):
-            bglMatrix[i] = v
-        return bglMatrix
+    @staticmethod
+    def to_bglMatrix(mat):
+        vals = [v for r in mat for v in r]
+        return bgl.Buffer(bgl.GL_FLOAT, len(vals), vals)
+    
+    def to_bglMatrix_Model(self): return self.to_bglMatrix(self.mx_p)
+    def to_bglMatrix_Normal(self): return self.to_bglMatrix(self.mx_n)
 
 
 class BBox:
