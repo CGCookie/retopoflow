@@ -42,6 +42,8 @@ class Shader():
         return log
     
     def __init__(self, srcVertex, srcFragment, funcStart=None):
+        self.buf_zero = bgl.Buffer(bgl.GL_INT, 1)
+        
         self.shaderProg = bgl.glCreateProgram()
         self.shaderVert = bgl.glCreateShader(bgl.GL_VERTEX_SHADER)
         self.shaderFrag = bgl.glCreateShader(bgl.GL_FRAGMENT_SHADER)
@@ -80,8 +82,8 @@ class Shader():
                 'location': locate(self.shaderProg, n),
                 }
         
-        dprint('  attribs: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
-        dprint('  uniforms: ' + ', '.join(k for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
+        dprint('  attribs: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
+        dprint('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
         
         self.funcStart = funcStart
     
@@ -118,12 +120,18 @@ class Shader():
     def enableVertexAttribArray(self, varName):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
-        bgl.glEnableVertexAttribArray(v)
+        bgl.glEnableVertexAttribArray(v['location'])
+    
+    def vertexAttribPointer(self, varName, size, gltype, normalized=bgl.GL_FALSE, stride=0, buf=None):
+        assert varName in self.shaderVars, 'Variable %s not found' % varName
+        v = self.shaderVars[varName]
+        buf = buf or self.buf_zero
+        bgl.glVertexAttribPointer(v['location'], size, gltype, normalized, stride, buf)
     
     def disableVertexAttribArray(self, varName):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
-        bgl.glDisableVertexAttribArray(v)
+        bgl.glDisableVertexAttribArray(v['location'])
     
     def useFor(self,funcCallback):
         try:
