@@ -35,6 +35,15 @@ except Exception as e:
 			self.error = None
 			self.error_msg = None
 			self.async_checking = None
+
+		def clear_state(self):
+			self._update_ready = None
+			self._update_link = None
+			self._update_version = None
+			self._source_zip = None
+			self._error = None
+			self._error_msg = None
+			
 	updater = Singleton_updater_none()
 	updater.error = "Error initializing updater module"
 	updater.error_msg = str(e)
