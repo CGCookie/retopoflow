@@ -612,8 +612,8 @@ class XForm:
 
     @staticmethod
     def to_bglMatrix(mat):
-        vals = [v for r in mat for v in r]
-        return bgl.Buffer(bgl.GL_FLOAT, len(vals), vals)
+        # return bgl.Buffer(bgl.GL_FLOAT, len(mat)**2, [v for r in mat for v in r])
+        return bgl.Buffer(bgl.GL_FLOAT, [len(mat),len(mat)], mat)
     
     def to_bglMatrix_Model(self): return self.to_bglMatrix(self.mx_p)
     def to_bglMatrix_Normal(self): return self.to_bglMatrix(self.mx_n)

@@ -25,6 +25,8 @@ import re
 from ..lib.common_utilities import dprint
 
 
+DEBUG_PRINT = True
+
 class Shader():
     @staticmethod
     def shader_compile(shader):
@@ -42,7 +44,7 @@ class Shader():
         return log
     
     def __init__(self, srcVertex, srcFragment, funcStart=None):
-        self.buf_zero = bgl.Buffer(bgl.GL_INT, 1)
+        self.buf_zero = bgl.Buffer(bgl.GL_BYTE, 1, [0])
         
         self.shaderProg = bgl.glCreateProgram()
         self.shaderVert = bgl.glCreateShader(bgl.GL_VERTEX_SHADER)
@@ -80,6 +82,7 @@ class Shader():
                 'qualifier': q,
                 'type': t,
                 'location': locate(self.shaderProg, n),
+                'reported': False,
                 }
         
         dprint('  attribs: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
@@ -91,54 +94,103 @@ class Shader():
     # https://www.khronos.org/opengles/sdk/docs/man/xhtml/glUniform.xml
     def assign(self, varName, varValue):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
-        v = self.shaderVars[varName]
-        q,l,t = v['qualifier'],v['location'],v['type']
-        if l == -1: return
-        #print(varName + '=' + str(varValue))
-        if q in {'in','attribute'}:
-            if t == 'float':
-                bgl.glVertexAttrib1f(l, varValue)
-            elif t == 'int':
-                bgl.glVertexAttrib1i(l, varValue)
-            elif t == 'vec3':
-                bgl.glVertexAttrib3f(l, *varValue)
-            elif t == 'vec4':
-                bgl.glVertexAttrib4f(l, *varValue)
+        try:
+            v = self.shaderVars[varName]
+            q,l,t = v['qualifier'],v['location'],v['type']
+            if l == -1:
+                if not v['reported']:
+                    print('COULD NOT FIND %s (%s)' % (varName,str(varValue)))
+                    v['reported'] = True
+                return
+            if DEBUG_PRINT:
+                print('%s (%s,%d,%s) = %s' % (varName, q, l, t, str(varValue)))
+            if q in {'in','attribute'}:
+                if t == 'float':
+                    bgl.glVertexAttrib1f(l, varValue)
+                elif t == 'int':
+                    bgl.glVertexAttrib1i(l, varValue)
+                elif t == 'vec3':
+                    bgl.glVertexAttrib3f(l, *varValue)
+                elif t == 'vec4':
+                    bgl.glVertexAttrib4f(l, *varValue)
+                else:
+                    assert False, 'Unhandled type %s for attrib %s' % (t, varName)
+            elif q in {'uniform'}:
+                if t == 'float':
+                    bgl.glUniform1f(l, varValue)
+                elif t == 'bool':
+                    bgl.glUniform1i(l, 1 if varValue else 0)
+                elif t == 'vec3':
+                    bgl.glUniform3f(l, *varValue)
+                elif t == 'vec4':
+                    bgl.glUniform4f(l, *varValue)
+                elif t == 'mat3':
+                    bgl.glUniformMatrix3fv(l, 1, bgl.GL_TRUE, varValue)
+                elif t == 'mat4':
+                    bgl.glUniformMatrix4fv(l, 1, bgl.GL_TRUE, varValue)
+                else:
+                    assert False, 'Unhandled type %s for uniform %s' % (t, varName)
             else:
-                assert False, 'Unhandled type %s for attrib %s' % (t, varName)
-        elif q in {'uniform'}:
-            if t == 'float':
-                bgl.glUniform1f(l, varValue)
-            elif t == 'bool':
-                bgl.glUniform1i(l, 1 if varValue else 0)
-            elif t == 'vec3':
-                bgl.glUniform3f(l, *varValue)
-            elif t == 'vec4':
-                bgl.glUniform4f(l, *varValue)
-            elif t == 'mat3':
-                bgl.glUniformMatrix3fv(l, 9, bgl.GL_FALSE, varValue)
-            elif t == 'mat4':
-                bgl.glUniformMatrix4fv(l, 16, bgl.GL_FALSE, varValue)
-            else:
-                assert False, 'Unhandled type %s for uniform %s' % (t, varName)
-        else:
-            assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
+                assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
+        except Exception as e:
+            print('ERROR: ' + str(e))
     
     def enableVertexAttribArray(self, varName):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
-        bgl.glEnableVertexAttribArray(v['location'])
+        q,l,t = v['qualifier'],v['location'],v['type']
+        if l == -1:
+            if not v['reported']:
+                print('COULD NOT FIND %s' % (varName))
+                v['reported'] = True
+            return
+        if DEBUG_PRINT:
+            print('enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+        bgl.glEnableVertexAttribArray(l)
     
-    def vertexAttribPointer(self, varName, size, gltype, normalized=bgl.GL_FALSE, stride=0, buf=None):
+    gltype_names = {
+        bgl.GL_BYTE:'byte',
+        bgl.GL_SHORT:'short',
+        bgl.GL_UNSIGNED_BYTE:'ubyte',
+        bgl.GL_UNSIGNED_SHORT:'ushort',
+        bgl.GL_FLOAT:'float',
+    }
+    def vertexAttribPointer(self, vbo, varName, size, gltype, normalized=bgl.GL_FALSE, stride=0, buf=None, enable=True):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
+        q,l,t = v['qualifier'],v['location'],v['type']
+        if l == -1:
+            if not v['reported']:
+                print('COULD NOT FIND %s' % (varName))
+                v['reported'] = True
+            return
+        
         buf = buf or self.buf_zero
-        bgl.glVertexAttribPointer(v['location'], size, gltype, normalized, stride, buf)
+        if DEBUG_PRINT:
+            print('assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d,buf=%s)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride,str(buf)))
+        bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
+        bgl.glVertexAttribPointer(l, size, gltype, normalized, stride, buf)
+        if DEBUG_PRINT:
+            err = bgl.glGetError()
+            if err == bgl.GL_INVALID_VALUE: print('ERROR: invalid value')
+            elif err == bgl.GL_INVALID_ENUM: print('ERROR: invalid enum')
+            elif err == bgl.GL_INVALID_OPERATION: print('ERROR: invalid operation')
+            else: print('err = %d' % err)
+        if enable: bgl.glEnableVertexAttribArray(l)
+        bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
     
     def disableVertexAttribArray(self, varName):
         assert varName in self.shaderVars, 'Variable %s not found' % varName
         v = self.shaderVars[varName]
-        bgl.glDisableVertexAttribArray(v['location'])
+        q,l,t = v['qualifier'],v['location'],v['type']
+        if l == -1:
+            if not v['reported']:
+                print('COULD NOT FIND %s' % (varName))
+                v['reported'] = True
+            return
+        if DEBUG_PRINT:
+            print('disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+        bgl.glDisableVertexAttribArray(l)
     
     def useFor(self,funcCallback):
         try:
@@ -152,6 +204,8 @@ class Shader():
     
     def enable(self):
         try:
+            if DEBUG_PRINT:
+                print('enabling shader <==================')
             bgl.glUseProgram(self.shaderProg)
             if self.funcStart: self.funcStart(self)
         except Exception as e:
@@ -159,6 +213,8 @@ class Shader():
             bgl.glUseProgram(0)
     
     def disable(self):
+        if DEBUG_PRINT:
+            print('disabling shader <=================')
         bgl.glUseProgram(0)
 
 

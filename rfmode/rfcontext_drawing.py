@@ -399,7 +399,7 @@ class RFContext_Drawing:
         if not self.actions.r3d: return
         
         buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
-        buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.perspective_matrix)
+        buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.window_matrix)
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)

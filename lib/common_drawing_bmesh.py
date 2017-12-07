@@ -43,6 +43,7 @@ import math
 shaderVertSource = '''
 #version 430
 
+uniform float use_selection;
 uniform vec4 color;
 uniform vec4 color_selected;
 
@@ -58,9 +59,10 @@ in float selected;      // is vertex selected?
 /* can the following be uniforms? */
 in float offset;
 in float dotoffset;
-in float hidden;        // alpha for geometry below surface
+in float hidden;        // affects alpha for geometry below surface. 0=opaque, 1=transparent
 in vec3  vert_scale;    // used for mirroring
 
+out vec4  vPPosition;   // final position (projected)
 out vec4  vMPosition;   // position wrt model
 out vec4  vPosition;    // position wrt camera
 out vec3  vNormal;      // normal wrt world  (should be camera?)
@@ -69,22 +71,21 @@ out float vDotOffset;
 out vec4  vColor;
 
 void main() {
-    if(selected > 0.5) {
-        vColor.rgb = color_selected.rgb;
-        vColor.a = color_selected.a * (1.0 - hidden);
+    if(use_selection > 0.5 && selected > 0.5) {
+        vColor = color_selected;
     } else {
-        vColor.rgb = color.rgb;
-        vColor.a = color.a * (1.0 - hidden);
+        vColor = color;
     }
+    vColor.a *= 1.0 - hidden;
     
-    //vec4 pos  = vec4(gl_Vertex.xyz * vert_scale, gl_Vertex.w);
-    //vec3 norm = gl_Normal * vert_scale;
     vec4 pos  = vec4(vert_pos * vert_scale, 1.0);
     vec3 norm = vert_norm * vert_scale;
     
     vMPosition  = pos;
     vPosition   = matrix_v * matrix_m * pos;
-    gl_Position = matrix_p * matrix_v * matrix_m * pos;
+    vPPosition  = matrix_p * vPosition;
+    gl_Position = vPPosition;
+    
     vNormal     = normalize(matrix_n * norm);
     vOffset     = offset;
     vDotOffset  = dotoffset;
@@ -100,12 +101,13 @@ uniform float view_distance;
 
 uniform float focus_mult;
 
-uniform vec3 mirroring;
+uniform vec3 mirroring;     // mirror along axis: 0=false, 1=true
 uniform vec3 mirror_o;
 uniform vec3 mirror_x;
 uniform vec3 mirror_y;
 uniform vec3 mirror_z;
 
+in vec4  vPPosition;
 in vec4  vMPosition;
 in vec4  vPosition;
 in vec3  vNormal;
@@ -283,13 +285,14 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     vdict = opts_.get('vertex dict', {})
     
     bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
+    bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
     
     @profiler.profile
     def render_general(sx, sy, sz):
         bmeshShader.assign('vert_scale', (sx,sy,sz))
-        if nosel: bmeshShader('selected', 0.0)
+        bmeshShader.assign('selected', 0.0)
         for bmf in lbmf:
-            if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
+            bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
             if bmf.smooth:
                 for v0,v1,v2 in triangulateFace(bmf.verts):
                     if v0 not in vdict: vdict[v0] = (v0.co, v0.normal)
@@ -327,9 +330,9 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     def render_triangles(sx, sy, sz):
         # optimized for triangle-only meshes (source meshes that have been triangulated)
         bmeshShader.assign('vert_scale', (sx,sy,sz))
-        if nosel: bmeshShader.assign('selected', 0.0)
+        bmeshShader.assign('selected', 0.0)
         for bmf in lbmf:
-            if not nosel: bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
+            bmeshShader.assign('selected', 1.0 if bmf.select else 0.0)
             if bmf.smooth:
                 v0,v1,v2 = bmf.verts
                 if v0 not in vdict: vdict[v0] = (v0.co, v0.normal)
@@ -387,50 +390,54 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
     
     if enableShader: bmeshShader.disable()
 
+buf_zero = bgl.Buffer(bgl.GL_BYTE, 1, [0])
+
 @profiler.profile
-def glDrawBufferedObject(buffered_obj, opts=None, enableShader=True):
+def glDrawBufferedObject(buffered_obj, opts=None):
     opts_ = opts or {}
     nosel    = opts_.get('no selection', False)
     mx,my,mz = opts_.get('mirror x', False),opts_.get('mirror y', False),opts_.get('mirror z', False)
     focus    = opts_.get('focus mult', 1.0)
     
+    print(buffered_obj)
     count     = buffered_obj['count']
     gl_type   = buffered_obj['type']
     vbo_vpos  = buffered_obj['vbo pos']
     vbo_vnorm = buffered_obj['vbo norm']
     vbo_vsel  = buffered_obj['vbo sel']
-    
-    #d = {bgl.GL_POINTS:('p',1), bgl.GL_LINES:('e',2), bgl.GL_TRIANGLES:('t',3)}
-    #print(d[gl_type][0], count / d[gl_type][1])
+    vbo_idx   = buffered_obj['vbo idx']
     
     bmeshShader.assign('focus_mult', focus)
+    bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
     
-    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vpos)
-    bmeshShader.vertexAttribPointer('vert_pos', 3, bgl.GL_FLOAT)
-    bmeshShader.enableVertexAttribArray('vert_pos')
+    #bmeshShader.assign('vert_pos', (1.0,0.5,0.1))
+    bmeshShader.vertexAttribPointer(vbo_vpos,  'vert_pos',  3, bgl.GL_FLOAT)
+    bmeshShader.vertexAttribPointer(vbo_vnorm, 'vert_norm', 3, bgl.GL_FLOAT)
+    bmeshShader.vertexAttribPointer(vbo_vsel,  'selected',  1, bgl.GL_FLOAT)
+    bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, vbo_idx)
+    # bgl.glEnableClientState(bgl.GL_VERTEX_ARRAY)
     
-    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vnorm)
-    bmeshShader.vertexAttribPointer('vert_norm', 3, bgl.GL_FLOAT)
-    bmeshShader.enableVertexAttribArray('vert_norm')
-    
-    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_vsel)
-    bmeshShader.vertexAttribPointer('selected', 1, bgl.GL_FLOAT)
-    bmeshShader.enableVertexAttribArray('selected')
-    
-    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
-    bgl.glEnableClientState(bgl.GL_VERTEX_ARRAY)
-    
+    gl_type_name,gl_count,type_name = {
+        bgl.GL_POINTS:('points',1,'point'),
+        bgl.GL_LINES:('lines',2,'line'),
+        bgl.GL_TRIANGLES:('triangles',3,'poly')
+    }[gl_type]
     def render(sx, sy, sz):
         bmeshShader.assign('vert_scale', (sx,sy,sz))
+        print('==> drawing %d %s  (%d verts)' % (count / gl_count, gl_type_name, count))
         bgl.glDrawArrays(gl_type, 0, count)
+        #bgl.glDrawElements(gl_type, count, bgl.GL_INT, buf_zero)
+        err = bgl.glGetError()
+        if err == bgl.GL_INVALID_ENUM: print('ERROR: invalid enum')
+        elif err == bgl.GL_INVALID_VALUE: print('ERROR: invalid value')
+        elif err == bgl.GL_INVALID_OPERATION: print('ERROR: invalid operation')
+        else: print('err = %d' % err)
     
-    if enableShader: bmeshShader.enable()
-    
-    glSetOptions('poly', opts)
+    glSetOptions('%s' % type_name, opts)
     render(1, 1, 1)
     
     if mx or my or mz:
-        glSetOptions('poly mirror', opts)
+        glSetOptions('%s mirror' % type_name, opts)
         if mx: render(-1,  1,  1)
         if my: render( 1, -1,  1)
         if mz: render( 1,  1, -1)
@@ -439,12 +446,12 @@ def glDrawBufferedObject(buffered_obj, opts=None, enableShader=True):
         if my and mz: render( 1, -1, -1)
         if mx and my and mz: render(-1, -1, -1)
     
-    bgl.glDisableClientState(bgl.GL_VERTEX_ARRAY)
+    #bgl.glDisableClientState(bgl.GL_VERTEX_ARRYA)
     bmeshShader.disableVertexAttribArray('vert_pos')
     bmeshShader.disableVertexAttribArray('vert_norm')
     bmeshShader.disableVertexAttribArray('selected')
-    
-    if enableShader: bmeshShader.disable()
+    bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, 0)
+    bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
 
 
 @profiler.profile
@@ -457,6 +464,7 @@ def glDrawSimpleFaces(lsf, opts=None, enableShader=True):
     dn = opts_.get('normal', 0.0)
     
     bmeshShader.assign('focus_mult', opts_.get('focus mult', 1.0))
+    bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
     bmeshShader.assign('selected', 0.0)
     
     @profiler.profile
@@ -515,11 +523,13 @@ def glDrawBMEdges(lbme, opts=None, enableShader=True):
     dn = opts_.get('normal', 0.0)
     vdict = opts_.get('vertex dict', {})
     
+    bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
+    
     @profiler.profile
     def render(sx, sy, sz):
         bmeshShader.assign('vert_scale', (sx,sy,sz))
         for bme in lbme:
-            if not nosel: bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
+            bmeshShader.assign('selected', 1.0 if bme.select else 0.0)
             v0,v1 = bme.verts
             if v0 not in vdict: vdict[v0] = (v0.co, v0.normal)
             if v1 not in vdict: vdict[v1] = (v1.co, v1.normal)
@@ -572,11 +582,13 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
     dn = opts_.get('normal', 0.0)
     vdict = opts_.get('vertex dict', {})
     
+    bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
+    
     @profiler.profile
     def render(sx, sy, sz):
         bmeshShader.assign('vert_scale', Vector((sx,sy,sz)))
         for bmv in lbmv:
-            if not nosel: bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
+            bmeshShader.assign('selected', 1.0 if bmv.select else 0.0)
             if bmv not in vdict: vdict[bmv] = (bmv.co, bmv.normal)
             c,n = vdict[bmv]
             c = c + dn * n
@@ -665,13 +677,13 @@ class BMeshRender():
         bgl.glNewList(self.calllist, bgl.GL_COMPILE)
         # do not change attribs if they're not set
         glSetDefaultOptions(opts=opts)
-        bgl.glPushMatrix()
-        bgl.glMultMatrixf(self.bglMatrix)
+        #bgl.glPushMatrix()
+        #bgl.glMultMatrixf(self.bglMatrix)
         glDrawBMFaces(self.tar_bmesh.faces, opts=opts, enableShader=False)
         glDrawBMEdges(self.tar_bmesh.edges, opts=opts, enableShader=False)
         glDrawBMVerts(self.tar_bmesh.verts, opts=opts, enableShader=False)
         bgl.glDepthRange(0, 1)
-        bgl.glPopMatrix()
+        #bgl.glPopMatrix()
         bgl.glEndList()
     
     @profiler.profile
