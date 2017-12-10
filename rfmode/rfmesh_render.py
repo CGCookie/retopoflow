@@ -44,6 +44,7 @@ from ..common.ui import Drawing
 from ..common.utils import min_index
 from ..common.decorators import stats_wrapper
 from ..lib import common_drawing_bmesh as bmegl
+from ..lib.common_drawing_bmesh import BGLBufferedRender
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
@@ -72,6 +73,7 @@ class RFMeshRender_Simple:
         self.dverts = {bmv:v for bmv,v in zip(bmesh.verts, self.verts)}
         self.edges = [RFMeshRender_Simple_Edge(bme, self.dverts) for bme in bmesh.edges]
         self.faces = [RFMeshRender_Simple_Face(bmf, self.dverts) for bmf in bmesh.faces]
+
 
 class RFMeshRender():
     '''
@@ -109,32 +111,11 @@ class RFMeshRender():
         #self.vao = bgl.Buffer(bgl.GL_INT, 1)
         #bgl.glGenVertexArrays(1, self.vao)
         #bgl.glBindVertexArray(self.vao[0])
-        self.vbos = bgl.Buffer(bgl.GL_INT, 12)
-        bgl.glGenBuffers(12, self.vbos)
-        self.buffered_verts = {
-            'count':    0,
-            'type':     bgl.GL_POINTS,
-            'vbo pos':  self.vbos[0],
-            'vbo norm': self.vbos[1],
-            'vbo sel':  self.vbos[2],
-            'vbo idx':  self.vbos[3],
-        }
-        self.buffered_edges = {
-            'count':    0,
-            'type':     bgl.GL_LINES,
-            'vbo pos':  self.vbos[4],
-            'vbo norm': self.vbos[5],
-            'vbo sel':  self.vbos[6],
-            'vbo idx':  self.vbos[7],
-        }
-        self.buffered_faces = {
-            'count':    0,
-            'type':     bgl.GL_TRIANGLES,
-            'vbo pos':  self.vbos[8],
-            'vbo norm': self.vbos[9],
-            'vbo sel':  self.vbos[10],
-            'vbo idx':  self.vbos[11],
-        }
+        
+        self.buf_verts = BGLBufferedRender(bgl.GL_POINTS)
+        self.buf_edges = BGLBufferedRender(bgl.GL_LINES)
+        self.buf_faces = BGLBufferedRender(bgl.GL_TRIANGLES)
+        
         #bgl.glBindVertexArray(0)
         
         self.replace_rfmesh(rfmesh)
@@ -148,9 +129,9 @@ class RFMeshRender():
         if hasattr(self, 'bglCallList'):
             bgl.glDeleteLists(self.bglCallList, 1)
             del self.bglCallList
-        if hasattr(self, 'vbos'):
-            bgl.glDeleteBuffers(9, self.vbos)
-            del self.vbos
+        if hasattr(self, 'buf_verts'): del self.buf_verts
+        if hasattr(self, 'buf_edges'): del self.buf_edges
+        if hasattr(self, 'buf_faces'): del self.buf_faces
 
     @profiler.profile
     def replace_opts(self, opts):
@@ -174,47 +155,21 @@ class RFMeshRender():
         self.bme_edges = None
         self.bme_faces = None
         
+        def sel(g): return 1.0 if g.select else 0.0
+        
         def triangulateFace(verts):
             iv = iter(verts)
             v0,v2 = next(iv),next(iv)
             for v3 in iv:
                 v1,v2 = v2,v3
                 yield (v0,v1,v2)
-        def buffer(buffer_obj, pos, norm, sel, idx):
-            sizeOfFloat,sizeOfInt = 4,4
-            count = len(pos)
-            print(len(pos), len(norm), len(sel), len(idx))
-            buf_pos  = bgl.Buffer(bgl.GL_FLOAT, [count, 3], pos)
-            buf_norm = bgl.Buffer(bgl.GL_FLOAT, [count, 3], norm)
-            buf_sel  = bgl.Buffer(bgl.GL_FLOAT, count, sel)
-            buf_idx  = bgl.Buffer(bgl.GL_INT, count, idx)
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo pos'])
-            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 3 * sizeOfFloat, buf_pos,  bgl.GL_STATIC_DRAW)
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo norm'])
-            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 3 * sizeOfFloat, buf_norm, bgl.GL_STATIC_DRAW)
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, buffer_obj['vbo sel'])
-            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 1 * sizeOfFloat, buf_sel,  bgl.GL_STATIC_DRAW)
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
-            bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, buffer_obj['vbo idx'])
-            bgl.glBufferData(bgl.GL_ELEMENT_ARRAY_BUFFER, count * 1 * sizeOfInt, buf_idx,  bgl.GL_STATIC_DRAW)
-            bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, 0)
-            buffer_obj['count'] = count
-            del buf_pos, buf_norm, buf_sel, buf_idx
-        def sel(g): return 1.0 if g.select else 0.0
         
         pr = profiler.start('triangulating faces')
         tri_faces = [(bmf, list(bmvs)) for bmf in self.bmesh.faces  for bmvs in triangulateFace(bmf.verts)]
         pr.done()
         
         pr = profiler.start('gathering')
-        # dverts = {bmv:idx for idx,bmv in enumerate(self.bmesh.verts)}
         buf_data = {
-            # 'vert vco': [bmv.co for bmv in self.bmesh.verts],
-            # 'vert vno': [bmv.normal for bmv in self.bmesh.verts],
-            # 'vert sel': [bmv.select for bmv in self.bmesh.verts],
-            # 'vert idx': [dverts[bmv] for bmv in self.bmesh.verts],
-            # 'edge idx': [dverts[bmv] for bme in self.bmesh.edges for bmv in bme.verts],
-            # 'face idx': [dverts[bmv] for bmf,verts in tri_faces for bmv in verts],
             'vert vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
             'vert vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
             'vert sel': [sel(bmv)          for bmv in self.bmesh.verts],
@@ -231,9 +186,9 @@ class RFMeshRender():
         pr.done()
         
         pr = profiler.start('buffering')
-        buffer(self.buffered_verts, buf_data['vert vco'], buf_data['vert vno'], buf_data['vert sel'], buf_data['vert idx'])
-        buffer(self.buffered_edges, buf_data['edge vco'], buf_data['edge vno'], buf_data['edge sel'], buf_data['edge idx'])
-        buffer(self.buffered_faces, buf_data['face vco'], buf_data['face vno'], buf_data['face sel'], buf_data['face idx'])
+        self.buf_verts.buffer(buf_data['vert vco'], buf_data['vert vno'], buf_data['vert sel'], buf_data['vert idx'])
+        self.buf_edges.buffer(buf_data['edge vco'], buf_data['edge vno'], buf_data['edge sel'], buf_data['edge idx'])
+        self.buf_faces.buffer(buf_data['face vco'], buf_data['face vno'], buf_data['face sel'], buf_data['face idx'])
         pr.done()
         
         if not self.GATHERDATA_EMESH and not self.GATHERDATA_BMESH: return
@@ -347,9 +302,9 @@ class RFMeshRender():
         opts['line mirror hidden']  = 0.0
         opts['point hidden']        = 0.0
         opts['point mirror hidden'] = 0.0
-        bmegl.glDrawBufferedObject(self.buffered_faces, opts=opts)
-        bmegl.glDrawBufferedObject(self.buffered_edges, opts=opts)
-        bmegl.glDrawBufferedObject(self.buffered_verts, opts=opts)
+        self.buf_faces.draw(opts)
+        self.buf_edges.draw(opts)
+        self.buf_verts.draw(opts)
         pr.done()
 
         if not opts.get('no below', False):
@@ -362,9 +317,9 @@ class RFMeshRender():
             opts['line mirror hidden']  = 0.95
             opts['point hidden']        = 0.95
             opts['point mirror hidden'] = 0.95
-            bmegl.glDrawBufferedObject(self.buffered_faces, opts=opts)
-            bmegl.glDrawBufferedObject(self.buffered_edges, opts=opts)
-            bmegl.glDrawBufferedObject(self.buffered_verts, opts=opts)
+            self.buf_faces.draw(opts)
+            self.buf_edges.draw(opts)
+            self.buf_verts.draw(opts)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
@@ -386,7 +341,7 @@ class RFMeshRender():
         pr = profiler.start('cleaning')
         try:
             bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
-            # self._draw()
+            #self._draw()
             bgl.glEndList()
         except Exception as e:
             pass

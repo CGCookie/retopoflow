@@ -60,6 +60,17 @@ def min_index(vals, key=None):
     return min(enumerate(vals), key=lambda ival:key(ival[1]))[0]
 
 
+def shorten_floats(s):
+    # reduces number of digits (for float) found in a string
+    # useful for reducing noise of printing out a Vector, Buffer, Matrix, etc.
+    s = re.sub(r'(?P<neg>-?)(?P<d0>\d)\.(?P<d1>\d)\d\d+e-02', r'\g<neg>0.0\g<d0>\g<d1>', s)
+    s = re.sub(r'(?P<neg>-?)(?P<d0>\d)\.\d\d\d+e-03', r'\g<neg>0.00\g<d0>', s)
+    s = re.sub(r'-?\d\.\d\d\d+e-0[4-9]', r'0.000', s)
+    s = re.sub(r'-?\d\.\d\d\d+e-[1-9]\d', r'0.000', s)
+    s = re.sub(r'(?P<digs>\d\.\d\d\d)\d+', r'\g<digs>', s)
+    return s
+
+
 
 @profiler.profile
 def hash_object(obj:bpy.types.Object):
