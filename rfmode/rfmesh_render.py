@@ -75,60 +75,60 @@ class RFMeshRender_Simple:
         self.faces = [RFMeshRender_Simple_Face(bmf, self.dverts) for bmf in bmesh.faces]
 
 
+def sel(g): return 1.0 if g.select else 0.0
+def triangulateFace(verts):
+    iv = iter(verts)
+    v0,v2 = next(iv),next(iv)
+    for v3 in iv:
+        v1,v2 = v2,v3
+        yield (v0,v1,v2)
+
+
 class RFMeshRender():
     '''
     RFMeshRender handles rendering RFMeshes.
     '''
 
-    ALWAYS_DIRTY = False
-    
-    GATHERDATA_EMESH = False
-    GATHERDATA_BMESH = False
-    executor = ThreadPoolExecutor() if False else None
+    executor = ThreadPoolExecutor()
     
     cache = {}
     
     @staticmethod
     @profiler.profile
-    def new(rfmesh, opts):
+    def new(rfmesh, opts, always_dirty=False, async_load=False):
         ho = hash_object(rfmesh.obj)
         hb = hash_bmesh(rfmesh.bme)
         h = (ho,hb)
         if h not in RFMeshRender.cache:
             RFMeshRender.creating = True
-            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts)
+            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts, async_load)
             del RFMeshRender.creating
-        return RFMeshRender.cache[h]
+        rfmrender = RFMeshRender.cache[h]
+        rfmrender.always_dirty = always_dirty
+        return rfmrender
     
     @profiler.profile
-    def __init__(self, rfmesh, opts):
+    def __init__(self, rfmesh, opts, async_load=False):
         assert hasattr(RFMeshRender, 'creating'), 'Do not create new RFMeshRender directly!  Use RFMeshRender.new()'
-        self.bglCallList = bgl.glGenLists(1)
+        
+        self.async_load = async_load and False      # <-- DISABLING DUE TO CRASHING BUG
+        self._is_loading = False
+        self._is_loaded = False
+        self._buffer_data = None
+        
         self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
         self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
-        self.drawing = Drawing.get_instance()
-        
-        #self.vao = bgl.Buffer(bgl.GL_INT, 1)
-        #bgl.glGenVertexArrays(1, self.vao)
-        #bgl.glBindVertexArray(self.vao[0])
-        
         self.buf_verts = BGLBufferedRender(bgl.GL_POINTS)
         self.buf_edges = BGLBufferedRender(bgl.GL_LINES)
         self.buf_faces = BGLBufferedRender(bgl.GL_TRIANGLES)
-        
-        #bgl.glBindVertexArray(0)
+        self.drawing = Drawing.get_instance()
         
         self.replace_rfmesh(rfmesh)
         self.replace_opts(opts)
 
     def __del__(self):
-        if hasattr(self, 'buf_matrix_model'):
-            del self.buf_matrix_model
-        if hasattr(self, 'buf_matrix_normal'):
-            del self.buf_matrix_normal
-        if hasattr(self, 'bglCallList'):
-            bgl.glDeleteLists(self.bglCallList, 1)
-            del self.bglCallList
+        if hasattr(self, 'buf_matrix_model'): del self.buf_matrix_model
+        if hasattr(self, 'buf_matrix_normal'): del self.buf_matrix_normal
         if hasattr(self, 'buf_verts'): del self.buf_verts
         if hasattr(self, 'buf_edges'): del self.buf_edges
         if hasattr(self, 'buf_faces'): del self.buf_faces
@@ -143,145 +143,66 @@ class RFMeshRender():
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
         self.bmesh = rfmesh.bme
-        self.emesh = rfmesh.eme
         self.rfmesh_version = None
     
     @profiler.profile
     def _gather_data(self):
-        self.eme_verts = None
-        self.eme_edges = None
-        self.eme_faces = None
-        self.bme_verts = None
-        self.bme_edges = None
-        self.bme_faces = None
+        def gather():
+            try:
+                pr = profiler.start('triangulating faces')
+                tri_faces = [(bmf, list(bmvs)) for bmf in self.bmesh.faces  for bmvs in triangulateFace(bmf.verts)]
+                pr.done()
+                
+                pr = profiler.start('gathering')
+                vert_data = {
+                    'vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
+                    'vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
+                    'sel': [sel(bmv)          for bmv in self.bmesh.verts],
+                    'idx': None, #list(range(len(self.bmesh.verts))),
+                }
+                edge_data = {
+                    'vco': [tuple(bmv.co)     for bme in self.bmesh.edges for bmv in bme.verts],
+                    'vno': [tuple(bmv.normal) for bme in self.bmesh.edges for bmv in bme.verts],
+                    'sel': [sel(bme)          for bme in self.bmesh.edges for bmv in bme.verts],
+                    'idx': None, #list(range(len(self.bmesh.edges)*2)),
+                }
+                face_data = {
+                    'vco': [tuple(bmv.co)     for bmf,verts in tri_faces for bmv in verts],
+                    'vno': [tuple(bmv.normal) for bmf,verts in tri_faces for bmv in verts],
+                    'sel': [sel(bmf)          for bmf,verts in tri_faces for bmv in verts],
+                    'idx': None, #list(range(len(tri_faces)*3)),
+                }
+                pr.done()
+                
+                def buffer_data():
+                    nonlocal vert_data, edge_data, face_data
+                    pr = profiler.start('buffering')
+                    self.buf_verts.buffer(vert_data['vco'], vert_data['vno'], vert_data['sel'], vert_data['idx'])
+                    self.buf_edges.buffer(edge_data['vco'], edge_data['vno'], edge_data['sel'], edge_data['idx'])
+                    self.buf_faces.buffer(face_data['vco'], face_data['vno'], face_data['sel'], face_data['idx'])
+                    pr.done()
+                    self._buffer_data = None
+                    self._is_loading = False
+                    self._is_loaded = True
+                
+                if self.async_load:
+                    self._buffer_data = buffer_data
+                else:
+                    buffer_data()
+            except Exception as e:
+                print('EXCEPTION WHILE GATHERING: ' + str(e))
+                raise e
         
-        def sel(g): return 1.0 if g.select else 0.0
-        
-        def triangulateFace(verts):
-            iv = iter(verts)
-            v0,v2 = next(iv),next(iv)
-            for v3 in iv:
-                v1,v2 = v2,v3
-                yield (v0,v1,v2)
-        
-        pr = profiler.start('triangulating faces')
-        tri_faces = [(bmf, list(bmvs)) for bmf in self.bmesh.faces  for bmvs in triangulateFace(bmf.verts)]
-        pr.done()
-        
-        pr = profiler.start('gathering')
-        buf_data = {
-            'vert vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
-            'vert vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
-            'vert sel': [sel(bmv)          for bmv in self.bmesh.verts],
-            'vert idx': list(range(len(self.bmesh.verts))),
-            'edge vco': [tuple(bmv.co)     for bme in self.bmesh.edges for bmv in bme.verts],
-            'edge vno': [tuple(bmv.normal) for bme in self.bmesh.edges for bmv in bme.verts],
-            'edge sel': [sel(bme)          for bme in self.bmesh.edges for bmv in bme.verts],
-            'edge idx': list(range(len(self.bmesh.edges)*2)),
-            'face vco': [tuple(bmv.co)     for bmf,verts in tri_faces for bmv in verts],
-            'face vno': [tuple(bmv.normal) for bmf,verts in tri_faces for bmv in verts],
-            'face sel': [sel(bmf)          for bmf,verts in tri_faces for bmv in verts],
-            'face idx': list(range(len(tri_faces)*3)),
-        }
-        pr.done()
-        
-        pr = profiler.start('buffering')
-        self.buf_verts.buffer(buf_data['vert vco'], buf_data['vert vno'], buf_data['vert sel'], buf_data['vert idx'])
-        self.buf_edges.buffer(buf_data['edge vco'], buf_data['edge vno'], buf_data['edge sel'], buf_data['edge idx'])
-        self.buf_faces.buffer(buf_data['face vco'], buf_data['face vno'], buf_data['face sel'], buf_data['face idx'])
-        pr.done()
-        
-        if not self.GATHERDATA_EMESH and not self.GATHERDATA_BMESH: return
-        
-        # note: do not profile this function if using ThreadPoolExecutor!!!!
-        def gather_emesh():
-            if not self.GATHERDATA_EMESH: return
-            if not self.emesh: return
-            start = time.time()
-            #self.eme_verts = [(emv.co, emv.normal) for emv in self.emesh.vertices]
-            self.eme_verts = [(emv.co,emv.normal) for emv in self.emesh.vertices]
-            self.eme_edges = [[self.eme_verts[iv] for iv in eme.vertices] for eme in self.emesh.edges]
-            self.eme_faces = [[self.eme_verts[iv] for iv in emf.vertices] for emf in self.emesh.polygons]
-            end = time.time()
-            dprint('Gathered edit mesh data!')
-            dprint('start: %f' % start)
-            dprint('end:   %f' % end)
-            dprint('delta: %f' % (end-start))
-            dprint('counts: %d %d %d' % (len(self.eme_verts), len(self.eme_edges), len(self.eme_faces)))
-        
-        # note: do not profile this function if using ThreadPoolExecutor!!!!
-        def gather_bmesh():
-            if not self.GATHERDATA_BMESH: return
-            start = time.time()
-            #bme_vert_dict = {bmv:(bmv.co,bmv.normal) for bmv in self.bmesh.verts}
-            bme_vert_dict = {bmv:bmv.co for bmv in self.bmesh.verts}
-            self.bme_verts = bme_vert_dict.values() # [(bmv.co, bmv.normal) for bmv in self.bmesh.verts]
-            self.bme_edges = [[bme_vert_dict[bmv] for bmv in bme.verts] for bme in self.bmesh.edges]
-            self.bme_faces = [[bme_vert_dict[bmv] for bmv in bmf.verts] for bmf in self.bmesh.faces]
-            end = time.time()
-            dprint('Gathered BMesh data!')
-            dprint('start: %f' % start)
-            dprint('end:   %f' % end)
-            dprint('delta: %f' % (end-start))
-            dprint('counts: %d %d %d' % (len(self.bme_verts), len(self.bme_edges), len(self.bme_faces)))
+        self._is_loading = True
+        self._is_loaded = False
+        self._buffer_data = None
         
         pr = profiler.start('Gathering data for RFMesh')
-        if self.executor:
-            self._gather_emesh_submit = self.executor.submit(gather_emesh)
-            self._gather_bmesh_submit = self.executor.submit(gather_bmesh)
+        if not self.async_load:
+            profiler.profile(gather)()
         else:
-            profiler.profile(gather_emesh)()
-            profiler.profile(gather_bmesh)()
+            self._gather_submit = self.executor.submit(gather)
         pr.done()
-
-    @profiler.profile
-    def _draw(self):
-        opts = dict(self.opts)
-        opts['vertex dict'] = {}
-        for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
-        
-        pr = profiler.start('gathering simple mesh')
-        simple = RFMeshRender_Simple(self.bmesh)
-        pr.done()
-
-        # do not change attribs if they're not set
-        bmegl.glSetDefaultOptions(opts=self.opts)
-
-        bgl.glDisable(bgl.GL_CULL_FACE)
-
-        pr = profiler.start('geometry above')
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthMask(bgl.GL_FALSE)
-        opts['poly hidden']         = 0.0
-        opts['poly mirror hidden']  = 0.0
-        opts['line hidden']         = 0.0
-        opts['line mirror hidden']  = 0.0
-        opts['point hidden']        = 0.0
-        opts['point mirror hidden'] = 0.0
-        bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
-        bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
-        bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
-        pr.done()
-
-        if not opts.get('no below', False):
-            pr = profiler.start('geometry below')
-            bgl.glDepthFunc(bgl.GL_GREATER)
-            bgl.glDepthMask(bgl.GL_FALSE)
-            opts['poly hidden']         = 0.95
-            opts['poly mirror hidden']  = 0.95
-            opts['line hidden']         = 0.95
-            opts['line mirror hidden']  = 0.95
-            opts['point hidden']        = 0.95
-            opts['point mirror hidden'] = 0.95
-            bmegl.glDrawBMFaces(simple.faces, opts=opts, enableShader=False)
-            bmegl.glDrawBMEdges(simple.edges, opts=opts, enableShader=False)
-            bmegl.glDrawBMVerts(simple.verts, opts=opts, enableShader=False)
-            pr.done()
-
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glEnable(bgl.GL_CULL_FACE)
-        bgl.glDepthRange(0, 1)
 
     @profiler.profile
     def _draw_buffered(self):
@@ -329,40 +250,39 @@ class RFMeshRender():
 
     @profiler.profile
     def clean(self):
+        if self.async_load and self._is_loading:
+            if not self._gather_submit.done(): return
+            if self._buffer_data:
+                self._buffer_data()
+            else:
+                print('ASYNC EXCEPTION!')
+                err = self._gather_submit.exception()
+                print(str(err))
+            return
+        
         try:
             # return if rfmesh hasn't changed
             self.rfmesh.clean()
             ver = self.rfmesh.get_version()
-            if self.rfmesh_version == ver: return
+            if self.rfmesh_version == ver and not self.always_dirty: return
             self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
             self._gather_data()
-        except Exception as e:
+        except:
+            print_exception()
             pass
-        pr = profiler.start('cleaning')
-        try:
-            bgl.glNewList(self.bglCallList, bgl.GL_COMPILE)
-            #self._draw()
-            bgl.glEndList()
-        except Exception as e:
-            pass
-        pr.done()
 
     @profiler.profile
     def draw(self, buf_matrix_view, buf_matrix_proj, symmetry=None, frame:Frame=None):
+        self.clean()
+        if not self._is_loaded: return
+        
         try:
-            if self.ALWAYS_DIRTY:
-                self.rfmesh.clean()
-                self._gather_data()
-            else:
-                self.clean()
             bmegl.bmeshShader.enable()
             bmegl.bmeshShader.assign('matrix_m', self.buf_matrix_model)
             bmegl.bmeshShader.assign('matrix_n', self.buf_matrix_normal)
             bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
             bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
             bmegl.glSetMirror(symmetry, frame)
-            if self.ALWAYS_DIRTY: self._draw()
-            else: bgl.glCallList(self.bglCallList)
             self._draw_buffered()
         except:
             print_exception()

@@ -380,7 +380,6 @@ def glDrawBMFaces(lbmf, opts=None, enableShader=True):
 
 
 class BGLBufferedRender:
-    RENDER_ARRAY = False     # True: glDrawArrays, False: glDrawElements
     DEBUG_PRINT  = False
     DEBUG_CHKERR = False
     
@@ -403,6 +402,8 @@ class BGLBufferedRender:
         self.vbo_norm = self.vbos[1]
         self.vbo_sel  = self.vbos[2]
         self.vbo_idx  = self.vbos[3]
+        
+        self.render_indices = False
     
     def __del__(self):
         bgl.glDeleteBuffers(4, self.vbos)
@@ -412,13 +413,17 @@ class BGLBufferedRender:
         sizeOfFloat,sizeOfInt = 4,4
         self.count = 0
         count = len(pos)
-        counts = list(map(len, [pos, norm, sel, idx]))
+        counts = list(map(len, [pos, norm, sel]))
         assert all(c == count for c in counts), 'All arrays must contain the same number of elements %s' % str(counts)
+        
+        if count == 0: return
+        
         try:
             buf_pos  = bgl.Buffer(bgl.GL_FLOAT, [count, 3], pos)
             buf_norm = bgl.Buffer(bgl.GL_FLOAT, [count, 3], norm)
             buf_sel  = bgl.Buffer(bgl.GL_FLOAT, count, sel)
-            buf_idx  = bgl.Buffer(bgl.GL_INT, count, idx)  # WHY NO GL_UNSIGNED_INT?????
+            if idx:
+                buf_idx  = bgl.Buffer(bgl.GL_INT, count, idx)  # WHY NO GL_UNSIGNED_INT?????
             if self.DEBUG_PRINT:
                 print('buf_pos  = ' + shorten_floats(str(buf_pos)))
                 print('buf_norm = ' + shorten_floats(str(buf_norm)))
@@ -435,17 +440,25 @@ class BGLBufferedRender:
             bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, self.vbo_sel)
             bgl.glBufferData(bgl.GL_ARRAY_BUFFER, count * 1 * sizeOfFloat, buf_sel,  bgl.GL_STATIC_DRAW)
             self._check_error('buffer: vbo_sel')
-            bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, self.vbo_idx)
-            bgl.glBufferData(bgl.GL_ELEMENT_ARRAY_BUFFER, count * sizeOfInt, buf_idx, bgl.GL_STATIC_DRAW)
-            self._check_error('buffer: vbo_idx')
+            if idx:
+                bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, self.vbo_idx)
+                bgl.glBufferData(bgl.GL_ELEMENT_ARRAY_BUFFER, count * sizeOfInt, buf_idx, bgl.GL_STATIC_DRAW)
+                self._check_error('buffer: vbo_idx')
         except Exception as e:
             print('ERROR (buffer): caught exception while buffering from Buffer ' + str(e))
             raise e
         finally:
             bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
             bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, 0)
-        del buf_pos, buf_norm, buf_sel, buf_idx
-        self.count = count
+        del buf_pos, buf_norm, buf_sel
+        if idx: del buf_idx
+        
+        if idx:
+            self.count = len(idx)
+            self.render_indices = True
+        else:
+            self.count = len(pos)
+            self.render_indices = False
     
     def _check_error(self, title):
         if not self.DEBUG_CHKERR: return
@@ -471,14 +484,16 @@ class BGLBufferedRender:
         bmeshShader.assign('vert_scale', (sx,sy,sz))
         if self.DEBUG_PRINT:
             print('==> drawing %d %s (%d)  (%d verts)' % (self.count / self.gl_count, self.gltype_name, self.gltype, self.count))
-        if BGLBufferedRender.RENDER_ARRAY:
-            bgl.glDrawArrays(self.gltype, 0, self.count)
-            self._check_error('_draw: glDrawArrays (%d)' % self.count)
-        else:
+        if self.render_indices:
             bgl.glDrawElements(self.gltype, self.count, bgl.GL_UNSIGNED_INT, buf_zero)
             self._check_error('_draw: glDrawElements (%d, %d, %d)' % (self.gltype, self.count, bgl.GL_UNSIGNED_INT))
+        else:
+            bgl.glDrawArrays(self.gltype, 0, self.count)
+            self._check_error('_draw: glDrawArrays (%d)' % self.count)
     
     def draw(self, opts):
+        if self.count == 0: return
+        
         if self.gltype == bgl.GL_LINES:
             if opts.get('line width', 1.0) <= 0: return
         elif self.gltype == bgl.GL_POINTS:
@@ -491,7 +506,6 @@ class BGLBufferedRender:
         bmeshShader.assign('focus_mult', focus)
         bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
         
-        #bmeshShader.assign('vert_pos', (1.0,0.5,0.1))
         bmeshShader.vertexAttribPointer(self.vbo_pos,  'vert_pos',  3, bgl.GL_FLOAT, buf=buf_zero)
         self._check_error('draw: vertex attrib array pos')
         bmeshShader.vertexAttribPointer(self.vbo_norm, 'vert_norm', 3, bgl.GL_FLOAT, buf=buf_zero)

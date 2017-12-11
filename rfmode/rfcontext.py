@@ -251,7 +251,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()
-        self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
+        self.rfsources_draw = [RFMeshRender.new(rfs, opts, async_load=True) for rfs in self.rfsources]
     
     @profiler.profile
     def replace_opts(self, target=True, sources=False):
