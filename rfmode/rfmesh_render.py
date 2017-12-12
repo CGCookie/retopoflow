@@ -153,6 +153,8 @@ class RFMeshRender():
                 tri_faces = [(bmf, list(bmvs)) for bmf in self.bmesh.faces  for bmvs in triangulateFace(bmf.verts)]
                 pr.done()
                 
+                # NOTE: duplicating data rather than using indexing, otherwise
+                # selection will bleed
                 pr = profiler.start('gathering')
                 vert_data = {
                     'vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
