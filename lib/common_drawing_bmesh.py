@@ -60,8 +60,9 @@ uniform vec4  color_selected;   // color of geometry if selected
 uniform float use_selection;    // 0.0: ignore selected, 1.0: consider selected
 
 uniform mat4 matrix_m;          // model xform matrix
-uniform mat3 matrix_n;          // normal xform matrix (inv transpose of matrix_m)
+uniform mat3 matrix_mn;         // model xform matrix for normal (inv transpose of matrix_m)
 uniform mat4 matrix_v;          // view xform matrix
+uniform mat3 matrix_vn;         // view xform matrix for normal
 uniform mat4 matrix_p;          // projection matrix
 
 uniform float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
@@ -75,7 +76,9 @@ out vec4 vPPosition;            // final position (projected)
 out vec4 vCPosition;            // position wrt camera
 out vec4 vWPosition;            // position wrt world
 out vec4 vMPosition;            // position wrt model
-out vec3 vNormal;               // normal wrt world  (should be camera?)
+out vec3 vCNormal;              // normal wrt camera
+out vec3 vWNormal;              // normal wrt world
+out vec3 vMNormal;              // normal wrt model
 out vec4 vColor;                // color of geometry (considers selection)
 
 void main() {
@@ -86,7 +89,9 @@ void main() {
     vWPosition  = matrix_m * pos;
     vCPosition  = matrix_v * matrix_m * pos;
     vPPosition  = matrix_p * matrix_v * matrix_m * pos;
-    vNormal     = normalize(matrix_n * norm);
+    vMNormal    = normalize(norm);
+    vWNormal    = normalize(matrix_mn * norm);
+    vCNormal    = normalize(matrix_vn * matrix_mn * norm);
     gl_Position = vPPosition;
     
     vColor = (use_selection < 0.5 || selected < 0.5) ? color : color_selected;
@@ -115,7 +120,9 @@ in vec4  vPPosition;        // final position (projected)
 in vec4  vCPosition;        // position wrt camera
 in vec4  vWPosition;        // position wrt world
 in vec4  vMPosition;        // position wrt model
-in vec3  vNormal;           // normal wrt world  (should be camera?)
+in vec3  vCNormal;          // normal wrt camera
+in vec3  vWNormal;          // normal wrt world
+in vec3  vMNormal;          // normal wrt model
 in vec4  vColor;            // color of geometry (considers selection)
 
 out vec4  diffuseColor;     // final color of fragment
@@ -141,9 +148,9 @@ vec4 coloring(vec4 orig) {
 }
 
 void main() {
-    float clip = clip_end - clip_start;
+    float clip  = clip_end - clip_start;
     float focus = (view_distance - clip_start) / clip + 0.04;
-    
+    vec3  rgb   = vColor.rgb;
     float alpha = vColor.a;
     
     if(perspective > 0.5) {
@@ -151,7 +158,7 @@ void main() {
         vec3 v = vCPosition.xyz / vCPosition.w;
         float l = length(v);
         float l_clip = (l - clip_start) / clip;
-        float d = -dot(vNormal, v) / l;
+        float d = -dot(vCNormal, v) / l;
         if(d <= 0.0) {
             alpha *= 0.5;
             //discard;
@@ -169,10 +176,10 @@ void main() {
             ;
     } else {
         // orthographic projection
-        vec3 v = vec3(0, 0, clip * 0.5) + vCPosition.xyz / vCPosition.w;
+        vec3 v = vec3(0, 0, clip * 0.5); // + vCPosition.xyz / vCPosition.w;
         float l = length(v);
         float l_clip = (l - clip_start) / clip;
-        float d = dot(vNormal, v) / l;
+        float d = dot(vCNormal, v) / l;
         if(d <= 0.0) {
             alpha *= 0.5;
             //discard;
@@ -186,7 +193,7 @@ void main() {
             ;
     }
     
-    diffuseColor = coloring(vec4(vColor.rgb, alpha));
+    diffuseColor = coloring(vec4(rgb, alpha));
 }
 '''
 

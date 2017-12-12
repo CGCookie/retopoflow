@@ -44,6 +44,7 @@ from ..common.ui import (
     GetSet,
     )
 from ..lib import common_drawing_bmesh as bmegl
+from ..lib.common_utilities import matrix_normal
 
 from ..options import (
     retopoflow_version,
@@ -399,22 +400,23 @@ class RFContext_Drawing:
         if not self.actions.r3d: return
         
         buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
+        buf_matrix_view_invtrans = XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
         buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.window_matrix)
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
-
-        pr = profiler.start('render sources')
+        
+        # get frame of target, used for symmetry decorations on sources
         ft = self.rftarget.get_frame()
+        
+        pr = profiler.start('render sources')
         for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-            fs = rs.get_frame()
-            ft_ = fs.w2l_frame(ft)
-            rfs.draw(buf_matrix_view, buf_matrix_proj, self.rftarget.symmetry, ft_)
+            rfs.draw(buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, self.rftarget.symmetry, ft)
         pr.done()
         
         pr = profiler.start('render target')
-        self.rftarget_draw.draw(buf_matrix_view, buf_matrix_proj)
+        self.rftarget_draw.draw(buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj)
         pr.done()
         
         pr = profiler.start('render other')

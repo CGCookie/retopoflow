@@ -313,12 +313,14 @@ def iter_running_sum(lw):
 def invert_matrix(mat):
     smat,d = str(mat),invert_matrix.__dict__
     if smat not in d:
+        if len(d) > 1000: d.clear()
         d[smat] = mat.inverted()
     return d[smat]
 
 def matrix_normal(mat):
     smat,d = str(mat),matrix_normal.__dict__
     if smat not in d:
+        if len(d) > 1000: d.clear()
         d[smat] = invert_matrix(mat).transposed().to_3x3()
     return d[smat]
 
