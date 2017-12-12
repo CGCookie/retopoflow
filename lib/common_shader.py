@@ -24,6 +24,7 @@ import bpy
 import re
 import ctypes
 from ..lib.common_utilities import dprint
+from ..common.ui import Drawing
 from ..ext.bgl_ext import VoidBufValue
 
 
@@ -49,6 +50,7 @@ class Shader():
         return log
     
     def __init__(self, srcVertex, srcFragment, funcStart=None):
+        self.drawing = Drawing.get_instance()
         
         self.shaderProg = bgl.glCreateProgram()
         self.shaderVert = bgl.glCreateShader(bgl.GL_VERTEX_SHADER)
@@ -119,7 +121,7 @@ class Shader():
                     bgl.glVertexAttrib4f(l, *varValue)
                 else:
                     assert False, 'Unhandled type %s for attrib %s' % (t, varName)
-                self._check_error('assign attrib %s = %s' % (varName, str(varValue)))
+                self.drawing.glCheckError('assign attrib %s = %s' % (varName, str(varValue)))
             elif q in {'uniform'}:
                 # cannot set bools with BGL! :(
                 if t == 'float':
@@ -134,7 +136,7 @@ class Shader():
                     bgl.glUniformMatrix4fv(l, 1, bgl.GL_TRUE, varValue)
                 else:
                     assert False, 'Unhandled type %s for uniform %s' % (t, varName)
-                self._check_error('assign uniform %s = %s' % (varName, str(varValue)))
+                self.drawing.glCheckError('assign uniform %s (%s %d) = %s' % (varName, t, l, str(varValue)))
             else:
                 assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
         except Exception as e:
@@ -152,21 +154,7 @@ class Shader():
         if DEBUG_PRINT:
             print('enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glEnableVertexAttribArray(l)
-        self._check_error('enableVertexAttribArray %s' % varName)
-    
-    def _check_error(self, title):
-        err = bgl.glGetError()
-        if err == 0: return
-        
-        derrs = {
-            bgl.GL_INVALID_ENUM: 'invalid enum',
-            bgl.GL_INVALID_VALUE: 'invalid value',
-            bgl.GL_INVALID_OPERATION: 'invalid operation',
-        }
-        if err in derrs:
-            print('ERROR (%s): %s' % (title, derrs[err]))
-        else:
-            print('ERROR (%s): code %d' % (title, err))
+        self.drawing.glCheckError('enableVertexAttribArray %s' % varName)
     
     gltype_names = {
         bgl.GL_BYTE:'byte',
@@ -189,7 +177,7 @@ class Shader():
             print('assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride))
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
         bgl.glVertexAttribPointer(l, size, gltype, normalized, stride, buf)
-        self._check_error('vertexAttribPointer %s' % varName)
+        self.drawing.glCheckError('vertexAttribPointer %s' % varName)
         if enable: bgl.glEnableVertexAttribArray(l)
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
     
@@ -205,7 +193,7 @@ class Shader():
         if DEBUG_PRINT:
             print('disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glDisableVertexAttribArray(l)
-        self._check_error('disableVertexAttribArray %s' % varName)
+        self.drawing.glCheckError('disableVertexAttribArray %s' % varName)
     
     def useFor(self,funcCallback):
         try:

@@ -25,6 +25,7 @@ import bpy
 import bgl
 import blf
 import random
+import traceback
 from bpy.types import BoolProperty
 import math
 from itertools import chain
@@ -109,8 +110,8 @@ class Drawing:
     def scale(self, s): return s * self._dpi_mult
     def unscale(self, s): return s / self._dpi_mult
     def get_dpi_mult(self): return self._dpi_mult
-    def line_width(self, width): bgl.glLineWidth(self.scale(width))
-    def point_size(self, size): bgl.glPointSize(self.scale(size))
+    def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
+    def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
     
     def text_size(self, size):
         blf.size(self.font_id, size, self._dpi)
@@ -217,6 +218,25 @@ class Drawing:
             y = t - (i+1)*lh + int((lh-th) / 2)
             blf.position(self.font_id, l, y, 0)
             blf.draw(self.font_id, line)
+    
+    def glCheckError(self, title):
+        err = bgl.glGetError()
+        if err == bgl.GL_NO_ERROR: return
+        
+        derrs = {
+            bgl.GL_INVALID_ENUM: 'invalid enum',
+            bgl.GL_INVALID_VALUE: 'invalid value',
+            bgl.GL_INVALID_OPERATION: 'invalid operation',
+            bgl.GL_STACK_OVERFLOW: 'stack overflow',
+            bgl.GL_STACK_UNDERFLOW: 'stack underflow',
+            bgl.GL_OUT_OF_MEMORY: 'out of memory',
+            bgl.GL_INVALID_FRAMEBUFFER_OPERATION: 'invalid framebuffer operation',
+        }
+        if err in derrs:
+            print('ERROR (%s): %s' % (title, derrs[err]))
+        else:
+            print('ERROR (%s): code %d' % (title, err))
+        traceback.print_stack()
 
 
 class UI_Element:
@@ -251,7 +271,7 @@ class UI_Element:
                 cr,cb = cl+cw,ct+ch
                 sr,sb = sl+sw,st+sh
                 sl,sr,st,sb = clamp(sl,cl,cr),clamp(sr,cl,cr),clamp(st,ct,cb),clamp(sb,ct,cb)
-                sw,sh = sr-sl,sb-st
+                sw,sh = max(0, sr - sl),max(0, sb - st)
         else:
             bgl.glEnable(bgl.GL_SCISSOR_TEST)
         bgl.glScissor(sl, st, sw, sh)
@@ -280,7 +300,6 @@ class UI_Element:
         self.pos = Point2D((left+m, top-m))
         self.size = Vec2D((width-m*2, height-m*2))
         self.predraw()
-        
         self.set_scissor()
         self._draw()
         self.reset_scissor()
@@ -504,7 +523,6 @@ class UI_Container(UI_Element):
         l,t_ = self.pos
         w,h = self.size
         t = t_ + self.offset
-        
         
         if self.background:
             bgl.glEnable(bgl.GL_BLEND)
@@ -836,7 +854,6 @@ class UI_Image(UI_Element):
         bgl.glVertex2f(l+w,t)
         bgl.glEnd()
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
-        
 
 
 class UI_Graphic(UI_Element):

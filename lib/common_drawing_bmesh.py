@@ -142,8 +142,7 @@ vec4 coloring(vec4 orig) {
 
 void main() {
     float clip = clip_end - clip_start;
-    float focus = 0.04;
-    focus = (view_distance - clip_start) / clip + 0.04;
+    float focus = (view_distance - clip_start) / clip + 0.04;
     
     float alpha = vColor.a;
     

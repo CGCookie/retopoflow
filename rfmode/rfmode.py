@@ -446,8 +446,11 @@ class RFMode(Operator):
     def draw_callback_postpixel(self, context):
         if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        try:    self.rfctx.draw_postpixel()
-        except: self.handle_exception()
+        try:
+            self.rfctx.draw_postpixel()
+        except:
+            dprint('Exception in draw_postpixel')
+            self.handle_exception()
         #if self.settings.show_help and self.help_box: self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
     
