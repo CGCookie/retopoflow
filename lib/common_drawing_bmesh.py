@@ -156,8 +156,16 @@ vec4 coloring(vec4 orig) {
         vec4 xyz_x = matrix_p * matrix_v * vec4(0.0, vTPosition.y, vTPosition.z, 1.0);
         vec4 xyz_y = matrix_p * matrix_v * vec4(vTPosition.x, 0.0, vTPosition.z, 1.0);
         vec4 xyz_z = matrix_p * matrix_v * vec4(vTPosition.x, vTPosition.y, 0.0, 1.0);
-        if(mirroring.x > 0.5 && length(xyz_x.xy / xyz_x.w - vPPosition.xy) < 10.0 / screen_size.y) {
+        if(mirroring.x > 0.5 && length(xyz_x.xyz / xyz_x.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
             mixer.r = 1.0;
+            mixer.a = mirror_effect;
+        }
+        if(mirroring.y > 0.5 && length(xyz_y.xyz / xyz_y.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
+            mixer.g = 1.0;
+            mixer.a = mirror_effect;
+        }
+        if(mirroring.z > 0.5 && length(xyz_z.xyz / xyz_z.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
+            mixer.b = 1.0;
             mixer.a = mirror_effect;
         }
     } else if(abs(mirror_view-2.0) < 0.5) {
