@@ -337,6 +337,8 @@ class Options:
         'select dist':          10,     # pixels away to select
         
         'color theme':          'Green',
+        'symmetry view':        'Face',
+        'symmetry effect':      0.5,
         
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',

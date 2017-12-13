@@ -274,7 +274,7 @@ class RFMeshRender():
             pass
 
     @profiler.profile
-    def draw(self, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, symmetry=None, frame:Frame=None):
+    def draw(self, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, symmetry=None, symmetry_view=None, symmetry_effect=0.0, symmetry_frame:Frame=None):
         self.clean()
         if not self._is_loaded: return
         
@@ -285,7 +285,7 @@ class RFMeshRender():
             bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
             bmegl.bmeshShader.assign('matrix_vn', buf_matrix_view_invtrans)
             bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
-            bmegl.glSetMirror(symmetry, frame)
+            bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view, effect=symmetry_effect, frame=symmetry_frame)
             self._draw_buffered()
         except:
             print_exception()

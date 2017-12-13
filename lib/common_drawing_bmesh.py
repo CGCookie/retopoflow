@@ -65,6 +65,11 @@ uniform mat4 matrix_v;          // view xform matrix
 uniform mat3 matrix_vn;         // view xform matrix for normal
 uniform mat4 matrix_p;          // projection matrix
 
+uniform vec3 mirror_o;          // mirroring origin wrt world
+uniform vec3 mirror_x;          // mirroring x-axis wrt world
+uniform vec3 mirror_y;          // mirroring y-axis wrt world
+uniform vec3 mirror_z;          // mirroring z-axis wrt world
+
 uniform float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
 uniform vec3  vert_scale;       // used for mirroring
 
@@ -76,6 +81,7 @@ out vec4 vPPosition;            // final position (projected)
 out vec4 vCPosition;            // position wrt camera
 out vec4 vWPosition;            // position wrt world
 out vec4 vMPosition;            // position wrt model
+out vec4 vTPosition;            // position wrt target
 out vec3 vCNormal;              // normal wrt camera
 out vec3 vWNormal;              // normal wrt world
 out vec3 vMNormal;              // normal wrt model
@@ -85,10 +91,15 @@ void main() {
     vec4 pos  = vec4(vert_pos * vert_scale, 1.0);
     vec3 norm = vert_norm * vert_scale;
     
+    vec4 wpos = matrix_m * pos;
+    vec3 tpos_ = wpos.xyz - mirror_o;
+    vec3 tpos = vec3(dot(tpos_, mirror_x), dot(tpos_, mirror_y), dot(tpos_, mirror_z));
+    
     vMPosition  = pos;
-    vWPosition  = matrix_m * pos;
-    vCPosition  = matrix_v * matrix_m * pos;
-    vPPosition  = matrix_p * matrix_v * matrix_m * pos;
+    vWPosition  = wpos;
+    vCPosition  = matrix_v * wpos;
+    vPPosition  = matrix_p * matrix_v * wpos;
+    vTPosition  = vec4(tpos, 1.0);
     vMNormal    = normalize(norm);
     vWNormal    = normalize(matrix_mn * norm);
     vCNormal    = normalize(matrix_vn * matrix_mn * norm);
@@ -101,15 +112,24 @@ void main() {
 shaderFragSource = '''
 #version 130
 
+uniform mat4 matrix_m;          // model xform matrix
+uniform mat3 matrix_mn;         // model xform matrix for normal (inv transpose of matrix_m)
+uniform mat4 matrix_v;          // view xform matrix
+uniform mat3 matrix_vn;         // view xform matrix for normal
+uniform mat4 matrix_p;          // projection matrix
+
 uniform float perspective;
 uniform float clip_start;
 uniform float clip_end;
 uniform float view_distance;
+uniform vec2  screen_size;
 
 uniform float focus_mult;
 uniform float offset;
 uniform float dotoffset;
 
+uniform float mirror_view;  // 0=none; 1=draw edge at plane; 2=color faces on far side of plane
+uniform float mirror_effect; // strength of effect: 0=none, 1=full
 uniform vec3 mirroring;     // mirror along axis: 0=false, 1=true
 uniform vec3 mirror_o;      // mirroring origin wrt world
 uniform vec3 mirror_x;      // mirroring x-axis wrt world
@@ -120,6 +140,7 @@ in vec4  vPPosition;        // final position (projected)
 in vec4  vCPosition;        // position wrt camera
 in vec4  vWPosition;        // position wrt world
 in vec4  vMPosition;        // position wrt model
+in vec4  vTPosition;        // position wrt target
 in vec3  vCNormal;          // normal wrt camera
 in vec3  vWNormal;          // normal wrt world
 in vec3  vMNormal;          // normal wrt model
@@ -130,18 +151,29 @@ out vec4  diffuseColor;     // final color of fragment
 // adjusts color based on mirroring settings and fragment position
 vec4 coloring(vec4 orig) {
     vec4 mixer = vec4(0.6, 0.6, 0.6, 0.0);
-    vec3 xyz   = vWPosition.xyz - mirror_o;
-    if(mirroring.x > 0.5 && dot(xyz, mirror_x) < 0.0) {
-        mixer.r = 1.0;
-        mixer.a = 0.5;
-    }
-    if(mirroring.y > 0.5 && dot(xyz, mirror_y) > 0.0) {
-        mixer.g = 1.0;
-        mixer.a = 0.5;
-    }
-    if(mirroring.z > 0.5 && dot(xyz, mirror_z) < 0.0) {
-        mixer.b = 1.0;
-        mixer.a = 0.5;
+    if(abs(mirror_view-1.0) < 0.5) {
+        // EDGE VIEW
+        vec4 xyz_x = matrix_p * matrix_v * vec4(0.0, vTPosition.y, vTPosition.z, 1.0);
+        vec4 xyz_y = matrix_p * matrix_v * vec4(vTPosition.x, 0.0, vTPosition.z, 1.0);
+        vec4 xyz_z = matrix_p * matrix_v * vec4(vTPosition.x, vTPosition.y, 0.0, 1.0);
+        if(mirroring.x > 0.5 && length(xyz_x.xy / xyz_x.w - vPPosition.xy) < 10.0 / screen_size.y) {
+            mixer.r = 1.0;
+            mixer.a = mirror_effect;
+        }
+    } else if(abs(mirror_view-2.0) < 0.5) {
+        // FACE VIEW
+        if(mirroring.x > 0.5 && vTPosition.x < 0.0) {
+            mixer.r = 1.0;
+            mixer.a = mirror_effect;
+        }
+        if(mirroring.y > 0.5 && vTPosition.y > 0.0) {
+            mixer.g = 1.0;
+            mixer.a = mirror_effect;
+        }
+        if(mirroring.z > 0.5 && vTPosition.z < 0.0) {
+            mixer.b = 1.0;
+            mixer.a = mirror_effect;
+        }
     }
     float m0 = mixer.a, m1 = 1.0 - mixer.a;
     return vec4(mixer.rgb * m0 + orig.rgb * m1, m0 + orig.a * m1);
@@ -198,12 +230,13 @@ void main() {
 '''
 
 def setupBMeshShader(shader):
-    spc,r3d = bpy.context.space_data,bpy.context.space_data.region_3d
+    area,spc,r3d = bpy.context.area,bpy.context.space_data,bpy.context.space_data.region_3d
     shader.assign('perspective', 1.0 if r3d.view_perspective != 'ORTHO' else 0.0)
     shader.assign('clip_start', spc.clip_start)
     shader.assign('clip_end', spc.clip_end)
     shader.assign('view_distance', r3d.view_distance)
     shader.assign('vert_scale', Vector((1,1,1)))
+    shader.assign('screen_size', Vector((area.width, area.height)))
 
 bmeshShader = Shader(shaderVertSource, shaderFragSource, setupBMeshShader)
 
@@ -253,17 +286,19 @@ def glSetOptions(prefix, opts):
     set_if_set('size',           lambda v: bgl.glPointSize(v*dpi_mult))
     set_if_set('stipple',        lambda v: glEnableStipple(v))
 
-def glSetMirror(symmetry=None, f:Frame=None):
+def glSetMirror(symmetry=None, view=None, effect=0.0, frame:Frame=None):
     mirroring = (0,0,0)
-    if symmetry and f:
+    if symmetry and frame:
         mx = 1.0 if 'x' in symmetry else 0.0
         my = 1.0 if 'y' in symmetry else 0.0
         mz = 1.0 if 'z' in symmetry else 0.0
         mirroring = (mx,my,mz)
-        bmeshShader.assign('mirror_o', f.o)
-        bmeshShader.assign('mirror_x', f.x)
-        bmeshShader.assign('mirror_y', f.y)
-        bmeshShader.assign('mirror_z', f.z)
+        bmeshShader.assign('mirror_o', frame.o)
+        bmeshShader.assign('mirror_x', frame.x)
+        bmeshShader.assign('mirror_y', frame.y)
+        bmeshShader.assign('mirror_z', frame.z)
+    bmeshShader.assign('mirror_view', {'Edge':1, 'Face':2}.get(view, 0))
+    bmeshShader.assign('mirror_effect', effect)
     bmeshShader.assign('mirroring', mirroring)
 
 def glDrawBMFace(bmf, opts=None, enableShader=True):

@@ -203,6 +203,15 @@ class RFContext_Drawing:
         def set_theme(v):
             options['color theme'] = v
             self.replace_opts()
+        def get_symmetry_view():
+            return options['symmetry view']
+        def set_symmetry_view(v):
+            options['symmetry view'] = v
+            self.replace_opts()
+        def get_symmetry_effect():
+            return int(options['symmetry effect'] * 100)
+        def set_symmetry_effect(v):
+            options['symmetry effect'] = clamp(v / 100.0, 0.0, 1.0)
         def reset_options():
             options.reset()
             self.replace_opts()
@@ -314,10 +323,16 @@ class RFContext_Drawing:
         dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse))
         
         
-        dd_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', equal=True, vertical=False, fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
+        container_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
+        dd_symmetry = container_symmetry.add(UI_EqualContainer(vertical=False))
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
         dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
         dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        opt_symmetry_view = container_symmetry.add(UI_Options(get_symmetry_view, set_symmetry_view, vertical=False))
+        opt_symmetry_view.add_option('None', align=0)
+        opt_symmetry_view.add_option('Edge', align=0)
+        opt_symmetry_view.add_option('Face', align=0)
+        container_symmetry.add(UI_IntValue('Effect', get_symmetry_effect, set_symmetry_effect))
         
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
@@ -412,7 +427,9 @@ class RFContext_Drawing:
         
         pr = profiler.start('render sources')
         for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-            rfs.draw(buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, self.rftarget.symmetry, ft)
+            rfs.draw(buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
+                symmetry_effect=options['symmetry effect'], symmetry_frame=ft)
         pr.done()
         
         pr = profiler.start('render target')

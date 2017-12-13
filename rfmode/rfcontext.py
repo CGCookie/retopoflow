@@ -267,8 +267,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     def get_source_render_options(self):
         opts = {
             'poly color': (0.0, 0.0, 0.0, 0.0),
-            'poly offset': 0.000001,
-            'poly dotoffset': 0.01,
+            'poly offset': 0.000008,
+            'poly dotoffset': 1.0,
             'line width': 0.0,
             'point size': 0.0,
             'no selection': True,

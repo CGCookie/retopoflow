@@ -105,7 +105,7 @@ class Shader():
             q,l,t = v['qualifier'],v['location'],v['type']
             if l == -1:
                 if not v['reported']:
-                    print('COULD NOT FIND %s (%s)' % (varName,str(varValue)))
+                    print('ASSIGNING TO UNUSED ATTRIBUTE: %s = %s' % (varName,str(varValue)))
                     v['reported'] = True
                 return
             if DEBUG_PRINT:
@@ -126,6 +126,8 @@ class Shader():
                 # cannot set bools with BGL! :(
                 if t == 'float':
                     bgl.glUniform1f(l, varValue)
+                elif t == 'vec2':
+                    bgl.glUniform2f(l, *varValue)
                 elif t == 'vec3':
                     bgl.glUniform3f(l, *varValue)
                 elif t == 'vec4':
