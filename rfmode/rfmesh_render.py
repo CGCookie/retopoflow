@@ -95,23 +95,23 @@ class RFMeshRender():
     
     @staticmethod
     @profiler.profile
-    def new(rfmesh, opts, always_dirty=False, async_load=False):
+    def new(rfmesh, opts, always_dirty=False):
         ho = hash_object(rfmesh.obj)
         hb = hash_bmesh(rfmesh.bme)
         h = (ho,hb)
         if h not in RFMeshRender.cache:
             RFMeshRender.creating = True
-            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts, async_load)
+            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts)
             del RFMeshRender.creating
         rfmrender = RFMeshRender.cache[h]
         rfmrender.always_dirty = always_dirty
         return rfmrender
     
     @profiler.profile
-    def __init__(self, rfmesh, opts, async_load=False):
+    def __init__(self, rfmesh, opts):
         assert hasattr(RFMeshRender, 'creating'), 'Do not create new RFMeshRender directly!  Use RFMeshRender.new()'
         
-        self.async_load = async_load and False      # <-- DISABLING DUE TO CRASHING BUG
+        self.async_load = True      # initially loading asynchronously
         self._is_loading = False
         self._is_loaded = False
         self._buffer_data = None
@@ -147,15 +147,33 @@ class RFMeshRender():
     
     @profiler.profile
     def _gather_data(self):
+        vert_data, edge_data, face_data = None, None, None
+        
+        def buffer_data():
+            nonlocal vert_data, edge_data, face_data
+            pr = profiler.start('buffering')
+            self.buf_verts.buffer(vert_data['vco'], vert_data['vno'], vert_data['sel'], vert_data['idx'])
+            self.buf_edges.buffer(edge_data['vco'], edge_data['vno'], edge_data['sel'], edge_data['idx'])
+            self.buf_faces.buffer(face_data['vco'], face_data['vno'], face_data['sel'], face_data['idx'])
+            pr.done()
+            self._buffer_data = None
+            self._is_loading = False
+            self._is_loaded = True
+            self.async_load = False
+        
         def gather():
+            '''
+            IMPORTANT NOTE: DO NOT USE PROFILER IF LOADING ASYNCHRONOUSLY!
+            '''
+            nonlocal vert_data, edge_data, face_data
             try:
-                pr = profiler.start('triangulating faces')
+                if not self.async_load: pr = profiler.start('triangulating faces')
                 tri_faces = [(bmf, list(bmvs)) for bmf in self.bmesh.faces  for bmvs in triangulateFace(bmf.verts)]
-                pr.done()
+                if not self.async_load: pr.done()
                 
                 # NOTE: duplicating data rather than using indexing, otherwise
                 # selection will bleed
-                pr = profiler.start('gathering')
+                if not self.async_load: pr = profiler.start('gathering')
                 vert_data = {
                     'vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
                     'vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
@@ -174,18 +192,7 @@ class RFMeshRender():
                     'sel': [sel(bmf)          for bmf,verts in tri_faces for bmv in verts],
                     'idx': None, #list(range(len(tri_faces)*3)),
                 }
-                pr.done()
-                
-                def buffer_data():
-                    nonlocal vert_data, edge_data, face_data
-                    pr = profiler.start('buffering')
-                    self.buf_verts.buffer(vert_data['vco'], vert_data['vno'], vert_data['sel'], vert_data['idx'])
-                    self.buf_edges.buffer(edge_data['vco'], edge_data['vno'], edge_data['sel'], edge_data['idx'])
-                    self.buf_faces.buffer(face_data['vco'], face_data['vno'], face_data['sel'], face_data['idx'])
-                    pr.done()
-                    self._buffer_data = None
-                    self._is_loading = False
-                    self._is_loaded = True
+                if not self.async_load: pr.done()
                 
                 if self.async_load:
                     self._buffer_data = buffer_data
@@ -252,14 +259,15 @@ class RFMeshRender():
 
     @profiler.profile
     def clean(self):
+        if self._buffer_data: self._buffer_data()
+        
         if self.async_load and self._is_loading:
-            if not self._gather_submit.done(): return
-            if self._buffer_data:
-                self._buffer_data()
-            else:
-                print('ASYNC EXCEPTION!')
-                err = self._gather_submit.exception()
-                print(str(err))
+            if not self._gather_submit.done():
+                return
+            # we should not reach this point ever unless something bad happened
+            print('ASYNC EXCEPTION!')
+            err = self._gather_submit.exception()
+            print(str(err))
             return
         
         try:
