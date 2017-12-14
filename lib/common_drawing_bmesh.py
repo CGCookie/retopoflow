@@ -61,6 +61,7 @@ uniform float use_selection;    // 0.0: ignore selected, 1.0: consider selected
 
 uniform mat4 matrix_m;          // model xform matrix
 uniform mat3 matrix_mn;         // model xform matrix for normal (inv transpose of matrix_m)
+uniform mat4 matrix_t;          // target xform matrix
 uniform mat4 matrix_v;          // view xform matrix
 uniform mat3 matrix_vn;         // view xform matrix for normal
 uniform mat4 matrix_p;          // projection matrix
@@ -82,9 +83,16 @@ out vec4 vCPosition;            // position wrt camera
 out vec4 vWPosition;            // position wrt world
 out vec4 vMPosition;            // position wrt model
 out vec4 vTPosition;            // position wrt target
+out vec4 vCTPosition_x;         // position wrt target camera
+out vec4 vCTPosition_y;         // position wrt target camera
+out vec4 vCTPosition_z;         // position wrt target camera
+out vec4 vPTPosition_x;         // position wrt target projected
+out vec4 vPTPosition_y;         // position wrt target projected
+out vec4 vPTPosition_z;         // position wrt target projected
 out vec3 vCNormal;              // normal wrt camera
 out vec3 vWNormal;              // normal wrt world
 out vec3 vMNormal;              // normal wrt model
+out vec3 vTNormal;              // normal wrt target
 out vec4 vColor;                // color of geometry (considers selection)
 
 void main() {
@@ -93,16 +101,23 @@ void main() {
     
     vec4 wpos = matrix_m * pos;
     vec3 tpos_ = wpos.xyz - mirror_o;
-    vec3 tpos = vec3(dot(tpos_, mirror_x), dot(tpos_, mirror_y), dot(tpos_, mirror_z));
+    vec4 tpos = vec4(dot(tpos_, mirror_x), dot(tpos_, mirror_y), dot(tpos_, mirror_z), 1.0);
     
     vMPosition  = pos;
     vWPosition  = wpos;
     vCPosition  = matrix_v * wpos;
     vPPosition  = matrix_p * matrix_v * wpos;
-    vTPosition  = vec4(tpos, 1.0);
+    vTPosition  = tpos;
+    vCTPosition_x = matrix_v * matrix_t * (tpos * vec4(0,1,1,1));
+    vCTPosition_y = matrix_v * matrix_t * (tpos * vec4(1,0,1,1));
+    vCTPosition_z = matrix_v * matrix_t * (tpos * vec4(1,1,0,1));
+    vPTPosition_x = matrix_p * vCTPosition_x;
+    vPTPosition_y = matrix_p * vCTPosition_y;
+    vPTPosition_z = matrix_p * vCTPosition_z;
     vMNormal    = normalize(norm);
     vWNormal    = normalize(matrix_mn * norm);
     vCNormal    = normalize(matrix_vn * matrix_mn * norm);
+    vTNormal    = vec3(dot(vWNormal, mirror_x), dot(vWNormal, mirror_y), dot(vWNormal, mirror_z));
     gl_Position = vPPosition;
     
     vColor = (use_selection < 0.5 || selected < 0.5) ? color : color_selected;
@@ -117,6 +132,7 @@ uniform mat3 matrix_mn;         // model xform matrix for normal (inv transpose 
 uniform mat4 matrix_v;          // view xform matrix
 uniform mat3 matrix_vn;         // view xform matrix for normal
 uniform mat4 matrix_p;          // projection matrix
+uniform vec3 dir_forward;       // forward direction
 
 uniform float perspective;
 uniform float clip_start;
@@ -136,37 +152,60 @@ uniform vec3 mirror_x;      // mirroring x-axis wrt world
 uniform vec3 mirror_y;      // mirroring y-axis wrt world
 uniform vec3 mirror_z;      // mirroring z-axis wrt world
 
-in vec4  vPPosition;        // final position (projected)
-in vec4  vCPosition;        // position wrt camera
-in vec4  vWPosition;        // position wrt world
-in vec4  vMPosition;        // position wrt model
-in vec4  vTPosition;        // position wrt target
-in vec3  vCNormal;          // normal wrt camera
-in vec3  vWNormal;          // normal wrt world
-in vec3  vMNormal;          // normal wrt model
-in vec4  vColor;            // color of geometry (considers selection)
+in vec4 vPPosition;         // final position (projected)
+in vec4 vCPosition;         // position wrt camera
+in vec4 vWPosition;         // position wrt world
+in vec4 vMPosition;         // position wrt model
+in vec4 vTPosition;         // position wrt target
+in vec4 vCTPosition_x;      // position wrt target camera
+in vec4 vCTPosition_y;      // position wrt target camera
+in vec4 vCTPosition_z;      // position wrt target camera
+in vec4 vPTPosition_x;      // position wrt target projected
+in vec4 vPTPosition_y;      // position wrt target projected
+in vec4 vPTPosition_z;      // position wrt target projected
+in vec3 vCNormal;           // normal wrt camera
+in vec3 vWNormal;           // normal wrt world
+in vec3 vMNormal;           // normal wrt model
+in vec3 vTNormal;           // normal wrt target
+in vec4 vColor;             // color of geometry (considers selection)
 
 out vec4  diffuseColor;     // final color of fragment
+
+vec3 xyz(vec4 v) { return v.xyz / v.w; }
 
 // adjusts color based on mirroring settings and fragment position
 vec4 coloring(vec4 orig) {
     vec4 mixer = vec4(0.6, 0.6, 0.6, 0.0);
     if(abs(mirror_view-1.0) < 0.5) {
         // EDGE VIEW
-        vec4 xyz_x = matrix_p * matrix_v * vec4(0.0, vTPosition.y, vTPosition.z, 1.0);
-        vec4 xyz_y = matrix_p * matrix_v * vec4(vTPosition.x, 0.0, vTPosition.z, 1.0);
-        vec4 xyz_z = matrix_p * matrix_v * vec4(vTPosition.x, vTPosition.y, 0.0, 1.0);
-        if(mirroring.x > 0.5 && length(xyz_x.xyz / xyz_x.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
+        float edge_width = 5.0 / screen_size.y;
+        vec3 viewdir;
+        if(perspective > 0.5) {
+            viewdir = normalize(xyz(vCPosition));
+        } else {
+            viewdir = vec3(0,0,1);
+        }
+        vec3 diffc_x = normalize(xyz(vCTPosition_x) - xyz(vCPosition));
+        vec3 diffc_y = normalize(xyz(vCTPosition_y) - xyz(vCPosition));
+        vec3 diffc_z = normalize(xyz(vCTPosition_z) - xyz(vCPosition));
+        vec3 diffp_x = xyz(vPTPosition_x) - xyz(vPPosition);
+        vec3 diffp_y = xyz(vPTPosition_y) - xyz(vPPosition);
+        vec3 diffp_z = xyz(vPTPosition_z) - xyz(vPPosition);
+        vec3 aspect = vec3(1.0, screen_size.y / screen_size.x, 0.0);
+        if(mirroring.x > 0.5 && length(diffp_x * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_x)), 10.0))) {
+            float s = (vTPosition.x < 0.0) ? 1.0 : 0.1;
             mixer.r = 1.0;
-            mixer.a = mirror_effect;
+            mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
-        if(mirroring.y > 0.5 && length(xyz_y.xyz / xyz_y.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
+        if(mirroring.y > 0.5 && length(diffp_y * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_y)), 10.0))) {
+            float s = (vTPosition.y > 0.0) ? 1.0 : 0.1;
             mixer.g = 1.0;
-            mixer.a = mirror_effect;
+            mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
-        if(mirroring.z > 0.5 && length(xyz_z.xyz / xyz_z.w - vPPosition.xyz/vPPosition.w) < 5.0 / screen_size.y) {
+        if(mirroring.z > 0.5 && length(diffp_z * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_z)), 10.0))) {
+            float s = (vTPosition.z < 0.0) ? 1.0 : 0.1;
             mixer.b = 1.0;
-            mixer.a = mirror_effect;
+            mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
     } else if(abs(mirror_view-2.0) < 0.5) {
         // FACE VIEW
