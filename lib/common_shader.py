@@ -49,17 +49,19 @@ class Shader():
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
         return log
     
-    def __init__(self, srcVertex, srcFragment, funcStart=None):
+    def __init__(self, srcVertex, srcFragment, funcStart=None, checkErrors=True):
         self.drawing = Drawing.get_instance()
         
         self.shaderProg = bgl.glCreateProgram()
         self.shaderVert = bgl.glCreateShader(bgl.GL_VERTEX_SHADER)
         self.shaderFrag = bgl.glCreateShader(bgl.GL_FRAGMENT_SHADER)
         
+        self.checkErrors = checkErrors
+        
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
         
-        dprint('RetopoFlow Shader Info')
+        dprint('RetopoFlow Shader Info (%d)' % self.shaderProg)
         logv = self.shader_compile(self.shaderVert)
         logf = self.shader_compile(self.shaderFrag)
         if len(logv.strip()):
@@ -96,6 +98,8 @@ class Shader():
         
         self.funcStart = funcStart
     
+    def __setitem__(self, varName, varValue): self.assign(varName, varValue)
+    
     # https://www.opengl.org/sdk/docs/man/html/glVertexAttrib.xhtml
     # https://www.khronos.org/opengles/sdk/docs/man/xhtml/glUniform.xml
     def assign(self, varName, varValue):
@@ -121,7 +125,8 @@ class Shader():
                     bgl.glVertexAttrib4f(l, *varValue)
                 else:
                     assert False, 'Unhandled type %s for attrib %s' % (t, varName)
-                self.drawing.glCheckError('assign attrib %s = %s' % (varName, str(varValue)))
+                if self.checkErrors:
+                    self.drawing.glCheckError('assign attrib %s = %s' % (varName, str(varValue)))
             elif q in {'uniform'}:
                 # cannot set bools with BGL! :(
                 if t == 'float':
@@ -138,7 +143,8 @@ class Shader():
                     bgl.glUniformMatrix4fv(l, 1, bgl.GL_TRUE, varValue)
                 else:
                     assert False, 'Unhandled type %s for uniform %s' % (t, varName)
-                self.drawing.glCheckError('assign uniform %s (%s %d) = %s' % (varName, t, l, str(varValue)))
+                if self.checkErrors:
+                    self.drawing.glCheckError('assign uniform %s (%s %d) = %s' % (varName, t, l, str(varValue)))
             else:
                 assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
         except Exception as e:
@@ -156,7 +162,8 @@ class Shader():
         if DEBUG_PRINT:
             print('enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glEnableVertexAttribArray(l)
-        self.drawing.glCheckError('enableVertexAttribArray %s' % varName)
+        if self.checkErrors:
+            self.drawing.glCheckError('enableVertexAttribArray %s' % varName)
     
     gltype_names = {
         bgl.GL_BYTE:'byte',
@@ -179,7 +186,8 @@ class Shader():
             print('assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride))
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
         bgl.glVertexAttribPointer(l, size, gltype, normalized, stride, buf)
-        self.drawing.glCheckError('vertexAttribPointer %s' % varName)
+        if self.checkErrors:
+            self.drawing.glCheckError('vertexAttribPointer %s' % varName)
         if enable: bgl.glEnableVertexAttribArray(l)
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
     
@@ -195,7 +203,8 @@ class Shader():
         if DEBUG_PRINT:
             print('disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glDisableVertexAttribArray(l)
-        self.drawing.glCheckError('disableVertexAttribArray %s' % varName)
+        if self.checkErrors:
+            self.drawing.glCheckError('disableVertexAttribArray %s' % varName)
     
     def useFor(self,funcCallback):
         try:
@@ -211,7 +220,11 @@ class Shader():
         try:
             if DEBUG_PRINT:
                 print('enabling shader <==================')
+                if self.checkErrors:
+                    self.drawing.glCheckError('using program (%d) pre' % self.shaderProg)
             bgl.glUseProgram(self.shaderProg)
+            if self.checkErrors:
+                self.drawing.glCheckError('using program (%d) post' % self.shaderProg)
             if self.funcStart: self.funcStart(self)
         except Exception as e:
             print('Error with using shader: ' + str(e))
@@ -220,6 +233,10 @@ class Shader():
     def disable(self):
         if DEBUG_PRINT:
             print('disabling shader <=================')
+        if self.checkErrors:
+            self.drawing.glCheckError('disable program (%d) pre' % self.shaderProg)
         bgl.glUseProgram(0)
+        if self.checkErrors:
+            self.drawing.glCheckError('disable program (%d) post' % self.shaderProg)
 
 
