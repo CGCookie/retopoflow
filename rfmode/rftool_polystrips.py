@@ -82,9 +82,16 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def get_ui_options(self):
         def get_draw_curve(): return options['polystrips draw curve']
         def set_draw_curve(v): options['polystrips draw curve'] = v
+        def get_max_strips(): return options['polystrips max strips']
+        def set_max_strips(v):
+            v = max(0, min(100, v))
+            if v == options['polystrips max strips']: return
+            options['polystrips max strips'] = v
+            self.update()
         return [
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print),
             UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
+            UI_IntValue('Max Strips', get_max_strips, set_max_strips),
         ]
     
     @profiler.profile
@@ -121,6 +128,9 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if not edge1: add_strip(bme1)
             if not edge2: add_strip(bme2)
             if not edge3: add_strip(bme3)
+            if options['polystrips max strips'] and len(self.strips) > options['polystrips max strips']:
+                self.strips = []
+                break
         
         self.update_strip_viz()
     

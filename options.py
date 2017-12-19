@@ -349,7 +349,8 @@ class Options:
         'contours count':   16,
         
         'polystrips scale falloff': -1,
-        'polystrips draw curve': False,
+        'polystrips draw curve':    False,
+        'polystrips max strips':    10,     # PS will not show handles if knot count is above max
         
         'relax selected': False,
         'relax boundary': False,
