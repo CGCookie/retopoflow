@@ -105,7 +105,7 @@ class Shader():
             q,l,t = v['qualifier'],v['location'],v['type']
             if l == -1:
                 if not v['reported']:
-                    print('ASSIGNING TO UNUSED ATTRIBUTE: %s = %s' % (varName,str(varValue)))
+                    dprint('ASSIGNING TO UNUSED ATTRIBUTE: %s = %s' % (varName,str(varValue)))
                     v['reported'] = True
                 return
             if DEBUG_PRINT:

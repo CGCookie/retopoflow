@@ -45,6 +45,7 @@ class Profiler:
             if Profiler.broken: return
             if self._is_done: return
             Profiler.broken = True
+            print('Deleting Profiler before finished')
             #assert False, 'Deleting Profiler before finished'
         def done(self):
             while self.pr.stack and self.pr.stack[-1] != self:
@@ -93,7 +94,9 @@ class Profiler:
     
     def start(self, text=None, addFile=True):
         #assert not Profiler.broken
-        if Profiler.broken: return self.ProfilerHelper_Ignore()
+        if Profiler.broken:
+            print('Profiler broken. Ignoring')
+            return self.ProfilerHelper_Ignore()
         if not retopoflow_profiler or not self.debug: return self.ProfilerHelper_Ignore()
         
         frame = inspect.currentframe().f_back
