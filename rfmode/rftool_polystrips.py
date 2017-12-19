@@ -33,7 +33,7 @@ from ..common.ui import UI_Image, UI_IntValue, UI_BoolValue
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 from ..lib.classes.profiler.profiler import profiler
-from ..lib.common_shader import Shader
+from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 
 from ..options import options, help_polystrips
 
@@ -517,10 +517,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             bgl.glEnd()
             
             # draw junction handles
-            circShader.enable()
-            circShader['uInOut'] = 0.8
-            circShader['vOutColor'] = (0.00, 0.00, 0.00, 0.5*alphamult)
-            circShader['vInColor']  = (1.00, 1.00, 1.00, 1.0*alphamult)
+            circleShader.enable()
+            circleShader['uInOut'] = 0.8
+            circleShader['vOutColor'] = (0.00, 0.00, 0.00, 0.5*alphamult)
+            circleShader['vInColor']  = (1.00, 1.00, 1.00, 1.0*alphamult)
             self.drawing.point_size(20)
             bgl.glBegin(bgl.GL_POINTS)
             for strip in self.strips:
@@ -529,7 +529,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                     bgl.glVertex3f(*p0)
                     bgl.glVertex3f(*p3)
             bgl.glEnd()
-            circShader.disable()
+            circleShader.disable()
             
             # draw control handles
             if options['polystrips arrows']:
@@ -549,10 +549,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 bgl.glEnd()
                 arrowShader.disable()
             else:
-                circShader.enable()
-                circShader['uInOut'] = 0.8
-                circShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
-                circShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
+                circleShader.enable()
+                circleShader['uInOut'] = 0.8
+                circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
+                circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
                 self.drawing.point_size(15)
                 bgl.glBegin(bgl.GL_POINTS)
                 for strip in self.strips:
@@ -561,7 +561,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                         bgl.glVertex3f(*p1)
                         bgl.glVertex3f(*p2)
                 bgl.glEnd()
-                circShader.disable()
+                circleShader.disable()
             
             # draw curve
             if options['polystrips draw curve']:
@@ -596,130 +596,4 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def draw_postpixel(self):
         pass
     
-
-
-edgeShortenShader = Shader('''
-    #version 130
-    
-    uniform vec2 uScreenSize;
-    
-    in vec4  vPos;
-    in vec4  vFrom;
-    in vec4  vColor;
-    in float vRadius;
-    
-    out vec4 aColor;
-    
-    void main() {
-        vec4 p0 = gl_ModelViewProjectionMatrix * vPos;
-        vec4 p1 = gl_ModelViewProjectionMatrix * vFrom;
-        
-        vec2 s0 = uScreenSize * p0.xy / p0.w;
-        vec2 s1 = uScreenSize * p1.xy / p1.w;
-        vec2 d = normalize(s1 - s0);
-        vec2 s2 = s0 + d * vRadius;
-        
-        gl_Position = vec4(s2 / uScreenSize * p0.w, p0.z, p0.w);
-        aColor = vColor;
-    }
-    ''', '''
-    #version 130
-    
-    in vec4 aColor;
-    
-    void main() {
-        gl_FragColor = aColor;
-    }
-    ''', checkErrors=False)
-
-
-circShader = Shader('''
-    #version 130
-    
-    in vec4 vPos;
-    in vec4 vInColor;
-    in vec4 vOutColor;
-    
-    out vec4 aInColor;
-    out vec4 aOutColor;
-    
-    void main() {
-        gl_Position = gl_ModelViewProjectionMatrix * vPos;
-        aInColor    = vInColor;
-        aOutColor   = vOutColor;
-    }
-    ''', '''
-    #version 130
-    
-    in vec4 aInColor;
-    in vec4 aOutColor;
-    
-    uniform float uInOut;
-    
-    void main() {
-        float d = 2.0 * distance(gl_PointCoord, vec2(0.5, 0.5));
-        if(d > 1.0) discard;
-        gl_FragColor = (d > uInOut) ? aOutColor : aInColor;
-    }
-    ''', checkErrors=False)
-
-
-arrowShader = Shader('''
-    #version 130
-
-    in vec4 vPos;
-    in vec4 vFrom;
-    in vec4 vInColor;
-    in vec4 vOutColor;
-
-    out float aRot;
-    out vec4 aInColor;
-    out vec4 aOutColor;
-
-    float angle(vec2 d) { return atan(d.y, d.x); }
-
-    void main() {
-        vec4 p0 = gl_ModelViewProjectionMatrix * vFrom;
-        vec4 p1 = gl_ModelViewProjectionMatrix * vPos;
-        gl_Position = p1;
-        aRot = angle((p1.xy / p1.w) - (p0.xy / p0.w));
-        aInColor = vInColor;
-        aOutColor = vOutColor;
-    }
-    ''', '''
-    #version 130
-
-    in float aRot;
-    in vec4 aInColor;
-    in vec4 aOutColor;
-
-    uniform float uInOut;
-
-    float alpha(vec2 dir) {
-        vec2 d0 = dir - vec2(1,1);
-        vec2 d1 = dir - vec2(1,-1);
-        
-        float d0v = -d0.x/2.0 - d0.y;
-        float d1v = -d1.x/2.0 + d1.y;
-        float dv0 = length(dir);
-        float dv1 = distance(dir, vec2(-2,0));
-        
-        if(d0v < 1.0 || d1v < 1.0) return -1.0;
-        // if(dv0 > 1.0) return -1.0;
-        if(dv1 < 1.3) return -1.0;
-        
-        if(d0v - 1.0 < (1.0 - uInOut) || d1v - 1.0 < (1.0 - uInOut)) return 0.0;
-        //if(dv0 > uInOut) return 0.0;
-        if(dv1 - 1.3 < (1.0 - uInOut)) return 0.0;
-        return 1.0;
-    }
-
-    void main() {
-        vec2 d = 2.0 * (gl_PointCoord - vec2(0.5, 0.5));
-        vec2 dr = vec2(cos(aRot)*d.x - sin(aRot)*d.y, sin(aRot)*d.x + cos(aRot)*d.y);
-        float a = alpha(dr);
-        if(a < 0.0) discard;
-        gl_FragColor = mix(aOutColor, aInColor, a);
-    }
-    ''', checkErrors=False)
 
