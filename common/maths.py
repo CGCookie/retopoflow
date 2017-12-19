@@ -773,7 +773,7 @@ class Accel2D:
         for i in range(i0,i1+1):
             for j in range(j0,j1+1):
                 l |= self.bins[i][j]
-        return l
+        return {v for v in l if v.is_valid}
     
     @profiler.profile
     def nearest_face(self, v2d):
@@ -786,6 +786,7 @@ class Accel2D:
         faces = self.bins[i][j]
         face_type = self.face_type
         for bmf in faces:
+            if not bmf.is_valid: continue
             if type(bmf) is not face_type: continue
             pts = [Point_to_Point2D(bmv.co) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
