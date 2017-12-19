@@ -491,16 +491,28 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             
             # draw outer-inner lines
             self.drawing.line_width(2.0)
+            edgeShortenShader.enable()
+            edgeShortenShader['uScreenSize'] = self.rfcontext.actions.size
             bgl.glBegin(bgl.GL_LINES)
             for strip in self.strips:
                 for cb in strip:
                     p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                    bgl.glColor4f(1.00, 1.00, 1.00, 0.75 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vFrom'] = (p1.x, p1.y, p1.z, 1.0)
+                    edgeShortenShader['vRadius'] = 22
                     bgl.glVertex3f(*p0)
-                    bgl.glColor4f(1.00, 1.00, 1.00, 0.15 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
+                    edgeShortenShader['vRadius'] = 17
                     bgl.glVertex3f(*p1)
+                    
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
+                    edgeShortenShader['vRadius'] = 17
                     bgl.glVertex3f(*p2)
-                    bgl.glColor4f(1.00, 1.00, 1.00, 0.75 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vFrom'] = (p2.x, p2.y, p2.z, 1.0)
+                    edgeShortenShader['vRadius'] = 22
                     bgl.glVertex3f(*p3)
             bgl.glEnd()
             
@@ -528,8 +540,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 for strip in self.strips:
                     for cb in strip:
                         p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                        arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.5*alphamult)
-                        arrowShader['vInColor']  = (0.25, 0.25, 0.25, 0.1*alphamult)
+                        arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
+                        arrowShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
                         arrowShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
                         bgl.glVertex3f(*p1)
                         arrowShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
@@ -539,8 +551,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             else:
                 circShader.enable()
                 circShader['uInOut'] = 0.8
-                circShader['vOutColor'] = (0.75, 0.75, 0.75, 0.5*alphamult)
-                circShader['vInColor']  = (0.25, 0.25, 0.25, 0.1*alphamult)
+                circShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
+                circShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
                 self.drawing.point_size(15)
                 bgl.glBegin(bgl.GL_POINTS)
                 for strip in self.strips:
@@ -584,6 +596,41 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def draw_postpixel(self):
         pass
     
+
+
+edgeShortenShader = Shader('''
+    #version 130
+    
+    uniform vec2 uScreenSize;
+    
+    in vec4  vPos;
+    in vec4  vFrom;
+    in vec4  vColor;
+    in float vRadius;
+    
+    out vec4 aColor;
+    
+    void main() {
+        vec4 p0 = gl_ModelViewProjectionMatrix * vPos;
+        vec4 p1 = gl_ModelViewProjectionMatrix * vFrom;
+        
+        vec2 s0 = uScreenSize * p0.xy / p0.w;
+        vec2 s1 = uScreenSize * p1.xy / p1.w;
+        vec2 d = normalize(s1 - s0);
+        vec2 s2 = s0 + d * vRadius;
+        
+        gl_Position = vec4(s2 / uScreenSize * p0.w, p0.z, p0.w);
+        aColor = vColor;
+    }
+    ''', '''
+    #version 130
+    
+    in vec4 aColor;
+    
+    void main() {
+        gl_FragColor = aColor;
+    }
+    ''', checkErrors=False)
 
 
 circShader = Shader('''
