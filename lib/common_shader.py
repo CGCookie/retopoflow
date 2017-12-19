@@ -58,6 +58,9 @@ class Shader():
         
         self.checkErrors = checkErrors
         
+        srcVertex   = '\n'.join(l.strip() for l in srcVertex.split('\n'))
+        srcFragment = '\n'.join(l.strip() for l in srcFragment.split('\n'))
+        
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
         

@@ -351,6 +351,7 @@ class Options:
         'polystrips scale falloff': -1,
         'polystrips draw curve':    False,
         'polystrips max strips':    10,     # PS will not show handles if knot count is above max
+        'polystrips arrows':        False,
         
         'relax selected': False,
         'relax boundary': False,
