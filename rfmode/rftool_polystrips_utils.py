@@ -41,8 +41,10 @@ def find_shared_edge(bmf0, bmf1):
             if e0 == e1: return e0
     return None
 
-def is_edge(bme, only_bmfs):
-    return len([f for f in bme.link_faces if f in only_bmfs]) == 1
+def is_boundaryedge(bme, only_bmfs):
+    return len(set(bme.link_faces) & only_bmfs) == 1
+def is_boundaryvert(bmv, only_bmfs):
+    return len(set(bmv.link_faces) - only_bmfs) > 0 or bmv.is_boundary
 
 def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs):
     #

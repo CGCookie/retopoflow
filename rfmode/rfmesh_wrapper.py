@@ -265,8 +265,14 @@ class RFFace(BMElemWrapper):
     def opposite_edge(self, e):
         if len(self.bmelem.edges) != 4: return None
         e = self._unwrap(e)
-        for i,bme in self.bmelem.edges:
+        for i,bme in enumerate(self.bmelem.edges):
             if bme == e: return RFEdge(self.bmelem.edges[(i+2)%4])
+        return None
+    
+    def neighbor_edges(self, e):
+        e = self._unwrap(e)
+        for i,bme in enumerate(self.bmelem.edges):
+            if bme == e: return (RFEdge(self.bmelem.edges[(i-1)%4]), RFEdge(self.bmelem.edges[(i+1)%4]))
         return None
     
     @property

@@ -25,8 +25,6 @@ import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 from .rftool import RFTool
-from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
-from .rftool_polystrips_utils import *
 from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.ui import UI_Image, UI_IntValue, UI_BoolValue
@@ -34,8 +32,10 @@ from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 from ..lib.classes.profiler.profiler import profiler
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
-
 from ..options import options, help_polystrips
+
+from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
+from .rftool_polystrips_utils import *
 
 
 @RFTool.action_call('polystrips tool')
@@ -103,22 +103,33 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
         if not bmquads: return
         
-        # find knots
-        knots = set()
+        # find junctions at corners
+        junctions = set()
         for bmf in bmquads:
-            edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf.edges]
-            if edge0 and edge2 and not (edge1 or edge3): continue
-            if edge1 and edge3 and not (edge0 or edge2): continue
-            knots.add(bmf)
+            # skip if in middle of a selection
+            if not any(is_boundaryvert(bmv, bmquads) for bmv in bmf.verts): continue
+            # skip if in middle of possible strip
+            edge0,edge1,edge2,edge3 = [is_boundaryedge(bme, bmquads) for bme in bmf.edges]
+            if (edge0 or edge2) and not (edge1 or edge3): continue
+            if (edge1 or edge3) and not (edge0 or edge2): continue
+            junctions.add(bmf)
         
-        # find strips between knots
+        # find junctions that might be in middle of strip but are ends to other strips
+        boundaries = set((bme,bmf) for bmf in bmquads for bme in bmf.edges if is_boundaryedge(bme, bmquads))
+        while boundaries:
+            bme,bmf = boundaries.pop()
+            for bme_ in bmf.neighbor_edges(bme):
+                strip = crawl_strip(bmf, bme_, bmquads, junctions)
+                junctions.add(strip[-1])
+        
+        # find strips between junctions
         touched = set()
-        for bmf0 in knots:
+        for bmf0 in junctions:
             bme0,bme1,bme2,bme3 = bmf0.edges
-            edge0,edge1,edge2,edge3 = [is_edge(bme, bmquads) for bme in bmf0.edges]
+            edge0,edge1,edge2,edge3 = [is_boundaryedge(bme, bmquads) for bme in bmf0.edges]
             
             def add_strip(bme):
-                strip = crawl_strip(bmf0, bme, bmquads, knots)
+                strip = crawl_strip(bmf0, bme, bmquads, junctions)
                 bmf1 = strip[-1]
                 if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
                     touched.add(hash_face_pair(bmf0,bmf1))
@@ -176,9 +187,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 for i,cbpt in enumerate(cb):
                     v = Point_to_Point2D(cbpt)
                     if v is None: continue
-                    if (mouse - v).length < self.drawing.scale(options['select dist']):
-                        self.hovering_handles.append(cbpt)
-                        self.hovering_strips.add((strip,cb,i))
+                    if (mouse - v).length > self.drawing.scale(options['select dist']): continue
+                    # do not filter out non-visible handles, because otherwise
+                    # they might not be movable if they are inside the model
+                    self.hovering_handles.append(cbpt)
+                    self.hovering_strips.add((strip,cb,i))
         pr.done()
         
         self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
@@ -587,7 +600,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         draw(1.0)
         # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(0.5)
+        draw(0.1)
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
