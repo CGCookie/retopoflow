@@ -24,22 +24,9 @@ import bpy
 import math
 from mathutils import Vector, Matrix
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec, clamp
+from ..common.maths import Point,Point2D,Vec2D,Vec, Normal, clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
-
-def find_opposite_edge(bmf, bme):
-    bmes = bmf.edges
-    if bmes[0] == bme: return bmes[2]
-    if bmes[1] == bme: return bmes[3]
-    if bmes[2] == bme: return bmes[0]
-    if bmes[3] == bme: return bmes[1]
-    assert False
-
-def find_shared_edge(bmf0, bmf1):
-    for e0 in bmf0.edges:
-        for e1 in bmf1.edges:
-            if e0 == e1: return e0
-    return None
+from ..common.utils import iter_pairs
 
 def is_boundaryedge(bme, only_bmfs):
     return len(set(bme.link_faces) & only_bmfs) == 1
@@ -95,18 +82,36 @@ def hash_face_pair(bmf0, bmf1):
 
 
 class RFTool_PolyStrips_Strip:
+    
+    # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # TODO: only one, single bezier curve!!
+    # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    
     def __init__(self, bmf_strip):
-        pts,r = strip_details(bmf_strip)
         self.bmf_strip = bmf_strip
+        self.recompute_curve()
+        self.capture_edges()
+    
+    def __len__(self): return len(self.cbs)
+    
+    def __iter__(self): return iter(self.cbs)
+    
+    def __getitem__(self, key): return self.cbs[key]
+    
+    def end_faces(self): return (self.bmf_strip[0], self.bmf_strip[-1])
+    
+    def recompute_curve(self):
+        pts,r = strip_details(self.bmf_strip)
         self.cbs = CubicBezierSpline.create_from_points([pts], r/2000.0)
         self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
-        
+    
+    def capture_edges(self):
         self.bmes = []
-        bmes = [(find_shared_edge(bmf0,bmf1), (bmf0.normal+bmf1.normal).normalized()) for bmf0,bmf1 in zip(bmf_strip[:-1], bmf_strip[1:])]
-        self.bme0 = find_opposite_edge(bmf_strip[0], bmes[0][0])
-        self.bme1 = find_opposite_edge(bmf_strip[-1], bmes[-1][0])
-        if len(self.bme0.link_faces) == 1: bmes = [(self.bme0, bmf_strip[0].normal)] + bmes
-        if len(self.bme1.link_faces) == 1: bmes = bmes + [(self.bme1, bmf_strip[-1].normal)]
+        bmes = [(bmf0.shared_edge(bmf1), Normal(bmf0.normal+bmf1.normal)) for bmf0,bmf1 in iter_pairs(self.bmf_strip, False)]
+        self.bme0 = self.bmf_strip[0].opposite_edge(bmes[0][0])
+        self.bme1 = self.bmf_strip[-1].opposite_edge(bmes[-1][0])
+        if len(self.bme0.link_faces) == 1: bmes = [(self.bme0, self.bmf_strip[0].normal)] + bmes
+        if len(self.bme1.link_faces) == 1: bmes = bmes + [(self.bme1, self.bmf_strip[-1].normal)]
         if any(not bme.is_valid for (bme,_) in bmes):
             # filter out invalid edges (see commit 88e4fde4)
             bmes = [(bme,norm) for (bme,norm) in bmes if bme.is_valid]
@@ -126,12 +131,6 @@ class RFTool_PolyStrips_Strip:
             rot = math.acos(clamp(diffdir.dot(cross), -0.9999999, 0.9999999))
             if diffdir.dot(der) < 0: rot = -rot
             self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
-    
-    def __len__(self): return len(self.cbs)
-    
-    def __iter__(self): return iter(self.cbs)
-    
-    def __getitem__(self, key): return self.cbs[key]
     
     def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
         self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)

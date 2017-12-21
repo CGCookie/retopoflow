@@ -23,20 +23,26 @@ import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_point_tri_2d
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.bezier import CubicBezierSpline, CubicBezier
-from mathutils.geometry import intersect_point_tri_2d
 from ..common.ui import UI_Image
 from ..common.utils import iter_pairs
-
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 
-from .rftool_polystrips_utils import *
+from .rftool_polystrips_utils import (
+    RFTool_PolyStrips_Strip,
+    hash_face_pair,
+    strip_details,
+    crawl_strip,
+    is_boundaryvert,
+    is_boundaryedge,
+    )
 
 class RFTool_PolyStrips_Ops:
-        
+    
     @RFTool.dirty_when_done
     def stroke(self):
         # called when artist finishes a stroke

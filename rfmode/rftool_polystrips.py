@@ -35,7 +35,14 @@ from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..options import options, help_polystrips
 
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
-from .rftool_polystrips_utils import *
+from .rftool_polystrips_utils import (
+    RFTool_PolyStrips_Strip,
+    hash_face_pair,
+    strip_details,
+    crawl_strip,
+    is_boundaryvert,
+    is_boundaryedge,
+    )
 
 
 @RFTool.action_call('polystrips tool')
@@ -91,8 +98,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.update()
         return [
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print),
-            UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
             UI_IntValue('Max Strips', get_max_strips, set_max_strips),
+            UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
         ]
     
     @profiler.profile
@@ -179,7 +186,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
         
-        pr = profiler.start('finding hovered handle')
+        self.update_accel_struct()
+        
         self.hovering_handles.clear()
         self.hovering_strips.clear()
         for strip in self.strips:
@@ -192,11 +200,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                     # they might not be movable if they are inside the model
                     self.hovering_handles.append(cbpt)
                     self.hovering_strips.add((strip,cb,i))
-        pr.done()
         
-        self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
-        
-        self.update_accel_struct()
+        if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
+            self.rfwidget.set_widget('brush stroke')
+        else:
+            self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
         
         # handle edits
         if self.rfcontext.actions.pressed('action'):
@@ -257,29 +265,36 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def prep_rotate(self):
+        self.sel_cbpts = []
+        self.mod_strips = set()
+        
         if not self.hovering_handles: return
         
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        inner,outer = None,None
+        innerP,outerP,outerF = None,None,None
         for strip in self.strips:
+            bmf0,bmf1 = strip.end_faces()
             for cb in strip:
                 p0,p1,p2,p3 = cb.points()
-                if p1 in self.hovering_handles: inner,outer = p1,p0
-                if p2 in self.hovering_handles: inner,outer = p2,p3
-        if not inner or not outer: return ''
-        self.sel_cbpts = []
-        self.mod_strips = set()
+                if p1 in self.hovering_handles: innerP,outerP,outerF = p1,p0,bmf0
+                if p2 in self.hovering_handles: innerP,outerP,outerF = p2,p3,bmf1
+        if not innerP or not outerP or not outerF: return ''
+        # find all strips that share outerF
         for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.points()
-                if (outer - p0).length < 0.01:
-                    self.sel_cbpts += [(p1, Point(p1), Point_to_Point2D(p1))]
-                    self.mod_strips.add(strip)
-                if (outer - p3).length < 0.01:
-                    self.sel_cbpts += [(p2, Point(p2), Point_to_Point2D(p2))]
-                    self.mod_strips.add(strip)
-        self.rotate_about = Point_to_Point2D(outer)
+            bmf0,bmf1 = strip.end_faces()
+            if outerF != bmf0 and outerF != bmf1: continue
+            cb = next(iter(strip))
+            p0,p1,p2,p3 = cb.points()
+            if outerF == bmf0:
+                self.sel_cbpts += [(p1, Point(p1), Point_to_Point2D(p1))]
+                self.mod_strips.add(strip)
+            if outerF == bmf1:
+                self.sel_cbpts += [(p2, Point(p2), Point_to_Point2D(p2))]
+                self.mod_strips.add(strip)
+        self.rotate_about = Point_to_Point2D(outerP)
         if not self.rotate_about: return ''
+        
+        for strip in self.mod_strips: strip.capture_edges()
         
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
@@ -320,13 +335,24 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def prep_handle(self):
+        self.sel_cbpts = []
+        self.mod_strips = set()
+        
         if not self.hovering_handles: return
         cbpts = list(self.hovering_handles)
+        self.mod_strips |= set(strip for strip,_,_ in self.hovering_strips)
         for strip in self.strips:
             for cb in strip:
                 p0,p1,p2,p3 = cb.points()
-                if p0 in cbpts and p1 not in cbpts: cbpts.append(p1)
-                if p3 in cbpts and p2 not in cbpts: cbpts.append(p2)
+                if p0 in cbpts and p1 not in cbpts:
+                    cbpts.append(p1)
+                    self.mod_strips.add(strip)
+                if p3 in cbpts and p2 not in cbpts:
+                    cbpts.append(p2)
+                    self.mod_strips.add(strip)
+        
+        for strip in self.mod_strips: strip.capture_edges()
+        
         self.sel_cbpts = [(cbpt, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
@@ -392,36 +418,30 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def prep_scale(self):
-        # only scale outer handles
-        handle_inner = next(((s,cb,i) for (s,cb,i) in self.hovering_strips if i in [1,2]), None)
-        if not handle_inner: return
+        self.mod_strips = set()
         
-        strip,curve,iinner = handle_inner
-        handle_outer = curve.points()[0 if iinner == 1 else 3]
-        # find other curves with outer handles at same location
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        innerP,outerP,outerF = None,None,None
+        for strip in self.strips:
+            bmf0,bmf1 = strip.end_faces()
+            for cb in strip:
+                p0,p1,p2,p3 = cb.points()
+                if p1 in self.hovering_handles: innerP,outerP,outerF = p1,p0,bmf0
+                if p2 in self.hovering_handles: innerP,outerP,outerF = p2,p3,bmf1
+        if not innerP or not outerP or not outerF: return ''
         
         self.scale_strips = []
         for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.points()
-                d0,d3 = (p0-handle_outer).length,(p3-handle_outer).length
-                if d0 < 0.01:
-                    self.scale_strips.append((strip, 0))
-                if d3 < 0.01:
-                    self.scale_strips.append((strip, 3))
-                print(d0,d3)
+            bmf0,bmf1 = strip.end_faces()
+            if bmf0 == outerF:
+                self.scale_strips.append((strip, 1))
+                self.mod_strips.add(strip)
+            if bmf1 == outerF:
+                self.scale_strips.append((strip, 2))
+                self.mod_strips.add(strip)
         
-        print(self.scale_strips)
-        return
-        handle_outer = s
+        for strip in self.mod_strips: strip.capture_edges()
         
-        for strip in self.strips:
-            for cb in strip:
-                p0,p1,p2,p3 = cb.points()
-                if p0 in cbpts and p1 not in cbpts: cbpts.append(p1)
-                if p3 in cbpts and p2 not in cbpts: cbpts.append(p2)
-        
-        self.scale_strips = [(s,i) for s,i in self.hovering_strips if i in [1,2]]
         if not self.scale_strips: return
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
@@ -465,12 +485,15 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         delta = self.rfcontext.actions.mouse.x - self.mousedown.x
         scale = delta / self.drawing.scale(100)
+        snap2D_vert = self.rfcontext.snap2D_vert
+        snap_vert = self.rfcontext.snap_vert
         for bmv in self.scale_bmv.keys():
             l = self.scale_bmv[bmv]
             n = Vector()
             for c,v,sc in l:
                 n += c + v * max(0, 1 + scale * sc)
             bmv.co = n / len(l)
+            snap_vert(bmv)
     
     
     def draw_postview(self):
@@ -499,7 +522,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def draw_spline(self):
         if not self.strips: return
         
-        def draw(alphamult):
+        strips = self.strips
+        hov_strips = {strip for strip,_,_ in self.hovering_strips}
+        
+        def draw(alphamult, hov_alphamult):
+            nonlocal strips
+            
             bgl.glEnable(bgl.GL_BLEND)
             
             # draw outer-inner lines
@@ -507,54 +535,63 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             edgeShortenShader.enable()
             edgeShortenShader['uScreenSize'] = self.rfcontext.actions.size
             bgl.glBegin(bgl.GL_LINES)
-            for strip in self.strips:
+            for strip in strips:
+                a = hov_alphamult if strip in hov_strips else alphamult
                 for cb in strip:
                     p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                     edgeShortenShader['vFrom'] = (p1.x, p1.y, p1.z, 1.0)
                     edgeShortenShader['vRadius'] = 22
                     bgl.glVertex3f(*p0)
-                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                     edgeShortenShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
                     edgeShortenShader['vRadius'] = 17
                     bgl.glVertex3f(*p1)
                     
-                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                     edgeShortenShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
                     edgeShortenShader['vRadius'] = 17
                     bgl.glVertex3f(*p2)
-                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * alphamult)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                     edgeShortenShader['vFrom'] = (p2.x, p2.y, p2.z, 1.0)
                     edgeShortenShader['vRadius'] = 22
                     bgl.glVertex3f(*p3)
             bgl.glEnd()
             
-            # draw junction handles
+            # draw junction handles (outer control points of curve)
+            faces_drawn = set() # keep track of faces, so don't draw same handles 2+ times
             circleShader.enable()
             circleShader['uInOut'] = 0.8
-            circleShader['vOutColor'] = (0.00, 0.00, 0.00, 0.5*alphamult)
-            circleShader['vInColor']  = (1.00, 1.00, 1.00, 1.0*alphamult)
             self.drawing.point_size(20)
             bgl.glBegin(bgl.GL_POINTS)
-            for strip in self.strips:
-                for cb in strip:
-                    p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+            for strip in strips:
+                a = hov_alphamult if strip in hov_strips else alphamult
+                circleShader['vOutColor'] = (0.00, 0.00, 0.00, 0.5*a)
+                circleShader['vInColor']  = (1.00, 1.00, 1.00, 1.0*a)
+                cb = next(iter(strip))
+                bmf0,bmf1 = strip.end_faces()
+                p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
+                if bmf0 not in faces_drawn:
                     bgl.glVertex3f(*p0)
+                    faces_drawn.add(bmf0)
+                if bmf1 not in faces_drawn:
                     bgl.glVertex3f(*p3)
+                    faces_drawn.add(bmf1)
             bgl.glEnd()
             circleShader.disable()
             
-            # draw control handles
+            # draw control handles (inner control points of curve)
             if options['polystrips arrows']:
                 arrowShader.enable()
                 arrowShader['uInOut'] = 0.8
                 self.drawing.point_size(20)
                 bgl.glBegin(bgl.GL_POINTS)
-                for strip in self.strips:
+                for strip in strips:
+                    a = hov_alphamult if strip in hov_strips else alphamult
                     for cb in strip:
                         p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
-                        arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
-                        arrowShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
+                        arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
+                        arrowShader['vInColor']  = (0.25, 0.25, 0.25, 0.8*a)
                         arrowShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
                         bgl.glVertex3f(*p1)
                         arrowShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
@@ -564,11 +601,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             else:
                 circleShader.enable()
                 circleShader['uInOut'] = 0.8
-                circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*alphamult)
-                circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*alphamult)
                 self.drawing.point_size(15)
                 bgl.glBegin(bgl.GL_POINTS)
-                for strip in self.strips:
+                for strip in strips:
+                    a = hov_alphamult if strip in hov_strips else alphamult
+                    circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
+                    circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
                     for cb in strip:
                         p0,p1,p2,p3 = cb.p0,cb.p1,cb.p2,cb.p3
                         bgl.glVertex3f(*p1)
@@ -580,9 +618,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if options['polystrips draw curve']:
                 self.drawing.line_width(2.0)
                 self.drawing.enable_stipple()
-                bgl.glColor4f(1,1,1,0.5*alphamult)
                 bgl.glBegin(bgl.GL_LINES)
                 for pts in self.strip_pts:
+                    a = hov_alphamult if strip in hov_strips else alphamult
+                    bgl.glColor4f(1,1,1,0.5*a)
                     for v0,v1 in zip(pts[:-1],pts[1:]):
                         bgl.glVertex3f(*v0)
                         bgl.glVertex3f(*v1)
@@ -597,10 +636,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         # draw in front of geometry
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        draw(1.0)
+        draw(1.00, 1.00)
         # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(0.1)
+        draw(0.10, 0.10)
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
