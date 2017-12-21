@@ -291,24 +291,6 @@ class RFContext_Drawing:
         container.add(UI_Button('Welcome!', show_reporting, align=0, margin=0))
         container.add(UI_Button('Report Issue', open_github, align=0, margin=0))
         window_info.add(UI_Button('Buy us a drink', open_tip, align=0, margin=0))
-        info_adv = window_info.add(UI_Collapsible('Advanced', collapsed=True))
-        
-        fps_save = info_adv.add(UI_Container(vertical=False))
-        self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
-        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
-        
-        info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
-        info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
-        
-        if retopoflow_profiler:
-            info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
-            prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
-            prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
-            prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
-            prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
-            update_profiler_visible()
-        
-        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
         
@@ -340,6 +322,26 @@ class RFContext_Drawing:
             # window_tool_options.add(UI_Spacer(height=5))
             ui_options = window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
             for tool_option in tool_options: ui_options.add(tool_option)
+        
+        info_adv = window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
+        
+        fps_save = info_adv.add(UI_Container(vertical=False))
+        self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
+        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
+        
+        info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
+        info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
+        
+        if retopoflow_profiler:
+            info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
+            prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
+            prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
+            prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
+            prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
+            update_profiler_visible()
+        
+        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
+        
         
         self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
         self.window_welcome.add(UI_Rule())
