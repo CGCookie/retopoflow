@@ -781,20 +781,28 @@ class Accel2D:
         # XXXX: ONLY FINDING FACE UNDER V2D!!! #
         ########################################
         
-        Point_to_Point2D = self.Point_to_Point2D
-        i,j = self.compute_ij(v2d)
-        faces = self.bins[i][j]
-        face_type = self.face_type
-        for bmf in faces:
-            if not bmf.is_valid: continue
-            if type(bmf) is not face_type: continue
+        @profiler.profile
+        def intersect_face(bmf):
             pts = [Point_to_Point2D(bmv.co) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
             pt0 = pts[0]
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
                 if intersect_point_tri(v2d, pt0, pt1, pt2):
-                    return bmf
+                    return True
+            return False
+        
+        Point_to_Point2D = self.Point_to_Point2D
+        face_type = self.face_type
+        i,j = self.compute_ij(v2d)
+        faces = [bmf for bmf in self.bins[i][j] if type(bmf) is face_type]
+        for bmf in faces:
+            if not bmf.is_valid: continue
+            if intersect_face(bmf): return bmf
         return None
+    
+    @profiler.profile
+    def clean_invalid(self):
+        self.bins = [[{g for g in self.bins[i][j] if g.is_valid} for j in range(self.bin_rows)] for i in range(self.bin_cols)]
     
     @profiler.profile
     def compute_ij(self, v2d):

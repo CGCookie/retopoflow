@@ -238,6 +238,7 @@ class RFContext_Target:
         if xyz is None: return
         vert.co = xyz
         vert.normal = norm
+        return xyz
 
     def set2D_crawl_vert(self, vert:RFVert, xy:Point2D):
         hits = self.raycast_sources_Point2D_all(xy)
