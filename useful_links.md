@@ -8,6 +8,11 @@ Rendering Updates
     - [bpy_app_handlers.c:calling](https://developer.blender.org/diffusion/B/browse/master/source/blender/python/intern/bpy_app_handlers.c;20a177814815e7e3a1a4a4d37e91880ef98aa68a$229)
 
 
-- Topology
+Topology
 
 - [topowiki](http://probiner.x10.mx/wiki/doku.php?id=start)
+
+
+Blender Tips
+
+- [info tips and tricks](https://docs.blender.org/api/blender_python_api_current/info_tips_and_tricks.html)
