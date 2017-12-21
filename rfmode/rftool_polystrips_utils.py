@@ -82,28 +82,23 @@ def hash_face_pair(bmf0, bmf1):
 
 
 class RFTool_PolyStrips_Strip:
-    
-    # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    # TODO: only one, single bezier curve!!
-    # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    
     def __init__(self, bmf_strip):
         self.bmf_strip = bmf_strip
         self.recompute_curve()
         self.capture_edges()
     
-    def __len__(self): return len(self.cbs)
+    def __len__(self): return len(self.bmf_strip)
     
-    def __iter__(self): return iter(self.cbs)
+    def __iter__(self): return iter(self.bmf_strip)
     
-    def __getitem__(self, key): return self.cbs[key]
+    def __getitem__(self, key): return self.bmf_strip[key]
     
     def end_faces(self): return (self.bmf_strip[0], self.bmf_strip[-1])
     
     def recompute_curve(self):
         pts,r = strip_details(self.bmf_strip)
-        self.cbs = CubicBezierSpline.create_from_points([pts], r/2000.0)
-        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
+        self.curve = CubicBezier.create_from_points(pts)
+        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
     
     def capture_edges(self):
         self.bmes = []
@@ -121,8 +116,8 @@ class RFTool_PolyStrips_Strip:
             diffdir = halfdiff.normalized()
             center = bmvs[0].co + halfdiff
             
-            t = self.cbs.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
-            pos,der = self.cbs.eval(t),self.cbs.eval_derivative(t).normalized()
+            t = self.curve.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
+            pos,der = self.curve.eval(t),self.curve.eval_derivative(t).normalized()
             
             rad = halfdiff.length
             cross = der.cross(norm).normalized()
@@ -133,12 +128,12 @@ class RFTool_PolyStrips_Strip:
             self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
     
     def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
-        self.cbs.tessellate_uniform(lambda p,q:(p-q).length, split=10)
-        length = self.cbs.approximate_totlength_tessellation()
+        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
+        length = self.curve.approximate_totlength_tessellation()
         for bme,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
-            pos,norm,_,_ = raycast_sources_Point(self.cbs.eval(t))
+            pos,norm,_,_ = raycast_sources_Point(self.curve.eval(t))
             if not norm: continue
-            der = self.cbs.eval_derivative(t).normalized()
+            der = self.curve.eval_derivative(t).normalized()
             cross = der.cross(norm).normalized()
             center = pos + der * off_der + cross * off_cross + norm * off_norm
             rotcross = (Matrix.Rotation(rot, 3, norm) * cross).normalized()

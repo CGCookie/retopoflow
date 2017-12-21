@@ -218,6 +218,7 @@ class CubicBezier:
     
     def __init__(self, p0, p1, p2, p3):
         self.p0,self.p1,self.p2,self.p3 = p0,p1,p2,p3
+        self.tessellation = []
     
     def __iter__(self): return iter([self.p0, self.p1, self.p2, self.p3])
     
@@ -310,7 +311,7 @@ class CubicBezier:
     def approximate_ts_at_intervals_uniform(self, intervals, fn_dist, split=None):
         return [self.approximate_t_at_interval_uniform(interval,fn_dist,split=split) for interval in intervals]
     
-    def tessellate_uniform(self, fn_dist, split=None):
+    def get_tessellate_uniform(self, fn_dist, split=None):
         split = split or self.split_default
         ts = [i/(split-1) for i in range(split)]
         ps = [self.eval(t) for t in ts]
@@ -322,6 +323,28 @@ class CubicBezier:
         ts = [i/(segments-1) for i in range(segments)]
         ps = [self.eval(t) for t in ts]
         return ps
+    
+    ########################################################################################
+    #                                                                                      #
+    # the following code **requires** that self.tessellate_uniform() is called beforehand! #
+    #                                                                                      #
+    ########################################################################################
+    
+    def tessellate_uniform(self, fn_dist, split=None):
+        self.tessellation = self.get_tessellate_uniform(fn_dist, split=split)
+    
+    def approximate_t_at_point_tessellation(self, point, fn_dist):
+        bd,bt = None,None
+        for t,q,_ in self.tessellation:
+            d = fn_dist(point, q)
+            if bd is None or d < bd: bd,bt = d,t
+        return bt
+    
+    def approximate_totlength_tessellation(self):
+        return sum(self.approximate_lengths_tessellation())
+    
+    def approximate_lengths_tessellation(self):
+        return [d for _,_,d in self.tessellation]
 
 
 
@@ -447,7 +470,7 @@ class CubicBezierSpline:
     def tessellate_uniform(self, fn_dist, split=None):
         self.tessellation.clear()
         for i,cb in enumerate(self.cbs):
-            cb_tess = cb.tessellate_uniform(fn_dist, split=split)
+            cb_tess = cb.get_tessellate_uniform(fn_dist, split=split)
             self.tessellation.append(cb_tess)
     
     def approximate_totlength_tessellation(self):
