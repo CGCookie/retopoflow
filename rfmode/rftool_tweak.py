@@ -65,29 +65,27 @@ class RFTool_Tweak(RFTool):
     
     def modal_main(self):
         if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('tweak move')
-            radius = self.rfwidget.get_scaled_radius()
-            nearest = self.rfcontext.nearest_verts_mouse(radius)
-            if not nearest:
-                self.rfcontext.undo_cancel()
-                return
-            Point_to_Point2D = self.rfcontext.Point_to_Point2D
-            get_strength_dist = self.rfwidget.get_strength_dist
-            sel_only = self.get_move_selected()
-            hidden = self.get_move_hidden()
-            boundary = self.get_move_boundary()
-            is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
-            self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
-            if sel_only:
-                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
-            if not boundary:
-                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
-            if not hidden:
-                self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
-            self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-            self.mousedown = self.rfcontext.actions.mousedown
-            return 'move'
+            return self.prep_move()
+    
+    def prep_move(self):
+        radius = self.rfwidget.get_scaled_radius()
+        nearest = self.rfcontext.nearest_verts_mouse(radius)
+        if not nearest: return
         
+        self.rfcontext.undo_push('tweak move')
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        get_strength_dist = self.rfwidget.get_strength_dist
+        sel_only = self.get_move_selected()
+        hidden = self.get_move_hidden()
+        boundary = self.get_move_boundary()
+        def is_visible(bmv): return self.rfcontext.is_visible(bmv.co, bmv.normal)
+        self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
+        if sel_only:     self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
+        if not boundary: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
+        if not hidden:   self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
+        self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
+        self.mousedown = self.rfcontext.actions.mousedown
+        return 'move'
     
     @RFTool.dirty_when_done
     def modal_move(self):

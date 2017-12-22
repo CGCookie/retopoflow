@@ -25,6 +25,7 @@ from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_relax
+from ..lib.classes.profiler.profiler import profiler
 
 @RFTool.action_call('relax tool')
 class RFTool_Relax(RFTool):
@@ -103,6 +104,7 @@ class RFTool_Relax(RFTool):
         self._relax(verts, edges, faces, vert_strength)
     
     @RFTool.dirty_when_done
+    @profiler.profile
     def modal_relax_selected(self):
         if self.rfcontext.actions.released('relax selected'):
             return 'main'
@@ -110,9 +112,9 @@ class RFTool_Relax(RFTool):
             self.rfcontext.undo_cancel()
             return 'main'
         if not self.rfcontext.actions.timer: return
-        self._relax(self.sel_verts, self.sel_edges, self.sel_faces)
+        self._relax(self.sel_verts, self.sel_edges, self.sel_faces, vistest=False)
     
-    def _relax(self, verts, edges, faces, vert_strength=None):
+    def _relax(self, verts, edges, faces, vert_strength=None, vistest=True):
         if not verts or not edges: return
         vert_strength = vert_strength or {}
         
@@ -133,7 +135,7 @@ class RFTool_Relax(RFTool):
         # perform smoothing
         touched = set()
         for bmv0 in verts:
-            d = vert_strength.get(bmv0, 1)
+            d = vert_strength.get(bmv0, 0)
             lbme,lbmf = bmv0.link_edges,bmv0.link_faces
             if not lbme: continue
             # push edges closer to average edge length
@@ -156,7 +158,7 @@ class RFTool_Relax(RFTool):
                 fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
                 for bmv in bmf.verts:
                     diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0- d) / cnt * mult
+                    m = (fd - diff.length)* (1.0 - d) / cnt * mult
                     divco[bmv] += diff * m * strength
         
         # update
@@ -168,6 +170,6 @@ class RFTool_Relax(RFTool):
             if bmv not in verts: continue
             if sel_only and not bmv.select: continue
             if not boundary and bmv.is_boundary: continue
-            if not hidden and not is_visible(bmv): continue
-            p,_,_,_ = self.rfcontext.nearest_sources_Point(co)
-            bmv.co = p
+            if vistest and not hidden and not is_visible(bmv): continue
+            bmv.co = co
+            self.rfcontext.snap_vert(bmv)

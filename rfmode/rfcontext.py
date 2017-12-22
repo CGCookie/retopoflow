@@ -579,10 +579,11 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     def is_visible(self, point:Point, normal:Normal):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
-        if p2D.x < 0 or p2D.y < 0 or p2D.x > self.actions.size[0] or p2D.y > self.actions.size[1]: return False
-        ray = self.Point_to_Ray(point, max_dist_offset=-0.01)
+        if p2D.x < 0 or p2D.x > self.actions.size[0]: return False
+        if p2D.y < 0 or p2D.y > self.actions.size[1]: return False
+        ray = self.Point_to_Ray(point, max_dist_offset=-0.001)
         if not ray: return False
-        if normal is not None and normal.dot(ray.d) <= 0: return False
+        if normal and normal.dot(ray.d) >= 0: return False
         return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
 
 
