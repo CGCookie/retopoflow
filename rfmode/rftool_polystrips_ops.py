@@ -272,84 +272,108 @@ class RFTool_PolyStrips_Ops:
             for bmv in bmf.verts:
                 self.rfcontext.snap2D_vert(bmv)
     
+    @RFTool.dirty_when_done
     def change_count(self, delta):
-        if len(self.strips) == 0:
-            if delta <= 0: return
-            # check if there is a single selected quad that could be turned into a strip
-            #  [ | | | | ]
-            #      |O|      <- with this selected, split into two
-            #  [ | | | | ]
-            
-            bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
-            for bmf in bmquads:
-                bmes = [bme if len(bme.link_faces) == 2 else None for bme in bmf.edges]
-                if bmes[0] and not bmes[1] and bmes[2] and not bmes[3]:
-                    break
-                if not bmes[0] and bmes[1] and not bmes[2] and bmes[3]:
-                    break
-            else:
-                self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
-                return
-            self.rfcontext.undo_push('change PS segment count')
-            bme0,bme1 = bmes[0] or bmes[1],bmes[2] or bmes[3]
-            p0,p1 = bme0.calc_center(),bme1.calc_center()
-            radius = (bme0.calc_length()+bme1.calc_length()) / 4
-            dprint('changing quad into strip (%d)' % (delta))
-            self.rfcontext.delete_faces([bmf])
-            cb = CubicBezier.create_from_points([p0,p1])
-            faces = self.insert_strip(cb, 1+delta, radius, bme_start=bme0, bme_end=bme1)
-            self.rfcontext.select(faces)
-            for bmf in faces:
-                if not bmf.is_valid: continue
-                for bmv in bmf.verts:
-                    self.rfcontext.snap_vert(bmv)
-            return
+        '''
+        find parallel strips of boundary edges, fit curve to verts of strips, then
+        recompute faces based on curves.
         
-        # find first strip that is simple enough to modify
+        note: this op will only change counts along boundaries.  otherwise, use loop cut
+        '''
+        
+        nfaces = []
+        
+        def process(bmfs, bmes):
+            nonlocal nfaces
+            
+            # find edge strips
+            strip0,strip1 = [bmes[0].verts[0]], [bmes[0].verts[1]]
+            edges0,edges1 = [],[]
+            for bmf,bme0 in zip(bmfs,bmes):
+                bme1,bme2 = bmf.neighbor_edges(bme0)
+                if strip0[-1] in bme2.verts: bme1,bme2 = bme2,bme1
+                strip0.append(bme1.other_vert(strip0[-1]))
+                strip1.append(bme2.other_vert(strip1[-1]))
+                edges0.append(bme1)
+                edges1.append(bme2)
+            pts0,pts1 = [v.co for v in strip0],[v.co for v in strip1]
+            lengths0 = [(p0-p1).length for p0,p1 in iter_pairs(pts0, False)]
+            lengths1 = [(p0-p1).length for p0,p1 in iter_pairs(pts1, False)]
+            length0,length1 = sum(lengths0),sum(lengths1)
+            
+            max_error = min(min(lengths0),min(lengths1)) / 100.0   # arbitrary!
+            spline0 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts0]], max_error)
+            spline1 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts1]], max_error)
+            len0,len1 = len(spline0), len(spline1)
+            
+            count = len(bmfs)
+            ncount = max(1, count + delta)
+            
+            # approximate ts along each strip
+            ts0 = [len0*i/ncount for i in range(ncount+1)]
+            ts1 = [len1*i/ncount for i in range(ncount+1)]
+            
+            self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
+            
+            new_vert = self.rfcontext.new_vert_point
+            verts0 = strip0[:1] + [new_vert(spline0.eval(t)) for t in ts0[1:-1]] + strip0[-1:]
+            verts1 = strip1[:1] + [new_vert(spline1.eval(t)) for t in ts1[1:-1]] + strip1[-1:]
+            
+            for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
+                nfaces.append(self.rfcontext.new_face([v00,v01,v11,v10]))
+            
+            
+        
+        # find selected faces that are not part of strips
+        #  [ | | | | | | | ]
+        #      |O|     |O|    <- with either of these selected, split into two
+        #  [ | | | ]
+        
+        bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
+        bmquads = [bmq for bmq in bmquads if not any(bmq in strip for strip in self.strips)]
+        for bmf in bmquads:
+            bmes = list(bmf.edges)
+            boundaries = [len(bme.link_faces) == 2 for bme in bmf.edges]
+            if (boundaries[0] or boundaries[2]) and not boundaries[1] and not boundaries[3]:
+                process([bmf], [bmes[0],bmes[2]])
+                continue
+            if (boundaries[1] or boundaries[3]) and not boundaries[0] and not boundaries[2]:
+                process([bmf], [bmes[1],bmes[3]])
+                continue
+        
+        # find boundary portions of each strip
+        # TODO: what if there are multiple boundary portions??
+        #  [ | |O| | ]
+        #      |O|      <-
+        #      |O|      <- only working on this part of strip
+        #      |O|      <-
+        #      |O| | ]
+        #  [ | |O| | ]
+        
         for strip in self.strips:
-            if len(strip) != 1:
-                # skip, because strip uses more than one curve
-                continue
-            bmf_strip = strip.bmf_strip
-            bme0,bme1 = strip.bme0,strip.bme1
-            dontcount = set(bmf_strip) | set(bme0.link_faces) | set(bme1.link_faces)
-            if sum(1 for f in bmf_strip for e in f.edges for f_ in e.link_faces if f_ not in dontcount) != 0:
-                # skip, because there are faces attached :(
-                continue
-            
-            self.rfcontext.undo_push('change PS segment count')
-            
-            c0,c1 = len(bme0.link_faces)==2,len(bme1.link_faces)==2
-            
-            radius = sum(rad for bme,_,rad,_,_,_,_ in strip.bmes) / len(strip.bmes)
-            count = len(bmf_strip)
-            count_new = max(count + delta, 1 if c0 and c1 else 2)
-            #dprint('changing strip count: %d > %d (%d)' % (count,count_new, delta))
-            if count == count_new: return
-            self.rfcontext.delete_faces(bmf_strip)
-            faces = self.insert_strip(strip.curve, count_new, radius, bme_start=bme0 if c0 else None, bme_end=bme1 if c1 else None)
-            self.rfcontext.select(faces)
-            for bmf in faces:
-                if not bmf.is_valid: continue
-                for bmv in bmf.verts:
-                    self.rfcontext.snap_vert(bmv)
-            break
-
-        # pass
-        # sel_edges = self.rfcontext.get_selected_edges()
-        # loops = find_loops(sel_edges)
-        # if len(loops) != 1: return
-        # loop = loops[0]
-        # count = len(loop)
-        # count_new = max(3, count+delta)
-        # if count == count_new: return
-        # if any(len(v.link_edges) != 2 for v in loop): return
-        # cl = Contours_Loop(loop, True)
-        # avg = Point.average(v.co for v in loop)
-        # plane = cl.plane
-        # ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
-        # self.rfcontext.delete_edges(e for v in loop for e in v.link_edges)
-        # self.new_cut(ray, plane, walk=True, count=count_new)
+            bmfs,bmes = [],[]
+            bme0 = strip.bme0
+            for bmf in strip:
+                bme2 = bmf.opposite_edge(bme0)
+                bme1,bme3 = bmf.neighbor_edges(bme0)
+                if len(bme1.link_faces) == 1 and len(bme3.link_faces) == 1:
+                    bmes.append(bme0)
+                    bmfs.append(bmf)
+                else:
+                    # if we've already seen a portion of the strip that can be modified, break!
+                    if bmfs:
+                        bmes.append(bme0)
+                        break
+                bme0 = bme2
+            else:
+                bmes.append(bme0)
+            if not bmfs: continue
+            process(bmfs, bmes)
+        
+        if nfaces:
+            self.rfcontext.select(nfaces, supparts=False, only=False)
+        else:
+            self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
     
     @RFTool.dirty_when_done
     def insert_strip(self, cb, steps, radius, bme_start=None, bme_end=None):
