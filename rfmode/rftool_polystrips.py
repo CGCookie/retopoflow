@@ -255,10 +255,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             return
         
         if self.rfcontext.actions.pressed('increase count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1)
             return
         
         if self.rfcontext.actions.pressed('decrease count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
             return
     

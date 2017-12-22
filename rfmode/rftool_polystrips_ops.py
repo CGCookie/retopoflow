@@ -310,8 +310,18 @@ class RFTool_PolyStrips_Ops:
             ncount = max(1, count + delta)
             
             # approximate ts along each strip
-            ts0 = [len0*i/ncount for i in range(ncount+1)]
-            ts1 = [len1*i/ncount for i in range(ncount+1)]
+            def approx_ts(spline_len, lengths):
+                nonlocal ncount,count
+                accum_ts_old = [0]
+                for l in lengths: accum_ts_old.append(accum_ts_old[-1] + l)
+                total_ts_old = sum(lengths)
+                ts_old = [Vector((i, t / total_ts_old, 0)) for i,t in enumerate(accum_ts_old)]
+                spline_ts_old = CubicBezierSpline.create_from_points([ts_old], 0.01)
+                spline_ts_old_len = len(spline_ts_old)
+                ts = [spline_len * spline_ts_old.eval(spline_ts_old_len * i / ncount).y for i in range(ncount+1)]
+                return ts
+            ts0 = approx_ts(len0, lengths0)
+            ts1 = approx_ts(len1, lengths1)
             
             self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
             
