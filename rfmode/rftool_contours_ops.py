@@ -105,7 +105,12 @@ class RFTool_Contours_Ops:
         
         if connected:
             # find two closest selected loops, one on each side
+            #sel_loops = find_loops(sel_edges)
+            # find loops running parallel to selection
             sel_loops = find_loops(sel_edges)
+            parallel_loops = [ploop for loop in sel_loops for ploop in find_parallel_loops(loop)]
+            sel_loops += parallel_loops
+            
             sel_loop_planes = [loop_plane(loop) for loop in sel_loops]
             sel_loops_pos = sorted([
                 (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
@@ -128,6 +133,9 @@ class RFTool_Contours_Ops:
         else:
             # find two closest selected strings, one on each side
             sel_strings = find_strings(sel_edges)
+            parallel_strings = [pstring for string in sel_strings for pstring in find_parallel_loops(string, False)]
+            sel_strings += parallel_strings
+            
             sel_string_planes = [loop_plane(string) for string in sel_strings]
             sel_strings_pos = sorted([
                 (string, plane.distance_to(p.o), len(string), string_length(string))

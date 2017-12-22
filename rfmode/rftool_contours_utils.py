@@ -92,6 +92,48 @@ def find_loops(edges):
 
     return loops
 
+def find_parallel_loops(loop, wrap=True):
+    def find_opposite_loop(loop, bmf):
+        # find edge loop on opposite side of given face from given edge
+        bmv0,bmv1 = loop[:2]
+        bme01 = bmv0.shared_edge(bmv1)
+        bme03 = next((bme for bme in bmf.neighbor_edges(bme01) if bmv0 in bme.verts), None)
+        if not bme03: return None
+        bmv_opposite = bme03.other_vert(bmv0)
+        ploop = []
+        for bmv0,bmv1 in iter_pairs(loop, wrap):
+            if not bmf: return None
+            if len(bmf.verts) != 4: return None
+            ploop.append(bmv_opposite)
+            bmv_opposite = next(iter(set(bmf.verts)-{bmv0,bmv1,bmv_opposite}), None)
+            if not bmv_opposite: return None
+            bme = bmv1.shared_edge(bmv_opposite)
+            if not bme: return None
+            bmf = next(iter(set(bme.link_faces) - {bmf}), None)
+        if not ploop: return None
+        if not wrap: ploop.append(bmv_opposite)
+        return ploop
+    
+    ploops = []
+    
+    bmv0,bmv1 = loop[:2]
+    bme01 = bmv0.shared_edge(bmv1)
+    bmfs = [bmf for bmf in bme01.link_faces]
+    for bmf in bmfs:
+        bme0 = bme01
+        lloop = loop
+        while bmf:
+            ploop = find_opposite_loop(lloop, bmf)
+            if not ploop: break
+            ploops.append(ploop)
+            bme1 = bmf.opposite_edge(bme0)
+            if not bme1: break
+            bmf = next((bmf_ for bmf_ in bme1.link_faces if bmf_ != bmf), None)
+            bme0 = bme1
+            lloop = ploop
+    
+    return ploops
+
 def find_strings(edges, min_length=4):
     if not edges: return []
     touched,strings = set(),[]
