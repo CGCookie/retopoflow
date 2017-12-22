@@ -83,6 +83,7 @@ class RFContext_Drawing:
         return False
     
     def alert_user(self, title=None, message=None, level=None):
+        show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
         if level in {'warning'}:
@@ -109,6 +110,7 @@ class RFContext_Drawing:
                 'RetopoFlow: %s, Blender: %s' % (retopoflow_version, blender_version),
                 ])
             message = msg + (('\n\n%s' % message) if message else '')
+            show_quit = True
         else:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
@@ -117,6 +119,8 @@ class RFContext_Drawing:
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
+        def quit():
+            self.exit = True
         def screenshot():
             ss_filename = options['screenshot filename']
             if bpy.data.filepath == '':
@@ -165,6 +169,8 @@ class RFContext_Drawing:
         if level in {'assert', 'exception'}:
             container.add(UI_Button('Screenshot', screenshot, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             container.add(UI_Button('Report', report, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        if show_quit:
+            container.add(UI_Button('Quit', quit, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
     
     def _init_drawing(self):
