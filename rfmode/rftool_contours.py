@@ -77,8 +77,18 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     
     def update(self):
         sel_edges = self.rfcontext.get_selected_edges()
+        #sel_faces = self.rfcontext.get_selected_faces()
+        
+        # find verts along selected loops and strings
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges)
+        
+        # filter out any loops or strings that are in the middle of a selected patch
+        def in_middle(bmvs, is_loop):
+            return any(len(bmv0.shared_edge(bmv1).link_faces) > 1 for bmv0,bmv1 in iter_pairs(bmvs, is_loop))
+        sel_loops = [loop for loop in sel_loops if not in_middle(loop, True)]
+        sel_strings = [string for string in sel_strings if not in_middle(string, False)]
+        
         self.loops_data = [{
             'loop': loop,
             'plane': loop_plane(loop),
