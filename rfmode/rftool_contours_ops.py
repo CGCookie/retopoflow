@@ -72,6 +72,7 @@ class RFTool_Contours_Ops:
         # get crawl data (over source)
         pts = [c for (f0,e,f1,c) in crawl]
         connected_preclip = crawl[0][0] is not None
+        center = Point.average(pts)
         pts,connected = self.rfcontext.clip_pointloop(pts, connected_preclip)
         if not pts: return
         
@@ -105,23 +106,39 @@ class RFTool_Contours_Ops:
         
         if connected:
             # find two closest selected loops, one on each side
-            #sel_loops = find_loops(sel_edges)
-            # find loops running parallel to selection
             sel_loops = find_loops(sel_edges)
-            parallel_loops = [ploop for loop in sel_loops for ploop in find_parallel_loops(loop)]
-            sel_loops += parallel_loops
+            # find loops running parallel to selection
+            par_loops = [ploop for loop in sel_loops for ploop in find_parallel_loops(loop)]
             
-            sel_loop_planes = [loop_plane(loop) for loop in sel_loops]
-            sel_loops_pos = sorted([
-                (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
-                for loop,p in zip(sel_loops, sel_loop_planes) if plane.side(p.o) > 0
-                ], key=lambda data:data[1])
-            sel_loops_neg = sorted([
-                (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
-                for loop,p in zip(sel_loops, sel_loop_planes) if plane.side(p.o) < 0
-                ], key=lambda data:data[1])
-            sel_loop_pos = next(iter(sel_loops_pos), None)
-            sel_loop_neg = next(iter(sel_loops_neg), None)
+            sel_loop_planes = [(loop, loop_plane(loop)) for loop in sel_loops]
+            par_loop_planes = [(loop, loop_plane(loop)) for loop in par_loops]
+            
+            def get_closest(loop_planes, positive):
+                nonlocal center, plane
+                mult = 1 if positive else -1
+                loops = sorted([
+                    # loop, distance to loop, segment count of loop, loop circumference
+                    #(loop, plane.distance_to(p.o), len(loop), loop_length(loop))
+                    (loop, (loop_plane.o - center).length, len(loop), loop_length(loop))
+                    for loop,loop_plane in loop_planes if plane.side(loop_plane.o)*mult > 0
+                    ], key=lambda data:data[1])
+                return next(iter(loops), None)
+            # (loop, plane.distance_to(p.o), len(loop), loop_length(loop))
+            # for loop,p in zip(sel_loops, sel_loop_planes) if plane.side(p.o) > 0
+            
+            sel_loop_pos = get_closest(sel_loop_planes, True)
+            sel_loop_neg = get_closest(sel_loop_planes, False)
+            par_loop_pos = get_closest(par_loop_planes, True)
+            par_loop_neg = get_closest(par_loop_planes, False)
+            
+            # if we've got only one selected loop, see if any parallel loops are closer
+            if sel_loop_pos and par_loop_pos:
+                if par_loop_pos[1] < sel_loop_pos[1]:
+                    sel_loop_pos = par_loop_pos
+            if sel_loop_neg and par_loop_neg:
+                if par_loop_neg[1] < sel_loop_neg[1]:
+                    sel_loop_neg = par_loop_neg
+            
             if sel_loop_pos and sel_loop_neg:
                 if sel_loop_pos[2] != sel_loop_neg[2]:
                     # selected loops do not have same count of vertices

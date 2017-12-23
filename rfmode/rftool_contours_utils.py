@@ -119,10 +119,13 @@ def find_parallel_loops(loop, wrap=True):
     bmv0,bmv1 = loop[:2]
     bme01 = bmv0.shared_edge(bmv1)
     bmfs = [bmf for bmf in bme01.link_faces]
+    touched = set()
     for bmf in bmfs:
         bme0 = bme01
         lloop = loop
         while bmf:
+            if bmf in touched: break
+            touched.add(bmf)
             ploop = find_opposite_loop(lloop, bmf)
             if not ploop: break
             ploops.append(ploop)
