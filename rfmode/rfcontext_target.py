@@ -165,15 +165,15 @@ class RFContext_Target:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.x / (p0.x - p1.x))]
             pointloop = npl
-        if 'y' in self.rftarget.symmetry and any(p.y < 0 for p in pointloop):
+        if 'y' in self.rftarget.symmetry and any(p.y > 0 for p in pointloop):
             if connected:
-                rot_idx = next(i for i,p in enumerate(pointloop) if p.y < 0)
+                rot_idx = next(i for i,p in enumerate(pointloop) if p.y > 0)
                 pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
             npl = []
             for p0,p1 in iter_pairs(pointloop, connected):
-                if p0.y < 0 and p1.y < 0: continue
+                if p0.y > 0 and p1.y > 0: continue
                 elif p0.y == 0: npl += [p0]
-                elif p0.y > 0 and p1.y > 0: npl += [p0]
+                elif p0.y < 0 and p1.y < 0: npl += [p0]
                 else:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.y / (p0.y - p1.y))]
@@ -200,7 +200,7 @@ class RFContext_Target:
     def is_point_on_mirrored_side(self, point):
         p = self.rftarget.xform.w2l_point(point)
         if 'x' in self.rftarget.symmetry and p.x < 0: return True
-        if 'y' in self.rftarget.symmetry and p.y < 0: return True
+        if 'y' in self.rftarget.symmetry and p.y > 0: return True
         if 'z' in self.rftarget.symmetry and p.z < 0: return True
         return False
 
