@@ -159,7 +159,7 @@ class RFTool_Contours_Ops:
         if not count:
             count = self.get_count()
             if connected != connected_preclip:
-                count = int(count / 2) + 1
+                count = int(math.ceil(count / 2)) + 1
         #count = count or self.get_count()
         count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else count
         count = sel_string_pos[2] if sel_string_pos else sel_string_neg[2] if sel_string_neg else count

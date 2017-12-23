@@ -134,7 +134,7 @@ def find_parallel_loops(loop, wrap=True):
     
     return ploops
 
-def find_strings(edges, min_length=4):
+def find_strings(edges, min_length=3):
     if not edges: return []
     touched,strings = set(),[]
 
