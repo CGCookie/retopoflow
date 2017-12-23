@@ -93,6 +93,29 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         bmes = {bmv0.shared_edge(bmv1) for string in sel_strings for bmv0,bmv1 in iter_pairs(string,False)}
         sel_loops = [loop for loop in sel_loops if not any(bmv0.shared_edge(bmv1) in bmes for bmv0,bmv1 in iter_pairs(loop,True))]
         
+        symmetry = self.rfcontext.rftarget.symmetry
+        symmetry_threshold = 0.01
+        def get_string_length(string):
+            nonlocal symmetry, symmetry_threshold
+            c = len(string)
+            if c == 0: return 0
+            touches_mirror = False
+            (x0,y0,z0),(x1,y1,z1) = string[0].co,string[-1].co
+            if 'x' in symmetry:
+                if abs(x0) < symmetry_threshold or abs(x1) < symmetry_threshold:
+                    c = (c - 1) * 2
+                    touches_mirror = True
+            if 'y' in symmetry:
+                if abs(y0) < symmetry_threshold or abs(y1) < symmetry_threshold:
+                    c = (c - 1) * 2
+                    touches_mirror = True
+            if 'z' in symmetry:
+                if abs(z0) < symmetry_threshold or abs(z1) < symmetry_threshold:
+                    c = (c - 1) * 2
+                    touches_mirror = True
+            if not touches_mirror: c -= 1
+            return c
+        
         self.loops_data = [{
             'loop': loop,
             'plane': loop_plane(loop),
@@ -103,7 +126,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.strings_data = [{
             'string': string,
             'plane': loop_plane(string),
-            'count': len(string),
+            'count': get_string_length(string),
             'cl': Contours_Loop(string, False),
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]

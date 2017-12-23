@@ -71,8 +71,8 @@ class RFTool_Contours_Ops:
         
         # get crawl data (over source)
         pts = [c for (f0,e,f1,c) in crawl]
-        connected = crawl[0][0] is not None
-        pts,connected = self.rfcontext.clip_pointloop(pts, connected)
+        connected_preclip = crawl[0][0] is not None
+        pts,connected = self.rfcontext.clip_pointloop(pts, connected_preclip)
         if not pts: return
         
         self.rfcontext.undo_push('cut')
@@ -156,7 +156,11 @@ class RFTool_Contours_Ops:
                     else:
                         sel_string_pos = None
         
-        count = count or self.get_count()
+        if not count:
+            count = self.get_count()
+            if connected != connected_preclip:
+                count = int(count / 2) + 1
+        #count = count or self.get_count()
         count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else count
         count = sel_string_pos[2] if sel_string_pos else sel_string_neg[2] if sel_string_neg else count
         
