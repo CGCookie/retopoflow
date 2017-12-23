@@ -98,9 +98,13 @@ class RFTool(metaclass=SingletonRegisterClass):
             print('ERROR: caught exception ' + str(e))
     
     def modal(self):
-        if not self._success: return
-        nmode = self.FSM[self.mode]()
-        if nmode: self.mode = nmode
+        try:
+            if not self._success: return
+            nmode = self.FSM[self.mode]()
+            if nmode: self.mode = nmode
+        except Exception as e:
+            self.mode = 'main'
+            raise e
     
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self): pass

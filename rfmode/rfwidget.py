@@ -174,9 +174,13 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.hit_rmat = rmat
     
     def modal(self):
-        nmode = self.FSM[self.mode]()
-        if nmode: self.mode = nmode
-        return self.mode == 'main'
+        try:
+            nmode = self.FSM[self.mode]()
+            if nmode: self.mode = nmode
+            return self.mode == 'main'
+        except Exception as e:
+            self.mode = 'main'
+            raise e
     
     # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
     def no_mouse_cursor(self): return 'DEFAULT'

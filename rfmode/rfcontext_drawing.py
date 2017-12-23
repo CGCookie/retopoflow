@@ -119,6 +119,7 @@ class RFContext_Drawing:
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
+            self.alert_windows -= 1
         def quit():
             self.exit = True
         def screenshot():
@@ -154,6 +155,10 @@ class RFContext_Drawing:
             if event.type == 'ESC' and event.value == 'RELEASE':
                 close()
         
+        if self.alert_windows >= 5:
+            return
+            #self.exit = True
+        
         opts = {
             'sticky': 5,
             'movable': False,
@@ -172,10 +177,14 @@ class RFContext_Drawing:
         if show_quit:
             container.add(UI_Button('Quit', quit, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
+        self.alert_windows += 1
+        
     
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
         self.window_manager = UI_WindowManager()
+        
+        self.alert_windows = 0
         
         def get_selected_tool():
             return self.tool.name()

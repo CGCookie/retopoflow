@@ -169,6 +169,7 @@ class RFMode(Operator):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
+        profiler.reset()
         
         # remember current mode and set to object mode so we can control
         # how the target mesh is rendered and so we can push new data
@@ -521,8 +522,10 @@ class RFMode(Operator):
         
         if profiler.broken:
             # something bad happened, so bail!
-            self.framework_end()
-            return {'CANCELLED'}
+            self.rfctx.alert_user(title='Broken Profiler', message='The profiler is in an unexpected state.', level='exception')
+            profiler.reset()
+            #self.framework_end()
+            #return {'CANCELLED'}
 
         # # handle strange edge cases
         # if not context.area:

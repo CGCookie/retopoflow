@@ -82,6 +82,10 @@ class Profiler:
         self.debug = True
         options['profiler'] = True
     
+    def reset(self):
+        self.broken = False
+        self.clear()
+    
     def clear(self):
         self.d_start = {}
         self.d_times = {}
