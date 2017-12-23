@@ -1080,6 +1080,9 @@ class RFTarget(RFMesh):
             bpy.ops.object.modifier_add(type='MIRROR')
             self.mirror_mod = self.obj.modifiers[-1]
             self.mirror_mod.show_on_cage = True
+            self.mirror_mod.use_x = False
+            self.mirror_mod.use_y = False
+            self.mirror_mod.use_z = False
         self.editmesh_version = None
 
     def __deepcopy__(self, memo):
