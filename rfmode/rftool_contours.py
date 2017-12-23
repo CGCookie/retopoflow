@@ -89,6 +89,10 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         sel_loops = [loop for loop in sel_loops if not in_middle(loop, True)]
         sel_strings = [string for string in sel_strings if not in_middle(string, False)]
         
+        # filter out long loops that wrap around patches, sharing edges with other strings
+        bmes = {bmv0.shared_edge(bmv1) for string in sel_strings for bmv0,bmv1 in iter_pairs(string,False)}
+        sel_loops = [loop for loop in sel_loops if not any(bmv0.shared_edge(bmv1) in bmes for bmv0,bmv1 in iter_pairs(loop,True))]
+        
         self.loops_data = [{
             'loop': loop,
             'plane': loop_plane(loop),
@@ -448,6 +452,8 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
         self.rfcontext.drawing.text_size(12)
+        
+        bmv_count = {}
 
         for loop_data in self.loops_data:
             loop = loop_data['loop']
@@ -460,9 +466,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             cos = [point_to_point2d(vert.co) for vert in loop]
             cos = [co for co in cos if co]
             if cos:
-                xy = max(cos, key=lambda co:co.y)
-                xy.y += 10
-                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+                bmv = max(loop, key=lambda bmv:point_to_point2d(bmv.co).y)
+                if bmv not in bmv_count: bmv_count[bmv] = []
+                bmv_count[bmv].append( (count, True) )
 
             # draw arrows
             if self.show_arrows:
@@ -486,9 +492,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             cos = [point_to_point2d(vert.co) for vert in string]
             cos = [co for co in cos if co]
             if cos:
-                xy = max(cos, key=lambda co:co.y)
-                xy.y += 10
-                text_draw2D(count, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+                bmv = max(string, key=lambda bmv:point_to_point2d(bmv.co).y)
+                if bmv not in bmv_count: bmv_count[bmv] = []
+                bmv_count[bmv].append( (count, False) )
             
             # draw arrows
             if self.show_arrows:
@@ -501,6 +507,14 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
+        
+        for bmv in bmv_count.keys():
+            counts = bmv_count[bmv]
+            counts = sorted([c for c,_ in counts])
+            s = ','.join(map(str, counts))
+            xy = point_to_point2d(bmv.co)
+            xy.y += 10
+            text_draw2D(s, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
         
         # draw new cut info
         if self.show_cut:
