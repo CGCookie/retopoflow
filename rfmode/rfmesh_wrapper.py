@@ -27,7 +27,7 @@ from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
-from ..common.maths import Vec2D, Point
+from ..common.maths import Vec2D, Point, Direction
 from ..lib.common_utilities import dprint
 
 
@@ -217,6 +217,12 @@ class RFEdge(BMElemWrapper):
     def calc_center(self):
         v0,v1 = self.bmelem.verts
         return self.l2w_point((v0.co + v1.co) / 2)
+    
+    def vector(self):
+        v0,v1 = self.verts
+        return v1.co - v0.co
+    
+    def direction(self): return Direction(self.vector())
     
     #############################################
 

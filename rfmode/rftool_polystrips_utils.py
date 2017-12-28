@@ -23,10 +23,12 @@ import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_line_line_2d
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec, Normal, clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.utils import iter_pairs
+from ..lib.common_utilities import dprint
 
 def is_boundaryedge(bme, only_bmfs):
     return len(set(bme.link_faces) & only_bmfs) == 1
@@ -79,6 +81,160 @@ def strip_details(strip):
 def hash_face_pair(bmf0, bmf1):
     return str(bmf0.__hash__()) + str(bmf1.__hash__())
 
+
+def process_stroke_filter(stroke, min_distance=1.0):
+    '''
+    filter stroke to pts that are at least min_distance apart
+    '''
+    nstroke = stroke[:1]
+    for p in stroke[1:]:
+        if (p - nstroke[-1]).length < min_distance: continue
+        nstroke.append(p)
+    return nstroke
+
+def process_stroke_split_at_crossings(stroke):
+    strokes = []
+    stroke = list(stroke)
+    l = len(stroke)
+    cstroke = [stroke.pop()]
+    while stroke:
+        if not stroke[-1]:
+            strokes.append(cstroke)
+            stroke.pop()
+            cstroke = [stroke.pop()]
+            continue
+        p0,p1 = cstroke[-1],stroke[-1]
+        # see if p0-p1 segment crosses any other segment
+        for i in range(len(stroke)-3):
+            q0,q1 = stroke[i+0],stroke[i+1]
+            if q0 is None or q1 is None: continue
+            p = intersect_line_line_2d(p0,p1, q0,q1)
+            if not p: continue
+            if (p-p0).length < 0.000001 or (p-p1).length < 0.000001: continue
+            # intersection!
+            strokes.append(cstroke + [p])
+            cstroke = [p]
+            # note: inserting None to indicate broken stroke
+            stroke = stroke[:i+1] + [p,None,p] + stroke[i+1:]
+            break
+        else:
+            # no intersections!
+            cstroke.append(stroke.pop())
+    if cstroke: strokes.append(cstroke)
+    return strokes
+
+def process_stroke_get_next(stroke, from_edge, edges2D):
+    # returns the next chunk of stroke to be processed
+    # stops at...
+    # - intersection with self
+    # - intersection with edges (ignoring from_edge)
+    # - "strong" corners
+    
+    cstroke = []
+    to_edge = None
+    curve_distance, curve_threshold = 25.0, math.cos(60.0 * math.pi/180.0)
+    
+    def compute_cosangle_at_index(idx):
+        nonlocal stroke
+        if idx >= len(stroke): return 1.0
+        p0 = stroke[idx]
+        for iprev in range(idx-1, -1, -1):
+            pprev = stroke[iprev]
+            if (p0-pprev).length < curve_distance: continue
+            break
+        else:
+            return 1.0
+        for inext in range(idx+1, len(stroke)):
+            pnext = stroke[inext]
+            if (p0-pnext).length < curve_distance: continue
+            break
+        else:
+            return 1.0
+        dprev = (p0 - pprev).normalized()
+        dnext = (pnext - p0).normalized()
+        cosangle = dprev.dot(dnext)
+        return cosangle
+    
+    for i0 in range(1, len(stroke)-1):
+        i1 = i0 + 1
+        p0,p1 = stroke[i0],stroke[i1]
+        
+        # check for self-intersection
+        for j0 in range(i0+3, len(stroke)-1):
+            q0,q1 = stroke[j0],stroke[j0+1]
+            p = intersect_line_line_2d(p0,p1, q0,q1)
+            if not p: continue
+            dprint('self: %d %d' % (i0, len(stroke)))
+            cstroke = stroke[:i1] + [p]
+            stroke = [p] + stroke[i1:]
+            return (from_edge, cstroke, None, stroke)
+        
+        # check for intersections with edges
+        for bme,(q0,q1) in edges2D:
+            if bme is from_edge: continue
+            p = intersect_line_line_2d(p0,p1, q0,q1)
+            if not p: continue
+            dprint('edge: %d %d' % (i0, len(stroke)))
+            cstroke = stroke[:i1] + [p]
+            stroke = [p] + stroke[i1:]
+            return (from_edge, cstroke, bme, stroke)
+        
+        # check for strong angles
+        cosangle = compute_cosangle_at_index(i0)
+        if cosangle > curve_threshold: continue
+        # found a strong angle, but there may be a stronger angle coming up...
+        minangle = cosangle
+        for i0_plus in range(i0+1, len(stroke)):
+            p0_plus = stroke[i0_plus]
+            if (p0-p0_plus).length > curve_distance: break
+            minangle = min(compute_cosangle_at_index(i0_plus), minangle)
+            if minangle < cosangle: break
+        if minangle < cosangle: continue
+        dprint('bend: %d %d' % (i0, len(stroke)))
+        return (from_edge, stroke[:i1], None, stroke[i1:])
+    
+    dprint('full: %d %d' % (len(stroke), len(stroke)))
+    return (from_edge, stroke, None, [])
+
+def process_stroke_get_marks(stroke, at_dists):
+    marks = []
+    tot_dist = 0
+    i_at_dists = 0
+    i_stroke = 1
+    cp = stroke[0]
+    np = stroke[1]
+    dist_to_np = (np-cp).length
+    dir_to_np = (np-cp).normalized()
+    
+    while len(marks) < len(at_dists):
+        # can we go to np without passing next mark?
+        dratio = (at_dists[i_at_dists] - tot_dist) / dist_to_np
+        if dratio > 1:
+            tot_dist += dist_to_np
+            i_stroke += 1
+            if i_stroke == len(stroke): break
+            cp,np = np,stroke[i_stroke]
+            dist_to_np = (np-cp).length
+            dir_to_np = (np-cp).normalized()
+            continue
+        dist_traveled = dist_to_np * dratio
+        cp = cp + dir_to_np * dist_traveled
+        marks.append(cp)
+        dist_to_np -= dist_traveled
+        tot_dist += dist_traveled
+        i_at_dists += 1
+    
+    while len(marks) < len(at_dists):
+        marks.append(stroke[-1])
+    
+    return marks
+
+def mark_info(marks, imark):
+    imark0 = max(imark-1, 0)
+    imark1 = min(imark+1, len(marks)-1)
+    tangent = (marks[imark1] - marks[imark0]).normalized()
+    perpendicular = Vec2D((-tangent.y, tangent.x))
+    return (marks[imark], tangent, perpendicular)
 
 
 class RFTool_PolyStrips_Strip:

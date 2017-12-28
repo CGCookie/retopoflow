@@ -23,9 +23,9 @@ import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_point_tri_2d
+from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.ui import UI_Image
 from ..common.utils import iter_pairs
@@ -37,8 +37,10 @@ from .rftool_polystrips_utils import (
     hash_face_pair,
     strip_details,
     crawl_strip,
-    is_boundaryvert,
-    is_boundaryedge,
+    is_boundaryvert, is_boundaryedge,
+    process_stroke_filter, process_stroke_split_at_crossings,
+    process_stroke_get_next, process_stroke_get_marks,
+    mark_info,
     )
 
 class RFTool_PolyStrips_Ops:
@@ -46,6 +48,159 @@ class RFTool_PolyStrips_Ops:
     @RFTool.dirty_when_done
     def stroke(self):
         # called when artist finishes a stroke
+        self.stroke_new()
+        #self.stroke_old()
+    
+    def stroke_new(self):
+        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        # todo: stroke may fall off the source!! :(
+        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        
+        radius = self.rfwidget.size
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        vis_verts = self.rfcontext.visible_verts()
+        vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
+        vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
+        vis_edges2D,vis_faces2D = [],[]
+        new_geom = []
+        
+        def add_edge(bme): vis_edges2D.append((bme, [Point_to_Point2D(bmv.co) for bmv in bme.verts]))
+        def add_face(bmf): vis_faces2D.append((bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]))
+        
+        for bme in vis_edges: add_edge(bme)
+        for bmf in vis_faces: add_face(bmf)
+        
+        def intersect_face(pt):
+            # todo: rewrite! inefficient!
+            nonlocal vis_faces2D
+            for f,vs in vis_faces2D:
+                v0 = vs[0]
+                for v1,v2 in iter_pairs(vs[1:], False):
+                    if intersect_point_tri_2d(pt, v0, v1, v2): return f
+            return None
+        
+        def create_edge(center, perpendicular):
+            nonlocal new_geom
+            bmv0,bmv1 = None,None
+            r0,r1 = radius,radius
+            while bmv0 is None:
+                bmv0 = self.rfcontext.new2D_vert_point(center+perpendicular*r0)
+                r0 *= 0.80
+            while bmv1 is None:
+                bmv1 = self.rfcontext.new2D_vert_point(center-perpendicular*r1)
+                r1 *= 0.80
+            bme = self.rfcontext.new_edge([bmv0,bmv1])
+            add_edge(bme)
+            new_geom += [bme]
+            return bme
+        
+        def create_face(bme01, bme23):
+            #  0  3      0--3
+            #  |  |  ->  |  |
+            #  1  2      1--2
+            nonlocal new_geom
+            bmv0,bmv1 = bme01.verts
+            bmv2,bmv3 = bme23.verts
+            if bme01.vector().dot(bme23.vector()) > 0: bmv2,bmv3 = bmv3,bmv2
+            bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
+            bme12 = bmv1.shared_edge(bmv2)
+            bme30 = bmv3.shared_edge(bmv0)
+            add_edge(bme12)
+            add_edge(bme30)
+            add_face(bmf)
+            new_geom += [bme12, bme30, bmf]
+            return bmf
+        
+        self.rfcontext.undo_push('stroke')
+        
+        stroke = list(self.rfwidget.stroke2D)
+        # filter stroke down where each pt is at least 1px away to eliminate local wiggling
+        stroke = process_stroke_filter(stroke)
+        
+        from_edge = None
+        while len(stroke) > 2:
+            # get stroke segment to work on
+            from_edge,cstroke,to_edge,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
+            
+            # discard stroke segment if it lies in a face
+            if intersect_face(cstroke[1]):
+                print('stroke is on face (1)')
+                from_edge = to_edge
+                continue
+            if intersect_face(cstroke[-2]):
+                print('stroke is on face (-2)')
+                from_edge = to_edge
+                continue
+            
+            # estimate length of stroke (used with radius to determine num of quads)
+            stroke_len = sum((p0-p1).length for (p0,p1) in iter_pairs(cstroke,False))
+            
+            # marks start and end at center of quad, and alternate with
+            # edge and face, each approx radius distance apart
+            # +---+---+---+---+---+
+            # |   |   |   |   |   |
+            # +---+---+---+---+---+
+            #   ^ ^ ^ ^ ^ ^ ^ ^ ^  <-----marks (nmarks: 9, nquads: 5)
+            #     ^ ^ ^ ^ ^ ^ ^ ^  <- if from_edge not None
+            #   ^ ^ ^ ^ ^ ^ ^ ^    <- if to_edge not None
+            #     ^ ^ ^ ^ ^ ^ ^    <- if from_edge and to_edge are not None
+            # mark counts:
+            #     min marks = 3   [ | ]    (2 quads)
+            #     marks = 5      [ | | ]   (3 quads)
+            #     marks = 7     [ | | | ]  (4 quads)
+            #     marks must be odd
+            # if from_edge is not None, then stroke starts at edge
+            # if to_edge is not None, then stroke ends at edge
+            markoff0 = 0 if from_edge is None else 1
+            markoff1 = 0 if to_edge   is None else 1
+            nmarks = int(math.ceil(stroke_len / radius))        # approx num of marks
+            nmarks = nmarks + (1 - ((nmarks+markoff0+markoff1) % 2))  # make sure odd count
+            nmarks = max(nmarks, 3-markoff0-markoff1)           # min marks = 3
+            # marks are found at dists along stroke
+            at_dists = [stroke_len*i/(nmarks-1) for i in range(nmarks)]
+            # compute marks
+            marks = process_stroke_get_marks(cstroke, at_dists)
+            
+            # compute number of quads
+            nquads = int(((nmarks-markoff0-markoff1) + 1) / 2)
+            dprint('nmarks = %d, markoff0 = %d, markoff1 = %d, nquads = %d' % (nmarks, markoff0, markoff1, nquads))
+            
+            if from_edge and to_edge and nquads == 1:
+                bmv0,bmv1 = from_edge.verts
+                if bmv0 in to_edge.verts or bmv1 in to_edge.verts:
+                    self.rfcontext.alert_user(title='PolyStrips', message='Cannot create short strip between edges that share a vertex')
+                    self.rfcontext.undo_cancel()
+                    return
+            
+            # add edges
+            if from_edge is None:
+                # create from_edge
+                dprint('creating from_edge')
+                pt,tn,pe = mark_info(marks, 0)
+                from_edge = create_edge(pt-tn*radius, pe)
+            else:
+                new_geom += list(from_edge.link_faces)
+            
+            if to_edge is None:
+                dprint('creating to_edge')
+                pt,tn,pe = mark_info(marks, nmarks-1)
+                to_edge = create_edge(pt+tn*radius, pe)
+            else:
+                new_geom += list(to_edge.link_faces)
+            
+            for iquad in range(1, nquads):
+                #print('creating edge')
+                pt,tn,pe = mark_info(marks, iquad*2+markoff0-1)
+                bme = create_edge(pt, pe)
+                bmf = create_face(from_edge, bme)
+                from_edge = bme
+            bmf = create_face(from_edge, to_edge)
+            
+            from_edge = to_edge
+        
+        self.rfcontext.select(new_geom, supparts=False)
+    
+    def stroke_old(self):
         radius = self.rfwidget.get_scaled_size()
         stroke2D = list(self.rfwidget.stroke2D)
         bmfaces = []
