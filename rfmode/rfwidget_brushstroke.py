@@ -23,6 +23,7 @@ import math
 import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
+from ..common.shaders import brushStrokeShader
 from ..lib.common_utilities import dprint
 from ..options import themes
 
@@ -150,24 +151,33 @@ class RFWidget_BrushStroke:
             return
         
         if self.mode == 'stroke':
+            brushStrokeShader.enable()
             self.drawing.line_width(2.0)
-            self.drawing.enable_stipple()
-            bgl.glColor4f(*themes['stroke'])
+            #self.drawing.enable_stipple()
+            #bgl.glColor4f(*themes['stroke'])
+            brushStrokeShader['vColor'] = themes['stroke']
             bgl.glBegin(bgl.GL_LINE_STRIP)
+            d = 0
+            px,py = None,None
             for x,y in self.stroke2D:
+                brushStrokeShader['vDistAccum'] = d
                 bgl.glVertex2f(x,y)
+                if px is not None:
+                    d += math.sqrt((px-x)**2+(py-y)**2)
+                px,py = x,y
             bgl.glEnd()
-            bgl.glColor4f(1,1,1,0.15)
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            for x,y in self.stroke2D_left:
-                bgl.glVertex2f(x,y)
-            bgl.glEnd()
-            bgl.glColor4f(1,1,1,0.15)
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            for x,y in self.stroke2D_right:
-                bgl.glVertex2f(x,y)
-            bgl.glEnd()
-            self.drawing.disable_stipple()
+            # bgl.glColor4f(1,1,1,0.15)
+            # bgl.glBegin(bgl.GL_LINE_STRIP)
+            # for x,y in self.stroke2D_left:
+            #     bgl.glVertex2f(x,y)
+            # bgl.glEnd()
+            # bgl.glColor4f(1,1,1,0.15)
+            # bgl.glBegin(bgl.GL_LINE_STRIP)
+            # for x,y in self.stroke2D_right:
+            #     bgl.glVertex2f(x,y)
+            # bgl.glEnd()
+            #self.drawing.disable_stipple()
+            brushStrokeShader.disable()
             return
         
         

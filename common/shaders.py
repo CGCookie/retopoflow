@@ -13,6 +13,31 @@ from ..lib.common_shader import Shader
 dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
 
+brushStrokeShader = Shader('''
+    #version 130
+    
+    in vec2  vPos;
+    in vec4  vColor;
+    in float vDistAccum;
+    
+    out vec4 aColor;
+    out float aDistAccum;
+    
+    void main() {
+        gl_Position = gl_ModelViewProjectionMatrix * vec4(vPos, 0.0, 1.0);
+        aColor = vColor;
+        aDistAccum = vDistAccum;
+    }
+    ''', '''
+    #version 130
+    in vec4 aColor;
+    in float aDistAccum;
+    void main() {
+        if(int(aDistAccum / 2) % 4 >= 2) discard;
+        gl_FragColor = aColor;
+    }
+    ''', checkErrors=False)
+
 edgeShortenShader = Shader('''
     #version 130
     
