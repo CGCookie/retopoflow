@@ -38,7 +38,7 @@ from ..lib.common_utilities import get_source_object, get_target_object, setup_t
 from ..lib.common_utilities import bversion, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
 from ..lib.common_utilities import ray_cast_region2d_bvh, invert_matrix
-from ..lib.common_drawing_bmesh import BMeshRender
+from ..lib.common_drawing_bmesh_13 import BMeshRender
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush
 from ..lib.classes.bmeshcache.bmeshcache import BMeshCache

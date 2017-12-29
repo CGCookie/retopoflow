@@ -752,6 +752,7 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
     dn = opts_.get('normal', 0.0)
     vdict = opts_.get('vertex dict', {})
     
+    if enableShader: bmeshShader.enable()
     bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
     
     @profiler.profile
@@ -767,7 +768,6 @@ def glDrawBMVerts(lbmv, opts=None, enableShader=True):
             #bgl.glNormal3f(*n)
             #bgl.glVertex3f(*c)
     
-    if enableShader: bmeshShader.enable()
     glSetOptions('point', opts)
     bgl.glBegin(bgl.GL_POINTS)
     render(1,1,1)

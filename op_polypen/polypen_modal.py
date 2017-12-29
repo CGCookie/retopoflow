@@ -48,8 +48,8 @@ from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.bmeshcache.bmeshcache import BMeshCache
 from ..cache import mesh_cache, polypen_undo_cache, object_validation, is_object_valid, write_mesh_cache, clear_mesh_cache
 
-from ..lib.common_drawing_bmesh import BMeshRender
-from ..lib import common_drawing_bmesh
+from ..lib.common_drawing_bmesh_13 import BMeshRender
+from ..lib import common_drawing_bmesh_13 as common_drawing_bmesh
 
 class CGC_Polypen(ModalOperator):
     ''' CG Cookie Polypen Modal Editor '''
