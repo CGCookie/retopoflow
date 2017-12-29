@@ -35,7 +35,7 @@ def is_boundaryedge(bme, only_bmfs):
 def is_boundaryvert(bmv, only_bmfs):
     return len(set(bmv.link_faces) - only_bmfs) > 0 or bmv.is_boundary
 
-def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs):
+def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs, touched=None):
     #
     #         *------*------*
     #    ===> | bmf0 | bmf1 | ===>
@@ -56,7 +56,12 @@ def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs):
     
     if bmf1 not in only_bmfs: return [bmf0]
     if bmf1 in stop_bmfs: return [bmf0, bmf1]
-    return [bmf0] + crawl_strip(bmf1, bme1_2, only_bmfs, stop_bmfs)
+    if touched and bmf1 in touched: return None
+    if not touched: touched = set()
+    touched.add(bmf0)
+    next_part = crawl_strip(bmf1, bme1_2, only_bmfs, stop_bmfs, touched)
+    if next_part is None: return None
+    return [bmf0] + next_part
 
 def strip_details(strip):
     pts = []

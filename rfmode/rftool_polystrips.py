@@ -127,6 +127,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             bme,bmf = boundaries.pop()
             for bme_ in bmf.neighbor_edges(bme):
                 strip = crawl_strip(bmf, bme_, bmquads, junctions)
+                if strip is None: continue
                 junctions.add(strip[-1])
         
         # find strips between junctions
