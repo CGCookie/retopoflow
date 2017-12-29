@@ -38,7 +38,7 @@ from .rftool_polystrips_utils import (
     strip_details,
     crawl_strip,
     is_boundaryvert, is_boundaryedge,
-    process_stroke_filter, process_stroke_split_at_crossings,
+    process_stroke_filter, process_stroke_onlyhit,
     process_stroke_get_next, process_stroke_get_marks,
     mark_info,
     )
@@ -58,6 +58,9 @@ class RFTool_PolyStrips_Ops:
         
         radius = self.rfwidget.size
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
+        nearest_sources_Point = self.rfcontext.nearest_sources_Point
+        raycast = self.rfcontext.raycast_sources_Point2D
         vis_verts = self.rfcontext.visible_verts()
         vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
         vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
@@ -79,16 +82,25 @@ class RFTool_PolyStrips_Ops:
                     if intersect_point_tri_2d(pt, v0, v1, v2): return f
             return None
         
-        def create_edge(center, perpendicular):
+        def create_vert(p2D_init, dist):
+            p = raycast(p2D_init)[0]
+            if p is not None: return p
+            r = Point2D_to_Ray(p2D_init)
+            p = nearest_sources_Point(r.eval(dist))[0]
+            return p
+        
+        def create_edge(center, tangent, mult, perpendicular):
             nonlocal new_geom
             bmv0,bmv1 = None,None
-            r0,r1 = radius,radius
-            while bmv0 is None:
-                bmv0 = self.rfcontext.new2D_vert_point(center+perpendicular*r0)
-                r0 *= 0.80
-            while bmv1 is None:
-                bmv1 = self.rfcontext.new2D_vert_point(center-perpendicular*r1)
-                r1 *= 0.80
+            d,mmult = None,mult
+            while not d:
+                p = center + tangent * mmult
+                d = raycast(p)[3]
+                mmult -= 0.1
+            p0 = create_vert(center + tangent * mult + perpendicular * radius, d)
+            p1 = create_vert(center + tangent * mult - perpendicular * radius, d)
+            bmv0 = self.rfcontext.new_vert_point(p0)
+            bmv1 = self.rfcontext.new_vert_point(p1)
             bme = self.rfcontext.new_edge([bmv0,bmv1])
             add_edge(bme)
             new_geom += [bme]
@@ -116,19 +128,20 @@ class RFTool_PolyStrips_Ops:
         stroke = list(self.rfwidget.stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         stroke = process_stroke_filter(stroke)
+        stroke = process_stroke_onlyhit(stroke, self.rfcontext.raycast_sources_Point2D)
         
         from_edge = None
         while len(stroke) > 2:
             # get stroke segment to work on
-            from_edge,cstroke,to_edge,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
+            from_edge,cstroke,to_edge,cont,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
             
             # discard stroke segment if it lies in a face
             if intersect_face(cstroke[1]):
-                print('stroke is on face (1)')
+                dprint('stroke is on face (1)')
                 from_edge = to_edge
                 continue
             if intersect_face(cstroke[-2]):
-                print('stroke is on face (-2)')
+                dprint('stroke is on face (-2)')
                 from_edge = to_edge
                 continue
             
@@ -177,26 +190,26 @@ class RFTool_PolyStrips_Ops:
                 # create from_edge
                 dprint('creating from_edge')
                 pt,tn,pe = mark_info(marks, 0)
-                from_edge = create_edge(pt-tn*radius, pe)
+                from_edge = create_edge(pt, -tn, radius, pe)
             else:
                 new_geom += list(from_edge.link_faces)
             
             if to_edge is None:
                 dprint('creating to_edge')
                 pt,tn,pe = mark_info(marks, nmarks-1)
-                to_edge = create_edge(pt+tn*radius, pe)
+                to_edge = create_edge(pt, tn, radius, pe)
             else:
                 new_geom += list(to_edge.link_faces)
             
             for iquad in range(1, nquads):
                 #print('creating edge')
                 pt,tn,pe = mark_info(marks, iquad*2+markoff0-1)
-                bme = create_edge(pt, pe)
+                bme = create_edge(pt, tn, 0.0, pe)
                 bmf = create_face(from_edge, bme)
                 from_edge = bme
             bmf = create_face(from_edge, to_edge)
             
-            from_edge = to_edge
+            from_edge = to_edge if cont else None
         
         self.rfcontext.select(new_geom, supparts=False)
     

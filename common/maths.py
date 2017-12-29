@@ -259,7 +259,7 @@ class Ray(Entity3D):
     def __repr__(self): return self.__str__()
 
     def eval(self, t:float):
-        return self.o + max(self.min, min(self.max, t)) * self.d
+        return self.o + max(0.0, min(self.max, t)) * self.d
 
     @classmethod
     def from_screenspace(cls, pos:Vector):

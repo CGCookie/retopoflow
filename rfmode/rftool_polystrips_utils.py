@@ -83,14 +83,16 @@ def hash_face_pair(bmf0, bmf1):
 
 
 def process_stroke_filter(stroke, min_distance=1.0):
-    '''
-    filter stroke to pts that are at least min_distance apart
-    '''
+    ''' filter stroke to pts that are at least min_distance apart '''
     nstroke = stroke[:1]
     for p in stroke[1:]:
         if (p - nstroke[-1]).length < min_distance: continue
         nstroke.append(p)
     return nstroke
+
+def process_stroke_onlyhit(stroke, raycast):
+    ''' filter out pts that don't hit source '''
+    return [pt for pt in stroke if raycast(pt)[0]]
 
 def process_stroke_split_at_crossings(stroke):
     strokes = []
@@ -126,6 +128,7 @@ def process_stroke_split_at_crossings(stroke):
 def process_stroke_get_next(stroke, from_edge, edges2D):
     # returns the next chunk of stroke to be processed
     # stops at...
+    # - discontinuity
     # - intersection with self
     # - intersection with edges (ignoring from_edge)
     # - "strong" corners
@@ -133,6 +136,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
     cstroke = []
     to_edge = None
     curve_distance, curve_threshold = 25.0, math.cos(60.0 * math.pi/180.0)
+    discontinuity_distance = 10.0
     
     def compute_cosangle_at_index(idx):
         nonlocal stroke
@@ -159,25 +163,26 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
         i1 = i0 + 1
         p0,p1 = stroke[i0],stroke[i1]
         
+        # check for discontinuity
+        if (p0-p1).length > discontinuity_distance:
+            dprint('frag: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+            return (from_edge, stroke[:i1], None, False, stroke[i1:])
+        
         # check for self-intersection
         for j0 in range(i0+3, len(stroke)-1):
             q0,q1 = stroke[j0],stroke[j0+1]
             p = intersect_line_line_2d(p0,p1, q0,q1)
             if not p: continue
-            dprint('self: %d %d' % (i0, len(stroke)))
-            cstroke = stroke[:i1] + [p]
-            stroke = [p] + stroke[i1:]
-            return (from_edge, cstroke, None, stroke)
+            dprint('self: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+            return (from_edge, stroke[:i1], None, False, stroke[i1:])
         
         # check for intersections with edges
         for bme,(q0,q1) in edges2D:
             if bme is from_edge: continue
             p = intersect_line_line_2d(p0,p1, q0,q1)
             if not p: continue
-            dprint('edge: %d %d' % (i0, len(stroke)))
-            cstroke = stroke[:i1] + [p]
-            stroke = [p] + stroke[i1:]
-            return (from_edge, cstroke, bme, stroke)
+            dprint('edge: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+            return (from_edge, stroke[:i1], bme, True, stroke[i1:])
         
         # check for strong angles
         cosangle = compute_cosangle_at_index(i0)
@@ -190,11 +195,11 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
             minangle = min(compute_cosangle_at_index(i0_plus), minangle)
             if minangle < cosangle: break
         if minangle < cosangle: continue
-        dprint('bend: %d %d' % (i0, len(stroke)))
-        return (from_edge, stroke[:i1], None, stroke[i1:])
+        dprint('bend: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+        return (from_edge, stroke[:i1], None, False, stroke[i1:])
     
     dprint('full: %d %d' % (len(stroke), len(stroke)))
-    return (from_edge, stroke, None, [])
+    return (from_edge, stroke, None, False, [])
 
 def process_stroke_get_marks(stroke, at_dists):
     marks = []
