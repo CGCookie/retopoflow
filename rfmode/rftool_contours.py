@@ -345,7 +345,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             i,dist = 0,ndists[0]
             l = len(ndists)-1 if cloop.connected else len(ndists)
             for c0,c1 in cl_cut.iter_pts(repeat=True):
-                d = (c1-c0).length
+                d = max(0.000001, (c1-c0).length)
                 while dist - d <= 0:
                     # create new vert between c0 and c1
                     p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
