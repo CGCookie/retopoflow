@@ -22,15 +22,26 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 import math
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_tweak
+from ..lib.classes.profiler.profiler import profiler
 
 @RFTool.action_call('move tool')
 class RFTool_Tweak(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
         self.FSM['move'] = self.modal_move
+        
+        # following vars are for self.vis_accel
+        self.defer_recomputing = False
+        self.recompute = True
+        self.target_version = None
+        self.view_version = None
+        self.vis_verts = None
+        self.vis_edges = None
+        self.vis_faces = None
+        self.vis_accel = None
     
     def name(self): return "Tweak"
     def icon(self): return "rf_tweak_icon"
@@ -63,7 +74,50 @@ class RFTool_Tweak(RFTool):
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     
+    @profiler.profile
+    def update_accel_struct(self):
+        target_version = self.rfcontext.get_target_version(selection=False)
+        view_version = self.rfcontext.get_view_version()
+        
+        recompute = self.recompute
+        recompute |= self.target_version != target_version
+        recompute |= self.view_version != view_version
+        recompute |= self.vis_verts is None
+        recompute |= self.vis_edges is None
+        recompute |= self.vis_faces is None
+        recompute |= self.vis_accel is None
+        
+        self.recompute = False
+        
+        if recompute and not self.defer_recomputing:
+            self.target_version = target_version
+            self.view_version = view_version
+            
+            self.vis_verts = self.rfcontext.visible_verts()
+            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
+            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
+            self.vis_accel = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, self.rfcontext.get_point2D)
+    
     def modal_main(self):
+        self.update_accel_struct()
+        
+        if self.rfcontext.actions.using(['select', 'select add']):
+            self.defer_recomputing = True
+            if self.rfcontext.actions.pressed('select'):
+                self.rfcontext.undo_push('select')
+                self.rfcontext.deselect_all()
+            elif self.rfcontext.actions.pressed('select add'):
+                self.rfcontext.undo_push('select add')
+            pr = profiler.start('finding nearest')
+            xy = self.rfcontext.get_point2D(self.rfcontext.actions.mouse)
+            bmf = self.vis_accel.nearest_face(xy)
+            pr.done()
+            if bmf and not bmf.select:
+                self.rfcontext.select(bmf, supparts=False, only=False)
+            return
+        
+        self.defer_recomputing = False
+        
         if self.rfcontext.actions.pressed('action'):
             return self.prep_move()
     

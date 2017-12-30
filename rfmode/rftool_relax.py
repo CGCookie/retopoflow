@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 import math
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec
+from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_relax
 from ..lib.classes.profiler.profiler import profiler
@@ -35,6 +35,16 @@ class RFTool_Relax(RFTool):
         self.FSM['relax selected'] = self.modal_relax_selected
         self.move_boundary = False
         self.move_hidden = False
+        
+        # following vars are for self.vis_accel
+        self.defer_recomputing = False
+        self.recompute = True
+        self.target_version = None
+        self.view_version = None
+        self.vis_verts = None
+        self.vis_edges = None
+        self.vis_faces = None
+        self.vis_accel = None
     
     def name(self): return "Relax"
     def icon(self): return "rf_relax_icon"
@@ -67,10 +77,49 @@ class RFTool_Relax(RFTool):
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     
+    @profiler.profile
+    def update_accel_struct(self):
+        target_version = self.rfcontext.get_target_version(selection=False)
+        view_version = self.rfcontext.get_view_version()
+        
+        recompute = self.recompute
+        recompute |= self.target_version != target_version
+        recompute |= self.view_version != view_version
+        recompute |= self.vis_verts is None
+        recompute |= self.vis_edges is None
+        recompute |= self.vis_faces is None
+        recompute |= self.vis_accel is None
+        
+        self.recompute = False
+        
+        if recompute and not self.defer_recomputing:
+            self.target_version = target_version
+            self.view_version = view_version
+            
+            self.vis_verts = self.rfcontext.visible_verts()
+            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
+            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
+            self.vis_accel = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, self.rfcontext.get_point2D)
+    
     def modal_main(self):
-        if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('relax')
-            return 'relax'
+        self.update_accel_struct()
+        
+        if self.rfcontext.actions.using(['select', 'select add']):
+            self.defer_recomputing = True
+            if self.rfcontext.actions.pressed('select'):
+                self.rfcontext.undo_push('select')
+                self.rfcontext.deselect_all()
+            elif self.rfcontext.actions.pressed('select add'):
+                self.rfcontext.undo_push('select add')
+            pr = profiler.start('finding nearest')
+            xy = self.rfcontext.get_point2D(self.rfcontext.actions.mouse)
+            bmf = self.vis_accel.nearest_face(xy)
+            pr.done()
+            if bmf and not bmf.select:
+                self.rfcontext.select(bmf, supparts=False, only=False)
+            return
+        
+        self.defer_recomputing = False
         
         if self.rfcontext.actions.pressed('relax selected'):
             self.rfcontext.undo_push('relax selected')
@@ -78,7 +127,11 @@ class RFTool_Relax(RFTool):
             self.sel_edges = self.rfcontext.get_selected_edges()
             self.sel_faces = self.rfcontext.get_selected_faces()
             return 'relax selected'
-    
+        
+        if self.rfcontext.actions.pressed('action'):
+            self.rfcontext.undo_push('relax')
+            return 'relax'
+        
     @RFTool.dirty_when_done
     def modal_relax(self):
         if self.rfcontext.actions.released('action'):
