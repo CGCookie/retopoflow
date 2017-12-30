@@ -62,7 +62,6 @@ class RFTool_Relax(RFTool):
     
     def get_ui_options(self):
         return [
-            UI_Label('Relax:'),
             UI_BoolValue('Selected Only', self.get_move_selected, self.set_move_selected),
             UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
             UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
