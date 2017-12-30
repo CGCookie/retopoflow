@@ -152,6 +152,12 @@ Also, a one-time Welcome message will greet you.
 help_general = '''
 # General Help
 
+When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
+For tool-specific help, select the tool from the Tools panel, and either press F1 or click Tool Help.
+
+
+## RetopoFlow Shortcuts
+
 - ENTER / ESC: quit RetopoFlow
 - TAB: quit RetopoFlow and enter Edit Mode
 - F1: tool help
@@ -168,9 +174,18 @@ help_general = '''
 
 ## Universal Shortcuts
 
-- A: deselect / select all (toggles)
-- X: delete selection
-- CTRL+Z / CTRL+SHIFT+Z: undo / redo
+- A: deselect / select all
+- SELECT / SHIFT+SELECT: select (tool specific)
+- X: delete selection (most tools)
+- CTRL+Z: undo
+- CTRL+SHIFT+Z: redo
+
+
+## Defaults
+
+The SELECT command is set to the right mouse button.
+
+The ACTION command is set to the left mouse button.
 '''
 
 
@@ -284,10 +299,11 @@ The Tweak tool allows you to easily adjust the vertex positions using a brush.
 
 ## Options
 
-- By default, Tweak will not move vertices that are on the boundary.
-- By default, Tweak will only move vertices that are visible.
-- By default, Tweak will move all vertices under the brush.
-- These options are adjustable under the Tweak Options panel.
+Tweak has several options to control which vertices are or are not moved.
+
+- Selected: only move vertices that are selected.
+- Boundary: allow boundary vertices to be moved.
+- Hidden: allow vertices that are behind geometry to be moved.
 '''
 
 help_relax = '''
@@ -303,10 +319,11 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 ## Options
 
-- By default, Relax will not move vertices that are on the boundary.
-- By default, Relax will only move vertices that are visible.
-- By default, Relax will move all vertices under the brush.
-- These options are adjustable under the Relax Options panel.
+Relax has several options to control which vertices are or are not moved.
+
+- Selected: only move vertices that are selected.
+- Boundary: allow boundary vertices to be moved.
+- Hidden: allow vertices that are behind geometry to be moved.
 '''
 
 help_loops = '''
