@@ -53,6 +53,7 @@ from ..options import (
     retopoflow_profiler,
     retopoflow_issues_url,
     retopoflow_tip_url,
+    help_general,
     options,
     firsttime_message,
     )
@@ -68,13 +69,19 @@ class RFContext_Drawing:
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
     
-    def toggle_tool_help(self):
-        if self.window_help.visible:
+    def toggle_help(self, general=None):
+        if general is None:
             self.window_help.visible = False
             self.window_manager.clear_active()
         else:
-            self.ui_helplabel.set_markdown(self.tool.helptext())
+            if general:
+                self.ui_helplabel.set_markdown(help_general)
+            else:
+                self.ui_helplabel.set_markdown(self.tool.helptext())
             self.window_help.visible = True
+    
+    def toggle_general_help(self): self.toggle_help(True)
+    def toggle_tool_help(self): self.toggle_help(False)
     
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
@@ -290,6 +297,7 @@ class RFContext_Drawing:
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
+        extra.add(UI_Button('General Help', self.toggle_general_help, align=0, margin=0)) # , icon=help_icon
         extra.add(UI_Button('Tool Help', self.toggle_tool_help, align=0, margin=0)) # , icon=help_icon
         extra.add(UI_Button('Collapse', lambda: set_tool_collapsed(True), align=0, margin=0))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
@@ -364,13 +372,13 @@ class RFContext_Drawing:
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         
-        self.window_help = self.window_manager.create_window('Tool Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
+        self.window_help = self.window_manager.create_window('Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
         self.window_help.add(UI_Rule())
         self.ui_helplabel = UI_Markdown('help text here!')
         # self.window_help.add(UI_Scrollable(self.ui_helplabel))
         self.window_help.add(self.ui_helplabel)
         self.window_help.add(UI_Rule())
-        self.window_help.add(UI_Button('Close', self.toggle_tool_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        self.window_help.add(UI_Button('Close', self.toggle_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix

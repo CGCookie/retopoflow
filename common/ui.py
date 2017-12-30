@@ -598,6 +598,94 @@ class UI_EqualContainer(UI_Container):
                 x += ew
                 w -= ew
 
+class UI_TableContainer(UI_Element):
+    def __init__(self, nrows, ncols, background=None, margin=4):
+        super().__init__()
+        self.nrows = nrows
+        self.ncols = ncols
+        self.rows = [[UI_Element() for i in range(ncols)] for j in range(nrows)]
+        self.background = background
+        self.margin = margin
+        self.offset = 0
+    
+    def _delete(self):
+        for row in self.rows:
+            for cell in row:
+                cell.delete()
+    
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
+        for row in self.rows:
+            for cell in row:
+                hover = cell.hover_ui(mouse)
+                if hover: return hover
+        return self
+    
+    def get_col_width(self, c):
+        return max(row[c].get_width() for row in self.rows)
+    def get_row_height(self, r):
+        return max(cell.get_height() for cell in self.rows[r])
+    
+    def _get_width(self):
+        return sum(self.get_col_width(c) for c in range(self.ncols))
+    def _get_height(self):
+        return sum(self.get_row_height(r) for r in range(self.nrows))
+    
+    def _draw(self):
+        l,t_ = self.pos
+        w,h = self.size
+        t = t_ + self.offset
+        
+        if self.background:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.background)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l, t)
+            bgl.glVertex2f(l+w, t)
+            bgl.glVertex2f(l+w, t-h)
+            bgl.glVertex2f(l, t-h)
+            bgl.glEnd()
+        
+        widths = [self.get_col_width(c) for c in range(self.ncols)]
+        heights = [self.get_row_height(r) for r in range(self.nrows)]
+        y = t
+        for r in range(self.nrows):
+            x = l
+            h = heights[r]
+            for c in range(self.ncols):
+                w = widths[c]
+                ui = self.rows[r][c]
+                ui.draw(x,y,w,h)
+                x += w
+            y -= h
+        
+        # if self.offset > 0:
+        #     bgl.glEnable(bgl.GL_BLEND)
+        #     bgl.glBegin(bgl.GL_QUADS)
+        #     bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
+        #     bgl.glVertex2f(l, t_+1)
+        #     bgl.glVertex2f(l+w, t_+1)
+        #     bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
+        #     bgl.glVertex2f(l+w, t_-30)
+        #     bgl.glVertex2f(l, t_-30)
+        #     bgl.glEnd()
+        # if h+self.offset+2 < self._get_height():
+        #     bgl.glEnable(bgl.GL_BLEND)
+        #     bgl.glBegin(bgl.GL_QUADS)
+        #     bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
+        #     bgl.glVertex2f(l, t_-h)
+        #     bgl.glVertex2f(l+w, t_-h)
+        #     bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
+        #     bgl.glVertex2f(l+w, t_-h+30)
+        #     bgl.glVertex2f(l, t_-h+30)
+        #     bgl.glEnd()
+        
+    
+    def set(self, row, col, ui_item):
+        self.rows[row][col] = ui_item
+        return ui_item
+
+
 class UI_Markdown(UI_Container):
     def __init__(self, markdown, min_size=Vec2D((600, 36))):
         super().__init__(margin=0)
@@ -639,6 +727,20 @@ class UI_Markdown(UI_Container):
                 m = re.match(r'^!\[(?P<caption>.*)\]\((?P<filename>.*)\)$', p)
                 fn = m.group('filename')
                 img = container.add(UI_Image(fn))
+            elif p.startswith('| '):
+                # table
+                data = [l for l in p.split('\n')]
+                data = [re.sub(r'^\| ', r'', l) for l in data]
+                data = [re.sub(r' \|$', r'', l) for l in data]
+                data = [l.split(' | ') for l in data]
+                rows,cols = len(data),len(data[0])
+                t = container.add(UI_TableContainer(rows, cols))
+                for r in range(rows):
+                    for c in range(cols):
+                        if c == 0:
+                            t.set(r, c, UI_Label(data[r][c]))
+                        else:
+                            t.set(r, c, UI_WrappedLabel(data[r][c], min_size=Vec2D((400, 12))))
             else:
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
                 container.add(UI_WrappedLabel(p, min_size=self.min_size))

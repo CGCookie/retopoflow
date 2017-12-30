@@ -43,9 +43,9 @@ firsttime_message = '''
 # Welcome to RetopoFlow {version}!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
-The tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
+The RF tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
 
-The RetopoFlow tools automatically generate geometry by drawing on an existing surface, snapping the new mesh to the source surface at all times, meaning you never have to worry about your mesh conforming to the original model (no Shrinkwrap modifier required!).
+The RetopoFlow tools automatically generate geometry by drawing on an existing surface, snapping the new mesh to the source surface at all times, meaning you never have to worry about your mesh conforming to the original model---no Shrinkwrap modifier required!
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
@@ -57,12 +57,12 @@ RetopoFlow 2.0 now works like another any Blender mode, especially Edit Mode, bu
 We focused our 2.0 development on two main items: stability and a consistent, intuitive, and efficient user experience.
 With an established and solid framework, we will focus more on features with future releases.
 
-- Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, and Y will switch quickly between the tools.
+- Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
 - Each tool has been simplified to do perform its job well.
 - All tools use the current selection for their context.  For example, PolyStrips can edit any strip of quads by simply selecting them.
 - The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
 - Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
-- All tools have similar visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
+- All tools have similar and consistent visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
 - Mirroring (X, Y, and/or Z) is now visualized by overlaying a color on all the source meshes.
 - Every change automatically changes the target mesh!
 - Auto saves will trigger!
@@ -82,14 +82,18 @@ We have worked hard to make this as production ready as possible.
 We focused on stability and bug handling in addition to focusing features and improving overall speed.
 However, if you find a bug, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
+We have added buttons to open the issue tracker and take screenshots.
+
+![](help_exception.png)
 
 
 ## Known Issues / Future Work
 
 Below is a list of known issues that we are working on.
 
-- Very large source meshes cause a very long start-up time.  Temporary workaround: reduce the number of faces by using Decimate Modifier.
+- Very large source meshes cause a delay and stutter at start-up time.  Note: the sources are cached, so RF will load much more quickly the second time.
 - Very large target meshes causes slowness in some tools.
+- Patches handles only simple hole shapes.
 - Some of the tools are still missing features from version 1.x.
 
 
@@ -114,7 +118,7 @@ More detailed help is available after you start RF.
 Target and Source Objects
 -------------------------
 
-In RetopoFlow 1.3 you were required to select explicitly the source and target objects, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow.
+In RetopoFlow 1.x you were required to select the source and target objects explicitly, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow.
 
 The target object is either:
 
@@ -130,19 +134,44 @@ Note: only newly created or edited target geometry will snap to the source.
 RetopoFlow Mode
 ---------------
 
-The tools in RetopoFlow 1.3 were disjoint set of tools, where you would need to quit one tool in order to start another.
-Also, because we wrote RF 1.3 tools independently, the visualizations and settings were not consistent.
+The tools in RetopoFlow 1.x were disjoint set of tools, where you would need to quit one tool in order to start another.
+Also, because we wrote RF 1.x tools independently, the visualizations and settings were not consistent.
+Furthermore, the only indication that a tool was running in RetopoFlow 1.x was a small "Click for Help" button in the top-right corner, which is easily missed.
 
 In RetopoFlow 2.0, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
 
 When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and panels will be added to the 3D view.
-These panels allow you to switch between RF tools, set tool options, and set RF options.
+These panels allow you to switch between RF tools, set tool options, and get more information.
 Also, a one-time Welcome message will greet you.
 
 '''
 
 
+
+help_general = '''
+# General Help
+
+- ENTER / ESC: quit RetopoFlow
+- TAB: quit RetopoFlow and enter Edit Mode
+- F1: tool help
+
+## Tool Shortcuts
+
+- Q: Contours
+- W: PolyStrips
+- E: PolyPen
+- R: Relax
+- T: Tweak
+- Y: Loops
+- U: Patches
+
+## Universal Shortcuts
+
+- A: deselect / select all (toggles)
+- X: delete selection
+- CTRL+Z / CTRL+SHIFT+Z: undo / redo
+'''
 
 
 help_contours = '''
