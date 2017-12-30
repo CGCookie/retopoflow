@@ -186,6 +186,28 @@ For tool-specific help, select the tool from the Tools panel, and either press F
 The SELECT command is set to the right mouse button.
 
 The ACTION command is set to the left mouse button.
+
+
+## General Options
+
+The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing CTRL+UP / SHIFT+SPACE.
+
+The Snap All Verts button will move all of the target vertices to the nearest point on the sources.
+
+The Theme option changes the color of selected geometry.
+
+![](help_themes.png)
+
+When the Auto Collapse Options is checked, tool options will automatically collapse in the options panel when the current tool changes.
+
+
+## Symmetry Options
+
+The X,Y,Z checkboxes turn on/off symmetry or mirroring along the X, Y, and Z axes.
+Note: symmetry is the same as with mirror modifier.
+
+When symmetry is turned on, the mirroring planes can be visualized on the sources choosing either the Edge or Face option.
+The Effect setting controls the strength of the visualization.
 '''
 
 
@@ -238,6 +260,7 @@ PolyStrips works by hand-drawing stokes on to the high-resolution source object.
 The strokes are instantly converted into spline-based strips of polygons, which can be used to quickly map out the key topology flow.
 Clean mesh previews are generated on the fly, showing you the exact mesh that will be created.
 
+![](help_polystrips.png)
 
 ## Drawing
 
@@ -266,6 +289,7 @@ help_polypen = '''
 The PolyPen tool provides everything you need for fast retopology in those scenarios where you need absolute control of every vertex position (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
 
+![](help_polypen.png)
 
 ## Drawing
 
@@ -292,6 +316,8 @@ help_tweak = '''
 
 The Tweak tool allows you to easily adjust the vertex positions using a brush.
 
+![](help_tweak.png)
+
 - ACTION: move vertices that are within brush
 - F: adjust brush size
 - CTRL+F: adjust falloff
@@ -310,6 +336,8 @@ help_relax = '''
 # Relax Help
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
+
+![](help_relax.png)
 
 - ACTION: relax vertices that are within brush
 - F: adjust brush size
@@ -330,6 +358,8 @@ help_loops = '''
 # Loops Help
 
 The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
+
+![](help_loops.png)
 
 - CTRL+ACTION: insert edge loop
 - SELECT: select edge loop

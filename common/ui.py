@@ -1507,6 +1507,13 @@ class UI_Window(UI_Padding):
         self.hbf.body.offset = offset
         self.mouse_prev = self.mouse
     
+    def scrollto_top(self):
+        self.hbf.body.offset = 0
+    def scrollto_bottom(self):
+        w,h = self.hbf.body.size
+        ah = self.hbf.body._get_height()
+        self.hbf.body.offset = ah - h
+    
     def modal_move(self):
         set_cursor('HAND')
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':

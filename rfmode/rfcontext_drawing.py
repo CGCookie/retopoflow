@@ -78,6 +78,7 @@ class RFContext_Drawing:
                 self.ui_helplabel.set_markdown(help_general)
             else:
                 self.ui_helplabel.set_markdown(self.tool.helptext())
+            self.window_help.scrollto_top()
             self.window_help.visible = True
     
     def toggle_general_help(self): self.toggle_help(True)
