@@ -271,6 +271,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             'poly dotoffset': 1.0,
             'line width': 0.0,
             'point size': 0.0,
+            'load edges': False,
+            'load verts': False,
             'no selection': True,
             'no below': True,
             'triangles only': True,     # source bmeshes are triangles only!

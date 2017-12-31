@@ -116,6 +116,9 @@ class RFMeshRender():
         self._is_loaded = False
         self._buffer_data = None
         
+        self.load_verts = opts.get('load verts', True)
+        self.load_edges = opts.get('load edges', True)
+        
         self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
         self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
         self.buf_verts = BGLBufferedRender(bgl.GL_POINTS)
@@ -174,18 +177,29 @@ class RFMeshRender():
                 # NOTE: duplicating data rather than using indexing, otherwise
                 # selection will bleed
                 if not self.async_load: pr = profiler.start('gathering')
-                vert_data = {
-                    'vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
-                    'vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
-                    'sel': [sel(bmv)          for bmv in self.bmesh.verts],
-                    'idx': None, #list(range(len(self.bmesh.verts))),
-                }
-                edge_data = {
-                    'vco': [tuple(bmv.co)     for bme in self.bmesh.edges for bmv in bme.verts],
-                    'vno': [tuple(bmv.normal) for bme in self.bmesh.edges for bmv in bme.verts],
-                    'sel': [sel(bme)          for bme in self.bmesh.edges for bmv in bme.verts],
-                    'idx': None, #list(range(len(self.bmesh.edges)*2)),
-                }
+                
+                if self.load_verts:
+                    vert_data = {
+                        'vco': [tuple(bmv.co)     for bmv in self.bmesh.verts],
+                        'vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
+                        'sel': [sel(bmv)          for bmv in self.bmesh.verts],
+                        'idx': None, #list(range(len(self.bmesh.verts))),
+                    }
+                else:
+                    vert_data = {
+                        'vco': [], 'vno': [], 'sel': [], 'idx': [],
+                    }
+                if self.load_edges:
+                    edge_data = {
+                        'vco': [tuple(bmv.co)     for bme in self.bmesh.edges for bmv in bme.verts],
+                        'vno': [tuple(bmv.normal) for bme in self.bmesh.edges for bmv in bme.verts],
+                        'sel': [sel(bme)          for bme in self.bmesh.edges for bmv in bme.verts],
+                        'idx': None, #list(range(len(self.bmesh.edges)*2)),
+                    }
+                else:
+                    edge_data = {
+                        'vco': [], 'vno': [], 'sel': [], 'idx': [],
+                    }
                 face_data = {
                     'vco': [tuple(bmv.co)     for bmf,verts in tri_faces for bmv in verts],
                     'vno': [tuple(bmv.normal) for bmf,verts in tri_faces for bmv in verts],
