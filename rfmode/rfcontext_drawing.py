@@ -183,7 +183,7 @@ class RFContext_Drawing:
             container.add(UI_Button('Screenshot', screenshot, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             container.add(UI_Button('Report', report, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
-            container.add(UI_Button('Quit', quit, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            container.add(UI_Button('Exit', quit, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
         self.alert_windows += 1
         
