@@ -776,6 +776,19 @@ class Accel2D:
         return {v for v in l if v.is_valid}
     
     @profiler.profile
+    def get_verts(self, v2d, within):
+        vert_type = self.vert_type
+        return {g for g in self.get(v2d, within) if type(g) is vert_type}
+    @profiler.profile
+    def get_edges(self, v2d, within):
+        edge_type = self.edge_type
+        return {g for g in self.get(v2d, within) if type(g) is edge_type}
+    @profiler.profile
+    def get_faces(self, v2d, within):
+        face_type = self.face_type
+        return {g for g in self.get(v2d, within) if type(g) is face_type}
+    
+    @profiler.profile
     def nearest_face(self, v2d):
         ########################################
         # XXXX: ONLY FINDING FACE UNDER V2D!!! #

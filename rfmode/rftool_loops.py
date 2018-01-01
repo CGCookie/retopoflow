@@ -146,21 +146,31 @@ class RFTool_Loops(RFTool):
     def modal_main(self):
         self.set_next_state()
         
-        if self.rfcontext.actions.pressed('select', unpress=False):
+        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
-            
             if sel_only: self.rfcontext.undo_push('select')
             else: self.rfcontext.undo_push('select add')
-            
-            edges = self.rfcontext.visible_edges()
+            edges = self.accel2D.get_edges(self.rfcontext.actions.mouse, 10)
             edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
             if not edge:
                 if sel_only: self.rfcontext.deselect_all()
                 return
-            self.rfcontext.select_edge_loop(edge, only=sel_only)
+            self.rfcontext.select(edge, supparts=False, only=sel_only)
             self.update()
-            
+            self.prep_edit()
+            if not self.edit_ok: return
+            return 'slide after select'
+        
+        if self.rfcontext.actions.pressed('select smart'):
+            self.rfcontext.undo_push('select smart')
+            edges = self.accel2D.get_edges(self.rfcontext.actions.mouse, 10)
+            edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
+            if not edge:
+                self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select_edge_loop(edge)
+            self.update()
             self.prep_edit()
             if not self.edit_ok: return
             return 'slide after select'
@@ -361,7 +371,7 @@ class RFTool_Loops(RFTool):
         #if not hit_pos: return
         self.set_next_state()
         if not self.nearest_edge: return
-        if self.rfcontext.actions.ctrl and self.mode == 'main':
+        if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift and self.mode == 'main':
             # draw new edge strip/loop
             
             def draw():

@@ -59,6 +59,7 @@ class Actions:
         
         'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
         'select add': {'SHIFT+RIGHTMOUSE'},
+        'select smart': {'CTRL+SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
         
         'tool help': {'F1'},
