@@ -123,6 +123,10 @@ class RFTool(metaclass=SingletonRegisterClass):
             t = k.split(' ')[1]
             options[k] = (t != self.name().lower())
     
+    ''' Called when user undoes action. Prevents bad state of tool is in non-main mode '''
+    def undone(self):
+        self.mode = 'main'
+    
     def update(self): pass
     
     def modal_main(self): pass

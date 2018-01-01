@@ -483,9 +483,11 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         # handle undo/redo
         if self.actions.pressed('undo'):
             self.undo_pop()
+            if self.tool: self.tool.undone()
             return
         if self.actions.pressed('redo'):
             self.redo_pop()
+            if self.tool: self.tool.undone()
             return
         
         if self.actions.pressed('F2'):
