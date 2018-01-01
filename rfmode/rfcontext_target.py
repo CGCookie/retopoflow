@@ -333,15 +333,7 @@ class RFContext_Target:
         return self.rftarget.get_version(selection=selection)
 
     ###################################################
-
-    def get_selected_verts(self):
-        return self.rftarget.get_selected_verts()
-
-    def get_selected_edges(self):
-        return self.rftarget.get_selected_edges()
-
-    def get_selected_faces(self):
-        return self.rftarget.get_selected_faces()
+    
     
     def get_quadwalk_edgesequence(self, edge):
         return self.rftarget.get_quadwalk_edgesequence(edge)
@@ -354,6 +346,23 @@ class RFContext_Target:
 
     def get_face_loop(self, edge):
         return self.rftarget.get_face_loop(edge)
+    
+    def is_quadstrip_looped(self, edge):
+        return self.rftarget.is_quadstrip_looped(edge)
+    
+    def iter_quadstrip(self, edge):
+        yield from self.rftarget.iter_quadstrip(edge)
+    
+    ###################################################
+
+    def get_selected_verts(self):
+        return self.rftarget.get_selected_verts()
+
+    def get_selected_edges(self):
+        return self.rftarget.get_selected_edges()
+
+    def get_selected_faces(self):
+        return self.rftarget.get_selected_faces()
 
     def deselect_all(self):
         self.rftarget.deselect_all()

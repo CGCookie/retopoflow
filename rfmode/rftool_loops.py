@@ -116,30 +116,32 @@ class RFTool_Loops(RFTool):
         self.percent = 0
         self.edges = None
         
-        if self.nearest_edge:
-            self.edges,self.edge_loop = self.rfcontext.get_face_loop(self.nearest_edge)
-            if not self.edges:
-                return
-            vp0,vp1 = self.edges[0].verts
-            cp0,cp1 = vp0.co,vp1.co
-            def get(ep,ec):
-                nonlocal cp0, cp1
-                vc0,vc1 = ec.verts
-                cc0,cc1 = vc0.co,vc1.co
-                if (cp1-cp0).dot(cc1-cc0) < 0: cc0,cc1 = cc1,cc0
-                cp0,cp1 = cc0,cc1
-                return (ec,cc0,cc1)
-            edge0 = self.edges[0]
-            self.edges_ = [get(e0,e1) for e0,e1 in zip([self.edges[0]] + self.edges,self.edges)]
-            c0,c1 = next((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge)
-            c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
-            a,b = c1 - c0, mouse_cur - c0
-            adota = a.dot(a)
-            if adota <= 0.0000001:
-                self.percent = 0
-                self.edges = None
-                return
-            self.percent = a.dot(b) / adota;
+        if not self.nearest_edge: return
+        
+        self.edges,self.edge_loop = self.rfcontext.get_face_loop(self.nearest_edge)
+        if not self.edges:
+            print('nearest, but no loop')
+            return
+        vp0,vp1 = self.edges[0].verts
+        cp0,cp1 = vp0.co,vp1.co
+        def get(ep,ec):
+            nonlocal cp0, cp1
+            vc0,vc1 = ec.verts
+            cc0,cc1 = vc0.co,vc1.co
+            if (cp1-cp0).dot(cc1-cc0) < 0: cc0,cc1 = cc1,cc0
+            cp0,cp1 = cc0,cc1
+            return (ec,cc0,cc1)
+        edge0 = self.edges[0]
+        self.edges_ = [get(e0,e1) for e0,e1 in zip([self.edges[0]] + self.edges,self.edges)]
+        c0,c1 = next((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge)
+        c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
+        a,b = c1 - c0, mouse_cur - c0
+        adota = a.dot(a)
+        if adota <= 0.0000001:
+            self.percent = 0
+            self.edges = None
+            return
+        self.percent = a.dot(b) / adota;
         
     def modal_main(self):
         self.set_next_state()
@@ -179,24 +181,32 @@ class RFTool_Loops(RFTool):
             
             self.rfcontext.undo_push('insert edge %s' % ('loop' if self.edge_loop else 'strip'))
             
-            new_verts = []
-            new_edges = []
-            # create new verts by splitting all the edges
-            for e,c0,c1 in self.edges_:
-                c = c0 + (c1 - c0) * self.percent
-                ne,nv = e.split()
-                nv.co = c
-                self.rfcontext.snap_vert(nv)
-                new_verts += [nv]
-            # create new edges by connecting newly created verts and splitting faces
-            for v0,v1 in iter_pairs(new_verts, self.edge_loop):
+            # if quad strip is a loop, then need to connect first and last new verts
+            is_looped = self.rfcontext.is_quadstrip_looped(self.nearest_edge)
+            
+            def split_face(v0, v1):
+                nonlocal new_edges
                 f0 = next(iter(v0.shared_faces(v1)), None)
                 if not f0:
                     self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
                     self.rfcontext.undo_cancel()
                     return
                 f1 = f0.split(v0, v1)
-                new_edges += [f0.shared_edge(f1)]
+                new_edges.append(f0.shared_edge(f1))
+            
+            # create new verts by splitting all the edges
+            new_verts, new_edges = [],[]
+            for e,flipped in self.rfcontext.iter_quadstrip(self.nearest_edge):
+                bmv0,bmv1 = e.verts
+                if flipped: bmv0,bmv1 = bmv1,bmv0
+                ne,nv = e.split()
+                nv.co = bmv0.co + (bmv1.co - bmv0.co) * self.percent
+                self.rfcontext.snap_vert(nv)
+                if new_verts: split_face(new_verts[-1], nv)
+                new_verts.append(nv)
+            
+            if is_looped and len(new_verts) > 2: split_face(new_verts[-1], new_verts[0])
+            
             self.rfcontext.dirty()
             self.rfcontext.select(new_edges)
             

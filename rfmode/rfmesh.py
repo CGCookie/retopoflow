@@ -884,36 +884,120 @@ class RFMesh():
             crawl(bme, bme.verts[1])
         return RFEdgeSequence(edges)
     
-    def get_face_loop(self, edge):
-        bme_start = self._unwrap(edge)
-        edges = [self._wrap_bmedge(bme_start)]
-        looped = False
-        def crawl(bme0, bmf0):
-            nonlocal edges, bme_start, looped
-            touched = set()
-            while bmf0 not in touched:
-                #assert bmf0 not in touched
-                touched.add(bmf0)
-                lbme = list(bmf0.edges)
-                if len(lbme) != 4: return
-                
-                bme1 = next(lbme[(i+2)%4] for i,e in enumerate(lbme) if e == bme0)
-                if bme1 == bme_start:
-                    looped = True
-                    return
-                edges.append(self._wrap_bmedge(bme1))
-                bmf1 = next((bmf for bmf in bme1.link_faces if bmf != bmf0), None)
-                if not bmf1: return
-                bme0,bmf0 = bme1,bmf1
+    def _crawl_quadstrip_next(self, bme0, bmf0):
+        bmes = set(bmf0.edges) - { bme for bmv in bme0.verts for bme in bmv.link_edges }
+        if len(bmes) != 1: return (None,None)
+        bme1 = next(iter(bmes))
+        bmf1 = next(iter(set(bme1.link_faces) - { bmf0 }), None)
+        return (bme1, bmf1)
+    
+    def _are_edges_flipped(self, bme0, bme1):
+        bmv00,bmv01 = bme0.verts
+        bmv10,bmv11 = bme1.verts
+        return ((bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co)) < 0
+    
+    def _crawl_quadstrip_to_loopend(self, bme_start, bmf_start=None):
+        '''
+        returns tuple (bme, flipped, bmf, looped) where bme is
+        1. at one end of a quad strip (looped == False), or
+        2. bme is bme0 because quad strip is loop (looped == True)
+        bmf is the next face going back (for retracing)
+        flipped indicates if bme is revered wrt to bme_start
+        '''
         
-        lf = list(bme_start.link_faces)
-        if len(lf) == 0:
-            return ([], False)
-        crawl(bme_start, lf[0])
-        if not looped and len(lf) >= 2:
-            edges.reverse()
-            crawl(bme_start, lf[1])
-        return (edges, looped)
+        # choose one of the faces
+        if not bmf_start: bmf_start = next(iter(bme_start.link_faces), None)
+        if not bmf_start: return (None, None, None)
+        
+        bme0,bmf0,flipped = bme_start,bmf_start,False
+        touched = set() # just in case!
+        '''
+        ....
+        O--O
+        |  |
+        O--O <- bme0
+        |  | <- bmf0
+        O--O <- bme1
+        |  | <- bmf1
+        O--O
+        ....
+        O--O <- bme0'
+        |  | <- bmf0'
+        O--O <- bme1', which is end of quad-strip!
+        '''
+        while bme0 not in touched:
+            touched.add(bme0)
+            bme1,bmf1 = self._crawl_quadstrip_next(bme0, bmf0)
+            if not bme1:
+                # bmf0 is not None, but couldn't find bme1, means that we bmf0 is not a quad
+                bmf_prev = next(iter(set(bme0.link_faces) - { bmf0 }), None)
+                return (bme0, flipped, bmf_prev, False)
+            if self._are_edges_flipped(bme0, bme1): flipped = not flipped
+            if not bmf1:
+                # hit end of quad-strip
+                return (bme1, flipped, bmf0, False)
+            if bme1 == bme_start:
+                # looped back around
+                return (bme_start, False, bmf_start, True)
+            bme0,bmf0 = bme1,bmf1
+        # somehow we wrapped back around!?
+        assert False, "Unexpected topology"
+    
+    def is_quadstrip_looped(self, edge):
+        edge = self._unwrap(edge)
+        _,_,_,looped = self._crawl_quadstrip_to_loopend(edge)
+        return looped
+    
+    def iter_quadstrip(self, edge):
+        # crawl around until either 1) loop back around, or 2) hit end
+        # then, go back the other direction
+        # note: the bmesh may change while crawling!
+        edge = self._unwrap(edge)
+        bme,flipped,bmf,looped = self._crawl_quadstrip_to_loopend(edge)
+        bme_start = bme
+        while True:
+            # find next bme and bmf, in case bmesh is edited!
+            if bmf: bme_next,bmf_next = self._crawl_quadstrip_next(bme, bmf)
+            yield (self._wrap_bmedge(bme), flipped)
+            if not bmf: break
+            if not bme_next: break
+            if bme_next == bme_start: break
+            if self._are_edges_flipped(bme, bme_next): flipped = not flipped
+            bme,bmf = bme_next,bmf_next
+    
+    def get_face_loop(self, edge):
+        is_looped = self.is_quadstrip_looped(edge)
+        edges = list(bme for bme,_ in self.iter_quadstrip(edge))
+        return (edges, is_looped)
+        # bme_start = self._unwrap(edge)
+        # edges = [self._wrap_bmedge(bme_start)]
+        # looped = False
+        # def crawl(bme0, bmf0):
+        #     nonlocal edges, bme_start, looped
+        #     touched = set()
+        #     while (bme0,bmf0) not in touched:
+        #         #assert bmf0 not in touched
+        #         touched.add((bme0,bmf0))
+        #         lbme = list(bmf0.edges)
+        #         if len(lbme) != 4: return
+                
+        #         bme1 = next(lbme[(i+2)%4] for i,e in enumerate(lbme) if e == bme0)
+        #         if bme1 == bme_start:
+        #             looped = True
+        #             return
+        #         edges.append(self._wrap_bmedge(bme1))
+        #         bmf1 = next((bmf for bmf in bme1.link_faces if bmf != bmf0), None)
+        #         if not bmf1: return
+        #         bme0,bmf0 = bme1,bmf1
+        
+        # lf = list(bme_start.link_faces)
+        # if len(lf) == 0:
+        #     return ([], False)
+        # crawl(bme_start, lf[0])
+        # if not looped and len(lf) >= 2:
+        #     edges.reverse()
+        #     crawl(bme_start, lf[1])
+        # return (edges, looped)
     
     def get_edge_loop(self, edge):
         bme = self._unwrap(edge)
