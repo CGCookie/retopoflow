@@ -32,6 +32,7 @@ import pickle
 import random
 import binascii
 import importlib
+from collections import deque
 
 import bgl
 import blf
@@ -182,8 +183,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     @profiler.profile
     def __init__(self, rfmode, starting_tool):
         RFContext.instance = self
-        self.undo = []  # undo stack of causing actions, FSM state, tool states, and rftargets
-        self.redo = []  # redo stack of causing actions, FSM state, tool states, and rftargets
+        self.undo = deque()  # undo stack of causing actions, FSM state, tool states, and rftargets
+        self.redo = deque()  # redo stack of causing actions, FSM state, tool states, and rftargets
         self.rfmode = rfmode
         self.FSM = {'main': self.modal_main}
         self.mode = 'main'
@@ -360,7 +361,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         # skip pushing to undo if action is repeatable and we are repeating actions
         if repeatable and self.undo and self.undo[-1]['action'] == action: return
         self.undo.append(self._create_state(action))
-        while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
+        while len(self.undo) > self.undo_depth: self.undo.popleft()     # limit stack size
         self.redo.clear()
         self.instrument_write(action)
 

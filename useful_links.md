@@ -16,3 +16,4 @@ Topology
 Blender Tips
 
 - [info tips and tricks](https://docs.blender.org/api/blender_python_api_current/info_tips_and_tricks.html)
+- [blender ui shenanigans](https://wiki.blender.org/index.php/User%3aIdeasman42/Blender_UI_Shenanigans)

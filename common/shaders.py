@@ -2,6 +2,10 @@ import bgl
 from ..lib.common_utilities import invert_matrix, matrix_normal, dprint
 from ..lib.common_shader import Shader
 
+# useful resources
+# - http://antongerdelan.net/opengl/shaders.html
+# - http://antongerdelan.net/opengl/vertexbuffers.html
+
 # note: not all supported by user system, but we don't need latest functionality
 # https://github.com/mattdesl/lwjgl-basics/wiki/GLSL-Versions
 # OpenGL  GLSL    OpenGL  GLSL
