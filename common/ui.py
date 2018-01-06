@@ -717,7 +717,7 @@ class UI_Markdown(UI_Container):
                 # unordered list!
                 ul = container.add(UI_Container())
                 for litext in p.split('\n'):
-                    litext = re.sub(r'- +', r'', litext)
+                    litext = re.sub(r'- ', r'', litext)
                     li = ul.add(UI_Container(margin=0, vertical=False))
                     li.add(UI_Label('-')).margin=0
                     li.add(UI_Spacer(width=8))
