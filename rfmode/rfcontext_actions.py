@@ -292,9 +292,11 @@ class Actions:
     def unpress(self): self.just_pressed = None
 
 
-    def using(self, actions):
+    def using(self, actions, using_all=False):
         if actions is None: return False
         actions = self.convert(actions)
+        if using_all:
+            return all(p in actions for p in self.now_pressed.values())
         return any(p in actions for p in self.now_pressed.values())
     
     def navigating(self):
@@ -311,9 +313,9 @@ class Actions:
         if ret and unpress: self.just_pressed = None
         return ret
 
-    def released(self, actions):
+    def released(self, actions, released_all=False):
         if actions is None: return False
-        return not self.using(actions)
+        return not self.using(actions, using_all=released_all)
 
     def warp_mouse(self, xy:Point2D):
         rx,ry = self.region.x,self.region.y

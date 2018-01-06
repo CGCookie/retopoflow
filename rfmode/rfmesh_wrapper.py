@@ -192,6 +192,10 @@ class RFEdge(BMElemWrapper):
         if not verts: return None
         return RFVert(verts[0])
     
+    def shared_faces(self, bme):
+        bme = self._unwrap(bme)
+        return { RFFace(f) for f in (set(self.bmelem.link_faces) & set(bme.link_faces)) }
+    
     @property
     def verts(self):
         bmv0,bmv1 = self.bmelem.verts
@@ -200,6 +204,29 @@ class RFEdge(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+    
+    def get_left_right_link_faces(self):
+        v0,v1 = self.bmelem.verts
+        bmfl,bmfr = None,None
+        if len(self.bmelem.link_faces) == 2:
+            bmfl,bmfr = self.bmelem.link_faces
+        elif len(self.bmelem.link_faces) == 1:
+            bmfl = next(iter(self.bmelem.link_faces))
+        else:
+            return (None, None)
+        
+        for lv0,lv1 in iter_pairs(bmfl.verts, True):
+            if lv0 == v0 and lv1 == v1:
+                # correct orientation!
+                break
+        else:
+            # swap left and right faces
+            bmfl,bmfr = bmfr,bmfl
+        
+        if bmfl: bmfl = RFFace(bmfl)
+        if bmfr: bmfr = RFFace(bmfr)
+        return (bmfl, bmfr)
+        
 
     #############################################
 
@@ -222,7 +249,65 @@ class RFEdge(BMElemWrapper):
         v0,v1 = self.verts
         return v1.co - v0.co
     
+    def vector2D(self, Point_to_Point2D):
+        v0,v1 = self.verts
+        return Point_to_Point2D(v1.co) - Point_to_Point2D(v0.co)
+    
     def direction(self): return Direction(self.vector())
+    
+    def perpendicular(self):
+        d = self.vector()
+        n = self.normal()
+        return Direction(d.cross(n))
+    
+    @staticmethod
+    def get_direction(bme):
+        v0,v1 = bme.verts
+        return Direction(v1.co - v0.co)
+    
+    #############################################
+    
+    def get_next_edge_in_strip(self, rfvert):
+        '''
+        given self=A and bmv=B, return C
+        
+        O-----O-----O...     O-----O-----O...
+        |     |     |        |     |     |
+        O--A--B--C--O...     O--A--B--C--O...
+        |     |     |        |     |\
+        O-----O-----O...     O-----O O...
+                                    \|
+                                     O...
+               crawl dir: ======>
+        
+        left : "normal" case, where B is part of 4 touching quads
+        right: here, find the edge with the direction most similarly
+               pointing in same direction
+        '''
+        bmv = self._unwrap(rfvert)
+        assert bmv in self.bmelem.verts, "Vert not part of Edge"
+        
+        link_faces = set(self.bmelem.link_faces)
+        
+        if len(bmv.link_faces) == 4 and len(bmv.link_edges) == 4:
+            # bmv is part of 4 touching quads
+            # find bme that does not share a face with self
+            for bme in rfvert.link_edges:
+                if not (set(bme.link_faces) & link_faces): return bme
+        
+        # find edge most similar in direction
+        # NOTE: should remove the component along normal at vert?
+        best_other,best_dot = None,0
+        self_dir = self.direction()
+        for bme in bmv.link_edges:
+            rfedge = RFEdge(bme)
+            if len(bme.link_faces) != 2: continue
+            if (set(bme.link_faces) & link_faces): continue
+            dot = abs(self_dir.dot(rfedge.direction()))
+            if dot < best_dot: continue
+            best_other,best_dot = rfedge,dot
+        return best_other
+    
     
     #############################################
 

@@ -969,74 +969,51 @@ class RFMesh():
         is_looped = self.is_quadstrip_looped(edge)
         edges = list(bme for bme,_ in self.iter_quadstrip(edge))
         return (edges, is_looped)
-        # bme_start = self._unwrap(edge)
-        # edges = [self._wrap_bmedge(bme_start)]
-        # looped = False
-        # def crawl(bme0, bmf0):
-        #     nonlocal edges, bme_start, looped
-        #     touched = set()
-        #     while (bme0,bmf0) not in touched:
-        #         #assert bmf0 not in touched
-        #         touched.add((bme0,bmf0))
-        #         lbme = list(bmf0.edges)
-        #         if len(lbme) != 4: return
-                
-        #         bme1 = next(lbme[(i+2)%4] for i,e in enumerate(lbme) if e == bme0)
-        #         if bme1 == bme_start:
-        #             looped = True
-        #             return
-        #         edges.append(self._wrap_bmedge(bme1))
-        #         bmf1 = next((bmf for bmf in bme1.link_faces if bmf != bmf0), None)
-        #         if not bmf1: return
-        #         bme0,bmf0 = bme1,bmf1
-        
-        # lf = list(bme_start.link_faces)
-        # if len(lf) == 0:
-        #     return ([], False)
-        # crawl(bme_start, lf[0])
-        # if not looped and len(lf) >= 2:
-        #     edges.reverse()
-        #     crawl(bme_start, lf[1])
-        # return (edges, looped)
     
     def get_edge_loop(self, edge):
-        bme = self._unwrap(edge)
         touched = set()
-        edges = []
+        edges = [edge]
+        
+        '''
+        description of crawl(bme0, bmv01) below...
+        given: bme0=A, bmv01=B
+        find:  bme1=C, bmv12=D
+        
+        O-----O-----O...     O-----O-----O...
+        |     |     |        |     |     |
+        O--A--B--C--D...     O--A--B--C--O...
+        |  ^0 |  ^1 |        |     |\
+        O-----O-----O...     O-----O O...
+                                    \|
+                                     O...
+               crawl dir: ======>
+        
+        left : "normal" case, where B is part of 4 touching quads
+        right: here, find the edge with the direction most similarly
+               pointing in same direction
+        '''
         def crawl(bme0, bmv01):
-            nonlocal edges
-            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
-            if bmv01 in touched: return True
-            touched.add(bmv01)
-            touched.add(bme0)
-            if len(bmv01.link_edges) > 4: return False
-            if len(bmv01.link_faces) > 4: return False
-            if len(bmv01.link_faces) == 4:
-                # find next edge that doesn't share face with bme0
-                bmf0 = bme0.link_faces
-                for bme1 in bmv01.link_edges:
-                    if bme1 == bme0: continue
-                    if any(f in bmf0 for f in bme1.link_faces): continue
-                    bmv2 = bme1.other_vert(bmv01)
-                    return crawl(bme1, bmv2)
-            else:
-                # find the edge that's pointing in the most similar direction
-                best_bme,best_dot = None,-1
-                d0 = (bme0.verts[1].co - bme0.verts[0].co).normalized()
-                bmf0 = bme0.link_faces
-                for bme1 in bmv01.link_edges:
-                    if bme1 == bme0: continue
-                    if any(f in bmf0 for f in bme1.link_faces): continue
-                    d1 = (bme1.verts[1].co - bme1.verts[0].co).normalized()
-                    d = abs(d0.dot(d1))
-                    if d > best_dot: best_bme,best_dot = bme1,d
-                if best_bme:
-                    return crawl(best_bme, best_bme.other_vert(bmv01))
-            return False
-        if crawl(bme, bme.verts[0]): return (edges, True)
-        edges.reverse()
-        crawl(bme, bme.verts[1])
-        return (edges, False)
+            nonlocal edges, touched
+            while True:
+                bme1 = bme0.get_next_edge_in_strip(bmv01)
+                if not bme1:
+                    # could not find next edge to continue crawling
+                    # hit edge of mesh?
+                    return False
+                if bme1 in touched:
+                    # wrapped around (edge loop)!
+                    # NOTE: should trim off any strip not part of loop?  ex: P-shaped
+                    return True
+                edges.append(bme1)
+                touched.add(bme1)
+                bmv01 = bme1.other_vert(bmv01)
+                bme0 = bme1
+        loop = crawl(edge, edge.verts[0])
+        if not loop:
+            # edge strip
+            edges.reverse()
+            loop = crawl(edge, edge.verts[1])
+        return (edges, loop)
     
     def get_inner_edge_loop(self, edge):
         # returns edge loop that follows the inside, boundary
