@@ -907,7 +907,7 @@ class RFMesh():
         
         # choose one of the faces
         if not bmf_start: bmf_start = next(iter(bme_start.link_faces), None)
-        if not bmf_start: return (None, None, None)
+        if not bmf_start: return (None, False, None, False)
         
         bme0,bmf0,flipped = bme_start,bmf_start,False
         touched = set() # just in case!
@@ -954,6 +954,7 @@ class RFMesh():
         # note: the bmesh may change while crawling!
         edge = self._unwrap(edge)
         bme,flipped,bmf,looped = self._crawl_quadstrip_to_loopend(edge)
+        if not bme: return
         bme_start = bme
         while True:
             # find next bme and bmf, in case bmesh is edited!

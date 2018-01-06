@@ -120,7 +120,7 @@ class RFTool_Loops(RFTool):
         
         self.edges,self.edge_loop = self.rfcontext.get_face_loop(self.nearest_edge)
         if not self.edges:
-            print('nearest, but no loop')
+            # nearest, but no loop
             return
         vp0,vp1 = self.edges[0].verts
         cp0,cp1 = vp0.co,vp1.co
