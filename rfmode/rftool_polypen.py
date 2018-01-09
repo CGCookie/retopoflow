@@ -412,6 +412,7 @@ class RFTool_PolyPen(RFTool):
                         shared_faces = bmv.shared_faces(bmv1)
                         self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
                         bmv1.merge(bmv)
+                        self.rfcontext.remove_duplicate_bmfaces(bmv1)
                         self.rfcontext.clean_duplicate_bmedges(bmv1)
                     self.rfcontext.select(bmv1)
                     update_verts += [bmv1]

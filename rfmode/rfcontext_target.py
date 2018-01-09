@@ -320,6 +320,9 @@ class RFContext_Target:
 
     def clean_duplicate_bmedges(self, vert):
         return self.rftarget.clean_duplicate_bmedges(vert)
+    
+    def remove_duplicate_bmfaces(self, vert):
+        return self.rftarget.remove_duplicate_bmfaces(vert)
 
     ###################################################
 

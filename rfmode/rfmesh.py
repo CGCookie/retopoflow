@@ -1321,6 +1321,25 @@ class RFTarget(RFMesh):
                 # assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
                 print('clean_duplicate_bmedges: unhandled count of linked faces %d, %d' % (l0,l1))
         return mapping
+    
+    def remove_duplicate_bmfaces(self, vert):
+        bmv = self._unwrap(vert)
+        mapping = {}
+        check = True
+        while check:
+            check = False
+            bmfs = list(bmv.link_faces)
+            for i0,bmf0 in enumerate(bmfs):
+                for i1,bmf1 in enumerate(bmfs):
+                    if i1 <= i0: continue
+                    if set(bmf0.verts) ^ set(bmf1.verts): continue
+                    # bmf0 and bmf1 have exactly the same verts! delete one!
+                    mapping[bmf1] = bmf0
+                    self.delete_faces([bmf1])
+                    check = True
+                    break
+                if check: break
+        return mapping
 
     # def modify_bmverts(self, bmverts, update_fn):
     #     l2w = self.xform.l2w_point
