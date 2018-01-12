@@ -169,6 +169,7 @@ class RFTool_PolyStrips_Ops:
             nmarks = int(math.ceil(stroke_len / radius))        # approx num of marks
             nmarks = nmarks + (1 - ((nmarks+markoff0+markoff1) % 2))  # make sure odd count
             nmarks = max(nmarks, 3-markoff0-markoff1)           # min marks = 3
+            nmarks = max(nmarks, 2)                             # fix div by 0 :(
             # marks are found at dists along stroke
             at_dists = [stroke_len*i/(nmarks-1) for i in range(nmarks)]
             # compute marks
