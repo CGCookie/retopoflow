@@ -26,10 +26,12 @@ import bgl
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image
+from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..lib.common_utilities import dprint
+from ..options import themes
 
 from ..options import help_polypen
 
@@ -463,85 +465,73 @@ class RFTool_PolyPen(RFTool):
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
-    def draw_lines(self, coords):
+    def draw_lines(self, coords, poly_alpha=0.2):
+        line_color = themes['new']
+        poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
         l = len(coords)
+        coords = [self.rfcontext.Point_to_Point2D(co) for co in coords]
         
-        # 2d lines
-        self.drawing.line_width(2.0)
-        bgl.glDisable(bgl.GL_CULL_FACE)
-        bgl.glDepthMask(bgl.GL_FALSE)
-
-        # draw above
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glColor4f(1,1,1,0.5)
         if l == 1:
+            bgl.glColor4f(*line_color)
             bgl.glBegin(bgl.GL_POINTS)
-            bgl.glVertex3f(*coords[0])
+            bgl.glVertex2f(*coords[0])
             bgl.glEnd()
         elif l == 2:
+            bgl.glColor4f(*line_color)
             bgl.glBegin(bgl.GL_LINES)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glEnd()
-        elif l == 3:
-            bgl.glBegin(bgl.GL_TRIANGLES)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glVertex3f(*coords[2])
+            bgl.glVertex2f(*coords[0])
+            bgl.glVertex2f(*coords[1])
             bgl.glEnd()
         else:
-            bgl.glBegin(bgl.GL_QUADS)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glVertex3f(*coords[2])
-            bgl.glVertex3f(*coords[3])
+            bgl.glColor4f(*line_color)
+            bgl.glBegin(bgl.GL_LINE_LOOP)
+            for co in coords: bgl.glVertex2f(*co)
             bgl.glEnd()
-
-        # draw below
-        bgl.glDepthFunc(bgl.GL_GREATER)
-        bgl.glColor4f(1,1,1,0.1)
-        if l == 1:
-            bgl.glBegin(bgl.GL_POINTS)
-            bgl.glVertex3f(*coords[0])
-            bgl.glEnd()
-        elif l == 2:
-            bgl.glBegin(bgl.GL_LINES)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glEnd()
-        elif l == 3:
+            
+            bgl.glColor4f(*poly_color)
+            co0 = coords[0]
             bgl.glBegin(bgl.GL_TRIANGLES)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glVertex3f(*coords[2])
-            bgl.glEnd()
-        else:
-            bgl.glBegin(bgl.GL_QUADS)
-            bgl.glVertex3f(*coords[0])
-            bgl.glVertex3f(*coords[1])
-            bgl.glVertex3f(*coords[2])
-            bgl.glVertex3f(*coords[3])
+            for co1,co2 in iter_pairs(coords[1:],False):
+                bgl.glVertex2f(*co0)
+                bgl.glVertex2f(*co1)
+                bgl.glVertex2f(*co2)
             bgl.glEnd()
 
-        bgl.glEnable(bgl.GL_CULL_FACE)
-        bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-
+    
 
     @profiler.profile
-    def draw_postview(self):
-        if self.rfcontext.nav: return
+    def draw_postpixel(self):
+        # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
+        
+        if self.rfcontext.nav or self.mode != 'main': return
         if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
 
         self.set_next_state()
 
+        self.drawing.enable_stipple()
+        self.drawing.line_width(2.0)
+        self.drawing.point_size(4.0)
+        
         if self.next_state == 'new vertex':
-            nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+            p0 = hit_pos
+            e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+            bmv1,bmv2 = e1.verts
             if d is not None and d < self.rfcontext.drawing.scale(15):
-                self.draw_lines([nearest_edge.verts[0].co, hit_pos])
-                self.draw_lines([nearest_edge.verts[1].co, hit_pos])
+                f = next(iter(e1.link_faces), None)
+                if f:
+                    lco = []
+                    for v0,v1 in iter_pairs(f.verts, True):
+                        lco.append(v0.co)
+                        if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                            lco.append(p0)
+                    self.draw_lines(lco)
+                else:
+                    self.draw_lines([bmv1.co, hit_pos])
+                    self.draw_lines([bmv2.co, hit_pos])
+            else:
+                self.draw_lines([hit_pos])
 
         elif self.next_state == 'vert-edge':
             sel_verts = self.sel_verts
@@ -550,10 +540,20 @@ class RFTool_PolyPen(RFTool):
                 p0 = self.nearest_vert.co
             else:
                 p0 = hit_pos
-                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                bmv1,bmv2 = e1.verts
                 if d is not None and d < self.rfcontext.drawing.scale(15):
-                    self.draw_lines([nearest_edge.verts[0].co, p0])
-                    self.draw_lines([nearest_edge.verts[1].co, p0])
+                    f = next(iter(e1.link_faces), None)
+                    if f:
+                        lco = []
+                        for v0,v1 in iter_pairs(f.verts, True):
+                            lco.append(v0.co)
+                            if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                lco.append(p0)
+                        self.draw_lines(lco)
+                    else:
+                        self.draw_lines([bmv1.co, p0])
+                        self.draw_lines([bmv2.co, p0])
             self.draw_lines([bmv0.co, p0])
 
         elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
@@ -563,20 +563,54 @@ class RFTool_PolyPen(RFTool):
 
         elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
             if self.next_state == 'edge-face':
-                sel_edges = self.sel_edges
-                e1 = next(iter(sel_edges))
+                e0 = next(iter(self.sel_edges))
+                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1,bmv2 = e1.verts
+                if d is not None and d < self.rfcontext.drawing.scale(15) and e0 == e1:
+                    p0 = hit_pos
+                    f = next(iter(e1.link_faces), None)
+                    if f:
+                        lco = []
+                        for v0,v1 in iter_pairs(f.verts, True):
+                            lco.append(v0.co)
+                            if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                lco.append(p0)
+                        self.draw_lines(lco)
+                    else:
+                        self.draw_lines([bmv1.co, hit_pos])
+                        self.draw_lines([bmv2.co, hit_pos])
+                else:
+                    # self.draw_lines([hit_pos])
+                    bmv1,bmv2 = e0.verts
+                    if self.nearest_vert and not self.nearest_vert.select:
+                        p0 = self.nearest_vert.co
+                    else:
+                        p0 = hit_pos
+                    self.draw_lines([p0, bmv1.co, bmv2.co])
+            
+            elif self.next_state == 'tri-quad':
                 if self.nearest_vert and not self.nearest_vert.select:
                     p0 = self.nearest_vert.co
                 else:
                     p0 = hit_pos
-                self.draw_lines([p0, bmv1.co, bmv2.co])
-
-            elif self.next_state == 'edges-face' or self.next_state == 'tri-quad':
                 e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
                 bmv1,bmv2 = e1.verts
+                f = next(iter(e1.link_faces), None)
+                lco = []
+                for v0,v1 in iter_pairs(f.verts, True):
+                    lco.append(v0.co)
+                    if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                        lco.append(p0)
+                self.draw_lines(lco)
+                #self.draw_lines([p0, bmv1.co, bmv2.co])
+            
+            elif self.next_state == 'edges-face':
                 if self.nearest_vert and not self.nearest_vert.select:
                     p0 = self.nearest_vert.co
                 else:
                     p0 = hit_pos
+                e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                bmv1,bmv2 = e1.verts
                 self.draw_lines([p0, bmv1.co, bmv2.co])
+        
+        self.drawing.disable_stipple()
