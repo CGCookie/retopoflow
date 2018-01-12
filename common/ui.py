@@ -26,7 +26,9 @@ import bgl
 import blf
 import random
 import traceback
+import functools
 from bpy.types import BoolProperty
+from mathutils import Matrix
 import math
 from itertools import chain
 from .decorators import blender_version
@@ -104,8 +106,14 @@ class Drawing:
     def __init__(self):
         assert hasattr(self, '_creating'), "Do not instantiate directly.  Use Drawing.get_instance()"
         
+        self.rgn,self.r3d,self.window = None,None,None
         self.font_id = 0
         self.text_size(12)
+    
+    def set_region(self, rgn, r3d, window):
+        self.rgn = rgn
+        self.r3d = r3d
+        self.window = window
     
     def scale(self, s): return s * self._dpi_mult
     def unscale(self, s): return s / self._dpi_mult
@@ -165,6 +173,58 @@ class Drawing:
             blf.position(self.font_id, x, y, 0)
             blf.draw(self.font_id, line)
             y -= self.line_height
+    
+    def get_mvp_matrix(self, view3D=True):
+        '''
+        if view3D == True: returns MVP for 3D view
+        else: returns MVP for pixel view
+        TODO: compute separate M,V,P matrices
+        '''
+        if not self.r3d: return None
+        if view3D:
+            # 3D view
+            return self.r3d.perspective_matrix
+        else:
+            # pixel view
+            return self.get_pixel_matrix()
+        
+        mat_model = Matrix()
+        mat_view = Matrix()
+        mat_proj = Matrix()
+        
+        view_loc = self.r3d.view_location # vec
+        view_rot = self.r3d.view_rotation # quat
+        view_per = self.r3d.view_perspective # 'PERSP' or 'ORTHO'
+        
+        return mat_model,mat_view,mat_proj
+    
+    def get_pixel_matrix_list(self):
+        if not self.r3d: return None
+        x,y = self.rgn.x,self.rgn.y
+        w,h = self.rgn.width,self.rgn.height
+        ww,wh = self.window.width,self.window.height
+        return [[2/w,0,0,-1],  [0,2/h,0,-1],  [0,0,1,0],  [0,0,0,1]]
+        
+    def get_pixel_matrix(self):
+        '''
+        returns MVP for pixel view
+        TODO: compute separate M,V,P matrices
+        '''
+        return Matrix(self.get_pixel_matrix_list()) if self.r3d else None
+    
+    def get_pixel_matrix_buffer(self):
+        if not self.r3d: return None
+        return bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_pixel_matrix_list())
+    
+    def get_view_matrix_list(self):
+        return list(self.get_view_matrix()) if self.r3d else None
+        
+    def get_view_matrix(self):
+        return self.r3d.perspective_matrix if self.r3d else None
+    
+    def get_view_matrix_buffer(self):
+        if not self.r3d: return None
+        return bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_view_matrix_list())
     
     def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7):
         '''

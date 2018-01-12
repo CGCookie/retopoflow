@@ -152,6 +152,7 @@ class RFWidget_BrushStroke:
         
         if self.mode == 'stroke':
             brushStrokeShader.enable()
+            brushStrokeShader['uMVPMatrix'] = self.drawing.get_pixel_matrix_buffer()
             self.drawing.line_width(2.0)
             #self.drawing.enable_stipple()
             #bgl.glColor4f(*themes['stroke'])

@@ -531,6 +531,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             # draw outer-inner lines
             self.drawing.line_width(2.0)
             edgeShortenShader.enable()
+            edgeShortenShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
             edgeShortenShader['uScreenSize'] = self.rfcontext.actions.size
             bgl.glBegin(bgl.GL_LINES)
             for strip in strips:
@@ -558,6 +559,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             # draw junction handles (outer control points of curve)
             faces_drawn = set() # keep track of faces, so don't draw same handles 2+ times
             circleShader.enable()
+            circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
             circleShader['uInOut'] = 0.8
             self.drawing.point_size(20)
             bgl.glBegin(bgl.GL_POINTS)
@@ -579,6 +581,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             # draw control handles (inner control points of curve)
             if options['polystrips arrows']:
                 arrowShader.enable()
+                arrowShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
                 arrowShader['uInOut'] = 0.8
                 self.drawing.point_size(20)
                 bgl.glBegin(bgl.GL_POINTS)
@@ -595,6 +598,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 arrowShader.disable()
             else:
                 circleShader.enable()
+                circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
                 circleShader['uInOut'] = 0.8
                 self.drawing.point_size(15)
                 bgl.glBegin(bgl.GL_POINTS)

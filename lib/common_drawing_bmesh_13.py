@@ -105,7 +105,7 @@ def setupBMeshShader(shader):
     shader.assign('clip_start', spc.clip_start)
     shader.assign('clip_end', spc.clip_end)
 
-bmeshShader = Shader(shaderVertSource, shaderFragSource, setupBMeshShader)
+bmeshShader = Shader('bmeshShader_13', shaderVertSource, shaderFragSource, setupBMeshShader)
 
 
 

@@ -192,6 +192,8 @@ class RFContext_Drawing:
         self.drawing = Drawing.get_instance()
         self.window_manager = UI_WindowManager()
         
+        self.drawing.set_region(self.actions.region, self.actions.r3d, bpy.context.window)
+        
         self.alert_windows = 0
         
         def get_selected_tool():

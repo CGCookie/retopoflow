@@ -49,9 +49,10 @@ class Shader():
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
         return log
     
-    def __init__(self, srcVertex, srcFragment, funcStart=None, checkErrors=True):
+    def __init__(self, name, srcVertex, srcFragment, funcStart=None, checkErrors=True):
         self.drawing = Drawing.get_instance()
         
+        self.name = name
         self.shaderProg = bgl.glCreateProgram()
         self.shaderVert = bgl.glCreateShader(bgl.GL_VERTEX_SHADER)
         self.shaderFrag = bgl.glCreateShader(bgl.GL_FRAGMENT_SHADER)
@@ -64,7 +65,7 @@ class Shader():
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
         
-        dprint('RetopoFlow Shader Info (%d)' % self.shaderProg)
+        dprint('RetopoFlow Shader Info: %s (%d)' % (self.name,self.shaderProg))
         logv = self.shader_compile(self.shaderVert)
         logf = self.shader_compile(self.shaderFrag)
         if len(logv.strip()):
@@ -100,8 +101,12 @@ class Shader():
         dprint('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
         
         self.funcStart = funcStart
+        self.mvpmatrix_buffer = bgl.Buffer(bgl.GL_FLOAT, [4,4])
     
     def __setitem__(self, varName, varValue): self.assign(varName, varValue)
+    
+    def assign_buffer(self, varName, varValue):
+        return self.assign(varName, bgl.Buffer(bgl.GL_FLOAT, [4,4], varValue))
     
     # https://www.opengl.org/sdk/docs/man/html/glVertexAttrib.xhtml
     # https://www.khronos.org/opengles/sdk/docs/man/xhtml/glUniform.xml
@@ -112,7 +117,7 @@ class Shader():
             q,l,t = v['qualifier'],v['location'],v['type']
             if l == -1:
                 if not v['reported']:
-                    dprint('ASSIGNING TO UNUSED ATTRIBUTE: %s = %s' % (varName,str(varValue)))
+                    dprint('ASSIGNING TO UNUSED ATTRIBUTE (%s): %s = %s' % (self.name, varName,str(varValue)))
                     v['reported'] = True
                 return
             if DEBUG_PRINT:
@@ -228,6 +233,14 @@ class Shader():
             bgl.glUseProgram(self.shaderProg)
             if self.checkErrors:
                 self.drawing.glCheckError('using program (%d) post' % self.shaderProg)
+            
+            # special uniforms
+            # - uMVPMatrix works around deprecated gl_ModelViewProjectionMatrix
+            if 'uMVPMatrix' in self.shaderVars:
+                mvpmatrix = bpy.context.region_data.perspective_matrix
+                mvpmatrix_buffer = bgl.Buffer(bgl.GL_FLOAT, [4,4], mvpmatrix)
+                self.assign('uMVPMatrix', mvpmatrix_buffer)
+            
             if self.funcStart: self.funcStart(self)
         except Exception as e:
             print('Error with using shader: ' + str(e))

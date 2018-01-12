@@ -285,7 +285,7 @@ def setupBMeshShader(shader):
     shader.assign('vert_scale', Vector((1,1,1)))
     shader.assign('screen_size', Vector((area.width, area.height)))
 
-bmeshShader = Shader(shaderVertSource, shaderFragSource, setupBMeshShader)
+bmeshShader = Shader('bmeshShader', shaderVertSource, shaderFragSource, setupBMeshShader)
 
 
 

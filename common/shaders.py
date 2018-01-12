@@ -13,8 +13,10 @@ from ..lib.common_shader import Shader
 dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
 
-brushStrokeShader = Shader('''
+brushStrokeShader = Shader('brushStrokeShader', '''
     #version 130
+    
+    uniform mat4 uMVPMatrix;
     
     in vec2  vPos;
     in vec4  vColor;
@@ -24,7 +26,7 @@ brushStrokeShader = Shader('''
     out float aDistAccum;
     
     void main() {
-        gl_Position = gl_ModelViewProjectionMatrix * vec4(vPos, 0.0, 1.0);
+        gl_Position = uMVPMatrix * vec4(vPos, 0.0, 1.0);
         aColor = vColor;
         aDistAccum = vDistAccum;
     }
@@ -38,10 +40,11 @@ brushStrokeShader = Shader('''
     }
     ''', checkErrors=False)
 
-edgeShortenShader = Shader('''
+edgeShortenShader = Shader('edgeShortenShader', '''
     #version 130
     
     uniform vec2 uScreenSize;
+    uniform mat4 uMVPMatrix;
     
     in vec4  vPos;
     in vec4  vFrom;
@@ -51,8 +54,8 @@ edgeShortenShader = Shader('''
     out vec4 aColor;
     
     void main() {
-        vec4 p0 = gl_ModelViewProjectionMatrix * vPos;
-        vec4 p1 = gl_ModelViewProjectionMatrix * vFrom;
+        vec4 p0 = uMVPMatrix * vPos;
+        vec4 p1 = uMVPMatrix * vFrom;
         
         vec2 s0 = uScreenSize * p0.xy / p0.w;
         vec2 s1 = uScreenSize * p1.xy / p1.w;
@@ -73,8 +76,10 @@ edgeShortenShader = Shader('''
     ''', checkErrors=False)
 
 
-circleShader = Shader('''
+circleShader = Shader('circleShader', '''
     #version 130
+    
+    uniform mat4 uMVPMatrix;
     
     in vec4 vPos;
     in vec4 vInColor;
@@ -84,7 +89,7 @@ circleShader = Shader('''
     out vec4 aOutColor;
     
     void main() {
-        gl_Position = gl_ModelViewProjectionMatrix * vPos;
+        gl_Position = uMVPMatrix * vPos;
         aInColor    = vInColor;
         aOutColor   = vOutColor;
     }
@@ -104,9 +109,11 @@ circleShader = Shader('''
     ''', checkErrors=False)
 
 
-arrowShader = Shader('''
+arrowShader = Shader('arrowShader', '''
     #version 130
 
+    uniform mat4 uMVPMatrix;
+    
     in vec4 vPos;
     in vec4 vFrom;
     in vec4 vInColor;
@@ -119,8 +126,8 @@ arrowShader = Shader('''
     float angle(vec2 d) { return atan(d.y, d.x); }
 
     void main() {
-        vec4 p0 = gl_ModelViewProjectionMatrix * vFrom;
-        vec4 p1 = gl_ModelViewProjectionMatrix * vPos;
+        vec4 p0 = uMVPMatrix * vFrom;
+        vec4 p1 = uMVPMatrix * vPos;
         gl_Position = p1;
         aRot = angle((p1.xy / p1.w) - (p0.xy / p0.w));
         aInColor = vInColor;
