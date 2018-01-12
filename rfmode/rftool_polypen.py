@@ -517,30 +517,7 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'new vertex':
             p0 = hit_pos
             e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-            bmv1,bmv2 = e1.verts
-            if d is not None and d < self.rfcontext.drawing.scale(15):
-                f = next(iter(e1.link_faces), None)
-                if f:
-                    lco = []
-                    for v0,v1 in iter_pairs(f.verts, True):
-                        lco.append(v0.co)
-                        if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
-                            lco.append(p0)
-                    self.draw_lines(lco)
-                else:
-                    self.draw_lines([bmv1.co, hit_pos])
-                    self.draw_lines([bmv2.co, hit_pos])
-            else:
-                self.draw_lines([hit_pos])
-
-        elif self.next_state == 'vert-edge':
-            sel_verts = self.sel_verts
-            bmv0 = next(iter(sel_verts))
-            if self.nearest_vert:
-                p0 = self.nearest_vert.co
-            else:
-                p0 = hit_pos
-                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+            if e1:
                 bmv1,bmv2 = e1.verts
                 if d is not None and d < self.rfcontext.drawing.scale(15):
                     f = next(iter(e1.link_faces), None)
@@ -552,8 +529,35 @@ class RFTool_PolyPen(RFTool):
                                 lco.append(p0)
                         self.draw_lines(lco)
                     else:
-                        self.draw_lines([bmv1.co, p0])
-                        self.draw_lines([bmv2.co, p0])
+                        self.draw_lines([bmv1.co, hit_pos])
+                        self.draw_lines([bmv2.co, hit_pos])
+                else:
+                    self.draw_lines([hit_pos])
+            else:
+                self.draw_lines([hit_pos])
+
+        elif self.next_state == 'vert-edge':
+            sel_verts = self.sel_verts
+            bmv0 = next(iter(sel_verts))
+            if self.nearest_vert:
+                p0 = self.nearest_vert.co
+            else:
+                p0 = hit_pos
+                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                if e1:
+                    bmv1,bmv2 = e1.verts
+                    if d is not None and d < self.rfcontext.drawing.scale(15):
+                        f = next(iter(e1.link_faces), None)
+                        if f:
+                            lco = []
+                            for v0,v1 in iter_pairs(f.verts, True):
+                                lco.append(v0.co)
+                                if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                    lco.append(p0)
+                            self.draw_lines(lco)
+                        else:
+                            self.draw_lines([bmv1.co, p0])
+                            self.draw_lines([bmv2.co, p0])
             self.draw_lines([bmv0.co, p0])
 
         elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
