@@ -47,7 +47,7 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 
 from ..lib.common_utilities import get_settings, dprint, get_exception_info
-from ..common.maths import Point, Vec, Direction, Normal
+from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.classes.profiler.profiler import profiler
@@ -249,6 +249,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     def _init_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
+        self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
@@ -585,7 +586,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size[0]: return False
         if p2D.y < 0 or p2D.y > self.actions.size[1]: return False
-        ray = self.Point_to_Ray(point, max_dist_offset=-0.002)
+        max_dist_offset = self.sources_bbox.get_min_dimension()*0.01 + 0.0008
+        ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
         return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)

@@ -25,6 +25,7 @@ from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..lib.classes.profiler.profiler import profiler
+from mathutils import Vector
 
 class RFContext_Target:
     '''

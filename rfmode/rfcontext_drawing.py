@@ -392,7 +392,7 @@ class RFContext_Drawing:
 
     def get_view_version(self):
         m = self.actions.r3d.view_matrix
-        return [v for r in m for v in r]
+        return [v for r in m for v in r] + [self.actions.space.lens]
 
     def draw_postpixel(self):
         if not self.actions.r3d: return

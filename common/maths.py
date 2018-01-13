@@ -639,6 +639,12 @@ class BBox:
         self.max = Point((Mx, My, Mz))
         self.mx,self.my,self.mz = mx,my,mz
         self.Mx,self.My,self.Mz = Mx,My,Mz
+        self.min_dim = min([self.Mx-self.mx, self.My-self.my,self.Mz-self.mz])
+        self.max_dim = max([self.Mx-self.mx, self.My-self.my,self.Mz-self.mz])
+    
+    @staticmethod
+    def merge(boxes):
+        return BBox(from_coords=[Point(p) for b in boxes for p in [(b.mx,b.my,b.mz), (b.Mx,b.My,b.Mz)] ])
 
     def __str__(self):
         return '<BBox (%0.4f, %0.4f, %0.4f) (%0.4f, %0.4f, %0.4f)>' % (self.mx, self.my, self.mz, self.Mx, self.My, self.Mz)
@@ -648,6 +654,9 @@ class BBox:
     def Point_within(self, point:Point, margin=0):
         if not self.min or not self.max: return True
         return all(m-margin <= v and v <= M+margin for v,m,M in zip(point,self.min,self.max))
+    
+    def get_min_dimension(self): return self.min_dim
+    def get_max_dimension(self): return self.max_dim
 
 
 class Accel2D:

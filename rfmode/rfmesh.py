@@ -560,7 +560,7 @@ class RFMesh():
     @profiler.profile
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
-        p,_,_,_ = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
+        p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
         return p is not None
 
     def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
