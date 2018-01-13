@@ -87,6 +87,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def set_scale_falloff(self, v): options['polystrips scale falloff'] = clamp(v, -10, 10)
     def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
     def get_scale_falloff_print(self): return '%0.2f' % self.get_scale_falloff_actual()
+    def set_scale_falloff_print(self, v): options['polystrips scale falloff'] = 10 * math.log(v) / math.log(2)
     def get_ui_options(self):
         def get_draw_curve(): return options['polystrips draw curve']
         def set_draw_curve(v): options['polystrips draw curve'] = v
@@ -97,7 +98,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             options['polystrips max strips'] = v
             self.update()
         return [
-            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_print_value=self.get_scale_falloff_print),
+            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
             UI_IntValue('Max Strips', get_max_strips, set_max_strips),
             UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
         ]

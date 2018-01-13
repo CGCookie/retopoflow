@@ -161,6 +161,7 @@ class Actions:
         self.load_keymap('Blender User')
 
         self.context = context
+        self.space = context.space_data
         self.region = context.region
         self.size = (context.region.width,context.region.height)
         self.r3d = context.space_data.region_3d

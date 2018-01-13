@@ -263,8 +263,14 @@ class RFContext_Drawing:
             return options['debug level']
             # return self.settings.debug
         def set_debug_level(v):
-            options['debug level'] = clamp(v, 0, 5)
+            options['debug level'] = clamp(int(v), 0, 5)
             #self.settings.debug = v
+        def get_lens():  return int(self.actions.space.lens)
+        def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)
+        def get_clip_start():  return self.actions.space.clip_start
+        def set_clip_start(v): self.actions.space.clip_start = clamp(v, 1e-6, 1e9)
+        def get_clip_end():    return self.actions.space.clip_end
+        def set_clip_end(v):   self.actions.space.clip_end = clamp(v, 1e-6, 1e9)
         
         def wrap_pos_option(key):
             def get():
@@ -323,6 +329,7 @@ class RFContext_Drawing:
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
         dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
+        dd_general.add(UI_IntValue('Lens', get_lens, set_lens))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))

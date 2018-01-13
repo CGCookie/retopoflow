@@ -375,6 +375,8 @@ class UI_Element:
     def mouse_down(self, mouse): pass
     def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
+    def capture_start(self): pass
+    def capture_event(self, event): pass
     
     def mouse_cursor(self): return 'DEFAULT'
 
@@ -401,6 +403,9 @@ class UI_Label(UI_Element):
         self.margin = margin
         self.set_label(label)
         self.set_bgcolor(bgcolor)
+        self.cursor_pos = None
+        self.cursor_symbol = None
+        self.cursor_color = (0.1,0.7,1,1)
     
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
@@ -438,6 +443,11 @@ class UI_Label(UI_Element):
         elif self.align == 0: loc = Point2D((l+(w-self.text_width)/2, t))
         else:                 loc = Point2D((l+w-self.width, t))
         self.drawing.text_draw2D(self.text, loc, self.color)
+        if self.cursor_pos is not None and self.cursor_symbol:
+            pre = self.drawing.get_text_width(self.text[:self.cursor_pos])
+            cwid = self.drawing.get_text_width(self.cursor_symbol)
+            cloc = Point2D((loc.x+pre-cwid/2, loc.y))
+            self.drawing.text_draw2D(self.cursor_symbol, cloc, self.cursor_color)
 
 
 
@@ -1178,7 +1188,8 @@ class UI_BoolValue(UI_Checkbox):
     pass
 
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_print_value=None):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None):
+        assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False)
         # self.margin = 0
         self.lbl = UI_Label(label)
@@ -1189,7 +1200,10 @@ class UI_IntValue(UI_Container):
         self.add(self.val)
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
-        self.fn_print_value = fn_print_value
+        self.fn_get_print_value = fn_get_print_value
+        self.fn_set_print_value = fn_set_print_value
+        self.downed = False
+        self.captured = False
     
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
@@ -1197,21 +1211,30 @@ class UI_IntValue(UI_Container):
     def mouse_down(self, mouse):
         self.down_mouse = mouse
         self.down_val = self.fn_get_value()
+        self.downed = True
         set_cursor('MOVE_X')
     
     def mouse_move(self, mouse):
         self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
     
+    def mouse_up(self, mouse):
+        self.downed = False
+    
     def predraw(self):
-        fn = self.fn_print_value if self.fn_print_value else self.fn_get_value
-        self.val.set_label(fn())
+        if not self.captured:
+            fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
+            self.val.set_label(fn())
+            self.val.cursor_pos = None
+        else:
+            self.val.cursor_pos = self.val_pos
     
     def _draw(self):
+        r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
         l,t = self.pos
         w,h = self.size
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
-        bgl.glColor4f(0,0,0,0.1)
+        bgl.glColor4f(r,g,b,a)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l,t)
         bgl.glVertex2f(l,t-h)
@@ -1220,6 +1243,70 @@ class UI_IntValue(UI_Container):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
         super()._draw()
+    
+    def capture_start(self):
+        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
+        self.val_orig = fn()
+        self.val_edit = str(self.val_orig)
+        self.val_pos = len(self.val_edit)
+        self.val_timer = 0
+        self.captured = True
+        self.keys = {
+            'ZERO':   '0', 'NUMPAD_0':      '0',
+            'ONE':    '1', 'NUMPAD_1':      '1',
+            'TWO':    '2', 'NUMPAD_2':      '2',
+            'THREE':  '3', 'NUMPAD_3':      '3',
+            'FOUR':   '4', 'NUMPAD_4':      '4',
+            'FIVE':   '5', 'NUMPAD_5':      '5',
+            'SIX':    '6', 'NUMPAD_6':      '6',
+            'SEVEN':  '7', 'NUMPAD_7':      '7',
+            'EIGHT':  '8', 'NUMPAD_8':      '8',
+            'NINE':   '9', 'NUMPAD_9':      '9',
+            'PERIOD': '.', 'NUMPAD_PERIOD': '.',
+            'MINUS':  '-', 'NUMPAD_MINUS':  '-',
+        }
+        return True
+    def capture_event(self, event):
+        if event.type == 'TIMER':
+            self.val_timer += 1
+            #c = "|" if (int(self.val_timer/30) % 2) == 0 else ":"
+            # self.val.cursor_symbol = "|" if (int(self.val_timer/10) % 2) == 0 else ""
+            self.val.cursor_symbol = "|"
+            #v = self.val_edit[:self.val_pos] + c + self.val_edit[self.val_pos:]
+            #self.val.set_label(v)
+            self.val.set_label(self.val_edit)
+            return
+        # print(event.type, event.value)
+        if event.value == 'RELEASE':
+            if event.type in {'RET','NUMPAD_ENTER'}:
+                self.captured = False
+                try:
+                    v = float(self.val_edit)
+                except:
+                    v = self.val_orig
+                if self.fn_set_print_value: self.fn_set_print_value(v)
+                else: self.fn_set_value(v)
+                return True
+            if event.type == 'ESC':
+                self.captured = False
+                return True
+        if event.value == 'PRESS':
+            if event.type == 'LEFT_ARROW':
+                self.val_pos = max(0, self.val_pos - 1)
+            if event.type == 'RIGHT_ARROW':
+                self.val_pos = min(len(self.val_edit), self.val_pos + 1)
+            if event.type == 'HOME':
+                self.val_pos = 0
+            if event.type == 'END':
+                self.val_pos = len(self.val_edit)
+            if event.type == 'BACK_SPACE' and self.val_pos > 0:
+                self.val_edit = self.val_edit[:self.val_pos-1] + self.val_edit[self.val_pos:]
+                self.val_pos -= 1
+            if event.type == 'DEL' and self.val_pos < len(self.val_edit):
+                self.val_edit = self.val_edit[:self.val_pos] + self.val_edit[self.val_pos+1:]
+            if event.type in self.keys:
+                self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
+                self.val_pos += 1
 
 
 
@@ -1420,6 +1507,7 @@ class UI_Window(UI_Padding):
         self.FSM['main'] = self.modal_main
         self.FSM['move'] = self.modal_move
         self.FSM['down'] = self.modal_down
+        self.FSM['capture'] = self.modal_capture
         self.FSM['scroll'] = self.modal_scroll
         self.state = 'main'
     
@@ -1527,13 +1615,14 @@ class UI_Window(UI_Padding):
         set_cursor(ui_hover.mouse_cursor())
         
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
+            self.mouse_down = self.mouse
             if self.movable and ui_hover in self.ui_grab:
-                self.mouse_down = self.mouse
                 self.mouse_prev = self.mouse
                 self.pos_prev = self.pos
                 return 'move'
             self.ui_down = ui_hover
             self.ui_down.mouse_down(self.mouse)
+            self.mouse_moved = False
             return 'down'
         
         if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADPAN'}:
@@ -1586,8 +1675,13 @@ class UI_Window(UI_Padding):
     def modal_down(self):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             self.ui_down.mouse_up(self.mouse)
+            if not self.mouse_moved and self.ui_down.capture_start(): return 'capture'
             return 'main'
+        self.mouse_moved |= self.mouse_down != self.mouse
         self.ui_down.mouse_move(self.mouse)
+    
+    def modal_capture(self):
+        if self.ui_down.capture_event(self.event): return 'main'
 
 
 class UI_WindowManager:
