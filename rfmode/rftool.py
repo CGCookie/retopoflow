@@ -140,5 +140,6 @@ class RFTool(metaclass=SingletonRegisterClass):
     def helptext(self): return 'No help text given'
     def get_ui_icon(self): return None
     def get_ui_options(self): return None
+    def get_tooltip(self): return None
 
 

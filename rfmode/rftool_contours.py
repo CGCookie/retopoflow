@@ -33,6 +33,7 @@ from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ..common.ui import UI_Label, UI_IntValue, UI_Image
 from .rftool_contours_utils import *
 from .rftool_contours_ops import RFTool_Contours_Ops
+from .rfcontext_actions import Actions
 from mathutils import Matrix
 
 from ..options import options, help_contours
@@ -51,6 +52,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     def description(self): return 'Contours'
     
     def helptext(self): return help_contours
+    def get_tooltip(self): return 'Contours (%s)' % ','.join(Actions.default_keymap['contours tool'])
 
     def start(self):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))

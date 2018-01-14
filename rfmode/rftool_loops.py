@@ -31,6 +31,7 @@ from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..common.utils import iter_pairs
 from ..options import help_loops
+from .rfcontext_actions import Actions
 
 @RFTool.action_call('loops tool')
 class RFTool_Loops(RFTool):
@@ -43,6 +44,7 @@ class RFTool_Loops(RFTool):
     def icon(self): return "rf_loops_icon"
     def description(self): return 'Loops creation, shifting, and deletion'
     def helptext(self): return help_loops
+    def get_tooltip(self): return 'Loops (%s)' % ','.join(Actions.default_keymap['loops tool'])
     
     ''' Called the tool is being switched into '''
     def start(self):

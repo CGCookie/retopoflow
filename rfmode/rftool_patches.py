@@ -26,6 +26,7 @@ from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_patches
 from ..lib.common_utilities import dprint
+from .rfcontext_actions import Actions
 
 
 @RFTool.action_call('patches tool')
@@ -38,6 +39,7 @@ class RFTool_Patches(RFTool):
     def icon(self): return "rf_patches_icon"
     def description(self): return 'Patches'
     def helptext(self): return help_patches
+    def get_tooltip(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
     
     ''' Called the tool is being switched into '''
     def start(self):

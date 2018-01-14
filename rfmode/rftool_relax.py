@@ -26,6 +26,7 @@ from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_relax
 from ..lib.classes.profiler.profiler import profiler
+from .rfcontext_actions import Actions
 
 @RFTool.action_call('relax tool')
 class RFTool_Relax(RFTool):
@@ -50,6 +51,7 @@ class RFTool_Relax(RFTool):
     def icon(self): return "rf_relax_icon"
     def description(self): return 'Relax topology by changing length of edges to average'
     def helptext(self): return help_relax
+    def get_tooltip(self): return 'Relax (%s)' % ','.join(Actions.default_keymap['relax tool'])
     
     def get_move_boundary(self): return options['relax boundary']
     def set_move_boundary(self, v): options['relax boundary'] = v

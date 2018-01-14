@@ -32,7 +32,7 @@ from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..lib.common_utilities import dprint
 from ..options import themes
-
+from .rfcontext_actions import Actions
 from ..options import help_polypen
 
 @RFTool.action_call('polypen tool')
@@ -48,6 +48,7 @@ class RFTool_PolyPen(RFTool):
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
     def helptext(self): return help_polypen
+    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
 
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))

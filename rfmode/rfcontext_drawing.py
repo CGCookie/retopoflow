@@ -301,8 +301,8 @@ class RFContext_Drawing:
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_selection_max.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
-            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.bl_label, showlabel=False)
+            self.tool_selection_max.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip())
+            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label,ui_options))
         get_tool_collapsed()

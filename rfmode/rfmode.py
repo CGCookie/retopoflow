@@ -592,6 +592,7 @@ def setup_tools():
                 'bl_description': rft().description(),
                 'rf_icon': rft().icon(),
                 'rft_class': rft,
+                'get_tooltip': rft().get_tooltip,
                 })
             rfmode_tools[id_name] = newclass
             globals()[cls_name] = newclass
