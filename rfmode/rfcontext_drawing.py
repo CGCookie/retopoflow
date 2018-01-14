@@ -225,6 +225,11 @@ class RFContext_Drawing:
         def open_tip():
             bpy.ops.wm.url_open(url=retopoflow_tip_url)
         
+        def get_tooltip():
+            return options['show tooltips']
+        def set_tooltip(v):
+            options['show tooltips'] = v
+            self.window_manager.set_show_tooltips(v)
         def get_theme():
             return options['color theme']
         def set_theme(v):
@@ -297,7 +302,7 @@ class RFContext_Drawing:
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
             self.tool_selection_max.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon())
-            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), showlabel=False)
+            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.bl_label, showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label,ui_options))
         get_tool_collapsed()
@@ -306,13 +311,13 @@ class RFContext_Drawing:
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
-        extra.add(UI_Button('General Help', self.toggle_general_help, align=0, margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, align=0, margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Collapse', lambda: set_tool_collapsed(True), align=0, margin=0))
+        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow', align=0, margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool', align=0, margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', align=0, margin=0))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        extra.add(UI_Button('Exit', self.quit, align=0, margin=0))
+        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow', align=0, margin=0))
         self.tool_min.add(self.tool_selection_min)
-        self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed))
+        self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
         self.tool_window.add(self.tool_min)
         
@@ -320,16 +325,16 @@ class RFContext_Drawing:
         window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, align=0, margin=0))
-        container.add(UI_Button('Report Issue', open_github, align=0, margin=0))
-        window_info.add(UI_Button('Buy us a drink', open_tip, align=0, margin=0))
+        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message', align=0, margin=0))
+        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)', align=0, margin=0))
+        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"', align=0, margin=0))
         
         window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
         
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
-        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, align=0))
-        dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, align=0))
-        dd_general.add(UI_IntValue('Lens', get_lens, set_lens))
+        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)', align=0))
+        dd_general.add(UI_Button('Snap All Verts', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', align=0))
+        dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
@@ -337,19 +342,22 @@ class RFContext_Drawing:
         opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
-        dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse))
+        dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse, tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
+        dd_general.add(UI_Checkbox('Show Tooltips', get_tooltip, set_tooltip, tooltip='If enabled, tooltips (like these!) will show'))
+        
+        set_tooltip(get_tooltip()) # inform window manager about the tooltip checkbox option
         
         
         container_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
         dd_symmetry = container_symmetry.add(UI_EqualContainer(vertical=False))
-        dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), options={'spacing':0}))
-        dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), options={'spacing':0}))
-        dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), options={'spacing':0}))
+        dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), tooltip='Toggle X-Symmetry for target', spacing=0))
+        dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), tooltip='Toggle Y-Symmetry for target', spacing=0))
+        dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), tooltip='Toggle Z-Symmetry for target', spacing=0))
         opt_symmetry_view = container_symmetry.add(UI_Options(get_symmetry_view, set_symmetry_view, vertical=False))
-        opt_symmetry_view.add_option('None', align=0)
-        opt_symmetry_view.add_option('Edge', align=0)
-        opt_symmetry_view.add_option('Face', align=0)
-        container_symmetry.add(UI_IntValue('Effect', get_symmetry_effect, set_symmetry_effect))
+        opt_symmetry_view.add_option('None', tooltip='Disable visualization of symmetry', align=0)
+        opt_symmetry_view.add_option('Edge', tooltip='Highlight symmetry on source meshes as edge loop(s)', align=0)
+        opt_symmetry_view.add_option('Face', tooltip='Highlight symmetry by coloring source meshes', align=0)
+        container_symmetry.add(UI_IntValue('Effect', get_symmetry_effect, set_symmetry_effect, tooltip='Controls strength of symmetry visualization'))
         
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
@@ -373,7 +381,7 @@ class RFContext_Drawing:
             prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
             update_profiler_visible()
         
-        info_adv.add(UI_Button('Reset Options', reset_options, align=0))
+        info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values', align=0))
         
         
         self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})

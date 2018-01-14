@@ -24,6 +24,7 @@ import re
 import bpy
 import bgl
 import blf
+import time
 import random
 import traceback
 import functools
@@ -353,7 +354,6 @@ class UI_Element:
         if y > t or y <= t - h: return None
         return self
     
-    
     def draw(self, left, top, width, height):
         if not self.visible: return
         m = self.margin
@@ -377,6 +377,8 @@ class UI_Element:
     def mouse_up(self, mouse): pass
     def capture_start(self): pass
     def capture_event(self, event): pass
+    
+    def _get_tooltip(self, mouse): pass
     
     def mouse_cursor(self): return 'DEFAULT'
 
@@ -417,6 +419,7 @@ class UI_Label(UI_Element):
     
     def _get_width(self): return self.text_width
     def _get_height(self): return self.text_height
+    def _get_tooltip(self, mouse): return self.tooltip
     
     def _draw(self):
         self.drawing.text_size(self.textsize)
@@ -822,7 +825,8 @@ class UI_Button(UI_Container):
         if icon:
             self.add(icon)
             self.add(UI_Spacer(width=4))
-        self.add(UI_Label(label, tooltip=tooltip, color=color, align=align))
+        self.tooltip = tooltip
+        self.add(UI_Label(label, color=color, align=align))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
@@ -874,6 +878,8 @@ class UI_Button(UI_Container):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
         super()._draw()
+    
+    def _get_tooltip(self, mouse): return self.tooltip
 
 
 class UI_Options(UI_EqualContainer):
@@ -888,30 +894,33 @@ class UI_Options(UI_EqualContainer):
         self.labels = set()
         self.margin = margin
     
-    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
-        class UI_Option(UI_Container):
-            def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
-                super().__init__(vertical=False)
-                self.margin = 0
-                self.label = label
-                self.options = options
-                if not showlabel: label = None
-                if icon:           self.add(icon)
-                if icon and label: self.add(UI_Spacer(width=4))
-                if label:          self.add(UI_Label(label, tooltip=tooltip, color=color, align=align))
-            
-            def _hover_ui(self, mouse):
-                return self if super()._hover_ui(mouse) else None
-            
-            def _draw(self):
-                selected = self.options.fn_get_option()
-                is_selected = self.label == selected
-                self.background = UI_Options.color_select if is_selected else UI_Options.color_unselect
-                super()._draw()
+    class UI_Option(UI_Container):
+        def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
+            super().__init__(vertical=False)
+            self.margin = 0
+            self.label = label
+            self.options = options
+            self.tooltip = tooltip
+            if not showlabel: label = None
+            if icon:           self.add(icon)
+            if icon and label: self.add(UI_Spacer(width=4))
+            if label:          self.add(UI_Label(label, color=color, align=align))
         
+        def _hover_ui(self, mouse):
+            return self if super()._hover_ui(mouse) else None
+        
+        def _draw(self):
+            selected = self.options.fn_get_option()
+            is_selected = self.label == selected
+            self.background = UI_Options.color_select if is_selected else UI_Options.color_unselect
+            super()._draw()
+        
+        def _get_tooltip(self, mouse): return self.tooltip
+    
+    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
         assert label not in self.labels, "All option labels must be unique!"
         self.labels.add(label)
-        option = UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
+        option = UI_Options.UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
         super().add(option)
         self.options[option] = label
     
@@ -924,6 +933,9 @@ class UI_Options(UI_EqualContainer):
     
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
+    def _get_tooltip(self, mouse):
+        ui = super()._hover_ui(mouse)
+        return ui._get_tooltip(mouse) if ui else None
     
     def mouse_down(self, mouse): self.mouse_up(mouse)
     def mouse_move(self, mouse): self.mouse_up(mouse)
@@ -1111,8 +1123,8 @@ class UI_Checkbox(UI_Container):
     [ ] Label
     [V] Label
     '''
-    def __init__(self, label, fn_get_checked, fn_set_checked, options={}):
-        spacing = options.get('spacing', 4)
+    def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
+        spacing = kwopts.get('spacing', 4)
         super().__init__(vertical=False)
         self.margin = 0
         self.chk = UI_Graphic()
@@ -1123,6 +1135,9 @@ class UI_Checkbox(UI_Container):
             self.add(self.lbl)
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
+        self.tooltip = kwopts.get('tooltip', None)
+    
+    def _get_tooltip(self, mouse): return self.tooltip
     
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
@@ -1138,12 +1153,15 @@ class UI_Checkbox2(UI_Container):
     Label
     Label  <- highlighted if checked
     '''
-    def __init__(self, label, fn_get_checked, fn_set_checked, options={}):
+    def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
         super().__init__()
         self.margin = 0
         self.add(UI_Label(label, align=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
+        self.tooltip = kwopts.get('tooltip', None)
+    
+    def _get_tooltip(self, mouse): return self.tooltip
     
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
@@ -1188,7 +1206,7 @@ class UI_BoolValue(UI_Checkbox):
     pass
 
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None, **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False)
         # self.margin = 0
@@ -1204,6 +1222,10 @@ class UI_IntValue(UI_Container):
         self.fn_set_print_value = fn_set_print_value
         self.downed = False
         self.captured = False
+        self.time_start = time.time()
+        self.tooltip = kwargs.get('tooltip', None)
+    
+    def _get_tooltip(self, mouse): return self.tooltip
     
     def _hover_ui(self, mouse):
         return self if super()._hover_ui(mouse) else None
@@ -1249,7 +1271,6 @@ class UI_IntValue(UI_Container):
         self.val_orig = fn()
         self.val_edit = str(self.val_orig)
         self.val_pos = len(self.val_edit)
-        self.val_timer = 0
         self.captured = True
         self.keys = {
             'ZERO':   '0', 'NUMPAD_0':      '0',
@@ -1266,17 +1287,10 @@ class UI_IntValue(UI_Container):
             'MINUS':  '-', 'NUMPAD_MINUS':  '-',
         }
         return True
+    
     def capture_event(self, event):
-        if event.type == 'TIMER':
-            self.val_timer += 1
-            #c = "|" if (int(self.val_timer/30) % 2) == 0 else ":"
-            # self.val.cursor_symbol = "|" if (int(self.val_timer/10) % 2) == 0 else ""
-            self.val.cursor_symbol = "|"
-            #v = self.val_edit[:self.val_pos] + c + self.val_edit[self.val_pos:]
-            #self.val.set_label(v)
-            self.val.set_label(self.val_edit)
-            return
-        # print(event.type, event.value)
+        time_delta = time.time() - self.time_start
+        self.val.cursor_symbol = None if int(time_delta*10)%5 == 0 else '|'
         if event.value == 'RELEASE':
             if event.type in {'RET','NUMPAD_ENTER'}:
                 self.captured = False
@@ -1307,6 +1321,7 @@ class UI_IntValue(UI_Container):
             if event.type in self.keys:
                 self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
                 self.val_pos += 1
+            self.val.set_label(self.val_edit)
 
 
 
@@ -1332,8 +1347,8 @@ class UI_HBFContainer(UI_Container):
         ui = self.header.hover_ui(mouse) or self.body.hover_ui(mouse) or self.footer.hover_ui(mouse)
         return ui or self
     
-    def _get_width(self): return max(c.get_width() for c in self.ui_items if c.ui_items)
-    def _get_height(self): return sum(c.get_height() for c in self.ui_items if c.ui_items)
+    def _get_width(self): return max((c.get_width() for c in self.ui_items if c.ui_items), default=0)
+    def _get_height(self): return sum((c.get_height() for c in self.ui_items if c.ui_items), 0)
     
     def _draw(self):
         l,t = self.pos
@@ -1488,20 +1503,22 @@ class UI_Window(UI_Padding):
         
         self.fn_event_handler = options.get('event handler', None)
         
+        self.ui_grab = [self]
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
         self.hbf.header.margin = 1
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
-        self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
-        self.hbf_title.margin = 1
-        self.hbf_title_rule = UI_Rule(color=(0,0,0,0.1))
-        self.hbf.add(self.hbf_title, header=True)
-        self.hbf.add(self.hbf_title_rule, header=True)
+        if title:
+            self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
+            self.hbf_title.margin = 1
+            self.hbf_title_rule = UI_Rule(color=(0,0,0,0.1))
+            self.hbf.add(self.hbf_title, header=True)
+            self.hbf.add(self.hbf_title_rule, header=True)
+            self.ui_grab += [self.hbf_title, self.hbf_title_rule]
         self.set_ui_item(self.hbf)
         
         self.update_pos()
-        self.ui_grab = [self, self.hbf_title, self.hbf_title_rule]
         
         self.FSM = {}
         self.FSM['main'] = self.modal_main
@@ -1609,6 +1626,10 @@ class UI_Window(UI_Padding):
         
         return {'hover'} if self.hover_ui(self.mouse) or self.state != 'main' else {}
     
+    def get_tooltip(self):
+        ui_hover = self.hover_ui(self.mouse)
+        return ui_hover._get_tooltip(self.mouse) if ui_hover else None
+    
     def modal_main(self):
         ui_hover = self.hover_ui(self.mouse)
         if not ui_hover: return
@@ -1685,9 +1706,17 @@ class UI_Window(UI_Padding):
 
 
 class UI_WindowManager:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.windows = []
         self.active = None
+        
+        self.tooltip_show = kwargs.get('show tooltips', True)
+        self.tooltip_window = UI_Window(None, {'bgcolor':(0,0,0,0.75), 'visible':False})
+        self.tooltip_label = self.tooltip_window.add(UI_Label('foo bar'))
+    
+    def set_show_tooltips(self, v):
+        self.tooltip_show = v
+        if not v: self.tooltip_window.visible = v
     
     def create_window(self, title, options):
         win = UI_Window(title, options)
@@ -1704,8 +1733,13 @@ class UI_WindowManager:
     def draw_postpixel(self):
         for win in self.windows:
             win.draw_postpixel()
+        self.tooltip_window.draw_postpixel()
     
     def modal(self, context, event):
+        if event.type == 'MOUSEMOVE':
+            mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+            self.tooltip_window.fn_sticky.set(mouse + Vec2D((5,-5)))
+            self.tooltip_window.update_pos()
         if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None
@@ -1718,6 +1752,14 @@ class UI_WindowManager:
         if self.active:
             if self.active.fn_event_handler:
                 self.active.fn_event_handler(context, event)
+            tooltip = self.active.get_tooltip()
+            if tooltip:
+                self.tooltip_label.set_label(tooltip)
+                self.tooltip_window.visible = self.tooltip_show
+                # self.tooltip_window.fn_sticky.set(self.active.pos + self.active.size)
+                # self.tooltip_window.update_pos()
+            else:
+                self.tooltip_window.visible = False
         return ret
 
 

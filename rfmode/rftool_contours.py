@@ -67,7 +67,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     def get_count(self): return options['contours count']
     def set_count(self, v): options['contours count'] = max(3, int(v))
     def get_ui_options(self):
-        self.ui_count = UI_IntValue('Count', self.get_count, self.set_count)
+        self.ui_count = UI_IntValue('Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
         return [self.ui_count]
     
     def get_ui_icon(self):

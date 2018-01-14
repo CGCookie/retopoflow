@@ -118,7 +118,7 @@ More detailed help is available after you start RF.
 Target and Source Objects
 -------------------------
 
-In RetopoFlow 1.x you were required to select the source and target objects explicitly, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow.
+In RetopoFlow 1.x you were required to select the source and target objects explicitly, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow based on which mesh objects are selected, active, and visible.
 
 The target object is either:
 
@@ -400,6 +400,8 @@ class Options:
         'instrument':           False,  # enable instrumentation?
         'version 1.3':          True,   # show RF 1.3 panel?
         'debug level':          0,      # debug level, 0--5 (for printing to console)
+        
+        'show tooltips':        True,
         
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
