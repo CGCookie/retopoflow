@@ -79,10 +79,10 @@ Please consider doing the following:
 - Consider donating to our drink funds :)
 
 We have worked hard to make this as production ready as possible.
-We focused on stability and bug handling in addition to focusing features and improving overall speed.
-However, if you find a bug, please let us know so that we can fix them!
+We focused on stability and bug handling in addition to focusing features, improving overall speed, and making RetopoFlow easier to use.
+However, if you find a bug or a missing feature, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
-We have added buttons to open the issue tracker and take screenshots.
+We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
 ![](help_exception.png)
 
@@ -94,7 +94,7 @@ Below is a list of known issues that we are working on.
 - Very large source meshes cause a delay and stutter at start-up time.  Note: the sources are cached, so RF will load much more quickly the second time.
 - Very large target meshes causes slowness in some tools.
 - Patches handles only simple hole shapes.
-- Some of the tools are still missing features from version 1.x.
+- Display scales other than 1.0 (ex: Retina) does not display correct.
 
 
 ## Final Words

@@ -178,12 +178,12 @@ class RFContext_Drawing:
         win.add(UI_Markdown(message, min_size=Vec2D((300,36))))
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        container.add(UI_Button('Close', close, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if level in {'assert', 'exception'}:
-            container.add(UI_Button('Screenshot', screenshot, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-            container.add(UI_Button('Report', report, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            container.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
-            container.add(UI_Button('Exit', quit, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
         self.alert_windows += 1
         

@@ -1286,6 +1286,7 @@ class UI_IntValue(UI_Container):
             'PERIOD': '.', 'NUMPAD_PERIOD': '.',
             'MINUS':  '-', 'NUMPAD_MINUS':  '-',
         }
+        set_cursor('TEXT')
         return True
     
     def capture_event(self, event):
@@ -1713,6 +1714,7 @@ class UI_WindowManager:
         self.tooltip_show = kwargs.get('show tooltips', True)
         self.tooltip_window = UI_Window(None, {'bgcolor':(0,0,0,0.75), 'visible':False})
         self.tooltip_label = self.tooltip_window.add(UI_Label('foo bar'))
+        self.tooltip_offset = Vec2D((15, -15))
     
     def set_show_tooltips(self, v):
         self.tooltip_show = v
@@ -1738,7 +1740,7 @@ class UI_WindowManager:
     def modal(self, context, event):
         if event.type == 'MOUSEMOVE':
             mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
-            self.tooltip_window.fn_sticky.set(mouse + Vec2D((5,-5)))
+            self.tooltip_window.fn_sticky.set(mouse + self.tooltip_offset)
             self.tooltip_window.update_pos()
         if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
@@ -1760,6 +1762,8 @@ class UI_WindowManager:
                 # self.tooltip_window.update_pos()
             else:
                 self.tooltip_window.visible = False
+        else:
+            self.tooltip_window.visible = False
         return ret
 
 
