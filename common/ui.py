@@ -1711,6 +1711,9 @@ class UI_WindowManager:
         self.windows = []
         self.active = None
         
+        self.tooltip_delay = 0.75
+        self.tooltip_value = None
+        self.tooltip_time = time.time()
         self.tooltip_show = kwargs.get('show tooltips', True)
         self.tooltip_window = UI_Window(None, {'bgcolor':(0,0,0,0.75), 'visible':False})
         self.tooltip_label = self.tooltip_window.add(UI_Label('foo bar'))
@@ -1719,6 +1722,21 @@ class UI_WindowManager:
     def set_show_tooltips(self, v):
         self.tooltip_show = v
         if not v: self.tooltip_window.visible = v
+    def set_tooltip_label(self, v):
+        if not v:
+            self.tooltip_window.visible = False
+            self.tooltip_value = None
+            return
+        if self.tooltip_value != v:
+            self.tooltip_window.visible = False
+            self.tooltip_value = v
+            self.tooltip_time = time.time()
+            self.tooltip_label.set_label(v)
+            return
+        if time.time() >= self.tooltip_time + self.tooltip_delay:
+            self.tooltip_window.visible = self.tooltip_show
+        # self.tooltip_window.fn_sticky.set(self.active.pos + self.active.size)
+        # self.tooltip_window.update_pos()
     
     def create_window(self, title, options):
         win = UI_Window(title, options)
@@ -1755,15 +1773,9 @@ class UI_WindowManager:
             if self.active.fn_event_handler:
                 self.active.fn_event_handler(context, event)
             tooltip = self.active.get_tooltip()
-            if tooltip:
-                self.tooltip_label.set_label(tooltip)
-                self.tooltip_window.visible = self.tooltip_show
-                # self.tooltip_window.fn_sticky.set(self.active.pos + self.active.size)
-                # self.tooltip_window.update_pos()
-            else:
-                self.tooltip_window.visible = False
+            self.set_tooltip_label(tooltip)
         else:
-            self.tooltip_window.visible = False
+            self.set_tooltip_label(None)
         return ret
 
 
