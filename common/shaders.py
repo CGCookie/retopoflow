@@ -32,13 +32,12 @@ brushStrokeShader = Shader('brushStrokeShader', '''
         }
     ''', '''
         #version 120
-        #extension GL_EXT_gpu_shader4 : enable
         
         varying vec4 aColor;
         varying float aDistAccum;
         
         void main() {
-            if(int(aDistAccum / 2) % 4 >= 2) discard;
+            if(mod(int(aDistAccum / 2), 4) >= 2) discard;
             gl_FragColor = aColor;
         }
     ''', checkErrors=False)
