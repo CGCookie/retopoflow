@@ -71,6 +71,8 @@ varying vec3 vNormal;
 varying float vOffset;
 varying float vDotOffset;
 
+// note: should not have explicit output, as gl_FragColor is deprecated in ver 120
+
 void main() {
     float clip = clip_end - clip_start;
     float hclip = clip / 2.0;

@@ -49,7 +49,7 @@ class Shader():
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
         return log
     
-    def __init__(self, name, srcVertex, srcFragment, funcStart=None, checkErrors=True):
+    def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True):
         self.drawing = Drawing.get_instance()
         
         self.name = name
@@ -101,6 +101,7 @@ class Shader():
         dprint('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
         
         self.funcStart = funcStart
+        self.funcEnd = funcEnd
         self.mvpmatrix_buffer = bgl.Buffer(bgl.GL_FLOAT, [4,4])
     
     def __setitem__(self, varName, varValue): self.assign(varName, varValue)
@@ -251,6 +252,10 @@ class Shader():
             print('disabling shader <=================')
         if self.checkErrors:
             self.drawing.glCheckError('disable program (%d) pre' % self.shaderProg)
+        try:
+            if self.funcEnd: self.funcEnd(self)
+        except Exception as e:
+            print('Error with shader: ' + str(e))
         bgl.glUseProgram(0)
         if self.checkErrors:
             self.drawing.glCheckError('disable program (%d) post' % self.shaderProg)
