@@ -411,6 +411,15 @@ class Options:
         'options pos':  9,
         
         'tools autocollapse': True,
+        'tools general collapsed': False,       # is general tools collapsed
+        'tools symmetry collapsed': True,       # is symmetry tools collapsed
+        'tool contours collapsed': True,       # is contours tools collapsed
+        'tool polystrips collapsed': True,     # is polystrips tools collapsed
+        'tool polypen collapsed': True,        # is polypen tools collapsed
+        'tool relax collapsed': True,          # is relax tools collapsed
+        'tool tweak collapsed': True,          # is tweak tools collapsed
+        'tool loops collapsed': True,          # is loops tools collapsed
+        'tool patches collapsed': True,        # is patches tools collapsed
         
         'select dist':          10,     # pixels away to select
         
