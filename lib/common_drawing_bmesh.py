@@ -53,7 +53,7 @@ dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 #https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
 #https://www.khronos.org/opengl/wiki/Built-in_Variable_(GLSL)
 shaderVertSource = '''
-#version 130
+#version 120
 
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
@@ -74,26 +74,26 @@ uniform vec3 mirror_z;          // mirroring z-axis wrt world
 uniform float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
 uniform vec3  vert_scale;       // used for mirroring
 
-in vec3  vert_pos;              // position wrt model
-in vec3  vert_norm;             // normal wrt model
-in float selected;              // is vertex selected?
+attribute vec3  vert_pos;       // position wrt model
+attribute vec3  vert_norm;      // normal wrt model
+attribute float selected;       // is vertex selected?
 
-out vec4 vPPosition;            // final position (projected)
-out vec4 vCPosition;            // position wrt camera
-out vec4 vWPosition;            // position wrt world
-out vec4 vMPosition;            // position wrt model
-out vec4 vTPosition;            // position wrt target
-out vec4 vCTPosition_x;         // position wrt target camera
-out vec4 vCTPosition_y;         // position wrt target camera
-out vec4 vCTPosition_z;         // position wrt target camera
-out vec4 vPTPosition_x;         // position wrt target projected
-out vec4 vPTPosition_y;         // position wrt target projected
-out vec4 vPTPosition_z;         // position wrt target projected
-out vec3 vCNormal;              // normal wrt camera
-out vec3 vWNormal;              // normal wrt world
-out vec3 vMNormal;              // normal wrt model
-out vec3 vTNormal;              // normal wrt target
-out vec4 vColor;                // color of geometry (considers selection)
+varying vec4 vPPosition;        // final position (projected)
+varying vec4 vCPosition;        // position wrt camera
+varying vec4 vWPosition;        // position wrt world
+varying vec4 vMPosition;        // position wrt model
+varying vec4 vTPosition;        // position wrt target
+varying vec4 vCTPosition_x;     // position wrt target camera
+varying vec4 vCTPosition_y;     // position wrt target camera
+varying vec4 vCTPosition_z;     // position wrt target camera
+varying vec4 vPTPosition_x;     // position wrt target projected
+varying vec4 vPTPosition_y;     // position wrt target projected
+varying vec4 vPTPosition_z;     // position wrt target projected
+varying vec3 vCNormal;          // normal wrt camera
+varying vec3 vWNormal;          // normal wrt world
+varying vec3 vMNormal;          // normal wrt model
+varying vec3 vTNormal;          // normal wrt target
+varying vec4 vColor;            // color of geometry (considers selection)
 
 void main() {
     vec4 pos  = vec4(vert_pos * vert_scale, 1.0);
@@ -125,7 +125,7 @@ void main() {
 }
 '''
 shaderFragSource = '''
-#version 130
+#version 120
 
 uniform mat4 matrix_m;          // model xform matrix
 uniform mat3 matrix_mn;         // model xform matrix for normal (inv transpose of matrix_m)
@@ -152,24 +152,24 @@ uniform vec3 mirror_x;      // mirroring x-axis wrt world
 uniform vec3 mirror_y;      // mirroring y-axis wrt world
 uniform vec3 mirror_z;      // mirroring z-axis wrt world
 
-in vec4 vPPosition;         // final position (projected)
-in vec4 vCPosition;         // position wrt camera
-in vec4 vWPosition;         // position wrt world
-in vec4 vMPosition;         // position wrt model
-in vec4 vTPosition;         // position wrt target
-in vec4 vCTPosition_x;      // position wrt target camera
-in vec4 vCTPosition_y;      // position wrt target camera
-in vec4 vCTPosition_z;      // position wrt target camera
-in vec4 vPTPosition_x;      // position wrt target projected
-in vec4 vPTPosition_y;      // position wrt target projected
-in vec4 vPTPosition_z;      // position wrt target projected
-in vec3 vCNormal;           // normal wrt camera
-in vec3 vWNormal;           // normal wrt world
-in vec3 vMNormal;           // normal wrt model
-in vec3 vTNormal;           // normal wrt target
-in vec4 vColor;             // color of geometry (considers selection)
+varying vec4 vPPosition;    // final position (projected)
+varying vec4 vCPosition;    // position wrt camera
+varying vec4 vWPosition;    // position wrt world
+varying vec4 vMPosition;    // position wrt model
+varying vec4 vTPosition;    // position wrt target
+varying vec4 vCTPosition_x; // position wrt target camera
+varying vec4 vCTPosition_y; // position wrt target camera
+varying vec4 vCTPosition_z; // position wrt target camera
+varying vec4 vPTPosition_x; // position wrt target projected
+varying vec4 vPTPosition_y; // position wrt target projected
+varying vec4 vPTPosition_z; // position wrt target projected
+varying vec3 vCNormal;      // normal wrt camera
+varying vec3 vWNormal;      // normal wrt world
+varying vec3 vMNormal;      // normal wrt model
+varying vec3 vTNormal;      // normal wrt target
+varying vec4 vColor;        // color of geometry (considers selection)
 
-out vec4  diffuseColor;     // final color of fragment
+//out vec4  diffuseColor;     // final color of fragment
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 
@@ -272,7 +272,8 @@ void main() {
             ;
     }
     
-    diffuseColor = coloring(vec4(rgb, alpha));
+    //diffuseColor = coloring(vec4(rgb, alpha));
+    gl_FragColor = coloring(vec4(rgb, alpha));
 }
 '''
 

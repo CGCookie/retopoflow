@@ -14,16 +14,16 @@ dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
 
 brushStrokeShader = Shader('brushStrokeShader', '''
-        #version 130
+        #version 120
         
         uniform mat4 uMVPMatrix;
         
-        in vec2  vPos;
-        in vec4  vColor;
-        in float vDistAccum;
+        attribute vec2  vPos;
+        attribute vec4  vColor;
+        attribute float vDistAccum;
         
-        out vec4 aColor;
-        out float aDistAccum;
+        varying vec4 aColor;
+        varying float aDistAccum;
         
         void main() {
             gl_Position = uMVPMatrix * vec4(vPos, 0.0, 1.0);
@@ -31,28 +31,30 @@ brushStrokeShader = Shader('brushStrokeShader', '''
             aDistAccum = vDistAccum;
         }
     ''', '''
-        #version 130
-        in vec4 aColor;
-        in float aDistAccum;
-        out vec4 fColor;
+        #version 120
+        #extension GL_EXT_gpu_shader4 : enable
+        
+        varying vec4 aColor;
+        varying float aDistAccum;
+        
         void main() {
             if(int(aDistAccum / 2) % 4 >= 2) discard;
-            fColor = aColor;
+            gl_FragColor = aColor;
         }
     ''', checkErrors=False)
 
 edgeShortenShader = Shader('edgeShortenShader', '''
-        #version 130
+        #version 120
         
         uniform vec2 uScreenSize;
         uniform mat4 uMVPMatrix;
         
-        in vec4  vPos;
-        in vec4  vFrom;
-        in vec4  vColor;
-        in float vRadius;
+        attribute vec4  vPos;
+        attribute vec4  vFrom;
+        attribute vec4  vColor;
+        attribute float vRadius;
         
-        out vec4 aColor;
+        varying vec4 aColor;
         
         void main() {
             vec4 p0 = uMVPMatrix * vPos;
@@ -67,13 +69,12 @@ edgeShortenShader = Shader('edgeShortenShader', '''
             aColor = vColor;
         }
     ''', '''
-        #version 130
+        #version 120
         
-        in vec4 aColor;
-        out vec4 fColor;
+        varying vec4 aColor;
         
         void main() {
-            fColor = aColor;
+            gl_FragColor = aColor;
         }
     ''', checkErrors=False)
 
@@ -84,16 +85,16 @@ def circleShaderStart(shader):
 def circleShaderEnd(shader):
     bgl.glDisable(bgl.GL_POINT_SPRITE)
 circleShader = Shader('circleShader', '''
-        #version 130
+        #version 120
         
         uniform mat4 uMVPMatrix;
         
-        in vec4 vPos;
-        in vec4 vInColor;
-        in vec4 vOutColor;
+        attribute vec4 vPos;
+        attribute vec4 vInColor;
+        attribute vec4 vOutColor;
         
-        out vec4 aInColor;
-        out vec4 aOutColor;
+        varying vec4 aInColor;
+        varying vec4 aOutColor;
         
         void main() {
             gl_Position = uMVPMatrix * vPos;
@@ -101,36 +102,34 @@ circleShader = Shader('circleShader', '''
             aOutColor   = vOutColor;
         }
     ''', '''
-        #version 130
+        #version 120
         
         uniform float uInOut;
         
-        in vec4 aInColor;
-        in vec4 aOutColor;
-        
-        out vec4 fColor;
+        varying vec4 aInColor;
+        varying vec4 aOutColor;
         
         void main() {
             float d = 2.0 * distance(gl_PointCoord, vec2(0.5, 0.5));
             if(d > 1.0) discard;
-            fColor = (d > uInOut) ? aOutColor : aInColor;
+            gl_FragColor = (d > uInOut) ? aOutColor : aInColor;
         }
     ''', checkErrors=False, funcStart=circleShaderStart, funcEnd=circleShaderEnd)
 
 
 arrowShader = Shader('arrowShader', '''
-        #version 130
+        #version 120
 
         uniform mat4 uMVPMatrix;
         
-        in vec4 vPos;
-        in vec4 vFrom;
-        in vec4 vInColor;
-        in vec4 vOutColor;
+        attribute vec4 vPos;
+        attribute vec4 vFrom;
+        attribute vec4 vInColor;
+        attribute vec4 vOutColor;
 
-        out float aRot;
-        out vec4 aInColor;
-        out vec4 aOutColor;
+        varying float aRot;
+        varying vec4 aInColor;
+        varying vec4 aOutColor;
 
         float angle(vec2 d) { return atan(d.y, d.x); }
 
@@ -143,15 +142,13 @@ arrowShader = Shader('arrowShader', '''
             aOutColor = vOutColor;
         }
     ''', '''
-        #version 130
+        #version 120
 
         uniform float uInOut;
         
-        in float aRot;
-        in vec4 aInColor;
-        in vec4 aOutColor;
-
-        out vec4 fColor;
+        varying float aRot;
+        varying vec4 aInColor;
+        varying vec4 aOutColor;
 
         float alpha(vec2 dir) {
             vec2 d0 = dir - vec2(1,1);
@@ -177,7 +174,7 @@ arrowShader = Shader('arrowShader', '''
             vec2 dr = vec2(cos(aRot)*d.x - sin(aRot)*d.y, sin(aRot)*d.x + cos(aRot)*d.y);
             float a = alpha(dr);
             if(a < 0.0) discard;
-            fColor = mix(aOutColor, aInColor, a);
+            gl_FragColor = mix(aOutColor, aInColor, a);
         }
     ''', checkErrors=False)
 

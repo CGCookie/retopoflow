@@ -453,7 +453,10 @@ class Options:
     
     def __init__(self):
         if not Options.db:
-            Options.db = shelve.open(Options.options_filename, writeback=True)
+            path = os.path.split(os.path.abspath(__file__))[0]
+            fn = os.path.join(path, Options.options_filename)
+            print('RetopoFlow Options path: %s' % fn)
+            Options.db = shelve.open(fn, writeback=True)
     def __del__(self):
         Options.db.close()
         Options.db = None
