@@ -35,7 +35,7 @@ buf_zero = vbv_zero.buf    #bgl.Buffer(bgl.GL_BYTE, 1, [0])
 
 class Shader():
     @staticmethod
-    def shader_compile(shader):
+    def shader_compile(name, shader):
         '''
         logging and error-checking not quite working :(
         '''
@@ -47,6 +47,7 @@ class Shader():
         
         bgl.glGetShaderInfoLog(shader, 2000, bufLen, bufLog)
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
+        assert not log, 'ERROR WHILE COMPILING SHADER %s: %s' % (name,log)
         return log
     
     def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True):
@@ -66,8 +67,8 @@ class Shader():
         bgl.glShaderSource(self.shaderFrag, srcFragment)
         
         dprint('RetopoFlow Shader Info: %s (%d)' % (self.name,self.shaderProg))
-        logv = self.shader_compile(self.shaderVert)
-        logf = self.shader_compile(self.shaderFrag)
+        logv = self.shader_compile(name, self.shaderVert)
+        logf = self.shader_compile(name, self.shaderFrag)
         if len(logv.strip()):
             dprint('  vert log:\n' + '\n'.join(('    '+l) for l in logv.splitlines()))
         if len(logf.strip()):
