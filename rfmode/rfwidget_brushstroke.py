@@ -46,6 +46,14 @@ class RFWidget_BrushStroke:
         actions = self.rfcontext.actions
         
         if actions.released('insert'):
+            if not self.stroke2D: return 'main'
+            # continue stroke to current mouse location
+            p,m = self.stroke2D[-1],actions.mouse
+            v = m - p
+            l = v.length
+            steps = math.ceil(l*2)
+            d = v / steps
+            for i in range(1, int(steps)+1): self.stroke2D.append(p + d * i)
             if self.stroke_callback: self.stroke_callback()
             return 'main'
         
