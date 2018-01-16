@@ -39,6 +39,9 @@ retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
 
 
+# sync help texts with https://github.com/CGCookie/retopoflow-docs (http://docs.retopoflow.com/)
+
+
 firsttime_message = '''
 # Welcome to RetopoFlow {version}!
 

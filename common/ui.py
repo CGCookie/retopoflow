@@ -28,6 +28,7 @@ import time
 import random
 import traceback
 import functools
+import urllib.request
 from bpy.types import BoolProperty
 from mathutils import Matrix
 import math
@@ -818,6 +819,19 @@ class UI_Markdown(UI_Container):
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
                 container.add(UI_WrappedLabel(p, min_size=self.min_size))
         self.add(container, only=True)
+
+class UI_OnlineMarkdown(UI_Markdown):
+    def __init__(self, url, min_size=Vec2D((600,36))):
+        super().__init__(margin=0)
+        self.min_size = min_size
+        
+        response = urllib.request.urlopen(url)
+        data = response.read()
+        text = data.decode('utf-8')
+        
+        markdown = text
+        
+        self.set_markdown(markdown)
 
 class UI_Button(UI_Container):
     def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, margin=None):
