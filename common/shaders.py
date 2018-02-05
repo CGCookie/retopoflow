@@ -22,7 +22,7 @@ brushStrokeShader = Shader('brushStrokeShader', '''
         attribute vec4  vColor;
         attribute float vDistAccum;
         
-        varying vec4 aColor;
+        varying vec4  aColor;
         varying float aDistAccum;
         
         void main() {
@@ -40,7 +40,7 @@ brushStrokeShader = Shader('brushStrokeShader', '''
             if(mod(int(aDistAccum / 2), 4) >= 2) discard;
             gl_FragColor = aColor;
         }
-    ''', checkErrors=False)
+    ''', checkErrors=False, bindTo0='vPos')
 
 edgeShortenShader = Shader('edgeShortenShader', '''
         #version 120
@@ -75,7 +75,7 @@ edgeShortenShader = Shader('edgeShortenShader', '''
         void main() {
             gl_FragColor = aColor;
         }
-    ''', checkErrors=False)
+    ''', checkErrors=False, bindTo0='vPos')
 
 
 def circleShaderStart(shader):

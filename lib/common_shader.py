@@ -50,7 +50,7 @@ class Shader():
         assert not log, 'ERROR WHILE COMPILING SHADER %s: %s' % (name,log)
         return log
     
-    def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True):
+    def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True, bindTo0=None):
         self.drawing = Drawing.get_instance()
         
         self.name = name
@@ -77,6 +77,9 @@ class Shader():
         bgl.glAttachShader(self.shaderProg, self.shaderVert)
         bgl.glAttachShader(self.shaderProg, self.shaderFrag)
         
+        if bindTo0:
+            bgl.glBindAttribLocation(self.shaderProg, 0, bindTo0)
+
         bgl.glLinkProgram(self.shaderProg)
         
         self.shaderVars = {}
@@ -129,6 +132,8 @@ class Shader():
                     bgl.glVertexAttrib1f(l, varValue)
                 elif t == 'int':
                     bgl.glVertexAttrib1i(l, varValue)
+                elif t == 'vec2':
+                    bgl.glVertexAttrib2f(l, *varValue)
                 elif t == 'vec3':
                     bgl.glVertexAttrib3f(l, *varValue)
                 elif t == 'vec4':
