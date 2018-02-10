@@ -117,8 +117,8 @@ class Drawing:
         self.r3d = r3d
         self.window = window
     
-    def scale(self, s): return s * self._dpi_mult
-    def unscale(self, s): return s / self._dpi_mult
+    def scale(self, s): return s * self._dpi_mult if s is not None else None
+    def unscale(self, s): return s / self._dpi_mult if s is not None else None
     def get_dpi_mult(self): return self._dpi_mult
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
@@ -357,7 +357,7 @@ class UI_Element:
     
     def draw(self, left, top, width, height):
         if not self.visible: return
-        m = self.margin
+        m = self.drawing.scale(self.margin)
         self.pos = Point2D((left+m, top-m))
         self.size = Vec2D((width-m*2, height-m*2))
         self.predraw()
@@ -365,8 +365,8 @@ class UI_Element:
         self._draw()
         self.reset_scissor()
     
-    def get_width(self): return (self._get_width() + self.margin*2) if self.visible else 0
-    def get_height(self): return (self._get_height() + self.margin*2) if self.visible else 0
+    def get_width(self): return (self._get_width() + self.drawing.scale(self.margin*2)) if self.visible else 0
+    def get_height(self): return (self._get_height() + self.drawing.scale(self.margin*2)) if self.visible else 0
     
     def _delete(self): return
     def _get_width(self): return 0
@@ -512,7 +512,7 @@ class UI_WrappedLabel(UI_Element):
         h = self.line_height * len(self.wrapped_lines)
         self.wrapped_size = Vec2D((w, h))
         
-    def _get_width(self): return max(self.wrapped_size.x, self.min_size.x)
+    def _get_width(self): return max(self.wrapped_size.x, self.drawing.scale(self.min_size.x))
     def _get_height(self): return self.wrapped_size.y
     
     def _draw(self):
@@ -633,7 +633,7 @@ class UI_Container(UI_Element):
             bgl.glVertex2f(l+w, t_-30)
             bgl.glVertex2f(l, t_-30)
             bgl.glEnd()
-        if h+self.offset+2 < self._get_height():
+        if h+self.offset+self.drawing.scale(2) < self._get_height():
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
@@ -763,7 +763,7 @@ class UI_TableContainer(UI_Element):
 class UI_Markdown(UI_Container):
     def __init__(self, markdown, min_size=Vec2D((600, 36))):
         super().__init__(margin=0)
-        self.min_size = min_size
+        self.min_size = self.drawing.scale(min_size)
         self.set_markdown(markdown)
     
     def set_markdown(self, mdown):
@@ -1008,7 +1008,7 @@ class UI_Image(UI_Element):
         if self.deleted: return
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
         bgl.glTexEnvf(bgl.GL_TEXTURE_ENV, bgl.GL_TEXTURE_ENV_MODE, bgl.GL_MODULATE)
-        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_LINEAR)
+        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_NEAREST)
         bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, bgl.GL_LINEAR)
         # texbuffer = bgl.Buffer(bgl.GL_BYTE, [self.width,self.height,self.depth], image_data)
         image_size = self.image_width*self.image_height*self.image_depth
@@ -1042,14 +1042,10 @@ class UI_Image(UI_Element):
         bgl.glEnable(bgl.GL_TEXTURE_2D)
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
         bgl.glBegin(bgl.GL_QUADS)
-        bgl.glTexCoord2f(0,0)
-        bgl.glVertex2f(l,t)
-        bgl.glTexCoord2f(0,1)
-        bgl.glVertex2f(l,t-h)
-        bgl.glTexCoord2f(1,1)
-        bgl.glVertex2f(l+w,t-h)
-        bgl.glTexCoord2f(1,0)
-        bgl.glVertex2f(l+w,t)
+        bgl.glTexCoord2f(0,0);  bgl.glVertex2f(l,  t)
+        bgl.glTexCoord2f(0,1);  bgl.glVertex2f(l,  t-h)
+        bgl.glTexCoord2f(1,1);  bgl.glVertex2f(l+w,t-h)
+        bgl.glTexCoord2f(1,0);  bgl.glVertex2f(l+w,t)
         bgl.glEnd()
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
 
@@ -1665,7 +1661,7 @@ class UI_Window(UI_Padding):
             if self.event.type == 'TRACKPADPAN':
                 move = self.event.mouse_y - self.event.mouse_prev_y
             else:
-                move = 24 * (-1 if 'UP' in self.event.type else 1)
+                move = self.drawing.scale(24) * (-1 if 'UP' in self.event.type else 1)
             offset = self.hbf.body.offset + move
             l,t = self.hbf.body.pos
             w,h = self.hbf.body.size

@@ -452,35 +452,44 @@ class Options:
         'tweak hidden':   False,
     }
     
-    db = None                           # current Shelve object
+    db = None                           # current options dict
+    fndb = None
     
     def __init__(self):
-        if not Options.db:
+        if not Options.fndb:
             path = os.path.split(os.path.abspath(__file__))[0]
-            fn = os.path.join(path, Options.options_filename)
-            print('RetopoFlow Options path: %s' % fn)
-            Options.db = shelve.open(fn, writeback=True)
+            Options.fndb = os.path.join(path, Options.options_filename)
+            print('RetopoFlow Options path: %s' % Options.fndb)
+            self.read()
     def __del__(self):
-        Options.db.close()
-        Options.db = None
+        self.write()
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
     def __setitem__(self, key, val):
+        assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
         Options.db[key] = val
-        Options.db.sync()
+        self.write()
+    def write(self):
+        json.dump(Options.db, open(Options.fndb, 'wt'))
+    def read(self):
+        Options.db = {}
+        try:
+            Options.db = json.load(open(Options.fndb, 'rt'))
+        except Exception as e:
+            print('Exception caught while trying to read options from file')
+            print(str(e))
     def keys(self): return Options.db.keys()
     def reset(self):
         keys = list(Options.db.keys())
         for key in keys:
             del Options.db[key]
-        Options.db.sync()
+        self.write()
     def set_default(self, key, val):
+        assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
         if key not in Options.db: Options.db[key] = val
-        #Options.default_options[key] = val
     def set_defaults(self, d_key_vals):
         for key in d_key_vals:
             self.set_default(key, d_key_vals[key])
-            #Options.default_options[key] = d_key_vals[key]
 
 def rgba_to_float(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
 class Themes:
