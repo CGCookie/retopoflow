@@ -62,9 +62,18 @@ class RFTool_Patches(RFTool):
             edges = [edge for edge in edges if len(edge.link_faces) == 1]
             edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
             if not edge:
-                self.rfcontext.deselect_all()
+                if sel_only:
+                    self.rfcontext.deselect_all()
             else:
-                self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+                self.rfcontext.select(edge, supparts=False, only=sel_only)
+        
+        if self.rfcontext.actions.pressed({'select smart'}):
+            self.rfcontext.undo_push('select smart')
+            edges = self.rfcontext.visible_edges()
+            edges = [edge for edge in edges if len(edge.link_faces) == 1]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
+            if edge:
+                self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=False)
         
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
