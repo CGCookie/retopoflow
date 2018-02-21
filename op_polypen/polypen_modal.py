@@ -616,7 +616,10 @@ class CGC_Polypen(ModalOperator):
         repeat,iters = True,0
         while repeat:
             repeat,iters = False,iters+1
-            assert iters < pow(l,l/1.5), 'Could not eliminate crisscrossing'
+            if iters >= pow(l,l/1.5):
+                dprint('WARNING: Could not eliminate crisscrossing')
+                #return None
+                break
             for i0 in range(l):
                 i1,i2 = (i0+1)%l,(i0+2)%l
                 c0,c1,c2 = lbmv[i0].co,lbmv[i1].co,lbmv[i2].co
