@@ -143,10 +143,17 @@ class RFTool_PolyPen(RFTool):
         num_faces = len(self.sel_faces)
         if num_verts == 1 and num_edges == 0 and num_faces == 0:
             self.next_state = 'vert-edge'
-        elif num_edges == 1 and num_faces == 0:
-            self.next_state = 'edge-face'
-        elif num_edges == 2 and num_faces == 0:
-            self.next_state = 'edges-face'
+        elif num_edges and num_faces == 0:
+            quad = False
+            if not self.nearest_vert and self.nearest_edge:
+                quad = True
+                quad &= len(self.nearest_edge.link_faces) == 1
+                quad &= not any(v in self.sel_verts for v in self.nearest_edge.verts)
+                quad &= not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges)
+            if quad:
+                self.next_state = 'edge-quad'
+            else:
+                self.next_state = 'edge-face'
         elif num_verts == 3 and num_edges == 3 and num_faces == 1:
             self.next_state = 'tri-quad'
         else:
@@ -310,14 +317,9 @@ class RFTool_PolyPen(RFTool):
             self.set_vis_bmverts()
             return 'move'
 
-        if self.next_state == 'edge-face' or self.next_state == 'edges-face':
-            if self.next_state == 'edges-face':
-                bme0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
-                bmv0,bmv1 = bme0.verts
-
-            if self.next_state == 'edge-face':
-                bme = next(iter(self.sel_edges))
-                bmv0,bmv1 = bme.verts
+        if self.next_state == 'edge-face':
+            bme,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            bmv0,bmv1 = bme.verts
 
             if self.nearest_vert and not self.nearest_vert.select:
                 bmv2 = self.nearest_vert
@@ -343,6 +345,17 @@ class RFTool_PolyPen(RFTool):
             self.bmverts = [(bmv2, xy)]
             self.set_vis_bmverts()
             return 'move'
+        
+        if self.next_state == 'edge-quad':
+            e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            e1 = self.nearest_edge
+            bmv0,bmv1 = e0.verts
+            bmv2,bmv3 = e1.verts
+            if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+                bmv2,bmv3 = bmv3,bmv2
+            bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
+            self.rfcontext.select([bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3)], subparts=False)
+            return 'main'
 
         if self.next_state == 'tri-quad':
             hit_pos = self.rfcontext.actions.hit_pos
@@ -562,13 +575,13 @@ class RFTool_PolyPen(RFTool):
             self.draw_lines([bmv0.co, p0])
 
         elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
-            if self.next_state in ['edge-face', 'edges-face', 'tri-quad']:
+            if self.next_state in ['edge-face', 'edge-quad', 'tri-quad']:
                 nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
                 self.draw_lines([nearest_vert.co, hit_pos])
 
         elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
             if self.next_state == 'edge-face':
-                e0 = next(iter(self.sel_edges))
+                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
                 e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1,bmv2 = e1.verts
                 if d is not None and d < self.rfcontext.drawing.scale(15) and e0 == e1:
@@ -593,6 +606,15 @@ class RFTool_PolyPen(RFTool):
                         p0 = hit_pos
                     self.draw_lines([p0, bmv1.co, bmv2.co])
             
+            elif self.next_state == 'edge-quad':
+                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                e1 = self.nearest_edge
+                bmv0,bmv1 = e0.verts
+                bmv2,bmv3 = e1.verts
+                if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+                    bmv2,bmv3 = bmv3,bmv2
+                self.draw_lines([bmv0.co, bmv1.co, bmv2.co, bmv3.co])
+            
             elif self.next_state == 'tri-quad':
                 if self.nearest_vert and not self.nearest_vert.select:
                     p0 = self.nearest_vert.co
@@ -609,13 +631,13 @@ class RFTool_PolyPen(RFTool):
                 self.draw_lines(lco)
                 #self.draw_lines([p0, bmv1.co, bmv2.co])
             
-            elif self.next_state == 'edges-face':
-                if self.nearest_vert and not self.nearest_vert.select:
-                    p0 = self.nearest_vert.co
-                else:
-                    p0 = hit_pos
-                e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
-                bmv1,bmv2 = e1.verts
-                self.draw_lines([p0, bmv1.co, bmv2.co])
+            # elif self.next_state == 'edges-face':
+            #     if self.nearest_vert and not self.nearest_vert.select:
+            #         p0 = self.nearest_vert.co
+            #     else:
+            #         p0 = hit_pos
+            #     e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            #     bmv1,bmv2 = e1.verts
+            #     self.draw_lines([p0, bmv1.co, bmv2.co])
         
         self.drawing.disable_stipple()
