@@ -462,7 +462,8 @@ class Options:
             print('RetopoFlow Options path: %s' % Options.fndb)
             self.read()
     def __del__(self):
-        self.write()
+        #self.write()
+        pass
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
     def __setitem__(self, key, val):
@@ -473,11 +474,14 @@ class Options:
         json.dump(Options.db, open(Options.fndb, 'wt'))
     def read(self):
         Options.db = {}
-        try:
-            Options.db = json.load(open(Options.fndb, 'rt'))
-        except Exception as e:
-            print('Exception caught while trying to read options from file')
-            print(str(e))
+        if os.path.exists(Options.fndb):
+            try:
+                Options.db = json.load(open(Options.fndb, 'rt'))
+            except Exception as e:
+                print('Exception caught while trying to read options from file')
+                print(str(e))
+        else:
+            print('No options file')
     def keys(self): return Options.db.keys()
     def reset(self):
         keys = list(Options.db.keys())
