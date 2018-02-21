@@ -389,15 +389,16 @@ class CGC_Polypen(ModalOperator):
         
         # ACTION
         
-        if eventd['press'] in self.keymap['polypen action']:
-            return self.handle_action(context, eventd)
-        if eventd['press'] in self.keymap['polypen alt action']:
-            return self.handle_action(context, eventd)
-            # if self.mode == 'auto':
-            #     return self.handle_click_auto(context, eventd)
-            # elif self.mode == 'edge':
-            #     return self.handle_click_edge(context, eventd)
-            # assert False, "Polypen is in unknown state"
+        if self.over_source:
+            if eventd['press'] in self.keymap['polypen action']:
+                return self.handle_action(context, eventd)
+            if eventd['press'] in self.keymap['polypen alt action']:
+                return self.handle_action(context, eventd)
+                # if self.mode == 'auto':
+                #     return self.handle_click_auto(context, eventd)
+                # elif self.mode == 'edge':
+                #     return self.handle_click_edge(context, eventd)
+                # assert False, "Polypen is in unknown state"
         
         return ''
     
