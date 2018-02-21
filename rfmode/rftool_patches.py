@@ -33,7 +33,7 @@ from .rfcontext_actions import Actions
 class RFTool_Patches(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        pass
+        self.selectable_edges = []
     
     def name(self): return "Patches"
     def icon(self): return "rf_patches_icon"
@@ -51,29 +51,28 @@ class RFTool_Patches(RFTool):
         return self.ui_icon
     
     def modal_main(self):
-        if self.rfcontext.actions.pressed({'select', 'select add'}, unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select')
-            self.rfcontext.actions.unpress()
-            
-            if sel_only: self.rfcontext.undo_push('select')
-            else: self.rfcontext.undo_push('select add')
-            
-            edges = self.rfcontext.visible_edges()
-            edges = [edge for edge in edges if len(edge.link_faces) == 1]
-            edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
-            if not edge:
-                if sel_only:
-                    self.rfcontext.deselect_all()
-            else:
-                self.rfcontext.select(edge, supparts=False, only=sel_only)
+        if self.rfcontext.actions.using('select'):
+            if self.rfcontext.actions.pressed('select'):
+                self.rfcontext.undo_push('select')
+                self.rfcontext.deselect_all()
+                self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
+            if edge: self.rfcontext.select(edge, supparts=False, only=False)
+            return
+        
+        if self.rfcontext.actions.using('select add'):
+            if self.rfcontext.actions.pressed('select add'):
+                self.rfcontext.undo_push('select add')
+                self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
+            if edge: self.rfcontext.select(edge, supparts=False, only=False)
+            return
         
         if self.rfcontext.actions.pressed({'select smart'}):
             self.rfcontext.undo_push('select smart')
-            edges = self.rfcontext.visible_edges()
-            edges = [edge for edge in edges if len(edge.link_faces) == 1]
-            edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
-            if edge:
-                self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=False)
+            self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
+            if edge: self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=False)
         
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
