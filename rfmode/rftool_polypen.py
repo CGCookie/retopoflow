@@ -147,7 +147,7 @@ class RFTool_PolyPen(RFTool):
             quad = False
             if not self.nearest_vert and self.nearest_edge:
                 quad = True
-                quad &= len(self.nearest_edge.link_faces) == 1
+                quad &= len(self.nearest_edge.link_faces) <= 1
                 quad &= not any(v in self.sel_verts for v in self.nearest_edge.verts)
                 quad &= not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges)
             if quad:
