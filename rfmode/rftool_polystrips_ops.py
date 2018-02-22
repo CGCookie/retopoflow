@@ -70,9 +70,6 @@ class RFTool_PolyStrips_Ops:
         def add_edge(bme): vis_edges2D.append((bme, [Point_to_Point2D(bmv.co) for bmv in bme.verts]))
         def add_face(bmf): vis_faces2D.append((bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]))
         
-        for bme in vis_edges: add_edge(bme)
-        for bmf in vis_faces: add_face(bmf)
-        
         def intersect_face(pt):
             # todo: rewrite! inefficient!
             nonlocal vis_faces2D
@@ -142,6 +139,10 @@ class RFTool_PolyStrips_Ops:
             add_face(bmf)
             new_geom += [bme12, bme30, bmf]
             return bmf
+        
+        
+        for bme in vis_edges: add_edge(bme)
+        for bmf in vis_faces: add_face(bmf)
         
         self.rfcontext.undo_push('stroke')
         
