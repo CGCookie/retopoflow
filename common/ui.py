@@ -373,6 +373,8 @@ class UI_Element:
     def _get_height(self): return 0
     def _draw(self): pass
     def predraw(self): pass
+    def mouse_enter(self): pass
+    def mouse_leave(self): pass
     def mouse_down(self, mouse): pass
     def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
@@ -834,7 +836,7 @@ class UI_OnlineMarkdown(UI_Markdown):
         self.set_markdown(markdown)
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, margin=None):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, bordercolor=(0,0,0,0.1), hovercolor=None, presscolor=(0,0,0,0.1), margin=None):
         super().__init__(vertical=False)
         if icon:
             self.add(icon)
@@ -844,17 +846,26 @@ class UI_Button(UI_Container):
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
+        self.bordercolor = bordercolor
+        self.presscolor = presscolor
+        self.hovercolor = hovercolor
+        self.mouse = None
+        self.hovering = False
         if margin is not None: self.margin=margin
     
+    def mouse_enter(self): self.hovering = True
+    def mouse_leave(self): self.hovering = False
     def mouse_down(self, mouse):
         self.pressed = True
     def mouse_move(self, mouse):
+        self.mouse = mouse
         self.pressed = self.hover_ui(mouse) is not None
     def mouse_up(self, mouse):
         if self.pressed: self.fn_callback()
         self.pressed = False
     
     def _hover_ui(self, mouse):
+        #return self if self.hovering else None
         return self if super()._hover_ui(mouse) else None
     
     def mouse_cursor(self): return 'DEFAULT'
@@ -865,8 +876,13 @@ class UI_Button(UI_Container):
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
         
-        if self.bgcolor:
-            bgl.glColor4f(*self.bgcolor)
+        if self.hovering:
+            bgcolor = self.hovercolor or self.bgcolor
+        else:
+            bgcolor = self.bgcolor
+        
+        if bgcolor:
+            bgl.glColor4f(*bgcolor)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glVertex2f(l,t)
             bgl.glVertex2f(l,t-h)
@@ -874,9 +890,8 @@ class UI_Button(UI_Container):
             bgl.glVertex2f(l+w,t)
             bgl.glEnd()
         
-        bgl.glColor4f(0,0,0,0.1)
-        
-        if self.pressed:
+        if self.pressed and self.presscolor:
+            bgl.glColor4f(*self.presscolor)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glVertex2f(l,t)
             bgl.glVertex2f(l,t-h)
@@ -884,13 +899,16 @@ class UI_Button(UI_Container):
             bgl.glVertex2f(l+w,t)
             bgl.glEnd()
         
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        bgl.glVertex2f(l,t)
-        bgl.glVertex2f(l,t-h)
-        bgl.glVertex2f(l+w,t-h)
-        bgl.glVertex2f(l+w,t)
-        bgl.glVertex2f(l,t)
-        bgl.glEnd()
+        if self.bordercolor:
+            bgl.glColor4f(*self.bordercolor)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glVertex2f(l,t)
+            bgl.glEnd()
+        
         super()._draw()
     
     def _get_tooltip(self, mouse): return self.tooltip
@@ -1514,6 +1532,7 @@ class UI_Window(UI_Padding):
         
         self.fn_event_handler = options.get('event handler', None)
         
+        self.ui_hover = None
         self.ui_grab = [self]
         self.drawing.text_size(12)
         self.hbf = UI_HBFContainer(vertical=vertical)
@@ -1625,6 +1644,15 @@ class UI_Window(UI_Padding):
         
         self.draw(l, t, w, h)
     
+    def update_hover(self, new_elem):
+        if self.ui_hover == new_elem: return
+        if self.ui_hover and self.ui_hover != self: self.ui_hover.mouse_leave()
+        self.ui_hover = new_elem
+        if self.ui_hover and self.ui_hover != self: self.ui_hover.mouse_enter()
+    
+    def mouse_enter(self): self.update_hover(self.hover_ui(self.mouse))
+    def mouse_leave(self): self.update_hover(None)
+    
     def modal(self, context, event):
         self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.context = context
@@ -1638,21 +1666,22 @@ class UI_Window(UI_Padding):
         return {'hover'} if self.hover_ui(self.mouse) or self.state != 'main' else {}
     
     def get_tooltip(self):
-        ui_hover = self.hover_ui(self.mouse)
-        return ui_hover._get_tooltip(self.mouse) if ui_hover else None
+        self.mouse_enter()
+        #self.ui_hover = self.hover_ui(self.mouse)
+        return self.ui_hover._get_tooltip(self.mouse) if self.ui_hover else None
     
     def modal_main(self):
-        ui_hover = self.hover_ui(self.mouse)
-        if not ui_hover: return
-        set_cursor(ui_hover.mouse_cursor())
+        self.mouse_enter()
+        if not self.ui_hover: return
+        set_cursor(self.ui_hover.mouse_cursor())
         
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
             self.mouse_down = self.mouse
-            if self.movable and ui_hover in self.ui_grab:
+            if self.movable and self.ui_hover in self.ui_grab:
                 self.mouse_prev = self.mouse
                 self.pos_prev = self.pos
                 return 'move'
-            self.ui_down = ui_hover
+            self.ui_down = self.ui_hover
             self.ui_down.mouse_down(self.mouse)
             self.mouse_moved = False
             return 'down'

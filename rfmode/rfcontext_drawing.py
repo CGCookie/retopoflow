@@ -90,7 +90,7 @@ class RFContext_Drawing:
         if throw: assert False
         return False
     
-    def option_user(self, title, options, callback):
+    def option_user(self, options, callback, title=None):
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
@@ -101,12 +101,11 @@ class RFContext_Drawing:
                 close()
             # print(event)
         
-        def create_option(opt):
-            nonlocal win, container
+        def create_option(opt, grpopt, container):
             def fn():
                 close()
-                callback(opt)
-            return container.add(UI_Button(opt, fn, tooltip=opt, align=-1, bgcolor=(0.5,0.5,0.5,0.6), margin=0))
+                callback(grpopt)
+            return container.add(UI_Button(opt, fn, tooltip=opt, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), margin=0))
         
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
@@ -116,10 +115,21 @@ class RFContext_Drawing:
             'padding': 0,
             }
         win = self.window_manager.create_window(title, opts)
-        container = win.add(UI_EqualContainer(margin=0))
+        bigcontainer = win.add(UI_Container(margin=0))
         # win.add(UI_Rule())
+        prev_container = False
         for opt in options:
-            create_option(opt)
+            if prev_container: bigcontainer.add(UI_Rule(color=(0,0,0,0.1)))
+            if type(opt) is tuple:
+                n,opts2 = opt
+                container = bigcontainer.add(UI_Container(margin=0))
+                container.add(UI_Label(n, align=0, color=(1,1,1,0.5)))
+                for opt2 in opts2:
+                    create_option(opt2, (n,opt2), container)
+                prev_container = True
+            else:
+                create_option(opt, opt, bigcontainer)
+                prev_container = False
         # win.add(UI_Rule())
         # container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         # container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))

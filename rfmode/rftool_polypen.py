@@ -202,51 +202,70 @@ class RFTool_PolyPen(RFTool):
             return 'move'
 
         if self.rfcontext.actions.pressed('delete'):
-            def option(opt):
-                del_empty_edges=True
-                del_empty_verts=True
-                del_verts=True
-                del_edges=True
-                del_faces=True
-                if opt == 'Vertices':
-                    pass
-                elif opt == 'Edges':
-                    del_verts = False
-                elif opt == 'Faces':
-                    del_verts = False
-                    del_edges = False
-                elif opt == 'Only Edges & Faces':
-                    del_verts = False
-                    del_empty_verts = False
-                elif opt == 'Only Faces':
-                    del_verts = False
-                    del_edges = False
-                    del_empty_verts = False
-                    del_empty_edges = False
-                self.rfcontext.undo_push('delete '+opt)
-                self.rfcontext.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
-                self.rfcontext.dirty()
-            self.rfcontext.option_user('Delete', [
-                'Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces',
-                # 'Dissolve Vertices', 'Dissolve Edges', 'Dissolve Faces',
+            def option(grpopt):
+                print(grpopt)
+                if grpopt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces')]:
+                    self.dissolve(grpopt[1])
+                elif grpopt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
+                    self.delete(grpopt[1])
+            self.rfcontext.option_user([
+                ('Delete',  ['Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces']),
+                ('Dissolve',['Vertices', 'Edges', 'Faces']),
                 # 'Limited Dissolve',
                 # 'Edge Collapse', 'Edge Loops',
                 ], option)
             return
         
-        if self.rfcontext.actions.pressed({'dissolve vert', 'dissolve edge', 'dissolve face'}, unpress=False):
-            if self.rfcontext.actions.pressed('dissolve vert') and self.sel_verts:
-                self.rfcontext.undo_push('dissolve vert')
-                self.rfcontext.dissolve_verts(self.sel_verts)
-            elif self.rfcontext.actions.pressed('dissolve edge') and self.sel_edges:
-                self.rfcontext.undo_push('dissolve edge')
-                self.rfcontext.dissolve_edges(self.sel_edges)
-            elif self.rfcontext.actions.pressed('dissolve face') and self.sel_faces:
-                self.rfcontext.undo_push('dissolve face')
-                self.rfcontext.dissolve_faces(self.sel_faces)
-            self.rfcontext.dirty()
-            return
+        # if self.rfcontext.actions.pressed({'dissolve vert', 'dissolve edge', 'dissolve face'}, unpress=False):
+        #     if self.rfcontext.actions.pressed('dissolve vert') and self.sel_verts:
+        #         self.rfcontext.undo_push('dissolve vert')
+        #         self.rfcontext.dissolve_verts(self.sel_verts)
+        #     elif self.rfcontext.actions.pressed('dissolve edge') and self.sel_edges:
+        #         self.rfcontext.undo_push('dissolve edge')
+        #         self.rfcontext.dissolve_edges(self.sel_edges)
+        #     elif self.rfcontext.actions.pressed('dissolve face') and self.sel_faces:
+        #         self.rfcontext.undo_push('dissolve face')
+        #         self.rfcontext.dissolve_faces(self.sel_faces)
+        #     self.rfcontext.dirty()
+        #     return
 
+    def dissolve(self, opt):
+        self.rfcontext.undo_push('dissolve %s' % opt)
+        if opt == 'Vertices' and self.sel_verts:
+            self.rfcontext.dissolve_verts(self.sel_verts)
+        elif opt == 'Edges' and self.sel_edges:
+            self.rfcontext.dissolve_edges(self.sel_edges)
+        elif opt == 'Faces' and self.sel_faces:
+            self.rfcontext.dissolve_faces(self.sel_faces)
+        self.rfcontext.dirty()
+    
+    def delete(self, opt):
+        del_empty_edges=True
+        del_empty_verts=True
+        del_verts=True
+        del_edges=True
+        del_faces=True
+        
+        if opt == 'Vertices':
+            pass
+        elif opt == 'Edges':
+            del_verts = False
+        elif opt == 'Faces':
+            del_verts = False
+            del_edges = False
+        elif opt == 'Only Edges & Faces':
+            del_verts = False
+            del_empty_verts = False
+        elif opt == 'Only Faces':
+            del_verts = False
+            del_edges = False
+            del_empty_verts = False
+            del_empty_edges = False
+        
+        self.rfcontext.undo_push('delete %s' % opt)
+        self.rfcontext.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
+        self.rfcontext.dirty()
+    
     def set_vis_bmverts(self):
         self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
 
