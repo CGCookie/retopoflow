@@ -64,6 +64,7 @@ retopoflow_updater/updater_status.json
 rf_options.bak
 rf_options.dat
 rf_options.dir
+RetopoFlow_options
 
 # Profiler output file
 profiler_data.txt
