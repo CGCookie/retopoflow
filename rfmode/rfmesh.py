@@ -1223,13 +1223,16 @@ class RFTarget(RFMesh):
         ret = holes_fill(self.bme, edges=edges, sides=sides)
         print(ret)
 
-    def delete_selection(self, del_empty_edges=True, del_empty_verts=True):
-        faces = set(f for f in self.bme.faces if f.select)
-        self.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
-        edges = set(e for e in self.bme.edges if e.select)
-        self.delete_edges(edges, del_empty_verts=del_empty_verts)
-        verts = set(v for v in self.bme.verts if v.select)
-        self.delete_verts(verts)
+    def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
+        if del_faces:
+            faces = set(f for f in self.bme.faces if f.select)
+            self.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
+        if del_edges:
+            edges = set(e for e in self.bme.edges if e.select)
+            self.delete_edges(edges, del_empty_verts=del_empty_verts)
+        if del_verts:
+            verts = set(v for v in self.bme.verts if v.select)
+            self.delete_verts(verts)
         
 
     def delete_verts(self, verts):

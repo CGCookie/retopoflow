@@ -90,6 +90,45 @@ class RFContext_Drawing:
         if throw: assert False
         return False
     
+    def option_user(self, title, options, callback):
+        def close():
+            nonlocal win
+            self.window_manager.delete_window(win)
+        def event_handler(context, event):
+            if event.type == 'ESC' and event.value == 'RELEASE':
+                close()
+            if event.type == 'HOVER' and event.value == 'LEAVE':
+                close()
+            # print(event)
+        
+        def create_option(opt):
+            nonlocal win, container
+            def fn():
+                close()
+                callback(opt)
+            return container.add(UI_Button(opt, fn, tooltip=opt, align=-1, bgcolor=(0.5,0.5,0.5,0.6), margin=0))
+        
+        opts = {
+            'pos': self.actions.mouse + Vec2D((-20,10)),
+            'movable': False,
+            'bgcolor': (0.25, 0.25, 0.25, 0.6),
+            'event handler': event_handler,
+            'padding': 0,
+            }
+        win = self.window_manager.create_window(title, opts)
+        container = win.add(UI_EqualContainer(margin=0))
+        # win.add(UI_Rule())
+        for opt in options:
+            create_option(opt)
+        # win.add(UI_Rule())
+        # container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        # container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        # if level in {'assert', 'exception'}:
+        #     container.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        # if show_quit:
+        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+    
     def alert_user(self, title=None, message=None, level=None):
         show_quit = False
         level = level.lower() if level else 'note'

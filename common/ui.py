@@ -1715,11 +1715,17 @@ class UI_Window(UI_Padding):
     def modal_capture(self):
         if self.ui_down.capture_event(self.event): return 'main'
 
+class UI_Event:
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
+
 
 class UI_WindowManager:
     def __init__(self, **kwargs):
         self.windows = []
         self.active = None
+        self.active_last = None
         
         self.tooltip_delay = 0.75
         self.tooltip_value = None
@@ -1774,16 +1780,25 @@ class UI_WindowManager:
             ret = self.active.modal(context, event)
             if not ret: self.active = None
         else:
+            self.active = None
             for win in reversed(self.windows):
                 ret = win.modal(context, event)
                 if ret:
                     self.active = win
                     break
+        if self.active != self.active_last:
+            if self.active_last and self.active_last.fn_event_handler:
+                self.active_last.fn_event_handler(context, UI_Event('HOVER', 'LEAVE'))
+            if self.active and self.active.fn_event_handler:
+                self.active.fn_event_handler(context, UI_Event('HOVER', 'ENTER'))
+        self.active_last = self.active
+        
         if self.active:
             if self.active.fn_event_handler:
                 self.active.fn_event_handler(context, event)
-            tooltip = self.active.get_tooltip()
-            self.set_tooltip_label(tooltip)
+            if self.active:
+                tooltip = self.active.get_tooltip()
+                self.set_tooltip_label(tooltip)
         else:
             self.set_tooltip_label(None)
         return ret

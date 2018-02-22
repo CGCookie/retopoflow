@@ -202,9 +202,36 @@ class RFTool_PolyPen(RFTool):
             return 'move'
 
         if self.rfcontext.actions.pressed('delete'):
-            self.rfcontext.undo_push('delete')
-            self.rfcontext.delete_selection()
-            self.rfcontext.dirty()
+            def option(opt):
+                del_empty_edges=True
+                del_empty_verts=True
+                del_verts=True
+                del_edges=True
+                del_faces=True
+                if opt == 'Vertices':
+                    pass
+                elif opt == 'Edges':
+                    del_verts = False
+                elif opt == 'Faces':
+                    del_verts = False
+                    del_edges = False
+                elif opt == 'Only Edges & Faces':
+                    del_verts = False
+                    del_empty_verts = False
+                elif opt == 'Only Faces':
+                    del_verts = False
+                    del_edges = False
+                    del_empty_verts = False
+                    del_empty_edges = False
+                self.rfcontext.undo_push('delete '+opt)
+                self.rfcontext.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
+                self.rfcontext.dirty()
+            self.rfcontext.option_user('Delete', [
+                'Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces',
+                # 'Dissolve Vertices', 'Dissolve Edges', 'Dissolve Faces',
+                # 'Limited Dissolve',
+                # 'Edge Collapse', 'Edge Loops',
+                ], option)
             return
         
         if self.rfcontext.actions.pressed({'dissolve vert', 'dissolve edge', 'dissolve face'}, unpress=False):
