@@ -186,6 +186,10 @@ class RFEdge(BMElemWrapper):
         if o is None: return None
         return RFVert(o)
     
+    def share_vert(self, bme):
+        bme = self._unwrap(bme)
+        return any(v in bme.verts for v in self.bmelem.verts)
+    
     def shared_vert(self, bme):
         bme = self._unwrap(bme)
         verts = [v for v in self.bmelem.verts if v in bme.verts]

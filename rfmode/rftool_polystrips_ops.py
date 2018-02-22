@@ -106,11 +106,31 @@ class RFTool_PolyStrips_Ops:
             new_geom += [bme]
             return bme
         
+        def create_face_in_l(bme0, bme1):
+            '''
+            creates a face strip between edges that share a vertex (L-shaped)
+            '''
+            # find shared vert
+            nonlocal new_geom
+            bmv1 = bme0.shared_vert(bme1)
+            bmv0,bmv2 = bme0.other_vert(bmv1),bme1.other_vert(bmv1)
+            c0,c1,c2 = bmv0.co,bmv1.co,bmv2.co
+            c3 = nearest_sources_Point(c1 + (c0-c1) + (c2-c1))[0]
+            bmv3 = self.rfcontext.new_vert_point(c3)
+            bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
+            bme2,bme3 = bmv2.shared_edge(bmv3),bmv3.shared_edge(bmv0)
+            add_face(bmf)
+            add_edge(bme2)
+            add_edge(bme3)
+            new_geom += [bme2,bme3,bmf]
+            return bmf
+            
         def create_face(bme01, bme23):
             #  0  3      0--3
             #  |  |  ->  |  |
             #  1  2      1--2
             nonlocal new_geom
+            if bme01.share_vert(bme23): return create_face_in_l(bme01, bme23)
             bmv0,bmv1 = bme01.verts
             bmv2,bmv3 = bme23.verts
             if bme01.vector().dot(bme23.vector()) > 0: bmv2,bmv3 = bmv3,bmv2
@@ -180,11 +200,9 @@ class RFTool_PolyStrips_Ops:
             dprint('nmarks = %d, markoff0 = %d, markoff1 = %d, nquads = %d' % (nmarks, markoff0, markoff1, nquads))
             
             if from_edge and to_edge and nquads == 1:
-                bmv0,bmv1 = from_edge.verts
-                if bmv0 in to_edge.verts or bmv1 in to_edge.verts:
-                    self.rfcontext.alert_user(title='PolyStrips', message='Cannot create short strip between edges that share a vertex')
-                    self.rfcontext.undo_cancel()
-                    return
+                if from_edge.share_vert(to_edge):
+                    create_face_in_l(from_edge, to_edge)
+                    continue
             
             # add edges
             if from_edge is None:
