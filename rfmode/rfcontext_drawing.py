@@ -432,8 +432,10 @@ class RFContext_Drawing:
         
         info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values', align=0))
         
-        
-        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
+        def welcome_event_handler(context, event):
+            if event.type == 'ESC' and event.value == 'RELEASE':
+                hide_reporting()
+        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Markdown(firsttime_message))
         self.window_welcome.add(UI_Rule())
