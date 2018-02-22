@@ -87,12 +87,18 @@ def hash_face_pair(bmf0, bmf1):
     return str(bmf0.__hash__()) + str(bmf1.__hash__())
 
 
-def process_stroke_filter(stroke, min_distance=1.0):
+def process_stroke_filter(stroke, min_distance=1.0, max_distance=2.0):
     ''' filter stroke to pts that are at least min_distance apart '''
     nstroke = stroke[:1]
     for p in stroke[1:]:
-        if (p - nstroke[-1]).length < min_distance: continue
-        nstroke.append(p)
+        v = p - nstroke[-1]
+        l = v.length
+        if l < min_distance: continue
+        d = v / l
+        while l > 0:
+            q = nstroke[-1] + d * min(l, max_distance)
+            nstroke.append(q)
+            l -= max_distance
     return nstroke
 
 def process_stroke_onlyhit(stroke, raycast):
