@@ -439,7 +439,10 @@ class RFContext_Drawing:
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         
-        self.window_help = self.window_manager.create_window('Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95)})
+        def help_event_handler(context, event):
+            if event.type == 'ESC' and event.value == 'RELEASE':
+                self.toggle_help()
+        self.window_help = self.window_manager.create_window('Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':help_event_handler})
         self.window_help.add(UI_Rule())
         self.ui_helplabel = UI_Markdown('help text here!')
         # self.window_help.add(UI_Scrollable(self.ui_helplabel))

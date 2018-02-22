@@ -167,6 +167,9 @@ For tool-specific help, select the tool from the Tools panel, and either press F
 
 ## Tool Shortcuts
 
+Pressing the tool's shortcut will automatically switch to that tool.
+Note: selection and the undo stack is maintained between tools.
+
 - Q: Contours
 - W: PolyStrips
 - E: PolyPen
@@ -177,9 +180,13 @@ For tool-specific help, select the tool from the Tools panel, and either press F
 
 ## Universal Shortcuts
 
+The following shortcuts work across all the tools, although each tool may have a distinct way of performing the action.
+For example, pressing G in Contours will slide the selected loop.
+
 - A: deselect / select all
-- SELECT / SHIFT+SELECT: select (tool specific)
-- X: delete selection (most tools)
+- SELECT / SHIFT+SELECT: select
+- G: grab and move selected geometry
+- X: delete / dissolve selection
 - CTRL+Z: undo
 - CTRL+SHIFT+Z: redo
 
@@ -235,7 +242,7 @@ You can draw as many strokes as you like, in any order, from any direction.
 
 ## Transform
 
-- G: slide / grab
+- G: slide loop
 - S: shift loop
 - SHIFT+S: rotate
 
@@ -272,9 +279,8 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 - F: adjust brush size
 - A: deselect / select all
 
-## Transform
+## Control Points
 
-- G: translate
 - ACTION: translate control point under mouse
 - SHIFT+ACTION: translate all inner control points around neighboring outer control point
 
@@ -301,17 +307,14 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 - SHIFT+ACTION: insert edge strip
 - A: deselect / select all
 
-## Other
-
-- G: translate
-- X: delete selection
-- SHIFT+X: dissolve selected verts
-- CTRL+X: dissolve selected edges
-- CTRL+SHIFT+X: dissolve selected faces
-
 ## Tips
 
-- Creating vertices/edges/faces is dependent on your selection:
+Creating vertices/edges/faces is dependent on your selection:
+
+- When nothing is selected, a new vertex is added.
+- When a single vertex is selected, an edge is added between mouse and selected vertex.
+- When an edge is selected, a triangle is added between mouse and selected edge.
+- When a triangle is selected, a vertex is added to the triangle, turning the triangle into a quad
 '''
 
 help_tweak = '''
