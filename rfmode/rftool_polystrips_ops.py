@@ -156,6 +156,14 @@ class RFTool_PolyStrips_Ops:
             # get stroke segment to work on
             from_edge,cstroke,to_edge,cont,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
             
+            # filter cstroke to contain unique points
+            while True:
+                ncstroke = [cstroke[0]]
+                for cp,np in iter_pairs(cstroke,False):
+                    if (cp-np).length > 0: ncstroke += [np]
+                if len(cstroke) == len(ncstroke): break
+                cstroke = ncstroke
+            
             # discard stroke segment if it lies in a face
             if intersect_face(cstroke[1]):
                 dprint('stroke is on face (1)')
