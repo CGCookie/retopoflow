@@ -127,9 +127,7 @@ class RFMode(Operator):
     @staticmethod
     @profiler.profile
     def large_sources():
-        count = 0
-        for s in RFContext.get_sources():
-            count += RFMode.get_polygon_count(s)
+        count = sum((RFMode.get_polygon_count(s) for s in RFContext.get_sources()), 0)
         return count > 100000
     
     def invoke(self, context, event):

@@ -343,7 +343,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         if not self.hovering_handles: return
         
-        
         cbpts = list(self.hovering_handles)
         self.mod_strips |= self.hovering_strips
         for strip in self.strips:

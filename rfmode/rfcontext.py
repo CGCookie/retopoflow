@@ -45,6 +45,7 @@ from .rfcontext_actions import RFContext_Actions
 from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
+from .rfcontext_sources import RFContext_Sources
 
 from ..lib.common_utilities import get_settings, dprint, get_exception_info
 from ..common.maths import Point, Vec, Direction, Normal, BBox
@@ -112,7 +113,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target):
+class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target, RFContext_Sources):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -265,64 +266,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             for rfsd in self.rfsources_draw:
                rfsd.replace_opts(source_opts)
     
-    def get_source_render_options(self):
-        opts = {
-            'poly color': (0.0, 0.0, 0.0, 0.0),
-            'poly offset': 0.000008,
-            'poly dotoffset': 1.0,
-            'line width': 0.0,
-            'point size': 0.0,
-            'load edges': False,
-            'load verts': False,
-            'no selection': True,
-            'no below': True,
-            'triangles only': True,     # source bmeshes are triangles only!
-            
-            'focus mult': 0.01,
-        }
-        return opts
-        
-    def get_target_render_options(self):
-        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
-        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
-        opts = {
-            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
-            'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
-            'poly offset': 0.000010,
-            'poly dotoffset': 1.0,
-            'poly mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.10),
-            'poly mirror color selected': (color_select[0], color_select[1], color_select[2], 0.10),
-            'poly mirror offset': 0.000010,
-            'poly mirror dotoffset': 1.0,
-
-            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
-            'line color selected': (color_select[0], color_select[1], color_select[2], 1.00),
-            'line width': 2.0,
-            'line offset': 0.000012,
-            'line dotoffset': 1.0,
-            'line mirror stipple': False,
-            'line mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
-            'line mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
-            'line mirror width': 1.5,
-            'line mirror offset': 0.000012,
-            'line mirror dotoffset': 1.0,
-            'line mirror stipple': False,
-
-            'point color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
-            'point color selected': (color_select[0], color_select[1], color_select[2], 1.00),
-            'point size': 5.0,
-            'point offset': 0.000015,
-            'point dotoffset': 1.0,
-            'point mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
-            'point mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
-            'point mirror size': 3.0,
-            'point mirror offset': 0.000015,
-            'point mirror dotoffset': 1.0,
-            
-            'focus mult': 1.0,
-        }
-        return opts
-
     def commit(self):
         #self.rftarget.commit()
         pass
@@ -522,74 +465,4 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.rfwidget.modal():
             if self.tool and self.actions.valid_mouse():
                 self.tool.modal()
-
-
-    ###################################################
-    # RFSource functions
-
-    def raycast_sources_Ray(self, ray:Ray):
-        bp,bn,bi,bd = None,None,None,None
-        for rfsource in self.rfsources:
-            hp,hn,hi,hd = rfsource.raycast(ray)
-            if bp is None or (hp is not None and hd < bd):
-                bp,bn,bi,bd = hp,hn,hi,hd
-        return (bp,bn,bi,bd)
-
-    def raycast_sources_Ray_all(self, ray:Ray):
-        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray)]
-
-    def raycast_sources_Point2D(self, xy:Point2D):
-        if xy is None: return None,None,None,None
-        return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
-
-    def raycast_sources_Point2D_all(self, xy:Point2D):
-        if xy is None: return None,None,None,None
-        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy))
-
-    def raycast_sources_mouse(self):
-        return self.raycast_sources_Point2D(self.actions.mouse)
-
-    def raycast_sources_Point(self, xyz:Point):
-        if xyz is None: return None,None,None,None
-        xy = self.Point_to_Point2D(xyz)
-        return self.raycast_sources_Point2D(xy)
-
-    def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
-        bp,bn,bi,bd = None,None,None,None
-        for rfsource in self.rfsources:
-            hp,hn,hi,hd = rfsource.nearest(point, max_dist=max_dist)
-            if bp is None or (hp is not None and hd < bd):
-                bp,bn,bi,bd = hp,hn,hi,hd
-        return (bp,bn,bi,bd)
-
-    def plane_intersection_crawl(self, ray:Ray, plane:Plane, walk=False):
-        bp,bn,bi,bd,bo = None,None,None,None,None
-        for rfsource in self.rfsources:
-            hp,hn,hi,hd = rfsource.raycast(ray)
-            if bp is None or (hp is not None and hd < bd):
-                bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
-        if not bp: return []
-        
-        if walk:
-            return bo.plane_intersection_walk_crawl(ray, plane)
-        else:
-            return bo.plane_intersection_crawl(ray, plane)
-    
-    def plane_intersections_crawl(self, plane:Plane):
-        return [crawl for rfsource in self.rfsources for crawl in rfsource.plane_intersections_crawl(plane)]
-    
-    ###################################################
-
-    @profiler.profile
-    def is_visible(self, point:Point, normal:Normal):
-        p2D = self.Point_to_Point2D(point)
-        if not p2D: return False
-        if p2D.x < 0 or p2D.x > self.actions.size[0]: return False
-        if p2D.y < 0 or p2D.y > self.actions.size[1]: return False
-        max_dist_offset = self.sources_bbox.get_min_dimension()*0.01 + 0.0008
-        ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
-        if not ray: return False
-        if normal and normal.dot(ray.d) >= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
-
 
