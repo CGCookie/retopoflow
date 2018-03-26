@@ -11,6 +11,7 @@ Rendering Updates
 Topology
 
 - [topowiki](http://probiner.x10.mx/wiki/doku.php?id=start)
+- [Topology Guides | Johnson Martin](http://topologyguides.com/)
 
 
 Blender Tips

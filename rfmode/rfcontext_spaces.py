@@ -111,3 +111,7 @@ class RFContext_Spaces:
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((1,0,0))
     
+    def Vec_forward(self):
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,0,-1))
+    

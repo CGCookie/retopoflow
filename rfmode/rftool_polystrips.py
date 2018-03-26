@@ -289,10 +289,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if outerF != bmf0 and outerF != bmf1: continue
             p0,p1,p2,p3 = strip.curve.points()
             if outerF == bmf0:
-                self.sel_cbpts += [(p1, Point(p1), Point_to_Point2D(p1))]
+                self.sel_cbpts += [(p1, False, Point(p1), Point_to_Point2D(p1))]
                 self.mod_strips.add(strip)
             if outerF == bmf1:
-                self.sel_cbpts += [(p2, Point(p2), Point_to_Point2D(p2))]
+                self.sel_cbpts += [(p2, False, Point(p2), Point_to_Point2D(p2))]
                 self.mod_strips.add(strip)
         self.rotate_about = Point_to_Point2D(outerP)
         if not self.rotate_about: return ''
@@ -326,7 +326,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         rot = Matrix.Rotation(angle, 2)
         
-        for cbpt,oco,oco2D in self.sel_cbpts:
+        for cbpt,inner,oco,oco2D in self.sel_cbpts:
             xy = rot * (oco2D - self.rotate_about) + self.rotate_about
             xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(xy)
             if xyz: cbpt.xyz = xyz
@@ -342,6 +342,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.mod_strips = set()
         
         if not self.hovering_handles: return
+        
+        
         cbpts = list(self.hovering_handles)
         self.mod_strips |= self.hovering_strips
         for strip in self.strips:
@@ -354,14 +356,16 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 self.mod_strips.add(strip)
         
         for strip in self.mod_strips: strip.capture_edges()
+        inners = [ p for strip in self.strips for p in strip.curve.points()[1:3] ]
         
-        self.sel_cbpts = [(cbpt, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
+        self.sel_cbpts = [(cbpt, cbpt in inners, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('move')
         self.move_done_pressed = 'confirm'
         self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
+        
         return 'handle'
     
     @RFTool.dirty_when_done
@@ -376,11 +380,18 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             return 'main'
         
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        up,rt = self.rfcontext.Vec_up(),self.rfcontext.Vec_right()
-        for cbpt,oco,oco2D in self.sel_cbpts:
-            xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(oco2D + delta)
-            #xyz = oco + delta.x * rt - delta.y * up
-            if xyz: cbpt.xyz = xyz
+        up,rt,fw = self.rfcontext.Vec_up(),self.rfcontext.Vec_right(),self.rfcontext.Vec_forward()
+        for cbpt,inner,oco,oco2D in self.sel_cbpts:
+            nco2D = oco2D + delta
+            if not inner:
+                xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(nco2D)
+                if xyz: cbpt.xyz = xyz
+            else:
+                ov = self.rfcontext.Point2D_to_Vec(oco2D)
+                nr = self.rfcontext.Point2D_to_Ray(nco2D)
+                od = self.rfcontext.Point_to_depth(oco)
+                nco = nr.eval(od / ov.dot(nr.d))
+                cbpt.xyz = nco #oco + (up*delta.y + rt*delta.x) * 0.001
         
         for strip in self.hovering_strips:
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
