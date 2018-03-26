@@ -390,8 +390,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 ov = self.rfcontext.Point2D_to_Vec(oco2D)
                 nr = self.rfcontext.Point2D_to_Ray(nco2D)
                 od = self.rfcontext.Point_to_depth(oco)
-                nco = nr.eval(od / ov.dot(nr.d))
-                cbpt.xyz = nco #oco + (up*delta.y + rt*delta.x) * 0.001
+                cbpt.xyz = nr.eval(od / ov.dot(nr.d))
         
         for strip in self.hovering_strips:
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
