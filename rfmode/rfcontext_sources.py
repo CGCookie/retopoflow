@@ -28,12 +28,28 @@ from ..lib.classes.profiler.profiler import profiler
 from mathutils import Vector
 from ..lib.common_utilities import get_settings, dprint, get_exception_info
 from ..common.decorators import stats_wrapper
+from .rfmesh import RFSource, RFTarget
+from .rfmesh_render import RFMeshRender
+
 
 class RFContext_Sources:
     '''
     functions to work on all RFSource objects
     '''
 
+    @profiler.profile
+    def _init_sources(self):
+        ''' find all valid source objects, which are mesh objects that are visible and not active '''
+        self.rfsources = [RFSource.new(src) for src in self.get_sources()]
+        self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
+        dprint('%d sources found' % len(self.rfsources))
+        opts = self.get_source_render_options()
+        self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
+        xyplane,xzplane,yzplane = self.rftarget.get_xy_plane(),self.rftarget.get_xz_plane(),self.rftarget.get_yz_plane()
+        self.rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]
+        self.rfsources_xzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xzplane)]
+        self.rfsources_yzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(yzplane)]
+    
 
     ###################################################
     # ray casting functions

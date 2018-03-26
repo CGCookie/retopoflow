@@ -193,8 +193,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self._init_usersettings()       # set up user-defined settings and key mappings
         self._init_drawing()            # set up drawing utilities
         self._init_target()             # set up target object
-        self._init_sources()            # set up source objects
-        self._init_rotate_about_active()    # must happen *AFTER* target is initialized!
+        self._init_sources()            # set up source objects, must call *AFTER* target is initialized!
+        self._init_rotate_about_active()    # must call *AFTER* target is initialized!
         self.fps_time = time.time()
         self.frames = 0
         self.timer = None
@@ -237,24 +237,6 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         bpy.context.scene.objects.active = self.tar_object
         self.rot_object = None
 
-    @profiler.profile
-    def _init_target(self):
-        ''' target is the active object.  must be selected and visible '''
-        self.tar_object = RFContext.get_target()
-        assert self.tar_object, 'Could not find valid target?'
-        self.rftarget = RFTarget.new(self.tar_object)
-        opts = self.get_target_render_options()
-        self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
-
-    @profiler.profile
-    def _init_sources(self):
-        ''' find all valid source objects, which are mesh objects that are visible and not active '''
-        self.rfsources = [RFSource.new(src) for src in RFContext.get_sources()]
-        self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
-        dprint('%d sources found' % len(self.rfsources))
-        opts = self.get_source_render_options()
-        self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
-    
     @profiler.profile
     def replace_opts(self, target=True, sources=False):
         if not hasattr(self, 'rftarget_draw'): return

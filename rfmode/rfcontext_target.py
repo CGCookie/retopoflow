@@ -26,11 +26,23 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..lib.classes.profiler.profiler import profiler
 from mathutils import Vector
+from .rfmesh import RFSource, RFTarget
+from .rfmesh_render import RFMeshRender
+
 
 class RFContext_Target:
     '''
     functions to work on RFTarget
     '''
+
+    @profiler.profile
+    def _init_target(self):
+        ''' target is the active object.  must be selected and visible '''
+        self.tar_object = self.get_target()
+        assert self.tar_object, 'Could not find valid target?'
+        self.rftarget = RFTarget.new(self.tar_object)
+        opts = self.get_target_render_options()
+        self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 
     #########################################
     # find target entities in screen space
