@@ -294,63 +294,130 @@ class RFMesh():
         return Plane(o, n)
 
     @profiler.profile
-    def _crawl(self, bmf, plane):
+    def _crawl(self, bmf_start, plane):
         '''
         crawl about RFMesh along plane starting with bmf
         '''
+        
+        def intersect_edge(bme):
+            bmv0,bmv1 = bme.verts
+            crosses = plane.edge_intersection((bmv0.co, bmv1.co))
+            if not crosses: return None
+            return crosses[0][0]
+        def intersect_face(bmf):
+            crosses = [(bme,intersect_edge(bme)) for bme in bmf.edges]
+            return [(bme,cross) for bme,cross in crosses if cross]
+        
+        # assuming all faces are triangles!
         touched = set()
-        def crawl(bmf0):
-            if not bmf0: return []
-            assert bmf0 not in touched
-            touched.add(bmf0)
-            best = []
-            for bme in bmf0.edges:
-                # find where plane crosses edge
-                bmv0,bmv1 = bme.verts
-                crosses = plane.edge_intersection((bmv0.co, bmv1.co))
-                if not crosses: continue
-                cross = crosses[0][0]   # only care about one crossing for now (TODO: coplanar??)
-
-                if len(bme.link_faces) == 1:
-                    # non-manifold edge
-                    ret = [(bmf0, bme, None, cross)]
-                    if len(ret) > len(best): best = ret
-
-                for bmf1 in bme.link_faces:
-                    if bmf1 == bmf0: continue
-                    if bmf1 == bmf:
-                        # wrapped completely around!
-                        ret = [(bmf0, bme, bmf1, cross)]
-                    elif bmf1 in touched:
-                        # we've seen this face before
-                        continue
-                    else:
-                        # recursively crawl on!
-                        ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
-
-                    if bmf0 == bmf:
-                        # on first face
-                        # stop crawling if we wrapped around
-                        if ret[-1][2] == bmf: return ret
-                        # reverse and add to best
-                        if not best:
-                            best = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
-                        else:
-                            best = best + ret
-                    elif len(ret) > len(best):
-                        best = ret
-            #touched.remove(bmf0)
-            return best
+        ret = []
+        bmf_current = bmf_start
+        crosses = intersect_face(bmf_current)
+        if len(crosses) != 2: return ret
+        bme_start0,bme_start1 = crosses[0][0],crosses[1][0]
+        bme_next = bme_start0
+        cross,cross1 = crosses[0][1],crosses[1][1]
+        while True:
+            bmf_next = next((bmf for bmf in bme_next.link_faces if bmf != bmf_current), None)
+            if not bmf_next:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            if bmf_next == bmf_start:
+                ret += [(bmf_current, bme_next, bmf_next, cross1)]
+                return ret
+            ret += [(bmf_current, bme_next, bmf_next, cross)]
+            crosses = intersect_face(bmf_next)
+            if len(crosses) != 2:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            bmf_current = bmf_next
+            bme_next_,cross_ = next(((bme,cross) for (bme,cross) in crosses if bme != bme_next), (None,None))
+            if not bme_next_:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            bme_next,cross = bme_next_,cross_
         
-        try:
-            res = crawl(bmf)
-        except KeyboardInterrupt as e:
-            print('breaking')
-            ex_type,ex_val,tb = sys.exc_info()
-            traceback.print_tb(tb)
-            res = []
+        # go other way
+        ret = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
+        bme_next = bme_start1
+        cross = cross1
+        bmf_current = bmf_start
+        while True:
+            bmf_next = next((bmf for bmf in bme_next.link_faces if bmf != bmf_current), None)
+            if not bmf_next:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            if bmf_next == bmf_start:
+                # PROBLEM!
+                ret += [(bmf_current, bme_next, bmf_next, cross1)]
+                return ret
+            ret += [(bmf_current, bme_next, bmf_next, cross)]
+            crosses = intersect_face(bmf_next)
+            if len(crosses) != 2:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            bmf_current = bmf_next
+            bme_next_,cross_ = next(((bme,cross) for (bme,cross) in crosses if bme != bme_next), (None,None))
+            if not bme_next_:
+                ret += [(bmf_current, bme_next, None, cross)]
+                break
+            bme_next,cross = bme_next_,cross_
         
-        return res
+        return ret
+        
+        # touched = set()
+        # def crawl(bmf0):
+        #     if not bmf0: return []
+        #     assert bmf0 not in touched
+        #     touched.add(bmf0)
+        #     best = []
+        #     for bme in bmf0.edges:
+        #         # find where plane crosses edge
+        #         bmv0,bmv1 = bme.verts
+        #         crosses = plane.edge_intersection((bmv0.co, bmv1.co))
+        #         if not crosses: continue
+        #         cross = crosses[0][0]   # only care about one crossing for now (TODO: coplanar??)
+
+        #         if len(bme.link_faces) == 1:
+        #             # non-manifold edge
+        #             ret = [(bmf0, bme, None, cross)]
+        #             if len(ret) > len(best): best = ret
+
+        #         for bmf1 in bme.link_faces:
+        #             if bmf1 == bmf0: continue
+        #             if bmf1 == bmf:
+        #                 # wrapped completely around!
+        #                 ret = [(bmf0, bme, bmf1, cross)]
+        #             elif bmf1 in touched:
+        #                 # we've seen this face before
+        #                 continue
+        #             else:
+        #                 # recursively crawl on!
+        #                 ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
+
+        #             if bmf0 == bmf:
+        #                 # on first face
+        #                 # stop crawling if we wrapped around
+        #                 if ret[-1][2] == bmf: return ret
+        #                 # reverse and add to best
+        #                 if not best:
+        #                     best = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
+        #                 else:
+        #                     best = best + ret
+        #             elif len(ret) > len(best):
+        #                 best = ret
+        #     #touched.remove(bmf0)
+        #     return best
+        
+        # try:
+        #     res = crawl(bmf)
+        # except KeyboardInterrupt as e:
+        #     print('breaking')
+        #     ex_type,ex_val,tb = sys.exc_info()
+        #     traceback.print_tb(tb)
+        #     res = []
+        
+        # return res
 
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
@@ -404,51 +471,6 @@ class RFMesh():
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        return ret
-    
-    @profiler.profile
-    def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
-        '''
-        intersect object with ray, walk to plane, then crawl about
-        '''
-        # intersect self with ray
-        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
-        bmf = self.bme.faces[i]
-        
-        # walk along verts and edges from intersection to plane
-        def walk_to_plane(bmf):
-            bmvs = [bmv for bmv in bmf.verts]
-            bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]
-            if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
-                # bmf crosses plane already
-                return bmf
-            
-            idx = min_index(bmvs_dot)
-            bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
-            touched = set()
-            while True:
-                touched.add(bmv)
-                obmvs = [bme.other_vert(bmv) for bme in bmv.link_edges]
-                obmvs = [obmv for obmv in obmvs if obmv not in touched]
-                if not obmvs: return None
-                obmvs_dot = [plane.signed_distance_to(obmv.co)*sign for obmv in obmvs]
-                idx = min_index(obmvs_dot)
-                obmv,obmv_dot = obmvs[idx],obmvs_dot[idx]
-                if obmv_dot <= 0:
-                    # found plane!
-                    return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
-                if obmv_dot > bmv_dot: return None
-                bmv = obmv
-                bmv_dot = obmv_dot
-        
-        bmf = walk_to_plane(bmf)
-        
-        # crawl about self along plane
-        ret = self._crawl(bmf, plane)
-        w,l2w_point = self._wrap,self.xform.l2w_point
-        ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        return ret
         return ret
 
     @profiler.profile
