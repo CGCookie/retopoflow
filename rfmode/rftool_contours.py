@@ -489,9 +489,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in loop]
-            cos = [co for co in cos if co]
-            if cos:
-                bmv = max(loop, key=lambda bmv:point_to_point2d(bmv.co).y)
+            if any(cos):
+                loop = [(bmv,co) for bmv,co in zip(loop,cos) if co]
+                bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count: bmv_count[bmv] = []
                 bmv_count[bmv].append( (count, True) )
 
@@ -515,9 +515,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in string]
-            cos = [co for co in cos if co]
-            if cos:
-                bmv = max(string, key=lambda bmv:point_to_point2d(bmv.co).y)
+            if any(cos):
+                string = [(bmv,co) for bmv,co in zip(string,cos) if co]
+                bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count: bmv_count[bmv] = []
                 bmv_count[bmv].append( (count, False) )
             
