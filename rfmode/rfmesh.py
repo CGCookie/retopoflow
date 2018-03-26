@@ -261,12 +261,12 @@ class RFMesh():
         # return intersection
         
         pr = profiler.start('vert sides')
-        verts_pos = { bmv for bmv in self.bme.verts if side(bmv.co) > 0 }
+        vert_side = { bmv:side(bmv.co) for bmv in self.bme.verts }
         #verts_neg = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) < 0 }
         pr.done()
         #faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
         pr = profiler.start('split edges')
-        edges = { bme for bme in self.bme.edges if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos) }
+        edges = { bme for bme in self.bme.edges if vert_side[bme.verts[0]] != vert_side[bme.verts[1]] }
         pr.done()
         pr = profiler.start('split faces')
         faces = { bmf for bme in edges for bmf in bme.link_faces }
@@ -1059,7 +1059,7 @@ class RFMesh():
 class RFSource(RFMesh):
     '''
     RFSource is a source object for RetopoFlow.  Source objects
-    are the meshes being retopologized.
+    are the high-resolution meshes being retopologized.
     '''
 
     __cache = {}
@@ -1104,7 +1104,7 @@ class RFSource(RFMesh):
 class RFTarget(RFMesh):
     '''
     RFTarget is a target object for RetopoFlow.  Target objects
-    are the retopologized meshes.
+    are the low-resolution, retopologized meshes.
     '''
 
     @staticmethod
@@ -1203,9 +1203,11 @@ class RFTarget(RFMesh):
     def has_symmetry(self, axis): return axis in self.symmetry
 
     def new_vert(self, co, norm):
-        bmv = self.bme.verts.new(self.xform.w2l_point(co))
-        bmv.normal = self.xform.w2l_normal(norm)
-        return self._wrap_bmvert(bmv)
+        bmv = self.bme.verts.new((0,0,0))
+        rfv = self._wrap_bmvert(bmv)
+        rfv.co = co
+        rfv.normal = norm
+        return rfv
 
     def new_edge(self, verts):
         verts = [self._unwrap(v) for v in verts]

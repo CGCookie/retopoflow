@@ -38,7 +38,7 @@ from .rftool_polystrips_utils import (
     strip_details,
     crawl_strip,
     is_boundaryvert, is_boundaryedge,
-    process_stroke_filter, process_stroke_onlyhit,
+    process_stroke_filter, process_stroke_source,
     process_stroke_get_next, process_stroke_get_marks,
     mark_info,
     )
@@ -52,10 +52,6 @@ class RFTool_PolyStrips_Ops:
         #self.stroke_old()
     
     def stroke_new(self):
-        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        # todo: stroke may fall off the source!! :(
-        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        
         radius = self.rfwidget.size
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
@@ -81,9 +77,9 @@ class RFTool_PolyStrips_Ops:
         
         def create_vert(p2D_init, dist):
             p = raycast(p2D_init)[0]
-            if p is not None: return p
-            r = Point2D_to_Ray(p2D_init)
-            p = nearest_sources_Point(r.eval(dist))[0]
+            if p is None:
+                r = Point2D_to_Ray(p2D_init)
+                p = nearest_sources_Point(r.eval(dist))[0]
             return p
         
         def create_edge(center, tangent, mult, perpendicular):
@@ -149,7 +145,7 @@ class RFTool_PolyStrips_Ops:
         stroke = list(self.rfwidget.stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_onlyhit(stroke, self.rfcontext.raycast_sources_Point2D)
+        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
         
         from_edge = None
         while len(stroke) > 2:

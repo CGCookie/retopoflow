@@ -101,9 +101,10 @@ def process_stroke_filter(stroke, min_distance=1.0, max_distance=2.0):
             l -= max_distance
     return nstroke
 
-def process_stroke_onlyhit(stroke, raycast):
-    ''' filter out pts that don't hit source '''
-    return [pt for pt in stroke if raycast(pt)[0]]
+def process_stroke_source(stroke, raycast, is_point_on_mirrored_side):
+    ''' filter out pts that don't hit source on non-mirrored side '''
+    pts = [(pt, raycast(pt)[0]) for pt in stroke]
+    return [pt for pt,p3d in pts if p3d and not is_point_on_mirrored_side(p3d)]
 
 def process_stroke_split_at_crossings(stroke):
     strokes = []
