@@ -216,7 +216,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def modal_select(self):
-        if self.rfcontext.actions.released(['select','select add'], released_all=True):
+        if not self.rfcontext.actions.using(['select','select add']):
             return 'main'
         bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return

@@ -43,6 +43,7 @@ from ..options import options, help_contours
 class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['select'] = self.modal_select
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
         self.FSM['rotate'] = self.modal_rotate
@@ -151,15 +152,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
-            
             self.rfcontext.undo_push('select')
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                if sel_only: self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select(edge, only=sel_only)
-            self.update()
-            return
+            if sel_only: self.rfcontext.deselect_all()
+            return 'select'
 
         if self.rfcontext.actions.pressed('grab'):
             ''' grab for translations '''
@@ -189,6 +184,14 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.rfcontext.actions.pressed('decrease count'):
             self.change_count(-1)
             return
+
+    @profiler.profile
+    def modal_select(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            return 'main'
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        if not bme or bme.select: return
+        self.rfcontext.select(bme, supparts=False, only=False)
 
     def prep_shift(self):
         sel_edges = self.rfcontext.get_selected_edges()

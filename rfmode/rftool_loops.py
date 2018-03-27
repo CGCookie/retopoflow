@@ -37,6 +37,7 @@ from .rfcontext_actions import Actions
 class RFTool_Loops(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['select'] = self.modal_select
         self.FSM['slide'] = self.modal_slide
         self.FSM['slide after select'] = self.modal_slide_after_select
     
@@ -139,19 +140,11 @@ class RFTool_Loops(RFTool):
             return 'slide after select'
         
         if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
-            sel_only = not self.rfcontext.actions.pressed('select add', unpress=False)
+            sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
-            if sel_only: self.rfcontext.undo_push('select')
-            else: self.rfcontext.undo_push('select add')
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                if sel_only: self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select(edge, supparts=False, only=sel_only)
-            self.update()
-            self.prep_edit(alert=False)
-            if not self.edit_ok: return
-            return 'slide after select'
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            return 'select'
         
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
@@ -226,6 +219,14 @@ class RFTool_Loops(RFTool):
             self.rfcontext.delete_selection()
             self.rfcontext.dirty()
             return
+    
+    @profiler.profile
+    def modal_select(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            return 'main'
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        if not bme or bme.select: return
+        self.rfcontext.select(bme, supparts=False, only=False)
     
     def prep_edit(self, alert=True):
         self.edit_ok = False
