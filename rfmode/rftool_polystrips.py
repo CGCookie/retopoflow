@@ -408,6 +408,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         for strip in self.mod_strips: strip.capture_edges()
         
         if not self.scale_strips: return
+        self.scale_from = Point_to_Point2D(outerP)
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
         self.rfcontext.undo_push('scale')
@@ -448,15 +449,17 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfcontext.undo_cancel()
             return 'main'
         
-        delta = self.rfcontext.actions.mouse.x - self.mousedown.x
-        scale = delta / self.drawing.scale(100)
+        vec0 = self.mousedown - self.scale_from
+        vec1 = self.rfcontext.actions.mouse - self.scale_from
+        scale = vec1.length / vec0.length
+        
         snap2D_vert = self.rfcontext.snap2D_vert
         snap_vert = self.rfcontext.snap_vert
         for bmv in self.scale_bmv.keys():
             l = self.scale_bmv[bmv]
             n = Vector()
             for c,v,sc in l:
-                n += c + v * max(0, 1 + scale * sc)
+                n += c + v * max(0, 1 + (scale-1) * sc)
             bmv.co = n / len(l)
             snap_vert(bmv)
     
