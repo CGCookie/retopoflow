@@ -178,12 +178,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfwidget.set_widget('move' if self.hovering_handles else 'brush stroke')
         
         # handle edits
-        if self.rfcontext.actions.pressed('action'):
-            return self.prep_handle()
-        if self.rfcontext.actions.pressed('action alt0'):
-            return self.prep_rotate()
-        if self.rfcontext.actions.pressed('action alt1'):
-            return self.prep_scale()
+        if self.hovering_handles:
+            if self.rfcontext.actions.pressed('action'):
+                return self.prep_handle()
+            if self.rfcontext.actions.pressed('action alt0'):
+                return self.prep_rotate()
+            if self.rfcontext.actions.pressed('action alt1'):
+                return self.prep_scale()
         
         if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
@@ -191,6 +192,15 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfcontext.undo_push('select')
             if sel_only: self.rfcontext.deselect_all()
             return 'select'
+        
+        if self.rfcontext.actions.pressed('action'):
+            self.rfcontext.undo_push('select then grab')
+            face = self.rfcontext.accel_nearest2D_face()
+            if not face:
+                self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select(face)
+            return self.prep_move()
         
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()
