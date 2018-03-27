@@ -294,7 +294,7 @@ class RFEdge(BMElemWrapper):
         link_faces = set(self.bmelem.link_faces)
         
         if len(bmv.link_faces) == 4 and len(bmv.link_edges) == 4:
-            # bmv is part of 4 touching quads
+            # bmv is part of 4 touching quads and all quads are touching (left figure above)
             # find bme that does not share a face with self
             for bme in rfvert.link_edges:
                 if not (set(bme.link_faces) & link_faces): return bme
@@ -304,9 +304,9 @@ class RFEdge(BMElemWrapper):
         best_other,best_dot = None,0
         self_dir = self.direction()
         for bme in bmv.link_edges:
-            rfedge = RFEdge(bme)
-            if len(bme.link_faces) != 2: continue
+            if len(bme.link_faces) > 2: continue
             if (set(bme.link_faces) & link_faces): continue
+            rfedge = RFEdge(bme)
             dot = abs(self_dir.dot(rfedge.direction()))
             if dot < best_dot: continue
             best_other,best_dot = rfedge,dot

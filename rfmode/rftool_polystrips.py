@@ -53,6 +53,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.FSM['move']   = self.modal_move
         self.FSM['rotate'] = self.modal_rotate
         self.FSM['scale']  = self.modal_scale
+        self.FSM['select'] = self.modal_select
     
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
@@ -69,15 +70,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.sel_cbpts = []
         self.strokes = []
         self.stroke_cbs = CubicBezierSpline()
-        
-        self.vis_verts = None
-        self.vis_edges = None
-        self.vis_faces = None
-        self.vis_accel = None
-        self.target_version = None
-        self.view_version = None
-        self.recompute = True
-        self.defer_recomputing = False
         
         self.update()
     
@@ -162,35 +154,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
     
     @profiler.profile
-    def update_accel_struct(self):
-        target_version = self.rfcontext.get_target_version(selection=False)
-        view_version = self.rfcontext.get_view_version()
-        
-        recompute = self.recompute
-        recompute |= self.target_version != target_version
-        recompute |= self.view_version != view_version
-        recompute |= self.vis_verts is None
-        recompute |= self.vis_edges is None
-        recompute |= self.vis_faces is None
-        recompute |= self.vis_accel is None
-        
-        self.recompute = False
-        
-        if recompute and not self.defer_recomputing:
-            self.target_version = target_version
-            self.view_version = view_version
-            
-            self.vis_verts = self.rfcontext.visible_verts()
-            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
-            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
-            self.vis_accel = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, self.rfcontext.get_point2D)
-    
-    @profiler.profile
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
         
-        self.update_accel_struct()
+        self.vis_accel = self.rfcontext.get_vis_accel()
         
         self.hovering_handles.clear()
         self.hovering_strips.clear()
@@ -217,34 +185,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         if self.rfcontext.actions.pressed('action alt1'):
             return self.prep_scale()
         
-        if self.rfcontext.actions.using('select'):
-            self.defer_recomputing = True
-            if self.rfcontext.actions.pressed('select'):
-                self.rfcontext.undo_push('select')
-                self.rfcontext.deselect_all()
-            pr = profiler.start('finding nearest')
-            xy = self.rfcontext.get_point2D(self.rfcontext.actions.mouse)
-            bmf = self.vis_accel.nearest_face(xy)
-            pr.done()
-            if bmf and not bmf.select:
-                self.rfcontext.select(bmf, supparts=False, only=False)
-            return
-        
-        if self.rfcontext.actions.using('select add'):
-            self.defer_recomputing = True
-            if self.rfcontext.actions.pressed('select add'):
-                self.rfcontext.undo_push('select add')
-            if not self.vis_faces:
-                self.vis_faces = self.rfcontext.visible_faces()
-            pr = profiler.start('finding nearest')
-            xy = self.rfcontext.get_point2D(self.rfcontext.actions.mouse)
-            bmf = self.vis_accel.nearest_face(xy)
-            pr.done()
-            if bmf and not bmf.select:
-                self.rfcontext.select(bmf, supparts=False, only=False)
-            return
-        
-        self.defer_recomputing = False
+        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select')
+            self.rfcontext.actions.unpress()
+            self.rfcontext.undo_push('select')
+            self.select_done_released = ['select','select add']
+            if sel_only: self.rfcontext.deselect_all()
+            return 'select'
         
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()
@@ -267,6 +214,14 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
             return
+    
+    @profiler.profile
+    def modal_select(self):
+        if self.rfcontext.actions.released(self.select_done_released):
+            return 'main'
+        bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        if not bmf or bmf.select: return
+        self.rfcontext.select(bmf, supparts=False, only=False)
     
     @profiler.profile
     def prep_rotate(self):

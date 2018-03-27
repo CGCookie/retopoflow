@@ -19,15 +19,17 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import time
 from itertools import chain
 from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
-from ..common.maths import Point2D, Vec2D, Direction2D
+from ..common.maths import Point2D, Vec2D, Direction2D, Accel2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..lib.classes.profiler.profiler import profiler
 from mathutils import Vector
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
+
 
 
 class RFContext_Target:
@@ -43,7 +45,88 @@ class RFContext_Target:
         self.rftarget = RFTarget.new(self.tar_object)
         opts = self.get_target_render_options()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
+        
+        self.accel_defer_recomputing = False
+        self.accel_recompute = True
+        self.accel_target_version = None
+        self.accel_view_version = None
+        self.accel_vis_verts = None
+        self.accel_vis_edges = None
+        self.accel_vis_faces = None
+        self.accel_vis_accel = None
 
+    #########################################
+    # acceleration structures
+    
+    def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
+    
+    @profiler.profile
+    def get_vis_accel(self, force=False):
+        target_version = self.get_target_version(selection=False)
+        view_version = self.get_view_version()
+        
+        recompute = self.accel_recompute
+        recompute |= self.accel_target_version != target_version
+        recompute |= self.accel_view_version != view_version
+        recompute |= self.accel_vis_verts is None
+        recompute |= self.accel_vis_edges is None
+        recompute |= self.accel_vis_faces is None
+        recompute |= self.accel_vis_accel is None
+        recompute &= not self.accel_defer_recomputing
+        recompute &= not self.nav and (time.time() - self.nav_time) > 0.25
+        
+        self.accel_recompute = False
+        
+        if force or recompute:
+            self.accel_target_version = target_version
+            self.accel_view_version = view_version
+            self.accel_vis_verts = self.visible_verts()
+            self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
+            self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
+            self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
+        
+        return self.accel_vis_accel
+    
+    @profiler.profile
+    def accel_nearest2D_vert(self, point=None, max_dist=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        vis_accel = self.get_vis_accel()
+        
+        if not max_dist:
+            verts = self.accel_vis_verts
+        else:
+            max_dist = self.drawing.scale(max_dist)
+            verts = vis_accel.get_verts(xy, max_dist)
+        
+        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
+    
+    @profiler.profile
+    def accel_nearest2D_edge(self, point=None, max_dist=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        vis_accel = self.get_vis_accel()
+        
+        if not max_dist:
+            edges = self.accel_vis_edges
+        else:
+            max_dist = self.drawing.scale(max_dist)
+            edges = vis_accel.get_edges(xy, max_dist)
+        
+        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
+    
+    @profiler.profile
+    def accel_nearest2D_face(self, point=None, max_dist=None):
+        xy = self.get_point2D(point or self.actions.mouse)
+        vis_accel = self.get_vis_accel()
+        
+        if not max_dist:
+            faces = self.accel_vis_faces
+        else:
+            max_dist = self.drawing.scale(max_dist)
+            faces = vis_accel.get_faces(xy, max_dist)
+        
+        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
+    
+    
     #########################################
     # find target entities in screen space
 

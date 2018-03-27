@@ -135,23 +135,29 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
 
     def modal_main(self):
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('select')
-            edges = self.rfcontext.visible_edges()
-            edge,_ = self.rfcontext.nearest2D_edge(edges=edges)
+        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
+            
+            self.rfcontext.undo_push('select smart')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge:
-                self.rfcontext.deselect_all()
+                if sel_only: self.rfcontext.deselect_all()
                 return
-            self.rfcontext.select_edge_loop(edge, only=True)
+            self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
             return
 
-        if self.rfcontext.actions.pressed('select add'):
-            self.rfcontext.undo_push('select add')
-            edges = self.rfcontext.visible_edges()
-            edge,_ = self.rfcontext.nearest2D_edge(edges=edges)
-            if not edge: return
-            self.rfcontext.select_edge_loop(edge, only=False)
+        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select')
+            self.rfcontext.actions.unpress()
+            
+            self.rfcontext.undo_push('select')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                if sel_only: self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select(edge, only=sel_only)
             self.update()
             return
 

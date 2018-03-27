@@ -220,6 +220,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rfwidget = RFWidget.new(self)  # init widgets
         RFTool.init_tools(self)             # init tools
         self.nav = False                    # not currently navigating
+        self.nav_time = time.time()         # last time nav happened
 
     def _init_rotate_about_active(self):
         self._end_rotate_about_active()
@@ -377,6 +378,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             return {'pass'}
         if self.nav:
             self.nav = False
+            self.nav_time = time.time()
             self.rfwidget.update()
         
         try:
@@ -430,7 +432,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
                 self.set_tool(tool())
                 return
 
-        # handle select all
+        # handle selection
         if self.actions.pressed('select all'):
             self.undo_push('select all')
             self.select_toggle()
