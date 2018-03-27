@@ -57,7 +57,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col = box.column(align=True)
             col.alignment = 'EXPAND'
             col.label("WARNING:", icon="ERROR")
-            col.label("Target is large!")
+            col.label("Target polycount is high!")
             col.label("RetopoFlow may load slowly.")
         if RFMode.large_sources():
             box = layout.box()
@@ -65,7 +65,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col = box.column(align=True)
             col.alignment = 'EXPAND'
             col.label("WARNING:", icon="ERROR")
-            col.label("Source is large!")
+            col.label("Source polycount is high!")
             col.label("RetopoFlow may load slowly.")
 
         col = layout.column(align=True)
