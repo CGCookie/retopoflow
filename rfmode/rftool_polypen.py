@@ -71,14 +71,7 @@ class RFTool_PolyPen(RFTool):
     
     @profiler.profile
     def set_next_state(self):
-        mouse_cur = self.rfcontext.actions.mouse
-        mouse_prev = self.mouse_prev
-        mouse_moved = 1 if not mouse_prev else mouse_prev.distance_squared_to(mouse_cur)
-        self.mouse_prev = mouse_cur
-        
-        if mouse_moved > 0:
-            # mouse is still moving, so defer recomputing until mouse has stopped
-            return
+        if not self.rfcontext.actions.mouse: return
         
         pr = profiler.start('getting selected geometry')
         self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
