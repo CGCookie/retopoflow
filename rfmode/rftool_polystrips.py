@@ -189,7 +189,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
             self.rfcontext.undo_push('select')
-            self.select_done_released = ['select','select add']
             if sel_only: self.rfcontext.deselect_all()
             return 'select'
         
@@ -217,7 +216,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     
     @profiler.profile
     def modal_select(self):
-        if self.rfcontext.actions.released(self.select_done_released):
+        if self.rfcontext.actions.released(['select','select add'], released_all=True):
             return 'main'
         bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return
