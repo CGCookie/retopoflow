@@ -184,7 +184,9 @@ The following shortcuts work across all the tools, although each tool may have a
 For example, pressing G in Contours will slide the selected loop.
 
 - A: deselect / select all
-- SELECT / SHIFT+SELECT: select
+- ACTION: select then grab and move
+- SELECT / SHIFT+SELECT: selection painting
+- CTRL+SELECT / CTRL+SHIFT+SELECT: smart selection
 - G: grab and move selected geometry
 - X: delete / dissolve selection
 - CTRL+Z: undo
@@ -193,9 +195,9 @@ For example, pressing G in Contours will slide the selected loop.
 
 ## Defaults
 
-The SELECT command is set to the right mouse button.
-
 The ACTION command is set to the left mouse button.
+
+The SELECT command is set to the right mouse button.
 
 
 ## General Options
@@ -236,14 +238,16 @@ You can draw as many strokes as you like, in any order, from any direction.
 
 ## Drawing
 
-- SELECT / SHIFT+SELECT: select stroke
+- ACTION: select edge then grab and move
+- SELECT / SHIFT+SELECT: select edge
+- CTRL+SELECT / CTRL+SHIFT+SELECT: select loop
 - CTRL+ACTION: draw contour stroke perpendicular to form. newly created contour extends selection if applicable.
 - A: deselect / select all
 
 ## Transform
 
-- G: slide loop
-- S: shift loop
+- G: slide
+- S: shift
 - SHIFT+S: rotate
 
 ## Other
@@ -274,6 +278,7 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 
 ## Drawing
 
+- ACTION: select quad then grab and move
 - SELECT / SHIFT+SELECT: select quads
 - CTRL+ACTION: draw strip of quads
 - F: adjust brush size

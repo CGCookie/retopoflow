@@ -524,7 +524,7 @@ class RFContext_Drawing:
         self.window_help.add(self.ui_helplabel)
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='See other help', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General and Tool help (F1)', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', self.toggle_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
     def get_view_version(self):
