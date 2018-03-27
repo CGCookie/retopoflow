@@ -397,27 +397,6 @@ class RFContext_Target:
     def update_face_normal(self, face):
         return self.rftarget.update_face_normal(face)
 
-    def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
-        self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
-
-    def delete_verts(self, verts):
-        self.rftarget.delete_verts(verts)
-
-    def delete_edges(self, edges):
-        self.rftarget.delete_edges(edges)
-
-    def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
-        self.rftarget.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
-    
-    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
-        self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
-
-    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
-        self.rftarget.dissolve_edges(edges, use_verts, use_face_split)
-
-    def dissolve_faces(self, faces, use_verts=False):
-        self.rftarget.dissolve_faces(faces, use_verts)
-
     def clean_duplicate_bmedges(self, vert):
         return self.rftarget.clean_duplicate_bmedges(vert)
     
@@ -505,3 +484,74 @@ class RFContext_Target:
 
     def update_rot_object(self):
         self.rot_object.location = self.rftarget.get_selection_center()
+
+    #######################################################
+    # delete / dissolve
+    
+    def delete_dissolve_option(self, opt):
+        if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces')]:
+            self.dissolve_option(opt[1])
+        elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
+            self.delete_option(opt[1])
+    
+    def dissolve_option(self, opt):
+        sel_verts = self.rftarget.get_selected_verts()
+        sel_edges = self.rftarget.get_selected_edges()
+        sel_faces = self.rftarget.get_selected_faces()
+        self.undo_push('dissolve %s' % opt)
+        if opt == 'Vertices' and sel_verts:
+            self.dissolve_verts(sel_verts)
+        elif opt == 'Edges' and sel_edges:
+            self.dissolve_edges(sel_edges)
+        elif opt == 'Faces' and sel_faces:
+            self.dissolve_faces(sel_faces)
+        self.dirty()
+    
+    def delete_option(self, opt):
+        del_empty_edges=True
+        del_empty_verts=True
+        del_verts=True
+        del_edges=True
+        del_faces=True
+        
+        if opt == 'Vertices':
+            pass
+        elif opt == 'Edges':
+            del_verts = False
+        elif opt == 'Faces':
+            del_verts = False
+            del_edges = False
+        elif opt == 'Only Edges & Faces':
+            del_verts = False
+            del_empty_verts = False
+        elif opt == 'Only Faces':
+            del_verts = False
+            del_edges = False
+            del_empty_verts = False
+            del_empty_edges = False
+        
+        self.undo_push('delete %s' % opt)
+        self.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
+        self.dirty()
+    
+    def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
+        self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
+
+    def delete_verts(self, verts):
+        self.rftarget.delete_verts(verts)
+
+    def delete_edges(self, edges):
+        self.rftarget.delete_edges(edges)
+
+    def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
+        self.rftarget.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
+    
+    def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
+        self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
+
+    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+        self.rftarget.dissolve_edges(edges, use_verts, use_face_split)
+
+    def dissolve_faces(self, faces, use_verts=False):
+        self.rftarget.dissolve_faces(faces, use_verts)
+

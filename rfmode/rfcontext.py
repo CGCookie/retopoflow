@@ -438,6 +438,16 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.select_toggle()
             return
 
+        # handle delete/dissolve
+        if self.actions.pressed('delete'):
+            self.option_user([
+                ('Delete',  ['Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces']),
+                ('Dissolve',['Vertices', 'Edges', 'Faces']),
+                # 'Limited Dissolve',
+                # 'Edge Collapse', 'Edge Loops',
+                ], self.delete_dissolve_option)
+            return
+        
         # update rfwidget and cursor
         if self.actions.valid_mouse():
             self.rfwidget.update()
@@ -449,4 +459,3 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.rfwidget.modal():
             if self.tool and self.actions.valid_mouse():
                 self.tool.modal()
-

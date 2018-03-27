@@ -205,15 +205,6 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()
         
-        if self.rfcontext.actions.pressed('delete'):
-            self.rfcontext.undo_push('delete')
-            faces = self.rfcontext.get_selected_faces()
-            self.rfcontext.delete_faces(faces)
-            self.rfcontext.deselect_all()
-            self.rfcontext.dirty()
-            self.update()
-            return
-        
         if self.rfcontext.actions.pressed('increase count'):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1)
