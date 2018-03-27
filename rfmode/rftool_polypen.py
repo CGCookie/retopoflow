@@ -24,7 +24,7 @@ import bmesh
 import math
 import bgl
 from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
+from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image
 from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
@@ -39,6 +39,7 @@ from ..options import help_polypen
 class RFTool_PolyPen(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['select'] = self.modal_select
         self.FSM['insert'] = self.modal_insert
         self.FSM['insert alt0'] = self.modal_insert
         self.FSM['move']  = self.modal_move
@@ -54,13 +55,7 @@ class RFTool_PolyPen(RFTool):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
         self.next_state = None
         
-        self.accel2D = None
-        self.target_version = None
-        self.view_version = None
         self.mouse_prev = None
-        self.recompute = True
-        self.defer_recomputing = False
-        self.selecting = False
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polypen_32.png')
@@ -76,65 +71,32 @@ class RFTool_PolyPen(RFTool):
     
     @profiler.profile
     def set_next_state(self):
-        # TODO: optimize this!!!
-        target_version = self.rfcontext.get_target_version(selection=False)
-        view_version = self.rfcontext.get_view_version()
-        
         mouse_cur = self.rfcontext.actions.mouse
         mouse_prev = self.mouse_prev
         mouse_moved = 1 if not mouse_prev else mouse_prev.distance_squared_to(mouse_cur)
         self.mouse_prev = mouse_cur
         
-        recompute = self.recompute
-        recompute |= self.target_version != target_version
-        recompute |= self.view_version != view_version
-        
         if mouse_moved > 0:
             # mouse is still moving, so defer recomputing until mouse has stopped
-            self.recompute = recompute
             return
         
-        self.recompute = False
-        
-        if recompute and not self.defer_recomputing:
-            self.target_version = target_version
-            self.view_version = view_version
-            
-            # get visible geometry
-            pr = profiler.start('determining visible geometry')
-            self.vis_verts = self.rfcontext.visible_verts()
-            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
-            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
-            pr.done()
-            
-            pr = profiler.start('creating 2D acceleration structure')
-            p2p = self.rfcontext.Point_to_Point2D
-            self.accel2D = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, p2p)
-            pr.done()
-            
-        # get selected geometry
         pr = profiler.start('getting selected geometry')
         self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
         self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
         self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
         pr.done()
         
-        # get visible geometry near mouse
-        pr = profiler.start('getting nearby and hovered geometry')
-        max_dist = self.drawing.scale(10)
-        geom = self.accel2D.get(mouse_cur, max_dist)
-        verts,edges,faces = ([g for g in geom if type(g) is t] for t in [RFVert,RFEdge,RFFace])
-        nearby_verts = self.rfcontext.nearest2D_verts(verts=verts, max_dist=10)
-        nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10)
-        nearby_face  = self.rfcontext.nearest2D_face(faces=faces, max_dist=10)
-        # get hover geometry in sorted order
-        self.hover_verts = [v for v,_ in sorted(nearby_verts, key=lambda vd:vd[1])]
-        self.hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
-        self.hover_faces = [nearby_face]
-        # get nearest geometry
-        self.nearest_vert = next(iter(self.hover_verts), None)
-        self.nearest_edge = next(iter(self.hover_edges), None)
-        self.nearest_face = next(iter(self.hover_faces), None)
+        pr = profiler.start('getting visible geometry')
+        self.vis_accel = self.rfcontext.get_vis_accel()
+        self.vis_verts = self.rfcontext.accel_vis_verts
+        self.vis_edges = self.rfcontext.accel_vis_edges
+        self.vis_faces = self.rfcontext.accel_vis_faces
+        pr.done()
+        
+        pr = profiler.start('getting nearest geometry')
+        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
+        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        self.nearest_face = self.rfcontext.accel_nearest2D_face(max_dist=10)
         pr.done()
         
         # determine next state based on current selection, hovered geometry
@@ -169,29 +131,43 @@ class RFTool_PolyPen(RFTool):
 
         if self.rfcontext.actions.pressed('insert alt0'):
             return 'insert alt0'
+        
+        if self.rfcontext.actions.pressed('action'):
+            self.rfcontext.undo_push('select and grab')
+            sel = self.nearest_vert or self.nearest_edge or self.nearest_face
+            if not sel:
+                self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select(sel, only=True)
+            self.prep_move(defer_recomputing=False)
+            return 'move after select'
 
         if self.rfcontext.actions.pressed(['select','select add'], unpress=False):
-            pr = profiler.start('selecting geometry')
-            
             sel_only = self.rfcontext.actions.pressed('select')
             self.rfcontext.actions.unpress()
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            return 'select'
             
-            if sel_only: self.rfcontext.undo_push('select')
-            else: self.rfcontext.undo_push('select add')
+            # pr = profiler.start('selecting geometry')
             
-            sel = self.nearest_vert or self.nearest_edge or self.nearest_face
-            self.selecting = True
-            self.rfcontext.select(sel, only=sel_only)
-            self.selecting = False
+            # sel_only = self.rfcontext.actions.pressed('select')
+            # self.rfcontext.actions.unpress()
             
-            if not sel_only:
-                # do not move selection if adding
-                pr.done()
-                return
+            # if sel_only: self.rfcontext.undo_push('select')
+            # else: self.rfcontext.undo_push('select add')
             
-            self.prep_move(defer_recomputing=False)
-            pr.done()
-            return 'move after select'
+            # sel = self.nearest_vert or self.nearest_edge or self.nearest_face
+            # self.rfcontext.select(sel, only=sel_only)
+            
+            # if not sel_only:
+            #     # do not move selection if adding
+            #     pr.done()
+            #     return
+            
+            # self.prep_move(defer_recomputing=False)
+            # pr.done()
+            # return 'move after select'
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
@@ -201,6 +177,17 @@ class RFTool_PolyPen(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
+    @profiler.profile
+    def modal_select(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            return 'main'
+        bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        sel = bmv or bme or bmf
+        if not sel or sel.select: return
+        self.rfcontext.select(sel, supparts=False, only=False)
+    
     def set_vis_bmverts(self):
         self.vis_bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
 
@@ -420,12 +407,12 @@ class RFTool_PolyPen(RFTool):
 
     @profiler.profile
     def modal_move_after_select(self):
-        if self.rfcontext.actions.released(['select','select add']):
+        if self.rfcontext.actions.released('action'):
             return 'main'
         if (self.rfcontext.actions.mouse - self.mousedown).length > 7:
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = ['select']
-            self.move_cancelled = 'cancel no select'
+            self.move_done_pressed = None
+            self.move_done_released = ['action']
+            self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('move after select')
             return 'move'
     
