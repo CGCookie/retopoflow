@@ -45,9 +45,11 @@ class Shader():
         
         bgl.glCompileShader(shader)
         
+        # XXX: this test is a hack to determine whether the shader was compiled successfully
+        # TODO: rewrite to use a more correct test (glIsShader?)
         bgl.glGetShaderInfoLog(shader, 2000, bufLen, bufLog)
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
-        assert not log, 'ERROR WHILE COMPILING SHADER %s: %s' % (name,log)
+        assert not log and 'was successfully compiled' not in log, 'ERROR WHILE COMPILING SHADER %s: %s' % (name,log)
         return log
     
     def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True, bindTo0=None):
