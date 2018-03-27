@@ -303,6 +303,10 @@ class RFContext_Target:
     def snap_all_verts(self):
         self.undo_push('snap all verts')
         self.rftarget.snap_all_verts(self.nearest_sources_Point)
+    
+    def snap_selected_verts(self):
+        self.undo_push('snap selected verts')
+        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
 
     #######################################
     # target manipulation functions
@@ -487,9 +491,9 @@ class RFContext_Target:
         if self.tool: self.tool.update()
         self.update_rot_object()
 
-    def select_edge_loop(self, edge, only=True):
+    def select_edge_loop(self, edge, only=True, **kwargs):
         eloop,connected = self.get_edge_loop(edge)
-        self.rftarget.select(eloop, only=only)
+        self.rftarget.select(eloop, only=only, **kwargs)
         if self.tool: self.tool.update()
         self.update_rot_object()
 

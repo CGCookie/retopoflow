@@ -1382,4 +1382,12 @@ class RFTarget(RFMesh):
             v.normal = norm
         self.dirty()
 
+    def snap_selected_verts(self, nearest):
+        for v in self.get_verts():
+            if not v.select: continue
+            xyz,norm,_,_ = nearest(v.co)
+            v.co = xyz
+            v.normal = norm
+        self.dirty()
+
 
