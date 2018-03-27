@@ -163,11 +163,21 @@ class RFTool_Loops(RFTool):
             
             # create new verts by splitting all the edges
             new_verts, new_edges = [],[]
+            
+            def compute_percent():
+                v0,v1 = self.nearest_edge.verts
+                c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
+                a,b = c1 - c0, self.rfcontext.actions.mouse - c0
+                adota = a.dot(a)
+                if adota <= 0.0000001: return 0
+                return a.dot(b) / adota;
+            percent = compute_percent()
+            
             for e,flipped in self.rfcontext.iter_quadstrip(self.nearest_edge):
                 bmv0,bmv1 = e.verts
                 if flipped: bmv0,bmv1 = bmv1,bmv0
                 ne,nv = e.split()
-                nv.co = bmv0.co + (bmv1.co - bmv0.co) * self.percent
+                nv.co = bmv0.co + (bmv1.co - bmv0.co) * percent
                 self.rfcontext.snap_vert(nv)
                 if new_verts: split_face(new_verts[-1], nv)
                 new_verts.append(nv)
