@@ -35,7 +35,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
     bl_label = "RetopoFlow 2.0"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    
+
     def draw(self, context):
         layout = self.layout
 
@@ -45,12 +45,12 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
 
         settings = common_utilities.get_settings()
         icons = load_icons()
-        
+
         col = layout.column(align=True)
         col.operator("wm.open_quickstart", "Quick Start Guide")
         col.operator("wm.open_webissues",  "Report an Issue")
         #col.operator("wm.open_webtip",     "Buy Us a Drink")
-        
+
         if RFMode.large_target():
             box = layout.box()
             box.alert = True
@@ -58,7 +58,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col.alignment = 'EXPAND'
             col.label("WARNING:", icon="ERROR")
             col.label("Target is large!")
-            col.label("RetopoFlow will load slowly.")
+            col.label("RetopoFlow may load slowly.")
         if RFMode.large_sources():
             box = layout.box()
             box.alert = True
@@ -66,11 +66,11 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col.alignment = 'EXPAND'
             col.label("WARNING:", icon="ERROR")
             col.label("Source is large!")
-            col.label("RetopoFlow will load slowly.")
-        
+            col.label("RetopoFlow may load slowly.")
+
         col = layout.column(align=True)
         col.alignment = 'CENTER'
-        
+
         # col.operator("cgcookie.rfmode")
         for ids,rft in RFTool.get_tools():
             icon_name = rft.rf_icon
@@ -79,7 +79,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
                 col.operator(ids, icon_value=icon.icon_id)
             else:
                 col.operator(ids)
-        
+
         col = layout.column(align=True)
         col.alignment = 'CENTER'
         col.label('Help')
@@ -95,7 +95,7 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
     bl_label = "RetopoFlow 1.3"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    
+
     def draw(self, context):
         layout = self.layout
 
@@ -104,12 +104,12 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
         addon_updater_ops.check_for_update_background()
 
         settings = common_utilities.get_settings()
-        
-        
+
+
         col = layout.column(align=True)
 
         icons = load_icons()
-        
+
         col.label("Source Object:")
 
         col = layout.column(align=True)
@@ -201,13 +201,13 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
         col.operator("wm.open_log", "Open Error Log")
 
         addon_updater_ops.update_notice_box_ui(self, context)
-        
 
-class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):  
+
+class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
     bl_label = "Retopology"
     bl_space_type = 'VIEW_3D'
     bl_idname = "object.retopology_menu"
-    
+
     def draw(self, context):
         layout = self.layout
 
@@ -218,7 +218,7 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         layout.operator_context = 'INVOKE_DEFAULT'
 
         icons = load_icons()
-        
+
         col = layout.column(align=True)
         col.alignment = 'CENTER'
         # col.operator("cgcookie.rfmode")
@@ -229,7 +229,7 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
                 col.operator(ids, icon_value=icon.icon_id)
             else:
                 col.operator(ids)
-        
+
         # icons = load_icons()
         # contours_icon = icons.get("rf_contours_icon")
         # polystrips_icon = icons.get("rf_polystrips_icon")
@@ -249,4 +249,3 @@ class CGCOOKIE_OT_retopoflow_menu(bpy.types.Menu):
         #     layout.operator("cgcookie.tweak", icon_value=tweak_icon.icon_id)
         #     layout.operator("cgcookie.loop_cut", text="Loop Cut", icon_value=loopcut_icon.icon_id)
         #     layout.operator("cgcookie.loop_slide", text="Loop Slide", icon_value=loopslide_icon.icon_id)
-
