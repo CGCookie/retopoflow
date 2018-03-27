@@ -50,12 +50,7 @@ class RFTool_Loops(RFTool):
     def start(self):
         self.rfwidget.set_widget('default')
         
-        self.accel2D = None
-        self.target_version = None
-        self.view_version = None
         self.mouse_prev = None
-        self.recompute = True
-        self.defer_recomputing = False
         self.nearest_edge = None
     
     def get_ui_icon(self):
@@ -68,48 +63,29 @@ class RFTool_Loops(RFTool):
         # selection has changed, undo/redo was called, etc.
         #self.target_version = None
         self.set_next_state()
+        pass
     
     @profiler.profile
     def set_next_state(self):
         self.edges_ = None
-        # TODO: optimize this!!!
-        target_version = self.rfcontext.get_target_version()
-        view_version = self.rfcontext.get_view_version()
+        
+        if self.rfcontext.actions.mouse is None: return
+        if self.mode != 'main': return
         
         mouse_cur = self.rfcontext.actions.mouse
         mouse_prev = self.mouse_prev
         mouse_moved = 1 if not mouse_prev else mouse_prev.distance_squared_to(mouse_cur)
         self.mouse_prev = mouse_cur
         
-        recompute = self.recompute
-        recompute |= self.target_version != target_version
-        recompute |= self.view_version != view_version
+        # if mouse_moved > 0:
+        #     # mouse is still moving, so defer recomputing until mouse has stopped
+        #     self.rfcontext.set_accel_defer(True)
+        #     return
         
-        if mouse_moved > 0:
-            # mouse is still moving, so defer recomputing until mouse has stopped
-            self.recompute = recompute
-            return
-        
-        self.recompute = False
-        
-        if recompute and not self.defer_recomputing:
-            self.target_version = target_version
-            self.view_version = view_version
-            
-            # get visible geometry
-            pr = profiler.start('determining visible geometry')
-            self.vis_verts = self.rfcontext.visible_verts()
-            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
-            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
-            pr.done()
-            
-            pr = profiler.start('creating 2D acceleration structure')
-            p2p = self.rfcontext.Point_to_Point2D
-            self.accel2D = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, p2p)
-            pr.done()
+        # self.rfcontext.set_accel_defer(False)
         
         max_dist = self.drawing.scale(10)
-        geom = self.accel2D.get(mouse_cur, max_dist)
+        geom = self.rfcontext.get_vis_accel().get(mouse_cur, max_dist)
         verts,edges,faces = ([g for g in geom if type(g) is t] for t in [RFVert,RFEdge,RFFace])
         nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10)
         hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
@@ -148,22 +124,30 @@ class RFTool_Loops(RFTool):
     def modal_main(self):
         self.set_next_state()
         
-        if self.rfcontext.actions.pressed(['select', 'select add', 'select smart'], unpress=False):
-            sel_only = not self.rfcontext.actions.pressed('select add', unpress=False)
-            sel_smart = self.rfcontext.actions.pressed('select smart')
+        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
-            if sel_smart: self.rfcontext.undo_push('select smart')
-            elif sel_only: self.rfcontext.undo_push('select')
-            else: self.rfcontext.undo_push('select add')
-            
-            edges = self.accel2D.get_edges(self.rfcontext.actions.mouse, 10)
-            edge,_ = self.rfcontext.nearest2D_edge(edges=edges, max_dist=10)
+            self.rfcontext.undo_push('select smart')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge:
                 if sel_only: self.rfcontext.deselect_all()
                 return
-            
-            if sel_smart: self.rfcontext.select_edge_loop(edge)
-            else: self.rfcontext.select(edge, supparts=False, only=sel_only)
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
+            self.update()
+            self.prep_edit(alert=False)
+            if not self.edit_ok: return
+            return 'slide after select'
+        
+        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
+            sel_only = not self.rfcontext.actions.pressed('select add', unpress=False)
+            self.rfcontext.actions.unpress()
+            if sel_only: self.rfcontext.undo_push('select')
+            else: self.rfcontext.undo_push('select add')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                if sel_only: self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select(edge, supparts=False, only=sel_only)
             self.update()
             self.prep_edit(alert=False)
             if not self.edit_ok: return
@@ -362,9 +346,6 @@ class RFTool_Loops(RFTool):
     @profiler.profile
     def draw_postview(self):
         if self.rfcontext.nav: return
-        #hit_pos = self.rfcontext.actions.hit_pos
-        #if not hit_pos: return
-        self.set_next_state()
         if not self.nearest_edge: return
         if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift and self.mode == 'main':
             # draw new edge strip/loop
