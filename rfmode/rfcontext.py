@@ -344,8 +344,11 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.actions.using('autosave'):
             return {'pass'}
         
+        if self.actions.pressed('general help'):
+            self.toggle_general_help()
+            return {}
         if self.actions.pressed('tool help'):
-            self.toggle_help_button()
+            self.toggle_tool_help()
             return {}
 
         use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
@@ -418,10 +421,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             if self.tool: self.tool.undone()
             return
         
-        if self.actions.pressed('F2'):
+        if self.actions.pressed('F3'):
             profiler.printout()
             return
-        if self.actions.pressed('F3'):
+        if self.actions.pressed('F4'):
             print('Clearing profiler')
             profiler.clear()
             return

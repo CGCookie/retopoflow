@@ -163,7 +163,8 @@ For tool-specific help, select the tool from the Tools panel, and either press F
 
 - ENTER / ESC: quit RetopoFlow
 - TAB: quit RetopoFlow and enter Edit Mode
-- F1: tool help
+- F1: general help
+- F2: tool help
 
 ## Tool Shortcuts
 

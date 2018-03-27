@@ -63,7 +63,8 @@ class Actions:
         'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
         'select all': {'A'},
         
-        'tool help': {'F1'},
+        'general help': {'F1'},
+        'tool help': {'F2'},
 
         'autosave': {'TIMER_AUTOSAVE'},
         

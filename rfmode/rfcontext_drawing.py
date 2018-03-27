@@ -148,11 +148,17 @@ class RFContext_Drawing:
             self.toggle_tool_help()
     
     def toggle_general_help(self):
-        self.help_button.set_label('Tool Help')
-        self.toggle_help(True)
+        if self.help_button.get_label() == 'Tool Help':
+            self.toggle_help()
+        else:
+            self.help_button.set_label('Tool Help')
+            self.toggle_help(True)
     def toggle_tool_help(self):
-        self.help_button.set_label('General Help')
-        self.toggle_help(False)
+        if self.help_button.get_label() == 'General Help':
+            self.toggle_help()
+        else:
+            self.help_button.set_label('General Help')
+            self.toggle_help(False)
     
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
@@ -430,8 +436,8 @@ class RFContext_Drawing:
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1x2)', align=0, margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F1)', align=0, margin=0)) # , icon=help_icon
+        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)', align=0, margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)', align=0, margin=0)) # , icon=help_icon
         extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', align=0, margin=0))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
         extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow', align=0, margin=0))
