@@ -102,6 +102,18 @@ class RFTool_Loops(RFTool):
     def modal_main(self):
         self.set_next_state()
         
+        if self.rfcontext.actions.pressed('action'):
+            self.rfcontext.undo_push('select and grab')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                if sel_only: self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=True)
+            self.set_next_state()
+            self.prep_edit()
+            if not self.edit_ok: return
+            return 'slide after select'
+        
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
@@ -111,10 +123,7 @@ class RFTool_Loops(RFTool):
                 if sel_only: self.rfcontext.deselect_all()
                 return
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
-            self.update()
-            self.prep_edit(alert=False)
-            if not self.edit_ok: return
-            return 'slide after select'
+            return
         
         if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
@@ -176,20 +185,6 @@ class RFTool_Loops(RFTool):
             self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
-        
-        # if self.rfcontext.actions.pressed('dissolve loop'):
-        #     self.prep_edit()
-        #     if not self.edit_ok: return
-        #     self.rfcontext.undo_push('dissolve')
-        #     # dissolve each key of neighbors into its right neighbor (arbitrarily chosen, but it's the right one!)
-        #     for bmv in self.neighbors.keys():
-        #         _,bmvr = self.neighbors[bmv]
-        #         bmv.co = bmvr.co
-        #         bme = bmv.shared_edge(bmvr)
-        #         bmv = bme.collapse()
-        #         self.rfcontext.clean_duplicate_bmedges(bmv)
-        #     self.rfcontext.deselect_all()
-        #     self.rfcontext.dirty()
     
     @profiler.profile
     def modal_select(self):
@@ -199,7 +194,7 @@ class RFTool_Loops(RFTool):
         if not bme or bme.select: return
         self.rfcontext.select(bme, supparts=False, only=False)
     
-    def prep_edit(self, alert=True):
+    def prep_edit(self):
         self.edit_ok = False
         
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -284,12 +279,14 @@ class RFTool_Loops(RFTool):
     
     @profiler.profile
     def modal_slide_after_select(self):
-        if self.rfcontext.actions.released(['select','select add','select smart'], released_all=True):
+        if self.rfcontext.actions.released('action'):
+            print('released')
             return 'main'
         if (self.rfcontext.actions.mouse - self.mouse_down).length > self.drawing.scale(7):
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = ['select','select add','select smart']
-            self.move_cancelled = 'cancel no select'
+            print('moving')
+            self.move_done_pressed = None
+            self.move_done_released = 'action' #['select','select add','select smart']
+            self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
     
@@ -298,10 +295,13 @@ class RFTool_Loops(RFTool):
     def modal_slide(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            print('done pressed')
             return 'main'
-        if self.move_done_released and all(released(item) for item in self.move_done_released):
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            print('done released')
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            print('done cancelled')
             self.rfcontext.undo_cancel()
             return 'main'
         
