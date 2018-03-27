@@ -83,10 +83,6 @@ class Actions:
         
         'grab': {'G'},
         'delete': {'X','DELETE'},
-        'dissolve': {'SHIFT+X','SHIFT+DELETE'},
-        'dissolve vert': {'SHIFT+X','SHIFT+DELETE'},
-        'dissolve edge': {'CTRL+X','CTRL+DELETE'},
-        'dissolve face': {'CTRL+SHIFT+X', 'CTRL+SHIFT+DELETE'},
 
         # contours
         'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},

@@ -148,6 +148,16 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
             return
+        
+        if self.rfcontext.actions.pressed('action'):
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                self.rfcontext.deselect_all()
+                return
+            self.rfcontext.undo_push('select and grab')
+            self.rfcontext.select_edge_loop(edge, only=True)
+            self.update()
+            return self.prep_move(after_action=True)
 
         if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select')
@@ -165,17 +175,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             return self.prep_shift()
         
         if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
-
-        if self.rfcontext.actions.pressed('delete'):
-            self.rfcontext.undo_push('delete')
-            self.rfcontext.delete_selection()
-            self.rfcontext.dirty()
-            self.update()
-            return
-        
-        if self.rfcontext.actions.pressed('dissolve'):
-            self.dissolve_loops()
-            return
 
         if self.rfcontext.actions.pressed('increase count'):
             self.change_count(1)
@@ -283,7 +282,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             
             self.rfcontext.update_verts_faces(verts)
 
-    def prep_move(self):
+    def prep_move(self, after_action=False):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
@@ -303,8 +302,12 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
+        if after_action:
+            self.move_done_pressed = None
+            self.move_done_released = 'action'
+        else:
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
         self.move_cancelled = 'cancel'
         
         return 'move'

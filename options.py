@@ -252,8 +252,6 @@ You can draw as many strokes as you like, in any order, from any direction.
 
 ## Other
 
-- X: delete
-- SHIFT+X: dissolve
 - SHIFT+UP / SHIFT+DOWN: increase / decrease counts
 - EQUALS / MINUS: increase / decrease counts
 

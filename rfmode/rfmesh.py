@@ -466,6 +466,7 @@ class RFMesh():
                 bmv_dot = obmv_dot
         
         bmf = walk_to_plane(bmf)
+        if not bmf: return None
         
         # crawl about self along plane
         ret = self._crawl(bmf, plane)

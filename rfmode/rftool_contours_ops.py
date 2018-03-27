@@ -264,43 +264,4 @@ class RFTool_Contours_Ops:
         self.rfcontext.select(edges)
         self.update()
     
-    @RFTool.dirty_when_done
-    def dissolve_loops(self):
-        sel_edges = self.rfcontext.get_selected_edges()
-        sel_loops = find_loops(sel_edges)
-        if not sel_loops: return
-        
-        self.rfcontext.undo_push('dissolve')
-        while sel_loops:
-            ploop = None
-            for loop in sel_loops:
-                sloop = set(loop)
-                # find a parallel loop next to loop
-                adj_verts = {e.other_vert(v) for v in loop for e in v.link_edges} - sloop
-                adj_verts = {v for v in adj_verts if v.is_valid}
-                parallel_edges = [e for v in adj_verts for e in v.link_edges if e.other_vert(v) in adj_verts]
-                parallel_loops = find_loops(parallel_edges)
-                if len(parallel_loops) != 2: continue
-                ploop = parallel_loops[0]
-                break
-            if not ploop: break
-            # merge loop into ploop
-            eloop = [v0.shared_edge(v1) for v0,v1 in iter_pairs(loop, wrap=True)]
-            self.rfcontext.deselect(loop)
-            self.rfcontext.deselect(eloop)
-            self.rfcontext.deselect([f for e in eloop for f in e.link_faces])
-            v01 = {v0:next(v1 for v1 in ploop if v0.share_edge(v1)) for v0 in loop}
-            edges = [v0.shared_edge(v1) for v0,v1 in v01.items()]
-            self.rfcontext.delete_edges(edges)
-            touched = set()
-            for v0,v1 in v01.items():
-                v1.merge(v0)
-                touched.add(v1)
-            for v in touched:
-                self.rfcontext.clean_duplicate_bmedges(v)
-            # remove dissolved loop
-            sel_loops = [l for l in sel_loops if l != loop]
-        
-        self.update()
-
 

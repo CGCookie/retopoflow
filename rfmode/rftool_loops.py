@@ -200,25 +200,19 @@ class RFTool_Loops(RFTool):
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
         
-        if self.rfcontext.actions.pressed('dissolve'):
-            self.prep_edit()
-            if not self.edit_ok: return
-            self.rfcontext.undo_push('dissolve')
-            # dissolve each key of neighbors into its right neighbor (arbitrarily chosen, but it's the right one!)
-            for bmv in self.neighbors.keys():
-                _,bmvr = self.neighbors[bmv]
-                bmv.co = bmvr.co
-                bme = bmv.shared_edge(bmvr)
-                bmv = bme.collapse()
-                self.rfcontext.clean_duplicate_bmedges(bmv)
-            self.rfcontext.deselect_all()
-            self.rfcontext.dirty()
-        
-        if self.rfcontext.actions.pressed('delete'):
-            self.rfcontext.undo_push('delete')
-            self.rfcontext.delete_selection()
-            self.rfcontext.dirty()
-            return
+        # if self.rfcontext.actions.pressed('dissolve loop'):
+        #     self.prep_edit()
+        #     if not self.edit_ok: return
+        #     self.rfcontext.undo_push('dissolve')
+        #     # dissolve each key of neighbors into its right neighbor (arbitrarily chosen, but it's the right one!)
+        #     for bmv in self.neighbors.keys():
+        #         _,bmvr = self.neighbors[bmv]
+        #         bmv.co = bmvr.co
+        #         bme = bmv.shared_edge(bmvr)
+        #         bmv = bme.collapse()
+        #         self.rfcontext.clean_duplicate_bmedges(bmv)
+        #     self.rfcontext.deselect_all()
+        #     self.rfcontext.dirty()
     
     @profiler.profile
     def modal_select(self):

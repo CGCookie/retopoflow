@@ -29,7 +29,7 @@ from ..lib.classes.profiler.profiler import profiler
 from mathutils import Vector
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
-
+from ..lib.common_utilities import dprint
 
 
 class RFContext_Target:
@@ -489,10 +489,11 @@ class RFContext_Target:
     # delete / dissolve
     
     def delete_dissolve_option(self, opt):
-        if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces')]:
+        if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces'), ('Dissolve','Loops')]:
             self.dissolve_option(opt[1])
         elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
             self.delete_option(opt[1])
+        self.tool.update()
     
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
@@ -505,6 +506,8 @@ class RFContext_Target:
             self.dissolve_edges(sel_edges)
         elif opt == 'Faces' and sel_faces:
             self.dissolve_faces(sel_faces)
+        elif opt == 'Loops' and sel_edges:
+            self.dissolve_loops()
         self.dirty()
     
     def delete_option(self, opt):
@@ -555,3 +558,66 @@ class RFContext_Target:
     def dissolve_faces(self, faces, use_verts=False):
         self.rftarget.dissolve_faces(faces, use_verts)
 
+    def find_loops(self, edges):
+        if not edges: return []
+        touched,loops = set(),[]
+
+        def crawl(v0, edge01, vert_list):
+            nonlocal edges, touched
+            # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
+            #  > came-^-from-^        ^-going-^-to >
+            vert_list.append(v0)
+            touched.add(edge01)
+            v1 = edge01.other_vert(v0)
+            if v1 == vert_list[0]: return vert_list
+            next_edges = [e for e in v1.link_edges if e in edges and e != edge01]
+            if not next_edges: return []
+            if len(next_edges) == 1: edge12 = next_edges[0]
+            else: edge12 = next_edge_in_string(edge01, v1)
+            if not edge12 or edge12 in touched or edge12 not in edges: return []
+            return crawl(v1, edge12, vert_list)
+
+        for edge in edges:
+            if edge in touched: continue
+            vert_list = crawl(edge.verts[0], edge, [])
+            if vert_list:
+                loops.append(vert_list)
+
+        return loops
+    
+    def dissolve_loops(self):
+        sel_edges = self.get_selected_edges()
+        sel_loops = self.find_loops(sel_edges)
+        if not sel_loops:
+            dprint('Could not find any loops')
+            return
+        
+        while sel_loops:
+            ploop = None
+            for loop in sel_loops:
+                sloop = set(loop)
+                # find a parallel loop next to loop
+                adj_verts = {e.other_vert(v) for v in loop for e in v.link_edges} - sloop
+                adj_verts = {v for v in adj_verts if v.is_valid}
+                parallel_edges = [e for v in adj_verts for e in v.link_edges if e.other_vert(v) in adj_verts]
+                parallel_loops = self.find_loops(parallel_edges)
+                if len(parallel_loops) != 2: continue
+                ploop = parallel_loops[0]
+                break
+            if not ploop: break
+            # merge loop into ploop
+            eloop = [v0.shared_edge(v1) for v0,v1 in iter_pairs(loop, wrap=True)]
+            self.deselect(loop)
+            self.deselect(eloop)
+            self.deselect([f for e in eloop for f in e.link_faces])
+            v01 = {v0:next(v1 for v1 in ploop if v0.share_edge(v1)) for v0 in loop}
+            edges = [v0.shared_edge(v1) for v0,v1 in v01.items()]
+            self.delete_edges(edges)
+            touched = set()
+            for v0,v1 in v01.items():
+                v1.merge(v0)
+                touched.add(v1)
+            for v in touched:
+                self.clean_duplicate_bmedges(v)
+            # remove dissolved loop
+            sel_loops = [l for l in sel_loops if l != loop]

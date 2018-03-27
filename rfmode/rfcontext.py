@@ -442,7 +442,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         if self.actions.pressed('delete'):
             self.option_user([
                 ('Delete',  ['Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces']),
-                ('Dissolve',['Vertices', 'Edges', 'Faces']),
+                ('Dissolve',['Vertices', 'Edges', 'Faces', 'Loops']),
                 # 'Limited Dissolve',
                 # 'Edge Collapse', 'Edge Loops',
                 ], self.delete_dissolve_option)
