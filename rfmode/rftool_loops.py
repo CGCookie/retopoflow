@@ -222,8 +222,10 @@ class RFTool_Loops(RFTool):
                 
                 # process edge
                 bmfl,bmfr = bme.get_left_right_link_faces()
-                bmel0,bmel1 = bmfl.neighbor_edges(bme) if bmfl else (None, None)
-                bmer0,bmer1 = bmfr.neighbor_edges(bme) if bmfr else (None, None)
+                bmefln = bmfl.neighbor_edges(bme) if bmfl else None
+                bmefrn = bmfr.neighbor_edges(bme) if bmfr else None
+                bmel0,bmel1 = bmefln or (None, None)
+                bmer0,bmer1 = bmefrn or (None, None)
                 bmvl0 = bmel0.other_vert(v0) if bmel0 else None
                 bmvl1 = bmel1.other_vert(v1) if bmel1 else None
                 bmvr0 = bmer1.other_vert(v0) if bmer1 else None
@@ -237,15 +239,15 @@ class RFTool_Loops(RFTool):
                 elif cor0: col0 = co0 + (co0 - cor0)  # col0 is missing, guess
                 else:                               # both col0 and cor0 are missing
                     # use edge perpendicular and length to guess at col0 and cor0
-                    assert False, "XXX: Not implemented yet!"
-                    pass
+                    #assert False, "XXX: Not implemented yet!"
+                    continue
                 if col1 and cor1: pass              # found left and right sides!
                 elif col1: cor1 = co1 + (co1 - col1)  # cor1 is missing, guess
                 elif cor1: col1 = co1 + (co1 - cor1)  # col1 is missing, guess
                 else:                               # both col1 and cor1 are missing
                     # use edge perpendicular and length to guess at col1 and cor1
-                    assert False, "XXX: Not implemented yet!"
-                    pass
+                    #assert False, "XXX: Not implemented yet!"
+                    continue
                 if side < 0:
                     # edge direction is reversed, so swap left and right sides
                     col0,cor0 = cor0,col0
@@ -270,8 +272,16 @@ class RFTool_Loops(RFTool):
                     v0_next,v1_next = bme_next.verts
                     side_next = side * (1 if (v1 == v0_next or v0 == v1_next) else -1)
                     crawl_set.add((bme_next, side_next))
-        self.vector = Vec2D((20,0))
-        self.tangent = Direction2D(self.vector)
+        
+        # find nearest selected edge
+        #   vector is perpendicular to edge
+        #   tangent is vector with unit length
+        nearest_edge,_ = self.rfcontext.nearest2D_edge(edges=sel_edges)
+        bmv0,bmv1 = nearest_edge.verts
+        co0,co1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
+        diff = co1 - co0
+        self.tangent = Direction2D((-diff.y, diff.x))
+        self.vector = self.tangent * self.drawing.scale(40)
         self.slide_data = slide_data
         self.mouse_down = self.rfcontext.actions.mouse
         self.percent_start = 0.0
