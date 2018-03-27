@@ -51,7 +51,6 @@ class RFTool_Loops(RFTool):
     def start(self):
         self.rfwidget.set_widget('default')
         
-        self.mouse_prev = None
         self.nearest_edge = None
     
     def get_ui_icon(self):
@@ -62,35 +61,13 @@ class RFTool_Loops(RFTool):
     @profiler.profile
     def update(self):
         # selection has changed, undo/redo was called, etc.
-        #self.target_version = None
-        self.set_next_state()
         pass
     
     @profiler.profile
     def set_next_state(self):
         self.edges_ = None
         
-        if self.rfcontext.actions.mouse is None: return
-        if self.mode != 'main': return
-        
-        mouse_cur = self.rfcontext.actions.mouse
-        mouse_prev = self.mouse_prev
-        mouse_moved = 1 if not mouse_prev else mouse_prev.distance_squared_to(mouse_cur)
-        self.mouse_prev = mouse_cur
-        
-        # if mouse_moved > 0:
-        #     # mouse is still moving, so defer recomputing until mouse has stopped
-        #     self.rfcontext.set_accel_defer(True)
-        #     return
-        
-        # self.rfcontext.set_accel_defer(False)
-        
-        max_dist = self.drawing.scale(10)
-        geom = self.rfcontext.get_vis_accel().get(mouse_cur, max_dist)
-        verts,edges,faces = ([g for g in geom if type(g) is t] for t in [RFVert,RFEdge,RFFace])
-        nearby_edges = self.rfcontext.nearest2D_edges(edges=edges, max_dist=10)
-        hover_edges = [e for e,_ in sorted(nearby_edges, key=lambda ed:ed[1])]
-        self.nearest_edge = next(iter(hover_edges), None)
+        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
         
         self.percent = 0
         self.edges = None
@@ -114,7 +91,7 @@ class RFTool_Loops(RFTool):
         self.edges_ = [get(e0,e1) for e0,e1 in zip([self.edges[0]] + self.edges,self.edges)]
         c0,c1 = next((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge)
         c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
-        a,b = c1 - c0, mouse_cur - c0
+        a,b = c1 - c0, self.rfcontext.actions.mouse - c0
         adota = a.dot(a)
         if adota <= 0.0000001:
             self.percent = 0
