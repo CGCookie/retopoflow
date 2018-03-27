@@ -345,7 +345,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             return {'pass'}
         
         if self.actions.pressed('tool help'):
-            self.toggle_tool_help()
+            self.toggle_help_button()
             return {}
 
         use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files

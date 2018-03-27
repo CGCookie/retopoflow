@@ -414,6 +414,7 @@ class UI_Label(UI_Element):
     
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
     
+    def get_label(self): return self.text
     def set_label(self, label):
         self.text = str(label)
         self.drawing.text_size(self.textsize)
@@ -842,7 +843,7 @@ class UI_Button(UI_Container):
             self.add(icon)
             self.add(UI_Spacer(width=4))
         self.tooltip = tooltip
-        self.add(UI_Label(label, color=color, align=align))
+        self.label = self.add(UI_Label(label, color=color, align=align))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
@@ -852,6 +853,9 @@ class UI_Button(UI_Container):
         self.mouse = None
         self.hovering = False
         if margin is not None: self.margin=margin
+    
+    def get_label(self): return self.label.get_label()
+    def set_label(self, label): self.label.set_label(label)
     
     def mouse_enter(self): self.hovering = True
     def mouse_leave(self): self.hovering = False
