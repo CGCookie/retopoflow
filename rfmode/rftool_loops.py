@@ -280,10 +280,8 @@ class RFTool_Loops(RFTool):
     @profiler.profile
     def modal_slide_after_select(self):
         if self.rfcontext.actions.released('action'):
-            print('released')
             return 'main'
         if (self.rfcontext.actions.mouse - self.mouse_down).length > self.drawing.scale(7):
-            print('moving')
             self.move_done_pressed = None
             self.move_done_released = 'action' #['select','select add','select smart']
             self.move_cancelled = 'cancel'
@@ -295,13 +293,10 @@ class RFTool_Loops(RFTool):
     def modal_slide(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
-            print('done pressed')
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            print('done released')
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
-            print('done cancelled')
             self.rfcontext.undo_cancel()
             return 'main'
         
