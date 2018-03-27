@@ -54,8 +54,6 @@ class RFTool_PolyPen(RFTool):
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
         self.next_state = None
-        
-        self.mouse_prev = None
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('polypen_32.png')
@@ -65,8 +63,6 @@ class RFTool_PolyPen(RFTool):
     @profiler.profile
     def update(self):
         # selection has changed, undo/redo was called, etc.
-        #self.target_version = None
-        #self.target_version = self.rfcontext.get_target_version() if self.selecting else None
         self.set_next_state()
     
     @profiler.profile
@@ -141,26 +137,6 @@ class RFTool_PolyPen(RFTool):
             self.rfcontext.undo_push('select')
             if sel_only: self.rfcontext.deselect_all()
             return 'select'
-            
-            # pr = profiler.start('selecting geometry')
-            
-            # sel_only = self.rfcontext.actions.pressed('select')
-            # self.rfcontext.actions.unpress()
-            
-            # if sel_only: self.rfcontext.undo_push('select')
-            # else: self.rfcontext.undo_push('select add')
-            
-            # sel = self.nearest_vert or self.nearest_edge or self.nearest_face
-            # self.rfcontext.select(sel, only=sel_only)
-            
-            # if not sel_only:
-            #     # do not move selection if adding
-            #     pr.done()
-            #     return
-            
-            # self.prep_move(defer_recomputing=False)
-            # pr.done()
-            # return 'move after select'
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
