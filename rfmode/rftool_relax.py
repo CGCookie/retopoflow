@@ -49,12 +49,8 @@ class RFTool_Relax(RFTool):
     def get_move_hidden(self): return options['relax hidden']
     def set_move_hidden(self, v): options['relax hidden'] = v
     
-    def get_move_selected(self): return options['relax selected']
-    def set_move_selected(self, v): options['relax selected'] = v
-    
     def get_ui_options(self):
         return [
-            UI_BoolValue('Selected Only', self.get_move_selected, self.set_move_selected),
             UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
             UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
         ]
@@ -181,7 +177,6 @@ class RFTool_Relax(RFTool):
                     divco[bmv] += diff * m * strength
         
         # update
-        sel_only = self.get_move_selected()
         hidden = self.get_move_hidden()
         boundary = self.get_move_boundary()
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)

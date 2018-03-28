@@ -313,6 +313,7 @@ The Tweak tool allows you to easily adjust the vertex positions using a brush.
 ![](help_tweak.png)
 
 - ACTION: move vertices that are within brush
+- SHIFT+ACTION: move selected vertices that are within brush
 - F: adjust brush size
 - CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
@@ -334,7 +335,7 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 ![](help_relax.png)
 
 - ACTION: relax vertices that are within brush
-- SHIFT+ACTION: relax selected vertices only
+- SHIFT+ACTION: relax selected vertices that are within brush
 - F: adjust brush size
 - CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
