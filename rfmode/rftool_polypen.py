@@ -269,6 +269,8 @@ class RFTool_PolyPen(RFTool):
                         return 'main'
                 bme = bmv0.shared_edge(bmv1) or self.rfcontext.new_edge((bmv0, bmv1))
                 self.rfcontext.select(bmv1)
+            else:
+                return 'main'
             self.mousedown = self.rfcontext.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
