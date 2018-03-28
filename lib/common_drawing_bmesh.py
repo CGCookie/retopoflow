@@ -173,14 +173,16 @@ varying vec4 vColor;        // color of geometry (considers selection)
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 
+bool floatnear(float v, float n) { return abs(v-n) < 0.5; }
+
 // adjusts color based on mirroring settings and fragment position
 vec4 coloring(vec4 orig) {
     vec4 mixer = vec4(0.6, 0.6, 0.6, 0.0);
-    if(abs(mirror_view-1.0) < 0.5) {
+    if(floatnear(mirror_view, 1.0)) {
         // EDGE VIEW
         float edge_width = 5.0 / screen_size.y;
         vec3 viewdir;
-        if(perspective > 0.5) {
+        if(floatnear(perspective, 1.0)) {
             viewdir = normalize(xyz(vCPosition));
         } else {
             viewdir = vec3(0,0,1);
@@ -192,32 +194,32 @@ vec4 coloring(vec4 orig) {
         vec3 diffp_y = xyz(vPTPosition_y) - xyz(vPPosition);
         vec3 diffp_z = xyz(vPTPosition_z) - xyz(vPPosition);
         vec3 aspect = vec3(1.0, screen_size.y / screen_size.x, 0.0);
-        if(mirroring.x > 0.5 && length(diffp_x * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_x)), 10.0))) {
+        if(floatnear(mirroring.x, 1.0) && length(diffp_x * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_x)), 10.0))) {
             float s = (vTPosition.x < 0.0) ? 1.0 : 0.1;
             mixer.r = 1.0;
             mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
-        if(mirroring.y > 0.5 && length(diffp_y * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_y)), 10.0))) {
+        if(floatnear(mirroring.y, 1.0) && length(diffp_y * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_y)), 10.0))) {
             float s = (vTPosition.y > 0.0) ? 1.0 : 0.1;
             mixer.g = 1.0;
             mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
-        if(mirroring.z > 0.5 && length(diffp_z * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_z)), 10.0))) {
+        if(floatnear(mirroring.z, 1.0) && length(diffp_z * aspect) < edge_width * (0.9 - pow(abs(dot(viewdir,diffc_z)), 10.0))) {
             float s = (vTPosition.z < 0.0) ? 1.0 : 0.1;
             mixer.b = 1.0;
             mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
         }
-    } else if(abs(mirror_view-2.0) < 0.5) {
+    } else if(floatnear(mirror_view, 2.0)) {
         // FACE VIEW
-        if(mirroring.x > 0.5 && vTPosition.x < 0.0) {
+        if(floatnear(mirroring.x, 1.0) && vTPosition.x < 0.0) {
             mixer.r = 1.0;
             mixer.a = mirror_effect;
         }
-        if(mirroring.y > 0.5 && vTPosition.y > 0.0) {
+        if(floatnear(mirroring.y, 1.0) && vTPosition.y > 0.0) {
             mixer.g = 1.0;
             mixer.a = mirror_effect;
         }
-        if(mirroring.z > 0.5 && vTPosition.z < 0.0) {
+        if(floatnear(mirroring.z, 1.0) && vTPosition.z < 0.0) {
             mixer.b = 1.0;
             mixer.a = mirror_effect;
         }
@@ -232,7 +234,7 @@ void main() {
     vec3  rgb   = vColor.rgb;
     float alpha = vColor.a;
     
-    if(perspective > 0.5) {
+    if(floatnear(perspective, 1.0)) {
         // perspective projection
         vec3 v = vCPosition.xyz / vCPosition.w;
         float l = length(v);
