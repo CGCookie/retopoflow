@@ -30,7 +30,11 @@ from ..lib.common_utilities import showErrorMessage
 from ..lib.classes.profiler.profiler import profiler
 from ..common.utils import max_index
 from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
-from ..common.ui import UI_Label, UI_IntValue, UI_Image
+from ..common.ui import (
+    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Button, UI_Label,
+    UI_Container, UI_EqualContainer
+    )
 from .rftool_contours_utils import *
 from .rftool_contours_ops import RFTool_Contours_Ops
 from .rfcontext_actions import Actions
@@ -71,8 +75,23 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     def get_count(self): return options['contours count']
     def set_count(self, v): options['contours count'] = max(3, int(v))
     def get_ui_options(self):
-        self.ui_count = UI_IntValue('Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
-        return [self.ui_count]
+        def inc_count():
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(1)
+        def dec_count():
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(-1)
+        container = UI_Container(vertical=False)
+        container.add(UI_Label('Count:'))
+        container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
+        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (=)', align=0, margin=0))
+        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (-)', align=0, margin=0))
+        
+        self.ui_count = UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
+        return [
+            self.ui_count,
+            container,
+            ]
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('contours_32.png')
@@ -184,10 +203,12 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
 
         if self.rfcontext.actions.pressed('increase count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1)
             return
         
         if self.rfcontext.actions.pressed('decrease count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
             return
     
