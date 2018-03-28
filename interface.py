@@ -83,8 +83,8 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col.alignment = 'CENTER'
         col.label('Help')
-        col.operator('cgcookie.rf_recover', icon_value=icons.get('rf_recover_icon').icon_id)
-        col.operator('cgcookie.rf_recover_clear', icon_value=icons.get('rf_recover_icon').icon_id)
+        # col.operator('cgcookie.rf_recover', icon_value=icons.get('rf_recover_icon').icon_id)
+        # col.operator('cgcookie.rf_recover_clear', icon_value=icons.get('rf_recover_icon').icon_id)
         col.operator("wm.open_log", "Open Error Log")
 
         addon_updater_ops.update_notice_box_ui(self, context)

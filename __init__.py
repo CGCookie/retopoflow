@@ -94,8 +94,8 @@ def register():
         # print('registering '+idname)
         bpy.utils.register_class(rft)
 
-    bpy.utils.register_class(RFRecover)
-    bpy.utils.register_class(RFRecover_Clear)
+    # bpy.utils.register_class(RFRecover)
+    # bpy.utils.register_class(RFRecover_Clear)
 
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
     bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
@@ -122,8 +122,8 @@ def unregister():
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
     bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
 
-    bpy.utils.unregister_class(RFRecover_Clear)
-    bpy.utils.unregister_class(RFRecover)
+    # bpy.utils.unregister_class(RFRecover_Clear)
+    # bpy.utils.unregister_class(RFRecover)
 
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)
