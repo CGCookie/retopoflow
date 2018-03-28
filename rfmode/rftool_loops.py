@@ -37,6 +37,7 @@ from .rfcontext_actions import Actions
 class RFTool_Loops(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
         self.FSM['select'] = self.modal_select
         self.FSM['slide'] = self.modal_slide
         self.FSM['slide after select'] = self.modal_slide_after_select
@@ -125,11 +126,17 @@ class RFTool_Loops(RFTool):
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
             return
         
-        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select')
-            self.rfcontext.actions.unpress()
+        if self.rfcontext.actions.pressed('select add'):
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge: return
+            if edge.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
+        
+        if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
-            if sel_only: self.rfcontext.deselect_all()
+            self.rfcontext.deselect_all()
             return 'select'
         
         if self.rfcontext.actions.pressed('slide'):
@@ -196,6 +203,18 @@ class RFTool_Loops(RFTool):
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
     
+    @profiler.profile
+    def modal_selectadd_deselect(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.rfcontext.undo_push('deselect')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if edge and edge.select: self.rfcontext.deselect(edge)
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta.length > self.drawing.scale(5):
+            self.rfcontext.undo_push('select add')
+            return 'select'
+
     @profiler.profile
     def modal_select(self):
         if not self.rfcontext.actions.using(['select','select add']):
