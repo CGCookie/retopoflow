@@ -845,18 +845,50 @@ class RFMesh():
         for bmf in self.bme.faces: bmf.select = False
         self.dirty(selectionOnly=True)
 
-    def deselect(self, elems):
-        if not hasattr(elems, '__len__'):
-            elems.select = False
-        else:
-            for bmelem in elems: bmelem.select = False
+    def deselect(self, elems, supparts=True, subparts=True):
+        if elems is None: return
+        if not hasattr(elems, '__len__'): elems = [elems]
+        elems = [e for e in elems if e and e.is_valid]
+        nelems = set(elems)
+        if supparts:
+            for elem in elems:
+                t = type(elem)
+                if t is BMVert or t is RFVert:
+                    nelems.update(e for e in elem.link_edges if e.select)
+                    nelems.update(e for e in elem.link_faces if e.select)
+                elif t is BMEdge or t is RFEdge:
+                    nelems.update(e for e in elem.link_faces if e.select)
+                elif t is BMFace or t is RFFace:
+                    pass
+        for elem in nelems: elem.select = False
+        if subparts:
+            for elem in elems:
+                t = type(elem)
+                if not (t is BMFace or t is RFFace): continue
+                for bme in elem.edges:
+                    if not bme.select: continue
+                    if any(f.select for f in bme.link_faces): continue
+                    bme.select = False
+                for bmv in elem.verts:
+                    if not bmv.select: continue
+                    if any(e.select for e in bmv.link_edges): continue
+                    if any(f.select for f in bmv.link_faces): continue
+                    bmv.select = False
+            for elem in elems:
+                t = type(elem)
+                if not (t is BMEdge or t is RFEdge): continue
+                for bmv in elem.verts:
+                    if not bmv.select: continue
+                    if any(e.select for e in bmv.link_edges): continue
+                    if any(f.select for f in bmv.link_faces): continue
+                    bmv.select = False
         self.dirty(selectionOnly=True)
 
     def select(self, elems, supparts=True, subparts=True, only=True):
         if only: self.deselect_all()
         if elems is None: return
         if not hasattr(elems, '__len__'): elems = [elems]
-        elems = [e for e in elems if e.is_valid]
+        elems = [e for e in elems if e and e.is_valid]
         if subparts:
             nelems = set(elems)
             for elem in elems:
@@ -869,8 +901,7 @@ class RFMesh():
                     nelems.update(e for e in elem.verts)
                     nelems.update(e for e in elem.edges)
             elems = nelems
-        for elem in elems:
-            if elem: elem.select = True
+        for elem in elems: elem.select = True
         if supparts:
             for elem in elems:
                 t = type(elem)

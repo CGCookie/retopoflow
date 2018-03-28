@@ -451,8 +451,8 @@ class RFContext_Target:
         if self.tool: self.tool.update()
         self.update_rot_object()
 
-    def deselect(self, elems):
-        self.rftarget.deselect(elems)
+    def deselect(self, elems, supparts=True, subparts=True):
+        self.rftarget.deselect(elems, supparts=supparts, subparts=subparts)
         if self.tool: self.tool.update()
         self.update_rot_object()
 
