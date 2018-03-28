@@ -51,7 +51,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         col.operator("wm.open_webissues",  "Report an Issue")
         #col.operator("wm.open_webtip",     "Buy Us a Drink")
 
-        if RFMode.large_target():
+        if RFMode.dense_target():
             box = layout.box()
             box.alert = True
             col = box.column(align=True)
@@ -59,7 +59,8 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col.label("WARNING:", icon="ERROR")
             col.label("Target polycount is high!")
             col.label("RetopoFlow may load slowly.")
-        if RFMode.large_sources():
+        
+        if RFMode.dense_sources():
             box = layout.box()
             box.alert = True
             col = box.column(align=True)
@@ -67,6 +68,16 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
             col.label("WARNING:", icon="ERROR")
             col.label("Source polycount is high!")
             col.label("RetopoFlow may load slowly.")
+
+        if RFMode.large_sources():
+            box = layout.box()
+            box.alert = True
+            col = box.column(align=True)
+            col.alignment = 'EXPAND'
+            col.label("WARNING:", icon="ERROR")
+            col.label("Source bbox is large!")
+            col.label("RetopoFlow may not view correctly.")
+            col.label("Try scaling everything down.")
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'

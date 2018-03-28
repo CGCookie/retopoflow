@@ -27,7 +27,8 @@ import time
 
 import bpy
 import bgl
-from mathutils import Matrix
+from mathutils import Matrix, Vector
+from ..common.maths import BBox
 from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
 
@@ -120,15 +121,28 @@ class RFMode(Operator):
     
     @staticmethod
     @profiler.profile
-    def large_target():
+    def dense_target():
         count = RFMode.get_polygon_count(RFContext.get_target(), check_modifiers=False)
         return count > 5000
     
     @staticmethod
     @profiler.profile
-    def large_sources():
+    def dense_sources():
         count = sum((RFMode.get_polygon_count(s) for s in RFContext.get_sources()), 0)
         return count > 100000
+    
+    @staticmethod
+    @profiler.profile
+    def large_sources():
+        def get_vs(s):
+            x,y,z = s.scale
+            return [Vector((v[0]*x, v[1]*y, v[2]*z)) for v in s.bound_box]
+        sources = RFContext.get_sources()
+        if not sources: return False
+        vs = [v for s in sources for v in get_vs(s)]
+        bbox = BBox(from_coords=vs)
+        sz = (bbox.max-bbox.min).length_squared
+        return sz > 15
     
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
