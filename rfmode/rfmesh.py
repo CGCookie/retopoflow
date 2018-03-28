@@ -848,40 +848,53 @@ class RFMesh():
     def deselect(self, elems, supparts=True, subparts=True):
         if elems is None: return
         if not hasattr(elems, '__len__'): elems = [elems]
-        elems = [e for e in elems if e and e.is_valid]
+        elems = { e for e in elems if e and e.is_valid }
         nelems = set(elems)
         if supparts:
             for elem in elems:
                 t = type(elem)
                 if t is BMVert or t is RFVert:
-                    nelems.update(e for e in elem.link_edges if e.select)
-                    nelems.update(e for e in elem.link_faces if e.select)
+                    nelems.update(elem.link_edges)
+                    nelems.update(elem.link_faces)
                 elif t is BMEdge or t is RFEdge:
-                    nelems.update(e for e in elem.link_faces if e.select)
+                    nelems.update(elem.link_faces)
                 elif t is BMFace or t is RFFace:
                     pass
+        nelems = { e for e in nelems if e.select }
+        selems = set()
+        for elem in nelems-elems:
+            t = type(elem)
+            if t is BMEdge or t is RFEdge:
+                selems.update(elem.verts)
+            elif t is BMFace or t is RFFace:
+                selems.update(elem.verts)
+                selems.update(e for e in elem.edges if not (set(e.verts)&elems))
+        selems = selems - elems
+        selems = { e for e in selems if e.select }
         for elem in nelems: elem.select = False
+        for elem in selems: elem.select = True
         if subparts:
+            nelems = set()
             for elem in elems:
                 t = type(elem)
-                if not (t is BMFace or t is RFFace): continue
-                for bme in elem.edges:
-                    if not bme.select: continue
-                    if any(f.select for f in bme.link_faces): continue
-                    bme.select = False
-                for bmv in elem.verts:
-                    if not bmv.select: continue
-                    if any(e.select for e in bmv.link_edges): continue
-                    if any(f.select for f in bmv.link_faces): continue
-                    bmv.select = False
-            for elem in elems:
-                t = type(elem)
-                if not (t is BMEdge or t is RFEdge): continue
-                for bmv in elem.verts:
-                    if not bmv.select: continue
-                    if any(e.select for e in bmv.link_edges): continue
-                    if any(f.select for f in bmv.link_faces): continue
-                    bmv.select = False
+                if t is BMFace or t is RFFace:
+                    for bme in elem.edges:
+                        if not bme.select: continue
+                        if any(f.select for f in bme.link_faces): continue
+                        nelems.add(bme)
+                    for bmv in elem.verts:
+                        if not bmv.select: continue
+                        if any(e.select for e in bmv.link_edges): continue
+                        if any(f.select for f in bmv.link_faces): continue
+                        nelems.add(bmv)
+                if t is BMEdge or t is RFEdge:
+                    for bmv in elem.verts:
+                        if not bmv.select: continue
+                        if any(e.select for e in bmv.link_edges): continue
+                        if any(f.select for f in bmv.link_faces): continue
+                        nelems.add(bmv)
+            for elem in nelems:
+                elem.select = False
         self.dirty(selectionOnly=True)
 
     def select(self, elems, supparts=True, subparts=True, only=True):

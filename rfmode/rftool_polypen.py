@@ -39,6 +39,7 @@ from ..options import help_polypen
 class RFTool_PolyPen(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
         self.FSM['select'] = self.modal_select
         self.FSM['insert'] = self.modal_insert
         self.FSM['insert alt0'] = self.modal_insert
@@ -131,11 +132,20 @@ class RFTool_PolyPen(RFTool):
             self.prep_move(defer_recomputing=False)
             return 'move after select'
 
-        if self.rfcontext.actions.pressed(['select','select add'], unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select')
-            self.rfcontext.actions.unpress()
+        if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
-            if sel_only: self.rfcontext.deselect_all()
+            self.rfcontext.deselect_all()
+            return 'select'
+        
+        if self.rfcontext.actions.pressed('select add'):
+            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            sel = bmv or bme or bmf
+            if not sel: return
+            if sel.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
             return 'select'
 
         if self.rfcontext.actions.pressed('grab'):
@@ -145,6 +155,21 @@ class RFTool_PolyPen(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
+
+    @profiler.profile
+    def modal_selectadd_deselect(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.rfcontext.undo_push('deselect')
+            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            sel = bmv or bme or bmf
+            if sel and sel.select: self.rfcontext.deselect(sel)
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta.length > self.drawing.scale(5):
+            self.rfcontext.undo_push('select add')
+            return 'select'
 
     @profiler.profile
     def modal_select(self):
