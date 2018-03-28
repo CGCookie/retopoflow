@@ -370,7 +370,9 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             self.rfwidget.clear()
             if self.exit: return {'confirm'}
             return {}
-
+        
+        if self.window_manager.has_focus(): return {}
+        
         # user pressing nav key?
         if self.actions.navigating() or (self.actions.timer and self.nav):
             # let Blender handle navigation

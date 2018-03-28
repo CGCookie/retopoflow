@@ -130,6 +130,7 @@ class RFContext_Drawing:
     
     def toggle_help(self, general=None):
         if general is None:
+            self.window_manager.clear_focus()
             self.window_help.visible = False
             self.window_manager.clear_active()
             self.help_button.set_label('')
@@ -139,7 +140,8 @@ class RFContext_Drawing:
             else:
                 self.ui_helplabel.set_markdown(self.tool.helptext())
             self.window_help.scrollto_top()
-            self.window_help.visible = True
+            self.window_manager.set_focus(self.window_help)
+            #self.window_help.visible = True
     
     def toggle_help_button(self):
         if self.help_button.get_label() == 'General Help':
@@ -206,6 +208,7 @@ class RFContext_Drawing:
             else:
                 create_option(opt, opt, bigcontainer)
                 prev_container = False
+        self.window_manager.set_focus(win)
         # win.add(UI_Rule())
         # container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         # container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
@@ -339,11 +342,13 @@ class RFContext_Drawing:
             update_tool_collapsed()
         def show_reporting():
             options['welcome'] = True
-            self.window_welcome.visible = options['welcome']
+            self.window_manager.set_focus(self.window_welcome)
+            #self.window_welcome.visible = options['welcome']
         def hide_reporting():
             options['welcome'] = False
             self.window_welcome.visible = options['welcome']
-            self.window_manager.clear_active()
+            #self.window_manager.clear_active()
+            self.window_manager.clear_focus()
         
         def open_github():
             bpy.ops.wm.url_open(url=retopoflow_issues_url)
@@ -519,6 +524,7 @@ class RFContext_Drawing:
         self.window_welcome.add(UI_Markdown(firsttime_message))
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        if options['welcome']: self.window_manager.set_focus(self.window_welcome)
         
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':

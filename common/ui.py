@@ -1757,8 +1757,10 @@ class UI_Event:
 class UI_WindowManager:
     def __init__(self, **kwargs):
         self.windows = []
+        self.windows_unfocus = None
         self.active = None
         self.active_last = None
+        self.focus = None
         
         self.tooltip_delay = 0.75
         self.tooltip_value = None
@@ -1794,14 +1796,55 @@ class UI_WindowManager:
     
     def delete_window(self, win):
         win.delete()
+        if win == self.focus: self.clear_focus()
         if win == self.active: self.clear_active()
         if win in self.windows: self.windows.remove(win)
     
     def clear_active(self): self.active = None
     
+    def has_focus(self): return self.focus is not None
+    def set_focus(self, win):
+        self.clear_focus()
+        if win is None: return
+        win.visible = True
+        self.focus = win
+        self.active = win
+        self.windows_unfocus = [win for win in self.windows if win != self.focus]
+        self.windows = [self.focus]
+        
+    def clear_focus(self):
+        if self.focus is None: return
+        self.windows += self.windows_unfocus
+        self.windows_unfocus = None
+        self.active = None
+        self.focus = None
+    
+    def draw_darken(self):
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
+        bgl.glMatrixMode(bgl.GL_PROJECTION)
+        bgl.glPushMatrix()
+        bgl.glLoadIdentity()
+        bgl.glColor4f(0,0,0,0.25)    # TODO: use window background color??
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_DEPTH_TEST)
+        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
+        bgl.glVertex2f(-1, -1)
+        bgl.glVertex2f( 1, -1)
+        bgl.glVertex2f( 1,  1)
+        bgl.glVertex2f(-1,  1)
+        bgl.glEnd()
+        bgl.glPopMatrix()
+        bgl.glPopAttrib()
+    
     def draw_postpixel(self):
-        for win in self.windows:
-            win.draw_postpixel()
+        if self.focus:
+            for win in self.windows_unfocus:
+                win.draw_postpixel()
+            self.draw_darken()
+            self.focus.draw_postpixel()
+        else:
+            for win in self.windows:
+                win.draw_postpixel()
         self.tooltip_window.draw_postpixel()
     
     def modal(self, context, event):
