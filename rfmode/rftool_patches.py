@@ -27,12 +27,15 @@ from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..options import options, help_patches
 from ..lib.common_utilities import dprint
 from .rfcontext_actions import Actions
+from ..lib.classes.profiler.profiler import profiler
 
 
 @RFTool.action_call('patches tool')
 class RFTool_Patches(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
+        self.FSM['select'] = self.modal_select
         self.selectable_edges = []
     
     def name(self): return "Patches"
@@ -52,31 +55,51 @@ class RFTool_Patches(RFTool):
     
     def modal_main(self):
         if self.rfcontext.actions.using('select'):
-            if self.rfcontext.actions.pressed('select'):
-                self.rfcontext.undo_push('select')
-                self.rfcontext.deselect_all()
-                self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
-            edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
-            if edge: self.rfcontext.select(edge, supparts=False, only=False)
-            return
+            self.rfcontext.undo_push('select')
+            self.rfcontext.deselect_all()
+            return 'select'
         
         if self.rfcontext.actions.using('select add'):
-            if self.rfcontext.actions.pressed('select add'):
-                self.rfcontext.undo_push('select add')
-                self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
-            edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
-            if edge: self.rfcontext.select(edge, supparts=False, only=False)
-            return
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge: return
+            if edge.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
         
-        if self.rfcontext.actions.pressed({'select smart'}):
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
+            
             self.rfcontext.undo_push('select smart')
-            self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)==1]
+            self.selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces)<=1]
             edge,_ = self.rfcontext.nearest2D_edge(edges=self.selectable_edges, max_dist=10)
-            if edge: self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=False)
+            if not edge: return
+            self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
         
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
     
+    @profiler.profile
+    def modal_selectadd_deselect(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.rfcontext.undo_push('deselect')
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if bme and bme.select: self.rfcontext.deselect(bme)
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta.length > self.drawing.scale(5):
+            self.rfcontext.undo_push('select add')
+            return 'select'
+
+    @profiler.profile
+    def modal_select(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            return 'main'
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        if not bme or bme.select: return
+        self.rfcontext.select(bme, supparts=False, only=False)
+
     @RFTool.dirty_when_done
     def fill_patch(self):
         # get strips of edges.  an edge is in a strip if a linked face neighbors a linked face

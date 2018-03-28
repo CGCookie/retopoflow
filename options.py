@@ -292,7 +292,7 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 ## Other
 
 - X: delete selected
-- SHIFT+UP / SHIFT_DOWN: increase / decrease counts
+- SHIFT+UP / SHIFT+DOWN: increase / decrease counts
 - EQUALS / MINUS: increase / decrease counts
 '''
 
