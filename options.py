@@ -185,8 +185,9 @@ The following shortcuts work across all the tools, although each tool may have a
 For example, pressing G in Contours will slide the selected loop.
 
 - A: deselect / select all
-- ACTION: select then grab and move
-- SELECT / SHIFT+SELECT: selection painting
+- ACTION drag: select then grab and move
+- SELECT drag / SHIFT+SELECT drag: selection painting
+- SHIFT+SELECT click: toggle selection
 - CTRL+SELECT / CTRL+SHIFT+SELECT: smart selection
 - G: grab and move selected geometry
 - X: delete / dissolve selection
