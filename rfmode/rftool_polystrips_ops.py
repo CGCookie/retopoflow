@@ -575,7 +575,8 @@ class RFTool_PolyStrips_Ops:
         if nfaces:
             self.rfcontext.select(nfaces, supparts=False, only=False)
         else:
-            self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
+            #self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
+            pass
     
     @RFTool.dirty_when_done
     def insert_strip(self, cb, steps, radius, bme_start=None, bme_end=None):

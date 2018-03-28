@@ -27,7 +27,11 @@ from mathutils.geometry import intersect_point_tri_2d
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
 from ..common.bezier import CubicBezierSpline, CubicBezier
-from ..common.ui import UI_Image, UI_IntValue, UI_BoolValue
+from ..common.ui import (
+    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Button, UI_Label,
+    UI_Container, UI_EqualContainer
+    )
 from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 from ..lib.classes.profiler.profiler import profiler
@@ -92,7 +96,19 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if v == options['polystrips max strips']: return
             options['polystrips max strips'] = v
             self.update()
+        def inc_count():
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(1)
+        def dec_count():
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(-1)
+        container = UI_Container(vertical=False)
+        container.add(UI_Label('Count:'))
+        container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
+        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase strip count (=)', align=0, margin=0))
+        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease strip count (-)', align=0, margin=0))
         return [
+            container,
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
             UI_IntValue('Max Strips', get_max_strips, set_max_strips),
             UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
