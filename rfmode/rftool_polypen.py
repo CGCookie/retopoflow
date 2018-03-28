@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -31,9 +31,9 @@ from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..lib.common_utilities import dprint
-from ..options import themes
 from .rfcontext_actions import Actions
-from ..options import help_polypen
+from ..options import themes
+from ..help import help_polypen
 
 @RFTool.action_call('polypen tool')
 class RFTool_PolyPen(RFTool):

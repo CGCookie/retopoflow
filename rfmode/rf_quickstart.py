@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -22,7 +22,8 @@ Created by Jonathan Denning, Jonathan Williamson
 import re
 import bpy
 from ..lib.common_utilities import showErrorMessage
-from ..options import options, help_quickstart
+from ..options import options
+from ..help import help_quickstart
 
 class OpenQuickStart(bpy.types.Operator):
     """Open log text files in new window"""

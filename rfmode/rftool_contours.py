@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -40,7 +40,8 @@ from .rftool_contours_ops import RFTool_Contours_Ops
 from .rfcontext_actions import Actions
 from mathutils import Matrix
 
-from ..options import options, help_contours
+from ..options import options
+from ..help import help_contours
 
 
 @RFTool.action_call('contours tool')

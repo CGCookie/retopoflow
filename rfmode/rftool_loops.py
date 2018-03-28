@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -30,7 +30,7 @@ from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..common.utils import iter_pairs
-from ..options import help_loops
+from ..help import help_loops
 from .rfcontext_actions import Actions
 
 @RFTool.action_call('loops tool')

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -36,7 +36,8 @@ from ..lib.common_utilities import showErrorMessage, dprint
 from ..lib.classes.logging.logger import Logger
 from ..lib.classes.profiler.profiler import profiler
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
-from ..options import options, help_polystrips
+from ..options import options
+from ..help import help_polystrips
 from .rfcontext_actions import Actions
 
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops

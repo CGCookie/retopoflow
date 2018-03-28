@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -24,7 +24,8 @@ import math
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
-from ..options import options, help_patches
+from ..options import options
+from ..help import help_patches
 from ..lib.common_utilities import dprint
 from .rfcontext_actions import Actions
 from ..lib.classes.profiler.profiler import profiler

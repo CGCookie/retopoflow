@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -53,11 +53,11 @@ from ..options import (
     retopoflow_profiler,
     retopoflow_issues_url,
     retopoflow_tip_url,
-    help_general,
     options,
-    firsttime_message,
     themes,
     )
+
+from ..help import help_general, firsttime_message
 
 
 class RFContext_Drawing:
