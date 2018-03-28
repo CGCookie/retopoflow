@@ -161,8 +161,12 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             return self.prep_move(after_action=True)
 
         if self.rfcontext.actions.pressed('select add'):
-            self.mousedown = self.rfcontext.actions.mouse
-            return 'selectadd/deselect'
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not bme: return
+            if bme.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
         
         if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
