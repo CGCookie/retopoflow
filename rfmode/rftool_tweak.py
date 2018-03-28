@@ -32,17 +32,9 @@ from .rfcontext_actions import Actions
 class RFTool_Tweak(RFTool):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
+        self.FSM['select'] = self.modal_select
         self.FSM['move'] = self.modal_move
-        
-        # following vars are for self.vis_accel
-        self.defer_recomputing = False
-        self.recompute = True
-        self.target_version = None
-        self.view_version = None
-        self.vis_verts = None
-        self.vis_edges = None
-        self.vis_faces = None
-        self.vis_accel = None
     
     def name(self): return "Tweak"
     def icon(self): return "rf_tweak_icon"
@@ -75,52 +67,42 @@ class RFTool_Tweak(RFTool):
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
     
-    @profiler.profile
-    def update_accel_struct(self):
-        target_version = self.rfcontext.get_target_version(selection=False)
-        view_version = self.rfcontext.get_view_version()
-        
-        recompute = self.recompute
-        recompute |= self.target_version != target_version
-        recompute |= self.view_version != view_version
-        recompute |= self.vis_verts is None
-        recompute |= self.vis_edges is None
-        recompute |= self.vis_faces is None
-        recompute |= self.vis_accel is None
-        
-        self.recompute = False
-        
-        if recompute and not self.defer_recomputing:
-            self.target_version = target_version
-            self.view_version = view_version
-            
-            self.vis_verts = self.rfcontext.visible_verts()
-            self.vis_edges = self.rfcontext.visible_edges(verts=self.vis_verts)
-            self.vis_faces = self.rfcontext.visible_faces(verts=self.vis_verts)
-            self.vis_accel = Accel2D(self.vis_verts, self.vis_edges, self.vis_faces, self.rfcontext.get_point2D)
-    
     def modal_main(self):
-        self.update_accel_struct()
+        if self.rfcontext.actions.pressed('select'):
+            self.rfcontext.undo_push('select')
+            self.rfcontext.deselect_all()
+            return 'select'
         
-        if self.rfcontext.actions.using(['select', 'select add']):
-            self.defer_recomputing = True
-            if self.rfcontext.actions.pressed('select'):
-                self.rfcontext.undo_push('select')
-                self.rfcontext.deselect_all()
-            elif self.rfcontext.actions.pressed('select add'):
-                self.rfcontext.undo_push('select add')
-            pr = profiler.start('finding nearest')
-            xy = self.rfcontext.get_point2D(self.rfcontext.actions.mouse)
-            bmf = self.vis_accel.nearest_face(xy)
-            pr.done()
-            if bmf and not bmf.select:
-                self.rfcontext.select(bmf, supparts=False, only=False)
-            return
-        
-        self.defer_recomputing = False
+        if self.rfcontext.actions.pressed('select add'):
+            face = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            if not face: return
+            if face.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
         
         if self.rfcontext.actions.pressed('action'):
             return self.prep_move()
+    
+    @profiler.profile
+    def modal_selectadd_deselect(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.rfcontext.undo_push('deselect')
+            face = self.rfcontext.accel_nearest2D_face()
+            if face and face.select: self.rfcontext.deselect(face)
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta.length > self.drawing.scale(5):
+            self.rfcontext.undo_push('select add')
+            return 'select'
+
+    @profiler.profile
+    def modal_select(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            return 'main'
+        bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        if not bmf or bmf.select: return
+        self.rfcontext.select(bmf, supparts=False, only=False)
     
     def prep_move(self):
         radius = self.rfwidget.get_scaled_radius()
