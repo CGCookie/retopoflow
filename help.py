@@ -334,8 +334,8 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 ![](help_relax.png)
 
 - ACTION: relax vertices that are within brush
+- SHIFT+ACTION: relax selected vertices only
 - F: adjust brush size
-- SHIFT+S: relax all selected vertices
 - CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
 

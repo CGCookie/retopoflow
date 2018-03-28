@@ -36,7 +36,6 @@ class RFTool_Relax(RFTool):
         self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
         self.FSM['select'] = self.modal_select
         self.FSM['relax'] = self.modal_relax
-        self.FSM['relax selected'] = self.modal_relax_selected
     
     def name(self): return "Relax"
     def icon(self): return "rf_relax_icon"
@@ -63,6 +62,7 @@ class RFTool_Relax(RFTool):
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
+        self.sel_only = False
     
     def get_ui_icon(self):
         self.ui_icon = UI_Image('relax_32.png')
@@ -83,17 +83,12 @@ class RFTool_Relax(RFTool):
                 return 'selectadd/deselect'
             return 'select'
         
-        if self.rfcontext.actions.pressed('relax selected'):
-            self.rfcontext.undo_push('relax selected')
-            self.sel_verts = self.rfcontext.get_selected_verts()
-            self.sel_edges = self.rfcontext.get_selected_edges()
-            self.sel_faces = self.rfcontext.get_selected_faces()
-            return 'relax selected'
-        
-        if self.rfcontext.actions.pressed('action'):
+        if self.rfcontext.actions.pressed(['action', 'action alt0'], unpress=False):
+            self.sel_only = self.rfcontext.actions.using('action alt0')
+            self.rfcontext.actions.unpress()
             self.rfcontext.undo_push('relax')
             return 'relax'
-    
+        
     @profiler.profile
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
@@ -116,7 +111,7 @@ class RFTool_Relax(RFTool):
     
     @RFTool.dirty_when_done
     def modal_relax(self):
-        if self.rfcontext.actions.released('action'):
+        if self.rfcontext.actions.released(['action','action alt0']):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
@@ -137,17 +132,6 @@ class RFTool_Relax(RFTool):
             faces.update(bmv.link_faces)
             vert_strength[bmv] = self.rfwidget.get_strength_dist(d) #/radius
         self._relax(verts, edges, faces, vert_strength)
-    
-    @RFTool.dirty_when_done
-    @profiler.profile
-    def modal_relax_selected(self):
-        if self.rfcontext.actions.released('relax selected'):
-            return 'main'
-        if self.rfcontext.actions.pressed('cancel'):
-            self.rfcontext.undo_cancel()
-            return 'main'
-        if not self.rfcontext.actions.timer: return
-        self._relax(self.sel_verts, self.sel_edges, self.sel_faces, vistest=False)
     
     def _relax(self, verts, edges, faces, vert_strength=None, vistest=True):
         if not verts or not edges: return
@@ -203,7 +187,7 @@ class RFTool_Relax(RFTool):
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
         for bmv,co in divco.items():
             if bmv not in verts: continue
-            if sel_only and not bmv.select: continue
+            if self.sel_only and not bmv.select: continue
             if not boundary and bmv.is_boundary: continue
             if vistest and not hidden and not is_visible(bmv): continue
             bmv.co = co

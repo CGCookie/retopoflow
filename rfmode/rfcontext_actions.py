@@ -91,9 +91,6 @@ class Actions:
         'shift': {'S'},             # rotation of loops
         'rotate': {'SHIFT+S'},
 
-        # relax
-        'relax selected': {'SHIFT+S'},
-        
         # loops
         'slide': {'S'},
         
