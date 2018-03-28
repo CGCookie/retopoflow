@@ -54,6 +54,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.FSM['rotate'] = self.modal_rotate
         self.FSM['scale']  = self.modal_scale
         self.FSM['select'] = self.modal_select
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
     
     def name(self): return "PolyStrips"
     def icon(self): return "rf_polystrips_icon"
@@ -186,11 +187,17 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if self.rfcontext.actions.pressed('action alt1'):
                 return self.prep_scale()
         
-        if self.rfcontext.actions.pressed(['select', 'select add'], unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select')
-            self.rfcontext.actions.unpress()
+        if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
-            if sel_only: self.rfcontext.deselect_all()
+            self.rfcontext.deselect_all()
+            return 'select'
+        
+        if self.rfcontext.actions.pressed('select add'):
+            face = self.rfcontext.accel_nearest2D_face()
+            if not face: return
+            if face.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
             return 'select'
         
         if self.rfcontext.actions.pressed('action'):
@@ -215,6 +222,18 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.change_count(-1)
             return
     
+    @profiler.profile
+    def modal_selectadd_deselect(self):
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.rfcontext.undo_push('deselect')
+            face = self.rfcontext.accel_nearest2D_face()
+            if face and face.select: self.rfcontext.deselect(face)
+            return 'main'
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta.length > self.drawing.scale(5):
+            self.rfcontext.undo_push('select add')
+            return 'select'
+
     @profiler.profile
     def modal_select(self):
         if not self.rfcontext.actions.using(['select','select add']):
