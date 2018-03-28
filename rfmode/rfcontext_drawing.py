@@ -179,11 +179,11 @@ class RFContext_Drawing:
                 close()
             # print(event)
         
-        def create_option(opt, grpopt, container):
+        def create_option(opt, grpopt, tooltip, container):
             def fn():
                 close()
                 callback(grpopt)
-            return container.add(UI_Button(opt, fn, tooltip=opt, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), margin=0))
+            return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), margin=0))
         
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
@@ -203,10 +203,10 @@ class RFContext_Drawing:
                 container = bigcontainer.add(UI_Container(margin=0))
                 container.add(UI_Label(n, align=0, color=(1,1,1,0.5)))
                 for opt2 in opts2:
-                    create_option(opt2, (n,opt2), container)
+                    create_option(opt2, (n,opt2), '%s: %s' % (n,opt2), container)
                 prev_container = True
             else:
-                create_option(opt, opt, bigcontainer)
+                create_option(opt, opt, opt, bigcontainer)
                 prev_container = False
         self.window_manager.set_focus(win)
         # win.add(UI_Rule())
