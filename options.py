@@ -254,8 +254,8 @@ You can draw as many strokes as you like, in any order, from any direction.
 
 ## Other
 
-- SHIFT+UP / SHIFT+DOWN: increase / decrease counts
-- EQUALS / MINUS: increase / decrease counts
+- SHIFT+UP / SHIFT+DOWN: increase / decrease segment counts
+- EQUALS / MINUS: increase / decrease segment counts
 
 ## Tips
 
@@ -292,8 +292,8 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 ## Other
 
 - X: delete selected
-- SHIFT+UP / SHIFT+DOWN: increase / decrease counts
-- EQUALS / MINUS: increase / decrease counts
+- SHIFT+UP / SHIFT+DOWN: increase / decrease segment counts
+- EQUALS / MINUS: increase / decrease segment counts
 '''
 
 

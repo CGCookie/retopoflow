@@ -105,8 +105,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         container = UI_Container(vertical=False)
         container.add(UI_Label('Count:'))
         container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
-        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase strip count (=)', align=0, margin=0))
-        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease strip count (-)', align=0, margin=0))
+        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (=)', align=0, margin=0))
+        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (-)', align=0, margin=0))
         return [
             container,
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
