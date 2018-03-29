@@ -37,7 +37,7 @@ from .decorators import blender_version
 from ..ext import png
 from concurrent.futures import ThreadPoolExecutor
 
-from .maths import Point2D, Vec2D, clamp
+from .maths import Point2D, Vec2D, clamp, mid
 
 def set_cursor(cursor):
     # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,
@@ -1747,6 +1747,12 @@ class UI_Window(UI_Padding):
     
     def modal_capture(self):
         if self.ui_down.capture_event(self.event): return 'main'
+    
+    def distance(self, pt):
+        px,py = self.pos
+        sx,sy = self.size
+        c = Point2D((mid(px, px+sx, pt.x), mid(py, py-sy, pt.y)))
+        return (pt - c).length
 
 class UI_Event:
     def __init__(self, type, value):
@@ -1756,11 +1762,15 @@ class UI_Event:
 
 class UI_WindowManager:
     def __init__(self, **kwargs):
+        self.drawing = Drawing.get_instance()
         self.windows = []
         self.windows_unfocus = None
         self.active = None
         self.active_last = None
         self.focus = None
+        self.focus_darken = True
+        self.focus_close_on_leave = True
+        self.focus_close_distance = self.drawing.scale(30)
         
         self.tooltip_delay = 0.75
         self.tooltip_value = None
@@ -1803,11 +1813,13 @@ class UI_WindowManager:
     def clear_active(self): self.active = None
     
     def has_focus(self): return self.focus is not None
-    def set_focus(self, win):
+    def set_focus(self, win, darken=True, close_on_leave=False):
         self.clear_focus()
         if win is None: return
         win.visible = True
         self.focus = win
+        self.focus_darken = darken
+        self.focus_close_on_leave = close_on_leave
         self.active = win
         self.windows_unfocus = [win for win in self.windows if win != self.focus]
         self.windows = [self.focus]
@@ -1840,7 +1852,8 @@ class UI_WindowManager:
         if self.focus:
             for win in self.windows_unfocus:
                 win.draw_postpixel()
-            self.draw_darken()
+            if self.focus_darken:
+                self.draw_darken()
             self.focus.draw_postpixel()
         else:
             for win in self.windows:
@@ -1852,6 +1865,11 @@ class UI_WindowManager:
             mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             self.tooltip_window.fn_sticky.set(mouse + self.tooltip_offset)
             self.tooltip_window.update_pos()
+            if self.focus and self.focus_close_on_leave:
+                d = self.focus.distance(mouse)
+                if d > self.focus_close_distance:
+                    self.delete_window(self.focus)
+
         if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None

@@ -173,10 +173,11 @@ class RFContext_Drawing:
             nonlocal win
             self.window_manager.delete_window(win)
         def event_handler(context, event):
+            nonlocal win
             if event.type == 'ESC' and event.value == 'RELEASE':
                 close()
-            if event.type == 'HOVER' and event.value == 'LEAVE':
-                close()
+            #if event.type == 'HOVER' and event.value == 'LEAVE':
+            #    close()
             # print(event)
         
         def create_option(opt, grpopt, tooltip, container):
@@ -188,7 +189,7 @@ class RFContext_Drawing:
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
             'movable': False,
-            'bgcolor': (0.25, 0.25, 0.25, 0.6),
+            'bgcolor': (0.2, 0.2, 0.2, 0.8),
             'event handler': event_handler,
             'padding': 0,
             }
@@ -208,15 +209,7 @@ class RFContext_Drawing:
             else:
                 create_option(opt, opt, opt, bigcontainer)
                 prev_container = False
-        self.window_manager.set_focus(win)
-        # win.add(UI_Rule())
-        # container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        # container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        # if level in {'assert', 'exception'}:
-        #     container.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        #     container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        # if show_quit:
-        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.window_manager.set_focus(win, darken=False, close_on_leave=True)
     
     def alert_user(self, title=None, message=None, level=None):
         show_quit = False
