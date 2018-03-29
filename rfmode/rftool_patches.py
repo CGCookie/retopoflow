@@ -221,7 +221,8 @@ class RFTool_Patches(RFTool):
             ignore = c in ignore_corners
             while True:
                 s = string_strips[-1]
-                c = next(c for c in remaining_corners if s in corners[c])
+                c = next((c for c in remaining_corners if s in corners[c]), None)
+                if not c: break
                 ignore |= c in ignore_corners
                 remaining_corners.remove(c)
                 string_corners.add(c)
@@ -617,12 +618,12 @@ class RFTool_Patches(RFTool):
         for L_strips in self.shapes['L']:
             c0,c1 = map(len, L_strips)
             s = 'L: %dx%d' % (c0,c1)
-            text_draw2D(s, [L_strips[0]])
+            text_draw2D(s, L_strips)
         for C_strips in self.shapes['C']:
             c0,c1,c2 = map(len, C_strips)
             if c0==c2:
                 s = 'C: %dx%d' % (c0,c1)
-                text_draw2D(s, [C_strips[1]])
+                text_draw2D(s, C_strips)
             else:
                 for strip in C_strips:
                     s = 'bad C: %d' % len(strip)
