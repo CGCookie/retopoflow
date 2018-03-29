@@ -196,6 +196,12 @@ class RFEdge(BMElemWrapper):
         if not verts: return None
         return RFVert(verts[0])
     
+    def nonshared_vert(self, bme):
+        bme = self._unwrap(bme)
+        verts = [v for v in self.bmelem.verts if v not in bme.verts]
+        if len(verts) != 1: return None
+        return RFVert(verts[0])
+    
     def shared_faces(self, bme):
         bme = self._unwrap(bme)
         return { RFFace(f) for f in (set(self.bmelem.link_faces) & set(bme.link_faces)) }

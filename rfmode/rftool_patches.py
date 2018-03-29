@@ -20,11 +20,13 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
+import bgl
 import math
 from itertools import chain
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Direction, mid
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
+from ..common.utils import iter_pairs
 from ..options import options
 from ..help import help_patches
 from ..lib.common_utilities import dprint
@@ -35,6 +37,7 @@ from ..common.ui import (
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
+from ..options import themes
 
 
 @RFTool.action_call('patches tool')
@@ -81,6 +84,7 @@ class RFTool_Patches(RFTool):
             'I':    [],
             'else': [],
         }
+        self.previz = []
     
     def update(self):
         '''
@@ -103,12 +107,15 @@ class RFTool_Patches(RFTool):
         '''
         
         min_angle = self.get_angle()
+        nearest_sources_Point = self.rfcontext.nearest_sources_Point
         
         self._clear_shapes()
+        
         
         ##############################################
         # find edges that could be part of a strip
         edges = set(e for e in self.rfcontext.get_selected_edges() if len(e.link_faces) <= 1)
+        
         
         ###################
         # find strips
@@ -144,6 +151,7 @@ class RFTool_Patches(RFTool):
                     neighbors[e].append(edge)
                     working.add(e)
             strips += [strip]
+        
         
         ##############################################
         # order strips to find corners and O-shapes
@@ -186,10 +194,13 @@ class RFTool_Patches(RFTool):
             nstrips.append(strip)
         strips = nstrips
         
-        ##################################
+        
+        ##################################################################
+        # find all strings (I,L,C,else) and loops (cat,tri,rect,ngon)
+        # note: all corner verts with one strip are *not* in a loop
+        
         # ignore corners with 3+ strips
         ignore_corners = {c for c in corners if len(corners[c]) > 2}
-        
         
         def align_strips(strips):
             ''' make sure that the edges at the end of adjacent strips share a vertex '''
@@ -202,9 +213,6 @@ class RFTool_Patches(RFTool):
                 assert strip1[0].share_vert(strip0[-1])
             return strips
         
-        ##################################################################
-        # find all strings (I,L,C,else) and loops (cat,tri,rect,ngon)
-        # note: all corner verts with one strip are *not* in a loop
         remaining_corners = set(corners.keys())
         string_corners = set()
         loop_corners = set()
@@ -274,6 +282,80 @@ class RFTool_Patches(RFTool):
                 self.shapes['rect'].append(loop_strips)
             else:
                 self.shapes['ngon'].append(loop_strips)
+        
+        
+        ###################
+        # generate previz
+        
+        def get_verts(strip):
+            if len(strip) == 1: return list(strip[0].verts)
+            bmvs = [strip[0].nonshared_vert(strip[1])]
+            bmvs += [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1], strip[1:])]
+            bmvs += [strip[-1].nonshared_vert(strip[-2])]
+            return bmvs
+        
+        for rect in self.shapes['rect']:
+            s0,s1,s2,s3 = rect
+            c0,c1,c2,c3 = map(len, rect)
+            if c0 != c2 or c1 != c3: continue   # invalid rect
+            s2 = list(reversed(s2))
+            s3 = list(reversed(s3))
+            
+            sv0,sv1,sv2,sv3 = get_verts(s0),get_verts(s1),get_verts(s2),get_verts(s3)
+            l0,l1 = len(sv0),len(sv1)
+            
+            verts = []
+            edges = []
+            faces = []
+            
+            for i in range(l0):
+                l,r = sv0[i],sv2[i]
+                pi = i / (l0-1)
+                for j in range(l1):
+                    t,b = sv1[j],sv3[j]
+                    pj = j / (l1-1)
+                    if i == 0:      verts += [b]
+                    elif i == l0-1: verts += [t]
+                    elif j == 0:    verts += [l]
+                    elif j == l1-1: verts += [r]
+                    else:
+                        lr = Vec(l.co)*(1-pj) + Vec(r.co)*pj
+                        tb = Vec(b.co)*(1-pi) + Vec(t.co)*pi
+                        p = (lr+tb) / 2.0
+                        # p = Point.average([l.co,r.co,t.co,b.co])
+                        verts += [nearest_sources_Point(p)[0]]
+            
+            for i in range(1,l0-1):
+                for j in range(l1-1):
+                    edges += [(
+                        i*l1+(j+0),
+                        i*l1+(j+1),
+                        )]
+            for j in range(1,l1-1):
+                for i in range(l0-1):
+                    edges += [(
+                        (i+0)*l1+j,
+                        (i+1)*l1+j,
+                        )]
+            
+            for i in range(l0-1):
+                for j in range(l1-1):
+                    faces += [(
+                        (i+0)*l1+(j+0),
+                        (i+1)*l1+(j+0),
+                        (i+1)*l1+(j+1),
+                        (i+0)*l1+(j+1)
+                        )]
+            
+            #print('rect %dx%d: %d verts, %d faces' % (l0, l1, len(verts), len(faces)))
+            self.previz += [{
+                'type': 'rect',
+                'data': rect,
+                'verts': verts,
+                'edges': edges,
+                'faces': faces,
+                }]
+        
         
         if False:
             print('')
@@ -588,6 +670,30 @@ class RFTool_Patches(RFTool):
     
     def draw_postview(self): pass
     
+    def draw_previz(self, previz, poly_alpha=0.2):
+        point_to_point2D = self.rfcontext.Point_to_Point2D
+        line_color = themes['new']
+        poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
+        
+        verts = [point_to_point2D(v if type(v) is Point else v.co) for v in previz['verts']]
+        
+        bgl.glColor4f(*line_color)
+        bgl.glBegin(bgl.GL_LINES)
+        for i0,i1 in previz['edges']:
+            bgl.glVertex2f(*verts[i0])
+            bgl.glVertex2f(*verts[i1])
+        bgl.glEnd()
+        
+        bgl.glColor4f(*poly_color)
+        bgl.glBegin(bgl.GL_TRIANGLES)
+        for f in previz['faces']:
+            co0 = verts[f[0]]
+            for i1,i2 in zip(f[1:-1],f[2:]):
+                bgl.glVertex2f(*co0)
+                bgl.glVertex2f(*verts[i1])
+                bgl.glVertex2f(*verts[i2])
+        bgl.glEnd()
+
     def draw_postpixel(self):
         point_to_point2D = self.rfcontext.Point_to_Point2D
         self.rfcontext.drawing.text_size(12)
@@ -628,4 +734,13 @@ class RFTool_Patches(RFTool):
                 for strip in C_strips:
                     s = 'bad C: %d' % len(strip)
                     text_draw2D(s, [strip])
+        
+        self.drawing.enable_stipple()
+        self.drawing.line_width(2.0)
+        self.drawing.point_size(4.0)
+        bgl.glEnable(bgl.GL_BLEND)
+        
+        for previz in self.previz: self.draw_previz(previz)
+        
+        self.drawing.disable_stipple()
 
