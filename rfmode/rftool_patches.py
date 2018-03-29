@@ -190,6 +190,18 @@ class RFTool_Patches(RFTool):
         # ignore corners with 3+ strips
         ignore_corners = {c for c in corners if len(corners[c]) > 2}
         
+        
+        def align_strips(strips):
+            ''' make sure that the edges at the end of adjacent strips share a vertex '''
+            if len(strips) == 1: return strips
+            strip0,strip1 = strips[:2]
+            if strip0[0].share_vert(strip1[0]) or strip0[0].share_vert(strip1[-1]): strip0.reverse()
+            assert strip0[-1].share_vert(strip1[0]) or strip0[-1].share_vert(strip1[-1])
+            for strip0,strip1 in zip(strips[:-1],strips[1:]):
+                if strip1[-1].share_vert(strip0[-1]): strip1.reverse()
+                assert strip1[0].share_vert(strip0[-1])
+            return strips
+        
         ##################################################################
         # find all strings (I,L,C,else) and loops (cat,tri,rect,ngon)
         # note: all corner verts with one strip are *not* in a loop
@@ -198,6 +210,8 @@ class RFTool_Patches(RFTool):
         loop_corners = set()
         strings_strips = list()
         loops_strips = list(self.shapes['O'])
+        
+        # find strips
         while remaining_corners:
             c = next((c for c in remaining_corners if len(corners[c]) == 1), None)
             if not c: break
@@ -214,6 +228,7 @@ class RFTool_Patches(RFTool):
                 if len(corners[c]) != 2: break
                 ns = next(ns for ns in corners[c] if ns != s)
                 string_strips.append(ns)
+            string_strips = align_strips(string_strips)
             if ignore: continue
             strings_strips.append(string_strips)
             if len(string_strips) == 1:
@@ -224,6 +239,8 @@ class RFTool_Patches(RFTool):
                 self.shapes['C'].append(string_strips)
             else:
                 self.shapes['else'].append(string_strips)
+        
+        # find loops
         while remaining_corners:
             c = next(iter(remaining_corners))
             remaining_corners.remove(c)
@@ -240,6 +257,7 @@ class RFTool_Patches(RFTool):
                 ns = next((ns for ns in corners[c] if ns != s), None)
                 if not ns: break
                 loop_strips.append(ns)
+            loop_strips = align_strips(loop_strips)
             if ignore: continue
             # make sure loop is actually closed
             s0,s1 = loop_strips[0],loop_strips[-1]
@@ -570,33 +588,43 @@ class RFTool_Patches(RFTool):
     def draw_postview(self): pass
     
     def draw_postpixel(self):
-        point_to_point2d = self.rfcontext.Point_to_Point2D
-        up = self.rfcontext.Vec_up()
-        size_to_size2D = self.rfcontext.size_to_size2D
-        text_draw2D = self.rfcontext.drawing.text_draw2D
+        point_to_point2D = self.rfcontext.Point_to_Point2D
         self.rfcontext.drawing.text_size(12)
         
         def get_pos(strips):
-            xy = max((point_to_point2d(bmv.co) for strip in strips for bme in strip for bmv in bme.verts), key=lambda xy:xy.y+xy.x/2)
+            #xy = max((point_to_point2D(bmv.co) for strip in strips for bme in strip for bmv in bme.verts), key=lambda xy:xy.y+xy.x/2)
+            bmvs = [bmv for strip in strips for bme in strip for bmv in bme.verts]
+            xy = sum((point_to_point2D(bmv.co) for bmv in bmvs), Vec2D((0,0))) / len(bmvs)
             return xy+Vec2D((2,14))
+        def text_draw2D(s, strips):
+            if not strips: return
+            self.rfcontext.drawing.text_draw2D(s, get_pos(strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
         
         for rect_strips in self.shapes['rect']:
             c0,c1,c2,c3 = map(len, rect_strips)
-            if c0==c2 and c1==c3: s = 'rect: %dx%d' % (c0,c1)
-            else: s = 'rect: bad (%d,%d,%d,%d)' % (c0,c1,c2,c3)
-            text_draw2D(s, get_pos(rect_strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
+            if c0==c2 and c1==c3:
+                s = 'rect: %dx%d' % (c0,c1)
+                text_draw2D(s, rect_strips)
+            else:
+                for strip in rect_strips:
+                    s = 'bad rect: %d' % len(strip)
+                    text_draw2D(s, [strip])
         
         for I_strips in self.shapes['I']:
             c = len(I_strips[0])
             s = 'I: %d' % (c,)
-            text_draw2D(s, get_pos(I_strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
+            text_draw2D(s, I_strips)
         for L_strips in self.shapes['L']:
             c0,c1 = map(len, L_strips)
             s = 'L: %dx%d' % (c0,c1)
-            text_draw2D(s, get_pos(L_strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
+            text_draw2D(s, [L_strips[0]])
         for C_strips in self.shapes['C']:
             c0,c1,c2 = map(len, C_strips)
-            if c0==c2: s = 'C: %dx%d' % (c0,c1)
-            else: s = 'C: bad (%d,%d,%d)' % (c0,c1,c2)
-            text_draw2D(s, get_pos(C_strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
+            if c0==c2:
+                s = 'C: %dx%d' % (c0,c1)
+                text_draw2D(s, [C_strips[1]])
+            else:
+                for strip in C_strips:
+                    s = 'bad C: %d' % len(strip)
+                    text_draw2D(s, [strip])
 
