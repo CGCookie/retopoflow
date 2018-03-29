@@ -141,12 +141,14 @@ class RFTool_Loops(RFTool):
         
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
+            self.rfcontext.undo_push('slide edge loop/strip')
             self.prep_edit()
-            if not self.edit_ok: return
+            if not self.edit_ok:
+                self.rfcontext.undo_cancel()
+                return
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             self.move_cancelled = 'cancel'
-            self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
         
         if self.rfcontext.actions.pressed('insert'):
@@ -196,7 +198,9 @@ class RFTool_Loops(RFTool):
             self.rfcontext.select(new_edges)
             
             self.prep_edit()
-            if not self.edit_ok: return
+            if not self.edit_ok:
+                self.rfcontext.undo_cancel()
+                return
             self.move_done_pressed = None
             self.move_done_released = ['insert', 'insert alt0']
             self.move_cancelled = 'cancel'
@@ -306,6 +310,7 @@ class RFTool_Loops(RFTool):
         #   vector is perpendicular to edge
         #   tangent is vector with unit length
         nearest_edge,_ = self.rfcontext.nearest2D_edge(edges=sel_edges)
+        if not nearest_edge: return
         bmv0,bmv1 = nearest_edge.verts
         co0,co1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
         diff = co1 - co0
