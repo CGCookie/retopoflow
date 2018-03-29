@@ -352,10 +352,15 @@ class RFFace(BMElemWrapper):
     def edges(self):
         return [RFEdge(bme) for bme in self.bmelem.edges]
 
+    def share_edge(self, other):
+        bmes = set(self._unwrap(other).edges)
+        return any(e in bmes for e in self.bmelem.edges)
+        
     def shared_edge(self, other):
         edges = set(self.bmelem.edges)
         for bme in other.bmelem.edges:
             if bme in edges: return RFEdge(bme)
+        return None
     
     def opposite_edge(self, e):
         if len(self.bmelem.edges) != 4: return None

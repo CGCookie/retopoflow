@@ -91,13 +91,13 @@ class Options:
         'polystrips max strips':    10,     # PS will not show handles if knot count is above max
         'polystrips arrows':        False,
         
-        'relax selected': False,
         'relax boundary': False,
         'relax hidden':   False,
         
-        'tweak selected': False,
         'tweak boundary': True,
         'tweak hidden':   False,
+        
+        'patches angle': 120,
     }
     
     db = None                           # current options dict

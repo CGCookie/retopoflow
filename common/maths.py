@@ -886,6 +886,11 @@ def segment2D_intersection(a0,a1, b0,b1):
 
 
 def clamp(v, min_v, max_v): return max(min_v, min(max_v, v))
+def mid(v0, v1, v2):
+    if v0 > v1: v0,v1 = v1,v0
+    if v1 > v2: v1,v2 = v2,v1
+    if v0 > v1: v0,v1 = v1,v0
+    return v1
 
 
 if __name__ == '__main__':
