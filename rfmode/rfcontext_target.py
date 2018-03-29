@@ -91,7 +91,7 @@ class RFContext_Target:
     def accel_nearest2D_vert(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
-        if not vis_accel: return None
+        if not vis_accel: return None,None
         
         if not max_dist:
             verts = self.accel_vis_verts
@@ -105,7 +105,7 @@ class RFContext_Target:
     def accel_nearest2D_edge(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
-        if not vis_accel: return None
+        if not vis_accel: return None,None
         
         if not max_dist:
             edges = self.accel_vis_edges
