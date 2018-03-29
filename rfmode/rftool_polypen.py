@@ -547,8 +547,8 @@ class RFTool_PolyPen(RFTool):
             if self.next_state == 'edge-face':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
                 e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-                bmv1,bmv2 = e1.verts
-                if d is not None and d < self.rfcontext.drawing.scale(15) and e0 == e1:
+                if e1 and d < self.rfcontext.drawing.scale(15) and e0 == e1:
+                    bmv1,bmv2 = e1.verts
                     p0 = hit_pos
                     f = next(iter(e1.link_faces), None)
                     if f:
