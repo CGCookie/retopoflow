@@ -1864,8 +1864,6 @@ class UI_WindowManager:
         self.tooltip_window.draw_postpixel()
     
     def modal(self, context, event):
-        # if self.focus: self.active = self.focus
-        
         if event.type == 'MOUSEMOVE':
             mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             self.tooltip_window.fn_sticky.set(mouse + self.tooltip_offset)
@@ -1887,6 +1885,7 @@ class UI_WindowManager:
                 if ret:
                     self.active = win
                     break
+        
         if self.active != self.active_last:
             if self.active_last and self.active_last.fn_event_handler:
                 self.active_last.fn_event_handler(context, UI_Event('HOVER', 'LEAVE'))
@@ -1902,6 +1901,7 @@ class UI_WindowManager:
                 self.set_tooltip_label(tooltip)
         else:
             self.set_tooltip_label(None)
+        
         return ret
 
 
