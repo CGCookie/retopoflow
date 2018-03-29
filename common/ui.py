@@ -1536,6 +1536,8 @@ class UI_Window(UI_Padding):
         
         self.fn_event_handler = options.get('event handler', None)
         
+        self.mouse = Point2D((0,0))
+        
         self.ui_hover = None
         self.ui_grab = [self]
         self.drawing.text_size(12)
@@ -1805,6 +1807,7 @@ class UI_WindowManager:
         return win
     
     def delete_window(self, win):
+        win.fn_event_handler(None, UI_Event('WINDOW', 'CLOSE'))
         win.delete()
         if win == self.focus: self.clear_focus()
         if win == self.active: self.clear_active()
@@ -1861,6 +1864,8 @@ class UI_WindowManager:
         self.tooltip_window.draw_postpixel()
     
     def modal(self, context, event):
+        # if self.focus: self.active = self.focus
+        
         if event.type == 'MOUSEMOVE':
             mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             self.tooltip_window.fn_sticky.set(mouse + self.tooltip_offset)
@@ -1873,6 +1878,8 @@ class UI_WindowManager:
         if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None
+        elif self.focus:
+            ret = self.focus.modal(context, event)
         else:
             self.active = None
             for win in reversed(self.windows):
