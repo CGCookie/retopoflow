@@ -650,6 +650,16 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         bgl.glDepthMask(bgl.GL_TRUE)
     
     def draw_postpixel(self):
-        pass
+        self.rfcontext.drawing.text_size(12)
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        
+        for strip in self.strips:
+            c = len(strip)
+            vs = [Point_to_Point2D(f.center()) for f in strip]
+            vs = [Vec2D(v) for v in vs if v]
+            if not vs: continue
+            ctr = sum(vs, Vec2D((0,0))) / len(vs)
+            self.rfcontext.drawing.text_draw2D('%d' % c, ctr+Vec2D((2,14)), (1,1,0,1), dropshadow=(0,0,0,0.5))
+        
     
 
