@@ -61,10 +61,10 @@ target/
 retopoflow_updater/updater_status.json
 
 # RF options files
-rf_options.bak
-rf_options.dat
-rf_options.dir
 RetopoFlow_options
+
+# RF screenshot
+RetopoFlow_screenshot.png
 
 # Profiler output file
 profiler_data.txt
