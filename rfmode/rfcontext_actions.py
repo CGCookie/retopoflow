@@ -71,7 +71,7 @@ class Actions:
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'cancel no select': {'ESC'},
         'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
-        'done': {'ESC', 'RET', 'NUMPAD_ENTER'},
+        'done': {'ESC'}, #, 'RET', 'NUMPAD_ENTER'},
         
         'undo': {'CTRL+Z'},
         'redo': {'CTRL+SHIFT+Z'},

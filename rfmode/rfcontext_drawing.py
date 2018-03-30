@@ -451,7 +451,7 @@ class RFContext_Drawing:
         extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)', align=0, margin=0)) # , icon=help_icon
         extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', align=0, margin=0))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow', align=0, margin=0))
+        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)', align=0, margin=0))
         self.tool_min.add(self.tool_selection_min)
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
