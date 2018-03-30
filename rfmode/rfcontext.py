@@ -203,6 +203,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.fps = 0
         self.exit = False
         self.tool = None
+        self.tool_setting = False
         self.set_tool(starting_tool)
         
         # touching undo stack to work around weird bug
@@ -262,15 +263,18 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     # mouse cursor functions
 
     def set_tool(self, tool, forceUpdate=False, changeTool=True):
+        if self.tool_setting: return
         if not forceUpdate and hasattr(self, 'tool') and self.tool == tool: return
-        print((changeTool, self.tool))
-        if changeTool or not self.tool: self.tool = tool
+        if changeTool or not self.tool:
+            self.tool_setting = True
+            self.tool = tool
+            # update tool window
+            self.tool_selection_min.set_option(tool.name())
+            self.tool_selection_max.set_option(tool.name())
+            self.tool.update_tool_options()
+            self.tool_setting = False
         self.tool.start()
-        self.tool.update_tool_options()
         self.tool.update()
-        # update tool window
-        self.tool_selection_min.set_option(tool.name())
-        self.tool_selection_max.set_option(tool.name())
 
     ###################################################
     # undo / redo stack operations
