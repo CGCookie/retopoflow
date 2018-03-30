@@ -28,6 +28,8 @@ from ..lib.common_utilities import showErrorMessage
 from ..options import options
 
 class RFRecover(Operator):
+    """Recovers from last auto-save"""
+    
     bl_category    = "Retopology"
     bl_idname      = "cgcookie.rf_recover"
     bl_label       = "Recover Auto Save"
@@ -117,6 +119,8 @@ class RFRecover(Operator):
     
 
 class RFRecover_Clear(Operator):
+    """Deletes auto-save files"""
+    
     bl_category    = "Retopology"
     bl_idname      = "cgcookie.rf_recover_clear"
     bl_label       = "Clear Auto Save"

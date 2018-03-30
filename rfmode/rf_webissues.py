@@ -23,6 +23,8 @@ import bpy
 from ..options import options
 
 class OpenWebIssues(bpy.types.Operator):
+    """Open Issues page in default web browser"""
+    
     bl_idname = "wm.open_webissues"
     bl_label = "Issues Page"
     

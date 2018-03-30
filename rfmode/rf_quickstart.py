@@ -26,7 +26,7 @@ from ..options import options
 from ..help import help_quickstart
 
 class OpenQuickStart(bpy.types.Operator):
-    """Open log text files in new window"""
+    """Open Quick Start Guide new window"""
     bl_idname = "wm.open_quickstart"
     bl_label = "Quick Start Guide"
     
