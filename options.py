@@ -53,6 +53,7 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         
         'show tooltips':        True,
+        'undo change tool':     False,  # should undo change the selected tool?
         
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',

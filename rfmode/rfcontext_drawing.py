@@ -356,6 +356,10 @@ class RFContext_Drawing:
         def open_tip():
             bpy.ops.wm.url_open(url=retopoflow_tip_url)
         
+        def get_undo_change_tool():
+            return options['undo change tool']
+        def set_undo_change_tool(v):
+            options['undo change tool'] = v
         def get_tooltip():
             return options['show tooltips']
         def set_tooltip(v):
@@ -478,6 +482,7 @@ class RFContext_Drawing:
         opt_theme.set_option(options['color theme'])
         dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse, tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
         dd_general.add(UI_Checkbox('Show Tooltips', get_tooltip, set_tooltip, tooltip='If enabled, tooltips (like these!) will show'))
+        dd_general.add(UI_Checkbox('Undo Changes Tool', get_undo_change_tool, set_undo_change_tool, tooltip='If enabled, undoing will switch to the previously selected tool'))
         
         set_tooltip(get_tooltip()) # inform window manager about the tooltip checkbox option
         

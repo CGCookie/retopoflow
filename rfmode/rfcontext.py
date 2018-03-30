@@ -202,6 +202,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.time_to_save = None
         self.fps = 0
         self.exit = False
+        self.tool = None
         self.set_tool(starting_tool)
         
         # touching undo stack to work around weird bug
@@ -260,9 +261,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
     ###################################################
     # mouse cursor functions
 
-    def set_tool(self, tool, forceUpdate=False):
+    def set_tool(self, tool, forceUpdate=False, changeTool=True):
         if not forceUpdate and hasattr(self, 'tool') and self.tool == tool: return
-        self.tool = tool
+        print((changeTool, self.tool))
+        if changeTool or not self.tool: self.tool = tool
         self.tool.start()
         self.tool.update_tool_options()
         self.tool.update()
@@ -284,7 +286,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self.rftarget.rewrap()
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
-        self.set_tool(state['tool'], forceUpdate=True)
+        self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
 
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
