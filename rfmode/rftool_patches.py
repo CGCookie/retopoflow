@@ -536,11 +536,16 @@ class RFTool_Patches(RFTool):
         def get_pos(strips):
             #xy = max((point_to_point2D(bmv.co) for strip in strips for bme in strip for bmv in bme.verts), key=lambda xy:xy.y+xy.x/2)
             bmvs = [bmv for strip in strips for bme in strip for bmv in bme.verts]
-            xy = sum((point_to_point2D(bmv.co) for bmv in bmvs), Vec2D((0,0))) / len(bmvs)
+            vs = [point_to_point2D(bmv.co) for bmv in bmvs]
+            vs = [Vec2D(v) for v in vs if v]
+            if not vs: return None
+            xy = sum(vs, Vec2D((0,0))) / len(vs)
             return xy+Vec2D((2,14))
         def text_draw2D(s, strips):
             if not strips: return
-            self.rfcontext.drawing.text_draw2D(s, get_pos(strips), (1,1,0,1), dropshadow=(0,0,0,0.5))
+            xy = get_pos(strips)
+            if not xy: return
+            self.rfcontext.drawing.text_draw2D(s, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
         
         for rect_strips in self.shapes['rect']:
             c0,c1,c2,c3 = map(len, rect_strips)
