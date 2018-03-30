@@ -110,9 +110,9 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (-)', align=0, margin=0))
         return [
             container,
-            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
-            UI_IntValue('Max Strips', get_max_strips, set_max_strips),
-            UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve),
+            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
+            UI_IntValue('Max Strips', get_max_strips, set_max_strips, tooltip='Sets maximum count of strips to detect (0=no max)'),
+            UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve, tooltip='Debug: draw Bezier curve for each strip'),
         ]
     
     @profiler.profile
