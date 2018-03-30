@@ -288,8 +288,8 @@ class RFTool_Patches(RFTool):
             return bmvs
         
         # rect
-        for rect in self.shapes['rect']:
-            s0,s1,s2,s3 = rect
+        for shape in self.shapes['rect']:
+            s0,s1,s2,s3 = shape
             if len(s0) != len(s2) or len(s1) != len(s3): continue   # invalid rect
             sv0,sv1,sv2,sv3 = get_verts(s0),get_verts(s1),get_verts(s2,True),get_verts(s3,True)
             l0,l1 = len(sv0),len(sv1)
@@ -318,10 +318,10 @@ class RFTool_Patches(RFTool):
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
             
-            self.previz += [{ 'type': 'rect', 'data': rect, 'verts': verts, 'edges': edges, 'faces': faces }]
+            self.previz += [{ 'type': 'rect', 'data': shape, 'verts': verts, 'edges': edges, 'faces': faces }]
         
-        for lshape in self.shapes['L']:
-            s0,s1 = lshape
+        for shape in self.shapes['L']:
+            s0,s1 = shape
             sv0,sv1 = get_verts(s0),get_verts(s1)
             l0,l1 = len(sv0),len(sv1)
             
@@ -347,10 +347,10 @@ class RFTool_Patches(RFTool):
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
             
-            self.previz += [{ 'type': 'L', 'data': lshape, 'verts': verts, 'edges': edges, 'faces': faces }]
+            self.previz += [{ 'type': 'L', 'data': shape, 'verts': verts, 'edges': edges, 'faces': faces }]
         
-        for cshape in self.shapes['C']:
-            s0,s1,s2 = cshape
+        for shape in self.shapes['C']:
+            s0,s1,s2 = shape
             if len(s0) != len(s2): continue     # invalid C-shape
             sv0,sv1,sv2 = get_verts(s0),get_verts(s1),get_verts(s2,True)
             l0,l1 = len(sv0),len(sv1)
@@ -380,8 +380,53 @@ class RFTool_Patches(RFTool):
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
             
-            self.previz += [{ 'type': 'L', 'data': cshape, 'verts': verts, 'edges': edges, 'faces': faces }]
+            self.previz += [{ 'type': 'C', 'data': shape, 'verts': verts, 'edges': edges, 'faces': faces }]
         
+        # TODO: check sides to make sure that we aren't creating geometry
+        #       on a side that already has geometry!
+        for i0,shape0 in enumerate(self.shapes['I']):
+            sv0 = get_verts(shape0[0])
+            dir0 = Direction(sv0[0].co-sv0[-1].co)
+            best_sv1,best_dist = None,0
+            for i1,shape1 in enumerate(self.shapes['I']):
+                if i1 <= i0: continue
+                sv1 = get_verts(shape1[0])
+                dir1 = Direction(sv1[0].co-sv1[-1].co)
+                if len(sv0) != len(sv1): continue
+                if dir0.dot(dir1) < 0:
+                    sv1 = list(reversed(sv1))
+                    dir1.reverse()
+                if math.degrees(dir0.angleBetween(dir1)) > 45: continue     # make sure strips are parallel enough
+                if math.degrees(dir0.angleBetween(Direction(sv1[0].co-sv0[0].co))) < 45: continue
+                if math.degrees(dir1.angleBetween(Direction(sv0[0].co-sv1[0].co))) < 45: continue
+                dist = min((v0.co-v1.co).length for v0 in sv0 for v1 in sv1)
+                if best_sv1 and best_dist < dist: continue
+                best_sv1 = sv1
+                best_dist = dist
+            if not best_sv1: continue
+            sv1,dist = best_sv1,best_dist
+            avg0 = (sv0[0].co-sv0[-1].co).length / (len(sv0)-1)
+            avg1 = (sv1[0].co-sv1[-1].co).length / (len(sv1)-1)
+            
+            l0 = len(sv0)
+            l1 = max(2, math.floor(dist / max(avg0,avg1)))
+            
+            verts,edges,faces = [],[],[]
+            for i in range(l0):
+                for j in range(l1):
+                    if   j == 0:    verts += [sv0[i]]
+                    elif j == l1-1: verts += [sv1[i]]
+                    else:
+                        pi,pj = i / (l0-1), j / (l1-1)
+                        l,r = sv0[i].co,sv1[i].co
+                        lr = Vec(l)*(1-pj) + Vec(r)*pj
+                        verts += [nearest_sources_Point(lr)[0]]
+            edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0) for j in range(l1-1)]
+            edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
+            faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
+            
+            self.previz += [{ 'type': 'I', 'data': shape0, 'verts': verts, 'edges': edges, 'faces': faces }]
+            
         
         if False:
             print('')

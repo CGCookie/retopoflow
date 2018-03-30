@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import sys
 import bpy
 import bgl
-from math import sqrt
+from math import sqrt, acos
 from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
@@ -197,6 +197,14 @@ class Direction(Vector, Entity3D):
         if t is Vec or t is Direction or t is Normal:
             return Vec(super().cross(Vector(other)))
         assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
+    def reverse(self):
+        self.x *= -1
+        self.y *= -1
+        self.z *= -1
+        return self
+    
+    def angleBetween(self, other):
+        return acos(mid(-1,1,self.dot(other.normalized())))
 
     def as_vector(self): return Vector(self)
     def from_vector(self, v):
