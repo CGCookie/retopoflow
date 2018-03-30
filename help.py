@@ -144,7 +144,6 @@ For tool-specific help, select the tool from the Tools panel, and either press F
 
 ## RetopoFlow Shortcuts
 
-- ENTER / ESC: quit RetopoFlow
 - TAB: quit RetopoFlow and enter Edit Mode
 - F1: general help
 - F2: tool help
@@ -168,7 +167,7 @@ The following shortcuts work across all the tools, although each tool may have a
 For example, pressing G in Contours will slide the selected loop.
 
 - A: deselect / select all
-- ACTION drag: select then grab and move
+- ACTION drag: transform selection
 - SELECT drag / SHIFT+SELECT drag: selection painting
 - SHIFT+SELECT click: toggle selection
 - CTRL+SELECT / CTRL+SHIFT+SELECT: smart selection
@@ -189,7 +188,7 @@ The SELECT command is set to the right mouse button.
 
 The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing CTRL+UP / SHIFT+SPACE.
 
-The Snap All Verts button will move all of the target vertices to the nearest point on the sources.
+The Snap Verts button will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
 
 The Theme option changes the color of selected geometry.
 
@@ -201,7 +200,7 @@ When the Auto Collapse Options is checked, tool options will automatically colla
 ## Symmetry Options
 
 The X,Y,Z checkboxes turn on/off symmetry or mirroring along the X, Y, and Z axes.
-Note: symmetry is the same as with mirror modifier.
+Note: symmetry utilizes the mirror modifier.
 
 When symmetry is turned on, the mirroring planes can be visualized on the sources choosing either the Edge or Face option.
 The Effect setting controls the strength of the visualization.
@@ -243,7 +242,7 @@ You can draw as many strokes as you like, in any order, from any direction.
 ## Tips
 
 - Extrude Contours from an existing edge loop by selecting it in Edit Mode before starting Contours.
-- Contours works well with mirroring!
+- Contours works with symmetry, enabling you to contour torsos and other symmetrical objects!
 '''
 
 
@@ -251,10 +250,11 @@ help_polystrips = '''
 # PolyStrips Help
 
 The PolyStrips tool provides quick and easy ways to create the key face loops needed to retopologize a complex model.
-For example, if you need to retopologize a human face, creatures, or any other complex organic or hard-surface object.
+For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.
 
 PolyStrips works by hand-drawing stokes on to the high-resolution source object.
-The strokes are instantly converted into spline-based strips of polygons, which can be used to quickly map out the key topology flow.
+The strokes are instantly converted into spline-based strips of polygons, which can be used to quickly map out the key topology flows.
+
 Clean mesh previews are generated on the fly, showing you the exact mesh that will be created.
 
 ![](help_polystrips.png)
@@ -271,12 +271,13 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 
 - ACTION: translate control point under mouse
 - SHIFT+ACTION: translate all inner control points around neighboring outer control point
+- CTRL+SHIFT+ACTION: scale strip width by click+dragging on inner control point
 
 ## Other
 
-- X: delete selected
-- SHIFT+UP / SHIFT+DOWN: increase / decrease segment counts
-- EQUALS / MINUS: increase / decrease segment counts
+- X: delete/dissolve selected
+- SHIFT+UP / SHIFT+DOWN: increase / decrease segment count of selected strip(s)
+- EQUALS / MINUS: increase / decrease segment count of selected strip(s)
 '''
 
 
@@ -295,6 +296,10 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 - SHIFT+ACTION: insert edge strip
 - A: deselect / select all
 
+## Other
+
+- X: delete/dissolve selected
+
 ## Tips
 
 Creating vertices/edges/faces is dependent on your selection:
@@ -303,6 +308,8 @@ Creating vertices/edges/faces is dependent on your selection:
 - When a single vertex is selected, an edge is added between mouse and selected vertex.
 - When an edge is selected, a triangle is added between mouse and selected edge.
 - When a triangle is selected, a vertex is added to the triangle, turning the triangle into a quad
+
+Selecting an edge and clicking onto another edge will create a quad in one step.
 '''
 
 help_tweak = '''
@@ -312,17 +319,16 @@ The Tweak tool allows you to easily adjust the vertex positions using a brush.
 
 ![](help_tweak.png)
 
-- ACTION: move vertices that are within brush
-- SHIFT+ACTION: move selected vertices that are within brush
+- ACTION: move all vertices within brush radius
+- SHIFT+ACTION: move only selected vertices within brush radius
 - F: adjust brush size
-- CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
+- CTRL+F: adjust falloff
 
 ## Options
 
 Tweak has several options to control which vertices are or are not moved.
 
-- Selected: only move vertices that are selected.
 - Boundary: allow boundary vertices to be moved.
 - Hidden: allow vertices that are behind geometry to be moved.
 '''
@@ -334,17 +340,16 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 ![](help_relax.png)
 
-- ACTION: relax vertices that are within brush
-- SHIFT+ACTION: relax selected vertices that are within brush
+- ACTION: relax all vertices within brush radius
+- SHIFT+ACTION: relax only selected vertices within brush radius
 - F: adjust brush size
-- CTRL+F: adjust falloff
 - SHIFT+F: adjust strength
+- CTRL+F: adjust falloff
 
 ## Options
 
 Relax has several options to control which vertices are or are not moved.
 
-- Selected: only move vertices that are selected.
 - Boundary: allow boundary vertices to be moved.
 - Hidden: allow vertices that are behind geometry to be moved.
 '''
@@ -357,7 +362,8 @@ The Loops tool allows you to insert new edge loops along a face loop and slide a
 ![](help_loops.png)
 
 - CTRL+ACTION: insert edge loop
-- SELECT: select edge loop
+- SELECT / SHIFT+SELECT: select edge(s)
+- CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
 - S: slide edge loop
 '''
 
