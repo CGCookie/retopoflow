@@ -123,12 +123,12 @@ class RFTool_PolyPen(RFTool):
             return 'insert alt0'
         
         if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('select and grab')
-            sel = self.nearest_vert or self.nearest_edge or self.nearest_face
-            if not sel:
-                self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select(sel, only=True)
+            self.rfcontext.undo_push('grab')
+            # sel = self.nearest_vert or self.nearest_edge or self.nearest_face
+            # if not sel:
+            #     self.rfcontext.deselect_all()
+            #     return
+            # self.rfcontext.select(sel, only=True)
             self.prep_move(defer_recomputing=False)
             return 'move after select'
 
