@@ -40,8 +40,8 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 
 What you see behind this message is here is a complete rewrite of the code base.
 RetopoFlow 2.0 now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
-We focused our 2.0 development on two main items: stability and a consistent, intuitive, and efficient user experience.
-With an established and solid framework, we will focus more on features with future releases.
+We focused our 2.0 development on two main items: stability and user experience.
+With an established and solid framework, we will focus more on features in future releases.
 
 - Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
 - Each tool has been simplified to do perform its job well.
@@ -50,9 +50,9 @@ With an established and solid framework, we will focus more on features with fut
 - Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
 - All tools have similar and consistent visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
 - Mirroring (X, Y, and/or Z) is now visualized by overlaying a color on all the source meshes.
-- Every change automatically changes the target mesh!
+- Every change automatically commits to the target mesh; geometry is created in real-time! No more lost work from crashing.
 - Auto saves will trigger!
-- Undo and redo are universally available within RF Mode.  Call them to roll back any change.
+- Undo and redo are universally available within RF Mode. Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
 
 
 ## Feedback
@@ -65,7 +65,7 @@ Please consider doing the following:
 - Consider donating to our drink funds :)
 
 We have worked hard to make this as production ready as possible.
-We focused on stability and bug handling in addition to focusing features, improving overall speed, and making RetopoFlow easier to use.
+We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
 However, if you find a bug or a missing feature, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
 We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
@@ -79,8 +79,8 @@ Below is a list of known issues that we are working on.
 
 - Very large source meshes cause a delay and stutter at start-up time.  Note: the sources are cached, so RF will load much more quickly the second time.
 - Very large target meshes causes slowness in some tools.
-- Patches handles only simple hole shapes.
-- Display scales other than 1.0 (ex: Retina) does not display correct.
+- Patches supports only rudimentary fills
+- Display scales other than 1.0 (ex: Retina) do not display correct.
 
 
 ## Final Words

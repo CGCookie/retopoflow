@@ -73,11 +73,11 @@ class RFContext_Drawing:
             'no selection': True,
             'no below': True,
             'triangles only': True,     # source bmeshes are triangles only!
-            
+
             'focus mult': 0.01,
         }
         return opts
-        
+
     def get_target_render_options(self):
         color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
         color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
@@ -114,20 +114,20 @@ class RFContext_Drawing:
             'point mirror size': 3.0,
             'point mirror offset': 0.000015,
             'point mirror dotoffset': 1.0,
-            
+
             'focus mult': 1.0,
         }
         return opts
 
     def quit(self): self.exit = True
-    
+
     def set_symmetry(self, axis, enable):
         if enable: self.rftarget.enable_symmetry(axis)
         else: self.rftarget.disable_symmetry(axis)
         #for rfs in self.rfsources: rfs.dirty()
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
-    
+
     def toggle_help(self, general=None):
         if general is None:
             self.window_manager.clear_focus()
@@ -142,13 +142,13 @@ class RFContext_Drawing:
             self.window_help.scrollto_top()
             self.window_manager.set_focus(self.window_help)
             #self.window_help.visible = True
-    
+
     def toggle_help_button(self):
         if self.help_button.get_label() == 'General Help':
             self.toggle_general_help()
         else:
             self.toggle_tool_help()
-    
+
     def toggle_general_help(self):
         if self.help_button.get_label() == 'Tool Help':
             self.toggle_help()
@@ -161,13 +161,13 @@ class RFContext_Drawing:
         else:
             self.help_button.set_label('General Help')
             self.toggle_help(False)
-    
+
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
         self.alert_user(title=title, message=message, level='assert')
         if throw: assert False
         return False
-    
+
     def option_user(self, options, callback, title=None):
         def close():
             nonlocal win
@@ -179,13 +179,13 @@ class RFContext_Drawing:
             #if event.type == 'HOVER' and event.value == 'LEAVE':
             #    close()
             # print(event)
-        
+
         def create_option(opt, grpopt, tooltip, container):
             def fn():
                 close()
                 callback(grpopt)
             return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), margin=0))
-        
+
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
             'movable': False,
@@ -210,7 +210,7 @@ class RFContext_Drawing:
                 create_option(opt, opt, opt, bigcontainer)
                 prev_container = False
         self.window_manager.set_focus(win, darken=False, close_on_leave=True)
-    
+
     def alert_user(self, title=None, message=None, level=None):
         show_quit = False
         level = level.lower() if level else 'note'
@@ -248,7 +248,7 @@ class RFContext_Drawing:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
             message = message or 'a note'
-        
+
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
@@ -266,7 +266,7 @@ class RFContext_Drawing:
                 filepath = os.path.join(filepath, ss_filename)
             bpy.ops.screen.screenshot(filepath=filepath)
             self.alert_user(message='Saved screenshot to "%s"' % filepath)
-            
+
         def report():
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
@@ -283,17 +283,17 @@ class RFContext_Drawing:
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
-        
+
         def event_handler(context, event):
             if event.type == 'WINDOW' and event.value == 'CLOSE':
                 self.alert_windows -= 1
             if event.type == 'ESC' and event.value == 'RELEASE':
                 close()
-        
+
         if self.alert_windows >= 5:
             return
             #self.exit = True
-        
+
         opts = {
             'sticky': 5,
             'movable': False,
@@ -311,20 +311,20 @@ class RFContext_Drawing:
             container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
             container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        
+
         self.window_manager.set_focus(win, darken=darken)
-        
+
         self.alert_windows += 1
-        
-    
+
+
     def _init_drawing(self):
         self.drawing = Drawing.get_instance()
         self.window_manager = UI_WindowManager()
-        
+
         self.drawing.set_region(self.actions.region, self.actions.r3d, bpy.context.window)
-        
+
         self.alert_windows = 0
-        
+
         def get_selected_tool():
             return self.tool.name()
         def set_selected_tool(name):
@@ -350,16 +350,17 @@ class RFContext_Drawing:
             self.window_welcome.visible = options['welcome']
             #self.window_manager.clear_active()
             self.window_manager.clear_focus()
-        
+
         def open_github():
             bpy.ops.wm.url_open(url=retopoflow_issues_url)
         def open_tip():
             bpy.ops.wm.url_open(url=retopoflow_tip_url)
-        
+
         def get_undo_change_tool():
             return options['undo change tool']
         def set_undo_change_tool(v):
             options['undo change tool'] = v
+
         def get_tooltip():
             return options['show tooltips']
         def set_tooltip(v):
@@ -411,7 +412,7 @@ class RFContext_Drawing:
         def set_clip_start(v): self.actions.space.clip_start = clamp(v, 1e-6, 1e9)
         def get_clip_end():    return self.actions.space.clip_end
         def set_clip_end(v):   self.actions.space.clip_end = clamp(v, 1e-6, 1e9)
-        
+
         def wrap_pos_option(key):
             def get():
                 v = options[key]
@@ -427,7 +428,7 @@ class RFContext_Drawing:
             def set(v): options[key] = v
             options.set_default(key, default_val)
             return GetSet(get, set)
-        
+
         self.tool_window = self.window_manager.create_window('Tools', {'fn_pos':wrap_pos_option('tools pos')})
         self.tool_max = UI_Container(margin=0)
         self.tool_min = UI_Container(margin=0, vertical=False)
@@ -442,7 +443,7 @@ class RFContext_Drawing:
             if ui_options: tools_options.append((rft.bl_label,ui_options))
         get_tool_collapsed()
         self.tool_max.add(self.tool_selection_max)
-        
+
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
@@ -455,17 +456,17 @@ class RFContext_Drawing:
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
         self.tool_window.add(self.tool_min)
-        
-        
+
+
         window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
         container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message', align=0, margin=0))
         container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)', align=0, margin=0))
         window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"', align=0, margin=0))
-        
+
         window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
-        
+
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)', align=0))
         container_snap = dd_general.add(UI_Container(vertical=False))
@@ -483,10 +484,10 @@ class RFContext_Drawing:
         dd_general.add(UI_Checkbox('Auto Collapse Options', get_autocollapse, set_autocollapse, tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
         dd_general.add(UI_Checkbox('Show Tooltips', get_tooltip, set_tooltip, tooltip='If enabled, tooltips (like these!) will show'))
         dd_general.add(UI_Checkbox('Undo Changes Tool', get_undo_change_tool, set_undo_change_tool, tooltip='If enabled, undoing will switch to the previously selected tool'))
-        
+
         set_tooltip(get_tooltip()) # inform window manager about the tooltip checkbox option
-        
-        
+
+
         container_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
         dd_symmetry = container_symmetry.add(UI_EqualContainer(vertical=False))
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), tooltip='Toggle X-Symmetry for target', spacing=0))
@@ -497,21 +498,21 @@ class RFContext_Drawing:
         opt_symmetry_view.add_option('Edge', tooltip='Highlight symmetry on source meshes as edge loop(s)', align=0)
         opt_symmetry_view.add_option('Face', tooltip='Highlight symmetry by coloring source meshes', align=0)
         container_symmetry.add(UI_IntValue('Effect', get_symmetry_effect, set_symmetry_effect, tooltip='Controls strength of symmetry visualization'))
-        
+
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
             ui_options = window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
             for tool_option in tool_options: ui_options.add(tool_option)
-        
+
         info_adv = window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
-        
+
         fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf', tooltip="Seconds until autosave is triggered (based on Blender settings)"))
-        
+
         info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
-        
+
         if retopoflow_profiler:
             info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
             prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
@@ -519,9 +520,9 @@ class RFContext_Drawing:
             prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
             prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
             update_profiler_visible()
-        
+
         info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values', align=0))
-        
+
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
                 hide_reporting()
@@ -531,7 +532,7 @@ class RFContext_Drawing:
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         if options['welcome']: self.window_manager.set_focus(self.window_welcome)
-        
+
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
                 self.toggle_help()
@@ -565,26 +566,26 @@ class RFContext_Drawing:
 
         self.tool.draw_postpixel()
         self.rfwidget.draw_postpixel()
-        
+
         self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
-        self.window_debug_save.set_label('save: %0.0f' % (self.time_to_save or float('inf')))
+        self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
         self.window_manager.draw_postpixel()
 
     def draw_preview(self):
         if not self.actions.r3d: return
-        
+
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
-        
+
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
-        
+
         bgl.glBegin(bgl.GL_TRIANGLES)
         for i in range(0,360,10):
             r0,r1 = i*math.pi/180.0, (i+10)*math.pi/180.0
@@ -596,7 +597,7 @@ class RFContext_Drawing:
             bgl.glVertex2f(x0,y0)
             bgl.glVertex2f(x1,y1)
         bgl.glEnd()
-        
+
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
@@ -605,7 +606,7 @@ class RFContext_Drawing:
     @profiler.profile
     def draw_postview(self):
         if not self.actions.r3d: return
-        
+
         buf_matrix_target = self.rftarget_draw.buf_matrix_model
         buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
         buf_matrix_view_invtrans = XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
@@ -615,23 +616,22 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
-        
+
         # get frame of target, used for symmetry decorations on sources
         ft = self.rftarget.get_frame()
-        
+
         pr = profiler.start('render sources')
         for rs,rfs in zip(self.rfsources, self.rfsources_draw):
             rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                 symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
                 symmetry_effect=options['symmetry effect'], symmetry_frame=ft)
         pr.done()
-        
+
         pr = profiler.start('render target')
         self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj)
         pr.done()
-        
+
         pr = profiler.start('render other')
         self.tool.draw_postview()
         self.rfwidget.draw_postview()
         pr.done()
-
