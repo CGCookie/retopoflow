@@ -130,23 +130,15 @@ class RFTool_Patches(RFTool):
                 strip.add(edge)
                 remaining_edges.remove(edge)
                 v0,v1 = edge.verts
-                face = next(iter(edge.link_faces), None)
                 for e in chain(v0.link_edges, v1.link_edges):
                     if e not in remaining_edges: continue
-                    f = next(iter(e.link_faces), None)
-                    if face:
-                        if not f: continue
-                        if face == f: continue
-                        if not face.share_edge(f): continue
-                    else:
-                        if f: continue
-                        bmv1 = edge.shared_vert(e)
-                        bmv0 = edge.other_vert(bmv1)
-                        bmv2 = e.other_vert(bmv1)
-                        d10 = Direction(bmv0.co-bmv1.co)
-                        d12 = Direction(bmv2.co-bmv1.co)
-                        angle = math.degrees(math.acos(d10.dot(d12)))
-                        if angle < min_angle: continue
+                    bmv1 = edge.shared_vert(e)
+                    bmv0 = edge.other_vert(bmv1)
+                    bmv2 = e.other_vert(bmv1)
+                    d10 = Direction(bmv0.co-bmv1.co)
+                    d12 = Direction(bmv2.co-bmv1.co)
+                    angle = math.degrees(math.acos(mid(-1,1,d10.dot(d12))))
+                    if angle < min_angle: continue
                     neighbors[edge].append(e)
                     neighbors[e].append(edge)
                     working.add(e)
@@ -287,74 +279,108 @@ class RFTool_Patches(RFTool):
         ###################
         # generate previz
         
-        def get_verts(strip):
+        def get_verts(strip, rev=False):
             if len(strip) == 1: return list(strip[0].verts)
             bmvs = [strip[0].nonshared_vert(strip[1])]
             bmvs += [e0.shared_vert(e1) for e0,e1 in zip(strip[:-1], strip[1:])]
             bmvs += [strip[-1].nonshared_vert(strip[-2])]
+            if rev: bmvs.reverse()
             return bmvs
         
+        # rect
         for rect in self.shapes['rect']:
             s0,s1,s2,s3 = rect
-            c0,c1,c2,c3 = map(len, rect)
-            if c0 != c2 or c1 != c3: continue   # invalid rect
-            s2 = list(reversed(s2))
-            s3 = list(reversed(s3))
-            
-            sv0,sv1,sv2,sv3 = get_verts(s0),get_verts(s1),get_verts(s2),get_verts(s3)
+            if len(s0) != len(s2) or len(s1) != len(s3): continue   # invalid rect
+            sv0,sv1,sv2,sv3 = get_verts(s0),get_verts(s1),get_verts(s2,True),get_verts(s3,True)
             l0,l1 = len(sv0),len(sv1)
             
-            verts = []
-            edges = []
-            faces = []
+            # single edge strips: edge may be "facing" the wrong way
+            if l0==2 and sv0[1] not in sv1: sv0.reverse()
+            if l1==2 and sv1[0] not in sv0: sv1.reverse()
+            if l0==2 and sv2[0] not in sv1: sv2.reverse()
+            if l1==2 and sv3[0] not in sv2: sv3.reverse()
             
+            verts,edges,faces = [],[],[]
             for i in range(l0):
                 l,r = sv0[i],sv2[i]
-                pi = i / (l0-1)
                 for j in range(l1):
                     t,b = sv1[j],sv3[j]
-                    pj = j / (l1-1)
-                    if i == 0:      verts += [b]
+                    if   i == 0:    verts += [b]
                     elif i == l0-1: verts += [t]
                     elif j == 0:    verts += [l]
                     elif j == l1-1: verts += [r]
                     else:
+                        pi,pj = i / (l0-1), j / (l1-1)
                         lr = Vec(l.co)*(1-pj) + Vec(r.co)*pj
                         tb = Vec(b.co)*(1-pi) + Vec(t.co)*pi
-                        p = (lr+tb) / 2.0
-                        # p = Point.average([l.co,r.co,t.co,b.co])
-                        verts += [nearest_sources_Point(p)[0]]
+                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+            edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(1,l0-1) for j in range(l1-1)]
+            edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
+            faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
             
-            for i in range(1,l0-1):
-                for j in range(l1-1):
-                    edges += [(
-                        i*l1+(j+0),
-                        i*l1+(j+1),
-                        )]
-            for j in range(1,l1-1):
-                for i in range(l0-1):
-                    edges += [(
-                        (i+0)*l1+j,
-                        (i+1)*l1+j,
-                        )]
+            self.previz += [{ 'type': 'rect', 'data': rect, 'verts': verts, 'edges': edges, 'faces': faces }]
+        
+        for lshape in self.shapes['L']:
+            s0,s1 = lshape
+            sv0,sv1 = get_verts(s0),get_verts(s1)
+            l0,l1 = len(sv0),len(sv1)
             
-            for i in range(l0-1):
-                for j in range(l1-1):
-                    faces += [(
-                        (i+0)*l1+(j+0),
-                        (i+1)*l1+(j+0),
-                        (i+1)*l1+(j+1),
-                        (i+0)*l1+(j+1)
-                        )]
+            # single edge strips: edge may be "facing" the wrong way
+            if l0==2 and sv0[1] not in sv1: sv0.reverse()
+            if l1==2 and sv1[0] not in sv0: sv1.reverse()
             
-            #print('rect %dx%d: %d verts, %d faces' % (l0, l1, len(verts), len(faces)))
-            self.previz += [{
-                'type': 'rect',
-                'data': rect,
-                'verts': verts,
-                'edges': edges,
-                'faces': faces,
-                }]
+            off0,off1 = sv0[-1].co-sv0[0].co, sv1[-1].co-sv1[0].co
+            
+            verts,edges,faces = [],[],[]
+            for i in range(l0):
+                for j in range(l1):
+                    if   i == l0-1: verts += [sv1[j]]
+                    elif j == 0:    verts += [sv0[i]]
+                    else:
+                        l,r = sv0[i].co,sv0[i].co+off1
+                        t,b = sv1[j].co,sv1[j].co-off0
+                        pi,pj = i / (l0-1), j / (l1-1)
+                        lr = Vec(l)*(1-pj) + Vec(r)*pj
+                        tb = Vec(b)*(1-pi) + Vec(t)*pi
+                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+            edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0-1) for j in range(l1-1)]
+            edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1) for i in range(l0-1)]
+            faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
+            
+            self.previz += [{ 'type': 'L', 'data': lshape, 'verts': verts, 'edges': edges, 'faces': faces }]
+        
+        for cshape in self.shapes['C']:
+            s0,s1,s2 = cshape
+            if len(s0) != len(s2): continue     # invalid C-shape
+            sv0,sv1,sv2 = get_verts(s0),get_verts(s1),get_verts(s2,True)
+            l0,l1 = len(sv0),len(sv1)
+            
+            # single edge strips: edge may be "facing" the wrong way
+            if l0==2 and sv0[1] not in sv1: sv0.reverse()
+            if l1==2 and sv1[0] not in sv0: sv1.reverse()
+            if l0==2 and sv2[-1] not in sv1: sv2.reverse()
+            
+            off0,off2 = sv0[0].co-sv0[-1].co, sv2[0].co-sv2[-1].co
+            
+            verts,edges,faces = [],[],[]
+            for i in range(l0):
+                for j in range(l1):
+                    if   i == l0-1: verts += [sv1[j]]
+                    elif j == 0:    verts += [sv0[i]]
+                    elif j == l1-1: verts += [sv2[i]]
+                    else:
+                        pi,pj = i / (l0-1), j / (l1-1)
+                        off = off0*(1-pj)+off2*pj
+                        l,r = sv0[i].co,sv2[i].co
+                        t,b = sv1[j].co,sv1[j].co+off
+                        lr = Vec(l)*(1-pj) + Vec(r)*pj
+                        tb = Vec(b)*(1-pi) + Vec(t)*pi
+                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+            edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0-1) for j in range(l1-1)]
+            edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
+            faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
+            
+            self.previz += [{ 'type': 'L', 'data': cshape, 'verts': verts, 'edges': edges, 'faces': faces }]
         
         
         if False:
