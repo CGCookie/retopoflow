@@ -25,6 +25,7 @@ import os
 import json
 
 from ..lib.common_utilities import showErrorMessage
+from ..options import options
 
 class RFRecover(Operator):
     bl_category    = "Retopology"
@@ -36,10 +37,9 @@ class RFRecover(Operator):
     rf_icon = 'rf_recover_icon'
     
     @classmethod
-    def filepath(cls):
+    def filepath(cls, ext):
         tempdir = bpy.context.user_preferences.filepaths.temporary_directory
-        filepath = os.path.join(tempdir, 'retopoflow_backup.blend')
-        return filepath
+        return os.path.join(tempdir, '%s.%s' % (options['backup_filename'], ext))
     
     @classmethod
     def save_window_state(cls):
@@ -70,14 +70,12 @@ class RFRecover(Operator):
                 data_wm.append(data_win)
             data['data_wm'][wm.name] = data_wm
         
-        tempdir = bpy.context.user_preferences.filepaths.temporary_directory
-        filepath = os.path.join(tempdir, 'retopoflow_backup.state')
+        filepath = RFRecover.filepath('state')
         open(filepath, 'wt').write(json.dumps(data))
     
     @classmethod
     def restore_window_state(cls):
-        tempdir = bpy.context.user_preferences.filepaths.temporary_directory
-        filepath = os.path.join(tempdir, 'retopoflow_backup.state')
+        filepath = RFRecover.filepath('state')
         if not os.path.exists(filepath): return
         data = json.loads(open(filepath, 'rt').read())
         for wm in bpy.data.window_managers:
@@ -95,7 +93,7 @@ class RFRecover(Operator):
     
     @classmethod
     def recover(cls):
-        bpy.ops.wm.open_mainfile(filepath=cls.filepath())
+        bpy.ops.wm.open_mainfile(filepath=RFRecover.filepath('blend'))
         
         if 'RetopoFlow_Rotate' in bpy.data.objects:
             # need to remove empty object for rotation
@@ -111,7 +109,7 @@ class RFRecover(Operator):
     
     @classmethod
     def poll(cls, context):
-        return os.path.exists(cls.filepath())
+        return os.path.exists(RFRecover.filepath('blend')) and os.path.exists(RFRecover.filepath('state'))
     
     def invoke(self, context, event):
         self.recover()
@@ -129,9 +127,9 @@ class RFRecover_Clear(Operator):
     
     @classmethod
     def poll(cls, context):
-        return os.path.exists(RFRecover.filepath())
+        return os.path.exists(RFRecover.filepath('blend')) and os.path.exists(RFRecover.filepath('state'))
     
     def invoke(self, context, event):
-        filepath = RFRecover.filepath()
-        os.remove(filepath)
+        os.remove(RFRecover.filepath('blend'))
+        os.remove(RFRecover.filepath('state'))
         return {'FINISHED'}

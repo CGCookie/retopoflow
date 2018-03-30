@@ -62,6 +62,7 @@ from .rfmesh_render import RFMeshRender
 
 from .rftool import RFTool
 from .rfwidget import RFWidget
+from .rf_recover import RFRecover
 
 
 #######################################################
@@ -358,8 +359,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
             else: self.time_to_save -= self.actions.time_delta
             if self.time_to_save <= 0:
                 # tempdir = bpy.app.tempdir
-                tempdir = context.user_preferences.filepaths.temporary_directory
-                filepath = os.path.join(tempdir, 'RetopoFlow_backup.blend')
+                filepath = RFRecover.filepath('blend')
                 dprint('auto saving to %s' % filepath)
                 if os.path.exists(filepath): os.remove(filepath)
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)

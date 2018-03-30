@@ -502,7 +502,7 @@ class RFContext_Drawing:
         
         fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
-        self.window_debug_save = fps_save.add(UI_Label('save: inf'))
+        self.window_debug_save = fps_save.add(UI_Label('save: inf', tooltip="Seconds until autosave is triggered (based on Blender settings)"))
         
         info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
