@@ -42,7 +42,7 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer,
-    UI_IntValue,
+    UI_IntValue, UI_UpdateValue,
     GetSet,
     )
 from ..lib import common_drawing_bmesh as bmegl
@@ -410,8 +410,24 @@ class RFContext_Drawing:
         def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)
         def get_clip_start():  return self.actions.space.clip_start
         def set_clip_start(v): self.actions.space.clip_start = clamp(v, 1e-6, 1e9)
+        def upd_clip_start(u):
+            l = 2
+            v = math.log(self.actions.space.clip_start) / math.log(l)
+            v = clamp(v + u/10, -10, 10)
+            v = math.pow(l, v)
+            self.actions.space.clip_start = v
         def get_clip_end():    return self.actions.space.clip_end
         def set_clip_end(v):   self.actions.space.clip_end = clamp(v, 1e-6, 1e9)
+        def upd_clip_end(u):
+            l = 2
+            v = math.log(self.actions.space.clip_end) / math.log(l)
+            v = clamp(v + u/10, -10, 10)
+            v = math.pow(l, v)
+            self.actions.space.clip_end = v
+        def get_clip_start_print_value(): return '%0.4f' % self.actions.space.clip_start
+        def set_clip_start_print_value(v): set_clip_start(v)
+        def get_clip_end_print_value():   return '%0.4f' % self.actions.space.clip_end
+        def set_clip_end_print_value(v): set_clip_end(v)
 
         def wrap_pos_option(key):
             def get():
@@ -474,8 +490,8 @@ class RFContext_Drawing:
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', align=0, margin=0))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', align=0, margin=0))
         dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        dd_general.add(UI_IntValue('Clip Start', get_clip_start, set_clip_start, tooltip='Set viewport clip start'))
-        dd_general.add(UI_IntValue('Clip End',   get_clip_end,   set_clip_end,   tooltip='Set viewport clip end'))
+        dd_general.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
+        dd_general.add(UI_UpdateValue('Clip End',   get_clip_end,   set_clip_end,   upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))

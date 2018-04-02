@@ -24,6 +24,7 @@ import re
 import bpy
 import bgl
 import blf
+import math
 import time
 import random
 import traceback
@@ -1270,6 +1271,128 @@ class UI_IntValue(UI_Container):
     
     def mouse_move(self, mouse):
         self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
+    
+    def mouse_up(self, mouse):
+        self.downed = False
+    
+    def predraw(self):
+        if not self.captured:
+            fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
+            self.val.set_label(fn())
+            self.val.cursor_pos = None
+        else:
+            self.val.cursor_pos = self.val_pos
+    
+    def _draw(self):
+        r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
+        l,t = self.pos
+        w,h = self.size
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.line_width(1)
+        bgl.glColor4f(r,g,b,a)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l,t)
+        bgl.glVertex2f(l,t-h)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glVertex2f(l+w,t)
+        bgl.glVertex2f(l,t)
+        bgl.glEnd()
+        super()._draw()
+    
+    def capture_start(self):
+        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
+        self.val_orig = fn()
+        self.val_edit = str(self.val_orig)
+        self.val_pos = len(self.val_edit)
+        self.captured = True
+        self.keys = {
+            'ZERO':   '0', 'NUMPAD_0':      '0',
+            'ONE':    '1', 'NUMPAD_1':      '1',
+            'TWO':    '2', 'NUMPAD_2':      '2',
+            'THREE':  '3', 'NUMPAD_3':      '3',
+            'FOUR':   '4', 'NUMPAD_4':      '4',
+            'FIVE':   '5', 'NUMPAD_5':      '5',
+            'SIX':    '6', 'NUMPAD_6':      '6',
+            'SEVEN':  '7', 'NUMPAD_7':      '7',
+            'EIGHT':  '8', 'NUMPAD_8':      '8',
+            'NINE':   '9', 'NUMPAD_9':      '9',
+            'PERIOD': '.', 'NUMPAD_PERIOD': '.',
+            'MINUS':  '-', 'NUMPAD_MINUS':  '-',
+        }
+        set_cursor('TEXT')
+        return True
+    
+    def capture_event(self, event):
+        time_delta = time.time() - self.time_start
+        self.val.cursor_symbol = None if int(time_delta*10)%5 == 0 else '|'
+        if event.value == 'RELEASE':
+            if event.type in {'RET','NUMPAD_ENTER'}:
+                self.captured = False
+                try:
+                    v = float(self.val_edit)
+                except:
+                    v = self.val_orig
+                if self.fn_set_print_value: self.fn_set_print_value(v)
+                else: self.fn_set_value(v)
+                return True
+            if event.type == 'ESC':
+                self.captured = False
+                return True
+        if event.value == 'PRESS':
+            if event.type == 'LEFT_ARROW':
+                self.val_pos = max(0, self.val_pos - 1)
+            if event.type == 'RIGHT_ARROW':
+                self.val_pos = min(len(self.val_edit), self.val_pos + 1)
+            if event.type == 'HOME':
+                self.val_pos = 0
+            if event.type == 'END':
+                self.val_pos = len(self.val_edit)
+            if event.type == 'BACK_SPACE' and self.val_pos > 0:
+                self.val_edit = self.val_edit[:self.val_pos-1] + self.val_edit[self.val_pos:]
+                self.val_pos -= 1
+            if event.type == 'DEL' and self.val_pos < len(self.val_edit):
+                self.val_edit = self.val_edit[:self.val_pos] + self.val_edit[self.val_pos+1:]
+            if event.type in self.keys:
+                self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
+                self.val_pos += 1
+            self.val.set_label(self.val_edit)
+
+class UI_UpdateValue(UI_Container):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value, fn_get_print_value=None, fn_set_print_value=None, **kwargs):
+        assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
+        super().__init__(vertical=False)
+        # self.margin = 0
+        self.lbl = UI_Label(label)
+        self.val = UI_Label(fn_get_value())
+        self.add(self.lbl)
+        self.add(UI_Label(':'))
+        self.add(UI_Spacer(width=4))
+        self.add(self.val)
+        self.fn_get_value = fn_get_value
+        self.fn_set_value = fn_set_value
+        self.fn_update_value = fn_update_value
+        self.fn_get_print_value = fn_get_print_value
+        self.fn_set_print_value = fn_set_print_value
+        self.downed = False
+        self.captured = False
+        self.time_start = time.time()
+        self.tooltip = kwargs.get('tooltip', None)
+    
+    def _get_tooltip(self, mouse): return self.tooltip
+    
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
+    
+    def mouse_down(self, mouse):
+        self.down_mouse = mouse
+        self.prev_mouse = mouse
+        self.down_val = self.fn_get_value()
+        self.downed = True
+        set_cursor('MOVE_X')
+    
+    def mouse_move(self, mouse):
+        self.fn_update_value((mouse.x - self.prev_mouse.x) / 10)
+        self.prev_mouse = mouse
     
     def mouse_up(self, mouse):
         self.downed = False
