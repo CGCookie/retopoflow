@@ -474,6 +474,8 @@ class RFContext_Drawing:
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', align=0, margin=0))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', align=0, margin=0))
         dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
+        dd_general.add(UI_IntValue('Clip Start', get_clip_start, set_clip_start, tooltip='Set viewport clip start'))
+        dd_general.add(UI_IntValue('Clip End',   get_clip_end,   set_clip_end,   tooltip='Set viewport clip end'))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(get_theme, set_theme, vertical=False, margin=0))
