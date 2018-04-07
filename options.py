@@ -145,6 +145,21 @@ class Options:
     def set_defaults(self, d_key_vals):
         for key in d_key_vals:
             self.set_default(key, d_key_vals[key])
+    def getter(self, key, getwrap=None):
+        if not getwrap: getwrap = lambda v: v
+        def _getter(): return getwrap(options[key])
+        return _getter
+    def setter(self, key, setwrap=None, setcallback=None):
+        if not setwrap: setwrap = lambda v: v
+        if not setcallback:
+            def nop(v): pass
+            setcallback = nop
+        def _setter(v):
+            options[key] = setwrap(v)
+            setcallback(options[key])
+        return _setter
+    def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
+        return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
 def rgba_to_float(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
 class Themes:

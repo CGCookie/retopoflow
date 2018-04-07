@@ -43,6 +43,7 @@ from mathutils import Matrix, Vector
 
 from .rfcontext_actions import RFContext_Actions
 from .rfcontext_drawing import RFContext_Drawing
+from .rfcontext_ui import RFContext_UI
 from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
@@ -114,7 +115,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContext_Target, RFContext_Sources):
+class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Target, RFContext_Sources):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -192,7 +193,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_Spaces, RFContex
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
-        self._init_drawing()            # set up drawing utilities
+        self._init_ui()                 # set up user interface
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects, must call *AFTER* target is initialized!
         self._init_rotate_about_active()    # must call *AFTER* target is initialized!
