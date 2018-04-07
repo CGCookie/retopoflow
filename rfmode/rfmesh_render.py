@@ -47,6 +47,7 @@ from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_drawing_bmesh import BGLBufferedRender
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
+from ..options import options
 
 from ..common.utils import hash_object, hash_bmesh
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
@@ -111,7 +112,7 @@ class RFMeshRender():
     def __init__(self, rfmesh, opts):
         assert hasattr(RFMeshRender, 'creating'), 'Do not create new RFMeshRender directly!  Use RFMeshRender.new()'
         
-        self.async_load = True      # initially loading asynchronously
+        self.async_load = options['async mesh loading']   # initially loading asynchronously
         self._is_loading = False
         self._is_loaded = False
         self._buffer_data = None

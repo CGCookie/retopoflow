@@ -62,6 +62,8 @@ class Options:
         'info pos':     1,
         'options pos':  9,
         
+        'async mesh loading': True,
+        
         'tools autocollapse': True,
         'tools general collapsed': False,       # is general tools collapsed
         'tools symmetry collapsed': True,       # is symmetry tools collapsed

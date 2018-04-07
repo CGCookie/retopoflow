@@ -385,6 +385,8 @@ class RFContext_Drawing:
             self.replace_opts()
         def get_instrument(): return options['instrument']
         def set_instrument(v): options['instrument'] = v
+        def get_async_load(): return options['async mesh loading']
+        def set_async_load(v): options['async mesh loading'] = v
         def get_autocollapse(): return options['tools autocollapse']
         def set_autocollapse(v): options['tools autocollapse'] = v
         def update_profiler_visible():
@@ -530,6 +532,7 @@ class RFContext_Drawing:
 
         info_adv.add(UI_IntValue('Debug Level', get_debug_level, set_debug_level))
         info_adv.add(UI_Checkbox('Instrument', get_instrument, set_instrument))
+        info_adv.add(UI_Checkbox('Async Loading', get_async_load, set_async_load, tooltip="Load meshes asynchronously"))
 
         if retopoflow_profiler:
             info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
