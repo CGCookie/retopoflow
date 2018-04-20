@@ -62,9 +62,11 @@ retopoflow_updater/updater_status.json
 
 # RF options files
 RetopoFlow_options
+RetopoFlow_options.json
 
 # RF screenshot
 RetopoFlow_screenshot.png
 
 # Profiler output file
 profiler_data.txt
+RetopoFlow_profiler.txt
