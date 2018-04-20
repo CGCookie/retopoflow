@@ -32,40 +32,48 @@ class Profiler:
     
     class ProfilerHelper(object):
         def __init__(self, pr, text):
-            full_text = (pr.stack[-1].text+'^' if pr.stack else '') + text
+            full_text = (pr.stack[-1].full_text+'^' if pr.stack else '') + text
             if full_text in pr.d_start:
                 Profiler.broken = True
                 assert False, '"%s" found in profiler already?'%text
             self.pr = pr
-            self.text = full_text
+            self.text = text
+            self.full_text = full_text
             self._is_done = False
-            self.pr.d_start[self.text] = time.time()
-            self.pr.stack += [self]
+            self.pr.d_start[self.full_text] = time.time()
+            self.pr.stack.append(self)
+        
         def __del__(self):
             if Profiler.broken: return
             if self._is_done: return
             Profiler.broken = True
             print('Deleting Profiler before finished')
             #assert False, 'Deleting Profiler before finished'
+        
+        def update(self, key, delta):
+            self.pr.d_count[key] = self.pr.d_count.get(key,0) + 1
+            self.pr.d_times[key] = self.pr.d_times.get(key,0) + delta
+            self.pr.d_mins[key]  = min(self.pr.d_mins.get(key,float('inf')), delta)
+            self.pr.d_maxs[key]  = max(self.pr.d_maxs.get(key,float('-inf')), delta)
+            self.pr.d_last[key]  = delta
+        
         def done(self):
             while self.pr.stack and self.pr.stack[-1] != self:
                 self.pr.stack.pop()
             if not self.pr.stack:
-                if self.text in self.pr.d_start:
-                    del self.pr.d_start[self.text]
+                if self.full_text in self.pr.d_start:
+                    del self.pr.d_start[self.full_text]
                 return
             #assert self.pr.stack[-1] == self
             assert not self._is_done
             self.pr.stack.pop()
             self._is_done = True
-            st = self.pr.d_start[self.text]
+            st = self.pr.d_start[self.full_text]
             en = time.time()
-            self.pr.d_times[self.text] = self.pr.d_times.get(self.text,0) + (en-st)
-            self.pr.d_mins[self.text] = min(self.pr.d_mins.get(self.text,float('inf')), (en-st))
-            self.pr.d_maxs[self.text] = max(self.pr.d_maxs.get(self.text,float('-inf')), (en-st))
-            self.pr.d_last[self.text] = (en-st)
-            self.pr.d_count[self.text] = self.pr.d_count.get(self.text,0) + 1
-            del self.pr.d_start[self.text]
+            delta = en-st
+            self.update(self.full_text, delta)
+            self.update('__^%s' % self.text, delta)
+            del self.pr.d_start[self.full_text]
     
     class ProfilerHelper_Ignore:
         def __init__(self, *args, **kwargs): pass
@@ -95,6 +103,7 @@ class Profiler:
         self.d_count = {}
         self.stack = []
         self.last_profile_out = 0
+        self.clear_time = time.time()
     
     def start(self, text=None, addFile=True):
         #assert not Profiler.broken
@@ -150,13 +159,16 @@ class Profiler:
         wrapper.__doc__ = fn.__doc__
         return wrapper
     
-    def printout(self):
-        if not retopoflow_profiler or not self.debug: return
-        
-        dprint('Profiler:', l=0)
-        dprint('   total      call   ------- seconds / call -------', l=0)
-        dprint('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack', l=0)
-        dprint('----------------------------------------------------------------------------------------------', l=0)
+    def strout(self):
+        if not retopoflow_profiler or not self.debug: return ''
+        s = [
+            'Profiler:',
+            '  run: %6.2f' % (time.time() - self.clear_time),
+            '----------------------------------------------------------------------------------------------',
+            '   total      call   ------- seconds / call -------',
+            '    secs /   count =   last,    min,    avg,    max  (  fps) - call stack',
+            '----------------------------------------------------------------------------------------------',
+            ]
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
             totcount = self.d_count[text]
@@ -165,16 +177,15 @@ class Profiler:
             maxt = self.d_maxs[text]
             last = self.d_last[text]
             calls = text.split('^')
-            if len(calls) == 1:
-                t = text
-            else:
-                t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
+            t = text if len(calls)==1 else ('    '*(len(calls)-2) + ' \\- ' + calls[-1])
             fps = totcount / tottime if tottime > 0 else 1000
-            if fps >= 1000: fps = ' 1k+ '
-            else: fps = '%5.1f' % fps
-            dprint('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, last, mint, avgt, maxt, fps, t), l=0)
-        dprint('', l=0)
-        dprint('', l=0)
+            fps = ' 1k+ ' if fps>=1000 else '%5.1f' % fps
+            s += ['  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s' % (tottime, totcount, last, mint, avgt, maxt, fps, t)]
+        return '\n'.join(s)
+    
+    def printout(self):
+        if not retopoflow_profiler or not self.debug: return
+        dprint('%s\n\n\n' % self.strout(), l=0)
     
     def printfile(self, interval=0.25):
         # $ # to watch the file from terminal (bash) use:
@@ -187,28 +198,6 @@ class Profiler:
         
         path,_ = os.path.split(os.path.abspath(__file__))
         filename = os.path.join(path, '..', '..', '..', self.filename)      # .. back to retopoflow root
-        with open(filename, 'wt') as filehandle:
-            filehandle.write('Profiler:\n')
-            filehandle.write('   total      call   ------- seconds / call -------\n')
-            filehandle.write('    secs /   count =   last,    min,    avg,    max  (  fps) - call stack\n')
-            filehandle.write('----------------------------------------------------------------------------------------------\n')
-            for text in sorted(self.d_times):
-                tottime = self.d_times[text]
-                totcount = self.d_count[text]
-                avgt = tottime / totcount
-                mint = self.d_mins[text]
-                maxt = self.d_maxs[text]
-                last = self.d_last[text]
-                calls = text.split('^')
-                if len(calls) == 1:
-                    t = text
-                else:
-                    t = '    '*(len(calls)-2) + ' \\- ' + calls[-1]
-                fps = totcount / tottime if tottime > 0 else 1000
-                if fps >= 1000: fps = ' 1k+ '
-                else: fps = '%5.1f' % fps
-                filehandle.write('  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s\n' % (tottime, totcount, last, mint, avgt, maxt, fps, t))
-            filehandle.write('\n')
-            filehandle.write('\n')
+        open(filename, 'wt').write(self.strout())
 
 profiler = Profiler()

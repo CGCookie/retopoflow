@@ -500,6 +500,7 @@ class BGLBufferedRender:
         bgl.glDeleteBuffers(4, self.vbos)
         del self.vbos
     
+    @profiler.profile
     def buffer(self, pos, norm, sel, idx):
         sizeOfFloat,sizeOfInt = 4,4
         self.count = 0
@@ -551,6 +552,7 @@ class BGLBufferedRender:
             self.count = len(pos)
             self.render_indices = False
     
+    @profiler.profile
     def _check_error(self, title):
         if not self.DEBUG_CHKERR: return
         
@@ -571,6 +573,7 @@ class BGLBufferedRender:
         else:
             print('ERROR (%s): code %d' % (title, err))
     
+    @profiler.profile
     def _draw(self, sx, sy, sz):
         bmeshShader.assign('vert_scale', (sx,sy,sz))
         if self.DEBUG_PRINT:
@@ -582,6 +585,7 @@ class BGLBufferedRender:
             bgl.glDrawArrays(self.gltype, 0, self.count)
             self._check_error('_draw: glDrawArrays (%d)' % self.count)
     
+    @profiler.profile
     def draw(self, opts):
         if self.count == 0: return
         

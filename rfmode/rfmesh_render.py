@@ -220,7 +220,7 @@ class RFMeshRender():
         self._is_loaded = False
         self._buffer_data = None
         
-        pr = profiler.start('Gathering data for RFMesh')
+        pr = profiler.start('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else ''))
         if not self.async_load:
             profiler.profile(gather)()
         else:
@@ -277,6 +277,7 @@ class RFMeshRender():
         
         if self.async_load and self._is_loading:
             if not self._gather_submit.done():
+                profiler.start('--> waiting').done()
                 return
             # we should not reach this point ever unless something bad happened
             print('ASYNC EXCEPTION!')
@@ -288,12 +289,18 @@ class RFMeshRender():
             # return if rfmesh hasn't changed
             self.rfmesh.clean()
             ver = self.rfmesh.get_version()
-            if self.rfmesh_version == ver and not self.always_dirty: return
+            if self.rfmesh_version == ver and not self.always_dirty:
+                profiler.start('--> is clean').done()
+                return
+            #profiler.start('--> versions: "%s", "%s"' % (str(self.rfmesh_version), str(ver))).done()
             self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
             self._gather_data()
         except:
             print_exception()
+            profiler.start('--> exception').done()
             pass
+        
+        profiler.start('--> passed through').done()
 
     @profiler.profile
     def draw(self, view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, symmetry=None, symmetry_view=None, symmetry_effect=0.0, symmetry_frame:Frame=None):
