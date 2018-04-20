@@ -436,7 +436,6 @@ class RFContext_UI:
         def set_symmetry_effect(v):
             options['symmetry effect'] = clamp(v / 100.0, 0.0, 1.0)
         container_symmetry.add(UI_IntValue('Effect', *optgetset('symmetry effect', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(v/100, 0.0, 1.0)), tooltip='Controls strength of symmetry visualization'))
-        container_symmetry.add(UI_IntValue('Effect', get_symmetry_effect, set_symmetry_effect, tooltip='Controls strength of symmetry visualization'))
 
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))

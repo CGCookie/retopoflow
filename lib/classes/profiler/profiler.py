@@ -27,7 +27,7 @@ from ....options import options, retopoflow_profiler
 
 class Profiler:
     debug = options['profiler']
-    filename = 'profiler_data.txt'
+    filename = options['profiler_filename']
     broken = False
     
     class ProfilerHelper(object):
@@ -72,8 +72,8 @@ class Profiler:
             en = time.time()
             delta = en-st
             self.update(self.full_text, delta)
-            self.update('All Calls', delta)
-            self.update('All Calls^%s' % self.text, delta)
+            self.update('~~ All Calls ~~', delta)
+            self.update('~~ All Calls ~~^%s' % self.text, delta)
             del self.pr.d_start[self.full_text]
     
     class ProfilerHelper_Ignore:

@@ -41,8 +41,8 @@ retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
 
 
 class Options:
-    options_filename = 'RetopoFlow_options' # the filename of the Shelve object
-                                            # will be located at root of RF plug-in
+    options_filename = 'RetopoFlow_options.json'    # the filename of the Shelve object
+                                                    # will be located at root of RF plug-in
     
     default_options = {                 # all the default settings for unset or reset
         'welcome':              True,   # show welcome message?
@@ -86,6 +86,7 @@ class Options:
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',
         'quickstart_filename':  'RetopoFlow_quickstart',
+        'profiler_filename':    'RetopoFlow_profiler.txt',
         
         'contours count':   16,
         
