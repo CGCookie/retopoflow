@@ -72,7 +72,8 @@ class Profiler:
             en = time.time()
             delta = en-st
             self.update(self.full_text, delta)
-            self.update('__^%s' % self.text, delta)
+            self.update('All Calls', delta)
+            self.update('All Calls^%s' % self.text, delta)
             del self.pr.d_start[self.full_text]
     
     class ProfilerHelper_Ignore:
@@ -163,7 +164,7 @@ class Profiler:
         if not retopoflow_profiler or not self.debug: return ''
         s = [
             'Profiler:',
-            '  run: %6.2f' % (time.time() - self.clear_time),
+            '  run: %6.2fsecs' % (time.time() - self.clear_time),
             '----------------------------------------------------------------------------------------------',
             '   total      call   ------- seconds / call -------',
             '    secs /   count =   last,    min,    avg,    max  (  fps) - call stack',
