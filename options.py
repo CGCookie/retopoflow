@@ -51,6 +51,7 @@ class Options:
         'instrument':           False,  # enable instrumentation?
         'version 1.3':          True,   # show RF 1.3 panel?
         'debug level':          0,      # debug level, 0--5 (for printing to console)
+        'debug actions':        False,  # print actions (except MOUSEMOVE) to console
         
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?

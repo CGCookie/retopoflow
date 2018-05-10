@@ -25,6 +25,7 @@ from copy import deepcopy
 from ..common.maths import Point2D
 from .. import key_maps
 from ..lib.eventdetails import EventDetails
+from ..options import options
 
 
 def kmi_details(kmi):
@@ -216,6 +217,10 @@ class Actions:
             self.time_delta = timer.time_delta
             self.trackpad = False
             return
+        
+        if options['debug actions'] >= 1:
+            if event.type not in {'MOUSEMOVE','INBETWEEN_MOUSEMOVE'}:
+                print((event.type, event.value))
 
         t,pressed = event.type, event.value=='PRESS'
 
