@@ -106,9 +106,7 @@ class RFTool_Loops(RFTool):
         if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('select and grab')
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                if sel_only: self.rfcontext.deselect_all()
-                return
+            if not edge: return
             self.rfcontext.select_edge_loop(edge, supparts=False, only=True)
             self.set_next_state()
             self.prep_edit()
