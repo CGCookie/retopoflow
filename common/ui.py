@@ -1815,7 +1815,7 @@ class UI_Window(UI_Padding):
             self.mouse_moved = False
             return 'down'
         
-        if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADPAN'}:
+        if self.event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'PAGE_UP', 'PAGE_DOWN', 'TRACKPADPAN'}:
             if self.event.type == 'TRACKPADPAN':
                 move = self.event.mouse_y - self.event.mouse_prev_y
             else:
