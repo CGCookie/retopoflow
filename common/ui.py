@@ -972,7 +972,7 @@ class UI_Options(UI_EqualContainer):
         return self if super()._hover_ui(mouse) else None
     def _get_tooltip(self, mouse):
         ui = super()._hover_ui(mouse)
-        return ui._get_tooltip(mouse) if ui else None
+        return ui._get_tooltip(mouse) if ui and ui != self else None
     
     def mouse_down(self, mouse): self.mouse_up(mouse)
     def mouse_move(self, mouse): self.mouse_up(mouse)
