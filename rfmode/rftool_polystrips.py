@@ -390,6 +390,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     @profiler.profile
     def prep_move(self, bmfaces=None):
         if not bmfaces: bmfaces = self.rfcontext.get_selected_faces()
+        if not bmfaces: return
         bmverts = set(bmv for bmf in bmfaces for bmv in bmf.verts)
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.mousedown = self.rfcontext.actions.mouse
