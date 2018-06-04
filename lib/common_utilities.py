@@ -36,7 +36,7 @@ import traceback
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from mathutils.geometry import distance_point_to_plane, intersect_line_line_2d, intersect_line_line
-
+from hashlib import md5
 
 # Blender imports
 import blf
@@ -95,6 +95,35 @@ def get_exception_info():
             errormsg += '         %s\n' % (filename)
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     return errormsg
+
+def get_exception_info_and_hash():
+    '''
+    this function is a duplicate of the one above, but this will attempt
+    to create a hash to make searching for duplicate bugs on github easier (?)
+    '''
+    
+    hashed = md5()
+    def update_hash(s): hashed.update(bytes(str(s), 'utf8'))
+    
+    exc_type, exc_obj, tb = sys.exc_info()
+    
+    errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
+    update_hash(errormsg)
+    etb = traceback.extract_tb(tb)
+    pfilename = None
+    for i,entry in enumerate(reversed(etb)):
+        filename,lineno,funcname,line = entry
+        if pfilename is None:
+            update_hash(os.path.split(filename)[1])
+            update_hash(lineno)
+            update_hash(funcname)
+        if filename != pfilename:
+            pfilename = filename
+            errormsg += '         %s\n' % (filename, )
+        errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
+    
+    return (errormsg, hashed.hexdigest())
+
 
 def print_exception():
     errormsg = get_exception_info()

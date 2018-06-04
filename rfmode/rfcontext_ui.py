@@ -154,12 +154,17 @@ class RFContext_UI:
                 prev_container = False
         self.window_manager.set_focus(win, darken=False, close_on_leave=True)
 
-    def alert_user(self, title=None, message=None, level=None):
+    def alert_user(self, title=None, message=None, level=None, msghash=None):
         show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
         darken = False
-        if level in {'warning'}:
+        
+        if level in {'note'}:
+            bgcolor = (0.20, 0.20, 0.30, 0.95)
+            title = 'Note' + (': %s' % title if title else '')
+            message = message or 'a note'
+        elif level in {'warning'}:
             bgcolor = (0.35, 0.25, 0.15, 0.95)
             title = 'Warning' + (': %s' % title if title else '')
             darken = True
@@ -188,8 +193,8 @@ class RFContext_UI:
             show_quit = True
             darken = True
         else:
-            bgcolor = (0.20, 0.20, 0.30, 0.95)
-            title = 'Note' + (': %s' % title if title else '')
+            bgcolor = (0.40, 0.20, 0.30, 0.95)
+            title = '%s' % (level.upper()) + (': %s' % title if title else '')
             message = message or 'a note'
 
         def close():
@@ -209,20 +214,28 @@ class RFContext_UI:
                 filepath = os.path.join(filepath, ss_filename)
             bpy.ops.screen.screenshot(filepath=filepath)
             self.alert_user(message='Saved screenshot to "%s"' % filepath)
+        
+        def search():
+            url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
+            bpy.ops.wm.url_open(url=url)
 
         def report():
+            message_hash = ['Exception Hash: %s' % msghash] if msghash else []
+            message_code = ['', 'Internal info:', '', '```', message_orig, '```'] if message_orig else []
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
                     'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
                     'Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    'Screenshots and .blend files are very helpful.'
+                    'Screenshots and .blend files are very helpful.',
                     'Also, change the title of this bug report to something descriptive and helpful.',
                     'Thank you!',
+                    '',
                     '-------------------------------------',
+                    '',
                     'RetopoFlow: %s' % retopoflow_version,
                     'Blender: %s' % blender_version,
-                    ] + (['',message_orig] if message_orig else []))
+                    ] + message_hash + message_code)
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
@@ -251,6 +264,8 @@ class RFContext_UI:
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if level in {'assert', 'exception'}:
             container.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            if msghash:
+                container.add(UI_Button('Search', search, tooltip='Search the RetopoFlow issue tracker for similar issues', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
             container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
