@@ -49,10 +49,28 @@ def strip_mods(action):
     return action.replace('CTRL+','').replace('SHIFT+','').replace('ALT+','').replace('OSKEY+','')
 
 class Actions:
+    # https://docs.blender.org/api/2.79/bpy.types.KeyMapItems.html
+    ndof_actions = {
+        'NDOF_MOTION', 'NDOF_BUTTON', 'NDOF_BUTTON_FIT',
+        'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT', 'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK',
+        'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2',
+        'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
+        'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW',
+        'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW',
+        'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
+        'NDOF_BUTTON_DOMINANT',
+        'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS', 'NDOF_BUTTON_ESC',
+        'NDOF_BUTTON_ALT', 'NDOF_BUTTON_SHIFT', 'NDOF_BUTTON_CTRL',
+        'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5',
+        'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
+        'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
+    }
+    trackpad_actions = { 'TRACKPADPAN','TRACKPADZOOM' }
+    
     default_keymap = {
         # common
-        'navigate': {'TRACKPADPAN','TRACKPADZOOM'},     # to be filled in by self.load_keymap()
-        'window actions': set(),                        # to be filled in by self.load_keymap()
+        'navigate': set(),          # to be filled in by self.__init__()
+        'window actions': set(),    # to be filled in by self.load_keymap()
         
         'action': {'LEFTMOUSE'},
         'action alt0': {'SHIFT+LEFTMOUSE'},
@@ -123,6 +141,7 @@ class Actions:
         'View Orbit': 'view3d.view_orbit',
         'View Persp/Ortho': 'view3d.view_persportho',
         'View Numpad': 'view3d.viewnumpad',
+        'NDOF Pan Zoom': 'view2d.ndof',
         'NDOF Orbit View with Zoom': 'view3d.ndof_orbit_zoom',
         'NDOF Orbit View': 'view3d.ndof_orbit',
         'NDOF Pan View': 'view3d.ndof_pan',
@@ -150,9 +169,10 @@ class Actions:
                 if kmi.idname not in self.window_actions: continue
                 if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
                 else: self.keymap['window actions'].discard(kmi_details(kmi))
-            
-
+    
     def __init__(self, context):
+        Actions.default_keymap['navigate'] |= Actions.trackpad_actions
+        Actions.default_keymap['navigate'] |= Actions.ndof_actions
         self.keymap = deepcopy(self.default_keymap)
         self.load_keymap('Blender')
         self.load_keymap('Blender User')
@@ -176,6 +196,7 @@ class Actions:
         self.mousedown_right = None
         
         self.trackpad = False
+        self.ndof = False
 
         self.hit_pos = None
         self.hit_norm = None
@@ -249,7 +270,8 @@ class Actions:
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             return
         
-        self.trackpad = (t == 'TRACKPADPAN') or (t == 'TRACKPADZOOM')
+        self.trackpad = (t in Actions.ndof_actions)
+        self.ndof = (t in Actions.ndof_actions)
 
         if pressed and t in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
@@ -304,6 +326,7 @@ class Actions:
     def navigating(self):
         actions = self.convert('navigate')
         if self.trackpad: return True
+        if self.ndof: return True
         if any(p in actions for p in self.now_pressed.values()): return True
         return False
 
