@@ -104,6 +104,8 @@ class Options:
         'polystrips handle hidden hover alpha':  0.10,
         'polystrips handle hover':               False,
         
+        'polypen automerge': True,
+        
         'relax boundary': False,
         'relax hidden':   False,
         
