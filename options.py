@@ -82,6 +82,9 @@ class Options:
         'symmetry view':        'Face',
         'symmetry effect':      0.5,
         
+        'target alpha':         1.0,
+        'target hidden alpha':  0.1,
+        
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',

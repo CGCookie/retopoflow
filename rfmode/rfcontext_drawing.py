@@ -196,13 +196,14 @@ class RFContext_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.symmetry:
             pr = profiler.start('render sources')
             for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, 1.00, 0.05,
                     symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
                     symmetry_effect=options['symmetry effect'], symmetry_frame=ft)
             pr.done()
 
         pr = profiler.start('render target')
-        self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj)
+        alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
+        self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, alpha_above, alpha_below)
         pr.done()
 
         pr = profiler.start('render other')
