@@ -23,6 +23,7 @@ https://github.com/CGCookie/retopoflow
 import sys
 import math
 import os
+import re
 import time
 
 import bpy
@@ -593,8 +594,9 @@ def setup_tools():
     for rft in RFTool:
         def classfactory(rft):
             rft_name = rft().name()
-            cls_name = 'RFMode_' + rft_name.replace(' ','_')
-            id_name = 'cgcookie.rfmode_' + rft_name.replace(' ','_').lower()
+            pylegal_name = re.sub(r'[ ()-]+', '_', rft_name)
+            cls_name = 'RFMode_' + pylegal_name
+            id_name = 'cgcookie.rfmode_' + pylegal_name.lower()
             dprint('Creating: ' + cls_name)
             def context_start_tool(self): return rft()
             newclass = type(cls_name, (RFMode,),{
@@ -605,6 +607,7 @@ def setup_tools():
                 'rf_icon': rft().icon(),
                 'rft_class': rft,
                 'get_tooltip': rft().get_tooltip,
+                'get_label': rft().get_label,
                 })
             rfmode_tools[id_name] = newclass
             globals()[cls_name] = newclass

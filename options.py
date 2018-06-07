@@ -82,6 +82,9 @@ class Options:
         'symmetry view':        'Face',
         'symmetry effect':      0.5,
         
+        'target alpha':         1.0,
+        'target hidden alpha':  0.1,
+        
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
@@ -95,6 +98,13 @@ class Options:
         'polystrips draw curve':    False,
         'polystrips max strips':    10,     # PS will not show handles if knot count is above max
         'polystrips arrows':        False,
+        'polystrips handle alpha':               1.00,
+        'polystrips handle hover alpha':         1.00,
+        'polystrips handle hidden alpha':        0.10,
+        'polystrips handle hidden hover alpha':  0.10,
+        'polystrips handle hover':               False,
+        
+        'polypen automerge': True,
         
         'relax boundary': False,
         'relax hidden':   False,

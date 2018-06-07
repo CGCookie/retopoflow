@@ -27,7 +27,7 @@ from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
-from ..common.maths import Vec2D, Point, Direction
+from ..common.maths import Vec2D, Point, Vec, Direction
 from ..lib.common_utilities import dprint
 
 
@@ -395,10 +395,8 @@ class RFFace(BMElemWrapper):
     def is_triangle(self): return len(self.bmelem.verts)==3
     
     def center(self):
-        c = Vector()
-        for bmv in self.bmelem.verts:
-            c += bmv.co
-        return Point(c / len(self.bmelem.verts))
+        cos = [Vec(self.l2w_point(bmv.co)) for bmv in self.bmelem.verts]
+        return Point(sum(cos, Vec((0,0,0))) / len(cos))
     
     #############################################
     

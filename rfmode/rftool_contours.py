@@ -59,6 +59,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     def description(self): return 'Contours'
     
     def helptext(self): return help_contours
+    def get_label(self): return 'Contours (%s)' % ','.join(Actions.default_keymap['contours tool'])
     def get_tooltip(self): return 'Contours (%s)' % ','.join(Actions.default_keymap['contours tool'])
 
     def start(self):

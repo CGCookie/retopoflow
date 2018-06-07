@@ -41,6 +41,7 @@ class RFTool_Relax(RFTool):
     def icon(self): return "rf_relax_icon"
     def description(self): return 'Relax topology by changing length of edges to average'
     def helptext(self): return help_relax
+    def get_label(self): return 'Relax (%s)' % ','.join(Actions.default_keymap['relax tool'])
     def get_tooltip(self): return 'Relax (%s)' % ','.join(Actions.default_keymap['relax tool'])
     
     def get_move_boundary(self): return options['relax boundary']

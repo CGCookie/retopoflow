@@ -229,7 +229,7 @@ class RFMeshRender():
         pr.done()
 
     @profiler.profile
-    def _draw_buffered(self):
+    def _draw_buffered(self, alpha_above, alpha_below):
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry: opts['mirror %s'%xyz] = True
         
@@ -241,12 +241,12 @@ class RFMeshRender():
         pr = profiler.start('geometry above')
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_FALSE)
-        opts['poly hidden']         = 0.0
-        opts['poly mirror hidden']  = 0.0
-        opts['line hidden']         = 0.0
-        opts['line mirror hidden']  = 0.0
-        opts['point hidden']        = 0.0
-        opts['point mirror hidden'] = 0.0
+        opts['poly hidden']         = 1-alpha_above
+        opts['poly mirror hidden']  = 1-alpha_above
+        opts['line hidden']         = 1-alpha_above
+        opts['line mirror hidden']  = 1-alpha_above
+        opts['point hidden']        = 1-alpha_above
+        opts['point mirror hidden'] = 1-alpha_above
         self.buf_faces.draw(opts)
         self.buf_edges.draw(opts)
         self.buf_verts.draw(opts)
@@ -256,12 +256,12 @@ class RFMeshRender():
             pr = profiler.start('geometry below')
             bgl.glDepthFunc(bgl.GL_GREATER)
             bgl.glDepthMask(bgl.GL_FALSE)
-            opts['poly hidden']         = 0.95
-            opts['poly mirror hidden']  = 0.95
-            opts['line hidden']         = 0.95
-            opts['line mirror hidden']  = 0.95
-            opts['point hidden']        = 0.95
-            opts['point mirror hidden'] = 0.95
+            opts['poly hidden']         = 1-alpha_below
+            opts['poly mirror hidden']  = 1-alpha_below
+            opts['line hidden']         = 1-alpha_below
+            opts['line mirror hidden']  = 1-alpha_below
+            opts['point hidden']        = 1-alpha_below
+            opts['point mirror hidden'] = 1-alpha_below
             self.buf_faces.draw(opts)
             self.buf_edges.draw(opts)
             self.buf_verts.draw(opts)
@@ -304,7 +304,7 @@ class RFMeshRender():
         profiler.start('--> passed through').done()
 
     @profiler.profile
-    def draw(self, view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, symmetry=None, symmetry_view=None, symmetry_effect=0.0, symmetry_frame:Frame=None):
+    def draw(self, view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, alpha_above, alpha_below, symmetry=None, symmetry_view=None, symmetry_effect=0.0, symmetry_frame:Frame=None):
         self.clean()
         if not self._is_loaded: return
         
@@ -318,7 +318,7 @@ class RFMeshRender():
             bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
             bmegl.bmeshShader.assign('dir_forward', view_forward)
             bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view, effect=symmetry_effect, frame=symmetry_frame)
-            self._draw_buffered()
+            self._draw_buffered(alpha_above, alpha_below)
         except:
             print_exception()
             pass

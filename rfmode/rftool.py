@@ -141,5 +141,6 @@ class RFTool(metaclass=SingletonRegisterClass):
     def get_ui_icon(self): return None
     def get_ui_options(self): return None
     def get_tooltip(self): return None
+    def get_label(self): return 'Unlabeled RFTool'
 
 

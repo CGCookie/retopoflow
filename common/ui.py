@@ -928,14 +928,15 @@ class UI_Options(UI_EqualContainer):
         self.fn_get_option = fn_get_option
         self.fn_set_option = fn_set_option
         self.options = {}
-        self.labels = set()
+        self.values = set()
         self.margin = margin
     
     class UI_Option(UI_Container):
-        def __init__(self, options, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
+        def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
             super().__init__(vertical=False)
             self.margin = 0
             self.label = label
+            self.value = value
             self.options = options
             self.tooltip = tooltip
             if not showlabel: label = None
@@ -948,22 +949,23 @@ class UI_Options(UI_EqualContainer):
         
         def _draw(self):
             selected = self.options.fn_get_option()
-            is_selected = self.label == selected
+            is_selected = self.value == selected
             self.background = UI_Options.color_select if is_selected else UI_Options.color_unselect
             super()._draw()
         
         def _get_tooltip(self, mouse): return self.tooltip
     
-    def add_option(self, label, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
-        assert label not in self.labels, "All option labels must be unique!"
-        self.labels.add(label)
-        option = UI_Options.UI_Option(self, label, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
+    def add_option(self, label, value=None, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
+        if value is None: value=label
+        assert value not in self.values, "All option values must be unique!"
+        self.values.add(value)
+        option = UI_Options.UI_Option(self, label, value, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
         super().add(option)
-        self.options[option] = label
+        self.options[option] = value
     
-    def set_option(self, label):
-        if self.fn_get_option() == label: return
-        self.fn_set_option(label)
+    def set_option(self, value):
+        if self.fn_get_option() == value: return
+        self.fn_set_option(value)
     
     def add(self, *args, **kwargs):
         assert False, "Do not call UI_Options.add()"

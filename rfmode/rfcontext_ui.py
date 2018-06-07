@@ -290,9 +290,9 @@ class RFContext_UI:
 
         def get_selected_tool():
             return self.tool.name()
-        def set_selected_tool(name):
+        def set_selected_tool(value):
             for ids,rft in RFTool.get_tools():
-                if rft.bl_label == name:
+                if rft.bl_label == value: #get_label() == name:
                     self.set_tool(rft.rft_class())
         def update_tool_collapsed():
             b = options['tools_min']
@@ -383,10 +383,10 @@ class RFContext_UI:
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_selection_max.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip())
-            self.tool_selection_min.add_option(rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
+            self.tool_selection_max.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip())
+            self.tool_selection_min.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
-            if ui_options: tools_options.append((rft.bl_label,ui_options))
+            if ui_options: tools_options.append((rft.bl_label, ui_options))
         get_tool_collapsed()
         self.tool_max.add(self.tool_selection_max)
 
@@ -422,6 +422,10 @@ class RFContext_UI:
         dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         dd_general.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         dd_general.add(UI_UpdateValue('Clip End',   get_clip_end,   set_clip_end,   upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_alpha = dd_general.add(UI_Container())
+        container_alpha.add(UI_Label('Target Alpha:'))
+        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
+        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False, margin=0))

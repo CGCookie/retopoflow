@@ -52,6 +52,7 @@ class RFTool_Patches(RFTool):
     def icon(self): return "rf_patches_icon"
     def description(self): return 'Patches'
     def helptext(self): return help_patches
+    def get_label(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
     def get_tooltip(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
     
     ''' Called the tool is being switched into '''
@@ -165,20 +166,31 @@ class RFTool_Patches(RFTool):
                 strip = [next(iter(edges))]
                 strip.append(next(iter(neighbors[strip[0]])))
                 remaining_edges = set(edges) - set(strip)
+                isbad = False
                 while remaining_edges:
                     next_edges = [edge for edge in neighbors[strip[-1]] if edge in remaining_edges]
-                    assert len(next_edges) == 1
+                    if len(next_edges) != 1:
+                        # unexpected number of edges found!
+                        isbad = True
+                        break
                     strip.append(next_edges[0])
                     remaining_edges.remove(next_edges[0])
+                if isbad: continue
                 self.shapes['O'].append(strip)
                 continue
             strip = [end_edges[0]]
             remaining_edges = set(edges) - set(strip)
+            isbad = False
             while remaining_edges:
                 next_edges = [edge for edge in neighbors[strip[-1]] if edge in remaining_edges]
-                assert len(next_edges) == 1
+                if len(next_edges) != 1:
+                    # unexpected number of edges found
+                    # see GitHub issue #481 (https://github.com/CGCookie/retopoflow/issues/481)
+                    isbad = True
+                    break
                 strip.append(next_edges[0])
                 remaining_edges.remove(next_edges[0])
+            if isbad: continue
             v0 = strip[0].other_vert(strip[0].shared_vert(strip[1]))
             v1 = strip[-1].other_vert(strip[-1].shared_vert(strip[-2]))
             corners[v0] = corners.get(v0, []) + [strip]

@@ -25,14 +25,14 @@ import math
 import bgl
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec
-from ..common.ui import UI_Image
+from ..common.ui import UI_Image, UI_Checkbox
 from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..lib.common_utilities import dprint
 from .rfcontext_actions import Actions
-from ..options import themes
+from ..options import themes, options
 from ..help import help_polypen
 
 @RFTool.action_call('polypen tool')
@@ -50,6 +50,7 @@ class RFTool_PolyPen(RFTool):
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
     def helptext(self): return help_polypen
+    def get_label(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
     def get_tooltip(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
 
     def start(self):
@@ -60,6 +61,11 @@ class RFTool_PolyPen(RFTool):
         self.ui_icon = UI_Image('polypen_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
+    
+    def get_ui_options(self):
+        return [
+            UI_Checkbox('Automerge', *options.gettersetter('polypen automerge'), tooltip='Automatically merge nearby vertices'),
+            ]
     
     @profiler.profile
     def update(self):
@@ -376,6 +382,9 @@ class RFTool_PolyPen(RFTool):
 
     def mergeSnapped(self):
         """ Merging colocated visible verts """
+        
+        if not options['polypen automerge']: return
+        
         # TODO: remove colocated faces
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -435,10 +444,13 @@ class RFTool_PolyPen(RFTool):
             xy_updated = xy + delta
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
-            for bmv1,xy1 in self.vis_bmverts:
-                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
-                    set2D_vert(bmv, xy1)
-                    break
+            if options['polypen automerge']:
+                for bmv1,xy1 in self.vis_bmverts:
+                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                        set2D_vert(bmv, xy1)
+                        break
+                else:
+                    set2D_vert(bmv, xy_updated)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)

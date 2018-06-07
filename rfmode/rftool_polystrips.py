@@ -65,6 +65,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def icon(self): return "rf_polystrips_icon"
     def description(self): return 'Strips of quads made easy'
     def helptext(self): return help_polystrips
+    def get_label(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
     def get_tooltip(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
     
     def start(self):
@@ -108,9 +109,14 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
         container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (=)', align=0, margin=0))
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (-)', align=0, margin=0))
+        container_handles = UI_Container(margin=0)
+        container_handles.add(UI_Label('Handle Alpha:'))
+        container_handles.add(UI_IntValue('Above', *options.gettersetter('polystrips handle alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
+        container_handles.add(UI_IntValue('Below', *options.gettersetter('polystrips handle hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
         return [
             container,
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
+            container_handles,
             UI_IntValue('Max Strips', get_max_strips, set_max_strips, tooltip='Sets maximum count of strips to detect (0=no max)'),
             UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve, tooltip='Debug: draw Bezier curve for each strip'),
         ]
@@ -530,8 +536,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         strips = self.strips
         hov_strips = self.hovering_strips
         
-        def draw(alphamult, hov_alphamult):
+        def draw(alphamult, hov_alphamult, hover):
             nonlocal strips
+            
+            if not hover: hov_alphamult = alphamult
             
             bgl.glEnable(bgl.GL_BLEND)
             
@@ -562,6 +570,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 edgeShortenShader['vRadius'] = 22
                 bgl.glVertex3f(*p3)
             bgl.glEnd()
+            edgeShortenShader.disable()
             
             # draw junction handles (outer control points of curve)
             faces_drawn = set() # keep track of faces, so don't draw same handles 2+ times
@@ -641,10 +650,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         
         # draw in front of geometry
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        draw(1.00, 1.00)
+        draw(options['polystrips handle alpha'], options['polystrips handle hover alpha'], options['polystrips handle hover'])
         # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(0.10, 0.10)
+        draw(options['polystrips handle hidden alpha'], options['polystrips handle hidden hover alpha'], options['polystrips handle hover'])
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
