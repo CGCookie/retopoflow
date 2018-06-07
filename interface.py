@@ -174,8 +174,8 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
             loopslide_icon = icons.get("rf_loopslide_icon")
 
             col.operator("cgcookie.tweak", icon_value=tweaK_icon.icon_id)
-            col.operator("cgcookie.loop_cut", text='Loop Cut', icon_value=loop_cut_icon.icon_id)
-            col.operator("cgcookie.loop_slide", text='Loop Slide', icon_value=loopslide_icon.icon_id)
+            col.operator("cgcookie.loop_cut", icon_value=loop_cut_icon.icon_id)
+            col.operator("cgcookie.loop_slide", icon_value=loopslide_icon.icon_id)
 
         col = layout.column(align=True)
         col.label("Tool Settings:")

@@ -46,7 +46,7 @@ class CGC_Polystrips(ModalOperator, Polystrips_UI, Polystrips_UI_ModalWait, Poly
     
     bl_category    = "Retopology"
     bl_idname      = "cgcookie.polystrips"
-    bl_label       = "Polystrips"
+    bl_label       = "Polystrips 1.3"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     

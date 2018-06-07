@@ -45,8 +45,8 @@ from .loopcut_ui_draw import LoopCut_UI_Draw
 class CGC_LoopCut(ModalOperator,LoopCut_UI_ModalWait,LoopCut_UI_Draw):
     ''' Loop Cut Modal Op '''
     bl_category = "Retopology"
-    bl_idname = "cgcookie.loop_cut"        # unique identifier for buttons and menu items to reference
-    bl_label = "RetopoFlow Loop Cut"       # display name in the interface
+    bl_idname = "cgcookie.loop_cut"         # unique identifier for buttons and menu items to reference
+    bl_label = "Loop Cut 1.3"    # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.

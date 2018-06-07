@@ -44,8 +44,8 @@ from .loopslide_ui_utils import loopslide_UI_fns
 class CGC_loopslide(ModalOperator, loopslide_UI_fns, loopslide_UI_Modal, loopslide_UI_Draw):
     ''' Loop Slide Modal Op '''
     bl_category = "Retopology"
-    bl_idname = "cgcookie.loop_slide"        # unique identifier for buttons and menu items to reference
-    bl_label = "RetopoFlow Loop Slide"       # display name in the interface
+    bl_idname = "cgcookie.loop_slide"       # unique identifier for buttons and menu items to reference
+    bl_label = "Loop Slide 1.3"  # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.

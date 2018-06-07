@@ -53,7 +53,7 @@ class CGC_Tweak(ModalOperator, Tweak_UI, Tweak_UI_Tools):
     
     bl_category    = "Retopology"
     bl_idname      = "cgcookie.tweak"
-    bl_label       = "Tweak"
+    bl_label       = "Tweak 1.3"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     

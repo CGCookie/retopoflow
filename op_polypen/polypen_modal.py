@@ -56,7 +56,7 @@ class CGC_Polypen(ModalOperator):
     
     bl_category    = "Retopology"
     bl_idname      = "cgcookie.polypen"
-    bl_label       = "Polypen"
+    bl_label       = "Polypen 1.3"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     

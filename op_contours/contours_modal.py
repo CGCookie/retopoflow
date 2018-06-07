@@ -44,8 +44,8 @@ from ..lib.common_utilities import get_settings
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     '''Draw Strokes Perpindicular to Cylindrical Forms to Retopologize Them'''
     bl_category = "Retopology"
-    bl_idname = "cgcookie.contours"      # unique identifier for buttons and menu items to reference
-    bl_label = "Contours"       # display name in the interface
+    bl_idname = "cgcookie.contours"     # unique identifier for buttons and menu items to reference
+    bl_label = "Contours 1.3"           # display name in the interface
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     #bl_options = {'REGISTER', 'UNDO'}       # enable undo for the operator.
