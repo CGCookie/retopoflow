@@ -65,6 +65,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def icon(self): return "rf_polystrips_icon"
     def description(self): return 'Strips of quads made easy'
     def helptext(self): return help_polystrips
+    def get_label(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
     def get_tooltip(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
     
     def start(self):

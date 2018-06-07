@@ -41,6 +41,7 @@ class RFTool_Tweak(RFTool):
     def icon(self): return "rf_tweak_icon"
     def description(self): return 'Moves vertices with falloff'
     def helptext(self): return help_tweak
+    def get_label(self): return 'Tweak (%s)' % ','.join(Actions.default_keymap['move tool'])
     def get_tooltip(self): return 'Tweak (%s)' % ','.join(Actions.default_keymap['move tool'])
     
     def get_move_boundary(self): return options['tweak boundary']

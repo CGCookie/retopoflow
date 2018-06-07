@@ -46,6 +46,7 @@ class RFTool_Loops(RFTool):
     def icon(self): return "rf_loops_icon"
     def description(self): return 'Loops creation, shifting, and deletion'
     def helptext(self): return help_loops
+    def get_label(self): return 'Loops (%s)' % ','.join(Actions.default_keymap['loops tool'])
     def get_tooltip(self): return 'Loops (%s)' % ','.join(Actions.default_keymap['loops tool'])
     
     ''' Called the tool is being switched into '''

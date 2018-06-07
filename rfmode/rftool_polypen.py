@@ -50,6 +50,7 @@ class RFTool_PolyPen(RFTool):
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
     def helptext(self): return help_polypen
+    def get_label(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
     def get_tooltip(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
 
     def start(self):

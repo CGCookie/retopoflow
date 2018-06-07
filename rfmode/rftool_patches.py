@@ -52,6 +52,7 @@ class RFTool_Patches(RFTool):
     def icon(self): return "rf_patches_icon"
     def description(self): return 'Patches'
     def helptext(self): return help_patches
+    def get_label(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
     def get_tooltip(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
     
     ''' Called the tool is being switched into '''
