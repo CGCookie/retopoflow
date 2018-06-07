@@ -95,6 +95,11 @@ class Options:
         'polystrips draw curve':    False,
         'polystrips max strips':    10,     # PS will not show handles if knot count is above max
         'polystrips arrows':        False,
+        'polystrips handle alpha':               1.00,
+        'polystrips handle hover alpha':         1.00,
+        'polystrips handle hidden alpha':        0.10,
+        'polystrips handle hidden hover alpha':  0.10,
+        'polystrips handle hover':               False,
         
         'relax boundary': False,
         'relax hidden':   False,
