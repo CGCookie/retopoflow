@@ -46,6 +46,7 @@ from .rftool import RFTool
 from .rf_recover import RFRecover
 
 from ..common.decorators import stats_report, stats_wrapper
+from ..common.utils import blender_version
 
 '''
 
@@ -224,30 +225,54 @@ class RFMode(Operator):
         
         stats_report()
     
-    
     def context_start(self):
-        # should we generate new target object?
-        if not RFContext.has_valid_target():
-            dprint('generating new target')
-            tar_name = "RetopoFlow"
-            tar_location = bpy.context.scene.cursor_location
-            tar_editmesh = bpy.data.meshes.new(tar_name)
-            tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
-            tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
-            tar_object.layers = list(bpy.context.scene.layers)          # set object on visible layers
-            #tar_object.show_x_ray = get_settings().use_x_ray
-            bpy.context.scene.objects.link(tar_object)
-            bpy.context.scene.objects.active = tar_object
-            tar_object.select = True
+        def lt_280(self):
+            # should we generate new target object?
+            if not RFContext.has_valid_target():
+                dprint('generating new target')
+                tar_name = "RetopoFlow"
+                tar_location = bpy.context.scene.cursor_location
+                tar_editmesh = bpy.data.meshes.new(tar_name)
+                tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
+                tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
+                tar_object.layers = list(bpy.context.scene.layers)          # set object on visible layers
+                #tar_object.show_x_ray = get_settings().use_x_ray
+                bpy.context.scene.objects.link(tar_object)
+                bpy.context.scene.objects.active = tar_object
+                tar_object.select = True
+            
+            tar_object = bpy.context.scene.objects.active
+            
+            # remember selection and unselect all
+            self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
+            for o in self.selected_objects: o.select = False
+            
+            starting_tool = self.context_start_tool()
+            self.rfctx = RFContext(self, starting_tool)
+        def ge_280(self):
+            # should we generate new target object?
+            if not RFContext.has_valid_target():
+                dprint('generating new target')
+                tar_name = "RetopoFlow"
+                tar_location = bpy.context.scene.cursor_location
+                tar_editmesh = bpy.data.meshes.new(tar_name)
+                tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
+                tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
+                #tar_object.show_x_ray = get_settings().use_x_ray
+                bpy.context.scene.objects.link(tar_object)
+                bpy.context.scene.objects.active = tar_object
+                tar_object.select_set(True)
+            
+            tar_object = bpy.context.scene.objects.active
+            
+            # remember selection and unselect all
+            self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select_get()]
+            for o in self.selected_objects: o.select_set(False)
+            
+            starting_tool = self.context_start_tool()
+            self.rfctx = RFContext(self, starting_tool)
         
-        tar_object = bpy.context.scene.objects.active
-        
-        # remember selection and unselect all
-        self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
-        for o in self.selected_objects: o.select = False
-        
-        starting_tool = self.context_start_tool()
-        self.rfctx = RFContext(self, starting_tool)
+        return ge_280(self) if blender_version() >= '2.80' else lt_280(self)
     
     def context_start_tool(self):
         assert False, "Each RFTool should overwrite this!"

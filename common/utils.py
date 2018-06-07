@@ -29,6 +29,11 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 
 
+def blender_version():
+    major,minor,rev = bpy.app.version
+    return '%d.%02d' % (major,minor)
+
+
 def iter_pairs(items, wrap, repeat=False):
     if not items: return
     while True:
