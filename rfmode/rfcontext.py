@@ -48,7 +48,7 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
-from ..lib.common_utilities import get_settings, dprint, get_exception_info
+from ..lib.common_utilities import get_settings, dprint, get_exception_info, get_exception_info_and_hash
 from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
@@ -397,15 +397,15 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
             nmode = self.FSM[self.mode]()
             if nmode: self.mode = nmode
         except AssertionError as e:
-            message = get_exception_info()
+            message,h = get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
-            self.alert_user(message=message, level='assert')
+            self.alert_user(message=message, level='assert', msghash=h)
         except Exception as e:
-            message = get_exception_info()
+            message,h = get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
-            self.alert_user(message=message, level='exception')
+            self.alert_user(message=message, level='exception', msghash=h)
             #raise e
 
         if self.actions.pressed('done') or self.exit:
@@ -437,6 +437,10 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
             print('Clearing profiler')
             profiler.clear()
             return
+
+        #if self.actions.pressed('F5'):
+        #    assert False, 'this is a test!'
+        #    return
 
         # handle tool shortcut
         for action,tool in RFTool.action_tool:
