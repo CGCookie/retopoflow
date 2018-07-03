@@ -107,18 +107,26 @@ def get_exception_info_and_hash():
     
     exc_type, exc_obj, tb = sys.exc_info()
     
+    base_path = os.path.abspath(os.path.join(os.path.split(os.path.abspath(__file__))[0], '..'))
+    
     errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
     update_hash(errormsg)
+    
+    #errormsg += 'Base: %s\n' % base_path
+    
     etb = traceback.extract_tb(tb)
     pfilename = None
     for i,entry in enumerate(reversed(etb)):
         filename,lineno,funcname,line = entry
         if pfilename is None:
+            # only hash in the last location, where the exception occurred
             update_hash(os.path.split(filename)[1])
             update_hash(lineno)
             update_hash(funcname)
         if filename != pfilename:
             pfilename = filename
+            if filename.startswith(base_path):
+                filename = '.../%s' % filename[len(base_path)+1:]
             errormsg += '         %s\n' % (filename, )
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     

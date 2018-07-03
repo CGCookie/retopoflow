@@ -81,6 +81,7 @@ Below is a list of known issues that we are working on.
 - Very large target meshes causes slowness in some tools.
 - Patches supports only rudimentary fills
 - Display scales other than 1.0 (ex: Retina) do not display correct.
+- RF runs _very_ slowly on Macs with certain types of graphics cards (M, or mobile, versions of cards)
 
 
 ## Final Words
@@ -89,7 +90,7 @@ We thank you for using RetopoFlow, and we look forward to hearing back from you!
 
 Cheers!
 
---The RetopoFlow Team
+--The CG Cookie Tool Development Team
 '''.format(version=retopoflow_version)
 
 
@@ -120,11 +121,11 @@ Note: only newly created or edited target geometry will snap to the source.
 RetopoFlow Mode
 ---------------
 
-The tools in RetopoFlow 1.x were disjoint set of tools, where you would need to quit one tool in order to start another.
-Also, because we wrote RF 1.x tools independently, the visualizations and settings were not consistent.
+The tools in RetopoFlow 1.x were set of disjoint tools, where you would need to quit one tool in order to start another.
+Also, because we wrote RF 1.x tools separately, the visualizations and settings were not consistent.
 Furthermore, the only indication that a tool was running in RetopoFlow 1.x was a small "Click for Help" button in the top-right corner, which is easily missed.
 
-In RetopoFlow 2.0, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode).
+In RetopoFlow 2.0, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
 
 When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and panels will be added to the 3D view.

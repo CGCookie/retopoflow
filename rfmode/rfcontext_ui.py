@@ -182,14 +182,22 @@ class RFContext_UI:
                 title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
                 desc = 'An unhandled exception was thrown.'
             message_orig = message
-            msg = '\n'.join([
-                desc,
-                'This was unexpected.',
-                'If this happens again, please report as bug so we can fix it.',
-                '',
-                'RetopoFlow: %s, Blender: %s' % (retopoflow_version, blender_version),
-                ])
-            message = msg + (('\n\n%s' % message) if message else '')
+            msg_report = '\n'.join([
+                    'System:\n',
+                    '- RetopoFlow: %s' % retopoflow_version,
+                    '- Blender: %s' % blender_version,
+                    '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
+                    '',
+                ] +
+                (['Error Hash: %s' % str(msghash),''] if msghash else []) +
+                (['Trace:\n', message_orig] if message_orig else [])
+                )
+            
+            message = '\n'.join([
+                    desc,
+                    'This was unexpected.',
+                    'If this happens again, please report as bug so we can fix it.',
+                    '', msg_report])
             show_quit = True
             darken = True
         else:
@@ -220,8 +228,8 @@ class RFContext_UI:
             bpy.ops.wm.url_open(url=url)
 
         def report():
-            message_hash = ['Exception Hash: %s' % msghash] if msghash else []
-            message_code = ['', 'Internal info:', '', '```', message_orig, '```'] if message_orig else []
+            message_hash = ['Error Hash: %s' % msghash] if msghash else []
+            message_code = ['', 'Trace:', '', '```', message_orig, '```'] if message_orig else []
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
@@ -233,9 +241,7 @@ class RFContext_UI:
                     '',
                     '-------------------------------------',
                     '',
-                    'RetopoFlow: %s' % retopoflow_version,
-                    'Blender: %s' % blender_version,
-                    ] + message_hash + message_code)
+                    '```\n%s\n```' % msg_report])
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
@@ -258,7 +264,7 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, min_size=Vec2D((300,36))))
+        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
@@ -420,12 +426,13 @@ class RFContext_UI:
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', align=0, margin=0))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', align=0, margin=0))
         dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        dd_general.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
-        dd_general.add(UI_UpdateValue('Clip End',   get_clip_end,   set_clip_end,   upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_clip = dd_general.add(UI_Container())
+        container_clip.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value, margin=0))
+        container_clip.add(UI_UpdateValue('Clip End',   get_clip_end,   set_clip_end,   upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value, margin=0))
         container_alpha = dd_general.add(UI_Container())
-        container_alpha.add(UI_Label('Target Alpha:'))
-        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
-        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
+        container_alpha.add(UI_Label('Target Alpha:', margin=0))
+        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is above the source'))
+        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is below the source'))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False, margin=0))

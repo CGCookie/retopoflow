@@ -836,7 +836,7 @@ class UI_OnlineMarkdown(UI_Markdown):
         self.set_markdown(markdown)
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, bordercolor=(0,0,0,0.1), hovercolor=None, presscolor=(0,0,0,0.1), margin=None):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=-1, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=None):
         super().__init__(vertical=False)
         if icon:
             self.add(icon)
@@ -856,8 +856,10 @@ class UI_Button(UI_Container):
     def get_label(self): return self.label.get_label()
     def set_label(self, label): self.label.set_label(label)
     
-    def mouse_enter(self): self.hovering = True
-    def mouse_leave(self): self.hovering = False
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
     def mouse_down(self, mouse):
         self.pressed = True
     def mouse_move(self, mouse):
@@ -1238,10 +1240,11 @@ class UI_Checkbox2(UI_Container):
 class UI_BoolValue(UI_Checkbox):
     pass
 
+
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None, **kwargs):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None, margin=4, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
-        super().__init__(vertical=False)
+        super().__init__(vertical=False, margin=margin)
         # self.margin = 0
         self.lbl = UI_Label(label)
         self.val = UI_Label(fn_get_value())
@@ -1257,6 +1260,10 @@ class UI_IntValue(UI_Container):
         self.captured = False
         self.time_start = time.time()
         self.tooltip = kwargs.get('tooltip', None)
+        self.bgcolor = bgcolor
+        self.presscolor = presscolor
+        self.hovercolor = hovercolor
+        self.hovering = False
     
     def _get_tooltip(self, mouse): return self.tooltip
     
@@ -1275,6 +1282,11 @@ class UI_IntValue(UI_Container):
     def mouse_up(self, mouse):
         self.downed = False
     
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
+    
     def predraw(self):
         if not self.captured:
             fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
@@ -1289,6 +1301,21 @@ class UI_IntValue(UI_Container):
         w,h = self.size
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
+        
+        if self.hovering:
+            bgcolor = self.hovercolor or self.bgcolor
+        else:
+            bgcolor = self.bgcolor
+        
+        if bgcolor:
+            bgl.glColor4f(*bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
         bgl.glColor4f(r,g,b,a)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l,t)
@@ -1358,9 +1385,9 @@ class UI_IntValue(UI_Container):
             self.val.set_label(self.val_edit)
 
 class UI_UpdateValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value, fn_get_print_value=None, fn_set_print_value=None, **kwargs):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value, fn_get_print_value=None, fn_set_print_value=None, margin=4, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
-        super().__init__(vertical=False)
+        super().__init__(vertical=False, margin=margin)
         # self.margin = 0
         self.lbl = UI_Label(label)
         self.val = UI_Label(fn_get_value())
@@ -1377,7 +1404,11 @@ class UI_UpdateValue(UI_Container):
         self.captured = False
         self.time_start = time.time()
         self.tooltip = kwargs.get('tooltip', None)
-    
+        self.bgcolor = bgcolor
+        self.presscolor = presscolor
+        self.hovercolor = hovercolor
+        self.hovering = False
+
     def _get_tooltip(self, mouse): return self.tooltip
     
     def _hover_ui(self, mouse):
@@ -1397,6 +1428,11 @@ class UI_UpdateValue(UI_Container):
     def mouse_up(self, mouse):
         self.downed = False
     
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
+    
     def predraw(self):
         if not self.captured:
             fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
@@ -1411,6 +1447,21 @@ class UI_UpdateValue(UI_Container):
         w,h = self.size
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
+        
+        if self.hovering:
+            bgcolor = self.hovercolor or self.bgcolor
+        else:
+            bgcolor = self.bgcolor
+        
+        if bgcolor:
+            bgl.glColor4f(*bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+        
         bgl.glColor4f(r,g,b,a)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l,t)

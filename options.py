@@ -24,7 +24,7 @@ import re
 import json
 import shelve
 
-retopoflow_version = '2.0.0 beta'
+retopoflow_version = '2.0.0 beta 2'
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
