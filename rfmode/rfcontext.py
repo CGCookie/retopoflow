@@ -54,8 +54,7 @@ from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import set_cursor
-from ..common.decorators import stats_wrapper
-from ..common.utils import blender_version
+from ..common.decorators import stats_wrapper, blender_version_wrapper
 
 from ..options import options, themes
 
@@ -137,40 +136,44 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
     undo_depth = 100    # set in RF settings?
 
     @staticmethod
+    @blender_version_wrapper('<','2.80')
     def is_valid_source(o):
-        def lt_280(o):
-            if type(o) is not bpy.types.Object: return False
-            if type(o.data) is not bpy.types.Mesh: return False
-            if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
-            if o.hide: return False
-            if o.select and o == bpy.context.active_object: return False
-            if not o.data.polygons: return False
-            return True
-        def ge_280(o):
-            if type(o) is not bpy.types.Object: return False
-            if type(o.data) is not bpy.types.Mesh: return False
-            if o.select_get() and o == bpy.context.active_object: return False
-            if not o.data.polygons: return False
-            return True
-        return ge_280(o) if blender_version() >= '2.80' else lt_280(o)
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if o.select and o == bpy.context.active_object: return False
+        if not o.data.polygons: return False
+        return True
+    
+    @staticmethod
+    @blender_version_wrapper('>=','2.80')
+    def is_valid_source(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if o.select_get() and o == bpy.context.active_object: return False
+        if not o.data.polygons: return False
+        return True
 
     @staticmethod
+    @blender_version_wrapper('<','2.80')
     def is_valid_target(o):
-        def lt_280(o):
-            if type(o) is not bpy.types.Object: return False
-            if type(o.data) is not bpy.types.Mesh: return False
-            if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
-            if o.hide: return False
-            if not o.select: return False
-            if o != bpy.context.active_object: return False
-            return True
-        def ge_280(o):
-            if type(o) is not bpy.types.Object: return False
-            if type(o.data) is not bpy.types.Mesh: return False
-            if not o.select_get(): return False
-            if o != bpy.context.active_object: return False
-            return True
-        return ge_280(o) if blender_version() >= '2.80' else lt_280(o)
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
+        if o.hide: return False
+        if not o.select: return False
+        if o != bpy.context.active_object: return False
+        return True
+    
+    @staticmethod
+    @blender_version_wrapper('>=','2.80')
+    def is_valid_target(o):
+        if type(o) is not bpy.types.Object: return False
+        if type(o.data) is not bpy.types.Mesh: return False
+        if not o.select_get(): return False
+        if o != bpy.context.active_object: return False
+        return True
 
     @staticmethod
     def has_valid_source():

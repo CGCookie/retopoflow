@@ -45,8 +45,7 @@ from .rfcontext import RFContext
 from .rftool import RFTool
 from .rf_recover import RFRecover
 
-from ..common.decorators import stats_report, stats_wrapper
-from ..common.utils import blender_version
+from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 
 '''
 
@@ -226,53 +225,67 @@ class RFMode(Operator):
         stats_report()
     
     def context_start(self):
-        def lt_280(self):
-            # should we generate new target object?
-            if not RFContext.has_valid_target():
-                dprint('generating new target')
-                tar_name = "RetopoFlow"
-                tar_location = bpy.context.scene.cursor_location
-                tar_editmesh = bpy.data.meshes.new(tar_name)
-                tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
-                tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
-                tar_object.layers = list(bpy.context.scene.layers)          # set object on visible layers
-                #tar_object.show_x_ray = get_settings().use_x_ray
-                bpy.context.scene.objects.link(tar_object)
-                bpy.context.scene.objects.active = tar_object
-                tar_object.select = True
-            
-            tar_object = bpy.context.scene.objects.active
-            
-            # remember selection and unselect all
-            self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
-            for o in self.selected_objects: o.select = False
-            
-            starting_tool = self.context_start_tool()
-            self.rfctx = RFContext(self, starting_tool)
-        def ge_280(self):
-            # should we generate new target object?
-            if not RFContext.has_valid_target():
-                dprint('generating new target')
-                tar_name = "RetopoFlow"
-                tar_location = bpy.context.scene.cursor_location
-                tar_editmesh = bpy.data.meshes.new(tar_name)
-                tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
-                tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
-                #tar_object.show_x_ray = get_settings().use_x_ray
-                bpy.context.scene.objects.link(tar_object)
-                bpy.context.scene.objects.active = tar_object
-                tar_object.select_set(True)
-            
-            tar_object = bpy.context.scene.objects.active
-            
-            # remember selection and unselect all
-            self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select_get()]
-            for o in self.selected_objects: o.select_set(False)
-            
-            starting_tool = self.context_start_tool()
-            self.rfctx = RFContext(self, starting_tool)
+        @blender_version_wrapper('<','2.80')
+        def set_object_layers(o):
+            o.layers = list(bpy.context.scene.layers)
+        @blender_version_wrapper('>=','2.80')
+        def set_object_layers(o):
+            print('unhandled: set_object_layers')
+            pass
         
-        return ge_280(self) if blender_version() >= '2.80' else lt_280(self)
+        @blender_version_wrapper('<','2.80')
+        def set_object_selection(o, sel):
+            o.select = sel
+        @blender_version_wrapper('>=','2.80')
+        def set_object_selection(o, sel):
+            o.select_set('SELECT' if sel else 'DESELECT')
+        
+        @blender_version_wrapper('<','2.80')
+        def link_object(o):
+            bpy.context.scene.objects.link(o)
+        @blender_version_wrapper('>=','2.80')
+        def link_object(o):
+            print('unhandled: link_object')
+            pass
+        
+        @blender_version_wrapper('<','2.80')
+        def set_active_object(o):
+            bpy.context.scene.objects.active = o
+        @blender_version_wrapper('>=','2.80')
+        def set_active_object(o):
+            print('unhandled: set_active_object')
+            pass
+        
+        @blender_version_wrapper('<','2.80')
+        def get_active_object():
+            return bpy.context.scene.objects.active
+        @blender_version_wrapper('>=','2.80')
+        def get_active_object():
+            return bpy.context.active_object
+        
+        # should we generate new target object?
+        if not RFContext.has_valid_target():
+            dprint('generating new target')
+            tar_name = "RetopoFlow"
+            tar_location = bpy.context.scene.cursor_location
+            tar_editmesh = bpy.data.meshes.new(tar_name)
+            tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
+            tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
+            set_object_layers(tar_object)                               # set object on visible layers
+            #tar_object.show_x_ray = get_settings().use_x_ray
+            link_object(tar_object)
+            set_active_object(tar_object)
+            set_object_selection(tar_object, True)
+        
+        tar_object = get_active_object()
+        
+        # remember selection and unselect all
+        self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
+        for o in self.selected_objects: set_object_selection(o, False)
+        
+        starting_tool = self.context_start_tool()
+        self.rfctx = RFContext(self, starting_tool)
+    
     
     def context_start_tool(self):
         assert False, "Each RFTool should overwrite this!"

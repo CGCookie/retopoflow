@@ -126,3 +126,28 @@ def timed_call(label):
     return wrapper
 
 
+# corrected bug in previous version of blender_version fn wrapper
+# https://github.com/CGCookie/retopoflow/commit/135746c7b4ee0052ad0c1842084b9ab983726b33#diff-d4260a97dcac93f76328dfaeb5c87688
+def blender_version_wrapper(op, ver):
+    self = blender_version_wrapper
+    if not hasattr(self, 'init'):
+        major,minor,rev = bpy.app.version
+        blenderver = '%d.%02d' % (major,minor)
+        self.fns = {}
+        self.ops = {
+            '<':  lambda v: blenderver <  v,
+            '<=': lambda v: blenderver <= v,
+            '==': lambda v: blenderver == v,
+            '>=': lambda v: blenderver >= v,
+            '>':  lambda v: blenderver >  v,
+            '!=': lambda v: blenderver != v,
+        }
+        self.init = True
+    update_fn = self.ops[op](ver)
+    fns = self.fns
+    def wrapit(fn):
+        n = fn.__name__
+        if update_fn: fns[n] = fn
+        def callit(*args, **kwargs): return fns[n](*args, **kwargs)
+        return callit
+    return wrapit
