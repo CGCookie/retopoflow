@@ -91,7 +91,11 @@ class RFTool_Loops(RFTool):
             return (ec,cc0,cc1)
         edge0 = self.edges[0]
         self.edges_ = [get(e0,e1) for e0,e1 in zip([self.edges[0]] + self.edges,self.edges)]
-        c0,c1 = next((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge)
+        c0,c1 = next(((c0,c1) for e,c0,c1 in self.edges_ if e == self.nearest_edge), (None,None))
+        if c0 is None or c1 is None:
+            # nearest_edge isn't in list?
+            self.edges = None
+            return
         c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
         a,b = c1 - c0, self.rfcontext.actions.mouse - c0
         adota = a.dot(a)
