@@ -119,10 +119,11 @@ def get_exception_info_and_hash():
     for i,entry in enumerate(reversed(etb)):
         filename,lineno,funcname,line = entry
         if pfilename is None:
-            # only hash in the last location, where the exception occurred
+            # only hash in details of where the exception occurred
             update_hash(os.path.split(filename)[1])
-            update_hash(lineno)
+            #update_hash(lineno)
             update_hash(funcname)
+            update_hash(line.strip())
         if filename != pfilename:
             pfilename = filename
             if filename.startswith(base_path):

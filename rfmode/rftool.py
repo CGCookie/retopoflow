@@ -104,7 +104,7 @@ class RFTool(metaclass=SingletonRegisterClass):
             if nmode: self.mode = nmode
         except Exception as e:
             self.mode = 'main'
-            raise e
+            raise e     # passing on the exception to RFContext
     
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self): pass

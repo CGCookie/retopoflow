@@ -160,9 +160,91 @@ class RFContext_UI:
         show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
+        blender_branch = bpy.app.build_branch.decode('utf-8')
+        blender_date = bpy.app.build_commit_date.decode('utf-8')
         darken = False
         
         ui_checker = None
+        ui_details = None
+        message_orig = message
+        
+        def screenshot():
+            ss_filename = options['screenshot filename']
+            if bpy.data.filepath == '':
+                # startup file
+                filepath = os.path.abspath(ss_filename)
+            else:
+                # loaded .blend file
+                filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
+                filepath = os.path.join(filepath, ss_filename)
+            bpy.ops.screen.screenshot(filepath=filepath)
+            self.alert_user(message='Saved screenshot to "%s"' % filepath)
+        def open_issues():
+            bpy.ops.wm.url_open(url=retopoflow_issues_url)
+        def search():
+            url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
+            bpy.ops.wm.url_open(url=url)
+        def report():
+            message_hash = ['Error Hash: %s' % msghash] if msghash else []
+            message_code = ['', 'Trace:', '', '```', message_orig, '```'] if message_orig else []
+            data = {
+                'title': '%s: %s' % (self.tool.name(), title),
+                'body': '\n'.join([
+                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
+                    'Provide as much information as you can so that we can reproduce the problem and fix it.',
+                    'Screenshots and .blend files are very helpful.',
+                    'Also, change the title of this bug report to something descriptive and helpful.',
+                    'Thank you!',
+                    '',
+                    '-------------------------------------',
+                    '',
+                    '```\n%s\n```' % msg_report])
+            }
+            url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
+            bpy.ops.wm.url_open(url=url)
+        
+        if msghash:
+            ui_checker = UI_Container(background=(0,0,0,0.4))
+            ui_checker.add(UI_Label('RetopoFlow Issue Tracker', align=0))
+            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...'))
+            ui_buttons = ui_checker.add(UI_EqualContainer(margin=1, vertical=False))
+            
+            def check_github():
+                try:
+                    # attempt to see if this issue already exists!
+                    url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
+                    response = urllib.request.urlopen(url)
+                    text = response.read().decode('utf-8')
+                    issues = json.loads(text)
+                    exists,solved,issueurl = False,False,None
+                    for issue in issues:
+                        if msghash not in issue['body']: continue
+                        issueurl = issue['html_url']
+                        exists = True
+                        if issue['state'] == 'closed': solved = True
+                    if not exists:
+                        ui_label.set_markdown('This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
+                    else:
+                        if solved:
+                            ui_label.set_markdown('This issue appears to have been solved already!\n\nClick Open button to see the current status.')
+                        else:
+                            ui_label.set_markdown('This issue appears to have been reported already.\n\nAn updated RetopoFlow should fix this issue.')
+                        def go():
+                            bpy.ops.wm.url_open(url=issueurl)
+                        ui_buttons.add(UI_Button('Open', go, tooltip='Open this issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                except Exception as e:
+                    ui_label.set_markdown('Sorry, but we could not check GitHub for issues.')
+                    print('Caught exception while trying to pull issues from GitHub')
+                    print(e)
+                    # ignore for now
+                    pass
+                ui_buttons.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('All Issues', open_issues, tooltip='Open RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                #ui_buttons.add(UI_Button('Search', search, tooltip='Search the RetopoFlow Issue Tracker for similar issues', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('Report', report, tooltip='Report a new issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
+            
+            executor = ThreadPoolExecutor()
+            executor.submit(check_github)
         
         if level in {'note'}:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
@@ -186,58 +268,25 @@ class RFContext_UI:
                 title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
                 desc = 'An unhandled exception was thrown.'
             
-            message_orig = message
+            message = '\n'.join([
+                desc,
+                'This was unexpected.',
+                '',
+                'If this happens again, please report as bug so we can fix it.',
+                ])
+            
             msg_report = '\n'.join([
                 'System:\n',
                 '- RetopoFlow: %s' % retopoflow_version,
-                '- Blender: %s' % blender_version,
+                '- Blender: %s %s %s' % (blender_version, blender_branch, blender_date),
                 '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
             ])
             if msghash: msg_report += '\n\nError Hash: %s' % str(msghash)
             if message_orig: msg_report += '\n\nTrace:\n\n%s' % message_orig
-            
-            if msghash:
-                ui_checker = UI_Container(background=(0,0,0,0.4))
-                ui_label = ui_checker.add(UI_Label('Online: Checking reported issues...', margin=4))
-                
-                def check_github():
-                    try:
-                        # attempt to see if this issue already exists!
-                        url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
-                        response = urllib.request.urlopen(url)
-                        text = response.read().decode('utf-8')
-                        issues = json.loads(text)
-                        exists,solved,issueurl = False,False,None
-                        for issue in issues:
-                            if msghash not in issue['body']: continue
-                            issueurl = issue['html_url']
-                            exists = True
-                            if issue['state'] == 'closed': solved = True
-                        if exists:
-                            if solved:
-                                ui_label.set_label('Online: This issue appears to have been solved already!')
-                            else:
-                                ui_label.set_label('Online: This issue appears to have been reported already.')
-                            def go():
-                                bpy.ops.wm.url_open(url=issueurl)
-                            ui_checker.add(UI_Button('Visit the RetopoFlow issue in your default browser', go, align=0, bgcolor=(1,1,1,0.2)))
-                        else:
-                            ui_label.set_label('Online: This issue does not appear to be reported, yet')
-                    except Exception as e:
-                        ui_label.set_label('Online: Sorry, but we could not check GitHub for issues.')
-                        print('Caught exception while trying to pull issues from GitHub')
-                        print(e)
-                        # ignore for now
-                        pass
-                
-                executor = ThreadPoolExecutor()
-                executor.submit(check_github)
-            
-            message = '\n'.join([
-                    desc,
-                    'This was unexpected.',
-                    'If this happens again, please report as bug so we can fix it.',
-                    '', msg_report])
+            ui_details = UI_Container(background=(0,0,0,0.4))
+            ui_details.add(UI_Label('Crash Details', align=0))
+            ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((400,36))))
+            ui_details.visible = False
             
             show_quit = True
             darken = True
@@ -246,47 +295,15 @@ class RFContext_UI:
             title = '%s' % (level.upper()) + (': %s' % title if title else '')
             message = message or 'a note'
 
+        def toggle_details():
+            ui_details.visible = not ui_details.visible
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
             # self.alert_windows -= 1
         def quit():
             self.exit = True
-        def screenshot():
-            ss_filename = options['screenshot filename']
-            if bpy.data.filepath == '':
-                # startup file
-                filepath = os.path.abspath(ss_filename)
-            else:
-                # loaded .blend file
-                filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
-                filepath = os.path.join(filepath, ss_filename)
-            bpy.ops.screen.screenshot(filepath=filepath)
-            self.alert_user(message='Saved screenshot to "%s"' % filepath)
         
-        def search():
-            url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
-            bpy.ops.wm.url_open(url=url)
-
-        def report():
-            message_hash = ['Error Hash: %s' % msghash] if msghash else []
-            message_code = ['', 'Trace:', '', '```', message_orig, '```'] if message_orig else []
-            data = {
-                'title': '%s: %s' % (self.tool.name(), title),
-                'body': '\n'.join([
-                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
-                    'Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    'Screenshots and .blend files are very helpful.',
-                    'Also, change the title of this bug report to something descriptive and helpful.',
-                    'Thank you!',
-                    '',
-                    '-------------------------------------',
-                    '',
-                    '```\n%s\n```' % msg_report])
-            }
-            url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
-            bpy.ops.wm.url_open(url=url)
-
         def event_handler(context, event):
             if event.type == 'WINDOW' and event.value == 'CLOSE':
                 self.alert_windows -= 1
@@ -305,17 +322,14 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
-        if ui_checker:
-            win.add(ui_checker)
+        win.add(UI_Markdown(message))
+        if ui_details: win.add(ui_details)
+        if ui_checker: win.add(ui_checker)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        if ui_details:
+            container.add(UI_Button('Details', toggle_details, tooltip='Show/hide crash details', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        if level in {'assert', 'exception'}:
-            container.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-            if msghash:
-                container.add(UI_Button('Search', search, tooltip='Search the RetopoFlow issue tracker for similar issues', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-            container.add(UI_Button('Report', report, tooltip='Open the RetopoFlow issue tracker in your default browser', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
             container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
