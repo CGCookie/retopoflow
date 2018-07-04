@@ -127,7 +127,7 @@ def get_exception_info_and_hash():
             pfilename = filename
             if filename.startswith(base_path):
                 filename = '.../%s' % filename[len(base_path)+1:]
-            errormsg += '         %s\n' % (filename, )
+            errormsg += '%s\n' % (filename, )
         errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
     
     return (errormsg, hashed.hexdigest())

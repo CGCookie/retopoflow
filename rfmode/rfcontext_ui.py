@@ -23,10 +23,12 @@ import os
 import bpy
 import bgl
 import blf
+import json
 import math
 import time
 import urllib
 
+from concurrent.futures import ThreadPoolExecutor
 from mathutils import Vector
 
 from .rftool import RFTool
@@ -160,6 +162,8 @@ class RFContext_UI:
         blender_version = '%d.%02d.%d' % bpy.app.version
         darken = False
         
+        ui_checker = None
+        
         if level in {'note'}:
             bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
@@ -181,23 +185,60 @@ class RFContext_UI:
                 bgcolor = (0.15, 0.07, 0.07, 0.95)
                 title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
                 desc = 'An unhandled exception was thrown.'
+            
             message_orig = message
             msg_report = '\n'.join([
-                    'System:\n',
-                    '- RetopoFlow: %s' % retopoflow_version,
-                    '- Blender: %s' % blender_version,
-                    '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
-                    '',
-                ] +
-                (['Error Hash: %s' % str(msghash),''] if msghash else []) +
-                (['Trace:\n', message_orig] if message_orig else [])
-                )
+                'System:\n',
+                '- RetopoFlow: %s' % retopoflow_version,
+                '- Blender: %s' % blender_version,
+                '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
+            ])
+            if msghash: msg_report += '\n\nError Hash: %s' % str(msghash)
+            if message_orig: msg_report += '\n\nTrace:\n\n%s' % message_orig
+            
+            if msghash:
+                ui_checker = UI_Container(background=(0,0,0,0.4))
+                ui_label = ui_checker.add(UI_Label('Online: Checking reported issues...', margin=4))
+                
+                def check_github():
+                    try:
+                        # attempt to see if this issue already exists!
+                        url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
+                        response = urllib.request.urlopen(url)
+                        text = response.read().decode('utf-8')
+                        issues = json.loads(text)
+                        exists,solved,issueurl = False,False,None
+                        for issue in issues:
+                            if msghash not in issue['body']: continue
+                            issueurl = issue['html_url']
+                            exists = True
+                            if issue['state'] == 'closed': solved = True
+                        if exists:
+                            if solved:
+                                ui_label.set_label('Online: This issue appears to have been solved already!')
+                            else:
+                                ui_label.set_label('Online: This issue appears to have been reported already.')
+                            def go():
+                                bpy.ops.wm.url_open(url=issueurl)
+                            ui_checker.add(UI_Button('Visit the RetopoFlow issue in your default browser', go, align=0, bgcolor=(1,1,1,0.2)))
+                        else:
+                            ui_label.set_label('Online: This issue does not appear to be reported, yet')
+                    except Exception as e:
+                        ui_label.set_label('Online: Sorry, but we could not check GitHub for issues.')
+                        print('Caught exception while trying to pull issues from GitHub')
+                        print(e)
+                        # ignore for now
+                        pass
+                
+                executor = ThreadPoolExecutor()
+                executor.submit(check_github)
             
             message = '\n'.join([
                     desc,
                     'This was unexpected.',
                     'If this happens again, please report as bug so we can fix it.',
                     '', msg_report])
+            
             show_quit = True
             darken = True
         else:
@@ -265,6 +306,8 @@ class RFContext_UI:
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
         win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
+        if ui_checker:
+            win.add(ui_checker)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
