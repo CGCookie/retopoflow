@@ -25,6 +25,8 @@ import json
 import shelve
 
 retopoflow_version = '2.0.0 beta 2'
+git_head_filename = os.path.join('.git','HEAD')
+retopoflow_version_git = open(git_head_filename).read().split()[1] if os.path.exists(git_head_filename) else ''
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!

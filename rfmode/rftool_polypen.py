@@ -121,11 +121,6 @@ class RFTool_PolyPen(RFTool):
     @profiler.profile
     def modal_main(self):
         self.set_next_state()
-        
-        #if self.rfcontext.actions.pressed('F5'):
-        #    assert False
-        #if self.rfcontext.actions.pressed('F6'):
-        #    x = 42 / 0
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'

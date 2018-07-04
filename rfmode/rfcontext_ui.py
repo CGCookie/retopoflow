@@ -52,6 +52,7 @@ from ..lib.common_utilities import matrix_normal
 
 from ..options import (
     retopoflow_version,
+    retopoflow_version_git,
     retopoflow_profiler,
     retopoflow_issues_url,
     retopoflow_tip_url,
@@ -212,6 +213,9 @@ class RFContext_UI:
             def check_github():
                 try:
                     # attempt to see if this issue already exists!
+                    # note: limited to 60 requests/hour!  see
+                    #     https://developer.github.com/v3/#rate-limiting
+                    #     https://developer.github.com/v3/search/#rate-limit
                     url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
                     response = urllib.request.urlopen(url)
                     text = response.read().decode('utf-8')
@@ -225,22 +229,23 @@ class RFContext_UI:
                     if not exists:
                         ui_label.set_markdown('This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
                     else:
-                        if solved:
-                            ui_label.set_markdown('This issue appears to have been solved already!\n\nClick Open button to see the current status.')
+                        if not solved:
+                            ui_label.set_markdown('This issue appears to have been reported already.\n\nClick Open button to see the current status.')
                         else:
-                            ui_label.set_markdown('This issue appears to have been reported already.\n\nAn updated RetopoFlow should fix this issue.')
+                            ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                         def go():
                             bpy.ops.wm.url_open(url=issueurl)
                         ui_buttons.add(UI_Button('Open', go, tooltip='Open this issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
                 except Exception as e:
-                    ui_label.set_markdown('Sorry, but we could not check GitHub for issues.')
+                    ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     print('Caught exception while trying to pull issues from GitHub')
+                    print('URL: "%s"' % url)
                     print(e)
                     # ignore for now
                     pass
                 ui_buttons.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('Similar', search, tooltip='Search the RetopoFlow Issue Tracker for similar issues', align=0, bgcolor=(1,1,1,0.3), margin=1))
                 ui_buttons.add(UI_Button('All Issues', open_issues, tooltip='Open RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
-                #ui_buttons.add(UI_Button('Search', search, tooltip='Search the RetopoFlow Issue Tracker for similar issues', align=0, bgcolor=(1,1,1,0.3), margin=1))
                 ui_buttons.add(UI_Button('Report', report, tooltip='Report a new issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
             
             executor = ThreadPoolExecutor()
@@ -277,7 +282,7 @@ class RFContext_UI:
             
             msg_report = '\n'.join([
                 'System:\n',
-                '- RetopoFlow: %s' % retopoflow_version,
+                '- RetopoFlow: %s %s' % (retopoflow_version, retopoflow_version_git),
                 '- Blender: %s %s %s' % (blender_version, blender_branch, blender_date),
                 '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
             ])
