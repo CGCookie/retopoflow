@@ -659,6 +659,7 @@ class UI_EqualContainer(UI_Container):
         super().__init__(vertical=vertical, margin=margin)
     
     def _draw(self):
+        if len(self.ui_items) == 0: return
         l,t = self.pos
         w,h = self.size
         if self.vertical:
@@ -765,8 +766,8 @@ class UI_TableContainer(UI_Element):
 
 
 class UI_Markdown(UI_Container):
-    def __init__(self, markdown, min_size=Vec2D((600, 36))):
-        super().__init__(margin=0)
+    def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0):
+        super().__init__(margin=margin)
         self.min_size = self.drawing.scale(min_size)
         self.set_markdown(markdown)
     

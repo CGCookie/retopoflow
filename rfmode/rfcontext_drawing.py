@@ -46,7 +46,7 @@ from ..common.ui import (
     GetSet,
     )
 from ..lib import common_drawing_bmesh as bmegl
-from ..lib.common_utilities import matrix_normal
+from ..lib.common_utilities import matrix_normal, get_exception_info_and_hash
 
 from ..options import (
     retopoflow_version,
@@ -137,12 +137,24 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
-        self.tool.draw_postpixel()
-        self.rfwidget.draw_postpixel()
+        try:
+            self.tool.draw_postpixel()
+            self.rfwidget.draw_postpixel()
+            self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
+            self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
+            self.window_manager.draw_postpixel()
+        except AssertionError as e:
+            message,h = get_exception_info_and_hash()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='assert', msghash=h)
+        except Exception as e:
+            message,h = get_exception_info_and_hash()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='exception', msghash=h)
+            #raise e
 
-        self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
-        self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
-        self.window_manager.draw_postpixel()
 
     def draw_preview(self):
         if not self.actions.r3d: return
