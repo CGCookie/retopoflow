@@ -716,6 +716,7 @@ class RFMesh():
         for bme in edges:
             bmv0 = Point_to_Point2D(l2w_point(bme.verts[0].co))
             bmv1 = Point_to_Point2D(l2w_point(bme.verts[1].co))
+            if bmv0 is None or bmv1 is None: continue
             diff = bmv1 - bmv0
             l = diff.length
             if l == 0:
