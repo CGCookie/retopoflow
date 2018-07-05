@@ -196,6 +196,7 @@ class RFContext_Drawing:
     @profiler.profile
     def draw_postview(self):
         if not self.actions.r3d: return
+        if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
 
         buf_matrix_target = self.rftarget_draw.buf_matrix_model
         buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
