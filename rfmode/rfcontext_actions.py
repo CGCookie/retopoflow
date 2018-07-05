@@ -147,7 +147,8 @@ class Actions:
         'NDOF Pan View': 'view3d.ndof_pan',
         'NDOF Move View': 'view3d.ndof_all',
         'View Selected': 'view3d.view_selected',
-        'Center View to Cursor': 'view3d.view_center_cursor'
+        'Center View to Cursor': 'view3d.view_center_cursor',
+        'View Navigation': 'view3d.navigate',
         }
 
     window_actions = {
