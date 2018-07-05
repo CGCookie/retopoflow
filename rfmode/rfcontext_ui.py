@@ -51,13 +51,14 @@ from ..lib import common_drawing_bmesh as bmegl
 from ..lib.common_utilities import matrix_normal
 
 from ..options import (
-    retopoflow_version,
-    retopoflow_version_git,
+    retopoflow_version,retopoflow_version_git,
     retopoflow_profiler,
-    retopoflow_issues_url,
-    retopoflow_tip_url,
+    retopoflow_issues_url,retopoflow_tip_url,
     options,
     themes,
+    build_platform,
+    platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor,
+    gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
 
 from ..help import help_general, firsttime_message
@@ -167,6 +168,7 @@ class RFContext_UI:
         
         ui_checker = None
         ui_details = None
+        ui_show = None
         message_orig = message
         
         def screenshot():
@@ -186,8 +188,6 @@ class RFContext_UI:
             url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
             bpy.ops.wm.url_open(url=url)
         def report():
-            message_hash = ['Error Hash: %s' % msghash] if msghash else []
-            message_code = ['', 'Trace:', '', '```', message_orig, '```'] if message_orig else []
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
@@ -199,7 +199,8 @@ class RFContext_UI:
                     '',
                     '-------------------------------------',
                     '',
-                    '```\n%s\n```' % msg_report])
+                    '```',msg_report,'```'
+                ])
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
@@ -207,7 +208,7 @@ class RFContext_UI:
         if msghash:
             ui_checker = UI_Container(background=(0,0,0,0.4))
             ui_checker.add(UI_Label('RetopoFlow Issue Tracker', align=0))
-            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...'))
+            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...', min_size=Vec2D((400,36))))
             ui_buttons = ui_checker.add(UI_EqualContainer(margin=1, vertical=False))
             
             def check_github():
@@ -280,17 +281,27 @@ class RFContext_UI:
                 'If this happens again, please report as bug so we can fix it.',
                 ])
             
-            msg_report = '\n'.join([
-                'System:\n',
-                '- RetopoFlow: %s %s' % (retopoflow_version, retopoflow_version_git),
-                '- Blender: %s %s %s' % (blender_version, blender_branch, blender_date),
-                '- Platform: %s' % str(bpy.app.build_platform, 'UTF8'),
-            ])
-            if msghash: msg_report += '\n\nError Hash: %s' % str(msghash)
-            if message_orig: msg_report += '\n\nTrace:\n\n%s' % message_orig
+            msg_report = ['Environment:\n']
+            msg_report += ['- RetopoFlow: %s' % (retopoflow_version,)]
+            if retopoflow_version_git:
+                msg_report += ['- RF git: %s' % (retopoflow_version_git,)]
+            msg_report += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
+            msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
+            msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
+            if msghash:
+                msg_report += ['\n\nError Hash: %s' % (str(msghash),)]
+            if message_orig:
+                msg_report += ['\n\nTrace:\n\n%s' % (message_orig,)]
+            msg_report = '\n'.join(msg_report)
+            
+            def clipboard():
+                try: bpy.context.window_manager.clipboard = msg_report
+                except: pass
+            
             ui_details = UI_Container(background=(0,0,0,0.4))
             ui_details.add(UI_Label('Crash Details', align=0))
-            ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((400,36))))
+            ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
+            ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             ui_details.visible = False
             
             show_quit = True
@@ -302,6 +313,10 @@ class RFContext_UI:
 
         def toggle_details():
             ui_details.visible = not ui_details.visible
+            if ui_details.visible:
+                ui_show.set_label('Hide Details')
+            else:
+                ui_show.set_label('Show Details')
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
@@ -327,21 +342,94 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message))
+        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
         if ui_details: win.add(ui_details)
         if ui_checker: win.add(ui_checker)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         if ui_details:
-            container.add(UI_Button('Details', toggle_details, tooltip='Show/hide crash details', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            ui_show = container.add(UI_Button('Show Details', toggle_details, tooltip='Show/hide crash details', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        if show_quit:
-            #container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-            pass
+        # if show_quit:
+        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         self.window_manager.set_focus(win, darken=darken)
 
         self.alert_windows += 1
+
+    def show_lowfps_warning(self):
+        if self.fps_low_warning: return             # already showing the warning
+        self.fps_low_warning = True
+        
+        blender_version = '%d.%02d.%d' % bpy.app.version
+        blender_branch = bpy.app.build_branch.decode('utf-8')
+        blender_date = bpy.app.build_commit_date.decode('utf-8')
+        
+        nsrcs = len(self.rfsources)
+        nsrcv = sum(rfmesh.get_vert_count() for rfmesh in self.rfsources)
+        nsrce = sum(rfmesh.get_edge_count() for rfmesh in self.rfsources)
+        nsrcf = sum(rfmesh.get_face_count() for rfmesh in self.rfsources)
+        
+        def clipboard(): bpy.context.window_manager.clipboard = msg_report
+        
+        msg_report = ['Details:\n']
+        msg_report += ['- RetopoFlow: %s' % (retopoflow_version,)]
+        if retopoflow_version_git:
+            msg_report += ['- RF git: %s' % (retopoflow_version_git,)]
+        msg_report += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
+        msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
+        msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
+        msg_report += ['- Target: verts:%d, edges:%d, faces:%d' % (self.rftarget.get_vert_count(), self.rftarget.get_edge_count(), self.rftarget.get_face_count())]
+        msg_report += ['- Sources: number:%d, verts:%d, edges:%d, faces:%d' % (nsrcs, nsrcv, nsrce, nsrcf)]
+        msg_report += ['- FPS: current:%f, threshold:%s, time:%s' % (self.fps, str(options['low fps threshold']), str(options['low fps time']))]
+        msg_report = '\n'.join(msg_report)
+        
+        ui_details = UI_Container(background=(0,0,0,0.4))
+        ui_details.add(UI_Label('System Details', align=0))
+        ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
+        ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy System Details to clipboard', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        
+        def submit():
+            bpy.ops.wm.url_open(url=options['github low fps url'])
+        def disable():
+            nonlocal win
+            options['low fps warn'] = False
+            self.window_manager.delete_window(win)
+        def close():
+            nonlocal win
+            self.window_manager.delete_window(win)
+        def event_handler(context, event):
+            if event.type == 'WINDOW' and event.value == 'CLOSE':
+                self.fps_low_warning = False
+                self.fps_low_start = time.time()
+            if event.type == 'ESC' and event.value == 'RELEASE':
+                close()
+        
+        message = '\n'.join([
+            'Low FPS (<%s fps for %s+ seconds) has been detected.' % (str(options['low fps threshold']), str(options['low fps time'])),
+            '',
+            'This is a known problem that we are still working on a solution, but we need your help!',
+            '',
+            'Please consider submitting your system specifications using the Open button below.',
+            ])
+        
+        opts = {
+            'sticky': 5,
+            'movable': False,
+            'bgcolor': (0.5,0.2,0.2,0.95),
+            'event handler': event_handler,
+            }
+        win = self.window_manager.create_window('Low FPS Warning', opts)
+        win.add(UI_Rule())
+        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
+        win.add(ui_details)
+        win.add(UI_Rule())
+        container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        container.add(UI_Button('Open', submit, tooltip='Open the Low FPS issue in the RetopoFlow Issue Tracker', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Disable', disable, tooltip='Disable the low FPS check (can re-enable in Options > Advanced', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', close, tooltip='Close this low FPS warning', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+
+        self.window_manager.set_focus(win, darken=True)
 
 
     def _init_ui(self):
@@ -536,6 +624,9 @@ class RFContext_UI:
         fps_save = info_adv.add(UI_Container(vertical=False))
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf', tooltip="Seconds until autosave is triggered (based on Blender settings)"))
+        
+        info_adv.add(UI_Checkbox('Low FPS Warn', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
+        info_adv.add(UI_Button('Show Low FPS Warning', self.show_lowfps_warning, tooltip='Show Low FPS Warning window', align=0))
 
         info_adv.add(UI_IntValue('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
         info_adv.add(UI_Checkbox('Debug Actions', *optgetset('debug actions'), tooltip="Print actions (except MOUSEMOVE) to console"))
@@ -574,3 +665,4 @@ class RFContext_UI:
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General Help (F1) and Tool Help (F2)', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', self.toggle_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        

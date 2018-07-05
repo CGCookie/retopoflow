@@ -21,12 +21,42 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import re
+import bgl
+import bpy
 import json
 import shelve
+import platform
 
 retopoflow_version = '2.0.0 beta 2'
-git_head_filename = os.path.join('.git','HEAD')
-retopoflow_version_git = open(git_head_filename).read().split()[1] if os.path.exists(git_head_filename) else ''
+build_platform = bpy.app.build_platform.decode('utf-8')
+
+retopoflow_version_git = None
+def get_git_info():
+    global retopoflow_version_git
+    try:
+        git_head_path = os.path.join('.git', 'HEAD')
+        if not os.path.exists(git_head_path): return
+        git_ref_path = open(git_head_path).read().split()[1]
+        assert git_ref_path.startswith('refs/heads/')
+        git_ref_path = git_ref_path[len('refs/heads/'):]
+        git_ref_fullpath = os.path.join('.git', 'logs', 'refs', 'heads', git_ref_path)
+        if not os.path.exists(git_ref_fullpath): return
+        log = open(git_ref_fullpath).read().splitlines()
+        commit = log[-1].split()[1]
+        print('git: %s %s' % (git_ref_path,commit))
+        retopoflow_version_git = '%s %s' % (git_ref_path, commit)
+    except Exception as e:
+        print('An exception occurred while checking git info')
+        print(e)
+get_git_info()
+
+platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor = platform.uname()
+
+# https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
+gpu_vendor = bgl.glGetString(bgl.GL_VENDOR)
+gpu_renderer = bgl.glGetString(bgl.GL_RENDERER)
+gpu_version = bgl.glGetString(bgl.GL_VERSION)
+gpu_shading = bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
@@ -55,11 +85,16 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
         
+        'low fps threshold':    10,     # threshold of a low fps
+        'low fps warn':         True,   # warn user of low fps?
+        'low fps time':         2,      # time (seconds) before warning user of low fps
+        
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
         
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
+        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',
         
         'tools pos':    7,
         'info pos':     1,

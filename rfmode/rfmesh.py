@@ -814,6 +814,10 @@ class RFMesh():
     def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
     def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
     def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
+    
+    def get_vert_count(self): return len(self.bme.verts)
+    def get_edge_count(self): return len(self.bme.edges)
+    def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
         s = set()

@@ -222,6 +222,8 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
         self.timer = None
         self.time_to_save = None
         self.fps = 0
+        self.fps_low_start = time.time()    # time when low fps started
+        self.fps_low_warning = False        # are we showing a low-fps warning?
         self.exit = False
         self.tool = None
         self.tool_setting = False

@@ -132,6 +132,11 @@ class RFContext_Drawing:
             self.fps = self.frames / (ctime - wtime)
             self.frames = 0
             self.fps_time = ctime
+        
+        if self.fps >= options['low fps threshold']: self.fps_low_start = ctime
+        if ctime - self.fps_low_start > options['low fps time']:
+            # exceeded allowed time for low fps
+            if options['low fps warn']: self.show_lowfps_warning()
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
