@@ -39,8 +39,8 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 ## Major Changes from Version 1.x
 
 What you see behind this message is here is a complete rewrite of the code base.
-RetopoFlow 2.0 now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
-We focused our 2.0 development on two main items: stability and user experience.
+RetopoFlow 2.x now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
+We focused our 2.x development on two main items: stability and user experience.
 With an established and solid framework, we will focus more on features in future releases.
 
 - Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
@@ -95,17 +95,37 @@ Cheers!
 
 
 help_quickstart = '''
-RetopoFlow 2.0 Quick Start Guide
+RetopoFlow 2.x Quick Start Guide
 ================================
 
-We wrote this guide to help you get started as quickly a possible with the new RetopoFlow 2.0.
-More detailed help is available after you start RF.
+We wrote this guide to help you get started as quickly a possible with the new RetopoFlow 2.x.
+More detailed help is available by pressing F1 after you start RF.
+
+
+TL;DR
+-----
+
+When you are retopologizing for the first time, deselect all objects and click one of the RetopoFlow tools.
+
+When continuing work on a previous retopology session, select the target object, and click one of the RetopoFlow tools.
+
+
+Terminology
+-----------
+
+Source Object(s)
+
+: The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode).
+
+Target Object
+
+: The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow.
 
 
 Target and Source Objects
 -------------------------
 
-In RetopoFlow 1.x you were required to select the source and target objects explicitly, but in RetopoFlow 2.0 the source and target objects are determined by RetopoFlow based on which mesh objects are selected, active, and visible.
+In RetopoFlow 1.x you were required to select the source and target objects explicitly, but in RetopoFlow 2.x the source and target objects are determined by RetopoFlow based on which mesh objects are selected, active, and visible.
 
 The target object is either:
 
@@ -125,7 +145,7 @@ The tools in RetopoFlow 1.x were set of disjoint tools, where you would need to 
 Also, because we wrote RF 1.x tools separately, the visualizations and settings were not consistent.
 Furthermore, the only indication that a tool was running in RetopoFlow 1.x was a small "Click for Help" button in the top-right corner, which is easily missed.
 
-In RetopoFlow 2.0, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
+In RetopoFlow 2.x, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
 
 When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and panels will be added to the 3D view.
