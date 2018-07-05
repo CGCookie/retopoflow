@@ -29,10 +29,11 @@ from .rfmode.rftool import RFTool
 from .rfmode.rfmode import RFMode
 
 from .icons import load_icons
+from .options import retopoflow_version
 
 class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
     bl_category = "Retopology"
-    bl_label = "RetopoFlow 2.0"
+    bl_label = "RetopoFlow %s" % retopoflow_version
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
 

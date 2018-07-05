@@ -425,8 +425,8 @@ class RFContext_UI:
         win.add(ui_details)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        container.add(UI_Button('Open', submit, tooltip='Open the Low FPS issue in the RetopoFlow Issue Tracker', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Disable', disable, tooltip='Disable the low FPS check (can re-enable in Options > Advanced', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Open Issue', submit, tooltip='Open the Low FPS issue in the RetopoFlow Issue Tracker', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Disable Check', disable, tooltip='Disable the low FPS check (can re-enable in Options > Advanced > Low FPS Options', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', close, tooltip='Close this low FPS warning', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         self.window_manager.set_focus(win, darken=True)
@@ -625,13 +625,16 @@ class RFContext_UI:
         self.window_debug_fps = fps_save.add(UI_Label('fps: 0.00'))
         self.window_debug_save = fps_save.add(UI_Label('save: inf', tooltip="Seconds until autosave is triggered (based on Blender settings)"))
         
-        info_adv.add(UI_Checkbox('Low FPS Warn', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
-        info_adv.add(UI_Button('Show Low FPS Warning', self.show_lowfps_warning, tooltip='Show Low FPS Warning window', align=0))
-
         info_adv.add(UI_IntValue('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
         info_adv.add(UI_Checkbox('Debug Actions', *optgetset('debug actions'), tooltip="Print actions (except MOUSEMOVE) to console"))
         info_adv.add(UI_Checkbox('Instrument', *optgetset('instrument'), tooltip="Enable to record all of your actions to a text block. CAUTION: will slow down responsiveness!"))
         info_adv.add(UI_Checkbox('Async Loading', *optgetset('async mesh loading'), tooltip="Load meshes asynchronously"))
+
+        ui_lowfps = info_adv.add(UI_Collapsible('Low FPS Options', collapsed=True))
+        ui_lowfps.add(UI_Checkbox('Perform Check', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
+        ui_lowfps.add(UI_IntValue('Threshold', *optgetset('low fps threshold', setwrap=lambda v:min(60,max(1,v))), tooltip='Set low FPS threshold'))
+        ui_lowfps.add(UI_IntValue('Timing', *optgetset('low fps time', setwrap=lambda v:min(120,max(1,v))), tooltip='Set low FPS timing'))
+        ui_lowfps.add(UI_Button('Show Warning', self.show_lowfps_warning, tooltip='Show Low FPS Warning window', align=0))
 
         if retopoflow_profiler:
             info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
