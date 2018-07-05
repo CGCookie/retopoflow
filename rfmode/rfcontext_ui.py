@@ -336,7 +336,8 @@ class RFContext_UI:
             container.add(UI_Button('Details', toggle_details, tooltip='Show/hide crash details', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         if show_quit:
-            container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            #container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            pass
 
         self.window_manager.set_focus(win, darken=darken)
 
