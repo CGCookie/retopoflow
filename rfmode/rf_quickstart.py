@@ -20,7 +20,9 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import re
+import bgl
 import bpy
+import random
 from ..lib.common_utilities import showErrorMessage
 from ..options import options
 from ..help import help_quickstart
@@ -38,7 +40,6 @@ class OpenQuickStart(bpy.types.Operator):
         return {'FINISHED'}
 
     def openTextFile(self):
-
         # play it safe!
         if options['quickstart_filename'] not in bpy.data.texts:
             # create a log file for error writing
@@ -67,7 +68,7 @@ class OpenQuickStart(bpy.types.Operator):
         txt.from_string(t)
         txt.current_line_index = 0
 
-        # duplicate the current area then change it to a text edito
+        # duplicate the current area then change it to a text editor
         area_dupli = bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
         win = bpy.context.window_manager.windows[-1]
         area = win.screen.areas[-1]
@@ -79,4 +80,6 @@ class OpenQuickStart(bpy.types.Operator):
                 space.text = txt
                 space.show_word_wrap = True
                 space.top = 0
+                if area.regions[0].height != 1:
+                    bpy.ops.screen.header({'window':win, 'region':area.regions[2], 'area':area})
 
