@@ -31,10 +31,6 @@ from ..common.maths import BBox
 from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
 
-from .fsm import CookieCutter_FSM
-from .ui import CookieCutter_UI
-from .override import CookieCutter_Override
-
 from ..lib import common_utilities
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
 from ..lib.classes.logging.logger import Logger
@@ -45,6 +41,12 @@ from ..common.ui import set_cursor
 
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.ui import UI_WindowManager
+
+
+from .cookiecutter_fsm import CookieCutter_FSM
+from .cookiecutter_ui import CookieCutter_UI
+from .cookiecutter_override import CookieCutter_Override
+
 
 class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutter_FSM):
     bl_idname = "wm.cookiecutter"
