@@ -236,7 +236,7 @@ class RFContext_UI:
                             ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                         def go():
                             bpy.ops.wm.url_open(url=issueurl)
-                        ui_buttons.add(UI_Button('Open', go, tooltip='Open this issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                        ui_buttons.add(UI_Button('Open', go, tooltip='Open this issue on the RetopoFlow Issue Tracker', bgcolor=(1,1,1,0.3), margin=1))
                 except Exception as e:
                     ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     print('Caught exception while trying to pull issues from GitHub')
@@ -244,10 +244,10 @@ class RFContext_UI:
                     print(e)
                     # ignore for now
                     pass
-                ui_buttons.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', align=0, bgcolor=(1,1,1,0.3), margin=1))
-                ui_buttons.add(UI_Button('Similar', search, tooltip='Search the RetopoFlow Issue Tracker for similar issues', align=0, bgcolor=(1,1,1,0.3), margin=1))
-                ui_buttons.add(UI_Button('All Issues', open_issues, tooltip='Open RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
-                ui_buttons.add(UI_Button('Report', report, tooltip='Report a new issue on the RetopoFlow Issue Tracker', align=0, bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('Screenshot', screenshot, tooltip='Save a screenshot of Blender', bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('Similar', search, tooltip='Search the RetopoFlow Issue Tracker for similar issues', bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('All Issues', open_issues, tooltip='Open RetopoFlow Issue Tracker', bgcolor=(1,1,1,0.3), margin=1))
+                ui_buttons.add(UI_Button('Report', report, tooltip='Report a new issue on the RetopoFlow Issue Tracker', bgcolor=(1,1,1,0.3), margin=1))
             
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
@@ -301,7 +301,7 @@ class RFContext_UI:
             ui_details = UI_Container(background=(0,0,0,0.4))
             ui_details.add(UI_Label('Crash Details', align=0))
             ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
-            ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             ui_details.visible = False
             
             show_quit = True
@@ -348,10 +348,10 @@ class RFContext_UI:
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
         if ui_details:
-            ui_show = container.add(UI_Button('Show Details', toggle_details, tooltip='Show/hide crash details', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', close, tooltip='Close this alert window', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+            ui_show = container.add(UI_Button('Show Details', toggle_details, tooltip='Show/hide crash details', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', close, tooltip='Close this alert window', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         # if show_quit:
-        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         self.window_manager.set_focus(win, darken=darken)
 
@@ -387,7 +387,7 @@ class RFContext_UI:
         ui_details = UI_Container(background=(0,0,0,0.4))
         ui_details.add(UI_Label('System Details', align=0))
         ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
-        ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy System Details to clipboard', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy System Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
         def submit():
             bpy.ops.wm.url_open(url=options['github low fps url'])
@@ -425,9 +425,9 @@ class RFContext_UI:
         win.add(ui_details)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        container.add(UI_Button('Open Issue', submit, tooltip='Open the Low FPS issue in the RetopoFlow Issue Tracker', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Disable Check', disable, tooltip='Disable the low FPS check (can re-enable in Options > Advanced > Low FPS Options', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', close, tooltip='Close this low FPS warning', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Open Issue', submit, tooltip='Open the Low FPS issue in the RetopoFlow Issue Tracker', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Disable Check', disable, tooltip='Disable the low FPS check (can re-enable in Options > Advanced > Low FPS Options', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', close, tooltip='Close this low FPS warning', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         self.window_manager.set_focus(win, darken=True)
 
@@ -550,11 +550,11 @@ class RFContext_UI:
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)', align=0, margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)', align=0, margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', align=0, margin=0))
+        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)', margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)', margin=0)) # , icon=help_icon
+        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', margin=0))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)', align=0, margin=0))
+        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)', margin=0))
         self.tool_min.add(self.tool_selection_min)
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
@@ -564,18 +564,18 @@ class RFContext_UI:
         window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message', align=0, margin=0))
-        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)', align=0, margin=0))
-        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"', align=0, margin=0))
+        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message', margin=0))
+        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)', margin=0))
+        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"', margin=0))
 
         window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
 
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
-        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)', align=0))
+        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)'))
         container_snap = dd_general.add(UI_Container(vertical=False))
         container_snap.add(UI_Label('Snap Verts:'))
-        container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', align=0, margin=0))
-        container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', align=0, margin=0))
+        container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', margin=0))
+        container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', margin=0))
         dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         container_clip = dd_general.add(UI_Container())
         container_clip.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value, margin=0))
@@ -634,17 +634,17 @@ class RFContext_UI:
         ui_lowfps.add(UI_Checkbox('Perform Check', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
         ui_lowfps.add(UI_IntValue('Threshold', *optgetset('low fps threshold', setwrap=lambda v:min(60,max(1,v))), tooltip='Set low FPS threshold'))
         ui_lowfps.add(UI_IntValue('Timing', *optgetset('low fps time', setwrap=lambda v:min(120,max(1,v))), tooltip='Set low FPS timing'))
-        ui_lowfps.add(UI_Button('Show Warning', self.show_lowfps_warning, tooltip='Show Low FPS Warning window', align=0))
+        ui_lowfps.add(UI_Button('Show Warning', self.show_lowfps_warning, tooltip='Show Low FPS Warning window'))
 
         if retopoflow_profiler:
             info_profiler = info_adv.add(UI_Collapsible('Profiler', collapsed=True, vertical=False))
-            prof_print = info_profiler.add(UI_Button('Print', profiler.printout, align=0))
-            prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear, align=0))
-            prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler, align=0))
-            prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler, align=0))
+            prof_print = info_profiler.add(UI_Button('Print', profiler.printout))
+            prof_reset = info_profiler.add(UI_Button('Reset', profiler.clear))
+            prof_disable = info_profiler.add(UI_Button('Disable', disable_profiler))
+            prof_enable = info_profiler.add(UI_Button('Enable', enable_profiler))
             update_profiler_visible()
 
-        info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values', align=0))
+        info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values'))
 
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
@@ -653,7 +653,7 @@ class RFContext_UI:
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Markdown(firsttime_message))
         self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Button('Close', hide_reporting, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        self.window_welcome.add(UI_Button('Close', hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         if options['welcome']: self.window_manager.set_focus(self.window_welcome)
 
         def help_event_handler(context, event):
@@ -666,6 +666,6 @@ class RFContext_UI:
         self.window_help.add(self.ui_helplabel)
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General Help (F1) and Tool Help (F2)', align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', self.toggle_help, align=0, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General Help (F1) and Tool Help (F2)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', self.toggle_help, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         
