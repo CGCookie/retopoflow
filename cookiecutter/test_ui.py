@@ -32,12 +32,13 @@ class CookieCutter_Test_UI:
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
         
-        bgl.glColor4f(0,0,0,0.5)    # TODO: use window background color??
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
+        bgl.glColor4f(0,0,0.2,0.5)
         bgl.glVertex2f(-1, -1)
         bgl.glVertex2f( 1, -1)
+        bgl.glColor4f(0,0,0.2,0)
         bgl.glVertex2f( 1,  1)
         bgl.glVertex2f(-1,  1)
         bgl.glEnd()
@@ -52,6 +53,7 @@ class CookieCutter_Test_UI:
     #    pass
     
     def draw_postpixel(self):
+        return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
         
         bgl.glEnable(bgl.GL_BLEND)
@@ -63,7 +65,7 @@ class CookieCutter_Test_UI:
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
         
-        bgl.glColor4f(1,0,0,0.5)    # TODO: use window background color??
+        bgl.glColor4f(1,0,0,0.05)    # TODO: use window background color??
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
