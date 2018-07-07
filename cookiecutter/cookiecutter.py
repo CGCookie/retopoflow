@@ -73,9 +73,12 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
     
     bl_idname = "view3d.cookiecutter_unnamed"
     bl_label = "CookieCutter Unnamed"
-    
     default_keymap = {}
+    
     def start(self): pass
+    def end_commit(self): pass
+    def end_cancel(self): pass
+    def end(self): pass
     
     ############################################################################
     
@@ -94,6 +97,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
             self.start()
         except Exception as e:
             print('Caught exception while trying to start')
+            print(e)
             raise e
         
         self.ui_start()
@@ -102,12 +106,26 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
         return {'RUNNING_MODAL'}
     
     def done(self, cancel=False):
-        self._done = 'finish' if not cancel else 'cancel'
+        self._done = 'commit' if not cancel else 'cancel'
     
     def modal(self, context, event):
         if self._done:
             self.actions_end(context)
             self.ui_end()
+            try:
+                if self._done == 'commit':
+                    self.end_commit()
+                else:
+                    self.end_cancel()
+            except Exception as e:
+                print('Caught exception while trying to end with %s' % self._done)
+                print(e)
+            try:
+                self.end()
+            except Exception as e:
+                print('Caught exception while trying to end')
+                print(e)
+            
             return {'FINISHED'} if self._done=='finish' else {'CANCELLED'}
         
         self.actions_update(context, event)

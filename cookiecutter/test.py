@@ -43,9 +43,10 @@ class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM, CookieCutter_Test_U
             'bgcolor': (0.2, 0.2, 0.2, 0.8),
             'padding': 0,
             }
-        win = self.wm.create_window('test',opts)
-        bigcontainer = win.add(ui.UI_Container(margin=0))
-        bigcontainer.add(ui.UI_Label('foo bar'))
-        bigcontainer.add(ui.UI_Button('exit', self.done))
+        win = self.wm.create_window('test', opts)
+        win.add(ui.UI_Label('foo bar'))
+        exitbuttons = win.add(ui.UI_Container(margin=0,vertical=False))
+        exitbuttons.add(ui.UI_Button('commit', self.done))
+        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
         #self.window_manager.set_focus(win, darken=False, close_on_leave=True)
     
