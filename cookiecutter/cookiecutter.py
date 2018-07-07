@@ -57,6 +57,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
     default_keymap = {}
     
     def start(self): pass
+    def update(self): pass
     def end_commit(self): pass
     def end_cancel(self): pass
     def end(self): pass
@@ -109,12 +110,14 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
             
             return {'FINISHED'} if self._done=='finish' else {'CANCELLED'}
         
+        ret = None
+        
         self.actions_update(context, event)
         
-        if self.ui_update(context, event): return {'RUNNING_MODAL'}
+        if self.ui_update(context, event): ret = {'RUNNING_MODAL'}
         
         # allow window actions to pass through to Blender
-        if self.actions.using('window actions'): return {'PASS_THROUGH'}
+        if self.actions.using('window actions'): ret = {'PASS_THROUGH'}
         
         # allow navigation actions to pass through to Blender
         if self.actions.navigating() or (self.actions.timer and self._nav):
@@ -122,10 +125,18 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self._nav = True
             if not self.actions.trackpad: set_cursor('HAND')
-            return {'PASS_THROUGH'}
-        if self._nav:
+            ret = {'PASS_THROUGH'}
+        elif self._nav:
             self._nav = False
             self._nav_time = time.time()
+        
+        try:
+            self.update()
+        except Exception as e:
+            print('Caught exception while calling update')
+            print(e)
+        
+        if ret: return ret
         
         self.fsm_update()
         return {'RUNNING_MODAL'}

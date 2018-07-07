@@ -41,25 +41,33 @@ class CookieCutter_Test(CookieCutter):
             'padding': 0,
             }
         win = self.wm.create_window('test', opts)
-        win.add(ui.UI_Label('foo bar'))
+        self.lbl = win.add(ui.UI_Label('main'))
+        self.ui_action = win.add(ui.UI_Label('nothing'))
         exitbuttons = win.add(ui.UI_Container(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done))
         exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
         #self.window_manager.set_focus(win, darken=False, close_on_leave=True)
     
+    def update(self):
+        self.ui_action.set_label('Press: %s' % (','.join(self.actions.now_pressed.keys()),))
+    
     @CookieCutter.FSM_State('main')
     def modal_main(self):
+        ui.set_cursor('DEFAULT')
+        
         if self.actions.pressed('grab'):
-            print('grab!')
+            self.lbl.set_label('grab!')
             return 'grab'
     
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
+        ui.set_cursor('HAND')
+        
         if self.actions.pressed('commit'):
-            print('commit')
+            self.lbl.set_label('commit grab')
             return 'main'
         if self.actions.pressed('cancel'):
-            print('cancel')
+            self.lbl.set_label('cancel grab')
             return 'main'
 
     @CookieCutter.Draw('pre3d')
