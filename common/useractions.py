@@ -106,6 +106,9 @@ class Actions:
     
     def __init__(self, context, keymap):
         self.keymap = deepcopy(keymap)
+        for k in self.keymap:
+            if type(self.keymap[k]) is set: continue
+            self.keymap[k] = {self.keymap[k]}
         self.keymap['navigate'] = set()         # filled in below
         self.keymap['window actions'] = set()   # filled in by load_keymap
         
