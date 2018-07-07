@@ -58,6 +58,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ove
         return True
     
     def invoke(self, context, event):
+        self._nav = False
         self._done = False
         self.fsm_init()
         self.ui_init(context)
@@ -86,6 +87,19 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ove
         self.actions_update(context, event)
         
         if self.ui_modal(context, event): return {'RUNNING_MODAL'}
+        
+        if self.actions.using('window actions'): return {'PASS_THROUGH'}
+        
+        # user pressing nav key?
+        if self.actions.navigating() or (self.actions.timer and self._nav):
+            # let Blender handle navigation
+            self.actions.unuse('navigate')  # pass-through commands do not receive a release event
+            self._nav = True
+            if not self.actions.trackpad: set_cursor('HAND')
+            return {'PASS_THROUGH'}
+        if self._nav:
+            self._nav = False
+            self._nav_time = time.time()
         
         assert self._mode in self._fsm_modes
         nmode = self._fsm_modes[self._mode](self)
