@@ -69,6 +69,8 @@ from .rfmode.rf_quickstart import OpenQuickStart
 from .rfmode.rf_webissues import OpenWebIssues
 from .rfmode.rf_webtip import OpenWebTip
 
+from .cookiecutter.test import CookieCutter_Test
+
 # updater import
 from . import addon_updater_ops
 
@@ -104,6 +106,8 @@ def register():
     bpy.utils.register_class(OpenQuickStart)
     bpy.utils.register_class(OpenWebIssues)
     bpy.utils.register_class(OpenWebTip)
+    
+    bpy.utils.register_class(CookieCutter_Test)
 
     # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
