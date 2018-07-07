@@ -19,20 +19,19 @@ https://github.com/CGCookie/retopoflow
 
 import bpy
 import bgl
-
-from .operator import CookieCutter
-
+from .cookiecutter import CookieCutter
 from ..common.maths import Point2D
 from ..common import ui
 
-class CookieCutter_Test(CookieCutter):
+from .test_fsm import CookieCutter_Test_FSM
+
+class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM):
     bl_idname = "wm.cookiecutter_test"
-    bl_label = "CookieCutter Test"
-    bl_category    = "CookieCutter"
-    bl_space_type  = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_label = "CookieCutter Tester"
     
     def start(self):
+        def exit_button(): self.done()
+        
         opts = {
             'pos': 9,
             'movable': True,
@@ -43,6 +42,7 @@ class CookieCutter_Test(CookieCutter):
         win = self.wm.create_window('test',opts)
         bigcontainer = win.add(ui.UI_Container(margin=0))
         bigcontainer.add(ui.UI_Label('foo bar'))
+        bigcontainer.add(ui.UI_Button('exit', exit_button))
         #self.window_manager.set_focus(win, darken=False, close_on_leave=True)
     
     def draw_preview(self):

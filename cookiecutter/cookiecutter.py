@@ -22,6 +22,7 @@ import math
 import os
 import re
 import time
+import inspect
 
 import bpy
 import bgl
@@ -30,6 +31,7 @@ from ..common.maths import BBox
 from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
 
+from .fsm import CookieCutter_FSM
 from .ui import CookieCutter_UI
 from .override import CookieCutter_Override
 
@@ -44,19 +46,7 @@ from ..common.ui import set_cursor
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.ui import UI_WindowManager
 
-
-def fsm_mode(mode):
-    def wrap(fn):
-        def run(*args, **kwargs):
-            try:
-                return fn(*args, **kwargs)
-            except Exception as e:
-                print(e)
-                return None
-        return run
-    return wrap
-
-class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override):
+class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutter_FSM):
     bl_idname = "wm.cookiecutter"
     bl_label = "CookieCutter"
     
@@ -65,6 +55,8 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override):
         return True
     
     def invoke(self, context, event):
+        self._done = False
+        self.fsm_init()
         self.ui_init(context)
         
         try:
@@ -75,9 +67,21 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override):
         
         self.ui_start()
         context.window_manager.modal_handler_add(self)
+        self._mode = 'main'
         return {'RUNNING_MODAL'}
     
+    def done(self, cancel=False):
+        self._done = 'finish' if not cancel else 'cancel'
+    
     def modal(self, context, event):
-        print('modal')
+        if self._done:
+            self.ui_end()
+            return {'FINISHED'} if self._done=='finish' else {'CANCELLED'}
+        
         if self.ui_modal(context, event): return {'RUNNING_MODAL'}
+        
+        assert self._mode in self._fsm_modes
+        nmode = self._fsm_modes[self._mode](self)
+        if nmode: self._mode = nmode
+        
         return {'RUNNING_MODAL'}
