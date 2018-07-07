@@ -228,3 +228,5 @@ class RFContext_Drawing:
         self.tool.draw_postview()
         self.rfwidget.draw_postview()
         pr.done()
+        
+        #time.sleep(0.5)
