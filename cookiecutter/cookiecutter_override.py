@@ -18,9 +18,7 @@ https://github.com/CGCookie/retopoflow
 '''
 
 class CookieCutter_Override:
-    def start(self): pass
+    def default_keymap(self): return {}
     
-    def draw_preview(self): pass
-    def draw_postview(self): pass
-    def draw_postpixel(self): pass
+    def start(self): pass
     

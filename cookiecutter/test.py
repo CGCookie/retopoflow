@@ -24,14 +24,21 @@ from ..common.maths import Point2D
 from ..common import ui
 
 from .test_fsm import CookieCutter_Test_FSM
+from .test_ui import CookieCutter_Test_UI
 
-class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM):
+class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM, CookieCutter_Test_UI):
     bl_idname = "wm.cookiecutter_test"
     bl_label = "CookieCutter Tester"
     
+    def default_keymap(self):
+        return {
+            'commit': 'RET',
+            'cancel': 'ESC',
+            
+            'grab': 'G',
+        }
+    
     def start(self):
-        def exit_button(): self.done()
-        
         opts = {
             'pos': 9,
             'movable': True,
@@ -42,65 +49,6 @@ class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM):
         win = self.wm.create_window('test',opts)
         bigcontainer = win.add(ui.UI_Container(margin=0))
         bigcontainer.add(ui.UI_Label('foo bar'))
-        bigcontainer.add(ui.UI_Button('exit', exit_button))
+        bigcontainer.add(ui.UI_Button('exit', self.done))
         #self.window_manager.set_focus(win, darken=False, close_on_leave=True)
-    
-    def draw_preview(self):
-        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
-        
-        bgl.glEnable(bgl.GL_BLEND)
-        
-        bgl.glMatrixMode(bgl.GL_MODELVIEW)
-        bgl.glPushMatrix()
-        bgl.glLoadIdentity()
-        bgl.glMatrixMode(bgl.GL_PROJECTION)
-        bgl.glPushMatrix()
-        bgl.glLoadIdentity()
-        
-        bgl.glColor4f(0,0,0,0.5)    # TODO: use window background color??
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDisable(bgl.GL_DEPTH_TEST)
-        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
-        bgl.glVertex2f(-1, -1)
-        bgl.glVertex2f( 1, -1)
-        bgl.glVertex2f( 1,  1)
-        bgl.glVertex2f(-1,  1)
-        bgl.glEnd()
-        
-        bgl.glPopMatrix()
-        bgl.glMatrixMode(bgl.GL_MODELVIEW)
-        bgl.glPopMatrix()
-        bgl.glMatrixMode(bgl.GL_PROJECTION)
-        bgl.glPopAttrib()
-    
-    def draw_postview(self):
-        pass
-    
-    def draw_postpixel(self):
-        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
-        
-        bgl.glEnable(bgl.GL_BLEND)
-        
-        bgl.glMatrixMode(bgl.GL_MODELVIEW)
-        bgl.glPushMatrix()
-        bgl.glLoadIdentity()
-        bgl.glMatrixMode(bgl.GL_PROJECTION)
-        bgl.glPushMatrix()
-        bgl.glLoadIdentity()
-        
-        bgl.glColor4f(1,0,0,0.5)    # TODO: use window background color??
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDisable(bgl.GL_DEPTH_TEST)
-        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
-        bgl.glVertex2f(-1, -1)
-        bgl.glVertex2f( 1, -1)
-        bgl.glVertex2f( 1,  1)
-        bgl.glVertex2f(-1,  1)
-        bgl.glEnd()
-        
-        bgl.glPopMatrix()
-        bgl.glMatrixMode(bgl.GL_MODELVIEW)
-        bgl.glPopMatrix()
-        bgl.glMatrixMode(bgl.GL_PROJECTION)
-        bgl.glPopAttrib()
     

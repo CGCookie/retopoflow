@@ -44,18 +44,18 @@ from ..common.ui import UI_WindowManager
 
 class CookieCutter_UI:
     def ui_init(self, context):
-        self.__area = context.area
-        self.__space = context.space_data
+        self._area = context.area
+        self._space = context.space_data
         self.wm = UI_WindowManager()
     
     def ui_start(self):
-        self.__handle_preview = self.__space.draw_handler_add(self.draw_preview_callback, tuple(), 'WINDOW', 'PRE_VIEW')
-        self.__handle_postview = self.__space.draw_handler_add(self.draw_postview_callback, tuple(), 'WINDOW', 'POST_VIEW')
-        self.__handle_postpixel = self.__space.draw_handler_add(self.draw_postpixel_callback, tuple(), 'WINDOW', 'POST_PIXEL')
-        self.__area.tag_redraw()
+        self._handle_preview = self._space.draw_handler_add(self.draw_preview_callback, tuple(), 'WINDOW', 'PRE_VIEW')
+        self._handle_postview = self._space.draw_handler_add(self.draw_postview_callback, tuple(), 'WINDOW', 'POST_VIEW')
+        self._handle_postpixel = self._space.draw_handler_add(self.draw_postpixel_callback, tuple(), 'WINDOW', 'POST_PIXEL')
+        self._area.tag_redraw()
     
     def ui_modal(self, context, event):
-        self.__area.tag_redraw()
+        self._area.tag_redraw()
         ret = self.wm.modal(context, event)
         if ret and 'hover' in ret:
             #self.rfwidget.clear()
@@ -65,20 +65,23 @@ class CookieCutter_UI:
         return False
     
     def ui_end(self):
-        self.__space.draw_handler_remove(self.__handle_preview, 'WINDOW')
-        self.__space.draw_handler_remove(self.__handle_postview, 'WINDOW')
-        self.__space.draw_handler_remove(self.__handle_postpixel, 'WINDOW')
-        self.__area.tag_redraw()
+        self._space.draw_handler_remove(self._handle_preview, 'WINDOW')
+        self._space.draw_handler_remove(self._handle_postview, 'WINDOW')
+        self._space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
+        self._area.tag_redraw()
     
     
     def draw_preview_callback(self):
-        self.draw_preview()
+        if hasattr(self, 'draw_preview'):
+            self.draw_preview()
     def draw_postview_callback(self):
-        self.draw_postview()
+        if hasattr(self, 'draw_postview'):
+            self.draw_postview()
     def draw_postpixel_callback(self):
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
-        self.draw_postpixel()
+        if hasattr(self, 'draw_postpixel'):
+            self.draw_postpixel()
         self.wm.draw_postpixel()
     

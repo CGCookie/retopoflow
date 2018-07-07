@@ -22,9 +22,16 @@ from .cookiecutter import CookieCutter
 class CookieCutter_Test_FSM:
     @CookieCutter.fsm_add_mode('main')
     def modal_main(self):
-        print('main')
+        if self.actions.pressed('grab'):
+            print('grab!')
+            return 'grab'
     
     @CookieCutter.fsm_add_mode('grab')
     def modal_grab(self):
-        print('grab')
+        if self.actions.pressed('commit'):
+            print('commit')
+            return 'main'
+        if self.actions.pressed('cancel'):
+            print('cancel')
+            return 'main'
 

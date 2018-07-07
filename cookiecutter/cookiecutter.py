@@ -41,6 +41,7 @@ from ..common.ui import set_cursor
 
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.ui import UI_WindowManager
+from ..common.useractions import Actions
 
 
 from .cookiecutter_fsm import CookieCutter_FSM
@@ -48,7 +49,7 @@ from .cookiecutter_ui import CookieCutter_UI
 from .cookiecutter_override import CookieCutter_Override
 
 
-class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutter_FSM):
+class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Override):
     bl_idname = "wm.cookiecutter"
     bl_label = "CookieCutter"
     
@@ -60,6 +61,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutte
         self._done = False
         self.fsm_init()
         self.ui_init(context)
+        self.actions_init(context)
         
         try:
             self.start()
@@ -77,8 +79,11 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutte
     
     def modal(self, context, event):
         if self._done:
+            self.actions_end(context)
             self.ui_end()
             return {'FINISHED'} if self._done=='finish' else {'CANCELLED'}
+        
+        self.actions_update(context, event)
         
         if self.ui_modal(context, event): return {'RUNNING_MODAL'}
         
@@ -87,3 +92,15 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_Override, CookieCutte
         if nmode: self._mode = nmode
         
         return {'RUNNING_MODAL'}
+
+    def actions_init(self, context):
+        self.actions = Actions(context, self.default_keymap())
+        self._timer = context.window_manager.event_timer_add(1.0 / 120, context.window)
+    def actions_update(self, context, event):
+        self.actions.update(context, event, self._timer, print_actions=False)
+    def actions_end(self, context):
+        context.window_manager.event_timer_remove(self._timer)
+        del self._timer
+
+
+
