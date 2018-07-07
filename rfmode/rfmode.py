@@ -358,8 +358,10 @@ class RFMode(Operator):
         self.tag_redraw_all()
         
         self.maximize_area = False
-        self.show_toolshelf = bpy.context.area.regions[1].width > 1
-        self.show_properties = bpy.context.area.regions[3].width > 1
+        self.rgn_toolshelf = bpy.context.area.regions[1]
+        self.rgn_properties = bpy.context.area.regions[3]
+        self.show_toolshelf = self.rgn_toolshelf.width > 1
+        self.show_properties = self.rgn_properties.width > 1
         self.region_overlap = bpy.context.user_preferences.system.use_region_overlap
         if self.region_overlap:
             if self.show_toolshelf: bpy.ops.view3d.toolshelf()
@@ -378,6 +380,13 @@ class RFMode(Operator):
     def ui_toggle_maximize_area(self):
         bpy.ops.screen.screen_full_area(use_hide_panels=False)
         self.maximize_area = not self.maximize_area
+        if not self.region_overlap:
+            if self.maximize_area:
+                if self.show_toolshelf and self.rgn_toolshelf.width > 1: bpy.ops.view3d.toolshelf()
+                if self.show_properties and self.rgn_properties.width > 1: bpy.ops.view3d.properties()
+            else:
+                if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
+                if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
     
     def ui_end(self):
         if not hasattr(self, 'rfctx'): return
@@ -415,9 +424,11 @@ class RFMode(Operator):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
         
-        if self.region_overlap:
-            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
-            if self.show_properties: bpy.ops.view3d.properties()
+        if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
+        if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
+        #if self.region_overlap:
+        #    if self.show_toolshelf: bpy.ops.view3d.toolshelf()
+        #    if self.show_properties: bpy.ops.view3d.properties()
         if self.maximize_area:
             bpy.ops.screen.screen_full_area(use_hide_panels=False)
         
