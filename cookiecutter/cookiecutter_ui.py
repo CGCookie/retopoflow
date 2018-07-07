@@ -43,25 +43,65 @@ from ..common.ui import UI_WindowManager
 
 
 class CookieCutter_UI:
+    class Draw:
+        def __init__(self, mode):
+            assert mode in {'pre3d','post3d','post2d'}
+            self.mode = mode
+        def __call__(self, fn):
+            self.fn = fn
+            self.fnname = fn.__name__
+            def run(*args, **kwargs):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    print('Caught exception in drawing "%s", calling "%s"' % (self.mode, self.fnname))
+                    print(e)
+                    return None
+            run.fnname = self.fnname
+            run.drawmode = self.mode
+            return run
+    
     def ui_init(self, context):
         self._area = context.area
         self._space = context.space_data
         self.wm = UI_WindowManager()
+        fns = {'pre3d':[], 'post3d':[], 'post2d':[]}
+        for m,fn in self.find_fns('drawmode'): fns[m].append(fn)
+        def draw(fns):
+            for fn in fns: fn(self)
+        self._draw_pre3d = lambda:draw(fns['pre3d'])
+        self._draw_post3d = lambda:draw(fns['post3d'])
+        self._draw_post2d = lambda:draw(fns['post2d'])
+        self._area.tag_redraw()
     
     def ui_start(self):
-        self._handle_preview = self._space.draw_handler_add(self.draw_preview_callback, tuple(), 'WINDOW', 'PRE_VIEW')
-        self._handle_postview = self._space.draw_handler_add(self.draw_postview_callback, tuple(), 'WINDOW', 'POST_VIEW')
-        self._handle_postpixel = self._space.draw_handler_add(self.draw_postpixel_callback, tuple(), 'WINDOW', 'POST_PIXEL')
+        def preview():
+            self._draw_pre3d()
+        def postview():
+            self._draw_post3d()
+        def postpixel():
+            bgl.glEnable(bgl.GL_MULTISAMPLE)
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glEnable(bgl.GL_POINT_SMOOTH)
+            
+            self._draw_post2d()
+            
+            try:
+                self.wm.draw_postpixel()
+            except Exception as e:
+                print('Caught exception while trying to draw window UI')
+                print(e)
+        
+        self._handle_preview = self._space.draw_handler_add(preview, tuple(), 'WINDOW', 'PRE_VIEW')
+        self._handle_postview = self._space.draw_handler_add(postview, tuple(), 'WINDOW', 'POST_VIEW')
+        self._handle_postpixel = self._space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
         self._area.tag_redraw()
     
-    def ui_modal(self, context, event):
+    def ui_update(self, context, event):
         self._area.tag_redraw()
         ret = self.wm.modal(context, event)
-        if ret and 'hover' in ret:
-            #self.rfwidget.clear()
-            #if self.exit: return {'confirm'}
-            return True
         if self.wm.has_focus(): return True
+        if ret and 'hover' in ret: return True
         return False
     
     def ui_end(self):
@@ -69,19 +109,4 @@ class CookieCutter_UI:
         self._space.draw_handler_remove(self._handle_postview, 'WINDOW')
         self._space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
         self._area.tag_redraw()
-    
-    
-    def draw_preview_callback(self):
-        if hasattr(self, 'draw_preview'):
-            self.draw_preview()
-    def draw_postview_callback(self):
-        if hasattr(self, 'draw_postview'):
-            self.draw_postview()
-    def draw_postpixel_callback(self):
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glEnable(bgl.GL_POINT_SMOOTH)
-        if hasattr(self, 'draw_postpixel'):
-            self.draw_postpixel()
-        self.wm.draw_postpixel()
     

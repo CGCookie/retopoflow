@@ -17,8 +17,12 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-class CookieCutter_Override:
-    def default_keymap(self): return {}
-    
-    def start(self): pass
-    
+import bpy
+import inspect
+
+class CookieCutter_Utils:
+    def find_fns(self, key):
+        c = type(self)
+        objs = [getattr(c,k) for k in dir(c)]
+        fns = [fn for fn in objs if inspect.isfunction(fn)]
+        return [(getattr(fn,key),fn) for fn in fns if hasattr(fn,key)]

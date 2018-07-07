@@ -46,12 +46,38 @@ from ..common.useractions import Actions
 
 from .cookiecutter_fsm import CookieCutter_FSM
 from .cookiecutter_ui import CookieCutter_UI
-from .cookiecutter_override import CookieCutter_Override
+from .cookiecutter_utils import CookieCutter_Utils
 
 
-class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Override):
-    bl_idname = "wm.cookiecutter"
-    bl_label = "CookieCutter"
+class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Utils):
+    '''
+    CookieCutter is used to create advanced operators very quickly!
+    
+    To use:
+    
+    - specify CookieCutter as a subclass
+    - provide appropriate values for Blender class attributes: bl_idname, bl_label, etc.
+    - provide appropriate dictionary that maps user action labels to keyboard and mouse actions
+    - override the start function
+    - register finite state machine state callbacks with the CookieCutter.FSM_State(state) function decorator
+        - state can be any string that is a state in your FSM
+        - Must provide at least a 'main' state
+        - return values of each FSM_State decorated function tell FSM which state to switch into
+            - None, '', or no return: stay in same state
+    - register drawing callbacks with the CookieCutter.Draw(mode) function decorator
+        - mode: 'pre3d', 'post3d', 'post2d'
+    
+    '''
+    ############################################################################
+    # override the following values and functions
+    
+    bl_idname = "view3d.cookiecutter_unnamed"
+    bl_label = "CookieCutter Unnamed"
+    
+    default_keymap = {}
+    def start(self): pass
+    
+    ############################################################################
     
     @classmethod
     def poll(cls, context):
@@ -67,12 +93,12 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ove
         try:
             self.start()
         except Exception as e:
-            print('Caught exception while trying to call CookieCutter start')
+            print('Caught exception while trying to start')
             raise e
         
         self.ui_start()
+        
         context.window_manager.modal_handler_add(self)
-        self._mode = 'main'
         return {'RUNNING_MODAL'}
     
     def done(self, cancel=False):
@@ -86,11 +112,12 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ove
         
         self.actions_update(context, event)
         
-        if self.ui_modal(context, event): return {'RUNNING_MODAL'}
+        if self.ui_update(context, event): return {'RUNNING_MODAL'}
         
+        # allow window actions to pass through to Blender
         if self.actions.using('window actions'): return {'PASS_THROUGH'}
         
-        # user pressing nav key?
+        # allow navigation actions to pass through to Blender
         if self.actions.navigating() or (self.actions.timer and self._nav):
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
@@ -101,14 +128,11 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ove
             self._nav = False
             self._nav_time = time.time()
         
-        assert self._mode in self._fsm_modes
-        nmode = self._fsm_modes[self._mode](self)
-        if nmode: self._mode = nmode
-        
+        self.fsm_update()
         return {'RUNNING_MODAL'}
 
     def actions_init(self, context):
-        self.actions = Actions(context, self.default_keymap())
+        self.actions = Actions(context, self.default_keymap)
         self._timer = context.window_manager.event_timer_add(1.0 / 120, context.window)
     def actions_update(self, context, event):
         self.actions.update(context, event, self._timer, print_actions=False)

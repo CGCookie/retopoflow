@@ -27,23 +27,20 @@ from .test_fsm import CookieCutter_Test_FSM
 from .test_ui import CookieCutter_Test_UI
 
 class CookieCutter_Test(CookieCutter, CookieCutter_Test_FSM, CookieCutter_Test_UI):
-    bl_idname = "wm.cookiecutter_test"
+    bl_idname = "view3d.cookiecutter_test"
     bl_label = "CookieCutter Tester"
     
-    def default_keymap(self):
-        return {
-            'commit': 'RET',
-            'cancel': 'ESC',
-            
-            'grab': 'G',
-        }
+    default_keymap = {
+        'commit': 'RET',
+        'cancel': 'ESC',
+        'grab': 'G',
+    }
     
     def start(self):
         opts = {
             'pos': 9,
             'movable': True,
             'bgcolor': (0.2, 0.2, 0.2, 0.8),
-            #'event handler': event_handler,
             'padding': 0,
             }
         win = self.wm.create_window('test',opts)

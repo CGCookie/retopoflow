@@ -19,12 +19,12 @@ https://github.com/CGCookie/retopoflow
 
 import bgl
 
+from .cookiecutter import CookieCutter
+
 class CookieCutter_Test_UI:
+    @CookieCutter.Draw('pre3d')
     def draw_preview(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
-        
-        bgl.glEnable(bgl.GL_BLEND)
-        
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
@@ -34,6 +34,7 @@ class CookieCutter_Test_UI:
         
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
+        
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
         bgl.glColor4f(0,0,0.2,0.5)
         bgl.glVertex2f(-1, -1)
@@ -49,11 +50,39 @@ class CookieCutter_Test_UI:
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
     
+    @CookieCutter.Draw('post3d')
+    def draw_postview(self):
+        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
+        bgl.glMatrixMode(bgl.GL_MODELVIEW)
+        bgl.glPushMatrix()
+        bgl.glLoadIdentity()
+        bgl.glMatrixMode(bgl.GL_PROJECTION)
+        bgl.glPushMatrix()
+        bgl.glLoadIdentity()
+        
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_DEPTH_TEST)
+        
+        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
+        bgl.glColor4f(0,0,0,0)
+        bgl.glVertex2f(-1, -1)
+        bgl.glVertex2f( 1, -1)
+        bgl.glColor4f(0,0.2,0,0.5)
+        bgl.glVertex2f( 1,  1)
+        bgl.glVertex2f(-1,  1)
+        bgl.glEnd()
+        
+        bgl.glPopMatrix()
+        bgl.glMatrixMode(bgl.GL_MODELVIEW)
+        bgl.glPopMatrix()
+        bgl.glMatrixMode(bgl.GL_PROJECTION)
+        bgl.glPopAttrib()
+    
     #def draw_postview(self):
     #    pass
     
+    @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
-        return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
         
         bgl.glEnable(bgl.GL_BLEND)
@@ -65,7 +94,7 @@ class CookieCutter_Test_UI:
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
         
-        bgl.glColor4f(1,0,0,0.05)    # TODO: use window background color??
+        bgl.glColor4f(1,0,0,0.2)    # TODO: use window background color??
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode

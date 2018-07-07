@@ -20,13 +20,13 @@ https://github.com/CGCookie/retopoflow
 from .cookiecutter import CookieCutter
 
 class CookieCutter_Test_FSM:
-    @CookieCutter.fsm_add_mode('main')
+    @CookieCutter.FSM_State('main')
     def modal_main(self):
         if self.actions.pressed('grab'):
             print('grab!')
             return 'grab'
     
-    @CookieCutter.fsm_add_mode('grab')
+    @CookieCutter.FSM_State('grab')
     def modal_grab(self):
         if self.actions.pressed('commit'):
             print('commit')

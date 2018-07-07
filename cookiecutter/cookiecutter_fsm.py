@@ -17,32 +17,35 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import inspect
-
 class CookieCutter_FSM:
-    @staticmethod
-    def fsm_add_mode(mode):
-        def wrap(fn):
+    class FSM_State:
+        def __init__(self, state):
+            self.state = state
+        def __call__(self, fn):
+            self.fn = fn
+            self.fnname = fn.__name__
             def run(*args, **kwargs):
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:
-                    print('Caught exception in mode "%s", calling "%s"' % (mode, fn.__name__))
+                    print('Caught exception in function "%s" (state: "%s")' % (self.fnname, self.state))
                     print(e)
                     return None
-            run.fnname = fn.__name__
-            run.fsmmode = mode
+            run.fnname = self.fnname
+            run.fsmstate = self.state
             return run
-        return wrap
-
+    
     def fsm_init(self):
-        c = type(self)
-        self._fsm_modes = {}
-        for k in dir(c):
-            fn = getattr(c, k)
-            if not inspect.isfunction(fn): continue
-            m = getattr(fn, 'fsmmode', None)
-            if not m: continue
-            self._fsm_modes[m] = fn
+        self._state = 'main'
+        self._fsm_states = {}
+        for (m,fn) in self.find_fns('fsmstate'):
+            assert m not in self._fsm_states
+            self._fsm_states[m] = fn
+    
+    def fsm_update(self):
+        assert self._state in self._fsm_states
+        nmode = self._fsm_states[self._state](self)
+        if nmode: self._state = nmode
+    
 
 
