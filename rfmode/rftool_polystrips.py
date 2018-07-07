@@ -38,7 +38,7 @@ from ..lib.classes.profiler.profiler import profiler
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..options import options
 from ..help import help_polystrips
-from .rfcontext_actions import Actions
+from .rfcontext_actions import default_keymap
 
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 from .rftool_polystrips_utils import (
@@ -65,8 +65,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
     def icon(self): return "rf_polystrips_icon"
     def description(self): return 'Strips of quads made easy'
     def helptext(self): return help_polystrips
-    def get_label(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
-    def get_tooltip(self): return 'PolyStrips (%s)' % ','.join(Actions.default_keymap['polystrips tool'])
+    def get_label(self): return 'PolyStrips (%s)' % ','.join(default_keymap['polystrips tool'])
+    def get_tooltip(self): return 'PolyStrips (%s)' % ','.join(default_keymap['polystrips tool'])
     
     def start(self):
         self.mode = 'main'

@@ -31,7 +31,7 @@ from ..common.decorators import stats_wrapper
 from ..lib.classes.profiler.profiler import profiler
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..lib.common_utilities import dprint
-from .rfcontext_actions import Actions
+from .rfcontext_actions import default_keymap
 from ..options import themes, options
 from ..help import help_polypen
 
@@ -50,8 +50,8 @@ class RFTool_PolyPen(RFTool):
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
     def helptext(self): return help_polypen
-    def get_label(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
-    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(Actions.default_keymap['polypen tool'])
+    def get_label(self): return 'PolyPen (%s)' % ','.join(default_keymap['polypen tool'])
+    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(default_keymap['polypen tool'])
 
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
@@ -122,10 +122,10 @@ class RFTool_PolyPen(RFTool):
     def modal_main(self):
         self.set_next_state()
         
-        # if self.rfcontext.actions.pressed('F5'):
-        #     assert False
-        # if self.rfcontext.actions.pressed('F6'):
-        #     x = 42 / 0
+        if self.rfcontext.actions.pressed('F5'):
+            assert False
+        if self.rfcontext.actions.pressed('F6'):
+            x = 42 / 0
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'

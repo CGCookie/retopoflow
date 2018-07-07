@@ -30,7 +30,7 @@ from ..common.utils import iter_pairs
 from ..options import options
 from ..help import help_patches
 from ..lib.common_utilities import dprint
-from .rfcontext_actions import Actions
+from .rfcontext_actions import default_keymap
 from ..lib.classes.profiler.profiler import profiler
 from ..common.ui import (
     UI_Image, UI_IntValue, UI_BoolValue,
@@ -52,8 +52,8 @@ class RFTool_Patches(RFTool):
     def icon(self): return "rf_patches_icon"
     def description(self): return 'Patches'
     def helptext(self): return help_patches
-    def get_label(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
-    def get_tooltip(self): return 'Patches (%s)' % ','.join(Actions.default_keymap['patches tool'])
+    def get_label(self): return 'Patches (%s)' % ','.join(default_keymap['patches tool'])
+    def get_tooltip(self): return 'Patches (%s)' % ','.join(default_keymap['patches tool'])
     
     ''' Called the tool is being switched into '''
     def start(self):
