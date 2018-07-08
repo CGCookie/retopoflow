@@ -29,11 +29,11 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
-from .common_shader import Shader, buf_zero
-from .common_utilities import invert_matrix, matrix_normal, dprint
-from ..common.utils import shorten_floats
-from ..common.maths import Point,Direction,Frame
-from .classes.profiler.profiler import profiler
+from .shaders import Shader, buf_zero
+from .utils import shorten_floats
+from .maths import Point,Direction,Frame
+from ..lib.common_utilities import invert_matrix, matrix_normal, dprint
+from ..lib.classes.profiler.profiler import profiler
 
 import math
 

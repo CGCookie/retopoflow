@@ -42,7 +42,7 @@ from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
 from ..common.utils import min_index, hash_object, hash_bmesh, UniqueCounter
 from ..common.decorators import stats_wrapper
-from ..lib import common_drawing_bmesh as bmegl
+from ..common import bmesh_render as bmegl
 from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 

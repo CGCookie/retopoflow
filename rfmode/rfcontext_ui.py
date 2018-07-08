@@ -47,7 +47,7 @@ from ..common.ui import (
     UI_IntValue, UI_UpdateValue,
     GetSet,
     )
-from ..lib import common_drawing_bmesh as bmegl
+from ..common import bmesh_render as bmegl
 from ..lib.common_utilities import matrix_normal
 
 from ..options import (
