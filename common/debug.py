@@ -81,6 +81,11 @@ def get_dpi():
 def get_dpi_factor():
     return get_dpi() / 72
 
+
+
+
+
+
 # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
 def get_exception_info():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -135,6 +140,7 @@ def get_exception_info_and_hash():
 
 
 def print_exception():
+    if not hasattr(print_exception, 'count'): print_exception.count = 0
     errormsg = get_exception_info()
     print(errormsg)
     print_exception.count += 1
@@ -167,125 +173,6 @@ def print_exception2():
     if exc_traceback:
         print("*** tb_lineno:", exc_traceback.tb_lineno)
 
-@persistent
-def check_source_target_objects(scene):
-    settings = get_settings()
-
-    if not settings: return #sometimes...there are no settings to get.
-    
-    if settings.source_object not in bpy.context.scene.objects:
-        settings.source_object = ''
-    if settings.target_object not in bpy.context.scene.objects:
-        settings.target_object = ''
-
-def get_source_object():
-    settings = get_settings()
-
-    default_source_object_to_active()
-
-    source_object = bpy.data.objects[settings.source_object]
-
-    return source_object
-
-def update_source_object():
-    settings = get_settings()
-    settings.source_object = bpy.context.active_object.name
-
-def default_source_object_to_active():
-    if not bpy.context.active_object: return
-    settings = get_settings()
-    if settings.source_object: return
-    settings.source_object = bpy.context.active_object.name
-
-def default_target_object_to_active():
-    if not bpy.context.active_object: return
-    settings = get_settings()
-    if settings.target_object: return
-    settings.target_object = bpy.context.active_object.name
-
-def get_target_object():
-    settings = get_settings()
-
-    if settings.target_object:
-        target_object = bpy.data.objects[settings.target_object]
-    else:
-        target_object = bpy.context.active_object
-
-    return target_object
-
-def update_target_object(dest_obj):
-    settings = get_settings()
-    settings.target_object = dest_obj.name
-
-def toggle_localview():
-    # special case handling if in local view
-
-    if bpy.context.space_data is None:
-        # no need to toggle!
-        return
-
-    # in local view!
-    # store view properties
-    space = bpy.context.space_data
-    region3d = space.region_3d
-    distance = region3d.view_distance
-    location = region3d.view_location
-    rotation = region3d.view_rotation
-    mx = region3d.view_matrix.copy()
-    perspective = region3d.view_perspective
-    shade = space.viewport_shade
-    
-    # turn off smooth view to prevent Blender repositioning
-    # camera when entering local view again
-    smooth = bpy.context.user_preferences.view.smooth_view
-    bpy.context.user_preferences.view.smooth_view = 0
-    
-    # toggle local view
-    bpy.ops.view3d.localview()
-    bpy.ops.view3d.localview()
-    
-    # restore view properties
-    space = bpy.context.space_data
-    region3d = space.region_3d  #perhaps a new region3d was created?
-    region3d.view_distance = distance
-    region3d.view_location = location
-    region3d.view_rotation = rotation
-    region3d.view_perspective = perspective
-    region3d.view_matrix = mx
-    bpy.context.user_preferences.view.smooth_view = smooth
-    space.viewport_shade = shade
-
-
-def setup_target_object( new_object, original_object, bmesh ):
-    settings = get_settings()
-    obj_orig = original_object
-    dest_bme = bmesh
-
-    if settings.target_object:
-        if settings.target_object in bpy.context.scene.objects:
-            dest_bme.from_mesh( get_target_object().data )
-            dest_obj = get_target_object()
-        else:
-            dest_me  = bpy.data.meshes.new(new_object)
-            dest_obj = bpy.data.objects.new(new_object, dest_me)
-            dest_obj.matrix_world = obj_orig.matrix_world
-            dest_obj.show_x_ray = get_settings().use_x_ray
-            bpy.context.scene.objects.link(dest_obj)
-            update_target_object(dest_obj)
-    else:
-        dest_me  = bpy.data.meshes.new(new_object)
-        dest_obj = bpy.data.objects.new(new_object, dest_me)
-        dest_obj.matrix_world = obj_orig.matrix_world
-        dest_obj.show_x_ray = get_settings().use_x_ray
-        bpy.context.scene.objects.link(dest_obj)
-        update_target_object(dest_obj)
-
-    dest_obj.select = True
-    bpy.context.scene.objects.active = dest_obj
-    
-    toggle_localview()
-    
-    return dest_obj
 
 def dprint(s, l=2):
     if options['debug level'] < l: return
@@ -323,19 +210,7 @@ def showErrorMessage(message, wrap=80):
     return
 
 
-def callback_register(self, context):
-        #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
-        #else:
-            #self._handle = context.region.callback_add(self.menu.draw, (self, context), 'POST_PIXEL')
-        #return None
-            
-def callback_cleanup(self, context):
-    #if str(bpy.app.build_revision)[2:7].lower() == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
-    bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
-    #else:
-        #context.region.callback_remove(self._handle)
-    #return None
+
 
 
 def range_mod(m):
@@ -362,182 +237,6 @@ def matrix_normal(mat):
         d[smat] = invert_matrix(mat).transposed().to_3x3()
     return d[smat]
 
-
-def ray_cast_region2d_bvh(region, rv3d, screen_coord, bvh, mx, settings):
-    '''
-    performs ray casting on object given region, rv3d, and coords wrt region.
-    returns tuple of ray vector (from coords of region) and hit info
-    '''
-
-    rgn = region
-    imx = invert_matrix(mx)
-    nmx = matrix_normal(mx)
-    
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    o, d = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn, rv3d, screen_coord).normalized()
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-    
-    st, en = imx*(o-mult*back*d), imx*(o+mult*d)
-    hit = bvh.ray_cast(st,(en-st))
-    if hit[2] == None:
-        return (d, hit[0:3])
-    return (d, (mx*hit[0],nmx*hit[1],hit[2]))
-
-def ray_cast_path(context, ob, screen_coords):
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    mx   = ob.matrix_world
-    imx = invert_matrix(mx)
-    
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co in screen_coords]
-    
-    if rv3d.is_perspective:
-        rays = [(ray_o, get_ray_origin(ray_o, -ray_v, ob)) for ray_o,ray_v in rays]
-    else:
-        rays = [(get_ray_origin(ray_o, ray_v, ob),get_ray_origin(ray_o, -ray_v, ob)) for ray_o,ray_v in rays]
-    
-    hits = [ob.ray_cast(imx * ray_o, imx * ray_v) for ray_o,ray_v in rays]
-
-    world_coords = [mx*co for ok,co,no,face in hits if ok]
-
-    return world_coords
-
-def ray_cast_path_bvh(context, bvh, mx, screen_coords, trim = False):
-    '''
-    trim will only return ray cast values up to the first missed point
-    '''
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    imx = invert_matrix(mx)
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co in screen_coords]
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
-    
-    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
-    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    
-    if trim:  #will return list up to the first missed ray cast
-        world_coords = []
-        for hit in hits:
-            if hit[2] != None:
-                world_coords += [mx*hit[0]]
-            else:
-                break
-    else:
-        world_coords = [mx*hit[0] for hit in hits if hit[2] != None]
-    
-    return world_coords
-
-def ray_cast_point_bvh(context, bvh, mx, screen_coord):
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    imx = invert_matrix(mx)
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rayo,rayd = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn,rv3d, screen_coord).normalized()
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100
-    st,en = imx*(rayo-back*mult*rayd), imx*(rayo+mult*rayd)
-    hit = bvh.ray_cast(st, en-st)
-    if hit[2] == None: return None
-    world_coord = mx*hit[0]
-    world_norm  = imx.transposed()*hit[1]
-    return (world_coord, world_norm)
-
-def ray_cast_stroke(context, ob, stroke):
-    '''
-    strokes have form [((x,y),p)] with a radius value
-    
-    returns list [Vector(x,y,z), p] leaving the radius value untouched
-    does drop any values that do not successfully ray_cast
-    '''
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    mx   = ob.matrix_world
-    imx = invert_matrix(mx)
-    
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
-    
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
-    
-    sten = [(imx*(o-mult*back*d), imx*(o+mult*d)) for o,d in rays]
-    hits = [ob.ray_cast(st,st+(en-st)*1000) for st,en in sten]
-
-    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[0]]
-
-    return world_stroke
-
-def ray_cast_stroke_bvh(context, bvh, mx, stroke):
-    '''
-    strokes have form [((x,y),p)] with a radius value
-    
-    returns list [Vector(x,y,z), p] leaving the radius value untouched
-    drops any values that do not successfully ray_cast
-    '''
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    imx = invert_matrix(mx)
-    
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
-    
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-
-    
-    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
-    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_stroke = [(mx*hit[0],stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
-    
-    return world_stroke
-
-def vec3_to_vec4(vec3, w=0.0): return Vector((vec3.x,vec3.y,vec3.z,w))
-
-def raycast_stroke_bvh_norm(context, bvh, mx, stroke):
-    '''
-    strokes have form [((x,y),p)] with a radius value
-    
-    returns list [Vector(x,y,z), Vector(nx,ny,nz), p] leaving the radius value untouched
-    drops any values that do not successfully ray_cast
-    '''
-    rgn  = context.region
-    rv3d = context.space_data.region_3d
-    imx = invert_matrix(mx)
-    timx = imx.transposed()
-    
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    rays = [(r2d_origin(rgn, rv3d, co),r2d_vector(rgn, rv3d, co).normalized()) for co,_ in stroke]
-    
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-
-    sten = [(imx*(o-back*mult*d), imx*(o+mult*d)) for o,d in rays]
-    hits = [bvh.ray_cast(st,(en-st)) for st,en in sten]
-    world_stroke = [(mx*hit[0],(timx*vec3_to_vec4(hit[1])).to_3d(),stroke[i][1])  for i,hit in enumerate(hits) if hit[2] != None]
-    
-    return world_stroke
 
 
 def frange(start, end, stepsize):
@@ -576,141 +275,6 @@ def simple_circle(x,y,r,res):
         points[i]=Vector((r * x1 + x, r * y1 + y))
            
     return(points)     
-    
-def ray_cast_visible(verts, ob, rv3d):
-    '''
-    returns list of Boolean values indicating whether the corresponding vert
-    is visible (not occluded by object) in region associated with rv3d
-    '''
-    view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
-    imx = invert_matrix(ob.matrix_world)
-    
-    if rv3d.is_perspective:
-        eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
-        #eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
-        eyeloc_local = imx*eyeloc
-        source = [eyeloc_local for vert in verts]
-        target = [imx*(vert+0.01*view_dir) for vert in verts]
-    else:
-        source = [imx*(vert+100*view_dir) for vert in verts]
-        target = [imx*(vert+0.01*view_dir) for vert in verts]
-    
-    return [ob.ray_cast(s,t)[2]==-1 for s,t in zip(source,target)]
-
-def ray_cast_visible_bvh(verts, bvh, mx, rv3d):
-    '''
-    returns list of Boolean values indicating whether the corresponding vert
-    is visible (not occluded by object) in region associated with rv3d
-    '''
-    view_dir = (rv3d.view_rotation * Vector((0,0,1))).normalized()
-    imx = invert_matrix(mx)
-    
-    if rv3d.is_perspective:
-        eyeloc = rv3d.view_location + rv3d.view_distance*view_dir
-        #eyeloc = Vector(rv3d.view_matrix.inverted().col[3][:3]) #this is brilliant, thanks Gert
-        eyeloc_local = imx*eyeloc
-        source = [eyeloc_local for vert in verts]
-        target = [imx*(vert+0.01*view_dir) for vert in verts]
-    else:
-        source = [imx*(vert+100*view_dir) for vert in verts]
-        target = [imx*(vert+0.01*view_dir) for vert in verts]
-    
-    #notice, the math may appear backwards here.  But we want to cast toward the "eye"
-    #and because bvh.ray_cast doesn't yet accept distance, 
-    return [bvh.ray_cast(t,s-t)[2]== None for s,t in zip(source,target)]
-
-def get_ray_origin_target(region, rv3d, screen_coord, ob):
-    ray_vector = region_2d_to_vector_3d(region, rv3d, screen_coord).normalized()
-    ray_origin = region_2d_to_origin_3d(region, rv3d, screen_coord)
-    if not rv3d.is_perspective:
-        # need to back up the ray's origin, because ortho projection has front and back
-        # projection planes at inf
-        
-        bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-        # why does this need to be negated?
-        # but not when ortho front/back view??
-        if bver < '002.073.000' and abs(ray_vector.y)<1: ray_vector = -ray_vector
-        
-        r0 = get_ray_origin(ray_origin, ray_vector, ob)
-        r1 = get_ray_origin(ray_origin, -ray_vector, ob)
-        ray_origin = r0
-        ray_target = r1
-    else:
-        ray_target = get_ray_origin(ray_origin, -ray_vector, ob)
-    
-    return (ray_origin, ray_target)
-
-def ray_cast_world_size(region, rv3d, screen_coord, screen_size, ob, settings):
-    mx  = ob.matrix_world
-    imx = invert_matrix(mx)
-    
-    ray_origin,ray_target = get_ray_origin_target(region, rv3d, screen_coord, ob)
-    ray_direction         = (ray_target - ray_origin).normalized()
-    
-    ray_start_local  = imx * ray_origin
-    ray_target_local = imx * ray_target
-
-    ok, pt_local,no,idx  = ob.ray_cast(ray_start_local, ray_target_local)
-    if ok: return float('inf')
-
-    pt = mx * pt_local
-    
-    screen_coord_offset = (screen_coord[0]+screen_size, screen_coord[1])
-    ray_origin_offset,ray_target_offset = get_ray_origin_target(region, rv3d, screen_coord_offset, ob)
-    ray_direction_offset = (ray_target_offset - ray_origin_offset).normalized()
-    
-    d = get_ray_plane_intersection(ray_origin_offset, ray_direction_offset, pt, (rv3d.view_rotation*Vector((0,0,-1))).normalized() )
-    pt_offset = ray_origin_offset + ray_direction_offset * d
-    
-    return (pt-pt_offset).length
-
-def ray_cast_world_size_bvh(region, rv3d, screen_coord, screen_size, bvh, mx, settings):
-
-    imx = invert_matrix(mx)
-    rgn = region
-    r2d_origin = region_2d_to_origin_3d
-    r2d_vector = region_2d_to_vector_3d
-    
-    o, d = r2d_origin(rgn, rv3d, screen_coord), r2d_vector(rgn, rv3d, screen_coord).normalized()
-    back = 0 if rv3d.is_perspective else 1
-    mult = 100 #* (1 if rv3d.is_perspective else -1)
-    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    if (bver < '002.072.000') and not rv3d.is_perspective: mult *= -1
-    
-    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
-    pt_local, no, idx, _ = bvh.ray_cast(st,(en-st))
-    
-    if idx == None: return float('inf')
-    
-    pt = mx * pt_local
-    
-    screen_coord_offset = (screen_coord[0]+screen_size, screen_coord[1])
-    o_off, d_off = r2d_origin(rgn, rv3d, screen_coord_offset), r2d_vector(rgn, rv3d, screen_coord_offset).normalized()
-    st, en = imx*(o-back*mult*d), imx*(o+mult*d)
-
-    d = get_ray_plane_intersection(o_off, d_off, pt, (rv3d.view_rotation*Vector((0,0,-1))).normalized() )
-    pt_offset = o_off + d_off * d
-    return (pt-pt_offset).length
-
-def get_ray_plane_intersection(ray_origin, ray_direction, plane_point, plane_normal):
-    d = ray_direction.dot(plane_normal)
-    if abs(ray_direction.dot(plane_normal)) <= 0.00000001: return float('inf')
-    return (plane_point-ray_origin).dot(plane_normal) / d
-
-def get_ray_origin(ray_origin, ray_direction, ob):
-    mx = ob.matrix_world
-    q  = ob.rotation_quaternion
-    bbox = [Vector(v) for v in ob.bound_box]
-    bm = Vector((min(v.x for v in bbox),min(v.y for v in bbox),min(v.z for v in bbox)))
-    bM = Vector((max(v.x for v in bbox),max(v.y for v in bbox),max(v.z for v in bbox)))
-    x,y,z = Vector((1,0,0)),Vector((0,1,0)),Vector((0,0,1))
-    planes = []
-    if abs(ray_direction.x)>0.0001: planes += [(bm,x), (bM,-x)]
-    if abs(ray_direction.y)>0.0001: planes += [(bm,y), (bM,-y)]
-    if abs(ray_direction.z)>0.0001: planes += [(bm,z), (bM,-z)]
-    dists = [get_ray_plane_intersection(ray_origin,ray_direction,mx*p0,q*no) for p0,no in planes]
-    dprint(dists, l=4)
-    return ray_origin + ray_direction * min(dists)
 
 
 def closest_t_and_distance_point_to_line_segment(p, p0, p1):
@@ -957,14 +521,3 @@ def outside_loop_2d(loop):
     bound = (1.1*maxx, 1.1*maxy)
     return bound
 
-# ensure initial conditions are the same when re-enabling the addon
-def register():
-    get_settings.cached_settings = None
-    print_exception.count = 0   
-
-def unregister():
-    pass
-
-
-if __name__ == "__main__":
-    register()

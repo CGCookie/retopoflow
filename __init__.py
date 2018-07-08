@@ -41,7 +41,6 @@ import bpy
 
 #CGCookie imports
 from .lib.common_utilities import bversion, check_source_target_objects
-from .lib.common_utilities import register as register_common_utilities
 
 from .options import options
 
@@ -78,8 +77,6 @@ from . import addon_updater_ops
 addon_keymaps = []
 
 def register():
-    register_common_utilities()
-
     bpy.utils.register_class(RetopoFlowPreferences)
     
     if options['version 1.3']:

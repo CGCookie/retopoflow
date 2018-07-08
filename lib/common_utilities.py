@@ -135,6 +135,7 @@ def get_exception_info_and_hash():
 
 
 def print_exception():
+    if not hasattr(print_exception, 'count'): print_exception.count = 0
     errormsg = get_exception_info()
     print(errormsg)
     print_exception.count += 1
@@ -957,14 +958,3 @@ def outside_loop_2d(loop):
     bound = (1.1*maxx, 1.1*maxy)
     return bound
 
-# ensure initial conditions are the same when re-enabling the addon
-def register():
-    get_settings.cached_settings = None
-    print_exception.count = 0   
-
-def unregister():
-    pass
-
-
-if __name__ == "__main__":
-    register()
