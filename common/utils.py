@@ -21,9 +21,9 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from mathutils import Vector, Matrix
 from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
-from mathutils import Vector, Matrix
 from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
