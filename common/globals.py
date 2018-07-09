@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,20 +19,22 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = [
-    'bezier',
-    'blender',
-    'bmesh_render',
-    'debug',
-    'decorators',
-    'globals',
-    'hasher',
-    'logger',
-    'maths',
-    'metaclasses',
-    'profiler',
-    'shaders',
-    'ui',
-    'useractions',
-    'utils',
-]
+debugger = None
+dprint = None
+profiler = None
+logger = None
+
+def set_global(o):
+    global debugger, dprint
+    global profiler, logger
+
+    cn = type(o).__name__
+    if cn == 'Debugger':
+        debugger = o
+        dprint = o.dprint
+    elif cn == 'Profiler':
+        profiler = o
+    elif cn == 'Logger':
+        logger = o
+    else:
+        assert False

@@ -19,7 +19,9 @@ https://github.com/CGCookie/retopoflow
 
 import bpy
 import bgl
+
 from .cookiecutter import CookieCutter
+
 from ..common.maths import Point2D
 from ..common import ui
 

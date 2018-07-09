@@ -44,7 +44,7 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
 from ..common.utils import min_index
-from ..common.utils import hash_object, hash_bmesh
+from ..common.hasher import hash_object, hash_bmesh
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
 from ..common.bmesh_render import BGLBufferedRender

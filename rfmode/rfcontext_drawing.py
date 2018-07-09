@@ -46,7 +46,7 @@ from ..common.ui import (
     GetSet,
     )
 from ..common import bmesh_render as bmegl
-from ..common.debug import Debugger
+from ..common.globals import debugger
 from ..common.maths import matrix_normal
 
 from ..options import (
@@ -150,12 +150,12 @@ class RFContext_Drawing:
             self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
             self.window_manager.draw_postpixel()
         except AssertionError as e:
-            message,h = Debugger.get_exception_info_and_hash()
+            message,h = debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='assert', msghash=h)
         except Exception as e:
-            message,h = Debugger.get_exception_info_and_hash()
+            message,h = debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='exception', msghash=h)

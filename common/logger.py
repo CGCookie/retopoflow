@@ -23,6 +23,7 @@ import bpy
 
 from .blender import show_blender_popup, show_blender_text
 
+from .globals import set_global
 
 class Logger:
     _log_filename = 'Logger'
@@ -58,5 +59,6 @@ class Logger:
         else:
             show_blender_popup('Log file (%s) not found' % Logger._log_filename)
 
-
+logger = Logger()
+set_global(logger)
 

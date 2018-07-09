@@ -40,7 +40,8 @@ from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
-from ..common.utils import min_index, hash_object, hash_bmesh, UniqueCounter
+from ..common.hasher import hash_object, hash_bmesh
+from ..common.utils import min_index, UniqueCounter
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
 from ..common.debug import dprint

@@ -49,7 +49,7 @@ from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
 from ..common.utils import get_settings
-from ..common.debug import Debugger
+from ..common.globals import dprint, debugger
 from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
@@ -105,9 +105,9 @@ def find_all_rftools(root=None):
                         found = True
             except Exception as e:
                 if 'rftool' in rft:
-                    Debugger.dprint('************* ERROR! *************')
-                    Debugger.dprint('>>>>> Could not import ' + rft)
-                    Debugger.dprint(e)
+                    dprint('************* ERROR! *************')
+                    dprint('>>>>> Could not import ' + rft)
+                    dprint(e)
                 pass
     return found
 assert find_all_rftools(), 'Could not find RFTools'
@@ -390,7 +390,7 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
             if self.time_to_save <= 0:
                 # tempdir = bpy.app.tempdir
                 filepath = RFRecover.filepath('blend')
-                Debugger.dprint('auto saving to %s' % filepath)
+                dprint('auto saving to %s' % filepath)
                 if os.path.exists(filepath): os.remove(filepath)
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
                 self.time_to_save = auto_save_time
@@ -420,12 +420,12 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
             nmode = self.FSM[self.mode]()
             if nmode: self.mode = nmode
         except AssertionError as e:
-            message,h = Debugger.get_exception_info_and_hash()
+            message,h = debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='assert', msghash=h)
         except Exception as e:
-            message,h = Debugger.get_exception_info_and_hash()
+            message,h = debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='exception', msghash=h)

@@ -28,7 +28,8 @@ import bgl
 
 from .rftool import RFTool
 from .rfmesh import RFVert
-from ..common.utils import iter_pairs, hash_cycle
+from ..common.utils import iter_pairs
+from ..common.hasher import hash_cycle
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
 from ..common.profiler import profiler
 

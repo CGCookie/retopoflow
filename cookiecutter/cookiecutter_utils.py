@@ -17,8 +17,9 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 import inspect
+
+import bpy
 
 class CookieCutter_Utils:
     def find_fns(self, key):
