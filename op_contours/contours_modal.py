@@ -21,24 +21,15 @@ https://github.com/CGCookie/retopoflow
 '''
 
 import bpy
-import bgl
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
-from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from mathutils import Vector, Matrix
-import math
-import os
-
+from mathutils import Vector
 
 from ..modaloperator import ModalOperator
 from .. import key_maps
-from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse
+from ..lib.common_utilities import selection_mouse, get_settings
 from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
-from ..lib.classes.profiler import profiler
 from .contour_classes import Contours
 from .contours_ui_draw import Contours_UI_Draw
 from ..cache import mesh_cache
-from ..lib.common_utilities import get_settings
 
 
 class  CGC_Contours(ModalOperator, Contours_UI_Draw):
@@ -64,7 +55,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     
     def start_poll(self,context):
 
-        self.settings = common_utilities.get_settings()
+        self.settings = get_settings()
 
         if context.space_data.viewport_shade in {'WIREFRAME','BOUNDBOX'}:
             showErrorMessage('Viewport shading must be at least SOLID')
@@ -100,7 +91,7 @@ class  CGC_Contours(ModalOperator, Contours_UI_Draw):
     def start(self, context):
         ''' Called when tool has been invoked '''
         print('did we get started')
-        self.settings = common_utilities.get_settings()
+        self.settings = get_settings()
         self.keymap = key_maps.rtflow_user_keymap_generate()
         self.contours = Contours(context, self.settings)
         return ''

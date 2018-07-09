@@ -45,7 +45,7 @@ from ..common.utils import min_index
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
 from ..common.bmesh_render import BGLBufferedRender
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
+from ..lib.common_utilities import print_exception, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 from ..options import options
 

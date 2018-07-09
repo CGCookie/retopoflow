@@ -31,12 +31,12 @@ class Logger:
             # create a log file for error writing
             bpy.ops.text.new()
             bpy.data.texts[-1].name = options['log_filename']
-        
+
         divider = '=' * 80
-        
+
         log = bpy.data.texts[options['log_filename']]
         log.write("\n\n" + divider + "\n" + line)
-    
+
     @classmethod
     def openTextFile(cls):
         if options['log_filename'] not in bpy.data.texts:

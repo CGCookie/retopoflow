@@ -23,6 +23,8 @@ import bpy
 from copy import deepcopy
 
 from .maths import Point2D
+from .debug import dprint
+
 
 
 def kmi_details(kmi):
@@ -62,9 +64,9 @@ class Actions:
         'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
-    
+
     trackpad_actions = { 'TRACKPADPAN','TRACKPADZOOM' }
-    
+
     navigation_events = {
         'Rotate View': 'view3d.rotate',
         'Move View': 'view3d.move',
@@ -103,7 +105,7 @@ class Actions:
                 if kmi.idname not in self.window_actions: continue
                 if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
                 else: self.keymap['window actions'].discard(kmi_details(kmi))
-    
+
     def __init__(self, context, keymap):
         self.keymap = deepcopy(keymap)
         for k in self.keymap:
@@ -111,7 +113,7 @@ class Actions:
             self.keymap[k] = {self.keymap[k]}
         self.keymap['navigate'] = set()         # filled in below
         self.keymap['window actions'] = set()   # filled in by load_keymap
-        
+
         self.keymap['navigate'] |= Actions.trackpad_actions
         self.keymap['navigate'] |= Actions.ndof_actions
         self.load_keymap('Blender')
@@ -134,7 +136,7 @@ class Actions:
         self.mousedown_left = None
         self.mousedown_middle = None
         self.mousedown_right = None
-        
+
         self.trackpad = False
         self.ndof = False
 
@@ -157,12 +159,12 @@ class Actions:
         self.just_pressed = None
 
         self.context = context
-        
+
         if context.region and hasattr(context.space_data, 'region_3d'):
             self.region = context.region
             self.size = (context.region.width,context.region.height)
             self.r3d = context.space_data.region_3d
-        
+
         # # handle strange edge cases
         # if not context.area:
         #     #dprint('Context with no area')
@@ -179,7 +181,7 @@ class Actions:
             self.time_delta = timer.time_delta
             self.trackpad = False
             return
-        
+
         if print_actions:
             if event.type not in {'MOUSEMOVE','INBETWEEN_MOUSEMOVE'}:
                 print((event.type, event.value))
@@ -209,7 +211,7 @@ class Actions:
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             return
-        
+
         self.trackpad = (t in Actions.ndof_actions)
         self.ndof = (t in Actions.ndof_actions)
 
@@ -262,7 +264,7 @@ class Actions:
         if using_all:
             return all(p in actions for p in self.now_pressed.values())
         return any(p in actions for p in self.now_pressed.values())
-    
+
     def navigating(self):
         actions = self.convert('navigate')
         if self.trackpad: return True

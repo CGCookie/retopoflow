@@ -23,10 +23,10 @@ import bpy, blf, bgl, bmesh
 from mathutils.bvhtree import BVHTree
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from ...common_utilities import bversion, dprint
 from ...common_utilities import invert_matrix, matrix_normal
 #from ...common_utilities import ray_cast_region2d_bvh
 from ....cache import is_object_valid, clear_mesh_cache, write_mesh_cache, mesh_cache
+from ....common.debug import dprint
 
 class BMeshCache():
     '''

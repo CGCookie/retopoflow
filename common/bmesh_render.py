@@ -33,10 +33,11 @@ from bpy_extras.view3d_utils import (
 )
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
+from .debug import dprint
 from .shaders import Shader, buf_zero
 from .utils import shorten_floats
 from .maths import Point, Direction, Frame
-from ..lib.common_utilities import invert_matrix, matrix_normal, dprint
+from ..lib.common_utilities import invert_matrix, matrix_normal
 from ..lib.classes.profiler.profiler import profiler
 
 import math

@@ -28,7 +28,6 @@ import bpy
 import bmesh
 from mathutils import Matrix
 from mathutils.bvhtree import BVHTree
-from ..lib.common_utilities import bversion
 
 class loopslide(object):
     

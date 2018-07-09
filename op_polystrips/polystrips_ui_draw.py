@@ -41,7 +41,7 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origi
 from ..lib import common_utilities
 from ..lib import common_drawing_px
 from ..lib.common_drawing_bmesh_13 import bmeshShader
-from ..lib.common_utilities import iter_running_sum, dprint, get_object_length_scale, invert_matrix, matrix_normal
+from ..lib.common_utilities import iter_running_sum, get_object_length_scale, invert_matrix, matrix_normal
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative
 from ..lib.common_drawing_view import draw3d_arrow
 from ..lib.classes.profiler import profiler

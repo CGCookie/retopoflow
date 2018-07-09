@@ -37,7 +37,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 
 # Common imports
 from . import common_utilities
-from .common_utilities import dprint
+from ..common.debug import dprint
 
 
 

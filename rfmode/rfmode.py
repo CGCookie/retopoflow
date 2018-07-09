@@ -34,7 +34,7 @@ from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
 
 from ..lib import common_utilities
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage
+from ..lib.common_utilities import print_exception, showErrorMessage
 from ..lib.classes.logging.logger import Logger
 from ..lib.common_utilities import dprint
 from ..lib.classes.profiler.profiler import profiler
@@ -540,7 +540,6 @@ class RFMode(Operator):
     # exception handling method
     
     def handle_exception(self, serious=False):
-        #print_exception2()
         errormsg = print_exception()
         # if max number of exceptions occur within threshold of time, abort!
         curtime = time.time()

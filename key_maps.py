@@ -48,7 +48,7 @@ import bpy
 from bpy.app.handlers import persistent
 
 #CGCookie Imports
-from .lib.common_utilities import dcallstack, dprint
+from .common.debug import Debugger
 
 def_rf_key_map = {}
 #SHARED KEYS
@@ -153,11 +153,11 @@ def kmi_details(kmi):
     
     kmi_ftype   = kmi_ctrl + kmi_shift + kmi_alt + kmi_os
     if kmi.type == 'WHEELINMOUSE':
-        dprint('WHEELUPMOUSE substituted for WHEELINMOUSE')
+        Debugger.dprint('WHEELUPMOUSE substituted for WHEELINMOUSE')
         kmi_ftype += 'WHEELUPMOUSE'
     
     elif kmi.type == 'WHEELOUTMOUSE':
-        dprint('WHEELDOWNMOUSE substituted for WHEELOUTMOUSE')
+        Debugger.dprint('WHEELDOWNMOUSE substituted for WHEELOUTMOUSE')
         kmi_ftype += 'WHEELDOWNMOUSE'
     
     else:
@@ -170,8 +170,8 @@ def add_to_dict(km_dict, key, value, safety = True):
     if safety:
         for k in km_dict.keys():
             if value in km_dict[k]:
-                dprint('%s is already part of keymap "%s"' % (value, key))
-                dcallstack()
+                Debugger.dprint('%s is already part of keymap "%s"' % (value, key))
+                Debugger.dcallstack()
                 return False
 
     if key not in km_dict:
@@ -198,7 +198,7 @@ def rtflow_default_keymap_generate():
 def rtflow_user_keymap_generate():
     km_dict = deepcopy(def_rf_key_map)
     if 'Blender User' not in bpy.context.window_manager.keyconfigs:
-        dprint('No User Keymap, default keymap generated')
+        Debugger.dprint('No User Keymap, default keymap generated')
         return rtflow_default_keymap_generate()
     
     for kmi in bpy.context.window_manager.keyconfigs['Blender User'].keymaps['3D View'].keymap_items:

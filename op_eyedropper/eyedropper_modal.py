@@ -24,7 +24,6 @@ Created on Jul 11, 2015
 '''
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion
 from ..modaloperator import ModalOperator
 from ..preferences import RetopoFlowPreferences
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d, region_2d_to_vector_3d

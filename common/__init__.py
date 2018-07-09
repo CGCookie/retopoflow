@@ -24,6 +24,8 @@ __all__ = [
     'bmesh_render',
     'debug',
     'decorators',
+    'hasher',
+    'logger',
     'maths',
     'metaclasses',
     'profiler',
@@ -32,4 +34,3 @@ __all__ = [
     'useractions',
     'utils'
 ]
-

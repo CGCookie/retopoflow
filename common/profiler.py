@@ -22,8 +22,8 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import os
 import inspect
 import time
-from ...common_utilities import dprint, dcallstack, print_exception
-from ....options import options, retopoflow_profiler
+from .debug import Debugger
+from ..options import options, retopoflow_profiler
 
 
 class Profiler:
@@ -165,7 +165,7 @@ class Profiler:
                 pr.done()
                 print('CAUGHT EXCEPTION ' + str(e))
                 print(text)
-                print_exception()
+                Debugger.print_exception()
                 raise e
         wrapper.__name__ = fn.__name__
         wrapper.__doc__ = fn.__doc__
@@ -201,7 +201,7 @@ class Profiler:
     def printout(self):
         if not retopoflow_profiler or not self.debug:
             return
-        dprint('%s\n\n\n' % self.strout(), l=0)
+        print('%s\n\n\n' % self.strout())
 
     def printfile(self, interval=0.25):
         # $ # to watch the file from terminal (bash) use:

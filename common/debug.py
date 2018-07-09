@@ -33,182 +33,145 @@ import time
 import itertools
 import linecache
 import traceback
-from mathutils import Vector, Matrix, Quaternion
-from mathutils.geometry import intersect_point_line, intersect_line_plane
-from mathutils.geometry import distance_point_to_plane, intersect_line_line_2d, intersect_line_line
+from datetime import datetime
 from hashlib import md5
 
 # Blender imports
 import blf
 import bmesh
 import bpy
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
-from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy_extras.view3d_utils import (
+    location_3d_to_region_2d, region_2d_to_vector_3d,
+    region_2d_to_location_3d, region_2d_to_origin_3d
+)
 from bpy.app.handlers import persistent
+from mathutils import Vector, Matrix, Quaternion
+from mathutils.geometry import (
+    intersect_point_line, intersect_line_plane,
+     intersect_line_line_2d, intersect_line_line,
+    distance_point_to_plane,
+)
 
-from .classes.logging.logger import Logger
-
-from ..options import options
-
-
-def bversion():
-    bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
-    return bversion
-
-def selection_mouse():
-    select_type = bpy.context.user_preferences.inputs.select_mouse
-    return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
-
-def get_settings():
-    if not hasattr(get_settings, 'settings'):
-        addons = bpy.context.user_preferences.addons
-        folderpath = os.path.dirname(os.path.abspath(__file__))
-        while folderpath:
-            folderpath,foldername = os.path.split(folderpath)
-            if foldername in {'lib','addons'}: continue
-            if foldername in addons: break
-        else:
-            assert False, 'Could not find non-"lib" folder'
-        if not addons[foldername].preferences: return None
-        get_settings.settings = addons[foldername].preferences
-    return get_settings.settings
-
-def get_dpi():
-    system_preferences = bpy.context.user_preferences.system
-    factor = getattr(system_preferences, "pixel_size", 1)
-    return int(system_preferences.dpi * factor)
-
-def get_dpi_factor():
-    return get_dpi() / 72
+from .logger import Logger
+from .hasher import Hasher
 
 
+class Debugger:
+    _error_level = 1
+    _exception_count = 0
 
+    def __init__(self):
+        pass
 
+    @staticmethod
+    def set_error_level(l):
+        Debugger._error_level = max(0, min(5, int(l)))
 
+    @staticmethod
+    def get_error_level():
+        return Debugger._error_level
 
-# http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
-def get_exception_info():
-    exc_type, exc_obj, tb = sys.exc_info()
-    
-    errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
-    etb = traceback.extract_tb(tb)
-    pfilename = None
-    for i,entry in enumerate(reversed(etb)):
-        filename,lineno,funcname,line = entry
-        if filename != pfilename:
-            pfilename = filename
-            errormsg += '         %s\n' % (filename)
-        errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
-    return errormsg
+    @staticmethod
+    def dprint(*objects, sep=' ', end='\n', file=sys.stdout, flush=True, l=2):
+        if Debugger._error_level < l: return
+        sobjects = sep.join(str(o) for o in objects)
+        print(
+            'DEBUG(%i): %s' % (l, sobjects),
+            end=end, file=file, flush=flush
+        )
 
-def get_exception_info_and_hash():
-    '''
-    this function is a duplicate of the one above, but this will attempt
-    to create a hash to make searching for duplicate bugs on github easier (?)
-    '''
-    
-    hashed = md5()
-    def update_hash(s): hashed.update(bytes(str(s), 'utf8'))
-    
-    exc_type, exc_obj, tb = sys.exc_info()
-    
-    base_path = os.path.abspath(os.path.join(os.path.split(os.path.abspath(__file__))[0], '..'))
-    
-    errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
-    update_hash(errormsg)
-    
-    #errormsg += 'Base: %s\n' % base_path
-    
-    etb = traceback.extract_tb(tb)
-    pfilename = None
-    for i,entry in enumerate(reversed(etb)):
-        filename,lineno,funcname,line = entry
-        if pfilename is None:
-            # only hash in details of where the exception occurred
-            update_hash(os.path.split(filename)[1])
-            #update_hash(lineno)
-            update_hash(funcname)
-            update_hash(line.strip())
-        if filename != pfilename:
-            pfilename = filename
-            if filename.startswith(base_path):
-                filename = '.../%s' % filename[len(base_path)+1:]
-            errormsg += '%s\n' % (filename, )
-        errormsg += '%03d %04d:%s() %s\n' % (i, lineno, funcname, line.strip())
-    
-    return (errormsg, hashed.hexdigest())
+    @staticmethod
+    def dcallstack(l=2):
+        ''' print out the calling stack, skipping the first (call to dcallstack) '''
+        Debugger.dprint('Call Stack Dump:', l=l)
+        for i, entry in enumerate(inspect.stack()):
+            if i > 0:
+                Debugger.dprint('  %s' % str(entry), l=l)
 
+    # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
+    @staticmethod
+    def get_exception_info_and_hash():
+        '''
+        this function is a duplicate of the one above, but this will attempt
+        to create a hash to make searching for duplicate bugs on github easier (?)
+        '''
 
-def print_exception():
-    if not hasattr(print_exception, 'count'): print_exception.count = 0
-    errormsg = get_exception_info()
-    print(errormsg)
-    print_exception.count += 1
-    Logger.add(errormsg)        # write error to log text object
-    if print_exception.count < 10:
-        showErrorMessage(errormsg, wrap=240)
-    return errormsg
+        exc_type, exc_obj, tb = sys.exc_info()
+        pathabs, pathdir = os.path.abspath, os.path.dirname
+        pathjoin, pathsplit = os.path.join, os.path.split
+        base_path = pathabs(pathjoin(pathdir(__file__), '..'))
 
+        hasher = Hasher()
+        errormsg = ['EXCEPTION (%s): %s' % (exc_type, exc_obj)]
+        hasher.add(errormsg[0])
+        # errormsg += ['Base: %s' % base_path]
 
+        etb = traceback.extract_tb(tb)
+        pfilename = None
+        for i,entry in enumerate(reversed(etb)):
+            filename,lineno,funcname,line = entry
+            if pfilename is None:
+                # only hash in details of where the exception occurred
+                hasher.add(os.path.split(filename)[1])
+                # hasher.add(lineno)
+                hasher.add(funcname)
+                hasher.add(line.strip())
+            if filename != pfilename:
+                pfilename = filename
+                if filename.startswith(base_path):
+                    filename = '.../%s' % filename[len(base_path)+1:]
+                errormsg += ['%s' % (filename, )]
+            errormsg += ['%03d %04d:%s() %s' % (i, lineno, funcname, line.strip())]
 
-def print_exception2():
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print("*** print_tb:")
-    traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
-    print("*** print_exception:")
-    traceback.print_exception(exc_type, exc_value, exc_traceback,
-                              limit=2, file=sys.stdout)
-    print("*** print_exc:")
-    traceback.print_exc()
-    print("*** format_exc, first and last line:")
-    formatted_lines = traceback.format_exc().splitlines()
-    print(formatted_lines[0])
-    print(formatted_lines[-1])
-    print("*** format_exception:")
-    print(repr(traceback.format_exception(exc_type, exc_value,exc_traceback)))
-    print("*** extract_tb:")
-    print(repr(traceback.extract_tb(exc_traceback)))
-    print("*** format_tb:")
-    print(repr(traceback.format_tb(exc_traceback)))
-    if exc_traceback:
-        print("*** tb_lineno:", exc_traceback.tb_lineno)
+        return ('\n'.join(errormsg), hasher.get_hash())
 
+    @staticmethod
+    def print_exception():
+        Debugger._exception_count += 1
+        errormsg, errorhash = Debugger.get_exception_info_and_hash()
+        message = []
+        message += ['Exception Info']
+        message += ['- Time: %s' % datetime.today().isoformat(' ')]
+        message += ['- Count: %d' % Debugger._exception_count]
+        message += ['- Hash: %s' % str(errorhash)]
+        message += ['- Info:']
+        message += ['  - %s' % s for s in errormsg.splitlines()]
+        message = '\n'.join(message)
+        print('%s\n%s\n%s' % ('_' * 100, message, '~' * 100))
+        Logger.add(message) # write error to log text object
+        if Debugger._exception_count < 10:
+            show_blender_message(
+                message,
+                title='Exception Info',
+                icon='ERROR',
+                wrap=240
+            )
+        return message
 
-def dprint(s, l=2):
-    if options['debug level'] < l: return
-    print('DEBUG(%i): %s' % (l, s))
+    # @staticmethod
+    # def print_exception2():
+    #     exc_type, exc_value, exc_traceback = sys.exc_info()
+    #     print("*** print_tb:")
+    #     traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+    #     print("*** print_exception:")
+    #     traceback.print_exception(exc_type, exc_value, exc_traceback,
+    #                               limit=2, file=sys.stdout)
+    #     print("*** print_exc:")
+    #     traceback.print_exc()
+    #     print("*** format_exc, first and last line:")
+    #     formatted_lines = traceback.format_exc().splitlines()
+    #     print(formatted_lines[0])
+    #     print(formatted_lines[-1])
+    #     print("*** format_exception:")
+    #     print(repr(traceback.format_exception(exc_type, exc_value,exc_traceback)))
+    #     print("*** extract_tb:")
+    #     print(repr(traceback.extract_tb(exc_traceback)))
+    #     print("*** format_tb:")
+    #     print(repr(traceback.format_tb(exc_traceback)))
+    #     if exc_traceback:
+    #         print("*** tb_lineno:", exc_traceback.tb_lineno)
 
-def dcallstack(l=2):
-    ''' print out the calling stack, skipping the first (call to dcallstack) '''
-    dprint('Call Stack Dump:', l=l)
-    for i,entry in enumerate(inspect.stack()):
-        if i>0: dprint('  %s' % str(entry), l=l)
-
-def showErrorMessage(message, wrap=80):
-    if not message: return
-    lines = message.splitlines()
-    if wrap > 0:
-        nlines = []
-        for line in lines:
-            spc = len(line) - len(line.lstrip())
-            while len(line) > wrap:
-                i = line.rfind(' ',0,wrap)
-                if i == -1:
-                    nlines += [line[:wrap]]
-                    line = line[wrap:]
-                else:
-                    nlines += [line[:i]]
-                    line = line[i+1:]
-                if line:
-                    line = ' '*spc + line
-            nlines += [line]
-        lines = nlines
-    def draw(self,context):
-        for line in lines:
-            self.layout.label(line)
-    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
-    return
-
+dprint = Debugger.dprint
 
 
 
@@ -261,7 +224,7 @@ def get_object_length_scale(o):
 
 def simple_circle(x,y,r,res):
     '''
-    args: 
+    args:
     x,y - center coordinate of cark
     r1 = radius of arc
     '''
@@ -269,12 +232,12 @@ def simple_circle(x,y,r,res):
 
     for i in range(0,res):
         theta = i * 2 * math.pi / res
-        x1 = math.cos(theta) 
+        x1 = math.cos(theta)
         y1 = math.sin(theta)
-    
+
         points[i]=Vector((r * x1 + x, r * y1 + y))
-           
-    return(points)     
+
+    return(points)
 
 
 def closest_t_and_distance_point_to_line_segment(p, p0, p1):
@@ -294,13 +257,13 @@ def get_path_length(verts):
     l_tot = 0
     if len(verts) < 2:
         return 0
-    
+
     for i in range(0,len(verts)-1):
         d = verts[i+1] - verts[i]
         l_tot += d.length
-        
+
     return l_tot
-   
+
 def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #prev deved for Open Dental CAD
     '''
     Gives evenly spaced location along a string of verts
@@ -309,40 +272,40 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
     Assumes edges are ordered coherently
     Yes these are lazy assumptions, but the way I build my data
     guarantees these assumptions so deal with it.
-    
+
     args:
         verts - list of vert locations type Mathutils.Vector
         eds - list of index pairs type tuple(integer) eg (3,5).
-              should look like this though [(0,1),(1,2),(2,3),(3,4),(4,0)]     
+              should look like this though [(0,1),(1,2),(2,3),(3,4),(4,0)]
         segments - number of segments to divide path into
-        shift - for cyclic verts chains, shifting the verts along 
+        shift - for cyclic verts chains, shifting the verts along
                 the loop can provide better alignment with previous
                 loops.  This should be -1 to 1 representing a percentage of segment length.
                 Eg, a shift of .5 with 8 segments will shift the verts 1/16th of the loop length
-                
+
     return
         new_verts - list of new Vert Locations type list[Mathutils.Vector]
     '''
-    
+
     if len(verts) < 2:
         print('this is crazy, there are not enough verts to do anything!')
         return verts
-        
+
     if segments >= len(verts):
         print('more segments requested than original verts')
-        
-     
+
+
     #determine if cyclic or not, first vert same as last vert
     if 0 in edges[-1]:
         cyclic = True
-        
+
     else:
         cyclic = False
         #zero out the shift in case the vert chain insn't cyclic
         if shift != 0: #not PEP but it shows that we want shift = 0
             print('not shifting because this is not a cyclic vert chain')
             shift = 0
-   
+
     #calc_length
     arch_len = 0
     cumulative_lengths = [0]#TODO, make this the right size and dont append
@@ -352,7 +315,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         V = v1-v0
         arch_len += V.length
         cumulative_lengths.append(arch_len)
-        
+
     if cyclic:
         v0 = verts[-1]
         v1 = verts[0]
@@ -360,22 +323,22 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         arch_len += V.length
         cumulative_lengths.append(arch_len)
         #print(cumulative_lengths)
-    
+
     #identify vert indicies of import
     #this will be the largest vert which lies at
     #no further than the desired fraction of the curve
-    
+
     #initialze new vert array and seal the end points
     if cyclic:
         new_verts = [[None]]*(segments)
         #new_verts[0] = verts[0]
-            
+
     else:
         new_verts = [[None]]*(segments + 1)
         new_verts[0] = verts[0]
         new_verts[-1] = verts[-1]
-    
-    
+
+
     n = 0 #index to save some looping through the cumulative lengths list
           #now we are leaving it 0 becase we may end up needing the beginning of the loop last
           #and if we are subdividing, we may hit the same cumulative lenght several times.
@@ -385,7 +348,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         #print('the length we desire for the %i segment is %f compared to the total length which is %f' % (i, desired_length_raw, arch_len))
         #like a mod function, but for non integers?
         if desired_length_raw > arch_len:
-            desired_length = desired_length_raw - arch_len       
+            desired_length = desired_length_raw - arch_len
         elif desired_length_raw < 0:
             desired_length = arch_len + desired_length_raw #this is the end, + a negative number
         else:
@@ -411,9 +374,9 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
             new_verts[i + 1 + cyclic * -1] = verts[j-1] + extra * (verts[0]-verts[j-1]).normalized()
         else:
             new_verts[i + 1 + cyclic * -1] = verts[j-1] + extra * (verts[j]-verts[j-1]).normalized()
-    
+
     eds = []
-    
+
     for i in range(0,len(new_verts)-1):
         eds.append((i,i+1))
     if cyclic:
@@ -423,7 +386,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
         print(cumulative_lengths)
         print(arch_len)
         print(eds)
-        
+
     return new_verts, eds
 
 def zip_pairs(l):
@@ -445,7 +408,7 @@ def closest_t_of_s(s_t_map, s):
             return t
         else:
             d0 = d
-        
+
     return t
 
 def vector_angle_between(v0, v1, vcross):
@@ -470,24 +433,24 @@ def point_inside_loop2d(loop, point):
         type-tuple or type-Vector
     point: location of point to be tested
         type-tuple or type-Vector
-    
+
     return:
         True if point is inside loop
-    '''    
+    '''
     #test arguments type
     if any(not v for v in loop): return False
-    
+
     ptype = str(type(point))
     ltype = str(type(loop[0]))
     nverts = len(loop)
-    
+
     if 'Vector' not in ptype:
         point = Vector(point)
-        
+
     if 'Vector' not in ltype:
         for i in range(0,nverts):
             loop[i] = Vector(loop[i])
-        
+
     #find a point outside the loop and count intersections
     out = Vector(outside_loop_2d(loop))
     intersections = 0
@@ -496,28 +459,28 @@ def point_inside_loop2d(loop, point):
         b = Vector(loop[i])
         if intersect_line_line_2d(point,out,a,b):
             intersections += 1
-    
+
     inside = False
     if math.fmod(intersections,2):
         inside = True
-    
+
     return inside
 
 def outside_loop_2d(loop):
     '''
     args:
-    loop: list of 
+    loop: list of
        type-Vector or type-tuple
-    returns: 
-       outside = a location outside bound of loop 
+    returns:
+       outside = a location outside bound of loop
        type-tuple
     '''
-       
+
     xs = [v[0] for v in loop]
     ys = [v[1] for v in loop]
-    
+
     maxx = max(xs)
-    maxy = max(ys)    
+    maxy = max(ys)
     bound = (1.1*maxx, 1.1*maxy)
     return bound
 

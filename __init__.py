@@ -39,9 +39,6 @@ bl_info = {
 # Blender imports
 import bpy
 
-#CGCookie imports
-from .lib.common_utilities import bversion, check_source_target_objects
-
 from .options import options
 
 #Menus, Panels, Interface and Icons

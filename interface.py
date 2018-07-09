@@ -22,7 +22,6 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 
 from .lib import common_utilities
-from .lib.common_utilities import bversion
 from . import addon_updater_ops
 
 from .rfmode.rftool import RFTool

@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 #common cache for bmesh and BVH
 from mathutils import Vector
 
-from .lib.common_utilities import dprint
+from .common.debug import dprint
 
 mesh_cache = {}
 

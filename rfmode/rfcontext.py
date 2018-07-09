@@ -48,7 +48,7 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
-from ..lib.common_utilities import get_settings, dprint, get_exception_info, get_exception_info_and_hash
+from ..lib.common_utilities import get_settings, dprint, get_exception_info_and_hash
 from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D

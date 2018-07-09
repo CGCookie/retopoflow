@@ -43,7 +43,7 @@ from ..common.ui import Drawing
 from ..common.utils import min_index, hash_object, hash_bmesh, UniqueCounter
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
-from ..lib.common_utilities import print_exception, print_exception2, showErrorMessage, dprint
+from ..lib.common_utilities import print_exception, showErrorMessage, dprint
 from ..lib.classes.profiler.profiler import profiler
 
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence

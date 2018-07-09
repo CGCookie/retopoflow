@@ -41,8 +41,8 @@ from ..modaloperator import ModalOperator
 from ..lib import common_utilities
 from ..lib.common_utilities import showErrorMessage, get_source_object, get_target_object
 from ..lib.common_utilities import setup_target_object, invert_matrix
-from ..lib.common_utilities import bversion, selection_mouse
-from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, dprint, frange
+from ..lib.common_utilities import selection_mouse
+from ..lib.common_utilities import point_inside_loop2d, get_object_length_scale, frange
 from ..lib.common_utilities import closest_t_and_distance_point_to_line_segment, ray_cast_point_bvh
 from ..lib.classes.profiler.profiler import Profiler
 from ..lib.classes.bmeshcache.bmeshcache import BMeshCache

@@ -24,7 +24,7 @@ import bgl
 import ctypes
 from .ui import Drawing
 from ..ext.bgl_ext import VoidBufValue
-from ..lib.common_utilities import invert_matrix, matrix_normal, dprint
+from .debug import dprint
 
 # note: not all supported by user system, but we don't need latest functionality
 # https://github.com/mattdesl/lwjgl-basics/wiki/GLSL-Versions

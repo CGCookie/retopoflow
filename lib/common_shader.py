@@ -23,7 +23,7 @@ import bgl
 import bpy
 import re
 import ctypes
-from ..lib.common_utilities import dprint
+from ..common.debug import dprint
 from ..common.ui import Drawing
 from ..ext.bgl_ext import VoidBufValue
 

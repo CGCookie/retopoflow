@@ -33,7 +33,7 @@ import os
 import copy
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
+from ..lib.common_utilities import get_object_length_scale, dprint, frange, selection_mouse, showErrorMessage
 from ..lib.common_utilities import point_inside_loop2d, get_source_object, invert_matrix
 from ..lib.classes.profiler import profiler
 from ..lib.classes.sketchbrush.sketchbrush import SketchBrush

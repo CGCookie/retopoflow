@@ -32,13 +32,14 @@ import blf, bgl
 import itertools
 
 from ..lib import common_utilities
-from ..lib.common_utilities import bversion, iter_running_sum, dprint, get_object_length_scale,frange
+from ..lib.common_utilities import iter_running_sum, get_object_length_scale,frange
 from ..lib.common_utilities import zip_pairs, closest_t_of_s, invert_matrix
 from ..lib.common_utilities import sort_objects_by_angles, vector_angle_between
 from ..lib.classes.profiler.profiler import Profiler
 
 from ..lib.common_bezier import cubic_bezier_blend_t, cubic_bezier_derivative, cubic_bezier_fit_points, cubic_bezier_split, cubic_bezier_t_of_s_dynamic
 from ..cache import mesh_cache
+from ..common.debug import dprint
 
 
 

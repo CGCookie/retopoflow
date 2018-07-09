@@ -22,15 +22,45 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
-from ..lib.common_utilities import dprint
-from ..lib.classes.profiler.profiler import profiler
-from ..common.maths import Point, Direction, Normal, Frame
-from ..common.maths import Point2D, Vec2D, Direction2D
-from ..common.maths import Ray, XForm, BBox, Plane
+from .profiler import profiler
+from .debug import dprint
+from .maths import (
+    Point, Direction, Normal, Frame,
+    Point2D, Vec2D, Direction2D,
+    Ray, XForm, BBox, Plane
+)
 
+
+
+def selection_mouse():
+    select_type = bpy.context.user_preferences.inputs.select_mouse
+    return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
+
+def get_settings():
+    if not hasattr(get_settings, 'settings'):
+        addons = bpy.context.user_preferences.addons
+        folderpath = os.path.dirname(os.path.abspath(__file__))
+        while folderpath:
+            folderpath,foldername = os.path.split(folderpath)
+            if foldername in {'lib','addons'}: continue
+            if foldername in addons: break
+        else:
+            assert False, 'Could not find non-"lib" folder'
+        if not addons[foldername].preferences: return None
+        get_settings.settings = addons[foldername].preferences
+    return get_settings.settings
+
+def get_dpi():
+    system_preferences = bpy.context.user_preferences.system
+    factor = getattr(system_preferences, "pixel_size", 1)
+    return int(system_preferences.dpi * factor)
+
+def get_dpi_factor():
+    return get_dpi() / 72
 
 def blender_version():
     major,minor,rev = bpy.app.version
+    # '%03d.%03d.%03d' % (major, minor, rev)
     return '%d.%02d' % (major,minor)
 
 
@@ -74,6 +104,46 @@ def shorten_floats(s):
     s = re.sub(r'-?\d\.\d\d\d+e-[1-9]\d', r'0.000', s)
     s = re.sub(r'(?P<digs>\d\.\d\d\d)\d+', r'\g<digs>', s)
     return s
+
+
+'''
+icons: NONE, QUESTION, ERROR, CANCEL,
+       TRIA_RIGHT, TRIA_DOWN, TRIA_LEFT, TRIA_UP,
+       ARROW_LEFTRIGHT, PLUS,
+       DISCLOSURE_TRI_DOWN, DISCLOSURE_TRI_RIGHT,
+       RADIOBUT_OFF, RADIOBUT_ON,
+       MENU_PANEL, BLENDER, GRIP, DOT, COLLAPSEMENU, X,
+       GO_LEFT, PLUG, UI, NODE, NODE_SEL,
+       FULLSCREEN, SPLITSCREEN, RIGHTARROW_THIN, BORDERMOVE,
+       VIEWZOOM, ZOOMIN, ZOOMOUT, ...
+see: https://git.blender.org/gitweb/gitweb.cgi/blender.git/blob/HEAD:/source/blender/editors/include/UI_icons.h
+'''  # noqa
+
+def show_blender_message(message, title="Message", icon="INFO", wrap=80):
+    if not message: return
+    lines = message.splitlines()
+    if wrap > 0:
+        nlines = []
+        for line in lines:
+            spc = len(line) - len(line.lstrip())
+            while len(line) > wrap:
+                i = line.rfind(' ',0,wrap)
+                if i == -1:
+                    nlines += [line[:wrap]]
+                    line = line[wrap:]
+                else:
+                    nlines += [line[:i]]
+                    line = line[i+1:]
+                if line:
+                    line = ' '*spc + line
+            nlines += [line]
+        lines = nlines
+    def draw(self,context):
+        for line in lines:
+            self.layout.label(line)
+    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+    return
+
 
 
 

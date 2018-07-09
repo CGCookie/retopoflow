@@ -35,7 +35,7 @@ from mathutils import Vector, Matrix, Quaternion
 from mathutils.geometry import intersect_line_plane, intersect_point_line, distance_point_to_plane, intersect_line_line_2d, intersect_line_line
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .common_utilities import dprint
+from ..common.debug import dprint
 
 
 
