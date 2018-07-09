@@ -30,35 +30,47 @@ show up as an available entity.
 '''
 
 
-# from https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python
 class SingletonClass(type):
+    '''
+    from https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python
+    '''  # noqa
+
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(SingletonClass, cls).__call__(*args, *kwargs)
+            supercls = super(SingletonClass, cls)
+            cls._instances[cls] = supercls.__call__(*args, *kwargs)
         return cls._instances[cls]
-    #def __getattr__(cls, name):
+
+    # def __getattr__(cls, name):
     #    return cls._instances[cls].__getattr__(name)
 
 
-# from http://python-3-patterns-idioms-test.readthedocs.io/en/latest/Metaprogramming.html#example-self-registration-of-subclasses
 class RegisterClass(type):
+    '''
+    # from http://python-3-patterns-idioms-test.readthedocs.io/en/latest/Metaprogramming.html#example-self-registration-of-subclasses
+    '''  # noqa
+
     def __init__(cls, name, bases, nmspc):
         super(RegisterClass, cls).__init__(name, bases, nmspc)
-        if not hasattr(cls, 'registry'): cls.registry = set()
+        if not hasattr(cls, 'registry'):
+            cls.registry = set()
         cls.registry.add(cls)
-        cls.registry -= set(bases) # Remove base classes
-    
+        cls.registry -= set(bases)  # Remove base classes
+
     # Metamethods, called on class objects:
     def __iter__(cls):
         return iter(cls.registry)
-    
+
     def __str__(cls):
-        if cls in cls.registry: return cls.__name__
+        if cls in cls.registry:
+            return cls.__name__
         return cls.__name__ + ": " + ", ".join([sc.__name__ for sc in cls])
-    
+
     def __len__(cls):
         return len(cls.registry)
+
 
 class SingletonRegisterClass(SingletonClass, RegisterClass):
     pass
