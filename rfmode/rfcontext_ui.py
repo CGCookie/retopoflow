@@ -33,8 +33,8 @@ from mathutils import Vector
 
 from .rftool import RFTool
 
-from ..lib.classes.profiler.profiler import profiler
-from ..common.maths import Point, Point2D, Vec2D, XForm, clamp
+from ..common.profiler import profiler
+from ..common.maths import Point, Point2D, Vec2D, XForm, clamp, matrix_normal
 from ..common.ui import Drawing
 from ..common.ui import (
     UI_WindowManager,
@@ -48,7 +48,6 @@ from ..common.ui import (
     GetSet,
     )
 from ..common import bmesh_render as bmegl
-from ..lib.common_utilities import matrix_normal
 
 from ..options import (
     retopoflow_version,retopoflow_version_git,
@@ -476,22 +475,21 @@ class RFContext_UI:
         def open_tip():
             bpy.ops.wm.url_open(url=retopoflow_tip_url)
 
-        
         def reset_options():
             options.reset()
             self.replace_opts()
         def update_profiler_visible():
             nonlocal prof_print, prof_reset, prof_disable, prof_enable
-            v = profiler.debug
+            v = profiler.get_profiler_enabled()
             prof_print.visible = v
             prof_reset.visible = v
             prof_disable.visible = v
             prof_enable.visible = not v
         def enable_profiler():
-            profiler.enable()
+            options['profiler'] = True
             update_profiler_visible()
         def disable_profiler():
-            profiler.disable()
+            options['profiler'] = False
             update_profiler_visible()
         def get_lens():  return int(self.actions.space.lens)
         def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)

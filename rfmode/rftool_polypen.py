@@ -19,19 +19,19 @@ Created by Jonathan Denning, Jonathan Williamson, Christopher Gearhart
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import bpy
 import bmesh
-import math
 import bgl
 from .rftool import RFTool
+from .rfmesh import RFVert, RFEdge, RFFace
+from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_Checkbox
 from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
-from ..lib.classes.profiler.profiler import profiler
-from .rfmesh import RFVert, RFEdge, RFFace
-from ..lib.common_utilities import dprint
-from .rfcontext_actions import default_keymap
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from ..options import themes, options
 from ..help import help_polypen
 
@@ -122,10 +122,10 @@ class RFTool_PolyPen(RFTool):
     def modal_main(self):
         self.set_next_state()
         
-        #if self.rfcontext.actions.pressed('F5'):
-        #    assert False
-        #if self.rfcontext.actions.pressed('F6'):
-        #    x = 42 / 0
+        if self.rfcontext.actions.pressed('F5'):
+            assert False
+        if self.rfcontext.actions.pressed('F6'):
+            x = 42 / 0
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'

@@ -23,7 +23,7 @@ import re
 import bgl
 import bpy
 import random
-from ..lib.common_utilities import showErrorMessage
+from ..common.blender import show_blender_text
 from ..options import options
 from ..help import help_quickstart
 
@@ -31,7 +31,7 @@ class OpenQuickStart(bpy.types.Operator):
     """Open Quick Start Guide new window"""
     bl_idname = "wm.open_quickstart"
     bl_label = "Quick Start Guide"
-    
+
     @classmethod
     def poll(cls, context): return True
 
@@ -40,11 +40,6 @@ class OpenQuickStart(bpy.types.Operator):
         return {'FINISHED'}
 
     def openTextFile(self):
-        # play it safe!
-        if options['quickstart_filename'] not in bpy.data.texts:
-            # create a log file for error writing
-            bpy.data.texts.new(options['quickstart_filename'])
-        
         # simple processing of help_quickstart
         t = help_quickstart
         t = re.sub(r'^\n*', r'', t)         # remove leading newlines
@@ -62,24 +57,14 @@ class OpenQuickStart(bpy.types.Operator):
                 continue
             l += ['  '.join(lines)]
         t = '\n\n'.join(l)
-        
+
+        # play it safe!
+        if options['quickstart_filename'] not in bpy.data.texts:
+            # create a log file for error writing
+            bpy.data.texts.new(options['quickstart_filename'])
         # restore data, just in case
         txt = bpy.data.texts[options['quickstart_filename']]
         txt.from_string(t)
         txt.current_line_index = 0
 
-        # duplicate the current area then change it to a text editor
-        area_dupli = bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
-        win = bpy.context.window_manager.windows[-1]
-        area = win.screen.areas[-1]
-        area.type = 'TEXT_EDITOR'
-
-        # load the text file into the correct space
-        for space in area.spaces:
-            if space.type == 'TEXT_EDITOR':
-                space.text = txt
-                space.show_word_wrap = True
-                space.top = 0
-                if area.regions[0].height != 1:
-                    bpy.ops.screen.header({'window':win, 'region':area.regions[2], 'area':area})
-
+        show_blender_text(options['quickstart_filename'])

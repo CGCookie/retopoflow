@@ -20,9 +20,11 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
+
 from mathutils import Vector, Matrix
+
 from .maths import Point, Vec
-from ..lib.common_utilities import iter_running_sum
+from .utils import iter_running_sum
 
 
 def compute_quadratic_weights(t):

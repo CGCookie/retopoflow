@@ -33,9 +33,9 @@ from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces, holes_fill
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
-
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
+
 from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
@@ -43,9 +43,8 @@ from ..common.ui import Drawing
 from ..common.utils import min_index, hash_object, hash_bmesh, UniqueCounter
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
-from ..lib.common_utilities import print_exception, showErrorMessage, dprint
-from ..lib.classes.profiler.profiler import profiler
-
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 from .rfmesh_render import RFMeshRender
 

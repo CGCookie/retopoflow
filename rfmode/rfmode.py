@@ -29,23 +29,21 @@ import time
 import bpy
 import bgl
 from mathutils import Matrix, Vector
-from ..common.maths import BBox
 from bpy.types import Operator, SpaceView3D, bpy_struct
 from bpy.app.handlers import persistent, load_post
-
-from ..lib import common_utilities
-from ..lib.common_utilities import print_exception, showErrorMessage
-from ..lib.classes.logging.logger import Logger
-from ..lib.common_utilities import dprint
-from ..lib.classes.profiler.profiler import profiler
-
-from ..common.ui import set_cursor
 
 from .rfcontext import RFContext
 from .rftool import RFTool
 from .rf_recover import RFRecover
 
+from ..common.ui import set_cursor
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
+from ..common.debug import dprint, Debugger
+from ..common.maths import BBox
+from ..common.profiler import profiler
+from ..common.logger import Logger
+from ..common.utils import get_settings
+from ..common.blender import show_blender_popup
 
 '''
 
@@ -85,7 +83,7 @@ def still_registered(self):
     return False
 
 def report_broken_rfmode():
-    showErrorMessage('Something went wrong. Please try restarting Blender or create an error report with CG Cookie so we can fix it!', wrap=240)
+    show_blender_popup('Something went wrong. Please try restarting Blender or create an error report with CG Cookie so we can fix it!', icon='ERROR', wrap=240)
 
 
 
@@ -168,7 +166,7 @@ class RFMode(Operator):
         ''' called once when RFMode plugin is enabled in Blender '''
         #self.cb_pl_handle = load_post.append(self.)
         self.logger = Logger()
-        self.settings = common_utilities.get_settings()
+        self.settings = get_settings()
         self.exceptions_caught = None
         self.exception_quit = None
         self.prev_mode = None
@@ -211,11 +209,11 @@ class RFMode(Operator):
         err = False
         try:    self.ui_end()
         except:
-            print_exception()
+            Debugger.print_exception()
             err = True
         try:    self.context_end()
         except:
-            print_exception()
+            Debugger.print_exception()
             err = True
         if err: self.handle_exception(serious=True)
         
@@ -540,7 +538,7 @@ class RFMode(Operator):
     # exception handling method
     
     def handle_exception(self, serious=False):
-        errormsg = print_exception()
+        errormsg = Debugger.print_exception()
         # if max number of exceptions occur within threshold of time, abort!
         curtime = time.time()
         self.exceptions_caught += [(errormsg, curtime)]
@@ -555,7 +553,7 @@ class RFMode(Operator):
             self.logger.add('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
             self.logger.add('-'*100)
             self.logger.add('\n'*5)
-            showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
+            show_blender_popup('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
             self.ui_end()
         
@@ -581,7 +579,7 @@ class RFMode(Operator):
             self.framework_end()
             return {'CANCELLED'}
         
-        if profiler.broken:
+        if profiler.is_broken():
             # something bad happened, so bail!
             self.rfctx.alert_user(title='Broken Profiler', message='The profiler is in an unexpected state.', level='exception')
             profiler.reset()

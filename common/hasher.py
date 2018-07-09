@@ -3,7 +3,7 @@ Copyright (C) 2017 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
-Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
+Created by Jonathan Denning, Jonathan Williamson
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,5 +19,15 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["longprocess"]
+from hashlib import md5
 
+
+class Hasher:
+    def __init__(self):
+        self._hasher = md5()
+
+    def add(self, s):
+        self._hasher.update(bytes(str(s), 'utf8'))
+
+    def get_hash(self):
+        return self._hasher.hexdigest()

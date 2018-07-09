@@ -24,9 +24,8 @@ import bpy
 from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from ..lib.common_utilities import dprint
-from ..lib.classes.profiler.profiler import profiler
-
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, XForm, Plane
 from ..common.maths import Point2D, Vec2D, Direction2D

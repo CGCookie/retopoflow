@@ -19,9 +19,9 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import bgl
 import bpy
-import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 from .rftool import RFTool
@@ -29,8 +29,9 @@ from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.ui import UI_Image
 from ..common.utils import iter_pairs
-from ..lib.common_utilities import showErrorMessage, dprint
-from ..lib.classes.logging.logger import Logger
+from ..common.debug import dprint, Debugger
+from ..common.logger import Logger
+from ..common.blender import show_blender_popup
 
 from .rftool_polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -447,14 +448,14 @@ class RFTool_PolyStrips_Ops:
         except Exception as e:
             Logger.add('Unhandled exception raised while processing stroke\n' + str(e))
             dprint('Unhandled exception raised while processing stroke\n' + str(e))
-            showErrorMessage('Unhandled exception raised while processing stroke.\nPlease try again.')
+            show_blender_popup('Unhandled exception raised while processing stroke.\nPlease try again.')
             raise e
         try:
             merge_faces()
         except Exception as e:
             Logger.add('Unhandled exception raised while merging faces\n' + str(e))
             dprint('Unhandled exception raised while merging faces\n' + str(e))
-            showErrorMessage('Unhandled exception raised while merging faces.\nPlease try again.')
+            show_blender_popup('Unhandled exception raised while merging faces.\nPlease try again.')
             raise e
         
         self.rfcontext.reselect()

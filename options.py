@@ -27,7 +27,17 @@ import json
 import shelve
 import platform
 
+from .common.debug import Debugger
+from .common.logger import Logger
+from .common.profiler import Profiler
+
+
 retopoflow_version = '2.0.0 beta 2'
+
+# the following enables / disables profiler code, overriding the options['profiler']
+# TODO: make this False before shipping!
+retopoflow_profiler = True
+
 build_platform = bpy.app.build_platform.decode('utf-8')
 
 retopoflow_version_git = None
@@ -57,10 +67,6 @@ gpu_vendor = bgl.glGetString(bgl.GL_VENDOR)
 gpu_renderer = bgl.glGetString(bgl.GL_RENDERER)
 gpu_version = bgl.glGetString(bgl.GL_VERSION)
 gpu_shading = bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)
-
-# the following enables / disables profiler code, overriding the options['profiler']
-# TODO: make this False before shipping!
-retopoflow_profiler = True
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
@@ -161,6 +167,7 @@ class Options:
             Options.fndb = os.path.join(path, Options.options_filename)
             print('RetopoFlow Options path: %s' % Options.fndb)
             self.read()
+        self.update_external_vars()
     def __del__(self):
         #self.write()
         pass
@@ -170,8 +177,18 @@ class Options:
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
         Options.db[key] = val
         self.write()
+    def update_external_vars(self):
+        print('Updating:')
+        print('- Debugger: %d' % self['debug level'])
+        print('- Logger: %s' % self['log_filename'])
+        print('- Profiler: %s %s' % (str(self['profiler'] and retopoflow_profiler), self['profiler_filename']))
+        Debugger.set_error_level(self['debug level'])
+        Logger.set_log_filename(self['log_filename'])
+        Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
+        Profiler.set_profiler_filename(self['profiler_filename'])
     def write(self):
         json.dump(Options.db, open(Options.fndb, 'wt'))
+        self.update_external_vars()
     def read(self):
         Options.db = {}
         if os.path.exists(Options.fndb):

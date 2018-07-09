@@ -19,25 +19,24 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-import bgl
 import math
 from itertools import chain
+import bpy
+import bgl
 from .rftool import RFTool
+from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Direction, mid
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..common.utils import iter_pairs
-from ..options import options
-from ..help import help_patches
-from ..lib.common_utilities import dprint
-from .rfcontext_actions import default_keymap
-from ..lib.classes.profiler.profiler import profiler
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from ..common.ui import (
     UI_Image, UI_IntValue, UI_BoolValue,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
-from ..options import themes
+from ..options import themes, options
+from ..help import help_patches
 
 
 @RFTool.action_call('patches tool')

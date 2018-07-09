@@ -25,10 +25,10 @@ import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
 from .rftool import RFTool
+from ..common.debug import dprint
 from ..common.maths import Point,Point2D,Vec2D,Vec, Normal, clamp
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.utils import iter_pairs
-from ..lib.common_utilities import dprint
 
 def is_boundaryedge(bme, only_bmfs):
     return len(set(bme.link_faces) & only_bmfs) == 1

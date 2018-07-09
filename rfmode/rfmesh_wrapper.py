@@ -28,7 +28,8 @@ from mathutils import Vector
 from ..common.utils import iter_pairs
 from ..common.maths import triangle2D_overlap, triangle2D_det, triangle2D_area, segment2D_intersection
 from ..common.maths import Vec2D, Point, Vec, Direction
-from ..lib.common_utilities import dprint
+from ..common.debug import dprint
+from ..common.profiler import profiler
 
 
 '''

@@ -24,14 +24,14 @@ import math
 import random
 import bgl
 from .rftool import RFTool
+from .rfmesh import RFVert, RFEdge, RFFace
+from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
-from ..lib.common_utilities import dprint
-from ..lib.classes.profiler.profiler import profiler
-from .rfmesh import RFVert, RFEdge, RFFace
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from ..common.utils import iter_pairs
 from ..help import help_loops
-from .rfcontext_actions import default_keymap
 
 @RFTool.action_call('loops tool')
 class RFTool_Loops(RFTool):

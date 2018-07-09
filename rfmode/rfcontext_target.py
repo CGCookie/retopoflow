@@ -21,15 +21,15 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import time
 from itertools import chain
+from mathutils import Vector
+from ..common.debug import dprint
+from ..common.profiler import profiler
 from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D, Accel2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
-from ..lib.classes.profiler.profiler import profiler
-from mathutils import Vector
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
-from ..lib.common_utilities import dprint
 
 
 class RFContext_Target:

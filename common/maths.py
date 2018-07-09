@@ -19,14 +19,16 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bgl
 from math import sqrt, acos, cos, sin
-from mathutils import Matrix, Vector
 from typing import List
+
+import bgl
+from mathutils import Matrix, Vector
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
-from ..lib.classes.profiler.profiler import profiler
-from ..common.decorators import stats_wrapper
+
+from .decorators import stats_wrapper
+from .profiler import profiler
 
 
 '''
@@ -1100,6 +1102,162 @@ class Accel2D:
         i = max(0, min(self.bin_cols - 1, i))
         j = max(0, min(self.bin_rows - 1, j))
         return (i, j)
+
+
+def invert_matrix(mat):
+    smat,d = str(mat),invert_matrix.__dict__
+    if smat not in d:
+        if len(d) > 1000: d.clear()
+        d[smat] = mat.inverted()
+    return d[smat]
+
+def matrix_normal(mat):
+    smat,d = str(mat),matrix_normal.__dict__
+    if smat not in d:
+        if len(d) > 1000: d.clear()
+        d[smat] = invert_matrix(mat).transposed().to_3x3()
+    return d[smat]
+
+
+
+def get_path_length(verts):
+    '''
+    sum up the length of a string of vertices
+    '''
+    if len(verts) < 2:
+        return 0
+    l_tot = 0
+    for i in range(0,len(verts)-1):
+        d = verts[i+1] - verts[i]
+        l_tot += d.length
+    return l_tot
+
+def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #prev deved for Open Dental CAD
+    '''
+    Gives evenly spaced location along a string of verts
+    Assumes that nverts > nsegments
+    Assumes verts are ORDERED along path
+    Assumes edges are ordered coherently
+    Yes these are lazy assumptions, but the way I build my data
+    guarantees these assumptions so deal with it.
+
+    args:
+        verts - list of vert locations type Mathutils.Vector
+        eds - list of index pairs type tuple(integer) eg (3,5).
+              should look like this though [(0,1),(1,2),(2,3),(3,4),(4,0)]
+        segments - number of segments to divide path into
+        shift - for cyclic verts chains, shifting the verts along
+                the loop can provide better alignment with previous
+                loops.  This should be -1 to 1 representing a percentage of segment length.
+                Eg, a shift of .5 with 8 segments will shift the verts 1/16th of the loop length
+
+    return
+        new_verts - list of new Vert Locations type list[Mathutils.Vector]
+    '''
+
+    if len(verts) < 2:
+        print('this is crazy, there are not enough verts to do anything!')
+        return verts
+
+    if segments >= len(verts):
+        print('more segments requested than original verts')
+
+
+    #determine if cyclic or not, first vert same as last vert
+    if 0 in edges[-1]:
+        cyclic = True
+
+    else:
+        cyclic = False
+        #zero out the shift in case the vert chain insn't cyclic
+        if shift != 0: #not PEP but it shows that we want shift = 0
+            print('not shifting because this is not a cyclic vert chain')
+            shift = 0
+
+    #calc_length
+    arch_len = 0
+    cumulative_lengths = [0]#TODO, make this the right size and dont append
+    for i in range(0,len(verts)-1):
+        v0 = verts[i]
+        v1 = verts[i+1]
+        V = v1-v0
+        arch_len += V.length
+        cumulative_lengths.append(arch_len)
+
+    if cyclic:
+        v0 = verts[-1]
+        v1 = verts[0]
+        V = v1-v0
+        arch_len += V.length
+        cumulative_lengths.append(arch_len)
+        #print(cumulative_lengths)
+
+    #identify vert indicies of import
+    #this will be the largest vert which lies at
+    #no further than the desired fraction of the curve
+
+    #initialze new vert array and seal the end points
+    if cyclic:
+        new_verts = [[None]]*(segments)
+        #new_verts[0] = verts[0]
+
+    else:
+        new_verts = [[None]]*(segments + 1)
+        new_verts[0] = verts[0]
+        new_verts[-1] = verts[-1]
+
+
+    n = 0 #index to save some looping through the cumulative lengths list
+          #now we are leaving it 0 becase we may end up needing the beginning of the loop last
+          #and if we are subdividing, we may hit the same cumulative lenght several times.
+          #for now, use the slow and generic way, later developsomething smarter.
+    for i in range(0,segments- 1 + cyclic * 1):
+        desired_length_raw = (i + 1 + cyclic * -1)/segments * arch_len + shift * arch_len / segments
+        #print('the length we desire for the %i segment is %f compared to the total length which is %f' % (i, desired_length_raw, arch_len))
+        #like a mod function, but for non integers?
+        if desired_length_raw > arch_len:
+            desired_length = desired_length_raw - arch_len
+        elif desired_length_raw < 0:
+            desired_length = arch_len + desired_length_raw #this is the end, + a negative number
+        else:
+            desired_length = desired_length_raw
+
+        #find the original vert with the largets legnth
+        #not greater than the desired length
+        #I used to set n = J after each iteration
+        for j in range(n, len(verts)+1):
+
+            if cumulative_lengths[j] > desired_length:
+                #print('found a greater length at vert %i' % j)
+                #this was supposed to save us some iterations so that
+                #we don't have to start at the beginning each time....
+                #if j >= 1:
+                    #n = j - 1 #going one back allows us to space multiple verts on one edge
+                #else:
+                    #n = 0
+                break
+
+        extra = desired_length - cumulative_lengths[j-1]
+        if j == len(verts):
+            new_verts[i + 1 + cyclic * -1] = verts[j-1] + extra * (verts[0]-verts[j-1]).normalized()
+        else:
+            new_verts[i + 1 + cyclic * -1] = verts[j-1] + extra * (verts[j]-verts[j-1]).normalized()
+
+    eds = []
+
+    for i in range(0,len(new_verts)-1):
+        eds.append((i,i+1))
+    if cyclic:
+        #close the loop
+        eds.append((i+1,0))
+    if debug:
+        print(cumulative_lengths)
+        print(arch_len)
+        print(eds)
+
+    return new_verts, eds
+
+
 
 
 # https://rosettacode.org/wiki/Determine_if_two_triangles_overlap#C.2B.2B

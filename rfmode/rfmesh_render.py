@@ -37,19 +37,20 @@ from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
+from ..common.debug import dprint, Debugger
+from ..common.profiler import profiler
 from ..common.maths import Point, Direction, Normal, Frame
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.ui import Drawing
 from ..common.utils import min_index
+from ..common.utils import hash_object, hash_bmesh
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
 from ..common.bmesh_render import BGLBufferedRender
-from ..lib.common_utilities import print_exception, showErrorMessage, dprint
-from ..lib.classes.profiler.profiler import profiler
+
 from ..options import options
 
-from ..common.utils import hash_object, hash_bmesh
 from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 
 
@@ -297,7 +298,7 @@ class RFMeshRender():
             self.rfmesh_version = ver   # make not dirty first in case bad things happen while drawing
             self._gather_data()
         except:
-            print_exception()
+            Debugger.print_exception()
             profiler.start('--> exception').done()
             pass
         
@@ -320,7 +321,7 @@ class RFMeshRender():
             bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view, effect=symmetry_effect, frame=symmetry_frame)
             self._draw_buffered(alpha_above, alpha_below)
         except:
-            print_exception()
+            Debugger.print_exception()
             pass
         finally:
             try:

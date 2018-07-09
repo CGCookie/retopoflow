@@ -36,7 +36,8 @@ import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d, region_2d_to_location_3d, region_2d_to_origin_3d
 
 # Common imports
-from . import common_utilities
+from ..common.maths import get_path_length, space_evenly_on_path
+from ..common.utils import iter_running_sum
 from ..common.debug import dprint
 
 
@@ -57,9 +58,9 @@ def blender_bezier_to_even_points(b_ob, dist):
             points = cubic_bezier_points_dist(p0, p1, p2, p3, dist, first=True)
             total_verts.extend(points)
             
-            L = common_utilities.get_path_length(total_verts)
+            L = get_path_length(total_verts)
             n = round(L/dist)
-            new_verts = common_utilities.space_evenly_on_path(total_verts, [(0,1),(1,2)], n, 0)
+            new_verts = space_evenly_on_path(total_verts, [(0,1),(1,2)], n, 0)
         paths.append(new_verts)
         
     return(paths)
@@ -309,7 +310,7 @@ def cubic_bezier_fit_points(l_co, error_scale, depth=0, t0=0, t3=1, allow_split=
         p12 = (p0+p3)/2
         return [(t0,t3,p0,p12,p12,p3)]
     l_d  = [0] + [(v0-v1).length for v0,v1 in zip(l_co[:-1],l_co[1:])]
-    l_ad = [s for d,s in common_utilities.iter_running_sum(l_d)]
+    l_ad = [s for d,s in iter_running_sum(l_d)]
     dist = sum(l_d)
     if dist <= 0:
         print('cubic_bezier_fit_points: returning []')

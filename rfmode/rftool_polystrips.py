@@ -24,22 +24,9 @@ import bpy
 import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
-from .rftool import RFTool
-from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
-from ..common.bezier import CubicBezierSpline, CubicBezier
-from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
-    UI_Button, UI_Label,
-    UI_Container, UI_EqualContainer
-    )
-from ..lib.common_utilities import showErrorMessage, dprint
-from ..lib.classes.logging.logger import Logger
-from ..lib.classes.profiler.profiler import profiler
-from ..common.shaders import circleShader, edgeShortenShader, arrowShader
-from ..options import options
-from ..help import help_polystrips
-from .rfcontext_actions import default_keymap
 
+from .rftool import RFTool
+from .rfcontext_actions import default_keymap
 from .rftool_polystrips_ops import RFTool_PolyStrips_Ops
 from .rftool_polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -49,6 +36,21 @@ from .rftool_polystrips_utils import (
     is_boundaryvert,
     is_boundaryedge,
     )
+
+from ..common.debug import dprint
+from ..common.profiler import profiler
+from ..common.logger import Logger
+from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
+from ..common.bezier import CubicBezierSpline, CubicBezier
+from ..common.shaders import circleShader, edgeShortenShader, arrowShader
+from ..common.ui import (
+    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Button, UI_Label,
+    UI_Container, UI_EqualContainer
+    )
+from ..options import options
+from ..help import help_polystrips
+
 
 
 @RFTool.action_call('polystrips tool')

@@ -19,8 +19,9 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 from copy import deepcopy
+
+import bpy
 
 from .maths import Point2D
 from .debug import dprint

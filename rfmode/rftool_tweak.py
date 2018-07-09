@@ -19,15 +19,15 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 import math
+import bpy
 from .rftool import RFTool
+from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
+from ..common.profiler import profiler
 from ..options import options
 from ..help import help_tweak
-from ..lib.classes.profiler.profiler import profiler
-from .rfcontext_actions import default_keymap
 
 @RFTool.action_call('move tool')
 class RFTool_Tweak(RFTool):

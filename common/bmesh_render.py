@@ -20,11 +20,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import re
+import math
+import ctypes
+
 import bmesh
 import bgl
 import blf
 import bpy
-import ctypes
 from bpy_extras.view3d_utils import (
     location_3d_to_region_2d, region_2d_to_vector_3d
 )
@@ -33,14 +35,14 @@ from bpy_extras.view3d_utils import (
 )
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
+
 from .debug import dprint
 from .shaders import Shader, buf_zero
 from .utils import shorten_floats
 from .maths import Point, Direction, Frame
-from ..lib.common_utilities import invert_matrix, matrix_normal
-from ..lib.classes.profiler.profiler import profiler
+from .maths import invert_matrix, matrix_normal
+from .profiler import profiler
 
-import math
 
 
 # note: not all supported by user system, but we don't need full functionality

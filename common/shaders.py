@@ -22,9 +22,11 @@ import re
 import bpy
 import bgl
 import ctypes
+
 from .ui import Drawing
-from ..ext.bgl_ext import VoidBufValue
 from .debug import dprint
+
+from ..ext.bgl_ext import VoidBufValue
 
 # note: not all supported by user system, but we don't need latest functionality
 # https://github.com/mattdesl/lwjgl-basics/wiki/GLSL-Versions
@@ -40,6 +42,7 @@ DEBUG_PRINT = False
 
 vbv_zero = VoidBufValue(0)
 buf_zero = vbv_zero.buf    #bgl.Buffer(bgl.GL_BYTE, 1, [0])
+
 
 class Shader():
     @staticmethod

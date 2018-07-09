@@ -31,7 +31,7 @@ from mathutils import Vector
 
 from .rftool import RFTool
 
-from ..lib.classes.profiler.profiler import profiler
+from ..common.profiler import profiler
 from ..common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ..common.ui import Drawing
 from ..common.ui import (
@@ -46,7 +46,8 @@ from ..common.ui import (
     GetSet,
     )
 from ..common import bmesh_render as bmegl
-from ..lib.common_utilities import matrix_normal, get_exception_info_and_hash
+from ..common.debug import Debugger
+from ..common.maths import matrix_normal
 
 from ..options import (
     retopoflow_version,
@@ -149,12 +150,12 @@ class RFContext_Drawing:
             self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
             self.window_manager.draw_postpixel()
         except AssertionError as e:
-            message,h = get_exception_info_and_hash()
+            message,h = Debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='assert', msghash=h)
         except Exception as e:
-            message,h = get_exception_info_and_hash()
+            message,h = Debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='exception', msghash=h)

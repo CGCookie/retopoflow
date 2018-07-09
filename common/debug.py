@@ -53,6 +53,7 @@ from mathutils.geometry import (
 )
 
 from .logger import Logger
+from .blender import show_blender_popup
 from .hasher import Hasher
 
 
@@ -137,10 +138,10 @@ class Debugger:
         message += ['- Info:']
         message += ['  - %s' % s for s in errormsg.splitlines()]
         message = '\n'.join(message)
-        print('%s\n%s\n%s' % ('_' * 100, message, '~' * 100))
+        print('%s\n%s\n%s' % ('_' * 100, message, '^' * 100))
         Logger.add(message) # write error to log text object
         if Debugger._exception_count < 10:
-            show_blender_message(
+            show_blender_popup(
                 message,
                 title='Exception Info',
                 icon='ERROR',

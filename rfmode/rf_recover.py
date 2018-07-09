@@ -19,12 +19,11 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-from bpy.types import Operator
 import os
 import json
+import bpy
+from bpy.types import Operator
 
-from ..lib.common_utilities import showErrorMessage
 from ..options import options
 
 class RFRecover(Operator):
@@ -106,8 +105,6 @@ class RFRecover(Operator):
         tar_object.hide = False
         
         cls.restore_window_state()
-        
-        #showErrorMessage('Auto save recovered.\nDisplay settings may not be correct.')
     
     @classmethod
     def poll(cls, context):

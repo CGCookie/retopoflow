@@ -19,9 +19,12 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
+
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
+
 from .profiler import profiler
 from .debug import dprint
 from .maths import (
@@ -31,13 +34,12 @@ from .maths import (
 )
 
 
-
 def selection_mouse():
     select_type = bpy.context.user_preferences.inputs.select_mouse
     return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
-    if not hasattr(get_settings, 'settings'):
+    if not hasattr(get_settings, 'cache'):
         addons = bpy.context.user_preferences.addons
         folderpath = os.path.dirname(os.path.abspath(__file__))
         while folderpath:
@@ -47,8 +49,8 @@ def get_settings():
         else:
             assert False, 'Could not find non-"lib" folder'
         if not addons[foldername].preferences: return None
-        get_settings.settings = addons[foldername].preferences
-    return get_settings.settings
+        get_settings.cache = addons[foldername].preferences
+    return get_settings.cache
 
 def get_dpi():
     system_preferences = bpy.context.user_preferences.system
@@ -63,6 +65,12 @@ def blender_version():
     # '%03d.%03d.%03d' % (major, minor, rev)
     return '%d.%02d' % (major,minor)
 
+
+def iter_running_sum(lw):
+    s = 0
+    for w in lw:
+        s += w
+        yield (w,s)
 
 def iter_pairs(items, wrap, repeat=False):
     if not items: return
@@ -104,45 +112,6 @@ def shorten_floats(s):
     s = re.sub(r'-?\d\.\d\d\d+e-[1-9]\d', r'0.000', s)
     s = re.sub(r'(?P<digs>\d\.\d\d\d)\d+', r'\g<digs>', s)
     return s
-
-
-'''
-icons: NONE, QUESTION, ERROR, CANCEL,
-       TRIA_RIGHT, TRIA_DOWN, TRIA_LEFT, TRIA_UP,
-       ARROW_LEFTRIGHT, PLUS,
-       DISCLOSURE_TRI_DOWN, DISCLOSURE_TRI_RIGHT,
-       RADIOBUT_OFF, RADIOBUT_ON,
-       MENU_PANEL, BLENDER, GRIP, DOT, COLLAPSEMENU, X,
-       GO_LEFT, PLUG, UI, NODE, NODE_SEL,
-       FULLSCREEN, SPLITSCREEN, RIGHTARROW_THIN, BORDERMOVE,
-       VIEWZOOM, ZOOMIN, ZOOMOUT, ...
-see: https://git.blender.org/gitweb/gitweb.cgi/blender.git/blob/HEAD:/source/blender/editors/include/UI_icons.h
-'''  # noqa
-
-def show_blender_message(message, title="Message", icon="INFO", wrap=80):
-    if not message: return
-    lines = message.splitlines()
-    if wrap > 0:
-        nlines = []
-        for line in lines:
-            spc = len(line) - len(line.lstrip())
-            while len(line) > wrap:
-                i = line.rfind(' ',0,wrap)
-                if i == -1:
-                    nlines += [line[:wrap]]
-                    line = line[wrap:]
-                else:
-                    nlines += [line[:i]]
-                    line = line[i+1:]
-                if line:
-                    line = ' '*spc + line
-            nlines += [line]
-        lines = nlines
-    def draw(self,context):
-        for line in lines:
-            self.layout.label(line)
-    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
-    return
 
 
 

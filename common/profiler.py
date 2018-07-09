@@ -22,20 +22,36 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import os
 import inspect
 import time
+
 from .debug import Debugger
-from ..options import options, retopoflow_profiler
 
 
 class Profiler:
-    debug = options['profiler']
-    filename = options['profiler_filename']
-    broken = False
+    _enabled = False
+    _filename = 'Profiler'
+    _broken = False
+
+    @staticmethod
+    def set_profiler_enabled(v):
+        Profiler._enabled = v
+
+    @staticmethod
+    def get_profiler_enabled():
+        return Profiler._enabled
+
+    @staticmethod
+    def set_profiler_filename(path):
+        Profiler._filename = path
+
+    @staticmethod
+    def get_profiler_filename():
+        return Profiler._filename
 
     class ProfilerHelper(object):
         def __init__(self, pr, text):
             full_text = (pr.stack[-1].full_text+'^' if pr.stack else '') + text
             if full_text in pr.d_start:
-                Profiler.broken = True
+                Profiler._broken = True
                 assert False, '"%s" found in profiler already?' % text
             self.pr = pr
             self.text = text
@@ -45,11 +61,11 @@ class Profiler:
             self.pr.stack.append(self)
 
         def __del__(self):
-            if Profiler.broken:
+            if Profiler._broken:
                 return
             if self._is_done:
                 return
-            Profiler.broken = True
+            Profiler._broken = True
             print('Deleting Profiler before finished')
             #assert False, 'Deleting Profiler before finished'
 
@@ -89,17 +105,14 @@ class Profiler:
     def __init__(self):
         self.clear()
 
-    def disable(self):
-        self.debug = False
-        options['profiler'] = False
-
-    def enable(self):
-        self.debug = True
-        options['profiler'] = True
-
     def reset(self):
-        self.broken = False
+        self._broken = False
         self.clear()
+
+    @staticmethod
+    def is_broken():
+        return Profiler._broken
+        
 
     def clear(self):
         self.d_start = {}
@@ -113,11 +126,11 @@ class Profiler:
         self.clear_time = time.time()
 
     def start(self, text=None, addFile=True):
-        #assert not Profiler.broken
-        if Profiler.broken:
+        # assert not Profiler._broken
+        if Profiler._broken:
             print('Profiler broken. Ignoring')
             return self.ProfilerHelper_Ignore()
-        if not retopoflow_profiler or not self.debug:
+        if not Profiler._enabled:
             return self.ProfilerHelper_Ignore()
 
         frame = inspect.currentframe().f_back
@@ -137,7 +150,7 @@ class Profiler:
         pass
 
     def profile(self, fn):
-        if not retopoflow_profiler or not self.debug:
+        if not Profiler._enabled:
             return fn
 
         frame = inspect.currentframe().f_back
@@ -152,8 +165,8 @@ class Profiler:
         text = '%s%s (%s:%d)' % (fnname, space, filename, linenum)
 
         def wrapper(*args, **kwargs):
-            #assert not Profiler.broken
-            if Profiler.broken:
+            # assert not Profiler._broken
+            if Profiler._broken:
                 return fn(*args, **kwargs)
             pr = self.start(text=text, addFile=False)
             ret = None
@@ -172,7 +185,7 @@ class Profiler:
         return wrapper
 
     def strout(self):
-        if not retopoflow_profiler or not self.debug:
+        if not Profiler._enabled:
             return ''
         s = [
             'Profiler:',
@@ -199,7 +212,7 @@ class Profiler:
         return '\n'.join(s)
 
     def printout(self):
-        if not retopoflow_profiler or not self.debug:
+        if not Profiler._enabled:
             return
         print('%s\n\n\n' % self.strout())
 
@@ -207,16 +220,16 @@ class Profiler:
         # $ # to watch the file from terminal (bash) use:
         # $ watch --interval 0.1 cat filename
 
-        if not retopoflow_profiler or not self.debug:
+        if not Profiler._enabled:
             return
 
         if time.time() < self.last_profile_out + interval:
             return
         self.last_profile_out = time.time()
 
-        path, _ = os.path.split(os.path.abspath(__file__))
         # .. back to retopoflow root
-        filename = os.path.join(path, '..', '..', '..', self.filename)
+        path = os.path.dirname(os.path.abspath(__file__))
+        filename = os.path.join(path, '..', Profiler._filename)
         open(filename, 'wt').write(self.strout())
 
 

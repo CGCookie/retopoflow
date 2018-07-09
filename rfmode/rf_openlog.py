@@ -3,7 +3,7 @@ Copyright (C) 2017 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
-Created by Jonathan Denning and Jonathan Williamson
+Created by Jonathan Denning, Jonathan Williamson
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,5 +19,21 @@ Created by Jonathan Denning and Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = ["bmeshcache"]
+import bpy
+from ..common.logger import Logger
+from ..options import options
+
+
+class OpenLog(bpy.types.Operator):
+    """Open log text files in new window"""
+    bl_idname = "wm.open_log"
+    bl_label = "Open Log in Text Editor"
+
+    @classmethod
+    def poll(cls, context):
+        return options['log_filename'] in bpy.data.texts
+
+    def execute(self, context):
+        Logger.open_log()
+        return {'FINISHED'}
 

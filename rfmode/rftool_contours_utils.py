@@ -19,16 +19,18 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-import bgl
 import math
 from itertools import chain
 from mathutils import Vector
+
+import bpy
+import bgl
+
 from .rftool import RFTool
+from .rfmesh import RFVert
 from ..common.utils import iter_pairs, hash_cycle
 from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
-from .rfmesh import RFVert
-from ..lib.classes.profiler.profiler import profiler
+from ..common.profiler import profiler
 
 
 def draw2D_arrow(p0:Point2D, p1:Point2D):

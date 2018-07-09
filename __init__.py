@@ -45,8 +45,6 @@ from .options import options
 from .interface import CGCOOKIE_OT_retopoflow2_panel, CGCOOKIE_OT_retopoflow1_panel, CGCOOKIE_OT_retopoflow_menu
 from .preferences import RetopoFlowPreferences
 
-from .lib.classes.logging.logging import OpenLog
-
 from .icons import clear_icons
 import bpy.utils.previews
 
@@ -54,6 +52,7 @@ import bpy.utils.previews
 from .rfmode.rfmode import RFMode, rfmode_tools
 from .rfmode.rf_recover import RFRecover, RFRecover_Clear
 from .rfmode.rf_quickstart import OpenQuickStart
+from .rfmode.rf_openlog import OpenLog
 from .rfmode.rf_webissues import OpenWebIssues
 from .rfmode.rf_webtip import OpenWebTip
 

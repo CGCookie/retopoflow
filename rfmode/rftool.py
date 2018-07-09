@@ -33,14 +33,12 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Euler
 
-from ..lib.classes.textbox.textbox import TextBox
-from .. import key_maps
-from ..lib import common_utilities
-from ..lib.common_utilities import print_exception, showErrorMessage
+from .rfwidget import RFWidget_Default
+
 from ..common.metaclasses import SingletonRegisterClass
 from ..common.ui import Drawing
-from .rfwidget import RFWidget_Default
 from ..options import options
+from .. import key_maps
 
 
 class RFTool(metaclass=SingletonRegisterClass):

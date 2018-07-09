@@ -24,7 +24,6 @@ import bgl
 from mathutils import Matrix, Vector
 from ..common.maths import Vec, Point, Point2D, Direction
 from ..common.shaders import brushStrokeShader
-from ..lib.common_utilities import dprint
 from ..options import themes
 
 class RFWidget_BrushStroke:

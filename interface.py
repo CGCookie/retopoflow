@@ -21,7 +21,6 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 
-from .lib import common_utilities
 from . import addon_updater_ops
 
 from .rfmode.rftool import RFTool
@@ -29,6 +28,7 @@ from .rfmode.rfmode import RFMode
 
 from .icons import load_icons
 from .options import retopoflow_version
+from .common.utils import get_settings
 
 class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
     bl_category = "Retopology"
@@ -43,7 +43,7 @@ class CGCOOKIE_OT_retopoflow2_panel(bpy.types.Panel):
         # note: built-in checks ensure it runs at most once
         addon_updater_ops.check_for_update_background()
 
-        settings = common_utilities.get_settings()
+        settings = get_settings()
         icons = load_icons()
 
         col = layout.column(align=True)
@@ -114,7 +114,7 @@ class CGCOOKIE_OT_retopoflow1_panel(bpy.types.Panel):
         # note: built-in checks ensure it runs at most once
         addon_updater_ops.check_for_update_background()
 
-        settings = common_utilities.get_settings()
+        settings = get_settings()
 
 
         col = layout.column(align=True)

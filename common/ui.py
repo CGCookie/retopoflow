@@ -21,24 +21,26 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import re
-import bpy
-import bgl
-import blf
 import math
 import time
 import random
 import traceback
 import functools
 import urllib.request
-from bpy.types import BoolProperty
-from mathutils import Matrix
-import math
 from itertools import chain
-from .decorators import blender_version_wrapper
-from ..ext import png
 from concurrent.futures import ThreadPoolExecutor
 
+import bpy
+import bgl
+import blf
+from bpy.types import BoolProperty
+from mathutils import Matrix
+
+from .decorators import blender_version_wrapper
 from .maths import Point2D, Vec2D, clamp, mid
+
+from ..ext import png
+
 
 def set_cursor(cursor):
     # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,

@@ -19,17 +19,16 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from mathutils import Vector
 from itertools import chain
+from .rfmesh import RFMesh, RFVert, RFEdge, RFFace, RFSource, RFTarget
+from .rfmesh_render import RFMeshRender
 from ..common.utils import iter_pairs
 from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane, BBox, Ray
 from ..common.maths import Point2D, Vec2D, Direction2D
-from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
-from ..lib.classes.profiler.profiler import profiler
-from mathutils import Vector
-from ..lib.common_utilities import get_settings, dprint
+from ..common.profiler import profiler
+from ..common.debug import dprint
 from ..common.decorators import stats_wrapper
-from .rfmesh import RFSource, RFTarget
-from .rfmesh_render import RFMeshRender
 
 
 class RFContext_Sources:
