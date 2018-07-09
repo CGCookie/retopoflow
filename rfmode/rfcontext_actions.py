@@ -24,8 +24,6 @@ from copy import deepcopy
 
 from ..common.useractions import Actions
 from ..common.maths import Point2D
-from .. import key_maps
-from ..lib.eventdetails import EventDetails
 from ..options import options
 
 

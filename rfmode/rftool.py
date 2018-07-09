@@ -38,7 +38,6 @@ from .rfwidget import RFWidget_Default
 from ..common.metaclasses import SingletonRegisterClass
 from ..common.ui import Drawing
 from ..options import options
-from .. import key_maps
 
 
 class RFTool(metaclass=SingletonRegisterClass):
