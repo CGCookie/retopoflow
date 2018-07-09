@@ -51,14 +51,6 @@ from .icons import clear_icons
 import bpy.utils.previews
 
 #Tools
-from .op_polystrips.polystrips_modal import CGC_Polystrips
-from .op_contours.contours_modal import CGC_Contours
-from .op_tweak.tweak_modal import CGC_Tweak
-from .op_eyedropper.eyedropper_modal import CGC_EyeDropper
-from .op_loopcut.loopcut_modal import CGC_LoopCut
-from .op_loopslide.loopslide_modal import CGC_loopslide
-from .op_polypen.polypen_modal import CGC_Polypen
-
 from .rfmode.rfmode import RFMode, rfmode_tools
 from .rfmode.rf_recover import RFRecover, RFRecover_Clear
 from .rfmode.rf_quickstart import OpenQuickStart
@@ -75,16 +67,6 @@ addon_keymaps = []
 
 def register():
     bpy.utils.register_class(RetopoFlowPreferences)
-    
-    if options['version 1.3']:
-        bpy.utils.register_class(CGC_Polystrips)
-        bpy.utils.register_class(CGC_Tweak)
-        bpy.utils.register_class(CGC_Contours)
-        bpy.utils.register_class(CGC_EyeDropper)
-        bpy.utils.register_class(CGC_LoopCut)
-        bpy.utils.register_class(CGC_loopslide)
-        bpy.utils.register_class(CGC_Polypen)
-        bpy.utils.register_class(CGCOOKIE_OT_retopoflow1_panel)
 
     for idname,rft in rfmode_tools.items():
         # print('registering '+idname)
@@ -126,16 +108,6 @@ def unregister():
     for rft in rfmode_tools.values():
         bpy.utils.unregister_class(rft)
 
-    if options['version 1.3']:
-        bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow1_panel)
-        bpy.utils.unregister_class(CGC_Polystrips)
-        bpy.utils.unregister_class(CGC_Tweak)
-        bpy.utils.unregister_class(CGC_Contours)
-        bpy.utils.unregister_class(CGC_EyeDropper)
-        bpy.utils.unregister_class(CGC_LoopCut)
-        bpy.utils.unregister_class(CGC_loopslide)
-        bpy.utils.unregister_class(CGC_Polypen)
-    
     bpy.utils.unregister_class(RetopoFlowPreferences)
 
     # addon updater unregister
