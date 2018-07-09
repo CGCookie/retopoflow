@@ -32,6 +32,7 @@ import pickle
 import random
 import binascii
 import importlib
+from copy import deepcopy
 
 import bgl
 import blf
@@ -41,7 +42,6 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from mathutils.bvhtree import BVHTree
 from mathutils import Matrix, Vector
 
-from .rfcontext_actions import RFContext_Actions
 from .rfcontext_drawing import RFContext_Drawing
 from .rfcontext_ui import RFContext_UI
 from .rfcontext_spaces import RFContext_Spaces
@@ -56,8 +56,10 @@ from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.ui import set_cursor
 from ..common.decorators import stats_wrapper, blender_version_wrapper
+from ..common.useractions import Actions
 
 from ..options import options, themes
+from ..keymaps import default_rf_keymaps
 
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
@@ -65,6 +67,7 @@ from .rfmesh_render import RFMeshRender
 from .rftool import RFTool
 from .rfwidget import RFWidget
 from .rf_recover import RFRecover
+
 
 
 #######################################################
@@ -116,7 +119,7 @@ assert find_all_rftools(), 'Could not find RFTools'
 #######################################################
 
 
-class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Target, RFContext_Sources):
+class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Target, RFContext_Sources):
     '''
     RFContext contains data and functions that are useful across all of RetopoFlow, such as:
 
@@ -248,6 +251,12 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
         RFTool.init_tools(self)             # init tools
         self.nav = False                    # not currently navigating
         self.nav_time = time.time()         # last time nav happened
+
+    def _init_actions(self):
+        self.actions = Actions(self.rfmode.context, default_rf_keymaps)
+
+    def _process_event(self, context, event):
+        self.actions.update(context, event, self.timer, print_actions=options['debug actions'])
 
     def _init_rotate_about_active(self):
         self._end_rotate_about_active()

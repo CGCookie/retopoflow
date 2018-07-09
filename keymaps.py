@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2017 CG Cookie
+Copyright (C) 2018 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,44 +19,37 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-from copy import deepcopy
 
-from ..common.useractions import Actions
-from ..common.maths import Point2D
-from ..options import options
-
-
-default_keymap = {
+default_rf_keymaps = {
     'action': {'LEFTMOUSE'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
-    
+
     'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
     'select add': {'SHIFT+RIGHTMOUSE'},
     'select smart': {'CTRL+RIGHTMOUSE'},
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
     'select all': {'A'},
-    
+
     'general help': {'F1'},
     'tool help': {'F2'},
 
     'autosave': {'TIMER_AUTOSAVE'},
-    
+
     'cancel': {'ESC', 'RIGHTMOUSE'},
     'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
     'done': {'ESC'}, #, 'RET', 'NUMPAD_ENTER'},
-    
+
     'undo': {'CTRL+Z'},
     'redo': {'CTRL+SHIFT+Z'},
-    
+
     'edit mode': {'TAB'},
 
     'insert': {'CTRL+LEFTMOUSE'},
     'insert alt0': {'SHIFT+LEFTMOUSE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
-    
+
     'grab': {'G'},
     'delete': {'X','DELETE'},
 
@@ -68,7 +61,7 @@ default_keymap = {
 
     # loops
     'slide': {'S'},
-    
+
     # patches
     'fill': {'F'},
 
@@ -87,11 +80,3 @@ default_keymap = {
     'loops tool': {'Y'},
     'patches tool': {'U'},
 }
-
-class RFContext_Actions:
-    def _init_actions(self):
-        self.actions = Actions(self.rfmode.context, default_keymap)
-
-    def _process_event(self, context, event):
-        #if event.type not in {'TIMER','MOUSEMOVE','INBETWEEN_MOUSEMOVE'}: print(event.type)
-        self.actions.update(context, event, self.timer, print_actions=options['debug actions'])
