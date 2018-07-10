@@ -5,40 +5,49 @@
 
 # Originally created by Diego Gangl - <diego@sinestesia.co>
 # ---------------------------------------------------------------
- 
- 
+
+
+
 # /./././././././././././././././././././././././././././././././
 # SETTINGS
 # /./././././././././././././././././././././././././././././././
- 
-NAME            = RetopoFlow
-VERSION         = 1.2.4
-BUILD_DIR       = ../release
-BUILD_FILE      = $(BUILD_DIR)/$(NAME)_$(VERSION).zip
-FILES           = *.py help/* icons/* lib/*.py lib/classes/* op_contours/*.py op_loopslide/*.py op_eyedropper/*.py op_loopcut/*.py op_polypen/*.py op_polystrips/*.py
+
+NAME                = RetopoFlow
+VERSION             = v2.0.0-beta-2
+GIT_TAG             = v2.0.0-beta-2
+GIT_TAG_DESCRIPTION = "Version 2.0.0 beta 2"
+
+BUILD_DIR       = ../retopoflow_release
+ZIP_FILE        = $(NAME)_$(VERSION).zip
+TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
+
 
 .DEFAULT_GOAL 	:= build
- 
- 
+
+
 # /./././././././././././././././././././././././././././././././
 # TARGETS
 # /./././././././././././././././././././././././././././././././
- 
+
 
 clean:
-	rm -rf $(BUILD_FILE)
-	@echo "Release zip deleted - " $(BUILD_FILE)
- 
- 
+	rm -rf $(BUILD_DIR)
+	@echo "Release folder deleted"
+
+
+gittag:
+	# create a new tag and push to GitHub
+	git tag -a $(GIT_TAG) -m $(GIT_TAG_DESCRIPTION)
+	git push origin $(GIT_TAG)
+
+
 build:
- 
 	mkdir -p $(BUILD_DIR)
- 
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
-	# cp -R $(FILES) $(BUILD_DIR)/$(NAME)
-	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude="__pycache__" --exclude=".*/" --exclude="Makefile" --exclude="*.md" --exclude=".DS_Store" --exclude="*.orig" --exclude=".gitignore" --exclude="RetopoFlow_options.*"
- 
+	# rsync flag -a == archive (same as -rlptgoD)
+	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+	cd $(BUILD_DIR) ; zip -r $(ZIP_FILE) $(NAME)
+
 	@echo
-	@echo $(NAME)" "$(VERSION) " is ready"
- 
+	@echo $(NAME)" "$(VERSION)" is ready"
