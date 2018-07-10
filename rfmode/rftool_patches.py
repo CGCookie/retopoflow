@@ -24,7 +24,6 @@ from itertools import chain
 import bpy
 import bgl
 from .rftool import RFTool
-from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Direction, mid
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..common.utils import iter_pairs
@@ -35,6 +34,7 @@ from ..common.ui import (
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
+from ..keymaps import default_rf_keymaps
 from ..options import themes, options
 from ..help import help_patches
 
@@ -51,8 +51,8 @@ class RFTool_Patches(RFTool):
     def icon(self): return "rf_patches_icon"
     def description(self): return 'Patches'
     def helptext(self): return help_patches
-    def get_label(self): return 'Patches (%s)' % ','.join(default_keymap['patches tool'])
-    def get_tooltip(self): return 'Patches (%s)' % ','.join(default_keymap['patches tool'])
+    def get_label(self): return 'Patches (%s)' % ','.join(default_rf_keymaps['patches tool'])
+    def get_tooltip(self): return 'Patches (%s)' % ','.join(default_rf_keymaps['patches tool'])
     
     ''' Called the tool is being switched into '''
     def start(self):

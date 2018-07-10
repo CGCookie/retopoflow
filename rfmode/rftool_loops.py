@@ -25,12 +25,12 @@ import random
 import bgl
 from .rftool import RFTool
 from .rfmesh import RFVert, RFEdge, RFFace
-from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp
 from ..common.ui import UI_Image,UI_BoolValue,UI_Label
 from ..common.debug import dprint
 from ..common.profiler import profiler
 from ..common.utils import iter_pairs
+from ..keymaps import default_rf_keymaps
 from ..help import help_loops
 
 @RFTool.action_call('loops tool')
@@ -46,8 +46,8 @@ class RFTool_Loops(RFTool):
     def icon(self): return "rf_loops_icon"
     def description(self): return 'Loops creation, shifting, and deletion'
     def helptext(self): return help_loops
-    def get_label(self): return 'Loops (%s)' % ','.join(default_keymap['loops tool'])
-    def get_tooltip(self): return 'Loops (%s)' % ','.join(default_keymap['loops tool'])
+    def get_label(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
+    def get_tooltip(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
     
     ''' Called the tool is being switched into '''
     def start(self):

@@ -22,10 +22,10 @@ Created by Jonathan Denning, Jonathan Williamson
 import math
 import bpy
 from .rftool import RFTool
-from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label
 from ..common.profiler import profiler
+from ..keymaps import default_rf_keymaps
 from ..options import options
 from ..help import help_tweak
 
@@ -41,8 +41,8 @@ class RFTool_Tweak(RFTool):
     def icon(self): return "rf_tweak_icon"
     def description(self): return 'Moves vertices with falloff'
     def helptext(self): return help_tweak
-    def get_label(self): return 'Tweak (%s)' % ','.join(default_keymap['move tool'])
-    def get_tooltip(self): return 'Tweak (%s)' % ','.join(default_keymap['move tool'])
+    def get_label(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
+    def get_tooltip(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
     
     def get_move_boundary(self): return options['tweak boundary']
     def set_move_boundary(self, v): options['tweak boundary'] = v

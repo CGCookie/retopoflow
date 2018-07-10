@@ -25,13 +25,13 @@ import bmesh
 import bgl
 from .rftool import RFTool
 from .rfmesh import RFVert, RFEdge, RFFace
-from .rfcontext_actions import default_keymap
 from ..common.maths import Point,Point2D,Vec2D,Vec
 from ..common.ui import UI_Image, UI_Checkbox
 from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
 from ..common.debug import dprint
 from ..common.profiler import profiler
+from ..keymaps import default_rf_keymaps
 from ..options import themes, options
 from ..help import help_polypen
 
@@ -50,8 +50,8 @@ class RFTool_PolyPen(RFTool):
     def icon(self): return "rf_polypen_icon"
     def description(self): return 'Insert vertices one at a time'
     def helptext(self): return help_polypen
-    def get_label(self): return 'PolyPen (%s)' % ','.join(default_keymap['polypen tool'])
-    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(default_keymap['polypen tool'])
+    def get_label(self): return 'PolyPen (%s)' % ','.join(default_rf_keymaps['polypen tool'])
+    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(default_rf_keymaps['polypen tool'])
 
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))
