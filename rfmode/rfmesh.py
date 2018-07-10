@@ -19,36 +19,27 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import sys
 import math
 import copy
-import json
-import random
-import traceback
 
 import bpy
-import bgl
 import bmesh
-from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces, holes_fill
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
-from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
 
-from ..common.maths import Point, Direction, Normal, Frame
-from ..common.maths import Point2D, Vec2D, Direction2D
+from ..common.maths import Point, Normal
+from ..common.maths import Point2D
 from ..common.maths import Ray, XForm, BBox, Plane
-from ..common.ui import Drawing
-from ..common.hasher import hash_object, hash_bmesh
+from ..common.hasher import hash_object
 from ..common.utils import min_index, UniqueCounter
 from ..common.decorators import stats_wrapper
-from ..common import bmesh_render as bmegl
 from ..common.debug import dprint
 from ..common.profiler import profiler
-from .rfmesh_wrapper import BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
-from .rfmesh_render import RFMeshRender
 
+from .rfmesh_wrapper import (
+    BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
+)
 
 
 class RFMesh():
@@ -61,15 +52,26 @@ class RFMesh():
     '''
 
     def __init__(self):
-        assert False, 'Do not create new RFMesh directly!  Use RFSource.new() or RFTarget.new()'
+        assert False, (
+            'Do not create new RFMesh directly!  '
+            'Use RFSource.new() or RFTarget.new()'
+        )
 
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
 
     @stats_wrapper
     @profiler.profile
-    def __setup__(self, obj, deform=False, bme=None, triangulate=False, selection=True, keepeme=False):
-        hasnan = any(math.isnan(v) for emv in obj.data.vertices for v in emv.co)
+    def __setup__(
+        self, obj,
+        deform=False, bme=None, triangulate=False,
+        selection=True, keepeme=False
+    ):
+        hasnan = any(
+            math.isnan(v)
+            for emv in obj.data.vertices
+            for v in emv.co
+        )
         if hasnan:
             dprint('Mesh data contains NaN in vertex coordinate!')
             dprint('Cleaning mesh')
@@ -77,67 +79,71 @@ class RFMesh():
         else:
             # cleaning mesh quietly
             obj.data.validate(verbose=False, clean_customdata=False)
-        
+
         pr = profiler.start('setup init')
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
         self.hash = hash_object(self.obj)
         pr.done()
-        
-        if bme != None:
+
+        if bme is not None:
             self.bme = bme
         else:
             pr = profiler.start('edit mesh > bmesh')
-            self.eme = self.obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
+            self.eme = self.obj.to_mesh(
+                scene=bpy.context.scene,
+                apply_modifiers=deform,
+                settings='PREVIEW'
+            )
             self.eme.update()
             self.bme = bmesh.new()
             self.bme.from_mesh(self.eme)
             if not keepeme:
                 del self.eme
                 self.eme = None
-                #pass
             pr.done()
-            
+
             if selection:
                 pr = profiler.start('copying selection')
                 self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                 # copy selection from editmesh
-                for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
+                for bmf, emf in zip(self.bme.faces, self.obj.data.polygons):
                     bmf.select = emf.select
-                for bme,eme in zip(self.bme.edges, self.obj.data.edges):
+                for bme, eme in zip(self.bme.edges, self.obj.data.edges):
                     bme.select = eme.select
-                for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
+                for bmv, emv in zip(self.bme.verts, self.obj.data.vertices):
                     bmv.select = emv.select
                 pr.done()
             else:
                 self.deselect_all()
 
-        if triangulate: self.triangulate()
+        if triangulate:
+            self.triangulate()
 
         pr = profiler.start('setup finishing')
-        self.selection_center = Point((0,0,0))
+        self.selection_center = Point((0, 0, 0))
         self.store_state()
         self.dirty()
         pr.done()
 
-
     ##########################################################
-    
+
     def get_frame(self):
         return self.xform.to_frame()
-    
+
     ##########################################################
 
     def dirty(self, selectionOnly=False):
         # TODO: add option for dirtying only selection or geo+topo
         if not selectionOnly:
-            if hasattr(self, 'bvh'): del self.bvh
+            if hasattr(self, 'bvh'):
+                del self.bvh
             self._version = UniqueCounter.next()
         self._version_selection = UniqueCounter.next()
 
     def clean(self):
         pass
-    
+
     def get_version(self, selection=True):
         return self._version + (self._version_selection if selection else 0)
 
@@ -159,7 +165,7 @@ class RFMesh():
         ver = self.get_version(selection=False)
         if not hasattr(self, 'kdt') or self.kdt_version != ver:
             self.kdt = KDTree(len(self.bme.verts))
-            for i,bmv in enumerate(self.bme.verts):
+            for i, bmv in enumerate(self.bme.verts):
                 self.kdt.insert(bmv.co, i)
             self.kdt.balance()
             self.kdt_version = ver
@@ -169,18 +175,25 @@ class RFMesh():
 
     def store_state(self):
         attributes = ['hide']       # list of attributes to remember
-        self.prev_state = { attr: self.obj.__getattribute__(attr) for attr in attributes }
-    def restore_state(self):
-        for attr,val in self.prev_state.items(): self.obj.__setattr__(attr, val)
+        self.prev_state = {
+            attr: self.obj.__getattribute__(attr)
+            for attr in attributes
+        }
 
-    def obj_hide(self):   self.obj.hide = True
-    def obj_unhide(self): self.obj.hide = False
+    def restore_state(self):
+        for attr, val in self.prev_state.items():
+            self.obj.__setattr__(attr, val)
+
+    def obj_hide(self):
+        self.obj.hide = True
+
+    def obj_unhide(self):
+        self.obj.hide = False
 
     def ensure_lookup_tables(self):
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
-
 
     ##########################################################
 
@@ -191,106 +204,175 @@ class RFMesh():
         bmesh.ops.triangulate(self.bme, faces=faces)
 
     @profiler.profile
-    def plane_split(self, plane:Plane):
+    def plane_split(self, plane: Plane):
         plane_local = self.xform.w2l_plane(plane)
         dist = 0.00000001
-        geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
-        bmesh.ops.bisect_plane(self.bme, geom=geom, dist=dist, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
-    
+        geom = (
+            list(self.bme.verts) +
+            list(self.bme.edges) +
+            list(self.bme.faces)
+        )
+        bmesh.ops.bisect_plane(
+            self.bme,
+            geom=geom, dist=dist,
+            plane_co=plane_local.o, plane_no=plane_local.n,
+            use_snap_center=True,
+            clear_outer=False, clear_inner=False
+        )
+
+    # @profiler.profile
+    # def plane_split_negative(self, plane: Plane):
+    #     return None
+    #     pr = profiler.start('verts')
+    #     verts = [emv.co for emv in self.eme.vertices]
+    #     pr.done()
+
+    #     pr = profiler.start('edges')
+    #     edges = [tuple(eme.vertices) for eme in self.eme.edges]
+    #     pr.done()
+
+    #     pr = profiler.start('faces')
+    #     faces = [tuple(emf.vertices) for emf in self.eme.polygons]
+    #     pr.done()
+    #     return None
+
+    #     l2w_point = self.xform.l2w_point
+    #     plane_local = self.xform.w2l_plane(plane)
+    #     side = plane_local.side
+    #     triangle_intersection = plane_local.triangle_intersection
+
+    #     pr = profiler.start('copying')
+    #     bme = self.bme.copy()
+    #     pr.done()
+
+    #     pr = profiler.start('vert sides')
+    #     verts_pos = {
+    #         bmv
+    #         for bmv in self.bme.verts
+    #         if side(bmv.co) > 0
+    #     }
+    #     pr.done()
+    #     pr = profiler.start('split edges')
+    #     edges = {
+    #         bme
+    #         for bme in self.bme.edges
+    #         if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos)
+    #     }
+    #     pr.done()
+    #     pr = profiler.start('split faces')
+    #     faces = {
+    #         bmf
+    #         for bme in edges
+    #         for bmf in bme.link_faces
+    #     }
+    #     pr.done()
+    #     pr = profiler.start('culling all positive faces')
+    #     cull = [
+    #         bmf
+    #         for bmf in bme.faces
+    #         if all(bmv in verts_pos for bmv in bmf.verts)
+    #     ]
+    #     pr.done()
+    #     pr = profiler.start('intersections')
+    #     intersection = [
+    #         (l2w_point(p0), l2w_point(p1))
+    #         for bmf in faces
+    #         for (p0, p1) in triangle_intersection([
+    #             bmv.co for bmv in bmf.verts
+    #         ])
+    #     ]
+    #     pr.done()
+    #     return bme
+
     @profiler.profile
-    def plane_split_negative(self, plane:Plane):
-        return None
-        pr = profiler.start('verts')
-        verts = [emv.co for emv in self.eme.vertices]
-        pr.done()
-        
-        pr = profiler.start('edges')
-        edges = [tuple(eme.vertices) for eme in self.eme.edges]
-        pr.done()
-        
-        pr = profiler.start('faces')
-        faces = [tuple(emf.vertices) for emf in self.eme.polygons]
-        pr.done()
-        return None
-        
-        l2w_point = self.xform.l2w_point
-        plane_local = self.xform.w2l_plane(plane)
-        side = plane_local.side
-        triangle_intersection = plane_local.triangle_intersection
-        triangle_intersect = plane_local.triangle_intersect
-        
-        pr = profiler.start('copying')
-        bme = self.bme.copy()
-        pr.done()
-        
-        pr = profiler.start('vert sides')
-        verts_pos = { bmv for bmv in self.bme.verts if side(bmv.co) > 0 }
-        pr.done()
-        pr = profiler.start('split edges')
-        edges = { bme for bme in self.bme.edges if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos) }
-        pr.done()
-        pr = profiler.start('split faces')
-        faces = { bmf for bme in edges for bmf in bme.link_faces }
-        pr.done()
-        pr = profiler.start('culling all positive faces')
-        cull = [ bmf for bmf in bme.faces if all(bmv in verts_pos for bmv in bmf.verts) ]
-        pr.done()
-        pr = profiler.start('intersections')
-        intersection = [
-            (l2w_point(p0),l2w_point(p1))
-            for bmf in faces
-            for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
-            ]
-        pr.done()
-        return bme
-    
-    @profiler.profile
-    def plane_intersection(self, plane:Plane):
+    def plane_intersection(self, plane: Plane):
         # TODO: do not duplicate vertices!
         l2w_point = self.xform.l2w_point
         plane_local = self.xform.w2l_plane(plane)
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
-        triangle_intersect = plane_local.triangle_intersect
-        
-        # res = bmesh.ops.bisect_plane(self.bme, geom=list(self.bme.verts)+list(self.bme.edges)+list(self.bme.faces), dist=0.0000001, plane_co=plane_local.o, plane_no=plane_local.n, use_snap_center=True, clear_outer=False, clear_inner=False)
-        # verts = {bmv for bmv in self.bme.verts if plane_local.side(bmv.co) == 0}
+
+        # res = bmesh.ops.bisect_plane(
+        #     self.bme,
+        #     geom=(
+        #         list(self.bme.verts) +
+        #         list(self.bme.edges) +
+        #         list(self.bme.faces)),
+        #     dist=0.0000001,
+        #     plane_co=plane_local.o, plane_no=plane_local.n,
+        #     use_snap_center=True,
+        #     clear_outer=False, clear_inner=False
+        # )
+        # verts = {
+        #     bmv
+        #     for bmv in self.bme.verts
+        #     if plane_local.side(bmv.co) == 0
+        # }
         # print(len(verts))
-        # intersection = [(l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)) for bme in self.bme.edges if bme.verts[0] in verts and bme.verts[1] in verts]
+        # intersection = [
+        #     (l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co))
+        #     for bme in self.bme.edges
+        #     if bme.verts[0] in verts and bme.verts[1] in verts
+        # ]
         # print(len(intersection))
         # return intersection
-        
+
         pr = profiler.start('vert sides')
-        vert_side = { bmv:side(bmv.co) for bmv in self.bme.verts }
-        #verts_neg = { bmv for bmv in self.bme.verts if plane_local.side(bmv.co) < 0 }
+        vert_side = {
+            bmv: side(bmv.co)
+            for bmv in self.bme.verts
+        }
+        # verts_neg = {
+        #     bmv
+        #     for bmv in self.bme.verts
+        #     if plane_local.side(bmv.co) < 0
+        # }
         pr.done()
-        #faces = { bmf for bmf in self.bme.faces if sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts) in {1,2}}
+        # faces = {
+        #     bmf
+        #     for bmf in self.bme.faces
+        #     if (
+        #         sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts)
+        #     ) in {1, 2}
+        # }
         pr = profiler.start('split edges')
-        edges = { bme for bme in self.bme.edges if vert_side[bme.verts[0]] != vert_side[bme.verts[1]] }
+        edges = {
+            bme
+            for bme in self.bme.edges
+            if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
+        }
         pr.done()
         pr = profiler.start('split faces')
-        faces = { bmf for bme in edges for bmf in bme.link_faces }
+        faces = {
+            bmf
+            for bme in edges
+            for bmf in bme.link_faces
+        }
         pr.done()
         pr = profiler.start('intersections')
         intersection = [
-            (l2w_point(p0),l2w_point(p1))
+            (l2w_point(p0), l2w_point(p1))
             for bmf in faces
-            for p0,p1 in triangle_intersection([bmv.co for bmv in bmf.verts])
-            ]
+            for (p0, p1) in triangle_intersection([
+                bmv.co for bmv in bmf.verts
+            ])
+        ]
         pr.done()
         return intersection
 
     def get_xy_plane(self):
-        o = self.xform.l2w_point(Point((0,0,0)))
-        n = self.xform.l2w_normal(Normal((0,0,1)))
+        o = self.xform.l2w_point(Point((0, 0, 0)))
+        n = self.xform.l2w_normal(Normal((0, 0, 1)))
         return Plane(o, n)
+
     def get_xz_plane(self):
-        o = self.xform.l2w_point(Point((0,0,0)))
-        n = self.xform.l2w_normal(Normal((0,1,0)))
+        o = self.xform.l2w_point(Point((0, 0, 0)))
+        n = self.xform.l2w_normal(Normal((0, 1, 0)))
         return Plane(o, n)
+
     def get_yz_plane(self):
-        o = self.xform.l2w_point(Point((0,0,0)))
-        n = self.xform.l2w_normal(Normal((1,0,0)))
+        o = self.xform.l2w_point(Point((0, 0, 0)))
+        n = self.xform.l2w_normal(Normal((1, 0, 0)))
         return Plane(o, n)
 
     @profiler.profile
@@ -298,27 +380,31 @@ class RFMesh():
         '''
         crawl about RFMesh along plane starting with bmf
         '''
-        
+
         def intersect_edge(bme):
-            bmv0,bmv1 = bme.verts
+            bmv0, mv1 = bme.verts
             crosses = plane.edge_intersection((bmv0.co, bmv1.co))
-            if not crosses: return None
-            return crosses[0][0]
+            return crosses[0][0] if crosses else None
+
         def intersect_face(bmf):
-            crosses = [(bme,intersect_edge(bme)) for bme in bmf.edges]
-            return [(bme,cross) for bme,cross in crosses if cross]
-        
+            crosses = [(bme, intersect_edge(bme)) for bme in bmf.edges]
+            return [(bme, cross) for (bme, cross) in crosses if cross]
+
         # assuming all faces are triangles!
-        touched = set()
         ret = []
         bmf_current = bmf_start
         crosses = intersect_face(bmf_current)
-        if len(crosses) != 2: return ret
-        bme_start0,bme_start1 = crosses[0][0],crosses[1][0]
+        if len(crosses) != 2:
+            return ret
+        bme_start0, bme_start1 = crosses[0][0], crosses[1][0]
         bme_next = bme_start0
-        cross,cross1 = crosses[0][1],crosses[1][1]
+        cross, cross1 = crosses[0][1], crosses[1][1]
         while True:
-            bmf_next = next((bmf for bmf in bme_next.link_faces if bmf != bmf_current), None)
+            bmf_next = next((
+                bmf
+                for bmf in bme_next.link_faces
+                if bmf != bmf_current
+            ), None)
             if not bmf_next:
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
@@ -331,19 +417,27 @@ class RFMesh():
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
             bmf_current = bmf_next
-            bme_next_,cross_ = next(((bme,cross) for (bme,cross) in crosses if bme != bme_next), (None,None))
+            bme_next_, cross_ = next((
+                (bme, cross)
+                for (bme, cross) in crosses
+                if bme != bme_next
+            ), (None, None))
             if not bme_next_:
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
-            bme_next,cross = bme_next_,cross_
-        
+            bme_next, cross = bme_next_, cross_
+
         # go other way
-        ret = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
+        ret = [(f1, e, f0, c) for (f0, e, f1, c) in reversed(ret)]
         bme_next = bme_start1
         cross = cross1
         bmf_current = bmf_start
         while True:
-            bmf_next = next((bmf for bmf in bme_next.link_faces if bmf != bmf_current), None)
+            bmf_next = next((
+                bmf
+                for bmf in bme_next.link_faces
+                if bmf != bmf_current
+            ), None)
             if not bmf_next:
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
@@ -357,14 +451,18 @@ class RFMesh():
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
             bmf_current = bmf_next
-            bme_next_,cross_ = next(((bme,cross) for (bme,cross) in crosses if bme != bme_next), (None,None))
+            bme_next_, cross_ = next((
+                (bme, cross)
+                for (bme, cross) in crosses
+                if bme != bme_next
+            ), (None, None))
             if not bme_next_:
                 ret += [(bmf_current, bme_next, None, cross)]
                 break
-            bme_next,cross = bme_next_,cross_
-        
+            bme_next, cross = bme_next_, cross_
+
         return ret
-        
+
         # touched = set()
         # def crawl(bmf0):
         #     if not bmf0: return []
@@ -408,7 +506,7 @@ class RFMesh():
         #                 best = ret
         #     #touched.remove(bmf0)
         #     return best
-        
+
         # try:
         #     res = crawl(bmf)
         # except KeyboardInterrupt as e:
@@ -416,7 +514,7 @@ class RFMesh():
         #     ex_type,ex_val,tb = sys.exc_info()
         #     traceback.print_tb(tb)
         #     res = []
-        
+
         # return res
 
     @profiler.profile
@@ -428,7 +526,7 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
         return ret
-    
+
     @profiler.profile
     def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
         '''
@@ -438,7 +536,7 @@ class RFMesh():
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
         _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
-        
+
         # walk along verts and edges from intersection to plane
         def walk_to_plane(bmf):
             bmvs = [bmv for bmv in bmf.verts]
@@ -446,7 +544,7 @@ class RFMesh():
             if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
                 # bmf crosses plane already
                 return bmf
-            
+
             idx = min_index(bmvs_dot)
             bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
             touched = set()
@@ -464,10 +562,10 @@ class RFMesh():
                 if obmv_dot > bmv_dot: return None
                 bmv = obmv
                 bmv_dot = obmv_dot
-        
+
         bmf = walk_to_plane(bmf)
         if not bmf: return None
-        
+
         # crawl about self along plane
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
@@ -478,7 +576,7 @@ class RFMesh():
     def plane_intersections_crawl(self, plane:Plane):
         plane = self.xform.w2l_plane(plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
-        
+
         # find all faces that cross the plane
         pr = profiler.start('finding all edges crossing plane')
         dot = plane.n.dot
@@ -508,18 +606,18 @@ class RFMesh():
     def plane_intersections_crawl(self, plane:Plane):
         plane = self.xform.w2l_plane(plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
-        
+
         # find all faces that cross the plane
         pr = profiler.start('finding all edges crossing plane')
         dot = plane.n.dot
         o = dot(plane.o)
         edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
         pr.done()
-        
+
         pr = profiler.start('finding faces crossing plane')
         faces = set(bmf for bme in edges for bmf in bme.link_faces)
         pr.done()
-        
+
         pr = profiler.start('crawling faces along plane')
         rets = []
         touched = set()
@@ -531,7 +629,7 @@ class RFMesh():
             ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
             rets += [ret]
         pr.done()
-        
+
         return rets
 
 
@@ -814,7 +912,7 @@ class RFMesh():
     def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
     def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
     def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
-    
+
     def get_vert_count(self): return len(self.bme.verts)
     def get_edge_count(self): return len(self.bme.edges)
     def get_face_count(self): return len(self.bme.faces)
@@ -955,19 +1053,19 @@ class RFMesh():
             edges.reverse()
             crawl(bme, bme.verts[1])
         return RFEdgeSequence(edges)
-    
+
     def _crawl_quadstrip_next(self, bme0, bmf0):
         bmes = set(bmf0.edges) - { bme for bmv in bme0.verts for bme in bmv.link_edges }
         if len(bmes) != 1: return (None,None)
         bme1 = next(iter(bmes))
         bmf1 = next(iter(set(bme1.link_faces) - { bmf0 }), None)
         return (bme1, bmf1)
-    
+
     def _are_edges_flipped(self, bme0, bme1):
         bmv00,bmv01 = bme0.verts
         bmv10,bmv11 = bme1.verts
         return ((bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co)) < 0
-    
+
     def _crawl_quadstrip_to_loopend(self, bme_start, bmf_start=None):
         '''
         returns tuple (bme, flipped, bmf, looped) where bme is
@@ -976,11 +1074,11 @@ class RFMesh():
         bmf is the next face going back (for retracing)
         flipped indicates if bme is revered wrt to bme_start
         '''
-        
+
         # choose one of the faces
         if not bmf_start: bmf_start = next(iter(bme_start.link_faces), None)
         if not bmf_start: return (None, False, None, False)
-        
+
         bme0,bmf0,flipped = bme_start,bmf_start,False
         touched = set() # just in case!
         '''
@@ -1014,12 +1112,12 @@ class RFMesh():
             bme0,bmf0 = bme1,bmf1
         # somehow we wrapped back around!?
         assert False, "Unexpected topology"
-    
+
     def is_quadstrip_looped(self, edge):
         edge = self._unwrap(edge)
         _,_,_,looped = self._crawl_quadstrip_to_loopend(edge)
         return looped
-    
+
     def iter_quadstrip(self, edge):
         # crawl around until either 1) loop back around, or 2) hit end
         # then, go back the other direction
@@ -1037,21 +1135,21 @@ class RFMesh():
             if bme_next == bme_start: break
             if self._are_edges_flipped(bme, bme_next): flipped = not flipped
             bme,bmf = bme_next,bmf_next
-    
+
     def get_face_loop(self, edge):
         is_looped = self.is_quadstrip_looped(edge)
         edges = list(bme for bme,_ in self.iter_quadstrip(edge))
         return (edges, is_looped)
-    
+
     def get_edge_loop(self, edge):
         touched = set()
         edges = [edge]
-        
+
         '''
         description of crawl(bme0, bmv01) below...
         given: bme0=A, bmv01=B
         find:  bme1=C, bmv12=D
-        
+
         O-----O-----O...     O-----O-----O...
         |     |     |        |     |     |
         O--A--B--C--D...     O--A--B--C--O...
@@ -1060,7 +1158,7 @@ class RFMesh():
                                     \|
                                      O...
                crawl dir: ======>
-        
+
         left : "normal" case, where B is part of 4 touching quads
         right: here, find the edge with the direction most similarly
                pointing in same direction
@@ -1087,7 +1185,7 @@ class RFMesh():
             edges.reverse()
             loop = crawl(edge, edge.verts[1])
         return (edges, loop)
-    
+
     def get_inner_edge_loop(self, edge):
         # returns edge loop that follows the inside, boundary
         bme = self._unwrap(edge)
@@ -1269,7 +1367,7 @@ class RFTarget(RFMesh):
         self.mirror_mod.use_x = 'x' in self.symmetry
         self.mirror_mod.use_y = 'y' in self.symmetry
         self.mirror_mod.use_z = 'z' in self.symmetry
-    
+
     def enable_symmetry(self, axis): self.symmetry.add(axis)
     def disable_symmetry(self, axis): self.symmetry.discard(axis)
     def has_symmetry(self, axis): return axis in self.symmetry
@@ -1291,7 +1389,7 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
-    
+
     def holes_fill(self, edges, sides):
         edges = list(map(self._unwrap, edges))
         ret = holes_fill(self.bme, edges=edges, sides=sides)
@@ -1307,7 +1405,7 @@ class RFTarget(RFMesh):
         if del_verts:
             verts = set(v for v in self.bme.verts if v.select)
             self.delete_verts(verts)
-        
+
 
     def delete_verts(self, verts):
         for bmv in map(self._unwrap, verts): self.bme.verts.remove(bmv)
@@ -1398,7 +1496,7 @@ class RFTarget(RFMesh):
                 # assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)
                 print('clean_duplicate_bmedges: unhandled count of linked faces %d, %d' % (l0,l1))
         return mapping
-    
+
     def remove_duplicate_bmfaces(self, vert):
         bmv = self._unwrap(vert)
         mapping = {}
@@ -1424,7 +1522,7 @@ class RFTarget(RFMesh):
     #     for bmv in bmverts:
     #         bmv.co = w2l(update_fn(bmv, l2w(bmv.co)))
     #     self.dirty()
-    
+
     def snap_all_verts(self, nearest):
         for v in self.get_verts():
             xyz,norm,_,_ = nearest(v.co)
