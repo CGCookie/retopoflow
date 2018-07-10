@@ -81,7 +81,7 @@ class Options:
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
-        'version 1.3':          True,   # show RF 1.3 panel?
+        'version 1.3':          False,  # show RF 1.3 panel?
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
         
