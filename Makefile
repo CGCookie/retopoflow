@@ -12,10 +12,10 @@
 # SETTINGS
 # /./././././././././././././././././././././././././././././././
 
-NAME                = RetopoFlow
-VERSION             = v2.0.0-beta-2
-GIT_TAG             = v2.0.0-beta-2
-GIT_TAG_DESCRIPTION = "Version 2.0.0 beta 2"
+NAME            = RetopoFlow
+VERSION         = v2.0.0-beta-2
+GIT_TAG         = v2.0.0-beta-2
+GIT_TAG_MESSAGE = "Version 2.0.0 beta 2"
 
 BUILD_DIR       = ../retopoflow_release
 ZIP_FILE        = $(NAME)_$(VERSION).zip
@@ -36,8 +36,8 @@ clean:
 
 
 gittag:
-	# create a new tag and push to GitHub
-	git tag -a $(GIT_TAG) -m $(GIT_TAG_DESCRIPTION)
+	# create a new annotated (-a) tag and push to GitHub
+	git tag -a $(GIT_TAG) -m $(GIT_TAG_MESSAGE)
 	git push origin $(GIT_TAG)
 
 
