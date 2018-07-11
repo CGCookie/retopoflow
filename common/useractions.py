@@ -92,7 +92,7 @@ class Actions:
         'NDOF Move View': 'view3d.ndof_all',
         'View Selected': 'view3d.view_selected',
         'Center View to Cursor': 'view3d.view_center_cursor',
-        'View Navigation': 'view3d.navigate',
+        #'View Navigation': 'view3d.navigate',
     }
 
     window_actions = {
