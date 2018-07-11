@@ -66,7 +66,15 @@ class Actions:
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
 
-    trackpad_actions = { 'TRACKPADPAN','TRACKPADZOOM' }
+    trackpad_actions = {
+        'TRACKPADPAN','TRACKPADZOOM'
+    }
+
+    modifier_actions = {
+        'OSKEY',
+        'LEFT_CTRL', 'LEFT_SHIFT', 'LEFT_ALT',
+        'RIGHT_CTRL', 'RIGHT_SHIFT', 'RIGHT_ALT',
+    }
 
     navigation_events = {
         'Rotate View': 'view3d.rotate',
@@ -85,7 +93,7 @@ class Actions:
         'View Selected': 'view3d.view_selected',
         'Center View to Cursor': 'view3d.view_center_cursor',
         'View Navigation': 'view3d.navigate',
-        }
+    }
 
     window_actions = {
         'wm.window_fullscreen_toggle',
@@ -189,7 +197,7 @@ class Actions:
 
         t,pressed = event.type, event.value=='PRESS'
 
-        if t in {'OSKEY','LEFT_CTRL','LEFT_SHIFT','LEFT_ALT','RIGHT_CTRL','RIGHT_SHIFT','RIGHT_ALT'}:
+        if t in self.modifier_actions:
             if t == 'OSKEY':
                 self.oskey = pressed
             else:
@@ -213,7 +221,7 @@ class Actions:
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             return
 
-        self.trackpad = (t in Actions.ndof_actions)
+        self.trackpad = (t in Actions.trackpad_actions)
         self.ndof = (t in Actions.ndof_actions)
 
         if pressed and t in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:

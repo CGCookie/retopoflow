@@ -111,7 +111,6 @@ class Profiler:
     @staticmethod
     def is_broken():
         return Profiler._broken
-        
 
     def clear(self):
         self.d_start = {}
