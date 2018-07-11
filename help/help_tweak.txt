@@ -1,8 +1,0 @@
-Tweak Help (click to hide help):
-
-Move / Relax Verts:
-- LMB: move verts
-- SHIFT + LMB: relax verts
-
-Brush Size:
-- F: press F to adjust tweak brush size.
