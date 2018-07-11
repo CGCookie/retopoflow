@@ -44,25 +44,27 @@ try:
 
     from .options import options
 
-    #Menus, Panels, Interface and Icons
-    from .interface import CGCOOKIE_OT_retopoflow2_panel
-    from .interface import CGCOOKIE_OT_retopoflow_menu
-    from .interface import RFPreferences
-
+    # Operators, Menus, Panels, Icons
+    from .interface import (
+        RF_Panel,
+        RF_Menu,
+        RF_Preferences,
+        RF_Recover, RF_Recover_Clear,
+        RF_OpenLog,
+        RF_OpenWebTip,
+        RF_OpenWebIssues,
+        RF_OpenQuickStart,
+    )
     from .icons import clear_icons
 
     #Tools
-    from .rfmode.rfmode import RFMode, rfmode_tools
-    from .rfmode.rf_recover import RFRecover, RFRecover_Clear
-    from .rfmode.rf_quickstart import OpenQuickStart
-    from .rfmode.rf_openlog import OpenLog
-    from .rfmode.rf_webissues import OpenWebIssues
-    from .rfmode.rf_webtip import OpenWebTip
+    from .rfmode.rfmode import rfmode_tools
 
     from .cookiecutter.test import CookieCutter_Test
 
     # updater import
     from . import addon_updater_ops
+
 except Exception as e:
     raise e
 
@@ -71,15 +73,15 @@ except Exception as e:
 addon_keymaps = []
 
 register_classes = [
-    RFPreferences,
-    RFRecover,
-    RFRecover_Clear,
-    CGCOOKIE_OT_retopoflow2_panel,
-    CGCOOKIE_OT_retopoflow_menu,
-    OpenLog,
-    OpenQuickStart,
-    OpenWebIssues,
-    OpenWebTip,
+    RF_Preferences,
+    RF_Recover,
+    RF_Recover_Clear,
+    RF_Panel,
+    RF_Menu,
+    RF_OpenLog,
+    RF_OpenQuickStart,
+    RF_OpenWebIssues,
+    RF_OpenWebTip,
     CookieCutter_Test,
 ]
 register_classes += [rft for (idname, rft) in rfmode_tools.items()]
@@ -108,7 +110,7 @@ def unregister():
     clear_icons()
 
     # unregister all of the classes in reverse order
-    for c in reverse(register_classes):
+    for c in reversed(register_classes):
         bpy.utils.unregister_class(c)
 
     # addon updater unregister

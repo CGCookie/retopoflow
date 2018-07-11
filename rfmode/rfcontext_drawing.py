@@ -146,8 +146,8 @@ class RFContext_Drawing:
         try:
             self.tool.draw_postpixel()
             self.rfwidget.draw_postpixel()
-            self.window_debug_fps.set_label('fps: %0.2f' % self.fps)
-            self.window_debug_save.set_label('save timer: %0.0f' % (self.time_to_save or float('inf')))
+            self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
+            self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
             self.window_manager.draw_postpixel()
         except AssertionError as e:
             message,h = debugger.get_exception_info_and_hash()

@@ -48,13 +48,17 @@ class Logger:
         return bpy.data.texts[Logger._log_filename]
 
     @staticmethod
+    def has_log():
+        return Logger.get_log(create=False) is not None
+
+    @staticmethod
     def add(line):
         log = Logger.get_log()
         log.write('\n\n%s\n%s' % (Logger._divider, str(line)))
 
     @staticmethod
     def open_log():
-        if Logger.get_log(create=False):
+        if Logger.has_log():
             show_blender_text(Logger._log_filename)
         else:
             show_blender_popup('Log file (%s) not found' % Logger._log_filename)

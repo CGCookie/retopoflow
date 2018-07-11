@@ -21,11 +21,12 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import re
-import bgl
-import bpy
 import json
 import shelve
 import platform
+
+import bgl
+import bpy
 
 from .common.debug import Debugger
 from .common.logger import Logger
@@ -178,10 +179,10 @@ class Options:
         Options.db[key] = val
         self.write()
     def update_external_vars(self):
-        print('Updating:')
-        print('- Debugger: %d' % self['debug level'])
-        print('- Logger: %s' % self['log_filename'])
-        print('- Profiler: %s %s' % (str(self['profiler'] and retopoflow_profiler), self['profiler_filename']))
+        # print('Updating:')
+        # print('- Debugger: %d' % self['debug level'])
+        # print('- Logger: %s' % self['log_filename'])
+        # print('- Profiler: %s %s' % (str(self['profiler'] and retopoflow_profiler), self['profiler_filename']))
         Debugger.set_error_level(self['debug level'])
         Logger.set_log_filename(self['log_filename'])
         Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
@@ -226,6 +227,10 @@ class Options:
         return _setter
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
+
+    def temp_filepath(self, ext):
+        tempdir = bpy.context.user_preferences.filepaths.temporary_directory
+        return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
 
 def rgba_to_float(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
 class Themes:

@@ -20,10 +20,11 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import sys
-import math
 import os
 import re
+import sys
+import json
+import math
 import time
 
 import bpy
@@ -34,7 +35,6 @@ from bpy.app.handlers import persistent, load_post
 
 from .rfcontext import RFContext
 from .rftool import RFTool
-from .rf_recover import RFRecover
 
 from ..common.ui import set_cursor
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
@@ -44,6 +44,7 @@ from ..common.profiler import profiler
 from ..common.logger import Logger
 from ..common.utils import get_settings
 from ..common.blender import show_blender_popup
+from ..options import options
 
 '''
 
@@ -142,6 +143,77 @@ class RFMode(Operator):
         bbox = BBox(from_coords=vs)
         sz = (bbox.max-bbox.min).length_squared
         return sz > 15
+
+    @staticmethod
+    def save_window_state():
+        data = {
+            'data_wm': {},
+            'selected': [o.name for o in bpy.data.objects if o.select],
+            'mode': bpy.context.mode,
+            'region overlap': False,    # TODO
+            'region toolshelf': False,  # TODO
+            'region properties': False, # TODO
+            }
+        for wm in bpy.data.window_managers:
+            data_wm = []
+            for win in wm.windows:
+                data_win = []
+                for area in win.screen.areas:
+                    data_area = []
+                    if area.type == 'VIEW_3D':
+                        for space in area.spaces:
+                            data_space = {}
+                            if space.type == 'VIEW_3D':
+                                data_space = {
+                                    'show_only_render': space.show_only_render,
+                                    'show_manipulator': space.show_manipulator,
+                                }
+                            data_area.append(data_space)
+                    data_win.append(data_area)
+                data_wm.append(data_win)
+            data['data_wm'][wm.name] = data_wm
+
+        filepath = options.temp_filepath('state')
+        open(filepath, 'wt').write(json.dumps(data))
+
+    @staticmethod
+    def restore_window_state():
+        filepath = options.temp_filepath('state')
+        if not os.path.exists(filepath): return
+        data = json.loads(open(filepath, 'rt').read())
+        for wm in bpy.data.window_managers:
+            data_wm = data['data_wm'][wm.name]
+            for win,data_win in zip(wm.windows, data_wm):
+                for area,data_area in zip(win.screen.areas, data_win):
+                    if area.type != 'VIEW_3D': continue
+                    for space,data_space in zip(area.spaces, data_area):
+                        if space.type != 'VIEW_3D': continue
+                        space.show_only_render = data_space['show_only_render']
+                        space.show_manipulator = data_space['show_manipulator']
+        for oname in data['selected']:
+            if oname in bpy.data.objects:
+                bpy.data.objects[oname].select = True
+
+    @staticmethod
+    def backup_recover():
+        bpy.ops.wm.open_mainfile(filepath=options.temp_filepath('blend'))
+        if 'RetopoFlow_Rotate' in bpy.data.objects:
+            # need to remove empty object for rotation
+            bpy.data.objects.remove(bpy.data.objects['RetopoFlow_Rotate'], do_unlink=True)
+        tar_object = next(o for o in bpy.data.objects if o.select)
+        bpy.context.scene.objects.active = tar_object
+        tar_object.hide = False
+
+        RFMode.restore_window_state()
+
+    @staticmethod
+    def backup_save():
+        use_auto_save_temporary_files = bpy.context.user_preferences.filepaths.use_auto_save_temporary_files
+        filepath = options.temp_filepath('blend')
+        dprint('saving backup to %s' % filepath)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
 
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
@@ -302,7 +374,7 @@ class RFMode(Operator):
         # bpy.context.area.header_text_set('RetopoFlow Mode')
 
         # remember space info and hide all non-renderable items
-        RFRecover.save_window_state()
+        RFMode.save_window_state()
         self.space_info = {}
         for wm in bpy.data.window_managers:
             for win in wm.windows:
@@ -665,6 +737,7 @@ def setup_tools():
                 "context_start_tool": context_start_tool,
                 'bl_idname': id_name,
                 "bl_label": rft_name,
+                'rf_label': rft_name,
                 'bl_description': rft().description(),
                 'rf_icon': rft().icon(),
                 'rft_class': rft,

@@ -49,7 +49,7 @@ from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
 from ..common.utils import get_settings
-from ..common.globals import dprint, debugger
+from ..common.debug import dprint, debugger
 from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
@@ -66,7 +66,6 @@ from .rfmesh_render import RFMeshRender
 
 from .rftool import RFTool
 from .rfwidget import RFWidget
-from .rf_recover import RFRecover
 
 
 
@@ -367,6 +366,21 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         tb.write('\n')
 
     ###################################################
+    # auto save
+
+    def check_auto_save(self):
+        use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
+        auto_save_time = context.user_preferences.filepaths.auto_save_time * 60
+        if not use_auto_save_temporary_files: return
+        if self.time_to_save is None:
+            self.time_to_save = auto_save_time
+        else:
+            self.time_to_save -= self.actions.time_delta
+        if self.time_to_save > 0: return
+        self.rfmode.backup_save()
+        self.time_to_save = auto_save_time
+
+    ###################################################
 
     def modal(self, context, event):
         # returns set with actions for RFMode to perform
@@ -398,7 +412,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             else: self.time_to_save -= self.actions.time_delta
             if self.time_to_save <= 0:
                 # tempdir = bpy.app.tempdir
-                filepath = RFRecover.filepath('blend')
+                filepath = options.temp_filepath('blend')
                 dprint('auto saving to %s' % filepath)
                 if os.path.exists(filepath): os.remove(filepath)
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
@@ -411,7 +425,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
                 if self.exit: return {'confirm'}
                 return {}
         except Exception as e:
-            message,h = get_exception_info_and_hash()
+            message,h = debugger.get_exception_info_and_hash()
             print(message)
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='exception', msghash=h)
