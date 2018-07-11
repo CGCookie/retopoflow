@@ -26,7 +26,7 @@ import bpy
 from .rftool import RFTool
 
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
-from ..common.ui import UI_Image, UI_BoolValue, UI_Label
+from ..common.ui import UI_Image, UI_BoolValue, UI_Label, UI_IntValue, UI_Container
 from ..common.profiler import profiler
 from ..keymaps import default_rf_keymaps
 from ..options import options
@@ -39,42 +39,49 @@ class RFTool_Relax(RFTool):
         self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
         self.FSM['select'] = self.modal_select
         self.FSM['relax'] = self.modal_relax
-    
+
     def name(self): return "Relax"
     def icon(self): return "rf_relax_icon"
     def description(self): return 'Relax topology by changing length of edges to average'
     def helptext(self): return help_relax
     def get_label(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
     def get_tooltip(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
-    
+
     def get_move_boundary(self): return options['relax boundary']
     def set_move_boundary(self, v): options['relax boundary'] = v
-    
+
     def get_move_hidden(self): return options['relax hidden']
     def set_move_hidden(self, v): options['relax hidden'] = v
-    
+
     def get_ui_options(self):
+        ui_brush = UI_Container()
+        ui_brush.add(UI_Label('Brush Properties:', margin=0))
+        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), margin=0, tooltip='Set radius of relax brush'))
+        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), margin=0, tooltip='Set falloff of relax brush'))
+        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of relax brush'))
+
         return [
             UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
             UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
+            ui_brush,
         ]
-    
+
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('brush falloff', color=(0.5, 1.0, 0.5))
         self.sel_only = False
-    
+
     def get_ui_icon(self):
         self.ui_icon = UI_Image('relax_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
-    
+
     def modal_main(self):
         if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
-        
+
         if self.rfcontext.actions.pressed('select add'):
             face = self.rfcontext.accel_nearest2D_face(max_dist=10)
             if not face: return
@@ -82,13 +89,13 @@ class RFTool_Relax(RFTool):
                 self.mousedown = self.rfcontext.actions.mouse
                 return 'selectadd/deselect'
             return 'select'
-        
+
         if self.rfcontext.actions.pressed(['action', 'action alt0'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('action alt0')
             self.rfcontext.actions.unpress()
             self.rfcontext.undo_push('relax')
             return 'relax'
-        
+
     @profiler.profile
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
@@ -108,7 +115,7 @@ class RFTool_Relax(RFTool):
         bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return
         self.rfcontext.select(bmf, supparts=False, only=False)
-    
+
     @RFTool.dirty_when_done
     def modal_relax(self):
         if self.rfcontext.actions.released(['action','action alt0']):
@@ -116,12 +123,12 @@ class RFTool_Relax(RFTool):
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-        
+
         if not self.rfcontext.actions.timer: return
-        
+
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
-        
+
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
         # collect data for smoothing
@@ -132,25 +139,25 @@ class RFTool_Relax(RFTool):
             faces.update(bmv.link_faces)
             vert_strength[bmv] = self.rfwidget.get_strength_dist(d) #/radius
         self._relax(verts, edges, faces, vert_strength)
-    
+
     def _relax(self, verts, edges, faces, vert_strength=None, vistest=True):
         if not verts or not edges: return
         vert_strength = vert_strength or {}
-        
+
         time_delta = self.rfcontext.actions.time_delta
         strength = 100.0 * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
         mult = 1.0 / radius
-        
+
         # compute average edge length
         avgDist = sum(bme.calc_length() for bme in edges) / len(edges)
-        
+
         # capture all verts involved in relaxing
         chk_verts = set(verts)
         chk_verts |= {bmv for bme in edges for bmv in bme.verts}
         chk_verts |= {bmv for bmf in faces for bmv in bmf.verts}
         divco = {bmv:Point(bmv.co) for bmv in chk_verts}
-        
+
         # perform smoothing
         touched = set()
         for bmv0 in verts:
@@ -179,7 +186,7 @@ class RFTool_Relax(RFTool):
                     diff = (bmv.co - ctr)
                     m = (fd - diff.length)* (1.0 - d) / cnt * mult
                     divco[bmv] += diff * m * strength
-        
+
         # update
         hidden = self.get_move_hidden()
         boundary = self.get_move_boundary()
