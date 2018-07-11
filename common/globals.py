@@ -30,11 +30,27 @@ def set_global(o):
 
     cn = type(o).__name__
     if cn == 'Debugger':
+        # print('setting debugger: ' + str(o))
         debugger = o
         dprint = o.dprint
     elif cn == 'Profiler':
+        # print('setting profiler: ' + str(o))
         profiler = o
     elif cn == 'Logger':
+        # print('setting logger: ' + str(o))
         logger = o
     else:
         assert False
+
+def get_global(s):
+    global debuggor, dprint
+    global profiler, logger
+    if s == 'debugger':
+        return debugger
+    if s == 'dprint':
+        return dprint
+    if s == 'profiler':
+        return profiler
+    if s == 'logger':
+        return logger
+    assert False

@@ -52,7 +52,7 @@ from mathutils.geometry import (
     distance_point_to_plane,
 )
 
-from .globals import set_global, logger
+from .globals import set_global, get_global
 from .blender import show_blender_popup
 from .hasher import Hasher
 
@@ -139,14 +139,14 @@ class Debugger:
         message += ['  - %s' % s for s in errormsg.splitlines()]
         message = '\n'.join(message)
         print('%s\n%s\n%s' % ('_' * 100, message, '^' * 100))
-        logger.add(message) # write error to log text object
-        if Debugger._exception_count < 10:
-            show_blender_popup(
-                message,
-                title='Exception Info',
-                icon='ERROR',
-                wrap=240
-            )
+        get_global('logger').add(message) # write error to log text object
+        # if Debugger._exception_count < 10:
+        #     show_blender_popup(
+        #         message,
+        #         title='Exception Info',
+        #         icon='ERROR',
+        #         wrap=240
+        #     )
         return message
 
     # @staticmethod
