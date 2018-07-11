@@ -24,6 +24,8 @@ import copy
 
 import bpy
 import bmesh
+from bmesh.types import BMVert, BMEdge, BMFace
+from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
@@ -382,7 +384,7 @@ class RFMesh():
         '''
 
         def intersect_edge(bme):
-            bmv0, mv1 = bme.verts
+            bmv0, bmv1 = bme.verts
             crosses = plane.edge_intersection((bmv0.co, bmv1.co))
             return crosses[0][0] if crosses else None
 
