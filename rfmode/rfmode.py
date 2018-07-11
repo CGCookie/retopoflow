@@ -52,16 +52,16 @@ from ..common.decorators import stats_report, stats_wrapper, blender_version_wra
 useful reference: https://blender.stackexchange.com/questions/19416/what-do-operator-methods-do-poll-invoke-execute-draw-modal
 
     For a comprehensive description of operators and their use see: http://www.blender.org/api/blender_python_api_current/bpy.types.Operator.html
-    
+
     For a quick run-down
-    
+
     - poll, checked before running the operator, which will never run when poll fails, used to check if an operator can run, menu items will be greyed out and if key bindings should be ignored.
     - invoke, Think of this as "run by a person". Called by default when accessed from a key binding and menu, this takes the current context - mouse location, used for interactive operations such as dragging & drawing. *
     - execute This runs the operator, assuming values are set by the caller (else use defaults), this is used for undo/redo, and executing operators from Python.
     - draw called to draw options, typically in the tool-bar. Without this, options will draw in the order they are defined. This gives you control over the layout.
     - modal this is used for operators which continuously run, eg: fly mode, knife tool, circle select are all examples of modal operators. Modal operators can handle events which would normally access other operators, they keep running until they return FINISHED.
     - cancel - called when Blender cancels a modal operator, not used often. Internal cleanup can be done here if needed.
-    
+
     * - note, button layouts may set the context of operators to invoke or execute. See: http://www.blender.org/api/blender_python_api_current/bpy.types.UILayout.html?highlight=uilayout#bpy.types.UILayout.operator_context
 
 '''
@@ -95,18 +95,18 @@ class RFMode(Operator):
     bl_label       = "RetopoFlow Mode"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    
+
     rf_icon = None
-    
-    
+
+
     ################################################
     # Blender Operator methods
-    
+
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
         return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
-    
+
     @staticmethod
     @profiler.profile
     def get_polygon_count(obj, check_modifiers=True):
@@ -119,19 +119,19 @@ class RFMode(Operator):
                     # each level of subdivision roughly quadruples the poly count
                     count *= 4 ** mod.levels
         return count
-    
+
     @staticmethod
     @profiler.profile
     def dense_target():
         count = RFMode.get_polygon_count(RFContext.get_target(), check_modifiers=False)
         return count > 5000
-    
+
     @staticmethod
     @profiler.profile
     def dense_sources():
         count = sum((RFMode.get_polygon_count(s) for s in RFContext.get_sources()), 0)
         return count > 100000
-    
+
     @staticmethod
     @profiler.profile
     def large_sources():
@@ -144,7 +144,7 @@ class RFMode(Operator):
         bbox = BBox(from_coords=vs)
         sz = (bbox.max-bbox.min).length_squared
         return sz > 15
-    
+
     def invoke(self, context, event):
         ''' called when the user invokes (calls/runs) our tool '''
         if not still_registered(self):
@@ -154,16 +154,16 @@ class RFMode(Operator):
         self.framework_start(context)
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
-    
+
     def modal(self, context, event):
         return self.framework_modal(context, event)
-    
+
     def check(self, context):
         return True
-    
+
     #############################################
     # initialization method
-    
+
     def __init__(self):
         ''' called once when RFMode plugin is enabled in Blender '''
         #self.cb_pl_handle = load_post.append(self.)
@@ -173,17 +173,17 @@ class RFMode(Operator):
         self.exception_quit = None
         self.prev_mode = None
         print('RFTools: %s' % ' '.join(str(n) for n in RFTool))
-    
-    
+
+
     ###############################################
     # start up and shut down methods
-    
+
     def framework_start(self, context):
         ''' called every time RFMode is started (invoked, executed, etc) '''
         self.exceptions_caught = []
         self.exception_quit = False
         profiler.reset()
-        
+
         # remember current mode and set to object mode so we can control
         # how the target mesh is rendered and so we can push new data
         # into target mesh
@@ -197,10 +197,10 @@ class RFMode(Operator):
             }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
         if self.prev_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
-        
+
         self.area = context.area
         self.context = context
-        
+
         self.context_start()
         self.ui_start()
 
@@ -218,12 +218,12 @@ class RFMode(Operator):
             print_exception()
             err = True
         if err: self.handle_exception(serious=True)
-        
+
         # restore previous mode
         bpy.ops.object.mode_set(mode=self.prev_mode)
-        
+
         stats_report()
-    
+
     def context_start(self):
         @blender_version_wrapper('<','2.80')
         def set_object_layers(o):
@@ -232,14 +232,14 @@ class RFMode(Operator):
         def set_object_layers(o):
             print('unhandled: set_object_layers')
             pass
-        
+
         @blender_version_wrapper('<','2.80')
         def set_object_selection(o, sel):
             o.select = sel
         @blender_version_wrapper('>=','2.80')
         def set_object_selection(o, sel):
             o.select_set('SELECT' if sel else 'DESELECT')
-        
+
         @blender_version_wrapper('<','2.80')
         def link_object(o):
             bpy.context.scene.objects.link(o)
@@ -247,7 +247,7 @@ class RFMode(Operator):
         def link_object(o):
             print('unhandled: link_object')
             pass
-        
+
         @blender_version_wrapper('<','2.80')
         def set_active_object(o):
             bpy.context.scene.objects.active = o
@@ -255,14 +255,14 @@ class RFMode(Operator):
         def set_active_object(o):
             print('unhandled: set_active_object')
             pass
-        
+
         @blender_version_wrapper('<','2.80')
         def get_active_object():
             return bpy.context.scene.objects.active
         @blender_version_wrapper('>=','2.80')
         def get_active_object():
             return bpy.context.active_object
-        
+
         # should we generate new target object?
         if not RFContext.has_valid_target():
             dprint('generating new target')
@@ -276,33 +276,33 @@ class RFMode(Operator):
             link_object(tar_object)
             set_active_object(tar_object)
             set_object_selection(tar_object, True)
-        
+
         tar_object = get_active_object()
-        
+
         # remember selection and unselect all
         self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
         for o in self.selected_objects: set_object_selection(o, False)
-        
+
         starting_tool = self.context_start_tool()
         self.rfctx = RFContext(self, starting_tool)
-    
-    
+
+
     def context_start_tool(self):
         assert False, "Each RFTool should overwrite this!"
-    
+
     def context_end(self):
         if hasattr(self, 'rfctx'):
             self.rfctx.end()
             del self.rfctx
-        
+
         # restore selection
         for o in self.selected_objects: o.select = True
-        
-    
+
+
     def ui_start(self):
         # report something useful to user
         # bpy.context.area.header_text_set('RetopoFlow Mode')
-        
+
         # remember space info and hide all non-renderable items
         RFRecover.save_window_state()
         self.space_info = {}
@@ -318,7 +318,7 @@ class RFMode(Operator):
                         }
                         space.show_only_render = True
                         space.show_manipulator = False
-        
+
         # add callback handlers
         self.cb_pr_handle = SpaceView3D.draw_handler_add(self.draw_callback_preview,   (bpy.context, ), 'WINDOW', 'PRE_VIEW')
         self.cb_pv_handle = SpaceView3D.draw_handler_add(self.draw_callback_postview,  (bpy.context, ), 'WINDOW', 'POST_VIEW')
@@ -356,7 +356,14 @@ class RFMode(Operator):
             for a in self.areas
             ]
         self.tag_redraw_all()
-        
+
+        self.blender_op_context = {
+            'window': bpy.context.window,
+            'area': bpy.context.area,
+            'space_data': bpy.context.space_data,
+            'region': bpy.context.region,
+        }
+
         self.maximize_area = False
         self.rgn_toolshelf = bpy.context.area.regions[1]
         self.rgn_properties = bpy.context.area.regions[3]
@@ -366,38 +373,47 @@ class RFMode(Operator):
         if self.region_overlap:
             if self.show_toolshelf: bpy.ops.view3d.toolshelf()
             if self.show_properties: bpy.ops.view3d.properties()
-        
+
         self.wrap_panels()
-        
+
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
-        
+
         set_cursor('CROSSHAIR')
-        
+
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
-    
+
     def ui_toggle_maximize_area(self):
         bpy.ops.screen.screen_full_area(use_hide_panels=False)
         self.maximize_area = not self.maximize_area
         if not self.region_overlap:
-            if self.maximize_area:
-                if self.show_toolshelf and self.rgn_toolshelf.width > 1: bpy.ops.view3d.toolshelf()
-                if self.show_properties and self.rgn_properties.width > 1: bpy.ops.view3d.properties()
-            else:
-                if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
-                if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
-    
+            pass
+            # ctx_toolshelf = dict(self.blender_op_context)
+            # ctx_properties = dict(self.blender_op_context)
+            # ctx_toolshelf['region'] = ctx_toolshelf['area'].regions[1]
+            # ctx_properties['region'] = ctx_properties['area'].regions[3]
+            # if self.maximize_area:
+            #     if self.show_toolshelf and self.rgn_toolshelf.width > 1:
+            #         bpy.ops.view3d.toolshelf(ctx_toolshelf)
+            #     if self.show_properties and self.rgn_properties.width > 1:
+            #         bpy.ops.view3d.properties(ctx_properties)
+            # else:
+            #     if self.show_toolshelf and self.rgn_toolshelf.width <= 1:
+            #         bpy.ops.view3d.toolshelf(ctx_toolshelf)
+            #     if self.show_properties and self.rgn_properties.width <= 1:
+            #         bpy.ops.view3d.properties(ctx_properties)
+
     def ui_end(self):
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
         #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
-        
+
         if self.rfctx.timer:
             bpy.context.window_manager.event_timer_remove(self.rfctx.timer)
             self.rfctx.timer = None
-        
+
         # remove callback handlers
         if hasattr(self, 'cb_pr_handle'):
             SpaceView3D.draw_handler_remove(self.cb_pr_handle, "WINDOW")
@@ -423,7 +439,7 @@ class RFMode(Operator):
         if hasattr(self, 'cb_pp_all'):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
-        
+
         if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
         if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
         #if self.region_overlap:
@@ -431,33 +447,33 @@ class RFMode(Operator):
         #    if self.show_properties: bpy.ops.view3d.properties()
         if self.maximize_area:
             bpy.ops.screen.screen_full_area(use_hide_panels=False)
-        
+
         set_cursor('DEFAULT')
-       
+
         # restore space info
         for space,data in self.space_info.items():
             for k,v in data.items(): space.__setattr__(k, v)
-        
+
         # remove useful reporting
         self.area.header_text_set()
-        
+
         self.tag_redraw_all()
-    
+
     def tag_redraw(self):
         if bpy.context.area and bpy.context.area.type == 'VIEW_3D': self.area = bpy.context.area
         self.area.tag_redraw()
         self.area.header_text_set('RetopoFlow Mode')
-    
+
     def tag_redraw_all(self):
         for wm in bpy.data.window_managers:
             for win in wm.windows:
                 for ar in win.screen.areas:
                     ar.tag_redraw()
-    
+
     def wrap_panels(self):
         # https://wiki.blender.org/index.php/User%3aIdeasman42/Blender_UI_Shenanigans
         return
-        
+
         classes = ['Panel', 'Menu', 'Header']
         def draw_override(func_orig, self_real, context):
             # print("override draw:", self_real)
@@ -488,10 +504,10 @@ class RFMode(Operator):
                             return poll_override(poll_orig, cls, context)
                         subcls.poll = classmethod(poll)
                     replace_poll()
-                
+
     ####################################################################
     # Draw handler function
-    
+
     def draw_callback_preview(self, context):
         if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
@@ -516,7 +532,7 @@ class RFMode(Operator):
             self.handle_exception()
         #if self.settings.show_help and self.help_box: self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
-    
+
     def draw_callback_cover(self, context):
         if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
@@ -534,11 +550,11 @@ class RFMode(Operator):
         bgl.glEnd()
         bgl.glPopMatrix()
         bgl.glPopAttrib()
-    
-    
+
+
     ####################################################################
     # exception handling method
-    
+
     def handle_exception(self, serious=False):
         #print_exception2()
         errormsg = print_exception()
@@ -559,13 +575,13 @@ class RFMode(Operator):
             showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
             self.ui_end()
-        
+
         self.fsm_mode = 'main'
-    
-    
+
+
     ##################################################################
     # modal method
-    
+
     def framework_modal(self, context, event):
         '''
         Called by Blender while our tool is running modal.
@@ -576,12 +592,12 @@ class RFMode(Operator):
         if not still_registered(self):
             # something bad happened, so bail!
             return {'CANCELLED'}
-        
+
         if self.exception_quit:
             # something bad happened, so bail!
             self.framework_end()
             return {'CANCELLED'}
-        
+
         if profiler.broken:
             # something bad happened, so bail!
             self.rfctx.alert_user(title='Broken Profiler', message='The profiler is in an unexpected state.', level='exception')
@@ -599,24 +615,24 @@ class RFMode(Operator):
         #     #dprint(context)
         #     #dprint(context.space_data)
         #     return {'RUNNING_MODAL'}
-        
+
         profiler.printfile()
 
         # TODO: can we not redraw only when necessary?
         self.tag_redraw()
         #context.area.tag_redraw()       # force redraw
-        
+
         try:
             ret = self.rfctx.modal(context, event) or {}
         except:
             self.handle_exception()
             return {'RUNNING_MODAL'}
-        
+
         if 'pass' in ret:
             # pass navigation events (mouse,keyboard,etc.) on to region
             return {'PASS_THROUGH'}
-        
-        
+
+
         if 'confirm' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
@@ -624,15 +640,15 @@ class RFMode(Operator):
             self.rfctx.commit()
             self.framework_end()
             return {'FINISHED'}
-        
+
         if 'edit mode' in ret:
             # commit the operator
             # (e.g., create the mesh from internal data structure)
             self.rfctx.commit()
             self.framework_end()
             return {'FINISHED'}
-            
-        
+
+
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
 
 

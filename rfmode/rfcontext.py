@@ -394,11 +394,18 @@ class RFContext(RFContext_Actions, RFContext_Drawing, RFContext_UI, RFContext_Sp
                 bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
                 self.time_to_save = auto_save_time
 
-        ret = self.window_manager.modal(context, event)
-        if ret and 'hover' in ret:
-            self.rfwidget.clear()
-            if self.exit: return {'confirm'}
-            return {}
+        try:
+            ret = self.window_manager.modal(context, event)
+            if ret and 'hover' in ret:
+                self.rfwidget.clear()
+                if self.exit: return {'confirm'}
+                return {}
+        except Exception as e:
+            message,h = get_exception_info_and_hash()
+            print(message)
+            message = '\n'.join('- %s'%l for l in message.splitlines())
+            self.alert_user(message=message, level='exception', msghash=h)
+            #raise e
         
         if self.window_manager.has_focus(): return {}
         
