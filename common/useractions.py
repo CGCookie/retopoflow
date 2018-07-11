@@ -67,6 +67,12 @@ class Actions:
         'TRACKPADPAN','TRACKPADZOOM'
     }
     
+    modifier_actions = {
+        'OSKEY',
+        'LEFT_CTRL', 'LEFT_SHIFT', 'LEFT_ALT',
+        'RIGHT_CTRL', 'RIGHT_SHIFT', 'RIGHT_ALT',
+    }
+    
     navigation_events = {
         'Rotate View': 'view3d.rotate',
         'Move View': 'view3d.move',
@@ -188,7 +194,7 @@ class Actions:
 
         t,pressed = event.type, event.value=='PRESS'
 
-        if t in {'OSKEY','LEFT_CTRL','LEFT_SHIFT','LEFT_ALT','RIGHT_CTRL','RIGHT_SHIFT','RIGHT_ALT'}:
+        if t in self.modifier_actions:
             if t == 'OSKEY':
                 self.oskey = pressed
             else:
