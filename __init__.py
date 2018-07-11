@@ -31,63 +31,68 @@ bl_info = {
     "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
-    }
-
-# System imports
-#None!!
+}
 
 # Blender imports
 import bpy
-
-from .options import options
-
-#Menus, Panels, Interface and Icons
-from .interface import CGCOOKIE_OT_retopoflow2_panel, CGCOOKIE_OT_retopoflow1_panel, CGCOOKIE_OT_retopoflow_menu
-from .preferences import RetopoFlowPreferences
-
-from .icons import clear_icons
 import bpy.utils.previews
 
-#Tools
-from .rfmode.rfmode import RFMode, rfmode_tools
-from .rfmode.rf_recover import RFRecover, RFRecover_Clear
-from .rfmode.rf_quickstart import OpenQuickStart
-from .rfmode.rf_openlog import OpenLog
-from .rfmode.rf_webissues import OpenWebIssues
-from .rfmode.rf_webtip import OpenWebTip
+try:
+    from .common.debug import debugger
+    from .common.profiler import profiler
+    from .common.logger import logger
 
-from .cookiecutter.test import CookieCutter_Test
+    from .options import options
 
-# updater import
-from . import addon_updater_ops
+    #Menus, Panels, Interface and Icons
+    from .interface import CGCOOKIE_OT_retopoflow2_panel
+    from .interface import CGCOOKIE_OT_retopoflow_menu
+    from .interface import RFPreferences
+
+    from .icons import clear_icons
+
+    #Tools
+    from .rfmode.rfmode import RFMode, rfmode_tools
+    from .rfmode.rf_recover import RFRecover, RFRecover_Clear
+    from .rfmode.rf_quickstart import OpenQuickStart
+    from .rfmode.rf_openlog import OpenLog
+    from .rfmode.rf_webissues import OpenWebIssues
+    from .rfmode.rf_webtip import OpenWebTip
+
+    from .cookiecutter.test import CookieCutter_Test
+
+    # updater import
+    from . import addon_updater_ops
+except Exception as e:
+    raise e
+
 
 # Used to store keymaps for addon
 addon_keymaps = []
 
+register_classes = [
+    RFPreferences,
+    RFRecover,
+    RFRecover_Clear,
+    CGCOOKIE_OT_retopoflow2_panel,
+    CGCOOKIE_OT_retopoflow_menu,
+    OpenLog,
+    OpenQuickStart,
+    OpenWebIssues,
+    OpenWebTip,
+    CookieCutter_Test,
+]
+register_classes += [rft for (idname, rft) in rfmode_tools.items()]
+
 def register():
-    bpy.utils.register_class(RetopoFlowPreferences)
+    global register_classes, addon_keymaps
 
-    for idname,rft in rfmode_tools.items():
-        # print('registering '+idname)
-        bpy.utils.register_class(rft)
-
-    bpy.utils.register_class(RFRecover)
-    bpy.utils.register_class(RFRecover_Clear)
-
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow2_panel)
-    bpy.utils.register_class(CGCOOKIE_OT_retopoflow_menu)
-
-    bpy.utils.register_class(OpenLog)
-    bpy.utils.register_class(OpenQuickStart)
-    bpy.utils.register_class(OpenWebIssues)
-    bpy.utils.register_class(OpenWebTip)
-    
-    bpy.utils.register_class(CookieCutter_Test)
+    # register all of the classes
+    for c in register_classes:
+        bpy.utils.register_class(c)
 
     # Create the add-on hotkeys
     kc = bpy.context.window_manager.keyconfigs.addon
-
-    # Create the retopology menu hotkey
     km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
     kmi = km.keymap_items.new('wm.call_menu', 'V', 'PRESS', ctrl=True, shift=True)
     kmi.properties.name = 'object.retopology_menu'
@@ -98,29 +103,19 @@ def register():
     addon_updater_ops.register(bl_info)
 
 def unregister():
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow_menu)
-    bpy.utils.unregister_class(CGCOOKIE_OT_retopoflow2_panel)
+    global register_classes, addon_keymaps
 
-    bpy.utils.unregister_class(RFRecover_Clear)
-    bpy.utils.unregister_class(RFRecover)
+    clear_icons()
 
-    for rft in rfmode_tools.values():
-        bpy.utils.unregister_class(rft)
-
-    bpy.utils.unregister_class(RetopoFlowPreferences)
+    # unregister all of the classes in reverse order
+    for c in reverse(register_classes):
+        bpy.utils.unregister_class(c)
 
     # addon updater unregister
     addon_updater_ops.unregister()
 
-    clear_icons()
-
-    bpy.utils.unregister_class(OpenLog)
-    bpy.utils.unregister_class(OpenQuickStart)
-    bpy.utils.unregister_class(OpenWebIssues)
-    bpy.utils.unregister_class(OpenWebTip)
-
     # Remove add-on hotkeys
-    for km,kmi in addon_keymaps:
+    for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
