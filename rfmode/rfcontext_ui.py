@@ -27,8 +27,9 @@ import json
 import math
 import time
 import urllib
-
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+
 from mathutils import Vector
 
 from .rftool import RFTool
@@ -287,6 +288,7 @@ class RFContext_UI:
             msg_report += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
             msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
             msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
+            msg_report += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
             if msghash:
                 msg_report += ['\n\nError Hash: %s' % (str(msghash),)]
             if message_orig:
