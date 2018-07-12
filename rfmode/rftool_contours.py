@@ -52,11 +52,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
         self.FSM['rotate'] = self.modal_rotate
-    
+
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
     def description(self): return 'Contours'
-    
+
     def helptext(self): return help_contours
     def get_label(self): return 'Contours (%s)' % ','.join(default_rf_keymaps['contours tool'])
     def get_tooltip(self): return 'Contours (%s)' % ','.join(default_rf_keymaps['contours tool'])
@@ -72,7 +72,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.cut_pts = []
         self.connected = False
         self.cuts = []
-    
+
     def get_count(self): return options['contours count']
     def set_count(self, v): options['contours count'] = max(3, int(v))
     def get_ui_options(self):
@@ -87,36 +87,36 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
         container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)', margin=0))
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)', margin=0))
-        
+
         self.ui_count = UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
         return [
             self.ui_count,
             container,
             ]
-    
+
     def get_ui_icon(self):
         self.ui_icon = UI_Image('contours_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
-    
+
     def update(self):
         sel_edges = self.rfcontext.get_selected_edges()
         #sel_faces = self.rfcontext.get_selected_faces()
-        
+
         # find verts along selected loops and strings
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges)
-        
+
         # filter out any loops or strings that are in the middle of a selected patch
         def in_middle(bmvs, is_loop):
             return any(len(bmv0.shared_edge(bmv1).link_faces) > 1 for bmv0,bmv1 in iter_pairs(bmvs, is_loop))
         sel_loops = [loop for loop in sel_loops if not in_middle(loop, True)]
         sel_strings = [string for string in sel_strings if not in_middle(string, False)]
-        
+
         # filter out long loops that wrap around patches, sharing edges with other strings
         bmes = {bmv0.shared_edge(bmv1) for string in sel_strings for bmv0,bmv1 in iter_pairs(string,False)}
         sel_loops = [loop for loop in sel_loops if not any(bmv0.shared_edge(bmv1) in bmes for bmv0,bmv1 in iter_pairs(loop,True))]
-        
+
         symmetry = self.rfcontext.rftarget.symmetry
         symmetry_threshold = 0.01
         def get_string_length(string):
@@ -139,7 +139,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                     touches_mirror = True
             if not touches_mirror: c -= 1
             return c
-        
+
         self.loops_data = [{
             'loop': loop,
             'plane': loop_plane(loop),
@@ -160,7 +160,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
-            
+
             self.rfcontext.undo_push('select smart')
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge:
@@ -169,7 +169,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
             return
-        
+
         if self.rfcontext.actions.pressed('action'):
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge:
@@ -187,7 +187,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 self.mousedown = self.rfcontext.actions.mouse
                 return 'selectadd/deselect'
             return 'select'
-        
+
         if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
@@ -196,23 +196,23 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.rfcontext.actions.pressed('grab'):
             ''' grab for translations '''
             return self.prep_move()
-        
+
         if self.rfcontext.actions.pressed('shift'):
             ''' rotation of loops '''
             return self.prep_shift()
-        
+
         if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
 
         if self.rfcontext.actions.pressed('increase count'):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1)
             return
-        
+
         if self.rfcontext.actions.pressed('decrease count'):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
             return
-    
+
     @profiler.profile
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
@@ -237,7 +237,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         if not sel_loops: return
-        
+
         self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
         self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
         self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
@@ -245,7 +245,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
         self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
         self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
-        
+
         self.move_cuts = []
         for cloop in self.move_cloops:
             xy = self.rfcontext.Point_to_Point2D(cloop.plane.o)
@@ -263,17 +263,17 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             cl_cut = Contours_Loop(crawl_pts, connected)
             cl_cut.align_to(cloop)
             self.move_cuts += [cl_cut]
-        
+
         self.rfcontext.undo_push('shift contours')
-        
+
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
         self.move_done_pressed = 'confirm'
         self.move_done_released = None
         self.move_cancelled = 'cancel'
-        
+
         return 'shift'
-    
+
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_shift(self):
@@ -284,15 +284,15 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-        
+
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
         if self.move_prevmouse == self.rfcontext.actions.mouse: return
         self.move_prevmouse = self.rfcontext.actions.mouse
-        
+
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         shift_offset = self.rfcontext.drawing.unscale(delta.x) / 100
-        
+
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
             cloop  = self.move_cloops[i_cloop]
@@ -302,7 +302,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             dists  = self.move_dists[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
-            
+
             lc = cl_cut.circumference
             shft = (cl_cut.offset + shift_offset * lc) % lc
             ndists = [shft] + [0.999 * lc * (d/circumference) for d in dists]
@@ -320,7 +320,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                     dist += ndists[i]
                 dist -= d
                 if i == l: break
-            
+
             self.rfcontext.update_verts_faces(verts)
 
     def prep_move(self, after_action=False):
@@ -328,7 +328,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         if not sel_loops and not sel_strings: return
-        
+
         # prefer to move loops over strings
         if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
         else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
@@ -338,9 +338,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
         self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
         self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
-        
+
         self.rfcontext.undo_push('move contours')
-        
+
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
         if after_action:
@@ -350,9 +350,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
         self.move_cancelled = 'cancel'
-        
+
         return 'move'
-    
+
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_move(self):
@@ -363,14 +363,14 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-        
+
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
         if self.move_prevmouse == self.rfcontext.actions.mouse: return
         self.move_prevmouse = self.rfcontext.actions.mouse
-        
+
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        
+
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
             cloop  = self.move_cloops[i_cloop]
@@ -380,7 +380,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             origin = self.move_origins[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
-            
+
             depth = self.rfcontext.Point_to_depth(origin)
             origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
             origin_new = self.rfcontext.Point2D_to_Point(origin2D_new, depth)
@@ -393,7 +393,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
             if not crawl_pts or connected != cloop.connected: continue
             cl_cut = Contours_Loop(crawl_pts, connected)
-            
+
             cl_cut.align_to(cloop)
             lc = cl_cut.circumference
             ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
@@ -411,7 +411,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                     dist += ndists[i]
                 dist -= d
                 if i == l: break
-            
+
             self.rfcontext.update_verts_faces(verts)
 
     def prep_rotate(self):
@@ -419,7 +419,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         if not sel_loops and not sel_strings: return
-        
+
         # prefer to move loops over strings
         if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
         else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
@@ -429,21 +429,21 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
         self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
         self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
-        
+
         self.rfcontext.undo_push('rotate contours')
-        
+
         self.mousedown = self.rfcontext.actions.mouse
-        
+
         self.rotate_about = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
         self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
-        
+
         self.move_prevmouse = None
         self.move_done_pressed = 'confirm'
         self.move_done_released = None
         self.move_cancelled = 'cancel'
-        
+
         return 'rotate'
-    
+
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_rotate(self):
@@ -454,15 +454,15 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-        
+
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
         if self.move_prevmouse == self.rfcontext.actions.mouse: return
         self.move_prevmouse = self.rfcontext.actions.mouse
-        
+
         delta = Vec2D(self.rfcontext.actions.mouse - self.rotate_about)
         rotate = (math.atan2(delta.y, delta.x) - self.rotate_start + math.pi) % (math.pi * 2)
-        
+
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
             cloop  = self.move_cloops[i_cloop]
@@ -472,7 +472,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             origin = self.move_origins[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
-            
+
             origin2D = self.rfcontext.Point_to_Point2D(origin)
             ray = self.rfcontext.Point_to_Ray(origin)
             rmat = Matrix.Rotation(rotate, 4, -ray.d)
@@ -486,7 +486,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
             if not crawl_pts or connected != cloop.connected: continue
             cl_cut = Contours_Loop(crawl_pts, connected)
-            
+
             cl_cut.align_to(cloop)
             lc = cl_cut.circumference
             ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
@@ -505,19 +505,19 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                     dist += ndists[i]
                 dist -= d
                 if i == l: break
-            
+
             self.rfcontext.update_verts_faces(verts)
 
     def draw_postview(self):
         if self.show_cut:
             self.drawing.line_width(1.0)
-            
+
             bgl.glBegin(bgl.GL_LINES)
             bgl.glColor4f(1,1,0,1)
             for pt0,pt1 in iter_pairs(self.pts, self.connected):
                 bgl.glVertex3f(*pt0)
                 bgl.glVertex3f(*pt1)
-            
+
             bgl.glColor4f(0,1,1,1)
             for pt0,pt1 in iter_pairs(self.cut_pts, self.connected):
                 bgl.glVertex3f(*pt0)
@@ -530,7 +530,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
         self.rfcontext.drawing.text_size(12)
-        
+
         bmv_count = {}
 
         for loop_data in self.loops_data:
@@ -539,7 +539,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             count = loop_data['count']
             plane = loop_data['plane']
             cl = loop_data['cl']
-            
+
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in loop]
             if any(cos):
@@ -565,7 +565,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             string = string_data['string']
             count = string_data['count']
             plane = string_data['plane']
-            
+
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in string]
             if any(cos):
@@ -573,7 +573,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count: bmv_count[bmv] = []
                 bmv_count[bmv].append( (count, False) )
-            
+
             # draw arrows
             if self.show_arrows:
                 p0 = point_to_point2d(plane.o)
@@ -585,7 +585,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
-        
+
         for bmv in bmv_count.keys():
             counts = bmv_count[bmv]
             counts = sorted([c for c,_ in counts])
@@ -593,7 +593,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             xy = point_to_point2d(bmv.co)
             xy.y += 10
             text_draw2D(s, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
-        
+
         # draw new cut info
         if self.show_cut:
             for cl in self.cuts:
@@ -608,7 +608,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
-        
+
         if self.mode == 'rotate':
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(1,1,1,0.5)
