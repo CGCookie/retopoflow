@@ -25,6 +25,10 @@ import copy
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.ops import (
+    bisect_plane, holes_fill,
+    dissolve_verts, dissolve_edges, dissolve_faces
+)
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
@@ -214,7 +218,7 @@ class RFMesh():
             list(self.bme.edges) +
             list(self.bme.faces)
         )
-        bmesh.ops.bisect_plane(
+        bisect_plane(
             self.bme,
             geom=geom, dist=dist,
             plane_co=plane_local.o, plane_no=plane_local.n,
