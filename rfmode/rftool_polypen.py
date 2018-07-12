@@ -330,8 +330,10 @@ class RFTool_PolyPen(RFTool):
                 bmv2,bmv3 = bmv3,bmv2
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             # select all boundary edges that share vertex with e1
-            self.rfcontext.select([e for e in bmv2.link_edges + bmv3.link_edges if e.is_boundary and not e.share_face(e1)], subparts=False)
-            #self.rfcontext.select([bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3)], subparts=False)
+            bmes = [e for e in bmv2.link_edges + bmv3.link_edges if e.is_boundary and not e.share_face(e1)]
+            if not bmes:
+                bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3)]
+            self.rfcontext.select(bmes, subparts=False)
             return 'main'
 
         if self.next_state == 'tri-quad':
