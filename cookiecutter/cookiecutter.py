@@ -56,6 +56,9 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
     bl_label = "CookieCutter Unnamed"
     default_keymap = {}
     
+    @classmethod
+    def can_start(cls, context): return True
+    
     def start(self): pass
     def update(self): pass
     def end_commit(self): pass
@@ -66,14 +69,16 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
     
     @classmethod
     def poll(cls, context):
-        return True
+        return cls.can_start(context)
     
     def invoke(self, context, event):
         self._nav = False
         self._done = False
+        self.context = context
+        
         self.fsm_init()
-        self.ui_init(context)
-        self.actions_init(context)
+        self.ui_init()
+        self.actions_init()
         
         try:
             self.start()
@@ -84,15 +89,18 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
         
         self.ui_start()
         
-        context.window_manager.modal_handler_add(self)
+        self.context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
     
     def done(self, cancel=False):
         self._done = 'commit' if not cancel else 'cancel'
     
     def modal(self, context, event):
+        self.context = context
+        self.event = event
+        
         if self._done:
-            self.actions_end(context)
+            self.actions_end()
             self.ui_end()
             try:
                 if self._done == 'commit':
@@ -112,9 +120,9 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
         
         ret = None
         
-        self.actions_update(context, event)
+        self.actions_update()
         
-        if self.ui_update(context, event): ret = {'RUNNING_MODAL'}
+        if self.ui_update(): ret = {'RUNNING_MODAL'}
         
         # allow window actions to pass through to Blender
         if self.actions.using('window actions'): ret = {'PASS_THROUGH'}
@@ -141,13 +149,15 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
         self.fsm_update()
         return {'RUNNING_MODAL'}
 
-    def actions_init(self, context):
-        self.actions = Actions(context, self.default_keymap)
-        self._timer = context.window_manager.event_timer_add(1.0 / 120, context.window)
-    def actions_update(self, context, event):
-        self.actions.update(context, event, self._timer, print_actions=False)
-    def actions_end(self, context):
-        context.window_manager.event_timer_remove(self._timer)
+    def actions_init(self):
+        self.actions = Actions(self.context, self.default_keymap)
+        self._timer = self.context.window_manager.event_timer_add(1.0 / 120, self.context.window)
+    
+    def actions_update(self):
+        self.actions.update(self.context, self.event, self._timer, print_actions=False)
+    
+    def actions_end(self):
+        self.context.window_manager.event_timer_remove(self._timer)
         del self._timer
 
 

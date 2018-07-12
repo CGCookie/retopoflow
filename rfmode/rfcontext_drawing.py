@@ -124,6 +124,7 @@ class RFContext_Drawing:
         m = self.actions.r3d.view_matrix
         return [v for r in m for v in r] + [self.actions.space.lens]
 
+    @profiler.profile
     def draw_postpixel(self):
         if not self.actions.r3d: return
 
@@ -140,6 +141,8 @@ class RFContext_Drawing:
             if options['low fps warn']: self.show_lowfps_warning()
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -169,11 +172,13 @@ class RFContext_Drawing:
             self.alert_user(message=message, level='exception', msghash=h)
             #raise e
 
-
+    @profiler.profile
     def draw_preview(self):
         if not self.actions.r3d: return
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
@@ -214,6 +219,8 @@ class RFContext_Drawing:
         view_forward = self.actions.r3d.view_rotation * Vector((0,0,-1))
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
