@@ -66,6 +66,16 @@ class Actions:
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
 
+    ignore_actions = {}
+
+    timer_actions = {
+        'TIMER'
+    }
+
+    mousemove_actions = {
+        'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'
+    }
+
     trackpad_actions = {
         'TRACKPADPAN','TRACKPADZOOM'
     }
@@ -117,9 +127,11 @@ class Actions:
 
     def __init__(self, context, keymap):
         self.keymap = deepcopy(keymap)
-        for k in self.keymap:
-            if type(self.keymap[k]) is set: continue
-            self.keymap[k] = {self.keymap[k]}
+        for k, v in self.keymap.items():
+            t = type(v)
+            if t is set: continue
+            if t is list: self.keymap[k] = set(v)
+            else: self.keymap[k] = {self.keymap[k]}
         self.keymap['navigate'] = set()         # filled in below
         self.keymap['window actions'] = set()   # filled in by load_keymap
 
@@ -141,6 +153,8 @@ class Actions:
 
         self.mouse = None
         self.mouse_prev = None
+        self.mousemove = False
+        self.mousemove_prev = False
         self.mousedown = None
         self.mousedown_left = None
         self.mousedown_middle = None
@@ -185,17 +199,29 @@ class Actions:
         #     #dprint(context.space_data)
         #     return {'RUNNING_MODAL'}
 
-        self.timer = (event.type in {'TIMER'})
+        t,pressed = event.type, event.value=='PRESS'
+
+        self.mousemove_prev = self.mousemove
+        self.timer = (t in Actions.timer_actions)
+        self.mousemove = (t in Actions.mousemove_actions)
+        self.trackpad = (t in Actions.trackpad_actions)
+        self.ndof = (t in Actions.ndof_actions)
+
+        if t in self.ignore_actions: return
+
+        if print_actions:
+            if t not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'TIMER'}:
+                print((event.type, event.value))
+
         if self.timer:
             self.time_delta = timer.time_delta
             self.trackpad = False
             return
 
-        if print_actions:
-            if event.type not in {'MOUSEMOVE','INBETWEEN_MOUSEMOVE'}:
-                print((event.type, event.value))
-
-        t,pressed = event.type, event.value=='PRESS'
+        if self.mousemove:
+            self.mouse_prev = self.mouse
+            self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+            return
 
         if t in self.modifier_actions:
             if t == 'OSKEY':
@@ -215,14 +241,6 @@ class Actions:
                     if l: self.alt_left = pressed
                     else: self.alt_right = pressed
             return
-
-        if t in {'MOUSEMOVE','INBETWEEN_MOUSEMOVE'}:
-            self.mouse_prev = self.mouse
-            self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
-            return
-
-        self.trackpad = (t in Actions.trackpad_actions)
-        self.ndof = (t in Actions.ndof_actions)
 
         if pressed and t in {'LEFTMOUSE','MIDDLEMOUSE','RIGHTMOUSE'}:
             self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))

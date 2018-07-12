@@ -44,9 +44,9 @@ class CookieCutter_UI:
             run.drawmode = self.mode
             return run
     
-    def ui_init(self, context):
-        self._area = context.area
-        self._space = context.space_data
+    def ui_init(self):
+        self._area = self.context.area
+        self._space = self.context.space_data
         self.wm = UI_WindowManager()
         fns = {'pre3d':[], 'post3d':[], 'post2d':[]}
         for m,fn in self.find_fns('drawmode'): fns[m].append(fn)
@@ -80,9 +80,9 @@ class CookieCutter_UI:
         self._handle_postpixel = self._space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
         self._area.tag_redraw()
     
-    def ui_update(self, context, event):
+    def ui_update(self):
         self._area.tag_redraw()
-        ret = self.wm.modal(context, event)
+        ret = self.wm.modal(self.context, self.event)
         if self.wm.has_focus(): return True
         if ret and 'hover' in ret: return True
         return False
@@ -93,3 +93,14 @@ class CookieCutter_UI:
         self._space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
         self._area.tag_redraw()
     
+    ####################################################################
+    # common Blender UI functions
+    
+    def header_text_set(self, s=None):
+        self.context.area.header_text_set(s)
+    
+    def cursor_modal_set(self, v):
+        self.context.window.cursor_modal_set(v)
+    
+    def cursor_modal_restore(self):
+        self.context.window.cursor_modal_restore()

@@ -124,6 +124,7 @@ class RFContext_Drawing:
         m = self.actions.r3d.view_matrix
         return [v for r in m for v in r] + [self.actions.space.lens]
 
+    @profiler.profile
     def draw_postpixel(self):
         if not self.actions.r3d: return
 
@@ -163,7 +164,7 @@ class RFContext_Drawing:
             self.alert_user(message=message, level='exception', msghash=h)
             #raise e
 
-
+    @profiler.profile
     def draw_preview(self):
         if not self.actions.r3d: return
 

@@ -38,6 +38,7 @@ from mathutils import Matrix
 
 from .decorators import blender_version_wrapper
 from .maths import Point2D, Vec2D, clamp, mid
+from .profiler import profiler
 
 from ..ext import png
 
@@ -358,6 +359,7 @@ class UI_Element:
         if y > t or y <= t - h: return None
         return self
     
+    @profiler.profile
     def draw(self, left, top, width, height):
         if not self.visible: return
         m = self.drawing.scale(self.margin)
@@ -428,6 +430,7 @@ class UI_Label(UI_Element):
     def _get_height(self): return self.text_height
     def _get_tooltip(self, mouse): return self.tooltip
     
+    @profiler.profile
     def _draw(self):
         self.drawing.text_size(self.textsize)
         l,t = self.pos
@@ -521,6 +524,7 @@ class UI_WrappedLabel(UI_Element):
     def _get_width(self): return max(self.wrapped_size.x, self.drawing.scale(self.min_size.x))
     def _get_height(self): return self.wrapped_size.y
     
+    @profiler.profile
     def _draw(self):
         l,t = self.pos
         w,h = self.size
@@ -556,6 +560,8 @@ class UI_Rule(UI_Element):
         self.padding = padding
     def _get_width(self): return self.drawing.scale(self.padding*2 + 1)
     def _get_height(self): return self.drawing.scale(self.padding*2 + self.thickness)
+
+    @profiler.profile
     def _draw(self):
         left,top = self.pos
         width,height = self.size
@@ -599,6 +605,7 @@ class UI_Container(UI_Element):
         fn = sum if self.vertical else max
         return fn(ui.get_height() for ui in self.ui_items)
     
+    @profiler.profile
     def _draw(self):
         l,t_ = self.pos
         w,h = self.size
@@ -660,6 +667,7 @@ class UI_EqualContainer(UI_Container):
     def __init__(self, vertical=True, margin=4):
         super().__init__(vertical=vertical, margin=margin)
     
+    @profiler.profile
     def _draw(self):
         if len(self.ui_items) == 0: return
         l,t = self.pos
@@ -712,6 +720,7 @@ class UI_TableContainer(UI_Element):
     def _get_height(self):
         return sum(self.get_row_height(r) for r in range(self.nrows))
     
+    @profiler.profile
     def _draw(self):
         l,t_ = self.pos
         w,h = self.size
@@ -880,6 +889,7 @@ class UI_Button(UI_Container):
     
     def mouse_cursor(self): return 'DEFAULT'
     
+    @profiler.profile
     def _draw(self):
         l,t = self.pos
         w,h = self.size
@@ -952,6 +962,7 @@ class UI_Options(UI_EqualContainer):
         def _hover_ui(self, mouse):
             return self if super()._hover_ui(mouse) else None
         
+        @profiler.profile
         def _draw(self):
             selected = self.options.fn_get_option()
             is_selected = self.value == selected
@@ -988,6 +999,7 @@ class UI_Options(UI_EqualContainer):
         if ui is None or ui == self: return
         self.set_option(self.options[ui])
     
+    @profiler.profile
     def _draw(self):
         l,t = self.pos
         w,h = self.size
@@ -1059,6 +1071,7 @@ class UI_Image(UI_Element):
     def set_height(self, h): self.height,self.size_set = h,True
     def set_size(self, w, h): self.width,self.height,self.size_set = w,h,True
     
+    @profiler.profile
     def _draw(self):
         self.buffer_image()
         if not self.buffered: return
@@ -1092,6 +1105,7 @@ class UI_Graphic(UI_Element):
     def _get_width(self): return self.drawing.scale(self.width)
     def _get_height(self): return self.drawing.scale(self.height)
     
+    @profiler.profile
     def _draw(self):
         cx = self.pos.x + self.size.x / 2
         cy = self.pos.y - self.size.y / 2
@@ -1207,6 +1221,7 @@ class UI_Checkbox2(UI_Container):
         return self if super()._hover_ui(mouse) else None
     def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
     
+    @profiler.profile
     def _draw(self):
         l,t = self.pos
         w,h = self.size
@@ -1300,6 +1315,7 @@ class UI_IntValue(UI_Container):
         else:
             self.val.cursor_pos = self.val_pos
     
+    @profiler.profile
     def _draw(self):
         r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
         l,t = self.pos
@@ -1446,6 +1462,7 @@ class UI_UpdateValue(UI_Container):
         else:
             self.val.cursor_pos = self.val_pos
     
+    @profiler.profile
     def _draw(self):
         r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
         l,t = self.pos
@@ -1562,6 +1579,7 @@ class UI_HBFContainer(UI_Container):
     def _get_width(self): return max((c.get_width() for c in self.ui_items if c.ui_items), default=0)
     def _get_height(self): return sum((c.get_height() for c in self.ui_items if c.ui_items), 0)
     
+    @profiler.profile
     def _draw(self):
         l,t = self.pos
         w,h = self.size
@@ -1679,6 +1697,7 @@ class UI_Padding(UI_Element):
     def _get_height(self):
         return self.drawing.scale(self.padding*2) + (0 if not self.ui_item else self.ui_item.get_height())
     
+    @profiler.profile
     def _draw(self):
         if not self.ui_item: return
         p = self.padding
