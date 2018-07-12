@@ -866,6 +866,7 @@ class RFMesh():
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
+            if len(pts) < 3: continue
             pt0 = pts[0]
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
                 if intersect_point_tri(xy, pt0, pt1, pt2):
