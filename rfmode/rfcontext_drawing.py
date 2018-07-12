@@ -144,11 +144,19 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         try:
+            pr = profiler.start('tool draw postpixel')
             self.tool.draw_postpixel()
+            pr.done()
+
+            pr = profiler.start('widget draw postpixel')
             self.rfwidget.draw_postpixel()
+            pr.done()
+
+            pr = profiler.start('window manager draw postpixel')
             self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
             self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
             self.window_manager.draw_postpixel()
+            pr.done()
         except AssertionError as e:
             message,h = debugger.get_exception_info_and_hash()
             print(message)
