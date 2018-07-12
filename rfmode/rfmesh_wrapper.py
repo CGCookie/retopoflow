@@ -246,6 +246,10 @@ class RFEdge(BMElemWrapper):
             return None
         return RFVert(verts[0])
 
+    def share_face(self, bme):
+        bme = self._unwrap(bme)
+        return any(f in bme.link_faces for f in self.bmelem.link_faces)
+
     def shared_faces(self, bme):
         bme = self._unwrap(bme)
         return {
