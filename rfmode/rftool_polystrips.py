@@ -159,6 +159,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             
             def add_strip(bme):
                 strip = crawl_strip(bmf0, bme, bmquads, junctions)
+                if not strip:
+                    return
                 bmf1 = strip[-1]
                 if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
                     touched.add(hash_face_pair(bmf0,bmf1))
