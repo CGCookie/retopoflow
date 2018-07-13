@@ -20,15 +20,22 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
-import bgl
 import random
+
+import bgl
 from mathutils import Matrix, Vector
+
 from ..common.maths import Vec, Point, Point2D, Direction
+
+from .rfwidget_registry import RFWidget_Registry
 
 
 class RFWidget_BrushFalloff:
+    rfwidget_name = 'brush falloff'
+
     ###################
     # radius
+
     def radius_to_dist(self):
         return self.radius
 
@@ -78,6 +85,7 @@ class RFWidget_BrushFalloff:
     ##################
     # modal functions
 
+    @RFWidget_Registry.Register_FSM_State('brush falloff', 'main')
     def brushfalloff_modal_main(self):
         if self.rfcontext.actions.pressed('brush radius'):
             self.setup_change(self.radius_to_dist, self.dist_to_radius)
@@ -89,11 +97,13 @@ class RFWidget_BrushFalloff:
             self.setup_change(self.falloff_to_dist, self.dist_to_falloff)
             return 'change'
 
+    @RFWidget_Registry.Register_Callback('brush falloff', 'mouse cursor')
     def brushfalloff_mouse_cursor(self):
         if self.mode == 'main':
             return 'NONE' if self.hit else 'CROSSHAIR'
         return 'MOVE_X'
 
+    @RFWidget_Registry.Register_Callback('brush falloff', 'draw post3d')
     def brushfalloff_postview(self):
         if self.mode != 'main': return
         if not self.hit: return
@@ -194,6 +204,7 @@ class RFWidget_BrushFalloff:
 
         bgl.glDepthRange(0, 1)
 
+    @RFWidget_Registry.Register_Callback('brush falloff', 'draw post2d')
     def brushfalloff_postpixel(self):
         if self.mode == 'main': return
 

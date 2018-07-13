@@ -29,27 +29,29 @@ from ..common.maths import Vec, Vec2D, Point, Point2D, Direction
 from ..common.ui import Drawing
 from ..options import options
 
+from .rfwidget_registry import RFWidget_Registry
 from .rfwidget_default import RFWidget_Default
 from .rfwidget_move import RFWidget_Move
 from .rfwidget_brushfalloff import RFWidget_BrushFalloff
 from .rfwidget_brushstroke import RFWidget_BrushStroke
 from .rfwidget_line import RFWidget_Line
+from .rfwidget_rotate import RFWidget_Rotate
 
 
-class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line):
+class RFWidget(RFWidget_Registry, RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line, RFWidget_Rotate):
     instance = None
     rfcontext = None
-    
+
     points = [(math.cos(d*math.pi/180.0),math.sin(d*math.pi/180.0)) for d in range(0,361,10)]
     ox = Direction((1,0,0))
     oy = Direction((0,1,0))
     oz = Direction((0,0,1))
-    
+
     # brushfalloff properties
     radius = 50.0
     falloff = 1.5
     strength = 0.5
-    
+
     # brushstroke properties
     size = 20.0
     tightness = 0.95
@@ -57,13 +59,13 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
     stroke2D_left = []
     stroke2D_right = []
     stroke_callback = None
-    
+
     # line properties
     line2D = []
     line_callback = None
-    
+
     scale = 0.0
-    
+
     @staticmethod
     def new(rfcontext):
         RFWidget.rfcontext = rfcontext
@@ -74,10 +76,11 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             del RFWidget.creating
         RFWidget.instance.reset()
         return RFWidget.instance
-    
+
     def __init__(self):
         assert hasattr(RFWidget, 'creating'), 'Do not create new RFWidget directly!  Use RFWidget.new()'
-        
+        self.registry_init()
+
         self.widgets = {
             'default': {
                 'postview':     self.default_postview,
@@ -116,20 +119,20 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             'line':     self.modal_line,
             'change':   self.modal_change,
         }
-        
-        self.view = 'brush falloff'
+
+        self.view = 'default'
         self.color = (1,1,1)
-        
+
         self.change_var = None
         self.change_fn = None
-        
+
         self.reset()
-    
+
     def reset(self):
         self.mode = 'main'
         self.draw_mode = 'view'
         self.clear()
-    
+
     def clear(self):
         ''' called when mouse is moved outside View3D '''
         self.hit = False
@@ -138,7 +141,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.hit_y = None
         self.hit_z = None
         self.hit_rmat = None
-    
+
     def set_widget(self, name, color=None):
         assert name in self.widgets
         widget = self.widgets[name]
@@ -147,13 +150,13 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.mouse_cursor = widget.get('mouse_cursor', self.no_mouse_cursor)
         self.modal_main = widget.get('modal_main', self.no_modal_main)
         if color: self.color = color
-    
+
     def set_stroke_callback(self, fn):
         self.stroke_callback = fn
-    
+
     def set_line_callback(self, fn):
         self.line_callback = fn
-    
+
     def update(self):
         p,n = self.rfcontext.actions.hit_pos,self.rfcontext.actions.hit_norm
         if p is None or n is None:
@@ -172,7 +175,7 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         self.hit_y = Vec(rmat * self.oy)
         self.hit_z = Vec(rmat * self.oz)
         self.hit_rmat = rmat
-    
+
     def modal(self):
         try:
             nmode = self.FSM[self.mode]()
@@ -181,31 +184,31 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
         except Exception as e:
             self.mode = 'main'
             raise e
-    
+
     # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT, PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
     def no_mouse_cursor(self): return 'DEFAULT'
     def no_draw_postview(self): pass
     def no_draw_postpixel(self): pass
     def no_modal_main(self): pass
-    
-    
+
+
     def get_scaled_radius(self):
         return self.scale * self.radius
-    
+
     def get_scaled_size(self):
         return self.scale * self.size
-    
+
     def get_strength_dist(self, dist:float):
         return (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)) * self.strength
-    
+
     def get_strength_Point(self, point:Point):
         if not self.hit_p: return 0.0
         return self.get_strength_dist((point - self.hit_p).length)
-    
-    
+
+
     def setup_change(self, var_to_dist, dist_to_var):
         self.change_dist_to_var = dist_to_var
-        
+
         if var_to_dist:
             dist = var_to_dist()
             actions = self.rfcontext.actions
@@ -216,20 +219,20 @@ class RFWidget(RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RF
             self.change_pre = None
             self.change_center = None
             self.draw_mode = 'view'
-    
+
     def modal_change(self):
         dist_to_var = self.change_dist_to_var
         assert dist_to_var
-        
+
         actions = self.rfcontext.actions
-        
+
         if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
             if actions.pressed('cancel', ignoremods=True):
                 dist_to_var(self.change_pre)
             actions.unpress()
             self.setup_change(None, None)
             return 'main'
-        
+
         dist = (self.change_center - actions.mouse).length
         dist_to_var(dist)
-    
+
