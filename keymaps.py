@@ -53,9 +53,10 @@ default_rf_keymaps = {
     'grab': {'G'},
     'delete': {'X','DELETE'},
 
-    # contours
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
+
+    # contours
     'shift': {'S'},             # rotation of loops
     'rotate': {'SHIFT+S'},
 

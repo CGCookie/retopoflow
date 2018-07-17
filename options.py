@@ -82,7 +82,7 @@ retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
 class Options:
     options_filename = 'RetopoFlow_options.json'    # the filename of the Shelve object
                                                     # will be located at root of RF plug-in
-    
+
     default_options = {                 # all the default settings for unset or reset
         'welcome':              True,   # show welcome message?
         'tools_min':            False,  # minimize tools window?
@@ -91,53 +91,54 @@ class Options:
         'version 1.3':          False,  # show RF 1.3 panel?
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
-        
+
         'low fps threshold':    10,     # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
         'low fps time':         2,      # time (seconds) before warning user of low fps
-        
+
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
-        
+
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
         'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',
-        
+
         'tools pos':    7,
         'info pos':     1,
         'options pos':  9,
-        
+
         'async mesh loading': True,
-        
+
         'tools autocollapse': True,
         'tools general collapsed': False,       # is general tools collapsed
         'tools symmetry collapsed': True,       # is symmetry tools collapsed
-        'tool contours collapsed': True,       # is contours tools collapsed
-        'tool polystrips collapsed': True,     # is polystrips tools collapsed
-        'tool polypen collapsed': True,        # is polypen tools collapsed
-        'tool relax collapsed': True,          # is relax tools collapsed
-        'tool tweak collapsed': True,          # is tweak tools collapsed
-        'tool loops collapsed': True,          # is loops tools collapsed
-        'tool patches collapsed': True,        # is patches tools collapsed
-        
+        'tool contours collapsed': True,        # is contours tools collapsed
+        'tool polystrips collapsed': True,      # is polystrips tools collapsed
+        'tool polypen collapsed': True,         # is polypen tools collapsed
+        'tool relax collapsed': True,           # is relax tools collapsed
+        'tool tweak collapsed': True,           # is tweak tools collapsed
+        'tool loops collapsed': True,           # is loops tools collapsed
+        'tool patches collapsed': True,         # is patches tools collapsed
+        'tool strokeextrude collapsed': True,   # is strokeextrude tools collapsed
+
         'select dist':          10,     # pixels away to select
-        
+
         'color theme':          'Green',
         'symmetry view':        'Face',
         'symmetry effect':      0.5,
-        
+
         'target alpha':         1.0,
         'target hidden alpha':  0.1,
-        
+
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
         'backup_filename':      'RetopoFlow_backup',
         'quickstart_filename':  'RetopoFlow_quickstart',
         'profiler_filename':    'RetopoFlow_profiler.txt',
-        
+
         'contours count':   16,
-        
+
         'polystrips scale falloff': -1,
         'polystrips draw curve':    False,
         'polystrips max strips':    10,     # PS will not show handles if knot count is above max
@@ -147,21 +148,21 @@ class Options:
         'polystrips handle hidden alpha':        0.10,
         'polystrips handle hidden hover alpha':  0.10,
         'polystrips handle hover':               False,
-        
+
         'polypen automerge': True,
-        
+
         'relax boundary': False,
         'relax hidden':   False,
-        
+
         'tweak boundary': True,
         'tweak hidden':   False,
-        
+
         'patches angle': 120,
     }
-    
+
     db = None                           # current options dict
     fndb = None
-    
+
     def __init__(self):
         if not Options.fndb:
             path = os.path.split(os.path.abspath(__file__))[0]
@@ -242,7 +243,7 @@ class Themes:
             'select':  rgba_to_float( 26, 111, 255, 255),
             'active':  rgba_to_float( 26, 111, 255, 255),
             'warning': rgba_to_float(182,  31,   0, 125),
-            
+
             'stroke':  rgba_to_float( 40, 255,  40, 255),
         },
         'Green': {
@@ -252,7 +253,7 @@ class Themes:
             'select':  rgba_to_float( 78, 207,  81, 255),
             'active':  rgba_to_float( 78, 207,  81, 255),
             'warning': rgba_to_float(182,  31,   0, 125),
-            
+
             'stroke':  rgba_to_float( 40, 255,  40, 255),
         },
         'Orange': {
@@ -262,11 +263,11 @@ class Themes:
             'select':  rgba_to_float(207, 135,  78, 255),
             'active':  rgba_to_float(207, 135,  78, 255),
             'warning': rgba_to_float(182,  31,   0, 125),
-            
+
             'stroke':  rgba_to_float( 40, 255,  40, 255),
         },
     }
-    
+
     def __getitem__(self, key): return self.themes[options['color theme']][key]
 
 

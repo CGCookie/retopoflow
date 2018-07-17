@@ -276,12 +276,13 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             'tool':         self.tool,
             'rftarget':     copy.deepcopy(self.rftarget),
             }
-    def _restore_state(self, state):
+    def _restore_state(self, state, set_tool=True):
         self.rftarget = state['rftarget']
         self.rftarget.rewrap()
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
-        self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
+        if set_tool:
+            self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
 
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
@@ -290,6 +291,12 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
         self.redo.clear()
         self.instrument_write(action)
+
+    def undo_repush(self, action):
+        if not self.undo: return
+        self._restore_state(self.undo.pop(), set_tool=False)
+        self.undo.append(self._create_state(action))
+        self.redo.clear()
 
     def undo_pop(self):
         if not self.undo: return

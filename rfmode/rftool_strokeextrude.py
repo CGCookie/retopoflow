@@ -60,7 +60,6 @@ class RFTool_StrokeExtrude(RFTool):
         # self.FSM['scale']  = self.modal_scale
         self.FSM['select'] = self.modal_select
         self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
-        pass
 
     def name(self): return "StrokeExtrude"
     def icon(self): return "rf_strokeextrude_icon"
@@ -73,6 +72,7 @@ class RFTool_StrokeExtrude(RFTool):
         self.mode = 'main'
         self.rfwidget.set_widget('stroke', color=(0.7, 0.7, 0.7))
         self.rfwidget.set_stroke_callback(self.stroke)
+        self.strip_crosses = None
         self.update()
 
     def get_ui_icon(self):
@@ -80,9 +80,22 @@ class RFTool_StrokeExtrude(RFTool):
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
 
+    def get_ui_options(self):
+        def get_crosses():
+            return getattr(self, 'strip_crosses', None) or 0
+        def set_crosses(v):
+            v = max(1, int(v))
+            if self.strip_crosses == v: return
+            self.strip_crosses = v
+            self.extrude_strip()
+        self.ui_count = UI_IntValue('Crosses', get_crosses, set_crosses)
+        return [
+            self.ui_count
+        ]
+
     @profiler.profile
     def update(self):
-        pass
+        self.ui_count.visible = self.strip_crosses is not None
 
     @profiler.profile
     def modal_main(self):
@@ -116,14 +129,19 @@ class RFTool_StrokeExtrude(RFTool):
             # self.rfcontext.select(face)
             # return self.prep_move()
 
+        if self.rfcontext.actions.pressed('increase count'):
+            if self.strip_crosses is not None:
+                self.strip_crosses += 1
+                self.extrude_strip()
+        if self.rfcontext.actions.pressed('decrease count'):
+            if self.strip_crosses is not None and self.strip_crosses > 1:
+                self.strip_crosses -= 1
+                self.extrude_strip()
+
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()
 
-    @RFTool.dirty_when_done
     def stroke(self):
-        self.rfcontext.undo_push('stroke extrude')
-
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
         # called when artist finishes a stroke
         stroke = list(self.rfwidget.stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
@@ -133,63 +151,79 @@ class RFTool_StrokeExtrude(RFTool):
         # TODO: determine if stroke is cyclic
         cyclic = False
 
-        stroke_len = sum((s0-s1).length for (s0, s1) in iter_pairs(stroke, wrap=cyclic))
+        if not cyclic:
+            self.strip_stroke = stroke
+            self.strip_crosses = None
+            self.extrude_strip()
+
+
+    @RFTool.dirty_when_done
+    def extrude_strip(self):
+        if self.strip_crosses is not None:
+            self.rfcontext.undo_repush('stroke extrude')
+        else:
+            self.rfcontext.undo_push('stroke extrude')
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = self.strip_stroke
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
 
-        if not cyclic:
-            s0, s1 = stroke[0], stroke[-1]
-            sd = s1 - s0
-            # find best strip
-            best, best_score = None, None
-            for strip in find_edge_strips(edges):
-                verts = get_strip_verts(strip)
-                p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[1].co)
-                pd = p1 - p0
-                dot = pd.x * sd.x + pd.y * sd.y
-                if dot < 0:
-                    strip.reverse()
-                    verts.reverse()
-                    p0, p1 = p1, p0
-                    pd = -pd
-                    dot = -dot
-                score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
-                if not best or score < best_score:
-                    best = strip
-                    best_score = score
-            # extrude!
-            edges = best
-            verts = get_strip_verts(edges)
-            edge_lens = [
-                (Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length
-                for e in edges
-            ]
-            strip_len = sum(edge_lens)
-            avg_len = strip_len / len(edges)
-            per_lens = [l / strip_len for l in edge_lens]
-            percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
-            nstroke = restroke(stroke, percentages)
-            if len(nstroke) != len(verts):
-                print(percentages)
-                print('nstroke = %d.  verts = %d' % (len(nstroke), len(verts)))
-            # average distance between stroke and strip
-            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
-            avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
-            crosses = max(math.ceil(avg_dist / avg_len), 2)
-            print(crosses)
-            prev = None
-            last = []
-            for (v0, p1) in zip(verts, nstroke):
-                p0 = Point_to_Point2D(v0.co)
-                cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
-                last.append(cur[-1])
-                if prev:
-                    for i in range(crosses-1):
-                        self.rfcontext.new_face([prev[i+0], cur[i+0], cur[i+1], prev[i+1]])
-                prev = cur
-            nedges = [v0.shared_edge(v1) for v0,v1 in iter_pairs(last, wrap=False)]
-            self.rfcontext.select(nedges)
+        s0, s1 = stroke[0], stroke[-1]
+        sd = s1 - s0
+        # find best strip
+        best, best_score = None, None
+        for strip in find_edge_strips(edges):
+            verts = get_strip_verts(strip)
+            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[1].co)
+            pd = p1 - p0
+            dot = pd.x * sd.x + pd.y * sd.y
+            if dot < 0:
+                strip.reverse()
+                verts.reverse()
+                p0, p1 = p1, p0
+                pd = -pd
+                dot = -dot
+            score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
+            if not best or score < best_score:
+                best = strip
+                best_score = score
+        if not best: return
+
+        # extrude!
+        edges = best
+        verts = get_strip_verts(edges)
+        edge_lens = [
+            (Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length
+            for e in edges
+        ]
+        strip_len = sum(edge_lens)
+        avg_len = strip_len / len(edges)
+        per_lens = [l / strip_len for l in edge_lens]
+        percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
+        nstroke = restroke(stroke, percentages)
+        if len(nstroke) != len(verts):
+            print(percentages)
+            print('nstroke = %d.  verts = %d' % (len(nstroke), len(verts)))
+        # average distance between stroke and strip
+        p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+        avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
+        if self.strip_crosses is None:
+            self.strip_crosses = max(math.ceil(avg_dist / avg_len), 2) - 1
+        crosses = self.strip_crosses + 1
+        prev = None
+        last = []
+        for (v0, p1) in zip(verts, nstroke):
+            p0 = Point_to_Point2D(v0.co)
+            cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
+            last.append(cur[-1])
+            if prev:
+                for i in range(crosses-1):
+                    self.rfcontext.new_face([prev[i+0], cur[i+0], cur[i+1], prev[i+1]])
+            prev = cur
+        nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
+        self.rfcontext.select(nedges)
 
     @profiler.profile
     def modal_selectadd_deselect(self):
