@@ -73,6 +73,7 @@ class RFTool_StrokeExtrude(RFTool):
         self.rfwidget.set_widget('stroke', color=(0.7, 0.7, 0.7))
         self.rfwidget.set_stroke_callback(self.stroke)
         self.strip_crosses = None
+        self.strip_edges = False
         self.update()
 
     def get_ui_icon(self):
@@ -95,7 +96,7 @@ class RFTool_StrokeExtrude(RFTool):
 
     @profiler.profile
     def update(self):
-        self.ui_count.visible = self.strip_crosses is not None
+        self.ui_count.visible = self.strip_crosses is not None and not self.strip_edges
 
     @profiler.profile
     def modal_main(self):
@@ -140,11 +141,11 @@ class RFTool_StrokeExtrude(RFTool):
             # return self.prep_move()
 
         if self.rfcontext.actions.pressed('increase count'):
-            if self.strip_crosses is not None:
+            if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
                 self.extrude_strip()
         if self.rfcontext.actions.pressed('decrease count'):
-            if self.strip_crosses is not None and self.strip_crosses > 1:
+            if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
                 self.extrude_strip()
 
@@ -165,6 +166,7 @@ class RFTool_StrokeExtrude(RFTool):
         if not cyclic:
             self.strip_stroke3D = stroke3D
             self.strip_crosses = None
+            self.strip_edges = False
             self.extrude_strip()
 
 
@@ -189,14 +191,30 @@ class RFTool_StrokeExtrude(RFTool):
 
         # check if verts near stroke ends connect to any of the strips
         if best is None:
-            bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=10)
-            bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=10)
+            bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=20)
+            bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=20)
             if bmv0:
                 edges0 = walk_to_corner(bmv0, edges)
-                print(edges0)
+            else:
+                edges0 = None
             if bmv1:
                 edges1 = walk_to_corner(bmv1, edges)
-                print(edges1)
+            else:
+                edges1 = None
+            if edges0 and edges1 and len(edges0) != len(edges1):
+                self.rfcontext.alert_user(
+                    'StrokeExtrude',
+                    'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
+                )
+                return
+            if edges0:
+                self.strip_crosses = len(edges0)
+                self.strip_edges = True
+            if edges1:
+                self.strip_crosses = len(edges1)
+                self.strip_edges = True
+            # TODO: set best and ensure that best connects edges0 and edges1
+
 
         # check all strips for best "scoring"
         if best is None:
@@ -249,15 +267,33 @@ class RFTool_StrokeExtrude(RFTool):
         crosses = self.strip_crosses + 1
 
         # extrude!
+        patch = []
         prev, last = None, []
         for (v0, p1) in zip(verts, nstroke):
             p0 = Point_to_Point2D(v0.co)
             cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
+            patch += [cur]
             last.append(cur[-1])
             if prev:
                 for i in range(crosses-1):
                     self.rfcontext.new_face([prev[i+0], cur[i+0], cur[i+1], prev[i+1]])
             prev = cur
+
+        if edges0:
+            verts = get_strip_verts(edges0)
+            for a,b in zip(verts[1:], patch[0][1:]):
+                co = a.co
+                b.merge(a)
+                b.co = co
+                self.rfcontext.clean_duplicate_bmedges(b)
+        if edges1:
+            verts = get_strip_verts(edges1)
+            for a,b in zip(verts[1:], patch[-1][1:]):
+                co = a.co
+                b.merge(a)
+                b.co = co
+                self.rfcontext.clean_duplicate_bmedges(b)
+
         nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
         self.rfcontext.select(nedges)
 

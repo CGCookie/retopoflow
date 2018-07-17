@@ -129,18 +129,19 @@ def walk_to_corner(from_vert, to_edges):
         if v1 in to_verts:
             found = ec
             break
-        edges += [
+        nedges = [
             (en, v1, ec)
             for en in v1.link_edges
-            if en != ec and en.is_manifold
+            if en != ec and not en.is_manifold
         ]
+        edges += nedges
     if not found: return None
     # walk back
     walk = [found]
     while True:
         ec = walk[-1]
         v0, ep = touched[ec]
-        if v0 == vert:
+        if v0 == from_vert:
             break
         walk.append(ep)
     return walk
