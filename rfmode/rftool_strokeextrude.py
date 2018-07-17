@@ -211,7 +211,6 @@ class RFTool_StrokeExtrude(RFTool):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            print(stroke_len, self.rfwidget.size)
             self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
@@ -234,7 +233,6 @@ class RFTool_StrokeExtrude(RFTool):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            print(stroke_len, self.rfwidget.size)
             self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
@@ -310,7 +308,6 @@ class RFTool_StrokeExtrude(RFTool):
 
         crosses = len(edge_cycle)
         percentages = [i / crosses for i in range(crosses)]
-        print(percentages)
         nstroke = restroke(stroke, percentages)
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
@@ -318,7 +315,6 @@ class RFTool_StrokeExtrude(RFTool):
             i1 = (i0 + 1) % crosses
             a,b = vert_cycle[i0],vert_cycle[i1]
             c,d = verts[i1],verts[i0]
-            print(a,b,c,d)
             self.rfcontext.new_face([a,b,c,d])
         self.rfcontext.select(edges)
 
