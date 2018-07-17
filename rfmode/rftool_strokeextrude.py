@@ -154,11 +154,8 @@ class RFTool_StrokeExtrude(RFTool):
 
     def stroke(self):
         # called when artist finishes a stroke
-        stroke = list(self.rfwidget.stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
-        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in stroke]
+        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in self.rfwidget.stroke2D]
 
         # TODO: determine if stroke is cyclic
         cyclic = False
@@ -179,6 +176,8 @@ class RFTool_StrokeExtrude(RFTool):
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke = process_stroke_filter(stroke)
+        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
@@ -226,10 +225,7 @@ class RFTool_StrokeExtrude(RFTool):
                 dot = pd.x * sd.x + pd.y * sd.y
                 if dot < 0:
                     strip.reverse()
-                    verts.reverse()
-                    p0, p1 = p1, p0
-                    pd = -pd
-                    dot = -dot
+                    p0, p1, pd, dot = p1, p0, -pd, -dot
                 score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
                 if not best or score < best_score:
                     best = strip
@@ -280,15 +276,23 @@ class RFTool_StrokeExtrude(RFTool):
             prev = cur
 
         if edges0:
-            verts = get_strip_verts(edges0)
-            for a,b in zip(verts[1:], patch[0][1:]):
+            if len(edges0) == 1:
+                side_verts = list(edges0[0].verts)
+                if side_verts[1] == verts[0]: side_verts.reverse()
+            else:
+                side_verts = get_strip_verts(edges0)
+            for a,b in zip(side_verts[1:], patch[0][1:]):
                 co = a.co
                 b.merge(a)
                 b.co = co
                 self.rfcontext.clean_duplicate_bmedges(b)
         if edges1:
-            verts = get_strip_verts(edges1)
-            for a,b in zip(verts[1:], patch[-1][1:]):
+            if len(edges1) == 1:
+                side_verts = list(edges1[0].verts)
+                if side_verts[1] == verts[-1]: side_verts.reverse()
+            else:
+                side_verts = get_strip_verts(edges1)
+            for a,b in zip(side_verts[1:], patch[-1][1:]):
                 co = a.co
                 b.merge(a)
                 b.co = co
