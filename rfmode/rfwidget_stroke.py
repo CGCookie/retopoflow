@@ -26,22 +26,15 @@ from ..common.maths import Vec, Point, Point2D, Direction
 from ..common.shaders import brushStrokeShader
 from ..options import themes
 
-class RFWidget_BrushStroke:
-    def size_to_dist(self): return self.size
-    def dist_to_size(self, d): self.size = d
-
-    def brushstroke_modal_main(self):
-        if self.rfcontext.actions.pressed('brush size'):
-            self.setup_change(self.size_to_dist, self.dist_to_size)
-            return 'change'
-
+class RFWidget_Stroke:
+    def stroke_modal_main(self):
         if self.rfcontext.actions.pressed('insert'):
             self.stroke2D.clear()
             self.stroke2D_left.clear()
             self.stroke2D_right.clear()
-            return 'brushstroke'
+            return 'stroke'
 
-    def modal_brushstroke(self):
+    def modal_stroke(self):
         actions = self.rfcontext.actions
 
         if actions.released('insert'):
@@ -78,17 +71,17 @@ class RFWidget_BrushStroke:
             newpos = lstpos + diff * (1 - self.tightness)
             self.stroke2D.append(newpos)
 
-    def brushstroke_mouse_cursor(self):
-        if self.mode in {'main','brushstroke'}:
+    def stroke_mouse_cursor(self):
+        if self.mode in {'main','stroke'}:
              return 'NONE' if self.hit else 'CROSSHAIR'
         return 'MOVE_X'
 
-    def brushstroke_postview(self):
-        if self.mode not in {'main','brushstroke'}: return
+    def stroke_postview(self):
+        if self.mode not in {'main','stroke'}: return
         if not self.hit: return
         cx,cy,cp = self.hit_x,self.hit_y,self.hit_p
-        cs_outer = self.scale * self.size
-        cs_inner = self.scale * self.size * 0.5
+        cs_outer = self.scale * 20
+        cs_inner = self.scale * 20 * 0.5
         cr,cg,cb = self.color
 
         bgl.glDepthRange(0, 0.999)      # squeeze depth just a bit
@@ -149,7 +142,7 @@ class RFWidget_BrushStroke:
 
         bgl.glDepthRange(0, 1)
 
-    def brushstroke_postpixel(self):
+    def stroke_postpixel(self):
         w,h = self.rfcontext.actions.size
 
         bgl.glEnable(bgl.GL_BLEND)
@@ -157,7 +150,7 @@ class RFWidget_BrushStroke:
         if self.mode == 'main':
             return
 
-        if self.mode == 'brushstroke':
+        if self.mode == 'stroke':
             brushStrokeShader.enable()
             brushStrokeShader['uMVPMatrix'] = self.drawing.get_pixel_matrix_buffer()
             self.drawing.line_width(2.0)
@@ -174,39 +167,6 @@ class RFWidget_BrushStroke:
                     d += math.sqrt((px-x)**2+(py-y)**2)
                 px,py = x,y
             bgl.glEnd()
-            # bgl.glColor4f(1,1,1,0.15)
-            # bgl.glBegin(bgl.GL_LINE_STRIP)
-            # for x,y in self.stroke2D_left:
-            #     bgl.glVertex2f(x,y)
-            # bgl.glEnd()
-            # bgl.glColor4f(1,1,1,0.15)
-            # bgl.glBegin(bgl.GL_LINE_STRIP)
-            # for x,y in self.stroke2D_right:
-            #     bgl.glVertex2f(x,y)
-            # bgl.glEnd()
-            #self.drawing.disable_stipple()
             brushStrokeShader.disable()
             return
-
-
-        cx,cy,cp = Vector((1,0)),Vector((0,1)),self.change_center #Vector((w/2,h/2))
-        cs_outer = self.size
-        cs_inner = self.size * 0.5
-        cr,cg,cb = self.color
-
-        self.drawing.line_width(2.0)
-
-        bgl.glColor4f(cr, cg, cb, 1)                       # outer ring
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        for x,y in self.points:
-            p = (cs_outer * ((cx * x) + (cy * y))) + cp
-            bgl.glVertex2f(*p)
-        bgl.glEnd()
-
-        bgl.glColor4f(cr, cg, cb, 0.1)                     # inner ring
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        for x,y in self.points:
-            p = (cs_inner * ((cx * x) + (cy * y))) + cp
-            bgl.glVertex2f(*p)
-        bgl.glEnd()
 

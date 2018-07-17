@@ -181,6 +181,7 @@ Note: selection and the undo stack is maintained between tools.
 - T: Tweak
 - Y: Loops
 - U: Patches
+- I: StrokeExtrude
 
 ## Universal Shortcuts
 
@@ -412,4 +413,12 @@ More support coming soon!
 
 If no pre-visualized regions show after selection, no geometry will be created after pressing F.
 Adjust the Angle parameter to help Patches determine which connected edges should be in the same strip.
+'''
+
+help_strokeextrude = '''
+# StrokeExtrude Help
+
+foo bar!
+
+
 '''

@@ -36,9 +36,10 @@ from .rfwidget_brushfalloff import RFWidget_BrushFalloff
 from .rfwidget_brushstroke import RFWidget_BrushStroke
 from .rfwidget_line import RFWidget_Line
 from .rfwidget_rotate import RFWidget_Rotate
+from .rfwidget_stroke import RFWidget_Stroke
 
 
-class RFWidget(RFWidget_Registry, RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line, RFWidget_Rotate):
+class RFWidget(RFWidget_Registry, RFWidget_Default, RFWidget_BrushFalloff, RFWidget_BrushStroke, RFWidget_Move, RFWidget_Line, RFWidget_Rotate, RFWidget_Stroke):
     instance = None
     rfcontext = None
 
@@ -87,37 +88,44 @@ class RFWidget(RFWidget_Registry, RFWidget_Default, RFWidget_BrushFalloff, RFWid
                 'postpixel':    self.default_postpixel,
                 'mouse_cursor': self.default_mouse_cursor,
                 'modal_main':   self.default_modal_main,
-                },
+            },
             'move': {
                 'postview':     self.move_postview,
                 'postpixel':    self.move_postpixel,
                 'mouse_cursor': self.move_mouse_cursor,
                 'modal_main':   self.move_modal_main,
-                },
+            },
             'brush falloff': {
                 'postview':     self.brushfalloff_postview,
                 'postpixel':    self.brushfalloff_postpixel,
                 'mouse_cursor': self.brushfalloff_mouse_cursor,
                 'modal_main':   self.brushfalloff_modal_main,
-                },
+            },
             'brush stroke': {
                 'postview':     self.brushstroke_postview,
                 'postpixel':    self.brushstroke_postpixel,
                 'mouse_cursor': self.brushstroke_mouse_cursor,
                 'modal_main':   self.brushstroke_modal_main,
-                },
+            },
             'line': {
                 'postview':     self.line_postview,
                 'postpixel':    self.line_postpixel,
                 'mouse_cursor': self.line_mouse_cursor,
                 'modal_main':   self.line_modal_main,
-                },
-            }
+            },
+            'stroke': {
+                'postview':     self.stroke_postview,
+                'postpixel':    self.stroke_postpixel,
+                'mouse_cursor': self.stroke_mouse_cursor,
+                'modal_main':   self.stroke_modal_main,
+            },
+        }
         self.FSM = {
-            'main':     lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
-            'stroke':   self.modal_stroke,
-            'line':     self.modal_line,
-            'change':   self.modal_change,
+            'main':         lambda: self.modal_main(), # lambda'd func, because modal_main is set dynamically
+            'brushstroke':  self.modal_brushstroke,
+            'stroke':       self.modal_stroke,
+            'line':         self.modal_line,
+            'change':       self.modal_change,
         }
 
         self.view = 'default'

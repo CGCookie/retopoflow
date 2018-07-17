@@ -45,7 +45,7 @@ class RFContext_Target:
         self.rftarget = RFTarget.new(self.tar_object)
         opts = self.get_target_render_options()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
-        
+
         self.accel_defer_recomputing = False
         self.accel_recompute = True
         self.accel_target_version = None
@@ -57,14 +57,14 @@ class RFContext_Target:
 
     #########################################
     # acceleration structures
-    
+
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
-    
+
     @profiler.profile
     def get_vis_accel(self, force=False):
         target_version = self.get_target_version(selection=False)
         view_version = self.get_view_version()
-        
+
         recompute = self.accel_recompute
         recompute |= self.accel_target_version != target_version
         recompute |= self.accel_view_version != view_version
@@ -74,9 +74,9 @@ class RFContext_Target:
         recompute |= self.accel_vis_accel is None
         recompute &= not self.accel_defer_recomputing
         recompute &= not self.nav and (time.time() - self.nav_time) > 0.25
-        
+
         self.accel_recompute = False
-        
+
         if force or recompute:
             self.accel_target_version = target_version
             self.accel_view_version = view_version
@@ -84,52 +84,52 @@ class RFContext_Target:
             self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
             self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
-        
+
         return self.accel_vis_accel
-    
+
     @profiler.profile
     def accel_nearest2D_vert(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
-        
+
         if not max_dist:
             verts = self.accel_vis_verts
         else:
             max_dist = self.drawing.scale(max_dist)
             verts = vis_accel.get_verts(xy, max_dist)
-        
+
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
-    
+
     @profiler.profile
     def accel_nearest2D_edge(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
-        
+
         if not max_dist:
             edges = self.accel_vis_edges
         else:
             max_dist = self.drawing.scale(max_dist)
             edges = vis_accel.get_edges(xy, max_dist)
-        
+
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
-    
+
     @profiler.profile
     def accel_nearest2D_face(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
         if not vis_accel: return None
-        
+
         if not max_dist:
             faces = self.accel_vis_faces
         else:
             max_dist = self.drawing.scale(max_dist)
             faces = vis_accel.get_faces(xy, max_dist)
-        
+
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
-    
-    
+
+
     #########################################
     # find target entities in screen space
 
@@ -178,7 +178,7 @@ class RFContext_Target:
     ####################
     # REWRITE BELOW!!! #
     ####################
-    
+
     def nearest2D_face_Point2D(self, point:Point2D, faces=None):
         return self.rftarget.nearest2D_bmface_Point2D(point, self.Point_to_Point2D, faces=faces)
 
@@ -245,7 +245,7 @@ class RFContext_Target:
 
     ########################################
     # symmetry utils
-    
+
     @profiler.profile
     def clip_pointloop(self, pointloop, connected):
         # assuming loop will cross symmetry line exactly zero or two times
@@ -292,10 +292,10 @@ class RFContext_Target:
             pointloop = npl
         pointloop = [l2w_point(pt) for pt in pointloop]
         return (pointloop, connected)
-    
+
     def clamp_pointloop(self, pointloop, connected):
         return (pointloop, connected)
-    
+
     def is_point_on_mirrored_side(self, point):
         p = self.rftarget.xform.w2l_point(point)
         if 'x' in self.rftarget.symmetry and p.x < 0: return True
@@ -306,7 +306,7 @@ class RFContext_Target:
     def snap_all_verts(self):
         self.undo_push('snap all verts')
         self.rftarget.snap_all_verts(self.nearest_sources_Point)
-    
+
     def snap_selected_verts(self):
         self.undo_push('snap selected verts')
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
@@ -371,8 +371,8 @@ class RFContext_Target:
 
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
-    
-    
+
+
     def bridge_vertloop(self, vloop0, vloop1, connected):
         assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
         faces = []
@@ -381,7 +381,7 @@ class RFContext_Target:
             v10,v11 = pair1
             faces += [self.new_face((v00,v01,v11,v10))]
         return faces
-    
+
     def bridge_vertloop(self, vloop0, vloop1, connected):
         assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
         faces = []
@@ -390,7 +390,7 @@ class RFContext_Target:
             v10,v11 = pair1
             faces += [self.new_face((v00,v01,v11,v10))]
         return faces
-    
+
     def holes_fill(self, edges, sides):
         self.rftarget.holes_fill(edges, sides)
 
@@ -402,7 +402,7 @@ class RFContext_Target:
 
     def clean_duplicate_bmedges(self, vert):
         return self.rftarget.clean_duplicate_bmedges(vert)
-    
+
     def remove_duplicate_bmfaces(self, vert):
         return self.rftarget.remove_duplicate_bmfaces(vert)
 
@@ -413,31 +413,31 @@ class RFContext_Target:
 
     def dirty(self):
         self.rftarget.dirty()
-    
+
     def get_target_version(self, selection=True):
         return self.rftarget.get_version(selection=selection)
 
     ###################################################
-    
-    
+
+
     def get_quadwalk_edgesequence(self, edge):
         return self.rftarget.get_quadwalk_edgesequence(edge)
-    
+
     def get_edge_loop(self, edge):
         return self.rftarget.get_edge_loop(edge)
-    
+
     def get_inner_edge_loop(self, edge):
         return self.rftarget.get_inner_edge_loop(edge)
 
     def get_face_loop(self, edge):
         return self.rftarget.get_face_loop(edge)
-    
+
     def is_quadstrip_looped(self, edge):
         return self.rftarget.is_quadstrip_looped(edge)
-    
+
     def iter_quadstrip(self, edge):
         yield from self.rftarget.iter_quadstrip(edge)
-    
+
     ###################################################
 
     def get_selected_verts(self):
@@ -463,7 +463,7 @@ class RFContext_Target:
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
         if self.tool: self.tool.update()
         self.update_rot_object()
-    
+
     def reselect(self):
         if self.tool: self.tool.update()
         self.update_rot_object()
@@ -490,14 +490,14 @@ class RFContext_Target:
 
     #######################################################
     # delete / dissolve
-    
+
     def delete_dissolve_option(self, opt):
         if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces'), ('Dissolve','Loops')]:
             self.dissolve_option(opt[1])
         elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
             self.delete_option(opt[1])
         self.tool.update()
-    
+
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
         sel_edges = self.rftarget.get_selected_edges()
@@ -514,14 +514,14 @@ class RFContext_Target:
             self.dissolve_verts(self.rftarget.get_selected_verts())
             #self.dissolve_loops()
         self.dirty()
-    
+
     def delete_option(self, opt):
         del_empty_edges=True
         del_empty_verts=True
         del_verts=True
         del_edges=True
         del_faces=True
-        
+
         if opt == 'Vertices':
             pass
         elif opt == 'Edges':
@@ -537,11 +537,11 @@ class RFContext_Target:
             del_edges = False
             del_empty_verts = False
             del_empty_edges = False
-        
+
         self.undo_push('delete %s' % opt)
         self.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
         self.dirty()
-    
+
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
 
@@ -553,7 +553,7 @@ class RFContext_Target:
 
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
         self.rftarget.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
-    
+
     def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
         self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
 
@@ -589,14 +589,14 @@ class RFContext_Target:
     #             loops.append(vert_list)
 
     #     return loops
-    
+
     # def dissolve_loops(self):
     #     sel_edges = self.get_selected_edges()
     #     sel_loops = self.find_loops(sel_edges)
     #     if not sel_loops:
     #         dprint('Could not find any loops')
     #         return
-        
+
     #     while sel_loops:
     #         ploop = None
     #         for loop in sel_loops:

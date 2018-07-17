@@ -27,17 +27,18 @@ icon_collections = {}
 icons_loaded = False
 
 icon_data = {
-    'rf_contours_icon':     'contours_32.png',
-    'rf_polystrips_icon':   'polystrips_32.png',
-    'rf_polypen_icon':      'polypen_32.png',
-    'rf_tweak_icon':        'tweak_32.png',
-    'rf_loops_icon':        'loops_32.png',
-    'rf_loopcut_icon':      'loop_cut_32.png',
-    'rf_loopdelete_icon':   'loop_delete_32.png',
-    'rf_loopslide_icon':    'loop_slide_32.png',
-    'rf_relax_icon':        'relax_32.png',
-    'rf_recover_icon':      'recover_32.png',
-    'rf_patches_icon':      'patches_32.png',
+    'rf_contours_icon':         'contours_32.png',
+    'rf_polystrips_icon':       'polystrips_32.png',
+    'rf_polypen_icon':          'polypen_32.png',
+    'rf_tweak_icon':            'tweak_32.png',
+    'rf_loops_icon':            'loops_32.png',
+    'rf_loopcut_icon':          'loop_cut_32.png',
+    'rf_loopdelete_icon':       'loop_delete_32.png',
+    'rf_loopslide_icon':        'loop_slide_32.png',
+    'rf_relax_icon':            'relax_32.png',
+    'rf_recover_icon':          'recover_32.png',
+    'rf_patches_icon':          'patches_32.png',
+    'rf_strokeextrude_icon':    'strokeextrude_32.png',
 }
 
 def load_icons():
