@@ -71,9 +71,10 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 pyfile = os.path.splitext(os.path.basename(path))[0]
                 if pyfile == '__init__': continue
                 pyfile = os.path.join(relpath, pyfile)
+                pyfile = re.sub(r'\\', '/', pyfile)
                 if pyfile.startswith('./'): pyfile = pyfile[2:]
                 level = pyfile.count('..')
-                pyfile = re.sub(r'^(\.\.[/\\])*', '', pyfile)
+                pyfile = re.sub(r'^(\.\./)*', '', pyfile)
                 pyfile = re.sub('/', '.', pyfile)
                 #print('    Searching: %s (%d, %s)' % (pyfile, level, path))
                 try:
