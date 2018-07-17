@@ -825,6 +825,7 @@ class RFMesh():
             l = diff.length
             if l == 0:
                 dist = (xy - bmv0).length
+                pp = bmv0
             else:
                 d = diff / l
                 margin = l * shorten / 2
