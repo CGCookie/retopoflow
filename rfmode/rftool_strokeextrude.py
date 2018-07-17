@@ -284,7 +284,7 @@ class RFTool_StrokeExtrude(RFTool):
             return
 
         edge_cycle = best
-        vert_cycle = get_strip_verts(edge_cycle)[:-1]
+        vert_cycle = get_strip_verts(edge_cycle)[:-1]   # first and last verts are same---loop!
         vctr = Point2D.average([Point_to_Point2D(v.co) for v in vert_cycle])
         verts_centered = [(Point_to_Point2D(v.co) - vctr) for v in vert_cycle]
 
@@ -302,9 +302,10 @@ class RFTool_StrokeExtrude(RFTool):
         verts_centered = verts_centered[idx:] + verts_centered[:idx]
 
         # rotate stroke until first point matches best with vert_cycle
-        v = verts_centered[0]
-        idx = max_index(stroke_centered, lambda s:s.x * v.x + s.y * v.y)
+        v = verts_centered[0] / verts_centered[0].length
+        idx = max_index(stroke_centered, lambda s:(s.x * v.x + s.y * v.y) / s.length)
         stroke = stroke[idx:] + stroke[:idx]
+        stroke += stroke[:1]
 
 
         crosses = len(edge_cycle)
