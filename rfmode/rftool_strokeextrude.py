@@ -181,6 +181,7 @@ class RFTool_StrokeExtrude(RFTool):
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
+        sel_verts = {v for e in edges for v in e.verts}
 
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
@@ -193,10 +194,22 @@ class RFTool_StrokeExtrude(RFTool):
             bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=20)
             bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=20)
             if bmv0:
+                if bmv0 in sel_verts:
+                    self.rfcontext.alert_user(
+                        'StrokeExtrude',
+                        'Cannot stroke on vertex of a selected edge'
+                    )
+                    return
                 edges0 = walk_to_corner(bmv0, edges)
             else:
                 edges0 = None
             if bmv1:
+                if bmv1 in sel_verts:
+                    self.rfcontext.alert_user(
+                        'StrokeExtrude',
+                        'Cannot stroke on vertex of a selected edge'
+                    )
+                    return
                 edges1 = walk_to_corner(bmv1, edges)
             else:
                 edges1 = None
@@ -218,17 +231,17 @@ class RFTool_StrokeExtrude(RFTool):
         # check all strips for best "scoring"
         if best is None:
             best_score = None
-            for strip in find_edge_strips(edges):
-                verts = get_strip_verts(strip)
-                p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[1].co)
+            for edge_strip in find_edge_strips(edges):
+                verts = get_strip_verts(edge_strip)
+                p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
                 pd = p1 - p0
                 dot = pd.x * sd.x + pd.y * sd.y
                 if dot < 0:
-                    strip.reverse()
+                    edge_strip.reverse()
                     p0, p1, pd, dot = p1, p0, -pd, -dot
                 score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
                 if not best or score < best_score:
-                    best = strip
+                    best = edge_strip
                     best_score = score
 
         if not best:
