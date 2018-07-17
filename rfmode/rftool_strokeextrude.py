@@ -160,23 +160,36 @@ class RFTool_StrokeExtrude(RFTool):
                     best_score = score
             # extrude!
             edges = best
+            verts = get_strip_verts(edges)
             edge_lens = [
                 (Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length
                 for e in edges
             ]
             strip_len = sum(edge_lens)
-            verts = get_strip_verts(edges)
+            avg_len = strip_len / len(edges)
             per_lens = [l / strip_len for l in edge_lens]
             percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
             nstroke = restroke(stroke, percentages)
-            print(percentages)
-            print('nstroke = %d.  verts = %d' % (len(nstroke), len(verts)))
-            v0, v3 = None, None
-            for (v1, s) in zip(verts, nstroke):
-                v2 = self.rfcontext.new2D_vert_point(s)
-                if v0 and v3:
-                    self.rfcontext.new_face([v0, v1, v2, v3])
-                v0, v3 = v1, v2
+            if len(nstroke) != len(verts):
+                print(percentages)
+                print('nstroke = %d.  verts = %d' % (len(nstroke), len(verts)))
+            # average distance between stroke and strip
+            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+            avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
+            crosses = max(math.ceil(avg_dist / avg_len), 2)
+            print(crosses)
+            prev = None
+            last = []
+            for (v0, p1) in zip(verts, nstroke):
+                p0 = Point_to_Point2D(v0.co)
+                cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
+                last.append(cur[-1])
+                if prev:
+                    for i in range(crosses-1):
+                        self.rfcontext.new_face([prev[i+0], cur[i+0], cur[i+1], prev[i+1]])
+                prev = cur
+            nedges = [v0.shared_edge(v1) for v0,v1 in iter_pairs(last, wrap=False)]
+            self.rfcontext.select(nedges)
 
     @profiler.profile
     def modal_selectadd_deselect(self):
