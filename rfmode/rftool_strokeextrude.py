@@ -46,7 +46,7 @@ from ..help import help_strokeextrude
 from .rftool_strokeextrude_utils import (
     process_stroke_filter, process_stroke_source,
     find_edge_strips, get_strip_verts,
-    restroke,
+    restroke, walk_to_corner,
 )
 
 
@@ -191,6 +191,12 @@ class RFTool_StrokeExtrude(RFTool):
         if best is None:
             bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=10)
             bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=10)
+            if bmv0:
+                edges0 = walk_to_corner(bmv0, edges)
+                print(edges0)
+            if bmv1:
+                edges1 = walk_to_corner(bmv1, edges)
+                print(edges1)
 
         # check all strips for best "scoring"
         if best is None:
