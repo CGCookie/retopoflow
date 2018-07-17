@@ -584,6 +584,7 @@ class RFContext_UI:
         container_alpha.add(UI_Label('Target Alpha:', margin=0))
         container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is above the source'))
         container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is below the source'))
+        dd_general.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces')))
         container_theme = dd_general.add(UI_Container(vertical=False))
         container_theme.add(UI_Label('Theme:', margin=4))
         opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False, margin=0))
