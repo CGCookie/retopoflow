@@ -122,13 +122,13 @@ class RFTool_StrokeExtrude(RFTool):
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
-            
+
             self.rfcontext.undo_push('select smart')
             selectable_edges = [e for e in self.rfcontext.visible_edges() if e.is_boundary]
             edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
             if not edge: return
             self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
-        
+
         if self.rfcontext.actions.pressed('action'):
             pass
             # self.rfcontext.undo_push('select then grab')
@@ -183,28 +183,42 @@ class RFTool_StrokeExtrude(RFTool):
 
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
+
         # find best strip
-        best, best_score = None, None
-        for strip in find_edge_strips(edges):
-            verts = get_strip_verts(strip)
-            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[1].co)
-            pd = p1 - p0
-            dot = pd.x * sd.x + pd.y * sd.y
-            if dot < 0:
-                strip.reverse()
-                verts.reverse()
-                p0, p1 = p1, p0
-                pd = -pd
-                dot = -dot
-            score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
-            if not best or score < best_score:
-                best = strip
-                best_score = score
+        best = None
+
+        # check if verts near stroke ends connect to any of the strips
+        if best is None:
+            bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=10)
+            bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=10)
+
+        # check all strips for best "scoring"
+        if best is None:
+            best_score = None
+            for strip in find_edge_strips(edges):
+                verts = get_strip_verts(strip)
+                p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[1].co)
+                pd = p1 - p0
+                dot = pd.x * sd.x + pd.y * sd.y
+                if dot < 0:
+                    strip.reverse()
+                    verts.reverse()
+                    p0, p1 = p1, p0
+                    pd = -pd
+                    dot = -dot
+                score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
+                if not best or score < best_score:
+                    best = strip
+                    best_score = score
+
         if not best:
-            self.rfcontext.alert_user('StrokeExtrude', 'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.')
+            self.rfcontext.alert_user(
+                'StrokeExtrude',
+                'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.'
+            )
             return
 
-        # extrude!
+        # tessellate stroke to match edge
         edges = best
         verts = get_strip_verts(edges)
         edge_lens = [
@@ -216,17 +230,20 @@ class RFTool_StrokeExtrude(RFTool):
         per_lens = [l / strip_len for l in edge_lens]
         percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
         nstroke = restroke(stroke, percentages)
-        if len(nstroke) != len(verts):
-            print(percentages)
-            print('nstroke = %d.  verts = %d' % (len(nstroke), len(verts)))
+        assert len(nstroke) == len(verts), (
+            'Tessellated stroke (%d) does not match vert count (%d)' % (len(nstroke), len(verts))
+        )
         # average distance between stroke and strip
         p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
         avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
+
+        # determine cross count
         if self.strip_crosses is None:
             self.strip_crosses = max(math.ceil(avg_dist / avg_len), 2) - 1
         crosses = self.strip_crosses + 1
-        prev = None
-        last = []
+
+        # extrude!
+        prev, last = None, []
         for (v0, p1) in zip(verts, nstroke):
             p0 = Point_to_Point2D(v0.co)
             cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]

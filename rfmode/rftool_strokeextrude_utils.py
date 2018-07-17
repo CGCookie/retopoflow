@@ -111,3 +111,25 @@ def restroke(stroke, percentages):
             nstroke.append(s0 + (s1 - s0) * t)
             istop += 1
     return nstroke
+
+def walk_to_corner(vert, to_edges):
+    verts = {v for e in to_edges for v in e.verts}
+    edges = [(e, vert, None, 0) for e in vert.link_edges if not e.is_manifold]
+    touched = {}
+    found = None
+    while edges:
+        e, v0, ep, d = edges.pop(0)
+        if e in touched: continue
+        touched[e] = (v0, d, ep)
+        v1 = e.other_vert(v0)
+        if v1 in verts:
+            found = e
+            break
+        edges += [
+            (en, v1, e, d + 1)
+            for en in v1.link_edges
+            if en != e and en.is_manifold
+        ]
+    if not found: return None
+    # walk back
+    walk = []
