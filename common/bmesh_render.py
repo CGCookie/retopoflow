@@ -151,6 +151,8 @@ uniform float focus_mult;
 uniform float offset;
 uniform float dotoffset;
 
+uniform float cull_backfaces; // 0=no, 1=yes
+
 uniform float mirror_view;  // 0=none; 1=draw edge at plane; 2=color faces on far side of plane
 uniform float mirror_effect; // strength of effect: 0=none, 1=full
 uniform vec3 mirroring;     // mirror along axis: 0=false, 1=true
@@ -248,8 +250,12 @@ void main() {
         float l_clip = (l - clip_start) / clip;
         float d = -dot(vCNormal, v) / l;
         if(d <= 0.0) {
-            alpha *= 0.5;
-            //discard;
+            if(cull_backfaces > 0.5) {
+                alpha = 0.0;
+                discard;
+            } else {
+                alpha *= 0.5;
+            }
         }
         
         float focus_push = focus_mult * sign(focus - l_clip) * pow(abs(focus - l_clip), 4.0) * 400.0;
@@ -676,6 +682,7 @@ class BGLBufferedRender:
 
         bmeshShader.assign('focus_mult', focus)
         bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
+        bmeshShader.assign('cull_backfaces', 1.0 if opts.get('cull backfaces', False) else 0.0)
 
         bmeshShader.vertexAttribPointer(
             self.vbo_pos,  'vert_pos',  3, bgl.GL_FLOAT, buf=buf_zero)

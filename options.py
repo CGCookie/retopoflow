@@ -129,6 +129,7 @@ class Options:
 
         'target alpha':         1.0,
         'target hidden alpha':  0.1,
+        'target cull backfaces': False,
 
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
