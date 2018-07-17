@@ -150,6 +150,28 @@ class Point2D(Vector, Entity2D):
     def from_vector(self, v):
         self.x, self.y = v
 
+    @staticmethod
+    def average(points):
+        x, y, c = 0, 0, 0
+        for p in points:
+            x += p.x
+            y += p.y
+            c += 1
+        if c == 0:
+            return Point2D((0, 0))
+        return Point2D((x / c, y / c))
+
+    @staticmethod
+    def weighted_average(weight_points):
+        x, y, c = 0, 0, 0
+        for w, p in weight_points:
+            x += p.x * w
+            y += p.y * w
+            c += w
+        if c == 0:
+            return Point2D((0, 0))
+        return Point2D((x / c, y / c))
+
 
 class Point(Vector, Entity3D):
     @stats_wrapper

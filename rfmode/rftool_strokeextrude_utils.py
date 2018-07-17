@@ -50,6 +50,41 @@ def process_stroke_source(stroke, raycast, is_point_on_mirrored_side):
     pts = [(pt, raycast(pt)[0]) for pt in stroke]
     return [pt for pt,p3d in pts if p3d and not is_point_on_mirrored_side(p3d)]
 
+def find_edge_cycles(edges):
+    edges = set(edges)
+    verts = {v: set() for e in edges for v in e.verts}
+    for e in edges:
+        for v in e.verts:
+            verts[v].add(e)
+    in_cycle = set()
+    for vstart in verts:
+        if vstart in in_cycle: continue
+        for estart in vstart.link_edges:
+            if estart not in edges: continue
+            if estart in in_cycle: continue
+            q = [(estart, vstart, None)]
+            found = None
+            trace = {}
+            while q:
+                ec, vc, ep = q.pop(0)
+                if ec in trace: continue
+                trace[ec] = (vc, ep)
+                vn = ec.other_vert(vc)
+                if vn == vstart:
+                    found = ec
+                    break
+                q += [(en, vn, ec) for en in vn.link_edges if en in edges]
+            if not found: continue
+            l = [found]
+            in_cycle.add(found)
+            while True:
+                vn, ep = trace[l[-1]]
+                in_cycle.add(vn)
+                in_cycle.add(ep)
+                if vn == vstart: break
+                l.append(ep)
+            yield l
+
 def find_edge_strips(edges):
     ''' find edge strips '''
     edges = set(edges)
@@ -100,6 +135,9 @@ def restroke(stroke, percentages):
     istop = 0
     nstroke = []
     while istroke + 1 < len(stroke) and istop < len(stops):
+        if lens[istroke] <= 0:
+            istroke += 1
+            continue
         t = (stops[istop] - dist) / lens[istroke]
         if t < 0:
             istop += 1

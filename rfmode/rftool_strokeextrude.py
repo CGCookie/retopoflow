@@ -33,7 +33,7 @@ from ..common.logger import Logger
 from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
-from ..common.utils import iter_pairs, iter_running_sum
+from ..common.utils import iter_pairs, iter_running_sum, min_index
 from ..common.ui import (
     UI_Image, UI_IntValue, UI_BoolValue,
     UI_Button, UI_Label,
@@ -45,6 +45,7 @@ from ..help import help_strokeextrude
 
 from .rftool_strokeextrude_utils import (
     process_stroke_filter, process_stroke_source,
+    find_edge_cycles,
     find_edge_strips, get_strip_verts,
     restroke, walk_to_corner,
 )
@@ -74,6 +75,7 @@ class RFTool_StrokeExtrude(RFTool):
         self.rfwidget.set_stroke_callback(self.stroke)
         self.replay = None
         self.strip_crosses = None
+        self.strip_loops = None
         self.strip_edges = False
         self.update()
 
@@ -90,14 +92,26 @@ class RFTool_StrokeExtrude(RFTool):
             if self.strip_crosses == v: return
             self.strip_crosses = v
             self.replay()
-        self.ui_count = UI_IntValue('Crosses', get_crosses, set_crosses)
+        def get_loops():
+            return getattr(self, 'strip_loops', None) or 0
+        def set_loops(v):
+            v = max(1, int(v))
+            if self.strip_loops == v: return
+            self.strip_loops = v
+            self.replay()
+
+        self.ui_cross_count = UI_IntValue('Crosses', get_crosses, set_crosses)
+        self.ui_loop_count = UI_IntValue('Loops', get_loops, set_loops)
+
         return [
-            self.ui_count
+            self.ui_cross_count,
+            self.ui_loop_count,
         ]
 
     @profiler.profile
     def update(self):
-        self.ui_count.visible = self.replay and not self.strip_edges
+        self.ui_cross_count.visible = self.strip_crosses is not None and not self.strip_edges
+        self.ui_loop_count.visible = self.strip_loops is not None
 
     @profiler.profile
     def modal_main(self):
@@ -142,11 +156,11 @@ class RFTool_StrokeExtrude(RFTool):
             # return self.prep_move()
 
         if self.rfcontext.actions.pressed('increase count'):
-            if self.replay and not self.strip_edges:
+            if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
                 self.replay()
         if self.rfcontext.actions.pressed('decrease count'):
-            if self.replay and self.strip_crosses > 1 and not self.strip_edges:
+            if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
                 self.replay()
 
@@ -163,6 +177,7 @@ class RFTool_StrokeExtrude(RFTool):
 
         self.strip_stroke3D = stroke3D
         self.strip_crosses = None
+        self.strip_loops = None
         self.strip_edges = False
         self.replay = None
 
@@ -189,7 +204,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('create cycle')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
         stroke += stroke[:1]
@@ -213,7 +228,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('create strip')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
 
@@ -230,17 +245,87 @@ class RFTool_StrokeExtrude(RFTool):
 
     @RFTool.dirty_when_done
     def extrude_cycle(self):
+        if self.strip_crosses is not None:
+            self.rfcontext.undo_repush('extrude cycle')
+        else:
+            self.rfcontext.undo_push('extrude cycle')
         pass
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
+        stroke = process_stroke_filter(stroke)
+        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        sctr = Point2D.average(stroke)
+
+        # make sure stroke is counter-clockwise
+        stroke_centered = [(s - sctr) for s in stroke]
+        winding = sum((s0.x * s1.y - s1.x * s0.y) for (s0, s1) in iter_pairs(stroke_centered, wrap=False))
+        if winding < 0:
+            stroke.reverse()
+
+        # rotate stroke until first point has smallest y
+        idx = min_index(stroke, lambda s:s.y)
+        stroke = stroke[idx:] + stroke[:idx]
+
+        # get selected edges that we can extrude
+        edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
+        # find cycle in selection
+        best = None
+        best_score = None
+        for edge_cycle in find_edge_cycles(edges):
+            verts = get_strip_verts(edge_cycle)
+            vctr = Point2D.average([Point_to_Point2D(v.co) for v in verts])
+            score = (sctr - vctr).length
+            if not best or score < best_score:
+                best = edge_cycle
+                best_score = score
+        if not best:
+            self.rfcontext.alert_user(
+                'StrokeExtrude',
+                'Could not find suitable edge cycle.  Make sure your selection is accurate.'
+            )
+            return
+
+        edge_cycle = best
+        vert_cycle = get_strip_verts(edge_cycle)[:-1]
+
+        # make sure edge cycle is counter-clockwise
+        vctr = Point2D.average([Point_to_Point2D(v.co) for v in vert_cycle])
+        verts_centered = [(Point_to_Point2D(v.co) - vctr) for v in vert_cycle]
+        winding = sum((v0.x * v1.y - v1.x * v0.y) for (v0, v1) in iter_pairs(verts_centered, wrap=False))
+        if winding < 0:
+            edge_cycle.reverse()
+            vert_cycle.reverse()
+
+        # rotate cycle until first vert has smallest y
+        idx = min_index(vert_cycle, lambda v:Point_to_Point2D(v.co).y)
+        edge_cycle = edge_cycle[idx:] + edge_cycle[:idx]
+        vert_cycle = vert_cycle[idx:] + vert_cycle[:idx]
+
+        crosses = len(edge_cycle)
+        percentages = [i / crosses for i in range(crosses)]
+        print(percentages)
+        nstroke = restroke(stroke, percentages)
+        verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+        edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
+        for i0 in range(crosses):
+            i1 = (i0 + 1) % crosses
+            a,b = vert_cycle[i0],vert_cycle[i1]
+            c,d = verts[i1],verts[i0]
+            print(a,b,c,d)
+            self.rfcontext.new_face([a,b,c,d])
+        self.rfcontext.select(edges)
+
 
     @RFTool.dirty_when_done
     def extrude_strip(self):
         if self.strip_crosses is not None:
-            self.rfcontext.undo_repush('stroke extrude')
+            self.rfcontext.undo_repush('extrude strip')
         else:
-            self.rfcontext.undo_push('stroke extrude')
+            self.rfcontext.undo_push('extrude strip')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
 
