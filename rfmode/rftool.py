@@ -42,7 +42,7 @@ from ..options import options
 
 class RFTool(metaclass=SingletonRegisterClass):
     action_tool = []
-    
+
     preferred_tool_order = [
         # use the reported name
         # note: any tool not listed here will append to the bottom in alphabetical-sorted order
@@ -55,18 +55,18 @@ class RFTool(metaclass=SingletonRegisterClass):
         'Patches',
     ]
     order = None
-    
+
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
         RFTool.drawing = Drawing.get_instance()
         RFTool.rfwidget = rfcontext.rfwidget
         toolset = { rftool:rftool() for rftool in RFTool }  # create instances of each tool
-    
+
     @staticmethod
     def get_tools():
         return RFTool.order
-    
+
     @staticmethod
     def dirty_when_done(fn):
         def wrapper(*args, **kwargs):
@@ -74,14 +74,14 @@ class RFTool(metaclass=SingletonRegisterClass):
             RFTool.rfcontext.dirty()
             return ret
         return wrapper
-    
+
     @staticmethod
     def action_call(action):
         def decorator(tool):
             RFTool.action_tool.append((action, tool))
             return tool
         return decorator
-    
+
     ''' a base class for all RetopoFlow Tools '''
     def __init__(self):
         self.FSM = {}
@@ -93,7 +93,7 @@ class RFTool(metaclass=SingletonRegisterClass):
             self._success = True
         except Exception as e:
             print('ERROR: caught exception ' + str(e))
-    
+
     def modal(self):
         try:
             if not self._success: return
@@ -102,35 +102,35 @@ class RFTool(metaclass=SingletonRegisterClass):
         except Exception as e:
             self.mode = 'main'
             raise e     # passing on the exception to RFContext
-    
+
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self): pass
-    
+
     ''' Called the tool is being switched into. Returns initial state '''
     def start(self):
         if not self._success: return
         self.rfwidget.set_widget('default')
         self.mode = 'main'
         return None
-    
+
     def update_tool_options(self):
         if not options['tools autocollapse']: return
         for k in options.keys():
             if not k.startswith('tool ') or not k.endswith(' collapsed'): continue
             t = k.split(' ')[1]
             options[k] = (t != self.name().lower())
-    
+
     ''' Called when user undoes action. Prevents bad state of tool is in non-main mode '''
     def undone(self):
         self.mode = 'main'
-    
+
     def update(self): pass
-    
+
     def modal_main(self): pass
-    
+
     def draw_postview(self): pass
     def draw_postpixel(self): pass
-    
+
     def name(self): return 'Unnamed RFTool'
     def icon(self): return None
     def description(self): return ''

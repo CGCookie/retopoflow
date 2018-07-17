@@ -20,18 +20,91 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import os
+import re
+import sys
+import glob
+import inspect
+import importlib
 
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
 
 from .profiler import profiler
-from .debug import dprint
+from .debug import dprint, debugger
 from .maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
     Ray, XForm, BBox, Plane
 )
+
+
+
+
+def find_and_import_all_subclasses(cls, root_path=None):
+    here_path = os.path.realpath(os.path.dirname(__file__))
+    if root_path is None:
+        root_path = os.path.realpath(os.path.join(here_path, '..'))
+
+    touched_paths = set()
+    found_subclasses = set()
+
+    def search(root):
+        nonlocal touched_paths, found_subclasses, here_path
+
+        root = os.path.realpath(root)
+        if root in touched_paths: return
+        touched_paths.add(root)
+
+        relpath = os.path.relpath(root, here_path)
+        #print('  relpath: %s' % relpath)
+
+        for path in glob.glob(os.path.join(root, '*')):
+            if os.path.isdir(path):
+                if not path.endswith('__pycache__'):
+                    search(path)
+                continue
+            if os.path.splitext(path)[1] != '.py':
+                continue
+
+            try:
+                pyfile = os.path.splitext(os.path.basename(path))[0]
+                if pyfile == '__init__': continue
+                pyfile = os.path.join(relpath, pyfile)
+                if pyfile.startswith('./'): pyfile = pyfile[2:]
+                level = pyfile.count('..')
+                pyfile = re.sub(r'^(\.\.[/\\])*', '', pyfile)
+                pyfile = re.sub('/', '.', pyfile)
+                #print('    Searching: %s (%d, %s)' % (pyfile, level, path))
+                try:
+                    tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
+                except Exception as e:
+                    #print('      Could not import')
+                    continue
+                for tk in dir(tmp):
+                    m = getattr(tmp, tk)
+                    if not inspect.ismodule(m): continue
+                    for k in dir(m):
+                        v = getattr(m, k)
+                        if not inspect.isclass(v): continue
+                        if v is cls: continue
+                        if not issubclass(v, cls): continue
+                        # v is a subclass of cls, so add it to the global namespace
+                        #print('      Found %s in %s' % (str(v), pyfile))
+                        globals()[k] = v
+                        found_subclasses.add(v)
+            except Exception as e:
+                print('Exception occurred while searching %s' % path)
+                debugger.print_exception()
+
+    #print('Searching for class %s' % str(cls))
+    #print('  cwd: %s' % os.getcwd())
+    #print('  Root: %s' % root_path)
+    search(root_path)
+    return found_subclasses
+
+
+
 
 
 def selection_mouse():

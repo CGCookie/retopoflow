@@ -48,7 +48,7 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
-from ..common.utils import get_settings
+from ..common.utils import get_settings, find_and_import_all_subclasses
 from ..common.debug import dprint, debugger
 from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal, BBox
@@ -68,51 +68,10 @@ from .rftool import RFTool
 from .rfwidget import RFWidget
 
 
-
 #######################################################
-# import all the tools here
+# import all classes that subclass RFWidget and RFTool
 
-def find_all_rftools(root=None):
-    if not root:
-        addons = bpy.context.user_preferences.addons
-        folderpath = os.path.dirname(os.path.abspath(__file__))
-        while folderpath:
-            rootpath,foldername = os.path.split(folderpath)
-            if foldername in addons: break
-            folderpath = rootpath
-        else:
-            assert False, 'Could not find root folder'
-        return find_all_rftools(folderpath)
-
-    if not hasattr(find_all_rftools, 'touched'):
-        find_all_rftools.touched = set()
-    root = os.path.abspath(root)
-    if root in find_all_rftools.touched: return
-    find_all_rftools.touched.add(root)
-
-    found = False
-    for path in glob.glob(os.path.join(root, '*')):
-        if os.path.isdir(path):
-            # recurse?
-            found |= find_all_rftools(path)
-        elif os.path.splitext(path)[1] == '.py':
-            rft = os.path.splitext(os.path.basename(path))[0]
-            try:
-                tmp = importlib.__import__(rft, globals(), locals(), [], level=1)
-                for k in dir(tmp):
-                    v = tmp.__getattribute__(k)
-                    if inspect.isclass(v) and v is not RFTool and issubclass(v, RFTool):
-                        # v is an RFTool, so add it to the global namespace
-                        globals()[k] = v
-                        found = True
-            except Exception as e:
-                if 'rftool' in rft:
-                    dprint('************* ERROR! *************')
-                    dprint('>>>>> Could not import ' + rft)
-                    dprint(e)
-                pass
-    return found
-assert find_all_rftools(), 'Could not find RFTools'
+assert find_and_import_all_subclasses(RFTool)
 
 
 #######################################################

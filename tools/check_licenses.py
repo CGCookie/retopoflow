@@ -49,4 +49,5 @@ def scan(rootpath):
         if os.path.isdir(path):
             scan(path)
 
-scan('.')
+if __name__ == '__main__':
+    scan('.')
