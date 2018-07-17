@@ -119,6 +119,16 @@ class RFTool_StrokeExtrude(RFTool):
                 return 'selectadd/deselect'
             return 'select'
 
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
+            
+            self.rfcontext.undo_push('select smart')
+            selectable_edges = [e for e in self.rfcontext.visible_edges() if e.is_boundary]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
+            if not edge: return
+            self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+        
         if self.rfcontext.actions.pressed('action'):
             pass
             # self.rfcontext.undo_push('select then grab')
@@ -147,12 +157,13 @@ class RFTool_StrokeExtrude(RFTool):
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in stroke]
 
         # TODO: determine if stroke is cyclic
         cyclic = False
 
         if not cyclic:
-            self.strip_stroke = stroke
+            self.strip_stroke3D = stroke3D
             self.strip_crosses = None
             self.extrude_strip()
 
@@ -165,7 +176,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('stroke extrude')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = self.strip_stroke
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
@@ -189,7 +200,9 @@ class RFTool_StrokeExtrude(RFTool):
             if not best or score < best_score:
                 best = strip
                 best_score = score
-        if not best: return
+        if not best:
+            self.rfcontext.alert_user('StrokeExtrude', 'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.')
+            return
 
         # extrude!
         edges = best
