@@ -159,9 +159,15 @@ class RFTool_StrokeExtrude(RFTool):
             if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
                 self.replay()
+            elif self.strip_loops is not None:
+                self.strip_loops += 1
+                self.replay()
         if self.rfcontext.actions.pressed('decrease count'):
             if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
+                self.replay()
+            elif self.strip_loops is not None and self.strip_loops > 1:
+                self.strip_loops -= 1
                 self.replay()
 
         if self.rfcontext.actions.pressed('grab'):
@@ -243,7 +249,7 @@ class RFTool_StrokeExtrude(RFTool):
 
     @RFTool.dirty_when_done
     def extrude_cycle(self):
-        if self.strip_crosses is not None:
+        if self.strip_loops is not None:
             self.rfcontext.undo_repush('extrude cycle')
         else:
             self.rfcontext.undo_push('extrude cycle')
@@ -305,17 +311,33 @@ class RFTool_StrokeExtrude(RFTool):
         stroke = stroke[idx:] + stroke[:idx]
         stroke += stroke[:1]
 
-
         crosses = len(edge_cycle)
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
-        verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
-        edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
+
+        if self.strip_loops is None:
+            self.strip_loops = max(1, math.ceil(1))  # TODO: calculate!
+        loops = self.strip_loops
+
+        patch = []
+        for i in range(crosses):
+            v = Point_to_Point2D(vert_cycle[i].co)
+            s = nstroke[i]
+            cur_line = [vert_cycle[i]]
+            for j in range(1, loops+1):
+                pj = j / loops
+                cur_line.append(self.rfcontext.new2D_vert_point(Point2D.weighted_average([
+                    (pj, s),
+                    (1 - pj, v)
+                ])))
+            patch.append(cur_line)
         for i0 in range(crosses):
             i1 = (i0 + 1) % crosses
-            a,b = vert_cycle[i0],vert_cycle[i1]
-            c,d = verts[i1],verts[i0]
-            self.rfcontext.new_face([a,b,c,d])
+            for j0 in range(loops):
+                j1 = j0 + 1
+                self.rfcontext.new_face([patch[i0][j0], patch[i0][j1], patch[i1][j1], patch[i1][j0]])
+        end_verts = [l[-1] for l in patch]
+        edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
         self.rfcontext.select(edges)
 
 
