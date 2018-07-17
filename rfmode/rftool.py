@@ -53,6 +53,7 @@ class RFTool(metaclass=SingletonRegisterClass):
         'Tweak',
         'Loops',
         'Patches',
+        'StrokeExtrude',
     ]
     order = None
 

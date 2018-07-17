@@ -33,7 +33,7 @@ from ..common.logger import Logger
 from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
-from ..common.utils import iter_pairs, iter_running_sum, min_index
+from ..common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ..common.ui import (
     UI_Image, UI_IntValue, UI_BoolValue,
     UI_Button, UI_Label,
@@ -256,16 +256,13 @@ class RFTool_StrokeExtrude(RFTool):
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
         sctr = Point2D.average(stroke)
+        stroke_centered = [(s - sctr) for s in stroke]
 
         # make sure stroke is counter-clockwise
-        stroke_centered = [(s - sctr) for s in stroke]
         winding = sum((s0.x * s1.y - s1.x * s0.y) for (s0, s1) in iter_pairs(stroke_centered, wrap=False))
         if winding < 0:
             stroke.reverse()
-
-        # rotate stroke until first point has smallest y
-        idx = min_index(stroke, lambda s:s.y)
-        stroke = stroke[idx:] + stroke[:idx]
+            stroke_centered.reverse()
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
@@ -288,19 +285,27 @@ class RFTool_StrokeExtrude(RFTool):
 
         edge_cycle = best
         vert_cycle = get_strip_verts(edge_cycle)[:-1]
-
-        # make sure edge cycle is counter-clockwise
         vctr = Point2D.average([Point_to_Point2D(v.co) for v in vert_cycle])
         verts_centered = [(Point_to_Point2D(v.co) - vctr) for v in vert_cycle]
+
+        # make sure edge cycle is counter-clockwise
         winding = sum((v0.x * v1.y - v1.x * v0.y) for (v0, v1) in iter_pairs(verts_centered, wrap=False))
         if winding < 0:
             edge_cycle.reverse()
             vert_cycle.reverse()
+            verts_centered.reverse()
 
         # rotate cycle until first vert has smallest y
         idx = min_index(vert_cycle, lambda v:Point_to_Point2D(v.co).y)
         edge_cycle = edge_cycle[idx:] + edge_cycle[:idx]
         vert_cycle = vert_cycle[idx:] + vert_cycle[:idx]
+        verts_centered = verts_centered[idx:] + verts_centered[:idx]
+
+        # rotate stroke until first point matches best with vert_cycle
+        v = verts_centered[0]
+        idx = max_index(stroke_centered, lambda s:s.x * v.x + s.y * v.y)
+        stroke = stroke[idx:] + stroke[:idx]
+
 
         crosses = len(edge_cycle)
         percentages = [i / crosses for i in range(crosses)]
