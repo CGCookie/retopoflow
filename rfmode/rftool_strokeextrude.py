@@ -157,25 +157,53 @@ class RFTool_StrokeExtrude(RFTool):
         # called when artist finishes a stroke
 
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
-        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in self.rfwidget.stroke2D]
+        size = self.rfwidget.size
+        stroke = self.rfwidget.stroke2D
+        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in stroke]
 
         self.strip_stroke3D = stroke3D
         self.strip_crosses = None
         self.strip_edges = False
         self.replay = None
 
-        edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
-        if not edges:
-            # add in strip of edges
-            self.strip_create = True
-            self.replay = self.create_strip
-        else:
-            # TODO: determine if stroke is cyclic
-            cyclic = False
-            if not cyclic:
+        cyclic = (stroke[0] - stroke[-1]).length < size and any((s-stroke[0]).length > size for s in stroke)
+        extrude = any((not e.is_manifold for e in self.rfcontext.get_selected_edges()))
+        if extrude:
+            if cyclic:
+                self.replay = self.extrude_cycle
+            else:
                 self.replay = self.extrude_strip
+        else:
+            if cyclic:
+                self.replay = self.create_cycle
+            else:
+                self.replay = self.create_strip
 
         if self.replay: self.replay()
+
+    @RFTool.dirty_when_done
+    def create_cycle(self):
+        if self.strip_crosses is not None:
+            self.rfcontext.undo_repush('create cycle')
+        else:
+            self.rfcontext.undo_push('create cycle')
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke = process_stroke_filter(stroke)
+        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke += stroke[:1]
+
+        if self.strip_crosses is None:
+            stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
+            print(stroke_len, self.rfwidget.size)
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+        crosses = self.strip_crosses
+        percentages = [i / crosses for i in range(crosses)]
+        nstroke = restroke(stroke, percentages)
+        verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+        edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
+        self.rfcontext.select(edges)
 
     @RFTool.dirty_when_done
     def create_strip(self):
@@ -199,6 +227,10 @@ class RFTool_StrokeExtrude(RFTool):
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
         self.rfcontext.select(edges)
+
+    @RFTool.dirty_when_done
+    def extrude_cycle(self):
+        pass
 
     @RFTool.dirty_when_done
     def extrude_strip(self):
