@@ -49,12 +49,16 @@ class Profiler:
     class ProfilerHelper(object):
         def __init__(self, pr, text):
             full_text = (pr.stack[-1].full_text+'^' if pr.stack else '') + text
+            parent_text = (pr.stack[-1].full_text) if pr.stack else None
             if full_text in pr.d_start:
                 Profiler._broken = True
                 assert False, '"%s" found in profiler already?' % text
             self.pr = pr
             self.text = text
             self.full_text = full_text
+            self.parent_text = parent_text
+            self.all_call = '~~ All Calls ~~^%s' % text
+            self.parent_all_call = ('~~ All Calls ~~^%s' % pr.stack[-1].all_call) if pr.stack else None
             self._is_done = False
             self.pr.d_start[self.full_text] = time.time()
             self.pr.stack.append(self)
@@ -68,9 +72,11 @@ class Profiler:
             print('Deleting Profiler before finished')
             #assert False, 'Deleting Profiler before finished'
 
-        def update(self, key, delta):
+        def update(self, key, delta, key_parent=None):
             self.pr.d_count[key] = self.pr.d_count.get(key, 0) + 1
             self.pr.d_times[key] = self.pr.d_times.get(key, 0) + delta
+            if key_parent:
+                self.pr.d_times_sub[key_parent] = self.pr.d_times_sub.get(key_parent, 0) + delta
             self.pr.d_mins[key] = min(
                 self.pr.d_mins.get(key, float('inf')), delta)
             self.pr.d_maxs[key] = max(
@@ -91,9 +97,9 @@ class Profiler:
             st = self.pr.d_start[self.full_text]
             en = time.time()
             delta = en-st
-            self.update(self.full_text, delta)
+            self.update(self.full_text, delta, key_parent=self.parent_text)
             self.update('~~ All Calls ~~', delta)
-            self.update('~~ All Calls ~~^%s' % self.text, delta)
+            self.update(self.all_call, delta, key_parent=self.parent_all_call)
             del self.pr.d_start[self.full_text]
 
     class ProfilerHelper_Ignore:
@@ -115,6 +121,7 @@ class Profiler:
     def clear(self):
         self.d_start = {}
         self.d_times = {}
+        self.d_times_sub = {}
         self.d_mins = {}
         self.d_maxs = {}
         self.d_last = {}
@@ -189,13 +196,14 @@ class Profiler:
             'Profiler:',
             '  run: %6.2fsecs' % (time.time() - self.clear_time),
             '----------------------------------------------------------------------------------------------',
-            '   total      call   ------- seconds / call -------',
-            '    secs /   count =   last,    min,    avg,    max  (  fps) - call stack',
+            '   total      call   ------- seconds / call -------             delta                         ',
+            '    secs /   count =   last,    min,    avg,    max  (  fps) -  time  - call stack            ',
             '----------------------------------------------------------------------------------------------',
         ]
         for text in sorted(self.d_times):
             tottime = self.d_times[text]
             totcount = self.d_count[text]
+            deltime = self.d_times[text] - self.d_times_sub.get(text, 0)
             avgt = tottime / totcount
             mint = self.d_mins[text]
             maxt = self.d_maxs[text]
@@ -205,8 +213,8 @@ class Profiler:
                 '    '*(len(calls)-2) + ' \\- ' + calls[-1])
             fps = totcount / tottime if tottime > 0 else 1000
             fps = ' 1k+ ' if fps >= 1000 else '%5.1f' % fps
-            s += ['  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %s' % (
-                tottime, totcount, last, mint, avgt, maxt, fps, t)]
+            s += ['  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %6.2f - %s' % (
+                tottime, totcount, last, mint, avgt, maxt, fps, deltime, t)]
         return '\n'.join(s)
 
     def printout(self):
