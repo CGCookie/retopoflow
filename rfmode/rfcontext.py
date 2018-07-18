@@ -107,7 +107,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if o.select and o == bpy.context.active_object: return False
         if not o.data.polygons: return False
         return True
-    
+
     @staticmethod
     @blender_version_wrapper('>=','2.80')
     def is_valid_source(o):
@@ -127,7 +127,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if not o.select: return False
         if o != bpy.context.active_object: return False
         return True
-    
+
     @staticmethod
     @blender_version_wrapper('>=','2.80')
     def is_valid_target(o):
@@ -184,13 +184,14 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.timer = None
         self.time_to_save = None
         self.fps = 0
+        self.fps_list = [0] * 100
         self.fps_low_start = time.time()    # time when low fps started
         self.fps_low_warning = False        # are we showing a low-fps warning?
         self.exit = False
         self.tool = None
         self.tool_setting = False
         self.set_tool(starting_tool)
-        
+
         # touching undo stack to work around weird bug
         # to reproduce:
         #     start PS, select a strip, drag a handle but then cancel, exit RF
@@ -242,7 +243,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             source_opts = self.get_source_render_options()
             for rfsd in self.rfsources_draw:
                rfsd.replace_opts(source_opts)
-    
+
     def commit(self):
         #self.rftarget.commit()
         pass
@@ -310,15 +311,15 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
     def instrument_write(self, action):
         if not options['instrument']: return
-        
+
         tb_name = options['instrument_filename']
         if tb_name not in bpy.data.texts: bpy.data.texts.new(tb_name)
         tb = bpy.data.texts[tb_name]
-        
+
         target_json = self.rftarget.to_json()
         data = {'action': action, 'target': target_json}
         data_str = json.dumps(data, separators=[',',':'])
-        
+
         # write data to end of textblock
         tb.write('')        # position cursor to end
         tb.write(data_str)
@@ -356,7 +357,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         if self.actions.using('autosave'):
             return {'pass'}
-        
+
         if self.actions.pressed('general help'):
             self.toggle_general_help()
             return {}
@@ -389,9 +390,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             message = '\n'.join('- %s'%l for l in message.splitlines())
             self.alert_user(message=message, level='exception', msghash=h)
             #raise e
-        
+
         if self.window_manager.has_focus(): return {}
-        
+
         # user pressing nav key?
         if self.actions.navigating() or (self.actions.timer and self.nav):
             # let Blender handle navigation
@@ -404,7 +405,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             self.nav = False
             self.nav_time = time.time()
             self.rfwidget.update()
-        
+
         try:
             nmode = self.FSM[self.mode]()
             if nmode: self.mode = nmode
@@ -441,7 +442,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             self.redo_pop()
             if self.tool: self.tool.undone()
             return
-        
+
         if self.actions.pressed('F3'):
             profiler.printout()
             return
@@ -475,7 +476,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
                 # 'Edge Collapse', 'Edge Loops',
                 ], self.delete_dissolve_option)
             return
-        
+
         # update rfwidget and cursor
         if self.actions.valid_mouse():
             self.rfwidget.update()

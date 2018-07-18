@@ -91,6 +91,7 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
+        'visualize fps':        True,   # visualize fps
         'low fps threshold':    1,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
         'low fps time':         5,      # time (seconds) before warning user of low fps
