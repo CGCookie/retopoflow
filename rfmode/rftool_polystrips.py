@@ -111,10 +111,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
         container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)', margin=0))
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)', margin=0))
+
         container_handles = UI_Container(margin=0)
-        container_handles.add(UI_Label('Handle Alpha:'))
-        container_handles.add(UI_IntValue('Above', *options.gettersetter('polystrips handle alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
-        container_handles.add(UI_IntValue('Below', *options.gettersetter('polystrips handle hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1))))
+        container_handles.add(UI_Label('Handle Size:', margin=0))
+        container_handles.add(UI_IntValue('Outer', *options.gettersetter('polystrips handle outer size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of outer handles (junctions)', margin=0))
+        container_handles.add(UI_IntValue('Inner', *options.gettersetter('polystrips handle inner size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of inner handles', margin=0))
         return [
             container,
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
@@ -545,6 +546,11 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
 
             if not hover: hov_alphamult = alphamult
 
+            size_outer = options['polystrips handle outer size']
+            size_inner = options['polystrips handle inner size']
+            border_outer = (size_outer - 2 * options['polystrips handle border']) / size_outer
+            border_inner = (size_inner - 2 * options['polystrips handle border']) / size_inner
+
             bgl.glEnable(bgl.GL_BLEND)
 
             # draw outer-inner lines
@@ -558,20 +564,20 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 p0,p1,p2,p3 = strip.curve.points()
                 edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                 edgeShortenShader['vFrom'] = (p1.x, p1.y, p1.z, 1.0)
-                edgeShortenShader['vRadius'] = 22
+                edgeShortenShader['vRadius'] = size_outer + 2
                 bgl.glVertex3f(*p0)
                 edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                 edgeShortenShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
-                edgeShortenShader['vRadius'] = 17
+                edgeShortenShader['vRadius'] = size_inner + 2
                 bgl.glVertex3f(*p1)
 
                 edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                 edgeShortenShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
-                edgeShortenShader['vRadius'] = 17
+                edgeShortenShader['vRadius'] = size_inner + 2
                 bgl.glVertex3f(*p2)
                 edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
                 edgeShortenShader['vFrom'] = (p2.x, p2.y, p2.z, 1.0)
-                edgeShortenShader['vRadius'] = 22
+                edgeShortenShader['vRadius'] = size_outer + 2
                 bgl.glVertex3f(*p3)
             bgl.glEnd()
             edgeShortenShader.disable()
@@ -580,8 +586,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             faces_drawn = set() # keep track of faces, so don't draw same handles 2+ times
             circleShader.enable()
             circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-            circleShader['uInOut'] = 0.8
-            self.drawing.point_size(20)
+            circleShader['uInOut'] = border_outer
+            self.drawing.point_size(size_outer)
             bgl.glBegin(bgl.GL_POINTS)
             for strip in strips:
                 a = hov_alphamult if strip in hov_strips else alphamult
@@ -602,13 +608,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             if options['polystrips arrows']:
                 arrowShader.enable()
                 arrowShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-                arrowShader['uInOut'] = 0.8
-                self.drawing.point_size(20)
+                arrowShader['uInOut'] = border_inner
+                self.drawing.point_size(size_inner)
                 bgl.glBegin(bgl.GL_POINTS)
                 for strip in strips:
                     a = hov_alphamult if strip in hov_strips else alphamult
                     p0,p1,p2,p3 = strip.curve.points()
-                    arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
+                    arrowShader['vOutColor'] = (0.75, 0.75, 0.75, 0.4*a)
                     arrowShader['vInColor']  = (0.25, 0.25, 0.25, 0.8*a)
                     arrowShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
                     bgl.glVertex3f(*p1)
@@ -619,13 +625,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             else:
                 circleShader.enable()
                 circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-                circleShader['uInOut'] = 0.8
-                self.drawing.point_size(15)
+                circleShader['uInOut'] = border_inner
+                self.drawing.point_size(size_inner)
                 bgl.glBegin(bgl.GL_POINTS)
                 for strip in strips:
                     a = hov_alphamult if strip in hov_strips else alphamult
-                    circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
-                    circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
+                    circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.4*a)
+                    circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.8*a)
                     p0,p1,p2,p3 = strip.curve.points()
                     bgl.glVertex3f(*p1)
                     bgl.glVertex3f(*p2)
@@ -654,10 +660,19 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
 
         # draw in front of geometry
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        draw(options['polystrips handle alpha'], options['polystrips handle hover alpha'], options['polystrips handle hover'])
+        draw(
+            options['target alpha'],
+            options['target alpha'], # hover
+            False, #options['polystrips handle hover']
+        )
+
         # draw behind geometry
         bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(options['polystrips handle hidden alpha'], options['polystrips handle hidden hover alpha'], options['polystrips handle hover'])
+        draw(
+            options['target hidden alpha'],
+            options['target hidden alpha'], # hover
+            False, #options['polystrips handle hover']
+        )
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)

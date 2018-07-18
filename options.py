@@ -129,6 +129,7 @@ class Options:
 
         'target alpha':         1.0,
         'target hidden alpha':  0.1,
+        'target alpha backface': 0.2,
         'target cull backfaces': False,
 
         'screenshot filename':  'RetopoFlow_screenshot.png',
@@ -144,11 +145,9 @@ class Options:
         'polystrips draw curve':    False,
         'polystrips max strips':    10,         # PS will not show handles if knot count is above max
         'polystrips arrows':        False,
-        'polystrips handle alpha':              1.00,
-        'polystrips handle hover alpha':        1.00,
-        'polystrips handle hidden alpha':       0.10,
-        'polystrips handle hidden hover alpha': 0.10,
-        'polystrips handle hover':              False,
+        'polystrips handle inner size': 15,
+        'polystrips handle outer size': 20,
+        'polystrips handle border':     2,
 
         'polypen automerge': True,
 

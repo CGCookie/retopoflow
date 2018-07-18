@@ -152,6 +152,7 @@ uniform float offset;
 uniform float dotoffset;
 
 uniform float cull_backfaces; // 0=no, 1=yes
+uniform float alpha_backface;
 
 uniform float mirror_view;  // 0=none; 1=draw edge at plane; 2=color faces on far side of plane
 uniform float mirror_effect; // strength of effect: 0=none, 1=full
@@ -254,7 +255,7 @@ void main() {
                 alpha = 0.0;
                 discard;
             } else {
-                alpha *= 0.5;
+                alpha *= alpha_backface;
             }
         }
         
@@ -683,6 +684,7 @@ class BGLBufferedRender:
         bmeshShader.assign('focus_mult', focus)
         bmeshShader.assign('use_selection', 0.0 if nosel else 1.0)
         bmeshShader.assign('cull_backfaces', 1.0 if opts.get('cull backfaces', False) else 0.0)
+        bmeshShader.assign('alpha_backface', opts.get('alpha backface', 0.5))
 
         bmeshShader.vertexAttribPointer(
             self.vbo_pos,  'vert_pos',  3, bgl.GL_FLOAT, buf=buf_zero)

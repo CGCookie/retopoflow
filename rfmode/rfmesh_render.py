@@ -295,12 +295,13 @@ class RFMeshRender():
         pr.done()
 
     @profiler.profile
-    def _draw_buffered(self, alpha_above, alpha_below, cull_backfaces):
+    def _draw_buffered(self, alpha_above, alpha_below, cull_backfaces, alpha_backface):
         opts = dict(self.opts)
         for xyz in self.rfmesh.symmetry:
             opts['mirror %s' % xyz] = True
 
         opts['cull backfaces'] = cull_backfaces
+        opts['alpha backface'] = alpha_backface
 
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
@@ -386,7 +387,7 @@ class RFMeshRender():
         buf_matrix_view, buf_matrix_view_invtrans,
         buf_matrix_proj,
         alpha_above, alpha_below,
-        cull_backfaces,
+        cull_backfaces, alpha_backface,
         symmetry=None, symmetry_view=None,
         symmetry_effect=0.0, symmetry_frame: Frame=None
     ):
@@ -405,7 +406,7 @@ class RFMeshRender():
             bmegl.bmeshShader.assign('dir_forward', view_forward)
             bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view,
                               effect=symmetry_effect, frame=symmetry_frame)
-            self._draw_buffered(alpha_above, alpha_below, cull_backfaces)
+            self._draw_buffered(alpha_above, alpha_below, cull_backfaces, alpha_backface)
         except:
             Debugger.print_exception()
             pass
