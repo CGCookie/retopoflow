@@ -92,9 +92,9 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
-        'low fps threshold':    10,     # threshold of a low fps
+        'low fps threshold':    1,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         2,      # time (seconds) before warning user of low fps
+        'low fps time':         5,      # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
