@@ -25,7 +25,12 @@ import bpy
 
 from .rftool import RFTool
 
-from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
+from ..common.maths import (
+    Vec, Vec2D,
+    Point, Point2D,
+    Direction,
+    Accel2D
+)
 from ..common.ui import UI_Image, UI_BoolValue, UI_Label, UI_IntValue, UI_Container
 from ..common.profiler import profiler
 from ..keymaps import default_rf_keymaps
@@ -53,7 +58,15 @@ class RFTool_Relax(RFTool):
     def get_move_hidden(self): return options['relax hidden']
     def set_move_hidden(self, v): options['relax hidden'] = v
 
+    def get_step_count(self): return options['relax steps']
+    def set_step_count(self, v): options['relax steps'] = max(1, v)
+
     def get_ui_options(self):
+        ui_mask = UI_Container()
+        ui_mask.add(UI_Label('Masking Options:', margin=0))
+        ui_mask.add(UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary, margin=0, tooltip='Enable to relax vertices that are along boundary of target (includes along symmetry plane)'))
+        ui_mask.add(UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden, margin=0, tooltip='Enable to relax vertices that are hidden behind source'))
+
         ui_brush = UI_Container()
         ui_brush.add(UI_Label('Brush Properties:', margin=0))
         ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), margin=0, tooltip='Set radius of relax brush'))
@@ -61,8 +74,8 @@ class RFTool_Relax(RFTool):
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of relax brush'))
 
         return [
-            UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
-            UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
+            UI_IntValue('Steps', self.get_step_count, self.set_step_count, tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'),
+            ui_mask,
             ui_brush,
         ]
 
@@ -129,23 +142,29 @@ class RFTool_Relax(RFTool):
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
 
+        # collect data for smoothing
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
-        # collect data for smoothing
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv,d in nearest:
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
             vert_strength[bmv] = self.rfwidget.get_strength_dist(d) #/radius
+
         self._relax(verts, edges, faces, vert_strength)
 
     def _relax(self, verts, edges, faces, vert_strength=None, vistest=True):
         if not verts or not edges: return
         vert_strength = vert_strength or {}
 
+        hidden = self.get_move_hidden()
+        boundary = self.get_move_boundary()
+        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
+        steps = self.get_step_count()
+
         time_delta = self.rfcontext.actions.time_delta
-        strength = 100.0 * self.rfwidget.strength * time_delta
+        strength = (1.0 / steps) * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
         mult = 1.0 / radius
 
@@ -156,45 +175,48 @@ class RFTool_Relax(RFTool):
         chk_verts = set(verts)
         chk_verts |= {bmv for bme in edges for bmv in bme.verts}
         chk_verts |= {bmv for bmf in faces for bmv in bmf.verts}
-        divco = {bmv:Point(bmv.co) for bmv in chk_verts}
 
         # perform smoothing
-        touched = set()
-        for bmv0 in verts:
-            d = vert_strength.get(bmv0, 0)
-            lbme,lbmf = bmv0.link_edges,bmv0.link_faces
-            if not lbme: continue
-            # push edges closer to average edge length
-            for bme in lbme:
-                if bme not in edges: continue
-                if bme in touched: continue
-                touched.add(bme)
-                bmv1 = bme.other_vert(bmv0)
-                diff = bmv1.co - bmv0.co
-                m = (avgDist - diff.length) * (1.0 - d) * 0.1 * mult
-                divco[bmv1] += diff * m * strength
-                divco[bmv0] -= diff * m * strength
-            # attempt to "square" up the faces
-            for bmf in lbmf:
-                if bmf not in faces: continue
-                if bmf in touched: continue
-                touched.add(bmf)
-                cnt = len(bmf.verts)
-                ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
-                fd = sum((ctr-bmv.co).length for bmv in bmf.verts) / cnt
-                for bmv in bmf.verts:
-                    diff = (bmv.co - ctr)
-                    m = (fd - diff.length)* (1.0 - d) / cnt * mult
-                    divco[bmv] += diff * m * strength
+        for step in range(steps):
+            divco = {bmv:Point(bmv.co) for bmv in chk_verts}
+            touched = set()
+            for bmv0 in verts:
+                d = vert_strength.get(bmv0, 0)
+                lbme,lbmf = bmv0.link_edges,bmv0.link_faces
+                if not lbme: continue
 
-        # update
-        hidden = self.get_move_hidden()
-        boundary = self.get_move_boundary()
-        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
-        for bmv,co in divco.items():
-            if bmv not in verts: continue
-            if self.sel_only and not bmv.select: continue
-            if not boundary and bmv.is_boundary: continue
-            if vistest and not hidden and not is_visible(bmv): continue
-            bmv.co = co
-            self.rfcontext.snap_vert(bmv)
+                # push edges closer to average edge length
+                for bme in lbme:
+                    if bme not in edges: continue
+                    if bme in touched: continue
+                    touched.add(bme)
+                    bmv1 = bme.other_vert(bmv0)
+                    diff = bmv1.co - bmv0.co
+                    diffd = Direction(diff)
+                    m = (avgDist - diff.length) * (1.0 - d) * 0.1 * mult
+                    divco[bmv1] += diffd * m * strength
+                    divco[bmv0] -= diffd * m * strength
+
+                # attempt to "square" up the faces
+                for bmf in lbmf:
+                    if bmf not in faces: continue
+                    if bmf in touched: continue
+                    touched.add(bmf)
+                    cnt = len(bmf.verts)
+                    ctr = Point.average([bmv.co for bmv in bmf.verts])
+                    #ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
+                    fd = sum((ctr - bmv.co).length for bmv in bmf.verts) / cnt
+                    for bmv in bmf.verts:
+                        diff = (bmv.co - ctr)
+                        diffd = Direction(diff)
+                        m = (fd - diff.length) * (1.0 - d) / cnt * mult
+                        divco[bmv] += diffd * m * strength
+
+            # update
+            for bmv,co in divco.items():
+                if bmv not in verts: continue
+                if self.sel_only and not bmv.select: continue
+                if not boundary and bmv.is_boundary: continue
+                if vistest and not hidden and not is_visible(bmv): continue
+                bmv.co = co
+                self.rfcontext.snap_vert(bmv)

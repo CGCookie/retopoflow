@@ -51,6 +51,11 @@ class RFTool_Tweak(RFTool):
     def set_move_hidden(self, v): options['tweak hidden'] = v
 
     def get_ui_options(self):
+        ui_mask = UI_Container()
+        ui_mask.add(UI_Label('Masking Options:', margin=0))
+        ui_mask.add(UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary, margin=0, tooltip='Enable to tweak vertices that are along boundary of target (includes along symmetry plane)'))
+        ui_mask.add(UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden, margin=0, tooltip='Enable to tweak vertices that are hidden behind source'))
+
         ui_brush = UI_Container()
         ui_brush.add(UI_Label('Brush Properties:', margin=0))
         ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), margin=0, tooltip='Set radius of tweak brush'))
@@ -58,8 +63,7 @@ class RFTool_Tweak(RFTool):
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of tweak brush'))
 
         return [
-            UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary),
-            UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden),
+            ui_mask,
             ui_brush,
         ]
 

@@ -153,6 +153,7 @@ class Options:
 
         'relax boundary': False,
         'relax hidden':   False,
+        'relax steps':    2,
 
         'tweak boundary': True,
         'tweak hidden':   False,
@@ -199,6 +200,10 @@ class Options:
             except Exception as e:
                 print('Exception caught while trying to read options from file')
                 print(str(e))
+            # remove options that are not in default options
+            for k in set(Options.db.keys()) - set(Options.default_options.keys()):
+                print('Deleting key "%s" from options' % k)
+                del Options.db[k]
         else:
             print('No options file')
     def keys(self): return Options.db.keys()
