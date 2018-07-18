@@ -291,7 +291,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.move_prevmouse = self.rfcontext.actions.mouse
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        shift_offset = self.rfcontext.drawing.unscale(delta.x) / 100
+        shift_offset = self.rfcontext.drawing.unscale(delta.x) / 1000
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
