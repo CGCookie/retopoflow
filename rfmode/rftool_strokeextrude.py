@@ -185,12 +185,16 @@ class RFTool_StrokeExtrude(RFTool):
     def stroke(self):
         # called when artist finishes a stroke
 
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
+        accel_nearest2D_vert = self.rfcontext.accel_nearest2D_vert
+
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         size = self.rfwidget.size
         stroke = self.rfwidget.stroke2D
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
-        stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in stroke]
+        stroke3D = [raycast_sources_Point2D(s)[0] for s in stroke]
         stroke3D = [s for s in stroke3D if s]
 
         self.strip_stroke3D = stroke3D
@@ -205,7 +209,25 @@ class RFTool_StrokeExtrude(RFTool):
             if cyclic:
                 self.replay = self.extrude_cycle
             else:
-                self.replay = self.extrude_strip
+                sel_verts = self.rfcontext.get_selected_verts()
+                sel_edges = self.rfcontext.get_selected_edges()
+                s0,s1 = Point_to_Point2D(stroke3D[0]),Point_to_Point2D(stroke3D[-1])
+                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
+                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+                bmv0_sel = bmv0 and bmv0 in sel_verts
+                bmv1_sel = bmv1 and bmv1 in sel_verts
+                if bmv0_sel or bmv1_sel:
+                    if not bmv0_sel or not bmv1_sel:
+                        bmv = bmv0 if bmv0_sel else bmv1
+                        if len(set(bmv.link_edges) & sel_edges) == 1:
+                            self.replay = self.extrude_l
+                        else:
+                            self.replay = self.extrude_t
+                    else:
+                        # XXX: I-shaped extrusions?
+                        self.replay = self.extrude_c
+                else:
+                    self.replay = self.extrude_strip
         else:
             if cyclic:
                 self.replay = self.create_cycle
@@ -362,6 +384,85 @@ class RFTool_StrokeExtrude(RFTool):
         edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
         self.rfcontext.select(edges)
 
+    @RFTool.dirty_when_done
+    def extrude_c(self):
+        self.rfcontext.alert_user(
+            'StrokeExtrude',
+            'C-shaped extrusions are not handled, yet'
+        )
+
+    @RFTool.dirty_when_done
+    def extrude_t(self):
+        self.rfcontext.alert_user(
+            'StrokeExtrude',
+            'T-shaped extrusions are not handled, yet'
+        )
+
+    @RFTool.dirty_when_done
+    def extrude_l(self):
+        if self.strip_crosses is not None:
+            self.rfcontext.undo_repush('extrude L')
+        else:
+            self.rfcontext.undo_push('extrude L')
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        new2D_vert_point = self.rfcontext.new2D_vert_point
+        new_face = self.rfcontext.new_face
+
+        # get selected edges that we can extrude
+        edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
+        sel_verts = {v for e in edges for v in e.verts}
+
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        s0, s1 = stroke[0], stroke[-1]
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0 = bmv0 if bmv0 in sel_verts else None
+        bmv1 = bmv1 if bmv1 in sel_verts else None
+        if bmv1 in sel_verts:
+            # reverse stroke
+            stroke.reverse()
+            s0, s1 = s1, s0
+            bmv0, bmv1 = bmv1, None
+        nedges,nverts = [],[bmv0]
+        while True:
+            bmes = set(nverts[-1].link_edges) & edges
+            if nedges: bmes.remove(nedges[-1])
+            if len(bmes) != 1: break
+            bme = next(iter(bmes))
+            nedges.append(bme)
+            nverts.append(bme.other_vert(nverts[-1]))
+        npoints = [Point_to_Point2D(v.co) for v in nverts]
+        ndiffs = [(p1 - npoints[0]) for p1 in npoints]
+
+        if self.strip_crosses is None:
+            stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+        crosses = self.strip_crosses
+        percentages = [i / crosses for i in range(crosses+1)]
+        nstroke = restroke(stroke, percentages)
+
+        nedges = []
+        for s in nstroke[1:]:
+            pverts = nverts
+            nverts = [new2D_vert_point(s+d) for d in ndiffs]
+            for i in range(len(nverts)-1):
+                a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
+                if a and b and c and d:
+                    new_face([a,b,c,d])
+            bmv1 = nverts[0]
+            nedges.append(bmv0.shared_edge(bmv1))
+            bmv0 = bmv1
+
+        # nverts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+        # nedges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(nverts, wrap=False)]
+
+        # co = bmv0.co
+        # nverts[0].merge(bmv0)
+        # nverts[0].co = co
+        # self.rfcontext.clean_duplicate_bmedges(nverts[0])
+
+        self.rfcontext.select(nedges)
 
     @RFTool.dirty_when_done
     def extrude_strip(self):
@@ -383,15 +484,6 @@ class RFTool_StrokeExtrude(RFTool):
         # check if verts near stroke ends connect to any of the selected strips
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
-        bmv0_sel = bmv0 and bmv0 in sel_verts
-        bmv1_sel = bmv1 and bmv1 in sel_verts
-        if bmv0_sel or bmv1_sel:
-            # SPECIAL CASE!
-            self.rfcontext.alert_user(
-                'StrokeExtrude',
-                'Cannot stroke on vertex of a selected edge'
-            )
-            return
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
