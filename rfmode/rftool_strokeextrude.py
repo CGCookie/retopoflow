@@ -251,8 +251,24 @@ class RFTool_StrokeExtrude(RFTool):
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
+
+        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidget.size)
+        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidget.size)
+
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
+
+        if snap0:
+            co = snap0.co
+            verts[0].merge(snap0)
+            verts[0].co = co
+            self.rfcontext.clean_duplicate_bmedges(verts[0])
+        if snap1:
+            co = snap1.co
+            verts[-1].merge(snap1)
+            verts[-1].co = co
+            self.rfcontext.clean_duplicate_bmedges(verts[-1])
+
         self.rfcontext.select(edges)
 
     @RFTool.dirty_when_done
