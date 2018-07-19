@@ -380,64 +380,49 @@ class RFTool_StrokeExtrude(RFTool):
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
 
-        # find best strip
-        best = None
-
-        # check if verts near stroke ends connect to any of the strips
-        if best is None:
-            bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-            bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
-            if bmv0:
-                if bmv0 in sel_verts:
-                    self.rfcontext.alert_user(
-                        'StrokeExtrude',
-                        'Cannot stroke on vertex of a selected edge'
-                    )
-                    return
-                edges0 = walk_to_corner(bmv0, edges)
-            else:
-                edges0 = None
-            if bmv1:
-                if bmv1 in sel_verts:
-                    self.rfcontext.alert_user(
-                        'StrokeExtrude',
-                        'Cannot stroke on vertex of a selected edge'
-                    )
-                    return
-                edges1 = walk_to_corner(bmv1, edges)
-            else:
-                edges1 = None
-            if edges0 and edges1 and len(edges0) != len(edges1):
-                self.rfcontext.alert_user(
-                    'StrokeExtrude',
-                    'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
-                )
-                return
-            if edges0:
-                self.strip_crosses = len(edges0)
-                self.strip_edges = True
-            if edges1:
-                self.strip_crosses = len(edges1)
-                self.strip_edges = True
-            # TODO: set best and ensure that best connects edges0 and edges1
-
+        # check if verts near stroke ends connect to any of the selected strips
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0_sel = bmv0 and bmv0 in sel_verts
+        bmv1_sel = bmv1 and bmv1 in sel_verts
+        if bmv0_sel or bmv1_sel:
+            # SPECIAL CASE!
+            self.rfcontext.alert_user(
+                'StrokeExtrude',
+                'Cannot stroke on vertex of a selected edge'
+            )
+            return
+        edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
+        edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
+        if edges0 and edges1 and len(edges0) != len(edges1):
+            self.rfcontext.alert_user(
+                'StrokeExtrude',
+                'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
+            )
+            return
+        if edges0:
+            self.strip_crosses = len(edges0)
+            self.strip_edges = True
+        if edges1:
+            self.strip_crosses = len(edges1)
+            self.strip_edges = True
+        # TODO: set best and ensure that best connects edges0 and edges1
 
         # check all strips for best "scoring"
-        if best is None:
-            best_score = None
-            for edge_strip in find_edge_strips(edges):
-                verts = get_strip_verts(edge_strip)
-                p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
-                pd = p1 - p0
-                dot = pd.x * sd.x + pd.y * sd.y
-                if dot < 0:
-                    edge_strip.reverse()
-                    p0, p1, pd, dot = p1, p0, -pd, -dot
-                score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
-                if not best or score < best_score:
-                    best = edge_strip
-                    best_score = score
-
+        best = None
+        best_score = None
+        for edge_strip in find_edge_strips(edges):
+            verts = get_strip_verts(edge_strip)
+            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+            pd = p1 - p0
+            dot = pd.x * sd.x + pd.y * sd.y
+            if dot < 0:
+                edge_strip.reverse()
+                p0, p1, pd, dot = p1, p0, -pd, -dot
+            score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
+            if not best or score < best_score:
+                best = edge_strip
+                best_score = score
         if not best:
             self.rfcontext.alert_user(
                 'StrokeExtrude',
