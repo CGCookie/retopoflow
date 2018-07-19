@@ -44,23 +44,17 @@ class RFTool_Tweak(RFTool):
     def get_label(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
     def get_tooltip(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
 
-    def get_move_boundary(self): return options['tweak boundary']
-    def set_move_boundary(self, v): options['tweak boundary'] = v
-
-    def get_move_hidden(self): return options['tweak hidden']
-    def set_move_hidden(self, v): options['tweak hidden'] = v
-
     def get_ui_options(self):
         ui_mask = UI_Container()
         ui_mask.add(UI_Label('Masking Options:', margin=0))
-        ui_mask.add(UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary, margin=0, tooltip='Enable to tweak vertices that are along boundary of target (includes along symmetry plane)'))
-        ui_mask.add(UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden, margin=0, tooltip='Enable to tweak vertices that are hidden behind source'))
+        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('tweak mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)', margin=0))
+        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source', margin=0))
 
         ui_brush = UI_Container()
         ui_brush.add(UI_Label('Brush Properties:', margin=0))
-        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), margin=0, tooltip='Set radius of tweak brush'))
-        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), margin=0, tooltip='Set falloff of tweak brush'))
-        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of tweak brush'))
+        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush', margin=0))
+        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of tweak brush', margin=0))
+        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of tweak brush', margin=0))
 
         return [
             ui_mask,
@@ -121,16 +115,18 @@ class RFTool_Tweak(RFTool):
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         if not nearest: return
 
+        # gather options
+        opt_mask_hidden = options['tweak mask hidden']
+        opt_mask_boundary = options['tweak mask boundary']
+
         self.rfcontext.undo_push('tweak move')
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         get_strength_dist = self.rfwidget.get_strength_dist
-        hidden = self.get_move_hidden()
-        boundary = self.get_move_boundary()
         def is_visible(bmv): return self.rfcontext.is_visible(bmv.co, bmv.normal)
         self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
         if self.sel_only: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
-        if not boundary:  self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
-        if not hidden:    self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
+        if opt_mask_boundary: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
+        if opt_mask_hidden:   self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
         self.mousedown = self.rfcontext.actions.mousedown
         return 'move'

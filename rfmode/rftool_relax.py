@@ -59,8 +59,8 @@ class RFTool_Relax(RFTool):
     def get_ui_options(self):
         ui_mask = UI_Container()
         ui_mask.add(UI_Label('Masking Options:', margin=0))
-        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('relax boundary'), tooltip='Enable to relax vertices that are along boundary of target (includes along symmetry plane)', margin=0))
-        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('relax hidden'), tooltip='Enable to relax vertices that are hidden behind source', margin=0))
+        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('relax mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)', margin=0))
+        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('relax mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source', margin=0))
 
         ui_brush = UI_Container()
         ui_brush.add(UI_Label('Brush Properties:', margin=0))
@@ -69,7 +69,7 @@ class RFTool_Relax(RFTool):
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of relax brush'))
 
         ui_algorithm = UI_Collapsible('Algorithm')
-        ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, v)), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)', margin=0))
+        ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, int(v))), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)', margin=0))
         ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length'), margin=0))
         ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius'), margin=0))
         ui_algorithm.add(UI_Checkbox('Face Sides', *options.gettersetter('relax face sides'), margin=0))
@@ -163,8 +163,8 @@ class RFTool_Relax(RFTool):
 
         # gather options
         opt_steps = options['relax steps']
-        opt_move_boundary = options['relax boundary']
-        opt_move_hidden = options['relax hidden']
+        opt_mask_boundary = options['relax mask boundary']
+        opt_mask_hidden = options['relax mask hidden']
         opt_edge_length = options['relax edge length']
         opt_face_radius = options['relax face radius']
         opt_face_sides = options['relax face sides']
@@ -249,8 +249,8 @@ class RFTool_Relax(RFTool):
                 if bmv not in verts: continue
                 if bmv not in vert_strength: continue
                 if self.sel_only and not bmv.select: continue
-                if not opt_move_boundary and bmv.is_boundary: continue
-                if vistest and not opt_move_hidden and not is_visible(bmv): continue
+                if opt_mask_boundary and bmv.is_boundary: continue
+                if vistest and opt_mask_hidden and not is_visible(bmv): continue
                 f = displace[bmv] * vert_strength[bmv]
                 bmv.co += f
                 self.rfcontext.snap_vert(bmv)
