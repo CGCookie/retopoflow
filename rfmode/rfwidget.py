@@ -207,7 +207,7 @@ class RFWidget(RFWidget_Registry, RFWidget_Default, RFWidget_BrushFalloff, RFWid
         return self.scale * self.size
 
     def get_strength_dist(self, dist:float):
-        return (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)) * self.strength
+        return max(0.0, min(1.0, (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)))) * self.strength
 
     def get_strength_Point(self, point:Point):
         if not self.hit_p: return 0.0

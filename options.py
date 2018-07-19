@@ -88,13 +88,13 @@ class Options:
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
-        'version 1.3':          False,  # show RF 1.3 panel?
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
-        'low fps threshold':    10,     # threshold of a low fps
+        'visualize fps':        True,   # visualize fps
+        'low fps threshold':    1,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         2,      # time (seconds) before warning user of low fps
+        'low fps time':         5,      # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
@@ -109,19 +109,21 @@ class Options:
 
         'async mesh loading': True,
 
-        'tools autocollapse': True,
+        'tools autocollapse': True,             # should tool's options auto-open/-collapse when switching tools?
+
+        # True=tool's options are collapsed
         'tools general collapsed': False,       # is general tools collapsed
         'tools symmetry collapsed': True,       # is symmetry tools collapsed
-        'tool contours collapsed': True,        # is contours tools collapsed
-        'tool polystrips collapsed': True,      # is polystrips tools collapsed
-        'tool polypen collapsed': True,         # is polypen tools collapsed
-        'tool relax collapsed': True,           # is relax tools collapsed
-        'tool tweak collapsed': True,           # is tweak tools collapsed
-        'tool loops collapsed': True,           # is loops tools collapsed
-        'tool patches collapsed': True,         # is patches tools collapsed
-        'tool strokeextrude collapsed': True,   # is strokeextrude tools collapsed
+        'tool contours collapsed': True,
+        'tool polystrips collapsed': True,
+        'tool polypen collapsed': True,
+        'tool relax collapsed': True,
+        'tool tweak collapsed': True,
+        'tool loops collapsed': True,
+        'tool patches collapsed': True,
+        'tool strokeextrude collapsed': True,
 
-        'select dist':          10,     # pixels away to select
+        'select dist':          10,             # pixels away to select
 
         'color theme':          'Green',
         'symmetry view':        'Face',
@@ -129,6 +131,7 @@ class Options:
 
         'target alpha':         1.0,
         'target hidden alpha':  0.1,
+        'target alpha backface': 0.2,
         'target cull backfaces': False,
 
         'screenshot filename':  'RetopoFlow_screenshot.png',
@@ -142,18 +145,17 @@ class Options:
 
         'polystrips scale falloff': -1,
         'polystrips draw curve':    False,
-        'polystrips max strips':    10,     # PS will not show handles if knot count is above max
+        'polystrips max strips':    10,         # PS will not show handles if knot count is above max
         'polystrips arrows':        False,
-        'polystrips handle alpha':               1.00,
-        'polystrips handle hover alpha':         1.00,
-        'polystrips handle hidden alpha':        0.10,
-        'polystrips handle hidden hover alpha':  0.10,
-        'polystrips handle hover':               False,
+        'polystrips handle inner size': 15,
+        'polystrips handle outer size': 20,
+        'polystrips handle border':     2,
 
         'polypen automerge': True,
 
         'relax boundary': False,
         'relax hidden':   False,
+        'relax steps':    2,
 
         'tweak boundary': True,
         'tweak hidden':   False,
@@ -200,6 +202,10 @@ class Options:
             except Exception as e:
                 print('Exception caught while trying to read options from file')
                 print(str(e))
+            # remove options that are not in default options
+            for k in set(Options.db.keys()) - set(Options.default_options.keys()):
+                print('Deleting key "%s" from options' % k)
+                del Options.db[k]
         else:
             print('No options file')
     def keys(self): return Options.db.keys()

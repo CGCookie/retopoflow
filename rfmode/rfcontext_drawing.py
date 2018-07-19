@@ -132,9 +132,10 @@ class RFContext_Drawing:
         self.frames += 1
         if ctime >= wtime + 1:
             self.fps = self.frames / (ctime - wtime)
+            self.fps_list = self.fps_list[1:] + [self.fps]
             self.frames = 0
             self.fps_time = ctime
-        
+
         if self.fps >= options['low fps threshold']: self.fps_low_start = ctime
         if ctime - self.fps_low_start > options['low fps time']:
             # exceeded allowed time for low fps
@@ -147,6 +148,54 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         try:
+            if options['visualize fps'] and self.actions.region:
+                pr = profiler.start('fps postpixel')
+                rgn = self.actions.region
+                sw,sh = rgn.width,rgn.height
+                lw = len(self.fps_list)
+
+                bgl.glBegin(bgl.GL_QUADS)
+                bgl.glColor4f(0,0,0,0.2)
+                bgl.glVertex2f((sw-10)-lw-1, 10-1)
+                bgl.glVertex2f((sw-10), 10-1)
+                bgl.glVertex2f((sw-10), 10+60+1)
+                bgl.glVertex2f((sw-10)-lw-1, 10+60+1)
+                bgl.glEnd()
+
+                bgl.glBegin(bgl.GL_LINES)
+                bgl.glColor4f(0.2,0.2,0.2,0.3)
+                for i in [10,20,30,40,50]:
+                    bgl.glVertex2f((sw-10)-lw, 10+i)
+                    bgl.glVertex2f((sw-10), 10+i)
+                bgl.glEnd()
+
+                if options['low fps warn']:
+                    fw = options['low fps time']
+                    fh = options['low fps threshold']
+                    bgl.glBegin(bgl.GL_QUADS)
+                    bgl.glColor4f(0.5,0.1,0.1,0.3)
+                    bgl.glVertex2f((sw-10)-fw, 10)
+                    bgl.glVertex2f((sw-10), 10)
+                    bgl.glVertex2f((sw-10), 10+fh)
+                    bgl.glVertex2f((sw-10)-fw, 10+fh)
+                    bgl.glEnd()
+
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glColor4f(0.1,0.8,1.0,0.3)
+                for i in range(lw):
+                    bgl.glVertex2f((sw-10)-lw+i, 10+min(60, self.fps_list[i]))
+                bgl.glEnd()
+
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glColor4f(0,0,0,0.5)
+                bgl.glVertex2f((sw-10)-lw-1, 10-1)
+                bgl.glVertex2f((sw-10), 10-1)
+                bgl.glVertex2f((sw-10), 10+60+1)
+                bgl.glVertex2f((sw-10)-lw-1, 10+60+1)
+                bgl.glVertex2f((sw-10)-lw-1, 10-1)
+                bgl.glEnd()
+                pr.done()
+
             pr = profiler.start('tool draw postpixel')
             self.tool.draw_postpixel()
             pr.done()
@@ -160,6 +209,7 @@ class RFContext_Drawing:
             self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
             self.window_manager.draw_postpixel()
             pr.done()
+
         except AssertionError as e:
             message,h = debugger.get_exception_info_and_hash()
             print(message)
@@ -230,7 +280,7 @@ class RFContext_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.symmetry:
             pr = profiler.start('render sources')
             for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, 1.00, 0.05, False,
+                rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, 1.00, 0.05, False, 0.5,
                     symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
                     symmetry_effect=options['symmetry effect'], symmetry_frame=ft)
             pr.done()
@@ -238,12 +288,13 @@ class RFContext_Drawing:
         pr = profiler.start('render target')
         alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
         cull_backfaces = options['target cull backfaces']
-        self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, alpha_above, alpha_below, cull_backfaces)
+        alpha_backface = options['target alpha backface']
+        self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, alpha_above, alpha_below, cull_backfaces, alpha_backface)
         pr.done()
 
         pr = profiler.start('render other')
         self.tool.draw_postview()
         self.rfwidget.draw_postview()
         pr.done()
-        
+
         #time.sleep(0.5)
