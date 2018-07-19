@@ -455,7 +455,7 @@ class RFTool_StrokeExtrude(RFTool):
 
         # determine cross count
         if self.strip_crosses is None:
-            self.strip_crosses = max(math.ceil(avg_dist / avg_len), 2) - 1
+            self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidget.size)), 2)
         crosses = self.strip_crosses + 1
 
         # extrude!
