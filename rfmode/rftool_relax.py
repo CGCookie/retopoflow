@@ -150,7 +150,8 @@ class RFTool_Relax(RFTool):
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_strength[bmv] = self.rfwidget.get_strength_dist(d) #/radius
+            vert_strength[bmv] = self.rfwidget.get_strength_dist(d) / radius
+        # self.rfcontext.select(verts)
 
         self._relax(verts, edges, faces, vert_strength)
 
@@ -188,46 +189,56 @@ class RFTool_Relax(RFTool):
                 vec = bme.vector()
                 edge_len = vec.length
                 f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
-                #displace[bmv0] -= f
-                #displace[bmv1] += f
+                displace[bmv0] -= f
+                displace[bmv1] += f
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
                 if bmf not in faces: continue
-                verts = bmf.verts
-                cnt = len(verts)
-                ctr = Point.average(bmv.co for bmv in verts)
-                rels = [bmv.co - ctr for bmv in verts]
+                bmvs = bmf.verts
+                cnt = len(bmvs)
+                ctr = Point.average(bmv.co for bmv in bmvs)
+                rels = [bmv.co - ctr for bmv in bmvs]
 
                 # push verts toward average dist from verts to face center
                 avg_rel_len = sum(rel.length for rel in rels) / cnt
-                for rel, bmv in zip(rels, verts):
+                for rel, bmv in zip(rels, bmvs):
                     rel_len = rel.length
                     f = rel * ((avg_rel_len - rel_len) * strength) #/ rel_len
-                    #displace[bmv] += f
+                    displace[bmv] += f
+
+                # push verts toward equal edge lengths
+                avg_face_edge_len = sum(bme.length for bme in bmf.edges) / cnt
+                for bme in bmf.edges:
+                    bmv0, bmv1 = bme.verts
+                    vec = bme.vector()
+                    edge_len = vec.length
+                    f = vec * (10.0 * (avg_face_edge_len - edge_len) * strength) #/ edge_len
+                    displace[bmv0] -= f
+                    displace[bmv1] += f
 
                 # push verts toward equal spread
                 avg_angle = 2.0 * math.pi / cnt
                 for i0 in range(cnt):
                     i1 = (i0 + 1) % cnt
-                    rel0,bmv0 = rels[i0],verts[i0]
-                    rel1,bmv1 = rels[i1],verts[i1]
+                    rel0,bmv0 = rels[i0],bmvs[i0]
+                    rel1,bmv1 = rels[i1],bmvs[i1]
                     vec = bmv1.co - bmv0.co
                     fvec0 = rel0.cross(vec).cross(rel0).normalize()
                     fvec1 = rel1.cross(rel1.cross(vec)).normalize()
                     vec_len = vec.length
                     angle = rel0.angle(rel1)
                     f_mag = ((avg_angle - angle) * strength) / cnt #/ vec_len
-                    displace[bmv0] -= fvec0 * f_mag
-                    displace[bmv1] -= fvec1 * f_mag
+                    #displace[bmv0] -= fvec0 * f_mag
+                    #displace[bmv1] -= fvec1 * f_mag
 
             # update
             for bmv in displace:
-                if bmv not in verts: mag = 0
-                elif self.sel_only and not bmv.select: mag = 0
-                elif not boundary and bmv.is_boundary: mag = 0
-                elif vistest and not hidden and not is_visible(bmv): mag = 0
-                else: mag = vert_strength.get(bmv, 0)
-                displace[bmv] *= mag
-                bmv.co += displace[bmv]
+                if bmv not in verts: continue
+                if bmv not in vert_strength: continue
+                if self.sel_only and not bmv.select: continue
+                if not boundary and bmv.is_boundary: continue
+                if vistest and not hidden and not is_visible(bmv): continue
+                f = displace[bmv] * vert_strength[bmv]
+                bmv.co += f
                 self.rfcontext.snap_vert(bmv)
