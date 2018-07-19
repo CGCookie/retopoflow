@@ -58,7 +58,7 @@ class Profiler:
             self.full_text = full_text
             self.parent_text = parent_text
             self.all_call = '~~ All Calls ~~^%s' % text
-            self.parent_all_call = ('~~ All Calls ~~^%s' % pr.stack[-1].all_call) if pr.stack else None
+            self.parent_all_call = pr.stack[-1].all_call if pr.stack else None
             self._is_done = False
             self.pr.d_start[self.full_text] = time.time()
             self.pr.stack.append(self)
@@ -215,6 +215,7 @@ class Profiler:
             fps = ' 1k+ ' if fps >= 1000 else '%5.1f' % fps
             s += ['  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %6.2f - %s' % (
                 tottime, totcount, last, mint, avgt, maxt, fps, deltime, t)]
+        s += ['run: %6.2fsecs' % (time.time() - self.clear_time)]
         return '\n'.join(s)
 
     def printout(self):
