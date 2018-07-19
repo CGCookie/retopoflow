@@ -224,7 +224,7 @@ class RFTool_Relax(RFTool):
                         bmv0, bmv1 = bme.verts
                         vec = bme.vector()
                         edge_len = vec.length
-                        f = vec * (10.0 * (avg_face_edge_len - edge_len) * strength) #/ edge_len
+                        f = vec * ((avg_face_edge_len - edge_len) * strength) #/ edge_len
                         displace[bmv0] -= f
                         displace[bmv1] += f
 
