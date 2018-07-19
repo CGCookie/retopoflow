@@ -188,7 +188,10 @@ class RFTool_StrokeExtrude(RFTool):
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         size = self.rfwidget.size
         stroke = self.rfwidget.stroke2D
+        stroke = process_stroke_filter(stroke)
+        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
         stroke3D = [self.rfcontext.raycast_sources_Point2D(s)[0] for s in stroke]
+        stroke3D = [s for s in stroke3D if s]
 
         self.strip_stroke3D = stroke3D
         self.strip_crosses = None
@@ -197,7 +200,7 @@ class RFTool_StrokeExtrude(RFTool):
         self.replay = None
 
         cyclic = (stroke[0] - stroke[-1]).length < size and any((s-stroke[0]).length > size for s in stroke)
-        extrude = any((not e.is_manifold for e in self.rfcontext.get_selected_edges()))
+        extrude = not all(e.is_manifold for e in self.rfcontext.get_selected_edges())
         if extrude:
             if cyclic:
                 self.replay = self.extrude_cycle
@@ -219,9 +222,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('create cycle')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         stroke += stroke[:1]
 
         if self.strip_crosses is None:
@@ -242,9 +243,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('create strip')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -265,9 +264,7 @@ class RFTool_StrokeExtrude(RFTool):
         pass
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         sctr = Point2D.average(stroke)
         stroke_centered = [(s - sctr) for s in stroke]
 
@@ -358,9 +355,7 @@ class RFTool_StrokeExtrude(RFTool):
             self.rfcontext.undo_push('extrude strip')
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D if s]
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
