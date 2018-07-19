@@ -153,9 +153,13 @@ class Options:
 
         'polypen automerge': True,
 
-        'relax boundary': False,
-        'relax hidden':   False,
-        'relax steps':    2,
+        'relax boundary':       False,
+        'relax hidden':         False,
+        'relax steps':          2,
+        'relax edge length':    True,
+        'relax face radius':    True,
+        'relax face sides':     True,
+        'relax face angles':    False,
 
         'tweak boundary': True,
         'tweak hidden':   False,

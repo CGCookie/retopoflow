@@ -31,7 +31,11 @@ from ..common.maths import (
     Direction,
     Accel2D
 )
-from ..common.ui import UI_Image, UI_BoolValue, UI_Label, UI_IntValue, UI_Container
+from ..common.ui import (
+    UI_Container, UI_Collapsible,
+    UI_Image, UI_Label,
+    UI_BoolValue, UI_IntValue, UI_Checkbox,
+)
 from ..common.profiler import profiler
 from ..keymaps import default_rf_keymaps
 from ..options import options
@@ -52,20 +56,11 @@ class RFTool_Relax(RFTool):
     def get_label(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
     def get_tooltip(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
 
-    def get_move_boundary(self): return options['relax boundary']
-    def set_move_boundary(self, v): options['relax boundary'] = v
-
-    def get_move_hidden(self): return options['relax hidden']
-    def set_move_hidden(self, v): options['relax hidden'] = v
-
-    def get_step_count(self): return options['relax steps']
-    def set_step_count(self, v): options['relax steps'] = max(1, v)
-
     def get_ui_options(self):
         ui_mask = UI_Container()
         ui_mask.add(UI_Label('Masking Options:', margin=0))
-        ui_mask.add(UI_BoolValue('Boundary', self.get_move_boundary, self.set_move_boundary, margin=0, tooltip='Enable to relax vertices that are along boundary of target (includes along symmetry plane)'))
-        ui_mask.add(UI_BoolValue('Hidden', self.get_move_hidden, self.set_move_hidden, margin=0, tooltip='Enable to relax vertices that are hidden behind source'))
+        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('relax boundary'), tooltip='Enable to relax vertices that are along boundary of target (includes along symmetry plane)', margin=0))
+        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('relax hidden'), tooltip='Enable to relax vertices that are hidden behind source', margin=0))
 
         ui_brush = UI_Container()
         ui_brush.add(UI_Label('Brush Properties:', margin=0))
@@ -73,10 +68,17 @@ class RFTool_Relax(RFTool):
         ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), margin=0, tooltip='Set falloff of relax brush'))
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), margin=0, tooltip='Set strength of relax brush'))
 
+        ui_algorithm = UI_Collapsible('Algorithm')
+        ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, v)), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)', margin=0))
+        ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length')))
+        ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius')))
+        ui_algorithm.add(UI_Checkbox('Face Sides', *options.gettersetter('relax face sides')))
+        ui_algorithm.add(UI_Checkbox('Face Angles', *options.gettersetter('relax face angles')))
+
         return [
-            UI_IntValue('Steps', self.get_step_count, self.set_step_count, tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'),
             ui_mask,
             ui_brush,
+            ui_algorithm,
         ]
 
     ''' Called the tool is being switched into '''
@@ -159,13 +161,19 @@ class RFTool_Relax(RFTool):
         if not verts or not edges: return
         vert_strength = vert_strength or {}
 
-        hidden = self.get_move_hidden()
-        boundary = self.get_move_boundary()
+        # gather options
+        opt_steps = options['relax steps']
+        opt_move_boundary = options['relax boundary']
+        opt_move_hidden = options['relax hidden']
+        opt_edge_length = options['relax edge length']
+        opt_face_radius = options['relax face radius']
+        opt_face_sides = options['relax face sides']
+        opt_face_angles = options['relax face angles']
+
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
-        steps = self.get_step_count()
 
         time_delta = self.rfcontext.actions.time_delta
-        strength = (5.0 / steps) * self.rfwidget.strength * time_delta
+        strength = (5.0 / opt_steps) * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
 
         # capture all verts involved in relaxing
@@ -176,21 +184,22 @@ class RFTool_Relax(RFTool):
         chk_faces = set(bmf for bmv in chk_verts for bmf in bmv.link_faces)
 
         # perform smoothing
-        for step in range(steps):
+        for step in range(opt_steps):
             # compute average edge length
             avg_edge_len = sum(bme.calc_length() for bme in edges) / len(edges)
             # gather coords
             displace = {bmv:Vec((0,0,0)) for bmv in chk_verts}
 
             # push edges closer to average edge length
-            for bme in chk_edges:
-                if bme not in edges: continue
-                bmv0,bmv1 = bme.verts
-                vec = bme.vector()
-                edge_len = vec.length
-                f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
-                displace[bmv0] -= f
-                displace[bmv1] += f
+            if opt_edge_length:
+                for bme in chk_edges:
+                    if bme not in edges: continue
+                    bmv0,bmv1 = bme.verts
+                    vec = bme.vector()
+                    edge_len = vec.length
+                    f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
+                    displace[bmv0] -= f
+                    displace[bmv1] += f
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
@@ -201,44 +210,47 @@ class RFTool_Relax(RFTool):
                 rels = [bmv.co - ctr for bmv in bmvs]
 
                 # push verts toward average dist from verts to face center
-                avg_rel_len = sum(rel.length for rel in rels) / cnt
-                for rel, bmv in zip(rels, bmvs):
-                    rel_len = rel.length
-                    f = rel * ((avg_rel_len - rel_len) * strength) #/ rel_len
-                    displace[bmv] += f
+                if opt_face_radius:
+                    avg_rel_len = sum(rel.length for rel in rels) / cnt
+                    for rel, bmv in zip(rels, bmvs):
+                        rel_len = rel.length
+                        f = rel * ((avg_rel_len - rel_len) * strength) #/ rel_len
+                        displace[bmv] += f
 
                 # push verts toward equal edge lengths
-                avg_face_edge_len = sum(bme.length for bme in bmf.edges) / cnt
-                for bme in bmf.edges:
-                    bmv0, bmv1 = bme.verts
-                    vec = bme.vector()
-                    edge_len = vec.length
-                    f = vec * (10.0 * (avg_face_edge_len - edge_len) * strength) #/ edge_len
-                    displace[bmv0] -= f
-                    displace[bmv1] += f
+                if opt_face_sides:
+                    avg_face_edge_len = sum(bme.length for bme in bmf.edges) / cnt
+                    for bme in bmf.edges:
+                        bmv0, bmv1 = bme.verts
+                        vec = bme.vector()
+                        edge_len = vec.length
+                        f = vec * (10.0 * (avg_face_edge_len - edge_len) * strength) #/ edge_len
+                        displace[bmv0] -= f
+                        displace[bmv1] += f
 
                 # push verts toward equal spread
-                avg_angle = 2.0 * math.pi / cnt
-                for i0 in range(cnt):
-                    i1 = (i0 + 1) % cnt
-                    rel0,bmv0 = rels[i0],bmvs[i0]
-                    rel1,bmv1 = rels[i1],bmvs[i1]
-                    vec = bmv1.co - bmv0.co
-                    fvec0 = rel0.cross(vec).cross(rel0).normalize()
-                    fvec1 = rel1.cross(rel1.cross(vec)).normalize()
-                    vec_len = vec.length
-                    angle = rel0.angle(rel1)
-                    f_mag = ((avg_angle - angle) * strength) / cnt #/ vec_len
-                    #displace[bmv0] -= fvec0 * f_mag
-                    #displace[bmv1] -= fvec1 * f_mag
+                if opt_face_angles:
+                    avg_angle = 2.0 * math.pi / cnt
+                    for i0 in range(cnt):
+                        i1 = (i0 + 1) % cnt
+                        rel0,bmv0 = rels[i0],bmvs[i0]
+                        rel1,bmv1 = rels[i1],bmvs[i1]
+                        vec = bmv1.co - bmv0.co
+                        fvec0 = rel0.cross(vec).cross(rel0).normalize()
+                        fvec1 = rel1.cross(rel1.cross(vec)).normalize()
+                        vec_len = vec.length
+                        angle = rel0.angle(rel1)
+                        f_mag = (0.1 * (avg_angle - angle) * strength) / cnt #/ vec_len
+                        displace[bmv0] -= fvec0 * f_mag
+                        displace[bmv1] -= fvec1 * f_mag
 
             # update
             for bmv in displace:
                 if bmv not in verts: continue
                 if bmv not in vert_strength: continue
                 if self.sel_only and not bmv.select: continue
-                if not boundary and bmv.is_boundary: continue
-                if vistest and not hidden and not is_visible(bmv): continue
+                if not opt_move_boundary and bmv.is_boundary: continue
+                if vistest and not opt_move_hidden and not is_visible(bmv): continue
                 f = displace[bmv] * vert_strength[bmv]
                 bmv.co += f
                 self.rfcontext.snap_vert(bmv)
