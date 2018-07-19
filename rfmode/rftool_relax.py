@@ -70,10 +70,10 @@ class RFTool_Relax(RFTool):
 
         ui_algorithm = UI_Collapsible('Algorithm')
         ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, v)), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)', margin=0))
-        ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length')))
-        ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius')))
-        ui_algorithm.add(UI_Checkbox('Face Sides', *options.gettersetter('relax face sides')))
-        ui_algorithm.add(UI_Checkbox('Face Angles', *options.gettersetter('relax face angles')))
+        ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length'), margin=0))
+        ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius'), margin=0))
+        ui_algorithm.add(UI_Checkbox('Face Sides', *options.gettersetter('relax face sides'), margin=0))
+        ui_algorithm.add(UI_Checkbox('Face Angles', *options.gettersetter('relax face angles'), margin=0))
 
         return [
             ui_mask,
