@@ -155,6 +155,14 @@ class RFTool_StrokeExtrude(RFTool):
             # self.rfcontext.select(face)
             # return self.prep_move()
 
+        if self.rfcontext.actions.pressed('grab'):
+            self.rfcontext.undo_push('move grabbed')
+            self.prep_move()
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            self.move_cancelled = 'cancel'
+            return 'move'
+
         if self.rfcontext.actions.pressed('increase count'):
             if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
@@ -162,6 +170,7 @@ class RFTool_StrokeExtrude(RFTool):
             elif self.strip_loops is not None:
                 self.strip_loops += 1
                 self.replay()
+
         if self.rfcontext.actions.pressed('decrease count'):
             if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
@@ -508,38 +517,52 @@ class RFTool_StrokeExtrude(RFTool):
         if not edge or edge.select: return
         self.rfcontext.select(edge, supparts=False, only=False)
 
-
     @profiler.profile
-    def prep_move(self, bmfaces=None):
-        if not bmfaces: bmfaces = self.rfcontext.get_selected_faces()
-        if not bmfaces: return
-        bmverts = set(bmv for bmf in bmfaces for bmv in bmf.verts)
-        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+    def prep_move(self, bmverts=None, defer_recomputing=True):
+        self.sel_verts = self.rfcontext.get_selected_verts()
+        self.vis_verts = self.rfcontext.accel_vis_verts
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
+        if not bmverts: bmverts = self.sel_verts
+        self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
-        self.rfwidget.set_widget('default')
-        self.rfcontext.undo_push('move grabbed')
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
-        self.move_cancelled = 'cancel'
-        return 'move'
+        self.defer_recomputing = defer_recomputing
 
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_move(self):
-        if self.rfcontext.actions.pressed(self.move_done_pressed):
+        released = self.rfcontext.actions.released
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            self.defer_recomputing = False
+            #self.mergeSnapped()
             return 'main'
-        if self.rfcontext.actions.released(self.move_done_released):
+        if self.move_done_released and all(released(item) for item in self.move_done_released):
+            self.defer_recomputing = False
+            #self.mergeSnapped()
             return 'main'
-        if self.rfcontext.actions.pressed(self.move_cancelled):
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
-            set2D_vert(bmv, xy + delta)
+            xy_updated = xy + delta
+            # check if xy_updated is "close" to any visible verts (in image plane)
+            # if so, snap xy_updated to vert position (in image plane)
+            if options['polypen automerge']:
+                for bmv1,xy1 in self.vis_bmverts:
+                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                        set2D_vert(bmv, xy1)
+                        break
+                else:
+                    set2D_vert(bmv, xy_updated)
+            else:
+                set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
-        self.update()
+
 
     def draw_postview(self):
         pass
