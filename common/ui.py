@@ -185,9 +185,9 @@ class UI_Element:
         self.pos = Point2D((left + m, top - m))
         self.size = Vec2D((width - m * 2, height - m * 2))
 
-        self.predraw()
         ScissorStack.push(self.pos, self.size)
         if ScissorStack.is_visible():
+            self.predraw()
             self._draw()
         ScissorStack.pop()
 
