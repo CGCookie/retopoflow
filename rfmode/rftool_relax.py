@@ -164,59 +164,70 @@ class RFTool_Relax(RFTool):
         steps = self.get_step_count()
 
         time_delta = self.rfcontext.actions.time_delta
-        strength = (1.0 / steps) * self.rfwidget.strength * time_delta
+        strength = (5.0 / steps) * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
-        mult = 1.0 / radius
-
-        # compute average edge length
-        avgDist = sum(bme.calc_length() for bme in edges) / len(edges)
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
         chk_verts |= {bmv for bme in edges for bmv in bme.verts}
         chk_verts |= {bmv for bmf in faces for bmv in bmf.verts}
+        chk_edges = set(bme for bmv in chk_verts for bme in bmv.link_edges)
+        chk_faces = set(bmf for bmv in chk_verts for bmf in bmv.link_faces)
 
         # perform smoothing
         for step in range(steps):
-            divco = {bmv:Point(bmv.co) for bmv in chk_verts}
-            touched = set()
-            for bmv0 in verts:
-                d = vert_strength.get(bmv0, 0)
-                lbme,lbmf = bmv0.link_edges,bmv0.link_faces
-                if not lbme: continue
+            # compute average edge length
+            avg_edge_len = sum(bme.calc_length() for bme in edges) / len(edges)
+            # gather coords
+            displace = {bmv:Vec((0,0,0)) for bmv in chk_verts}
 
-                # push edges closer to average edge length
-                for bme in lbme:
-                    if bme not in edges: continue
-                    if bme in touched: continue
-                    touched.add(bme)
-                    bmv1 = bme.other_vert(bmv0)
-                    diff = bmv1.co - bmv0.co
-                    diffd = Direction(diff)
-                    m = (avgDist - diff.length) * (1.0 - d) * 0.1 * mult
-                    divco[bmv1] += diffd * m * strength
-                    divco[bmv0] -= diffd * m * strength
+            # push edges closer to average edge length
+            for bme in chk_edges:
+                if bme not in edges: continue
+                bmv0,bmv1 = bme.verts
+                vec = bme.vector()
+                edge_len = vec.length
+                f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
+                #displace[bmv0] -= f
+                #displace[bmv1] += f
 
-                # attempt to "square" up the faces
-                for bmf in lbmf:
-                    if bmf not in faces: continue
-                    if bmf in touched: continue
-                    touched.add(bmf)
-                    cnt = len(bmf.verts)
-                    ctr = Point.average([bmv.co for bmv in bmf.verts])
-                    #ctr = sum([bmv.co for bmv in bmf.verts], Vec((0,0,0))) / cnt
-                    fd = sum((ctr - bmv.co).length for bmv in bmf.verts) / cnt
-                    for bmv in bmf.verts:
-                        diff = (bmv.co - ctr)
-                        diffd = Direction(diff)
-                        m = (fd - diff.length) * (1.0 - d) / cnt * mult
-                        divco[bmv] += diffd * m * strength
+            # attempt to "square" up the faces
+            for bmf in chk_faces:
+                if bmf not in faces: continue
+                verts = bmf.verts
+                cnt = len(verts)
+                ctr = Point.average(bmv.co for bmv in verts)
+                rels = [bmv.co - ctr for bmv in verts]
+
+                # push verts toward average dist from verts to face center
+                avg_rel_len = sum(rel.length for rel in rels) / cnt
+                for rel, bmv in zip(rels, verts):
+                    rel_len = rel.length
+                    f = rel * ((avg_rel_len - rel_len) * strength) #/ rel_len
+                    #displace[bmv] += f
+
+                # push verts toward equal spread
+                avg_angle = 2.0 * math.pi / cnt
+                for i0 in range(cnt):
+                    i1 = (i0 + 1) % cnt
+                    rel0,bmv0 = rels[i0],verts[i0]
+                    rel1,bmv1 = rels[i1],verts[i1]
+                    vec = bmv1.co - bmv0.co
+                    fvec0 = rel0.cross(vec).cross(rel0).normalize()
+                    fvec1 = rel1.cross(rel1.cross(vec)).normalize()
+                    vec_len = vec.length
+                    angle = rel0.angle(rel1)
+                    f_mag = ((avg_angle - angle) * strength) / cnt #/ vec_len
+                    displace[bmv0] -= fvec0 * f_mag
+                    displace[bmv1] -= fvec1 * f_mag
 
             # update
-            for bmv,co in divco.items():
-                if bmv not in verts: continue
-                if self.sel_only and not bmv.select: continue
-                if not boundary and bmv.is_boundary: continue
-                if vistest and not hidden and not is_visible(bmv): continue
-                bmv.co = co
+            for bmv in displace:
+                if bmv not in verts: mag = 0
+                elif self.sel_only and not bmv.select: mag = 0
+                elif not boundary and bmv.is_boundary: mag = 0
+                elif vistest and not hidden and not is_visible(bmv): mag = 0
+                else: mag = vert_strength.get(bmv, 0)
+                displace[bmv] *= mag
+                bmv.co += displace[bmv]
                 self.rfcontext.snap_vert(bmv)
