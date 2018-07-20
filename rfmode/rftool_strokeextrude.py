@@ -19,9 +19,10 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
+
 import bgl
 import bpy
-import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
@@ -30,7 +31,12 @@ from .rftool import RFTool
 from ..common.debug import dprint
 from ..common.profiler import profiler
 from ..common.logger import Logger
-from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
+from ..common.maths import (
+    Point, Vec, Direction,
+    Point2D, Vec2D,
+    Accel2D,
+    clamp, mid,
+)
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..common.utils import iter_pairs, iter_running_sum, min_index, max_index
@@ -40,7 +46,7 @@ from ..common.ui import (
     UI_Container, UI_EqualContainer
     )
 from ..keymaps import default_rf_keymaps
-from ..options import options
+from ..options import options, themes
 from ..help import help_strokeextrude
 
 from .rftool_strokeextrude_utils import (
@@ -55,12 +61,11 @@ from .rftool_strokeextrude_utils import (
 @RFTool.action_call('strokeextrude tool')
 class RFTool_StrokeExtrude(RFTool):
     def init(self):
-        # self.FSM['handle'] = self.modal_handle
+        self.FSM['select'] = self.modal_select
+        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
         self.FSM['move']   = self.modal_move
         # self.FSM['rotate'] = self.modal_rotate
         # self.FSM['scale']  = self.modal_scale
-        self.FSM['select'] = self.modal_select
-        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
 
     def name(self): return "StrokeExtrude"
     def icon(self): return "rf_strokeextrude_icon"
@@ -70,7 +75,6 @@ class RFTool_StrokeExtrude(RFTool):
     def get_tooltip(self): return 'StrokeExtrude (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
 
     def start(self):
-        self.mode = 'main'
         self.rfwidget.set_widget('brush stroke', color=(0.7, 0.7, 1.0))
         self.rfwidget.set_stroke_callback(self.stroke)
         self.replay = None
@@ -117,7 +121,6 @@ class RFTool_StrokeExtrude(RFTool):
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
-
         self.vis_accel = self.rfcontext.get_vis_accel()
 
         self.rfwidget.set_widget('brush stroke')
@@ -178,9 +181,6 @@ class RFTool_StrokeExtrude(RFTool):
             elif self.strip_loops is not None and self.strip_loops > 1:
                 self.strip_loops -= 1
                 self.replay()
-
-        if self.rfcontext.actions.pressed('grab'):
-            return self.prep_move()
 
     def stroke(self):
         # called when artist finishes a stroke
