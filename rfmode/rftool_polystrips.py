@@ -108,14 +108,14 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.change_count(-1)
         container = UI_Container(vertical=False)
         container.add(UI_Label('Count:'))
-        container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
-        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)', margin=0))
-        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)', margin=0))
+        container_incdec = container.add(UI_EqualContainer(vertical=False))
+        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)'))
+        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)'))
 
-        container_handles = UI_Container(margin=0)
-        container_handles.add(UI_Label('Handle Size:', margin=0))
-        container_handles.add(UI_IntValue('Outer', *options.gettersetter('polystrips handle outer size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of outer handles (junctions)', margin=0))
-        container_handles.add(UI_IntValue('Inner', *options.gettersetter('polystrips handle inner size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of inner handles', margin=0))
+        container_handles = UI_Container()
+        container_handles.add(UI_Label('Handle Size:'))
+        container_handles.add(UI_IntValue('Outer', *options.gettersetter('polystrips handle outer size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of outer handles (junctions)'))
+        container_handles.add(UI_IntValue('Inner', *options.gettersetter('polystrips handle inner size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of inner handles'))
         return [
             container,
             UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),

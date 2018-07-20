@@ -41,6 +41,7 @@ from .maths import Point2D, Vec2D, clamp, mid
 from .profiler import profiler
 
 
+
 class Drawing:
     _instance = None
     _dpi = 72
@@ -86,6 +87,14 @@ class Drawing:
         self.r3d = r3d
         self.window = window
 
+    @staticmethod
+    def set_cursor(cursor):
+        # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,
+        # PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                win.cursor_modal_set(cursor)
+
     def scale(self, s): return s * self._dpi_mult if s is not None else None
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
     def get_dpi_mult(self): return self._dpi_mult
@@ -101,8 +110,11 @@ class Drawing:
         size = blf.dimensions(self.font_id, text)
         return (round(size[0]), round(size[1]))
     def get_text_width(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[0])
+        w = 0
+        for l in text.split('\n'):
+            size = blf.dimensions(self.font_id, l)
+            w = max(w, size[0])
+        return round(w)
     def get_text_height(self, text):
         size = blf.dimensions(self.font_id, text)
         return round(size[1])
@@ -268,3 +280,76 @@ class Drawing:
         else:
             print('ERROR (%s): code %d' % (title, err))
         traceback.print_stack()
+
+
+class ScissorStack:
+    context = None
+    buf = bgl.Buffer(bgl.GL_INT, 4)
+    box = None
+    started = False
+    scissor_enabled = False
+    stack = None
+
+    @staticmethod
+    def start(context):
+        assert not ScissorStack.started
+
+        rgn = context.region
+        ScissorStack.context = context
+        ScissorStack.box = (rgn.x, rgn.y, rgn.width, rgn.height)
+
+        bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, ScissorStack.buf)
+        ScissorStack.scissor_enabled = (bgl.glIsEnabled(bgl.GL_SCISSOR_TEST) == bgl.GL_TRUE)
+        ScissorStack.stack = [tuple(ScissorStack.buf)]
+
+        ScissorStack.started = True
+
+        if not ScissorStack.scissor_enabled:
+            bgl.glEnable(bgl.GL_SCISSOR_TEST)
+
+    @staticmethod
+    def end():
+        assert ScissorStack.started
+        assert len(ScissorStack.stack) == 1, 'stack size = %d (not 1)' % len(ScissorStack.started)
+        if not ScissorStack.scissor_enabled:
+            bgl.glDisable(bgl.GL_SCISSOR_TEST)
+        ScissorStack.started = False
+
+    @staticmethod
+    def _set_scissor():
+        assert ScissorStack.started and ScissorStack.stack
+        bgl.glScissor(*ScissorStack.stack[-1])
+
+    @staticmethod
+    def push(pos, size):
+        assert ScissorStack.started, 'Attempting to push a new scissor onto stack before starting!'
+        assert ScissorStack.stack
+
+        rl,rt,rw,rh = ScissorStack.box
+
+        nl,nt = pos
+        nw,nh = size
+        nl,nt,nw,nh = int(rl+nl),int(rt+nt-nh),int(nw+1),int(nh+1)
+        nr,nb = nl+nw,nt+nh
+
+        pl,pt,pw,ph = ScissorStack.stack[-1]
+        pr,pb = pl+pw,pt+ph
+
+        nl,nr,nt,nb = clamp(nl,pl,pr),clamp(nr,pl,pr),clamp(nt,pt,pb),clamp(nb,pt,pb)
+        nw,nh = max(0, nr-nl),max(0, nb-nt)
+
+        ScissorStack.stack.append((nl, nt, nw, nh))
+        ScissorStack._set_scissor()
+
+    @staticmethod
+    def is_visible():
+        assert ScissorStack.started
+        assert ScissorStack.stack
+        l,t,w,h = ScissorStack.stack[-1]
+        return w > 0 and h > 0
+
+    @staticmethod
+    def pop():
+        assert ScissorStack.stack, 'Attempting to pop a scissor from empty stack!'
+        ScissorStack.stack.pop()
+        ScissorStack._set_scissor()

@@ -54,7 +54,7 @@ from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal, BBox
 from ..common.maths import Ray, Plane, XForm
 from ..common.maths import Point2D, Vec2D, Direction2D
-from ..common.ui import set_cursor
+from ..common.drawing import Drawing
 from ..common.decorators import stats_wrapper, blender_version_wrapper
 from ..common.useractions import Actions
 
@@ -405,7 +405,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self.nav = True
-            if not self.actions.trackpad: set_cursor('HAND')
+            if not self.actions.trackpad: Drawing.set_cursor('HAND')
             self.rfwidget.clear()
             return {'pass'}
         if self.nav:
@@ -487,10 +487,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         # update rfwidget and cursor
         if self.actions.valid_mouse():
             self.rfwidget.update()
-            set_cursor(self.rfwidget.mouse_cursor())
+            Drawing.set_cursor(self.rfwidget.mouse_cursor())
         else:
             self.rfwidget.clear()
-            set_cursor('DEFAULT')
+            Drawing.set_cursor('DEFAULT')
 
         if self.rfwidget.modal():
             if self.tool and self.actions.valid_mouse():

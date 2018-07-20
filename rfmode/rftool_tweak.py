@@ -46,15 +46,15 @@ class RFTool_Tweak(RFTool):
 
     def get_ui_options(self):
         ui_mask = UI_Container()
-        ui_mask.add(UI_Label('Masking Options:', margin=0))
-        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('tweak mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)', margin=0))
-        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source', margin=0))
+        ui_mask.add(UI_Label('Masking Options:'))
+        ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('tweak mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)'))
+        ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source'))
 
         ui_brush = UI_Container()
-        ui_brush.add(UI_Label('Brush Properties:', margin=0))
-        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush', margin=0))
-        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of tweak brush', margin=0))
-        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of tweak brush', margin=0))
+        ui_brush.add(UI_Label('Brush Properties:'))
+        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush'))
+        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of tweak brush'))
+        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of tweak brush'))
 
         return [
             ui_mask,

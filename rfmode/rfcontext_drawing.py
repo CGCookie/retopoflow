@@ -42,7 +42,7 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer,
-    UI_IntValue, UI_UpdateValue,
+    UI_IntValue,
     GetSet,
     )
 from ..common import bmesh_render as bmegl

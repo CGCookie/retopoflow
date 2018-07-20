@@ -82,11 +82,12 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         def dec_count():
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
+
         container = UI_Container(vertical=False)
         container.add(UI_Label('Count:'))
-        container_incdec = container.add(UI_EqualContainer(vertical=False, margin=0))
-        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)', margin=0))
-        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)', margin=0))
+        container_incdec = container.add(UI_EqualContainer(vertical=False))
+        container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)'))
+        container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)'))
 
         self.ui_count = UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
         return [

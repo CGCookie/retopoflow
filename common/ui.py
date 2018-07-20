@@ -39,23 +39,19 @@ from mathutils import Matrix
 from .decorators import blender_version_wrapper
 from .maths import Point2D, Vec2D, clamp, mid
 from .profiler import profiler
-from .drawing import Drawing
+from .drawing import Drawing, ScissorStack
 
 from ..ext import png
 
 
-def set_cursor(cursor):
-    # DEFAULT, NONE, WAIT, CROSSHAIR, MOVE_X, MOVE_Y, KNIFE, TEXT,
-    # PAINT_BRUSH, HAND, SCROLL_X, SCROLL_Y, SCROLL_XY, EYEDROPPER
-    for wm in bpy.data.window_managers:
-        for win in wm.windows:
-            win.cursor_modal_set(cursor)
+debug_draw = False
 
 
 def get_image_path(fn, ext=''):
     path_images = os.path.join(os.path.dirname(__file__), '..', 'icons')
     if ext: fn = '%s.%s' % (fn,ext)
     return os.path.join(path_images, fn)
+
 
 def load_image_png(fn):
     if not hasattr(load_image_png, 'cache'):
@@ -75,91 +71,28 @@ class GetSet:
     def set(self, v): return self.fn_set(v)
 
 
-class ScissorStack:
-    context = None
-    buf = bgl.Buffer(bgl.GL_INT, 4)
-    box = None
-    started = False
-    scissor_enabled = False
-    stack = None
-
-    @staticmethod
-    def start(context):
-        assert not ScissorStack.started
-
-        rgn = context.region
-        ScissorStack.context = context
-        ScissorStack.box = (rgn.x, rgn.y, rgn.width, rgn.height)
-
-        bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, ScissorStack.buf)
-        ScissorStack.scissor_enabled = (bgl.glIsEnabled(bgl.GL_SCISSOR_TEST) == bgl.GL_TRUE)
-        ScissorStack.stack = [tuple(ScissorStack.buf)]
-
-        ScissorStack.started = True
-
-        if not ScissorStack.scissor_enabled:
-            bgl.glEnable(bgl.GL_SCISSOR_TEST)
-
-    @staticmethod
-    def end():
-        assert ScissorStack.started
-        assert len(ScissorStack.stack) == 1, 'stack size = %d (not 1)' % len(ScissorStack.started)
-        if not ScissorStack.scissor_enabled:
-            bgl.glDisable(bgl.GL_SCISSOR_TEST)
-        ScissorStack.started = False
-
-    @staticmethod
-    def _set_scissor():
-        assert ScissorStack.started and ScissorStack.stack
-        bgl.glScissor(*ScissorStack.stack[-1])
-
-    @staticmethod
-    def push(pos, size):
-        assert ScissorStack.started, 'Attempting to push a new scissor onto stack before starting!'
-        assert ScissorStack.stack
-
-        rl,rt,rw,rh = ScissorStack.box
-
-        nl,nt = pos
-        nw,nh = size
-        nl,nt,nw,nh = int(rl+nl),int(rt+nt-nh),int(nw+1),int(nh+1)
-        nr,nb = nl+nw,nt+nh
-
-        pl,pt,pw,ph = ScissorStack.stack[-1]
-        pr,pb = pl+pw,pt+ph
-
-        nl,nr,nt,nb = clamp(nl,pl,pr),clamp(nr,pl,pr),clamp(nt,pt,pb),clamp(nb,pt,pb)
-        nw,nh = max(0, nr-nl),max(0, nb-nt)
-
-        ScissorStack.stack.append((nl, nt, nw, nh))
-        ScissorStack._set_scissor()
-
-    @staticmethod
-    def is_visible():
-        assert ScissorStack.started
-        assert ScissorStack.stack
-        l,t,w,h = ScissorStack.stack[-1]
-        return w > 0 and h > 0
-
-    @staticmethod
-    def pop():
-        assert ScissorStack.stack, 'Attempting to pop a scissor from empty stack!'
-        ScissorStack.stack.pop()
-        ScissorStack._set_scissor()
-
-
-
 class UI_Element:
     def __init__(self):
         self.drawing = Drawing.get_instance()
         self.context = bpy.context
         self.pos = None
         self.size = None
-        self.margin = 4
+        self.margin = 0
         self.visible = True
         self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
         self.scissor_enabled = None
         self.deleted = False
+
+    @property
+    def margin(self):
+        return max(self.margin_left, self.margin_right, self.margin_top, self.margin_bottom)
+
+    @margin.setter
+    def margin(self, v):
+        self.margin_left = v
+        self.margin_right = v
+        self.margin_top = v
+        self.margin_bottom = v
 
     def delete(self):
         self.deleted = True
@@ -181,18 +114,57 @@ class UI_Element:
     def draw(self, left, top, width, height):
         if not self.visible: return
 
-        m = self.drawing.scale(self.margin)
-        self.pos = Point2D((left + m, top - m))
-        self.size = Vec2D((width - m * 2, height - m * 2))
+        ml = self.drawing.scale(self.margin_left)
+        mr = self.drawing.scale(self.margin_right)
+        mt = self.drawing.scale(self.margin_top)
+        mb = self.drawing.scale(self.margin_bottom)
+
+        self.pos = Point2D((left + ml, top - mt))
+        self.size = Vec2D((width - ml - mr, height - mt - mb))
+        self.pos0 = Point2D((left, top))
+        self.size0 = Point2D((width, height))
+
+        if debug_draw:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glColor4f(1,0,0,0.5)
+            bgl.glVertex2f(left, top)
+            bgl.glVertex2f(left, top - height)
+            bgl.glVertex2f(left + ml, top - height + mb)
+            bgl.glVertex2f(left + ml, top - mt)
+
+            bgl.glColor4f(0,1,0,0.5)
+            bgl.glVertex2f(left, top - height)
+            bgl.glVertex2f(left + width, top - height)
+            bgl.glVertex2f(left + width - mr, top - height + mb)
+            bgl.glVertex2f(left + ml, top - height + mb)
+
+            bgl.glColor4f(0,0,1,0.5)
+            bgl.glVertex2f(left + width, top - height)
+            bgl.glVertex2f(left + width, top)
+            bgl.glVertex2f(left + width - mr, top - mt)
+            bgl.glVertex2f(left + width - mr, top - height + mb)
+
+            bgl.glColor4f(1,0,1,0.5)
+            bgl.glVertex2f(left + width, top)
+            bgl.glVertex2f(left, top)
+            bgl.glVertex2f(left + ml, top - mt)
+            bgl.glVertex2f(left + width - mr, top - mt)
+            bgl.glEnd()
 
         ScissorStack.push(self.pos, self.size)
+        self.predraw()
         if ScissorStack.is_visible():
-            self.predraw()
             self._draw()
         ScissorStack.pop()
 
-    def get_width(self): return (self._get_width() + self.drawing.scale(self.margin*2)) if self.visible else 0
-    def get_height(self): return (self._get_height() + self.drawing.scale(self.margin*2)) if self.visible else 0
+    def get_width(self):
+        if not self.visible: return 0
+        return self._get_width() + self.drawing.scale(self.margin_left + self.margin_right)
+
+    def get_height(self):
+        if not self.visible: return 0
+        return self._get_height() + self.drawing.scale(self.margin_top + self.margin_bottom)
 
     def _delete(self): return
     def _get_width(self): return 0
@@ -220,10 +192,22 @@ class UI_Spacer(UI_Element):
         self.margin = 0
     def _get_width(self): return self.drawing.scale(self.width)
     def _get_height(self): return self.drawing.scale(self.height)
+    def _draw(self):
+        if debug_draw:
+            left,top = self.pos
+            width,height = self.size
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glColor4f(0,1,1,0.5)
+            bgl.glVertex2f(left, top)
+            bgl.glVertex2f(left, top - height)
+            bgl.glVertex2f(left + width, top - height)
+            bgl.glVertex2f(left + width, top)
+            bgl.glEnd()
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12, shadowcolor=None, margin=4):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, textsize=12, shadowcolor=None, margin=2):
         super().__init__()
         self.icon = icon
         self.tooltip = tooltip
@@ -244,7 +228,7 @@ class UI_Label(UI_Element):
     def set_label(self, label):
         self.text = str(label)
         self.drawing.text_size(self.textsize)
-        self.text_width = self.drawing.get_text_width(self.text)
+        self.text_width = self.drawing.get_text_width(self.text) + 2
         self.text_height = self.drawing.get_line_height(self.text)
 
     def _get_width(self): return self.text_width
@@ -286,7 +270,10 @@ class UI_Label(UI_Element):
 
 
 class UI_WrappedLabel(UI_Element):
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=4, shadowcolor=None):
+    '''
+    Handles text wrapping
+    '''
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=0, shadowcolor=None):
         super().__init__()
         self.margin = margin
         self.textsize = textsize
@@ -398,13 +385,14 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True, background=None, margin=4):
+    def __init__(self, vertical=True, background=None, margin=0, separation=2):
         super().__init__()
         self.vertical = vertical
         self.ui_items = []
         self.background = background
         self.margin = margin
         self.offset = 0
+        self.separation = separation
 
     def _delete(self):
         for ui_item in self.ui_items:
@@ -419,18 +407,23 @@ class UI_Container(UI_Element):
 
     def _get_width(self):
         if not self.ui_items: return 0
-        fn = max if self.vertical else sum
-        return fn(ui.get_width() for ui in self.ui_items)
+        widths = [ui.get_width() for ui in self.ui_items]
+        c = sum(1 if w > 0 else 0 for w in widths)
+        if self.vertical: return max(widths)
+        return sum(widths) + self.drawing.scale(self.separation) * max(0, c - 2)
     def _get_height(self):
         if not self.ui_items: return 0
-        fn = sum if self.vertical else max
-        return fn(ui.get_height() for ui in self.ui_items)
+        heights = [ui.get_height() for ui in self.ui_items]
+        c = sum(1 if h > 0 else 0 for h in heights)
+        if not self.vertical: return max(heights)
+        return sum(heights) + self.drawing.scale(self.separation) * max(0, c - 2)
 
     @profiler.profile
     def _draw(self):
         l,t_ = self.pos
         w,h = self.size
         t = t_ + self.offset
+        sep = self.drawing.scale(self.separation)
 
         if self.background:
             bgl.glEnable(bgl.GL_BLEND)
@@ -446,17 +439,20 @@ class UI_Container(UI_Element):
             y = t
             for ui in self.ui_items:
                 eh = ui.get_height()
-                ui.draw(l,y,w,eh)
-                y -= eh
+                if eh > 0:
+                    ui.draw(l,y,w,eh)
+                    y -= eh + sep
         else:
             x = l
             l = len(self.ui_items)
             for i,ui in enumerate(self.ui_items):
                 ew = ui.get_width() if i < l-1 else w
-                ui.draw(x,t,ew,h)
-                x += ew
-                w -= ew
+                if ew > 0:
+                    ui.draw(x,t,ew,h)
+                    x += ew + sep
+                    w -= ew + sep
 
+        # draw fade bars at top and/or bottom if contents extend beyond
         if self.offset > 0:
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glBegin(bgl.GL_QUADS)
@@ -485,7 +481,7 @@ class UI_Container(UI_Element):
         return ui_item
 
 class UI_EqualContainer(UI_Container):
-    def __init__(self, vertical=True, margin=4):
+    def __init__(self, vertical=True, margin=0):
         super().__init__(vertical=vertical, margin=margin)
 
     @profiler.profile
@@ -509,7 +505,7 @@ class UI_EqualContainer(UI_Container):
                 w -= ew
 
 class UI_TableContainer(UI_Element):
-    def __init__(self, nrows, ncols, background=None, margin=4):
+    def __init__(self, nrows, ncols, background=None, margin=0):
         super().__init__()
         self.nrows = nrows
         self.ncols = ncols
@@ -610,7 +606,7 @@ class UI_Markdown(UI_Container):
         mdown = re.sub(r'\n\n\n*', r'\n\n', mdown)          # 2+ \n => \n\n
         paras = mdown.split('\n\n')                         # split into paragraphs
 
-        container = UI_Container()
+        container = UI_Container(margin=4)
         for p in paras:
             if p.startswith('# '):
                 # h1 heading!
@@ -658,8 +654,8 @@ class UI_Markdown(UI_Container):
         self.add(container, only=True)
 
 class UI_OnlineMarkdown(UI_Markdown):
-    def __init__(self, url, min_size=Vec2D((600,36))):
-        super().__init__(margin=0)
+    def __init__(self, url, min_size=Vec2D((600,36)), margin=4):
+        super().__init__(margin=margin)
         self.min_size = min_size
 
         response = urllib.request.urlopen(url)
@@ -677,7 +673,7 @@ class UI_Button(UI_Container):
             self.add(icon)
             self.add(UI_Spacer(width=4))
         self.tooltip = tooltip
-        self.label = self.add(UI_Label(label, color=color, align=align))
+        self.label = self.add(UI_Label(label, color=color, align=align, margin=4))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
@@ -686,7 +682,7 @@ class UI_Button(UI_Container):
         self.hovercolor = hovercolor
         self.mouse = None
         self.hovering = False
-        if margin is not None: self.margin=margin
+        if margin is not None: self.margin = margin
 
     def get_label(self): return self.label.get_label()
     def set_label(self, label): self.label.set_label(label)
@@ -755,49 +751,64 @@ class UI_Button(UI_Container):
     def _get_tooltip(self, mouse): return self.tooltip
 
 
-class UI_Options(UI_EqualContainer):
+class UI_Options(UI_Container):
     color_select = (0.27, 0.50, 0.72, 0.90)
     color_unselect = None
+    color_hover = (1.00, 1.00, 1.00, 0.10)
 
-    def __init__(self, fn_get_option, fn_set_option, vertical=True, margin=4):
-        super().__init__(vertical=vertical)
+    def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2):
+        super().__init__(vertical=vertical, margin=margin)
+        self.ui_label = super().add(UI_Label('', margin=0))
+        self.set_label(label)
+        self.container = super().add(UI_EqualContainer(vertical=vertical, margin=0))
         self.fn_get_option = fn_get_option
         self.fn_set_option = fn_set_option
         self.options = {}
         self.values = set()
-        self.margin = margin
+
+    def set_label(self, label):
+        self.ui_label.visible = label is not None
+        self.ui_label.set_label(label or '')
+
 
     class UI_Option(UI_Container):
-        def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
+        def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=0):
             super().__init__(vertical=False)
-            self.margin = 0
+            self.margin = margin
             self.label = label
             self.value = value
             self.options = options
             self.tooltip = tooltip
+            self.hovering = False
             if not showlabel: label = None
             if icon:           self.add(icon)
             if icon and label: self.add(UI_Spacer(width=4))
-            if label:          self.add(UI_Label(label, color=color, align=align))
+            if label:          self.add(UI_Label(label, color=color, align=align, margin=0))
 
         def _hover_ui(self, mouse):
             return self if super()._hover_ui(mouse) else None
+        def mouse_enter(self):
+            self.hovering = True
+        def mouse_leave(self):
+            self.hovering = False
 
         @profiler.profile
         def _draw(self):
-            selected = self.options.fn_get_option()
-            is_selected = self.value == selected
-            self.background = UI_Options.color_select if is_selected else UI_Options.color_unselect
+            if self.value == self.options.fn_get_option():
+                self.background = UI_Options.color_select
+            elif self.hovering:
+                self.background = UI_Options.color_hover
+            else:
+                self.background = UI_Options.color_unselect
             super()._draw()
 
         def _get_tooltip(self, mouse): return self.tooltip
 
-    def add_option(self, label, value=None, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True):
+    def add_option(self, label, value=None, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=0):
         if value is None: value=label
         assert value not in self.values, "All option values must be unique!"
         self.values.add(value)
-        option = UI_Options.UI_Option(self, label, value, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel)
-        super().add(option)
+        option = self.container.add(UI_Options.UI_Option(self, label, value, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel, margin=margin))
         self.options[option] = value
 
     def set_option(self, value):
@@ -816,8 +827,8 @@ class UI_Options(UI_EqualContainer):
     def mouse_down(self, mouse): self.mouse_up(mouse)
     def mouse_move(self, mouse): self.mouse_up(mouse)
     def mouse_up(self, mouse):
-        ui = super()._hover_ui(mouse)
-        if ui is None or ui == self: return
+        ui = self.container._hover_ui(mouse)
+        if ui is None or ui == self.container: return
         self.set_option(self.options[ui])
 
     @profiler.profile
@@ -826,7 +837,7 @@ class UI_Options(UI_EqualContainer):
         w,h = self.size
         bgl.glEnable(bgl.GL_BLEND)
         self.drawing.line_width(1)
-        bgl.glColor4f(0,0,0,0.1)
+        bgl.glColor4f(0,0,0,0.2)
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2f(l,t)
         bgl.glVertex2f(l,t-h)
@@ -840,7 +851,7 @@ class UI_Options(UI_EqualContainer):
 class UI_Image(UI_Element):
     executor = ThreadPoolExecutor()
 
-    def __init__(self, image_data, async=True):
+    def __init__(self, image_data, margin=0, async=True):
         super().__init__()
         self.image_data = image_data
         self.width,self.height = 10,10 # placeholder
@@ -849,6 +860,7 @@ class UI_Image(UI_Element):
         self.loaded = False
         self.buffered = False
         self.deleted = False
+        self.margin = margin
 
         self.texbuffer = bgl.Buffer(bgl.GL_INT, [1])
         bgl.glGenTextures(1, self.texbuffer)
@@ -885,8 +897,11 @@ class UI_Image(UI_Element):
         self.deleted = True
         bgl.glDeleteTextures(1, self.texbuffer)
 
-    def _get_width(self): return self.drawing.scale(self.width if self.size_set else self.image_width)
-    def _get_height(self): return self.drawing.scale(self.height if self.size_set else self.image_height)
+    def _get_width(self): return self.get_image_width()
+    def _get_height(self): return self.get_image_height()
+
+    def get_image_width(self): return self.drawing.scale(self.width if self.size_set else self.image_width)
+    def get_image_height(self): return self.drawing.scale(self.height if self.size_set else self.image_height)
 
     def set_width(self, w): self.width,self.size_set = w,True
     def set_height(self, h): self.height,self.size_set = h,True
@@ -897,17 +912,17 @@ class UI_Image(UI_Element):
         self.buffer_image()
         if not self.buffered: return
 
-        cx,cy = self.pos + self.size / 2
-        w,h = self._get_width(),self._get_height()
-        l,t = cx-w/2, cy-h/2
+        cx,cy = (self.pos.x + self.size.x / 2, self.pos.y - self.size.y / 2)
+        w,h = self.get_image_width(),self.get_image_height()
+        l,t = cx-w/2, cy+h/2
 
         bgl.glColor4f(1,1,1,1)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_TEXTURE_2D)
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, self.texture_id)
         bgl.glBegin(bgl.GL_QUADS)
-        bgl.glTexCoord2f(0,0);  bgl.glVertex2f(l,  t)
-        bgl.glTexCoord2f(0,1);  bgl.glVertex2f(l,  t-h)
+        bgl.glTexCoord2f(0,0);  bgl.glVertex2f(l,t)
+        bgl.glTexCoord2f(0,1);  bgl.glVertex2f(l,t-h)
         bgl.glTexCoord2f(1,1);  bgl.glVertex2f(l+w,t-h)
         bgl.glTexCoord2f(1,0);  bgl.glVertex2f(l+w,t)
         bgl.glEnd()
@@ -915,11 +930,12 @@ class UI_Image(UI_Element):
 
 
 class UI_Graphic(UI_Element):
-    def __init__(self, graphic=None):
+    def __init__(self, graphic=None, margin=0):
         super().__init__()
         self._graphic = graphic
         self.width = 12
         self.height = 12
+        self.margin = margin
 
     def set_graphic(self, graphic): self._graphic = graphic
 
@@ -1000,14 +1016,12 @@ class UI_Checkbox(UI_Container):
     '''
     def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
         spacing = kwopts.get('spacing', 4)
-        super().__init__(vertical=False)
-        self.margin = 0
+        super().__init__(vertical=False, margin=2)
         self.chk = UI_Graphic()
         self.add(self.chk)
         if label:
-            self.lbl = UI_Label(label)
             self.add(UI_Spacer(width=spacing))
-            self.add(self.lbl)
+            self.lbl = self.add(UI_Label(label, margin=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
         self.tooltip = kwopts.get('tooltip', None)
@@ -1083,165 +1097,24 @@ class UI_BoolValue(UI_Checkbox):
 
 
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_get_print_value=None, fn_set_print_value=None, margin=4, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False, margin=margin)
         # self.margin = 0
-        self.lbl = UI_Label(label)
-        self.val = UI_Label(fn_get_value())
-        self.add(self.lbl)
-        self.add(UI_Label(':'))
-        self.add(UI_Spacer(width=4))
-        self.add(self.val)
-        self.fn_get_value = fn_get_value
-        self.fn_set_value = fn_set_value
-        self.fn_get_print_value = fn_get_print_value
-        self.fn_set_print_value = fn_set_print_value
-        self.downed = False
-        self.captured = False
-        self.time_start = time.time()
-        self.tooltip = kwargs.get('tooltip', None)
-        self.bgcolor = bgcolor
-        self.presscolor = presscolor
-        self.hovercolor = hovercolor
-        self.hovering = False
 
-    def _get_tooltip(self, mouse): return self.tooltip
-
-    def _hover_ui(self, mouse):
-        return self if super()._hover_ui(mouse) else None
-
-    def mouse_down(self, mouse):
-        self.down_mouse = mouse
-        self.down_val = self.fn_get_value()
-        self.downed = True
-        set_cursor('MOVE_X')
-
-    def mouse_move(self, mouse):
-        self.fn_set_value(self.down_val + int((mouse.x - self.down_mouse.x)/10))
-
-    def mouse_up(self, mouse):
-        self.downed = False
-
-    def mouse_enter(self):
-        self.hovering = True
-    def mouse_leave(self):
-        self.hovering = False
-
-    def predraw(self):
-        if not self.captured:
-            fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
-            self.val.set_label(fn())
-            self.val.cursor_pos = None
-        else:
-            self.val.cursor_pos = self.val_pos
-
-    @profiler.profile
-    def _draw(self):
-        r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
-        l,t = self.pos
-        w,h = self.size
-        bgl.glEnable(bgl.GL_BLEND)
-        self.drawing.line_width(1)
-
-        if self.hovering:
-            bgcolor = self.hovercolor or self.bgcolor
-        else:
-            bgcolor = self.bgcolor
-
-        if bgcolor:
-            bgl.glColor4f(*bgcolor)
-            bgl.glBegin(bgl.GL_QUADS)
-            bgl.glVertex2f(l,t)
-            bgl.glVertex2f(l,t-h)
-            bgl.glVertex2f(l+w,t-h)
-            bgl.glVertex2f(l+w,t)
-            bgl.glEnd()
-
-        bgl.glColor4f(r,g,b,a)
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        bgl.glVertex2f(l,t)
-        bgl.glVertex2f(l,t-h)
-        bgl.glVertex2f(l+w,t-h)
-        bgl.glVertex2f(l+w,t)
-        bgl.glVertex2f(l,t)
-        bgl.glEnd()
-        super()._draw()
-
-    def capture_start(self):
-        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
-        self.val_orig = fn()
-        self.val_edit = str(self.val_orig)
-        self.val_pos = len(self.val_edit)
-        self.captured = True
-        self.keys = {
-            'ZERO':   '0', 'NUMPAD_0':      '0',
-            'ONE':    '1', 'NUMPAD_1':      '1',
-            'TWO':    '2', 'NUMPAD_2':      '2',
-            'THREE':  '3', 'NUMPAD_3':      '3',
-            'FOUR':   '4', 'NUMPAD_4':      '4',
-            'FIVE':   '5', 'NUMPAD_5':      '5',
-            'SIX':    '6', 'NUMPAD_6':      '6',
-            'SEVEN':  '7', 'NUMPAD_7':      '7',
-            'EIGHT':  '8', 'NUMPAD_8':      '8',
-            'NINE':   '9', 'NUMPAD_9':      '9',
-            'PERIOD': '.', 'NUMPAD_PERIOD': '.',
-            'MINUS':  '-', 'NUMPAD_MINUS':  '-',
-        }
-        set_cursor('TEXT')
-        return True
-
-    def capture_event(self, event):
-        time_delta = time.time() - self.time_start
-        self.val.cursor_symbol = None if int(time_delta*10)%5 == 0 else '|'
-        if event.value == 'RELEASE':
-            if event.type in {'RET','NUMPAD_ENTER'}:
-                self.captured = False
-                try:
-                    v = float(self.val_edit)
-                except:
-                    v = self.val_orig
-                if self.fn_set_print_value: self.fn_set_print_value(v)
-                else: self.fn_set_value(v)
-                return True
-            if event.type == 'ESC':
-                self.captured = False
-                return True
-        if event.value == 'PRESS':
-            if event.type == 'LEFT_ARROW':
-                self.val_pos = max(0, self.val_pos - 1)
-            if event.type == 'RIGHT_ARROW':
-                self.val_pos = min(len(self.val_edit), self.val_pos + 1)
-            if event.type == 'HOME':
-                self.val_pos = 0
-            if event.type == 'END':
-                self.val_pos = len(self.val_edit)
-            if event.type == 'BACK_SPACE' and self.val_pos > 0:
-                self.val_edit = self.val_edit[:self.val_pos-1] + self.val_edit[self.val_pos:]
-                self.val_pos -= 1
-            if event.type == 'DEL' and self.val_pos < len(self.val_edit):
-                self.val_edit = self.val_edit[:self.val_pos] + self.val_edit[self.val_pos+1:]
-            if event.type in self.keys:
-                self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
-                self.val_pos += 1
-            self.val.set_label(self.val_edit)
-
-class UI_UpdateValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value, fn_get_print_value=None, fn_set_print_value=None, margin=4, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
-        assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
-        super().__init__(vertical=False, margin=margin)
-        # self.margin = 0
-        self.lbl = UI_Label(label)
-        self.val = UI_Label(fn_get_value())
-        self.add(self.lbl)
-        self.add(UI_Label(':'))
-        self.add(UI_Spacer(width=4))
-        self.add(self.val)
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
         self.fn_update_value = fn_update_value
         self.fn_get_print_value = fn_get_print_value
         self.fn_set_print_value = fn_set_print_value
+
+        self.lbl = self.add(UI_Label(label, margin=0))
+        self.add(UI_Spacer(width=4))
+        self.add(UI_Label('=', margin=0))
+        self.add(UI_Spacer(width=4))
+        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
+        self.val = self.add(UI_Label(fn(), margin=0))
+
         self.downed = False
         self.captured = False
         self.time_start = time.time()
@@ -1261,11 +1134,14 @@ class UI_UpdateValue(UI_Container):
         self.prev_mouse = mouse
         self.down_val = self.fn_get_value()
         self.downed = True
-        set_cursor('MOVE_X')
+        self.drawing.set_cursor('MOVE_X')
 
     def mouse_move(self, mouse):
-        self.fn_update_value((mouse.x - self.prev_mouse.x) / 10)
-        self.prev_mouse = mouse
+        if self.fn_update_value:
+            self.fn_update_value((mouse.x - self.prev_mouse.x) / 10)
+            self.prev_mouse = mouse
+        else:
+            self.fn_set_value(self.down_val + (mouse.x - self.down_mouse.x) / 10)
 
     def mouse_up(self, mouse):
         self.downed = False
@@ -1335,7 +1211,7 @@ class UI_UpdateValue(UI_Container):
             'PERIOD': '.', 'NUMPAD_PERIOD': '.',
             'MINUS':  '-', 'NUMPAD_MINUS':  '-',
         }
-        set_cursor('TEXT')
+        self.drawing.set_cursor('TEXT')
         return True
 
     def capture_event(self, event):
@@ -1372,18 +1248,17 @@ class UI_UpdateValue(UI_Container):
                 self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
                 self.val_pos += 1
             self.val.set_label(self.val_edit)
-
 
 
 class UI_HBFContainer(UI_Container):
     '''
     container with header, body, and footer
     '''
-    def __init__(self, vertical=True):
-        super().__init__()
+    def __init__(self, vertical=True, separation=2):
+        super().__init__(separation=0)
         self.margin = 0
         self.header = UI_Container()
-        self.body = UI_Container(vertical=vertical)
+        self.body = UI_Container(vertical=vertical, separation=2)
         self.footer = UI_Container()
         # self.header.margin = 0
         # self.body.margin = 0
@@ -1432,9 +1307,12 @@ class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=True, fn_collapsed=None, equal=False, vertical=True):
         super().__init__()
         self.margin = 0
+        self.separation = 0
 
         self.header = super().add(UI_Container(background=(0,0,0,0.2)))
-        self.body = super().add(UI_Container(vertical=vertical) if not equal else UI_EqualContainer(vertical=vertical))
+        self.body_wrap = super().add(UI_Container(vertical=False, margin=2))
+        self.body_wrap.add(UI_Spacer(width=8))
+        self.body = self.body_wrap.add(UI_Container(vertical=vertical) if not equal else UI_EqualContainer(vertical=vertical))
         self.footer = super().add(UI_Container())
 
         self.header.margin = 0
@@ -1530,6 +1408,7 @@ class UI_Window(UI_Padding):
     def __init__(self, title, options):
         vertical = options.get('vertical', True)
         padding = options.get('padding', 0)
+        separation = options.get('separation', 2)
 
         super().__init__(padding=padding)
         self.margin = 0
@@ -1556,7 +1435,7 @@ class UI_Window(UI_Padding):
         self.ui_hover = None
         self.ui_grab = [self]
         self.drawing.text_size(12)
-        self.hbf = UI_HBFContainer(vertical=vertical)
+        self.hbf = UI_HBFContainer(vertical=vertical, separation=separation)
         self.hbf.header.margin = 1
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
@@ -1694,7 +1573,7 @@ class UI_Window(UI_Padding):
     def modal_main(self):
         self.mouse_enter()
         if not self.ui_hover: return
-        set_cursor(self.ui_hover.mouse_cursor())
+        self.drawing.set_cursor(self.ui_hover.mouse_cursor())
 
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
             self.mouse_down = self.mouse
@@ -1726,7 +1605,7 @@ class UI_Window(UI_Padding):
             return 'scroll'
 
     def modal_scroll(self):
-        set_cursor('HAND')
+        self.drawing.set_cursor('HAND')
         if self.event.type == 'MIDDLEMOUSE' and self.event.value == 'RELEASE':
             return 'main'
         move = (self.mouse.y - self.mouse_prev.y)
@@ -1746,7 +1625,7 @@ class UI_Window(UI_Padding):
         self.hbf.body.offset = ah - h
 
     def modal_move(self):
-        set_cursor('HAND')
+        self.drawing.set_cursor('HAND')
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             return 'main'
         diff = self.mouse - self.mouse_down

@@ -45,7 +45,7 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer,
-    UI_IntValue, UI_UpdateValue,
+    UI_IntValue,
     GetSet,
     )
 from ..common import bmesh_render as bmegl
@@ -131,7 +131,7 @@ class RFContext_UI:
             def fn():
                 close()
                 callback(grpopt)
-            return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), margin=0))
+            return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90)))
 
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
@@ -552,11 +552,11 @@ class RFContext_UI:
         extra = self.tool_max.add(UI_Container())
         #help_icon = UI_Image('help_32.png')
         #help_icon.set_size(16, 16)
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)', margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)', margin=0)) # , icon=help_icon
-        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu', margin=0))
+        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=help_icon
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=help_icon
+        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
         #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)', margin=0))
+        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)'))
         self.tool_min.add(self.tool_selection_min)
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
@@ -566,9 +566,9 @@ class RFContext_UI:
         window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message', margin=0))
-        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)', margin=0))
-        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"', margin=0))
+        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message'))
+        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
+        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
 
         window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
 
@@ -576,21 +576,20 @@ class RFContext_UI:
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)'))
         container_snap = dd_general.add(UI_Container(vertical=False))
         container_snap.add(UI_Label('Snap Verts:'))
-        container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point', margin=0))
-        container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point', margin=0))
-        dd_general.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        container_clip = dd_general.add(UI_Container())
-        container_clip.add(UI_UpdateValue('Clip Start', get_clip_start, set_clip_start, upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value, margin=0))
-        container_clip.add(UI_UpdateValue('Clip End',   get_clip_end,   set_clip_end,   upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value, margin=0))
-        container_alpha = dd_general.add(UI_Container())
-        container_alpha.add(UI_Label('Target Alpha:', margin=0))
-        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is above the source'))
-        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is below the source'))
-        container_alpha.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), margin=0, tooltip='Set transparency of target mesh that is facing away from camera'))
-        dd_general.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces')))
+        container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))
+        container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
+        container_view = dd_general.add(UI_Collapsible('View Options'))
+        container_view.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
+        container_view.add(UI_IntValue('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
+        container_view.add(UI_IntValue('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_alpha = dd_general.add(UI_Collapsible('Target Rendering'))
+        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
+        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
+        container_alpha.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
+        container_alpha.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
         container_theme = dd_general.add(UI_Container(vertical=False))
-        container_theme.add(UI_Label('Theme:', margin=4))
-        opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False, margin=0))
+        opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
+        opt_theme.set_label("Theme:")
         opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
         opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)

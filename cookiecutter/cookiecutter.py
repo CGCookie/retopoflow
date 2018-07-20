@@ -22,7 +22,7 @@ import time
 import bpy
 from bpy.types import Operator
 
-from ..common.ui import set_cursor
+from ..common.drawing import Drawing
 from ..common.useractions import Actions
 
 from .cookiecutter_fsm import CookieCutter_FSM
@@ -132,7 +132,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self._nav = True
-            if not self.actions.trackpad: set_cursor('HAND')
+            if not self.actions.trackpad: Drawing.set_cursor('HAND')
             ret = {'PASS_THROUGH'}
         elif self._nav:
             self._nav = False

@@ -36,7 +36,7 @@ from bpy.app.handlers import persistent, load_post
 from .rfcontext import RFContext
 from .rftool import RFTool
 
-from ..common.ui import set_cursor
+from ..common.drawing import Drawing
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.debug import dprint, Debugger
 from ..common.maths import BBox
@@ -448,7 +448,7 @@ class RFMode(Operator):
 
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
 
-        set_cursor('CROSSHAIR')
+        Drawing.set_cursor('CROSSHAIR')
 
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
@@ -518,7 +518,7 @@ class RFMode(Operator):
         if self.maximize_area:
             bpy.ops.screen.screen_full_area(use_hide_panels=False)
 
-        set_cursor('DEFAULT')
+        Drawing.set_cursor('DEFAULT')
 
         # restore space info
         for space,data in self.space_info.items():
