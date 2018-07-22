@@ -679,7 +679,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         bgl.glDepthMask(bgl.GL_TRUE)
 
     def draw_postpixel(self):
-        self.rfcontext.drawing.text_size(12)
+        self.rfcontext.drawing.set_font_size(12)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
         for strip in self.strips:

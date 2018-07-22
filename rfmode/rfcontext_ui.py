@@ -546,17 +546,14 @@ class RFContext_UI:
             self.tool_selection_min.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
             ui_options = rft.rft_class().get_ui_options()
             if ui_options: tools_options.append((rft.bl_label, ui_options))
+        extra = UI_Container()
+        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
+        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)'))
         get_tool_collapsed()
         self.tool_max.add(self.tool_selection_max)
-
-        extra = self.tool_max.add(UI_Container())
-        #help_icon = UI_Image('help_32.png')
-        #help_icon.set_size(16, 16)
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=help_icon
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=help_icon
-        extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
-        #extra.add(UI_Checkbox('Collapsed', get_tool_collapsed, set_tool_collapsed))
-        extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)'))
+        self.tool_max.add(extra)
         self.tool_min.add(self.tool_selection_min)
         self.tool_min.add(UI_Checkbox(None, get_tool_collapsed, set_tool_collapsed, tooltip='Restores tool menu (un-minimize)'))
         self.tool_window.add(self.tool_max)
@@ -570,12 +567,15 @@ class RFContext_UI:
         container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
         window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
 
-        window_tool_options = self.window_manager.create_window('Options', {'fn_pos':wrap_pos_option('options pos')})
+        window_tool_options = self.window_manager.create_window('Options', {
+            'fn_pos':wrap_pos_option('options pos'),
+            'separation': 0,
+        })
 
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)'))
         container_snap = dd_general.add(UI_Container(vertical=False))
-        container_snap.add(UI_Label('Snap Verts:'))
+        container_snap.add(UI_Label('Snap Verts:', margin=0))
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
         container_view = dd_general.add(UI_Collapsible('View Options'))

@@ -57,6 +57,7 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 from ..common.drawing import Drawing
 from ..common.decorators import stats_wrapper, blender_version_wrapper
 from ..common.useractions import Actions
+from ..common import ui
 
 from ..options import options, themes
 from ..keymaps import default_rf_keymaps
@@ -458,7 +459,8 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             profiler.clear()
             return
 
-        #if self.actions.pressed('F5'):
+        if self.actions.pressed('F8'):
+            ui.debug_draw = not ui.debug_draw
         #    assert False, 'this is a test!'
         #    return
 

@@ -194,6 +194,10 @@ class RFContext_Drawing:
                 bgl.glVertex2f((sw-10)-lw-1, 10+60+1)
                 bgl.glVertex2f((sw-10)-lw-1, 10-1)
                 bgl.glEnd()
+
+                self.drawing.set_font_size(12)
+                s = '%2.2f' % self.fps
+                self.drawing.text_draw2D(s, Point2D((sw-10-lw+2,10+58)), (1,1,1,0.5))
                 pr.done()
 
             pr = profiler.start('tool draw postpixel')
@@ -207,7 +211,8 @@ class RFContext_Drawing:
             pr = profiler.start('window manager draw postpixel')
             self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
             self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
-            self.window_manager.draw_postpixel(self.actions.context)
+            if True:
+                self.window_manager.draw_postpixel(self.actions.context)
             pr.done()
 
         except AssertionError as e:

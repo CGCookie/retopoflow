@@ -60,11 +60,13 @@ class Drawing:
     @staticmethod
     @blender_version_wrapper('>=','2.79')
     def update_dpi():
+        Drawing._ui_scale = bpy.context.user_preferences.view.ui_scale
+        Drawing._pixel_size = bpy.context.user_preferences.system.pixel_size
         Drawing._dpi = 72 # bpy.context.user_preferences.system.dpi
-        Drawing._dpi *= bpy.context.user_preferences.view.ui_scale
-        Drawing._dpi *= bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi *= Drawing._ui_scale
+        Drawing._dpi *= Drawing._pixel_size
         Drawing._dpi = int(Drawing._dpi)
-        Drawing._dpi_mult = bpy.context.user_preferences.view.ui_scale * bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi_mult = Drawing._ui_scale * Drawing._pixel_size
 
     @staticmethod
     def get_instance():
@@ -80,7 +82,10 @@ class Drawing:
 
         self.rgn,self.r3d,self.window = None,None,None
         self.font_id = 0
-        self.text_size(12)
+        self.fontsize = None
+        self.line_cache = {}
+        self.size_cache = {}
+        self.set_font_size(12)
 
     def set_region(self, rgn, r3d, window):
         self.rgn = rgn
@@ -97,30 +102,57 @@ class Drawing:
 
     def scale(self, s): return s * self._dpi_mult if s is not None else None
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
+    def scale_font(self, s): return int(s * math.pow(self._dpi_mult, 0.5))
     def get_dpi_mult(self): return self._dpi_mult
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
 
-    def text_size(self, size):
-        blf.size(self.font_id, size, self._dpi)
-        self.line_height = round(blf.dimensions(self.font_id, "XMPQpqjI")[1] + 3*self._dpi_mult)
-        self.line_base = round(blf.dimensions(self.font_id, "XMPQI")[1])
+    def set_font_size(self, fontsize):
+        size_prev = self.fontsize
+        fontsize = int(fontsize)
+        if fontsize == size_prev:
+            return size_prev
+        self.fontsize = fontsize
+        blf.size(self.font_id, self.fontsize, self._dpi)
+        if self.fontsize not in self.line_cache:
+            self.line_cache[self.fontsize] = {
+                'line height': round(blf.dimensions(self.font_id, "XMPQpqjI")[1] + self.scale(3)),
+                'line base': round(blf.dimensions(self.font_id, "XMPQI")[1]),
+            }
+        info = self.line_cache[self.fontsize]
+        self.line_height = info['line height']
+        self.line_base = info['line base']
+        return size_prev
 
-    def get_text_size(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return (round(size[0]), round(size[1]))
-    def get_text_width(self, text):
-        w = 0
-        for l in text.split('\n'):
-            size = blf.dimensions(self.font_id, l)
-            w = max(w, size[0])
-        return round(w)
-    def get_text_height(self, text):
-        size = blf.dimensions(self.font_id, text)
-        return round(size[1])
-    def get_line_height(self, text=None):
-        if not text: return self.line_height
-        return self.line_height * (1 + text.count('\n'))
+    def get_text_size_info(self, text, item, fontsize=None):
+        if fontsize:
+            fontsize = int(fontsize)
+            size_prev = self.set_font_size(fontsize)
+        t = (text, self.fontsize, self.font_id)
+        if t not in self.size_cache:
+            d = {}
+            if not text:
+                d['width'] = 0
+                d['height'] = 0
+                d['line height'] = self.line_height
+            else:
+                get_width = lambda t: math.ceil(blf.dimensions(self.font_id, t)[0])
+                get_height = lambda t: math.ceil(blf.dimensions(self.font_id, t)[1])
+                lines = text.splitlines()
+                d['width'] = max(get_width(l) for l in lines)
+                d['height'] = get_height(text)
+                d['line height'] = self.line_height * len(lines)
+            self.size_cache[t] = d
+        if fontsize:
+            self.set_font_size(size_prev)
+        return self.size_cache[t][item]
+
+    def get_text_width(self, text, fontsize=None):
+        return self.get_text_size_info(text, 'width', fontsize=fontsize)
+    def get_text_height(self, text, fontsize=None):
+        return self.get_text_size_info(text, 'height', fontsize=fontsize)
+    def get_line_height(self, text=None, fontsize=None):
+        return self.get_text_size_info(text, 'line height', fontsize=fontsize)
 
     def set_clipping(self, xmin, ymin, xmax, ymax):
         blf.clipping(self.font_id, xmin, ymin, xmax, ymax)
@@ -140,7 +172,7 @@ class Drawing:
         else: self.disable_stipple()
 
     def text_draw2D(self, text, pos:Point2D, color, dropshadow=None):
-        lines = str(text).split('\n')
+        lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
         lh = self.line_height
         lb = self.line_base
@@ -223,7 +255,7 @@ class Drawing:
         lh = self.line_height
 
         # TODO: wrap text!
-        lines = text.split('\n')
+        lines = text.splitlines()
         w = max(self.get_text_width(line) for line in lines)
         h = len(lines) * lh
 
@@ -342,11 +374,34 @@ class ScissorStack:
         ScissorStack._set_scissor()
 
     @staticmethod
+    def get_current_view():
+        assert ScissorStack.started
+        assert ScissorStack.stack
+        rl,rt,rw,rh = ScissorStack.box
+        l,t,w,h = ScissorStack.stack[-1]
+        return (l-rl,t+h-rt,w,h)
+
+    @staticmethod
     def is_visible():
         assert ScissorStack.started
         assert ScissorStack.stack
-        l,t,w,h = ScissorStack.stack[-1]
-        return w > 0 and h > 0
+        sl,st,sw,sh = ScissorStack.stack[-1]
+        return sw > 0 and sh > 0
+
+    @staticmethod
+    def is_box_visible(l,t,w,h):
+        assert ScissorStack.started
+        assert ScissorStack.stack
+        r = l + w
+        b = t - h
+        sl,st,sw,sh = ScissorStack.stack[-1]
+        sr = sl + sw
+        sb = st - sh
+        if l > sr: return False
+        if r < sl: return False
+        if t < sb: return False
+        if b > st: return False
+        return True
 
     @staticmethod
     def pop():

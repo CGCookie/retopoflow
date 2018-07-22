@@ -566,7 +566,7 @@ class RFTool_Patches(RFTool):
 
     def draw_postpixel(self):
         point_to_point2D = self.rfcontext.Point_to_Point2D
-        self.rfcontext.drawing.text_size(12)
+        self.rfcontext.drawing.set_font_size(12)
 
         def get_pos(strips):
             #xy = max((point_to_point2D(bmv.co) for strip in strips for bme in strip for bmv in bme.verts), key=lambda xy:xy.y+xy.x/2)

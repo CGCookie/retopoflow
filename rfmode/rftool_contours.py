@@ -530,7 +530,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
-        self.rfcontext.drawing.text_size(12)
+        self.rfcontext.drawing.set_font_size(12)
 
         bmv_count = {}
 
