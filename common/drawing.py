@@ -392,6 +392,9 @@ class ScissorStack:
     def is_box_visible(l,t,w,h):
         assert ScissorStack.started
         assert ScissorStack.stack
+        rl,rt,rw,rh = ScissorStack.box
+        l += rl
+        t += rt
         r = l + w
         b = t - h
         sl,st,sw,sh = ScissorStack.stack[-1]
