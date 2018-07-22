@@ -276,8 +276,12 @@ void main() {
         float l_clip = (l - clip_start) / clip;
         float d = dot(vCNormal, v) / l;
         if(d <= 0.0) {
-            alpha *= 0.5;
-            //discard;
+            if(cull_backfaces > 0.5) {
+                alpha = 0.0;
+                discard;
+            } else {
+                alpha *= alpha_backface;
+            }
         }
         
         // MAGIC!
