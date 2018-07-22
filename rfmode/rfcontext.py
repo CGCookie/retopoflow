@@ -164,6 +164,20 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         o = bpy.context.active_object
         return o if RFContext.is_valid_target(o) else None
 
+    @staticmethod
+    def get_unit_scaling_factor():
+        def get_vs(s):
+            x,y,z = s.scale
+            return [Vector((v[0]*x, v[1]*y, v[2]*z)) for v in s.bound_box]
+        sources = RFContext.get_sources()
+        if not sources: return 1.0
+        bboxes = []
+        for s in sources:
+            sx,sy,sz = s.scale
+            bboxes.append(BBox(from_coords=[(v[0]*sx, v[1]*sy, v[2]*sz) for v in s.bound_box]))
+        bbox = BBox.merge(bboxes)
+        return bbox.get_max_dimension() / 2.0
+
     @stats_wrapper
     @profiler.profile
     def __init__(self, rfmode, starting_tool):
@@ -173,6 +187,11 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.rfmode = rfmode
         self.FSM = {'main': self.modal_main}
         self.mode = 'main'
+
+        # get scaling factor to fit all sources into unit box
+        self.unit_scaling_factor = RFContext.get_unit_scaling_factor()
+        self.scale_to_unit_box()
+
         self._init_tools()              # set up tools and widgets used in RetopoFlow
         self._init_actions()            # set up default and user-defined actions
         self._init_usersettings()       # set up user-defined settings and key mappings
@@ -251,6 +270,32 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
     def end(self):
         self._end_rotate_about_active()
+        self.unscale_from_unit_box()
+
+    ###################################################
+    # handle scaling objects and view so sources fit
+    # in unit box for scale-independent rendering
+
+    def scale_by(self, factor):
+        dprint('Scaling view, sources, and target by %0.2f' % factor)
+
+        def scale_object(o):
+            for i in range(3):
+                for j in range(4):
+                    o.matrix_world[i][j] *= factor
+
+        self.rfmode.context.area.spaces[0].region_3d.view_distance *= factor
+        self.rfmode.context.area.spaces[0].region_3d.view_location *= factor
+        self.rfmode.context.area.spaces[0].clip_start *= factor
+        self.rfmode.context.area.spaces[0].clip_end *= factor
+        for src in self.get_sources(): scale_object(src)
+        scale_object(self.get_target())
+
+    def scale_to_unit_box(self):
+        self.scale_by(1.0 / self.unit_scaling_factor)
+
+    def unscale_from_unit_box(self):
+        self.scale_by(self.unit_scaling_factor)
 
     ###################################################
     # mouse cursor functions

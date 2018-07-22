@@ -887,16 +887,16 @@ class BBox:
         self.max = Point((Mx, My, Mz))
         self.mx, self.my, self.mz = mx, my, mz
         self.Mx, self.My, self.Mz = Mx, My, Mz
-        self.min_dim = min([
+        self.min_dim = min(
             self.Mx - self.mx,
             self.My - self.my,
             self.Mz - self.mz
-        ])
-        self.max_dim = max([
+        )
+        self.max_dim = max(
             self.Mx - self.mx,
             self.My - self.my,
             self.Mz - self.mz
-        ])
+        )
 
     @staticmethod
     def merge(boxes):

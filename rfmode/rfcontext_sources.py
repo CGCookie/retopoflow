@@ -48,7 +48,6 @@ class RFContext_Sources:
         self.rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]
         self.rfsources_xzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xzplane)]
         self.rfsources_yzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(yzplane)]
-    
 
     ###################################################
     # ray casting functions

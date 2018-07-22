@@ -232,15 +232,15 @@ class RF_Panel(Panel):
             col.label("Source polycount is high!")
             col.label("RetopoFlow may load slowly.")
 
-        if RFMode.large_sources():
-            box = layout.box()
-            box.alert = True
-            col = box.column(align=True)
-            col.alignment = 'EXPAND'
-            col.label("WARNING:", icon="ERROR")
-            col.label("Source bbox is large!")
-            col.label("RetopoFlow may not view correctly.")
-            col.label("Try scaling everything down.")
+        # if RFMode.large_sources():
+        #     box = layout.box()
+        #     box.alert = True
+        #     col = box.column(align=True)
+        #     col.alignment = 'EXPAND'
+        #     col.label("WARNING:", icon="ERROR")
+        #     col.label("Source bbox is large!")
+        #     col.label("RetopoFlow may not view correctly.")
+        #     col.label("Try scaling everything down.")
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'

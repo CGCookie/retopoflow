@@ -129,7 +129,7 @@ class RFMode(Operator):
     @profiler.profile
     def dense_sources():
         count = sum((RFMode.get_polygon_count(s) for s in RFContext.get_sources()), 0)
-        return count > 100000
+        return count > 1000000
 
     @staticmethod
     @profiler.profile
