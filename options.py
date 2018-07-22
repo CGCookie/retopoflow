@@ -142,6 +142,7 @@ class Options:
         'profiler_filename':    'RetopoFlow_profiler.txt',
 
         'contours count':   16,
+        'contours uniform': True,   # should new cuts be made uniformly about circumference?
 
         'polystrips scale falloff': -1,
         'polystrips draw curve':    False,

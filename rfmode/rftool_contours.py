@@ -30,7 +30,7 @@ from ..common.profiler import profiler
 from ..common.utils import max_index
 from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Image, UI_IntValue, UI_BoolValue, UI_Checkbox,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
@@ -89,9 +89,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)'))
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)'))
 
-        self.ui_count = UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour')
         return [
-            self.ui_count,
+            UI_Checkbox('Uniform Cut', *options.gettersetter('contours uniform'), tooltip='Enable to force new cuts to distribute vertices uniformly about circumference'),
+            UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour'),
             container,
             ]
 
