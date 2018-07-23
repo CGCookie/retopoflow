@@ -67,12 +67,12 @@ class RFTool_StrokeExtrude(RFTool):
         # self.FSM['rotate'] = self.modal_rotate
         # self.FSM['scale']  = self.modal_scale
 
-    def name(self): return "StrokeExtrude"
+    def name(self): return "Strokes"
     def icon(self): return "rf_strokeextrude_icon"
-    def description(self): return 'Extrude selection to a stroke!'
+    def description(self): return 'Extrude and fill with strokes!'
     def helptext(self): return help_strokeextrude
-    def get_label(self): return 'StrokeExtrude (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
-    def get_tooltip(self): return 'StrokeExtrude (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
+    def get_label(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
+    def get_tooltip(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
 
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.7, 0.7, 1.0))
@@ -658,6 +658,3 @@ class RFTool_StrokeExtrude(RFTool):
 
     def draw_postpixel(self):
         pass
-
-
-
