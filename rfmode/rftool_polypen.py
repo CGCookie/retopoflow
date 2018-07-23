@@ -509,6 +509,7 @@ class RFTool_PolyPen(RFTool):
 
         self.set_next_state()
 
+        bgl.glEnable(bgl.GL_BLEND)
         self.drawing.enable_stipple()
         self.drawing.line_width(2.0)
         self.drawing.point_size(4.0)
