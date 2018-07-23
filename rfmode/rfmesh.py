@@ -702,7 +702,7 @@ class RFMesh():
         if verts is None:
             verts = self.bme.verts
         else:
-            verts = [self._unwrap(bmv) for bmv in verts]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
         point_local = self.xform.w2l_point(point)
         bv,bd = None,None
         for bmv in verts:
@@ -724,7 +724,7 @@ class RFMesh():
         if edges is None:
             edges = self.bme.edges
         else:
-            edges = [self._unwrap(bme) for bme in edges]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in self.bme.edges:
@@ -758,7 +758,7 @@ class RFMesh():
         if verts is None:
             verts = self.bme.verts
         else:
-            verts = [self._unwrap(bmv) for bmv in verts]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
         nearest = []
         for bmv in verts:
             p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
@@ -775,7 +775,7 @@ class RFMesh():
         if verts is None:
             verts = self.bme.verts
         else:
-            verts = [self._unwrap(bmv) for bmv in verts]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
         l2w_point = self.xform.l2w_point
         bv,bd = None,None
         for bmv in verts:
@@ -814,7 +814,7 @@ class RFMesh():
         if edges is None:
             edges = self.bme.edges
         else:
-            edges = [self._unwrap(bme) for bme in edges]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in edges:
@@ -842,7 +842,7 @@ class RFMesh():
         if faces is None:
             faces = self.bme.faces
         else:
-            faces = [self._unwrap(bmf) for bmf in faces]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
         nearest = []
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
@@ -866,7 +866,7 @@ class RFMesh():
         if faces is None:
             faces = self.bme.faces
         else:
-            faces = [self._unwrap(bmf) for bmf in faces]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
         bv,bd = None,None
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
