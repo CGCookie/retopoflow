@@ -121,7 +121,7 @@ class Options:
         'tool tweak collapsed': True,
         'tool loops collapsed': True,
         'tool patches collapsed': True,
-        'tool strokeextrude collapsed': True,
+        'tool strokes collapsed': True,
 
         'select dist':          10,             # pixels away to select
 
