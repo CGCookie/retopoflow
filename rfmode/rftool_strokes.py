@@ -386,10 +386,58 @@ class RFTool_Strokes(RFTool):
 
     @RFTool.dirty_when_done
     def extrude_c(self):
-        self.rfcontext.alert_user(
-            'Strokes',
-            'C-shaped extrusions are not handled, yet'
-        )
+        if self.strip_crosses is not None:
+            self.rfcontext.undo_repush('extrude C')
+        else:
+            self.rfcontext.undo_push('extrude C')
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        new2D_vert_point = self.rfcontext.new2D_vert_point
+        new_face = self.rfcontext.new_face
+
+        # get selected edges that we can extrude
+        edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
+        sel_verts = {v for e in edges for v in e.verts}
+
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        s0, s1 = stroke[0], stroke[-1]
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0 = bmv0 if bmv0 in sel_verts else None
+        bmv1 = bmv1 if bmv1 in sel_verts else None
+        assert bmv0 and bmv1
+
+        nedges,nverts = [],[bmv0]
+        while True:
+            bmes = set(nverts[-1].link_edges) & edges
+            if nedges: bmes.remove(nedges[-1])
+            if len(bmes) != 1: break
+            bme = next(iter(bmes))
+            nedges.append(bme)
+            nverts.append(bme.other_vert(nverts[-1]))
+        npoints = [Point_to_Point2D(v.co) for v in nverts]
+        ndiffs = [(p1 - npoints[0]) for p1 in npoints]
+
+        if self.strip_crosses is None:
+            stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+        crosses = self.strip_crosses
+        percentages = [i / crosses for i in range(crosses+1)]
+        nstroke = restroke(stroke, percentages)
+
+        nedges = []
+        for s in nstroke[1:]:
+            pverts = nverts
+            nverts = [new2D_vert_point(s+d) for d in ndiffs]
+            for i in range(len(nverts)-1):
+                a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
+                if a and b and c and d:
+                    new_face([a,b,c,d])
+            bmv1 = nverts[0]
+            nedges.append(bmv0.shared_edge(bmv1))
+            bmv0 = bmv1
+
+        self.rfcontext.select(nedges)
 
     @RFTool.dirty_when_done
     def extrude_t(self):
@@ -453,14 +501,6 @@ class RFTool_Strokes(RFTool):
             bmv1 = nverts[0]
             nedges.append(bmv0.shared_edge(bmv1))
             bmv0 = bmv1
-
-        # nverts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
-        # nedges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(nverts, wrap=False)]
-
-        # co = bmv0.co
-        # nverts[0].merge(bmv0)
-        # nverts[0].co = co
-        # self.rfcontext.clean_duplicate_bmedges(nverts[0])
 
         self.rfcontext.select(nedges)
 
