@@ -625,8 +625,10 @@ class UI_Label(UI_Element):
         if recalc:
             self.last_text = self.text
             self.last_fontsize = fontsize
-            self.text_width = self.drawing.get_text_width(self.text, fontsize=fontsize)
-            self.text_height = self.drawing.get_line_height(self.text, fontsize=fontsize)
+            fontsize_prev = self.drawing.set_font_size(fontsize)
+            self.text_width = self.drawing.get_text_width(self.text)
+            self.text_height = self.drawing.get_line_height(self.text)
+            self.drawing.set_font_size(fontsize_prev)
         self._width_inner = self.text_width
         self._height_inner = self.text_height
 
@@ -1548,13 +1550,20 @@ class UI_HBFContainer(UI_Container):
     def _draw(self):
         l,t = self.pos
         w,h = self.size
-        sl,st,sw,sh = ScissorStack.get_current_view()
+        sl, st, sw, sh = ScissorStack.get_current_view()
         hh = self.header.get_height()
         fh = self.footer.get_height()
+        bt = t
+        bh = h
         sep = self.drawing.scale(self.separation)
-        self.header.draw(l,t,w,hh)
-        self.body_scroll.draw(l,t-hh-sep,w,h-hh-fh-sep*2)
-        self.footer.draw(l,t-h+fh,w,fh)
+        if hh > 0:
+            bt -= hh + sep
+            bh -= hh + sep
+        if fh > 0:
+            bh -= fh + sep
+        self.body_scroll.draw(l, bt, w, bh)
+        if hh > 0: self.header.draw(l, t, w, hh)
+        if fh > 0: self.footer.draw(l, t - h + fh, w, fh)
 
 
 class UI_Collapsible(UI_Container):
