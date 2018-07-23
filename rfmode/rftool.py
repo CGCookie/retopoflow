@@ -49,11 +49,11 @@ class RFTool(metaclass=SingletonRegisterClass):
         'Contours',
         'PolyStrips',
         'PolyPen',
+        'Strokes',
+        'Patches',
+        'Loops',
         'Relax',
         'Tweak',
-        'Loops',
-        'Patches',
-        'StrokeExtrude',
     ]
     order = None
 
@@ -140,5 +140,3 @@ class RFTool(metaclass=SingletonRegisterClass):
     def get_ui_options(self): return None
     def get_tooltip(self): return None
     def get_label(self): return 'Unlabeled RFTool'
-
-
