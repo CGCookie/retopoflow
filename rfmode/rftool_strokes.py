@@ -47,9 +47,9 @@ from ..common.ui import (
     )
 from ..keymaps import default_rf_keymaps
 from ..options import options, themes
-from ..help import help_strokeextrude
+from ..help import help_strokes
 
-from .rftool_strokeextrude_utils import (
+from .rftool_strokes_utils import (
     process_stroke_filter, process_stroke_source,
     find_edge_cycles,
     find_edge_strips, get_strip_verts,
@@ -58,8 +58,8 @@ from .rftool_strokeextrude_utils import (
 
 
 
-@RFTool.action_call('strokeextrude tool')
-class RFTool_StrokeExtrude(RFTool):
+@RFTool.action_call('strokes tool')
+class RFTool_Strokes(RFTool):
     def init(self):
         self.FSM['select'] = self.modal_select
         self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
@@ -68,11 +68,11 @@ class RFTool_StrokeExtrude(RFTool):
         # self.FSM['scale']  = self.modal_scale
 
     def name(self): return "Strokes"
-    def icon(self): return "rf_strokeextrude_icon"
+    def icon(self): return "rf_strokes_icon"
     def description(self): return 'Extrude and fill with strokes!'
-    def helptext(self): return help_strokeextrude
-    def get_label(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
-    def get_tooltip(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokeextrude tool'])
+    def helptext(self): return help_strokes
+    def get_label(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokes tool'])
+    def get_tooltip(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokes tool'])
 
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.7, 0.7, 1.0))
@@ -84,7 +84,7 @@ class RFTool_StrokeExtrude(RFTool):
         self.update()
 
     def get_ui_icon(self):
-        self.ui_icon = UI_Image('strokeextrude_32.png')
+        self.ui_icon = UI_Image('strokes_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
 
@@ -326,7 +326,7 @@ class RFTool_StrokeExtrude(RFTool):
                 best_score = score
         if not best:
             self.rfcontext.alert_user(
-                'StrokeExtrude',
+                'Strokes',
                 'Could not find suitable edge cycle.  Make sure your selection is accurate.'
             )
             return
@@ -387,14 +387,14 @@ class RFTool_StrokeExtrude(RFTool):
     @RFTool.dirty_when_done
     def extrude_c(self):
         self.rfcontext.alert_user(
-            'StrokeExtrude',
+            'Strokes',
             'C-shaped extrusions are not handled, yet'
         )
 
     @RFTool.dirty_when_done
     def extrude_t(self):
         self.rfcontext.alert_user(
-            'StrokeExtrude',
+            'Strokes',
             'T-shaped extrusions are not handled, yet'
         )
 
@@ -488,7 +488,7 @@ class RFTool_StrokeExtrude(RFTool):
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
-                'StrokeExtrude',
+                'Strokes',
                 'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
             )
             return
@@ -517,7 +517,7 @@ class RFTool_StrokeExtrude(RFTool):
                 best_score = score
         if not best:
             self.rfcontext.alert_user(
-                'StrokeExtrude',
+                'Strokes',
                 'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.'
             )
             return

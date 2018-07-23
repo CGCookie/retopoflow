@@ -38,7 +38,7 @@ icon_data = {
     'rf_relax_icon':            'relax_32.png',
     'rf_recover_icon':          'recover_32.png',
     'rf_patches_icon':          'patches_32.png',
-    'rf_strokeextrude_icon':    'strokeextrude_32.png',
+    'rf_strokes_icon':          'strokes_32.png',
 }
 
 def load_icons():

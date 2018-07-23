@@ -48,14 +48,7 @@ from ..common.ui import (
     )
 from ..keymaps import default_rf_keymaps
 from ..options import options, themes
-from ..help import help_strokeextrude, help_patches
-
-from .rftool_strokeextrude_utils import (
-    process_stroke_filter, process_stroke_source,
-    find_edge_cycles,
-    find_edge_strips, get_strip_verts,
-    restroke, walk_to_corner,
-)
+from ..help import help_patches
 
 
 @RFTool.action_call('patches tool')

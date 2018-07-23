@@ -80,5 +80,5 @@ default_rf_keymaps = {
     'move tool': {'T'},
     'loops tool': {'Y'},
     'patches tool': {'U'},
-    'strokeextrude tool': {'I'},
+    'strokes tool': {'I'},
 }
