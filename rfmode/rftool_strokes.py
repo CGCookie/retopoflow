@@ -148,16 +148,6 @@ class RFTool_Strokes(RFTool):
             if not edge: return
             self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
 
-        if self.rfcontext.actions.pressed('action'):
-            pass
-            # self.rfcontext.undo_push('select then grab')
-            # face = self.rfcontext.accel_nearest2D_face()
-            # if not face:
-            #     self.rfcontext.deselect_all()
-            #     return
-            # self.rfcontext.select(face)
-            # return self.prep_move()
-
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
@@ -407,16 +397,34 @@ class RFTool_Strokes(RFTool):
         bmv1 = bmv1 if bmv1 in sel_verts else None
         assert bmv0 and bmv1
 
-        nedges,nverts = [],[bmv0]
+        edges0,verts0 = [],[bmv0]
         while True:
-            bmes = set(nverts[-1].link_edges) & edges
-            if nedges: bmes.remove(nedges[-1])
+            bmes = set(verts0[-1].link_edges) & edges
+            if edges0: bmes.remove(edges0[-1])
             if len(bmes) != 1: break
-            bme = next(iter(bmes))
-            nedges.append(bme)
-            nverts.append(bme.other_vert(nverts[-1]))
-        npoints = [Point_to_Point2D(v.co) for v in nverts]
-        ndiffs = [(p1 - npoints[0]) for p1 in npoints]
+            bme = bmes.pop()
+            edges0.append(bme)
+            verts0.append(bme.other_vert(verts0[-1]))
+        points0 = [Point_to_Point2D(v.co) for v in verts0]
+        diffs0 = [(p1 - points0[0]) for p1 in points0]
+
+        edges1,verts1 = [],[bmv1]
+        while True:
+            bmes = set(verts1[-1].link_edges) & edges
+            if edges1: bmes.remove(edges1[-1])
+            if len(bmes) != 1: break
+            bme = bmes.pop()
+            edges1.append(bme)
+            verts1.append(bme.other_vert(verts1[-1]))
+        points1 = [Point_to_Point2D(v.co) for v in verts1]
+        diffs1 = [(p1 - points1[0]) for p1 in points1]
+
+        if len(diffs0) != len(diffs1):
+            self.rfcontext.alert_user(
+                'Strokes',
+                'Selections must contain same number of edges'
+            )
+            return
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -424,18 +432,28 @@ class RFTool_Strokes(RFTool):
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
+        nsegments = len(diffs0)
 
         nedges = []
-        for s in nstroke[1:]:
+        nverts = None
+        for istroke,s in enumerate(nstroke):
             pverts = nverts
-            nverts = [new2D_vert_point(s+d) for d in ndiffs]
-            for i in range(len(nverts)-1):
-                a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
-                if a and b and c and d:
-                    new_face([a,b,c,d])
-            bmv1 = nverts[0]
-            nedges.append(bmv0.shared_edge(bmv1))
-            bmv0 = bmv1
+            if istroke == 0:
+                nverts = verts0
+            elif istroke == crosses:
+                nverts = verts1
+            else:
+                p = istroke / crosses
+                offsets = [diffs0[i] * (1 - p) + diffs1[i] * p for i in range(nsegments)]
+                nverts = [new2D_vert_point(s + offset) for offset in offsets]
+            if pverts:
+                for i in range(len(nverts)-1):
+                    a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
+                    if a and b and c and d:
+                        new_face([a,b,c,d])
+                bmv1 = nverts[0]
+                nedges.append(bmv0.shared_edge(bmv1))
+                bmv0 = bmv1
 
         self.rfcontext.select(nedges)
 
