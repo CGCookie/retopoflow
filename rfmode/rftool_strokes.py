@@ -134,7 +134,6 @@ class RFTool_Strokes(RFTool):
                 'edges': current,
                 'center': ctr,
             })
-        print([(len(c['edges']), c['center']) for c in self.edge_collections])
 
     @profiler.profile
     def modal_main(self):
