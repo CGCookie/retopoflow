@@ -117,6 +117,25 @@ class RFTool_Strokes(RFTool):
         self.ui_cross_count.visible = self.strip_crosses is not None and not self.strip_edges
         self.ui_loop_count.visible = self.strip_loops is not None
 
+        self.edge_collections = []
+        edges = {e for e in self.rfcontext.get_selected_edges() if not e.is_manifold}
+        while edges:
+            current = set()
+            working = set([edges.pop()])
+            while working:
+                e = working.pop()
+                if e in current: continue
+                current.add(e)
+                edges.discard(e)
+                v0,v1 = e.verts
+                working |= {e for e in (v0.link_edges + v1.link_edges) if e in edges}
+            ctr = Point.average(v.co for v in {v for e in current for v in e.verts})
+            self.edge_collections.append({
+                'edges': current,
+                'center': ctr,
+            })
+        print([(len(c['edges']), c['center']) for c in self.edge_collections])
+
     @profiler.profile
     def modal_main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -709,10 +728,16 @@ class RFTool_Strokes(RFTool):
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
-
-    def draw_postview(self):
-        pass
-
-
     def draw_postpixel(self):
-        pass
+        point_to_point2d = self.rfcontext.Point_to_Point2D
+        up = self.rfcontext.Vec_up()
+        size_to_size2D = self.rfcontext.size_to_size2D
+        text_draw2D = self.rfcontext.drawing.text_draw2D
+        self.rfcontext.drawing.set_font_size(12)
+
+        for collection in self.edge_collections:
+            l = len(collection['edges'])
+            c = collection['center']
+            xy = point_to_point2d(c)
+            xy.y += 10
+            text_draw2D(str(l), xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
