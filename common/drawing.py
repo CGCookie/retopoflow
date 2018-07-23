@@ -62,11 +62,17 @@ class Drawing:
     def update_dpi():
         Drawing._ui_scale = bpy.context.user_preferences.view.ui_scale
         Drawing._pixel_size = bpy.context.user_preferences.system.pixel_size
+        Drawing._sysdpi = bpy.context.user_preferences.system.dpi
         Drawing._dpi = 72 # bpy.context.user_preferences.system.dpi
         Drawing._dpi *= Drawing._ui_scale
         Drawing._dpi *= Drawing._pixel_size
         Drawing._dpi = int(Drawing._dpi)
-        Drawing._dpi_mult = Drawing._ui_scale * Drawing._pixel_size
+        Drawing._dpi_mult = Drawing._ui_scale # / Drawing._pixel_size
+        Drawing._font_mult = Drawing._ui_scale # / Drawing._pixel_size # math.pow(self._dpi_mult, 0.25)
+        s = '%0.2f %0.2f %d %0.2f' % (Drawing._ui_scale, Drawing._pixel_size, Drawing._sysdpi, Drawing._sysdpi / 72)
+        if s != getattr(Drawing, 'last_s', None) and False:
+            Drawing.last_s = s
+            print(s)
 
     @staticmethod
     def get_instance():
@@ -102,7 +108,7 @@ class Drawing:
 
     def scale(self, s): return s * self._dpi_mult if s is not None else None
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
-    def scale_font(self, s): return int(s * math.pow(self._dpi_mult, 0.5))
+    def scale_font(self, s): return int(s * self._font_mult)
     def get_dpi_mult(self): return self._dpi_mult
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
@@ -113,11 +119,13 @@ class Drawing:
         if fontsize == size_prev:
             return size_prev
         self.fontsize = fontsize
-        blf.size(self.font_id, self.fontsize, self._dpi)
+        blf.size(self.font_id, self.fontsize, 72) #self._sysdpi)
         if self.fontsize not in self.line_cache:
+            all_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()`~[}{]/?=+\\|-_\'",<.>'
+            all_caps = all_chars.upper()
             self.line_cache[self.fontsize] = {
-                'line height': round(blf.dimensions(self.font_id, "XMPQpqjI")[1] + self.scale(3)),
-                'line base': round(blf.dimensions(self.font_id, "XMPQI")[1]),
+                'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(3)),
+                'line base': round(blf.dimensions(self.font_id, all_caps)[1]),
             }
         info = self.line_cache[self.fontsize]
         self.line_height = info['line height']
@@ -128,6 +136,13 @@ class Drawing:
         if fontsize:
             fontsize = int(fontsize)
             size_prev = self.set_font_size(fontsize)
+        if text is None:
+            text = ''
+        if type(text) is list:
+            lines = text
+            text = '\n'.join(lines)
+        else:
+            lines = text.splitlines()
         t = (text, self.fontsize, self.font_id)
         if t not in self.size_cache:
             d = {}
@@ -138,7 +153,6 @@ class Drawing:
             else:
                 get_width = lambda t: math.ceil(blf.dimensions(self.font_id, t)[0])
                 get_height = lambda t: math.ceil(blf.dimensions(self.font_id, t)[1])
-                lines = text.splitlines()
                 d['width'] = max(get_width(l) for l in lines)
                 d['height'] = get_height(text)
                 d['line height'] = self.line_height * len(lines)
@@ -181,13 +195,16 @@ class Drawing:
 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glColor4f(*color)
-        for i,line in enumerate(lines):
+        for (i, line) in enumerate(lines):
             th = self.get_text_height(line)
             # x,y = l,t - (i+1)*lh + int((lh-th)/2)
-            x,y = l,t - (i+1)*lh + int((lh-lb)/2+2*self._dpi_mult)
+            x = l
+            #y = t - (i+1)*lh + int((lh-lb)/2+2*self._dpi_mult)
+            y = t - lb
             blf.position(self.font_id, x, y, 0)
             blf.draw(self.font_id, line)
-            y -= self.line_height
+            #y -= self.line_height
+            t -= lh #self.get_line_height(line) - self.scale(3)
 
     def get_mvp_matrix(self, view3D=True):
         '''
@@ -392,19 +409,23 @@ class ScissorStack:
     def is_box_visible(l,t,w,h):
         assert ScissorStack.started
         assert ScissorStack.stack
-        rl,rt,rw,rh = ScissorStack.box
-        l += rl
-        t += rt
-        r = l + w
-        b = t - h
-        sl,st,sw,sh = ScissorStack.stack[-1]
-        sr = sl + sw
-        sb = st - sh
-        if l > sr: return False
-        if r < sl: return False
-        if t < sb: return False
-        if b > st: return False
-        return True
+        vl, vt, vw, vh = ScissorStack.get_current_view()
+        vr, vb = vl + vw, vt - vh
+        r, b = l + w, t - h
+        return not (l > vr or r < vl or t < vb or b > vt)
+        # rl,rt,rw,rh = ScissorStack.box
+        # l += rl
+        # t += rt
+        # r = l + w
+        # b = t - h
+        # sl,st,sw,sh = ScissorStack.stack[-1]
+        # sr = sl + sw
+        # sb = st - sh
+        # if l > sr: return False
+        # if r < sl: return False
+        # if t < sb: return False
+        # if b > st: return False
+        # return True
 
     @staticmethod
     def pop():

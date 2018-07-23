@@ -580,6 +580,7 @@ class RFMode(Operator):
 
     def draw_callback_preview(self, context):
         if not still_registered(self): return
+        Drawing.update_dpi()
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_preview()
         except: self.handle_exception()
@@ -587,6 +588,7 @@ class RFMode(Operator):
 
     def draw_callback_postview(self, context):
         if not still_registered(self): return
+        Drawing.update_dpi()
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_postview()
         except: self.handle_exception()
@@ -594,6 +596,7 @@ class RFMode(Operator):
 
     def draw_callback_postpixel(self, context):
         if not still_registered(self): return
+        Drawing.update_dpi()
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:
             self.rfctx.draw_postpixel()

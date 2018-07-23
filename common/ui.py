@@ -47,6 +47,15 @@ from ..ext import png
 debug_draw = False
 
 
+'''
+TODO items:
+
+- remove background from Container
+- EqualContainer does not use visible
+
+'''
+
+
 def get_image_path(fn, ext=''):
     path_images = os.path.join(os.path.dirname(__file__), '..', 'icons')
     if ext: fn = '%s.%s' % (fn,ext)
@@ -69,6 +78,12 @@ class GetSet:
         self.fn_set = fn_set
     def get(self): return self.fn_get()
     def set(self, v): return self.fn_set(v)
+
+
+class UI_Event:
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
 
 
 class UI_Element:
@@ -171,14 +186,16 @@ class UI_Element:
         self._width_inner, self._height_inner = 0, 0
         if not self.visible: return (0, 0)
         self._recalc_size()
+        if self._width_inner <= 0 or self._height_inner <= 0:
+            return (0, 0)
         self._width = self._width_inner + self.drawing.scale(self.margin_left + self.margin_right)
         self._height = self._height_inner + self.drawing.scale(self.margin_top + self.margin_bottom)
         return (self._width, self._height)
 
-    def get_width(self): return self._width
-    def get_height(self): return self._height
-    def get_inner_width(self): return self._width_inner
-    def get_inner_height(self): return self._height_inner
+    def get_width(self): return self._width if self.visible else 0
+    def get_height(self): return self._height if self.visible else 0
+    def get_inner_width(self): return self._width_inner if self.visible else 0
+    def get_inner_height(self): return self._height_inner if self.visible else 0
 
     def _delete(self): return
     def _recalc_size(self): pass
@@ -197,69 +214,6 @@ class UI_Element:
     def mouse_cursor(self): return 'DEFAULT'
 
 
-class UI_VScrollable(UI_Element):
-    def __init__(self, ui_item=None, margin=0):
-        super().__init__(margin=margin)
-        self.set_ui_item(ui_item)
-
-    def set_ui_item(self, ui_item):
-        self.ui_item = ui_item
-        self.offset = 0
-        return self.ui_item
-
-    def _hover_ui(self, mouse):
-        if not super()._hover_ui(mouse): return None
-        ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
-        return ui or self
-
-    def _recalc_size(self):
-        if not self.ui_item:
-            self._width_inner, self._height_inner = 0, 0
-        else:
-            self._width_inner, self._height_inner = self.ui_item.recalc_size()
-
-    def predraw(self):
-        if self.offset == 0: return
-        sl,st,sw,sh = ScissorStack.get_current_view()
-        ah = self.get_height()
-        self.offset = mid(self.offset, 0, ah - sh - 1)
-
-    @profiler.profile
-    def _draw(self):
-        if not self.ui_item: return
-
-        l,t = self.pos
-        w,h = self.size
-        sl,st,sw,sh = ScissorStack.get_current_view()
-        ah = self.get_height()
-        aih = self.get_inner_height()
-
-        self.ui_item.draw(l,t+self.offset,w,ah)
-
-        # draw fade bars at top and bottom if contents extend beyond scissor
-        bar_top = (self.offset > 0)
-        bar_bot = (self.offset < ah - sh - 1)
-        if bar_top or bar_bot:
-            s = self.drawing.scale(30)
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glBegin(bgl.GL_QUADS)
-            if bar_top:
-                bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
-                bgl.glVertex2f(sl+sw, st+1)
-                bgl.glVertex2f(sl, st+1)
-                bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
-                bgl.glVertex2f(sl, st-s)
-                bgl.glVertex2f(sl+sw, st-s)
-            if bar_bot:
-                bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
-                bgl.glVertex2f(sl, st-sh)
-                bgl.glVertex2f(sl+sw, st-sh)
-                bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
-                bgl.glVertex2f(sl+sw, st-sh+s)
-                bgl.glVertex2f(sl, st-sh+s)
-            bgl.glEnd()
-
-
 class UI_Padding(UI_Element):
     def __init__(self, ui_item=None, margin=5):
         super().__init__(margin=margin)
@@ -276,14 +230,14 @@ class UI_Padding(UI_Element):
         return ui or self
 
     def _recalc_size(self):
-        if not self.ui_item:
+        if not self.ui_item or not self.ui_item.visible:
             self._width_inner, self._height_inner = 0, 0
         else:
             self._width_inner, self._height_inner = self.ui_item.recalc_size()
 
     @profiler.profile
     def _draw(self):
-        if not self.ui_item: return
+        if not self.ui_item or not self.ui_item.visible: return
         l,t = self.pos
         w,h = self.size
         self.ui_item.draw(l,t,w,h)
@@ -309,14 +263,14 @@ class UI_Background(UI_Element):
         return ui or self
 
     def _recalc_size(self):
-        if not self.ui_item:
+        if not self.ui_item or not self.ui_item.visible:
             self._width_inner, self._height_inner = 0, 0
         else:
             self._width_inner, self._height_inner = self.ui_item.recalc_size()
 
     @profiler.profile
     def _draw(self):
-        if not self.ui_item: return
+        if not self.ui_item or not self.ui_item.visible: return
         l,t = self.pos
         w,h = self.size
 
@@ -369,6 +323,71 @@ class UI_Background(UI_Element):
             bgl.glEnd()
 
         self.ui_item.draw(l,t,w,h)
+
+
+class UI_VScrollable(UI_Padding):
+    def __init__(self, ui_item=None, margin=0):
+        super().__init__(margin=margin)
+        self.set_ui_item(ui_item)
+
+    def set_ui_item(self, ui_item):
+        super().set_ui_item(ui_item)
+        self.offset = 0
+        return self.ui_item
+
+    # def _hover_ui(self, mouse):
+    #     if not super()._hover_ui(mouse): return None
+    #     ui = None if not self.ui_item else self.ui_item.hover_ui(mouse)
+    #     return ui or self
+
+    # def _recalc_size(self):
+    #     if not self.ui_item:
+    #         self._width_inner, self._height_inner = 0, 0
+    #     else:
+    #         self._width_inner, self._height_inner = self.ui_item.recalc_size()
+
+    def predraw(self):
+        if self.offset == 0: return
+        sl,st,sw,sh = ScissorStack.get_current_view()
+        ah = self.get_height()
+        self.offset = mid(self.offset, 0, ah - sh - 1)
+
+    @profiler.profile
+    def _draw(self):
+        if not self.ui_item or not self.ui_item.visible: return
+
+        l,t = self.pos
+        w,h = self.size
+        sl,st,sw,sh = ScissorStack.get_current_view()
+        ah = self.get_height()
+        aih = self.get_inner_height()
+
+        self.ui_item.draw(l,t+self.offset,w,ah)
+
+        # draw fade bars at top and bottom if contents extend beyond scissor
+        #print(ah, sh, ah / sh)
+        bars_show = (ah / sh > 1.0)
+        bar_top = (self.offset > 0)
+        bar_bot = (self.offset < ah - sh - 1)
+        if bars_show and (bar_top or bar_bot):
+            s = self.drawing.scale(30)
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glBegin(bgl.GL_QUADS)
+            if bar_top:
+                bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
+                bgl.glVertex2f(sl+sw, st+1)
+                bgl.glVertex2f(sl, st+1)
+                bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
+                bgl.glVertex2f(sl, st-s)
+                bgl.glVertex2f(sl+sw, st-s)
+            if bar_bot:
+                bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
+                bgl.glVertex2f(sl, st-sh)
+                bgl.glVertex2f(sl+sw, st-sh)
+                bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
+                bgl.glVertex2f(sl+sw, st-sh+s)
+                bgl.glVertex2f(sl, st-sh+s)
+            bgl.glEnd()
 
 
 class UI_Spacer(UI_Element):
@@ -456,12 +475,14 @@ class UI_Container(UI_Element):
         return self
 
     def _recalc_size(self):
-        sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
+        sizes = [ui_item.recalc_size() for ui_item in self.ui_items if ui_item.visible]
+        #sizes = [sz for (sz,ui_item) in zip(sizes, self.ui_items) if ui_item.visible]
         sizes = [(w,h) for (w,h) in sizes if w > 0 and h > 0]
         widths = [w for (w,h) in sizes]
         heights = [h for (w,h) in sizes]
         c = len(sizes)
         if c == 0:
+            self._width, self._height = 0, 0
             self._width_inner, self._height_inner = 0, 0
             return
         sep = self.drawing.scale(self.separation)
@@ -509,30 +530,33 @@ class UI_Container(UI_Element):
             b = t - h
             last = len(self.ui_items) - 1
             for i,ui in enumerate(self.ui_items):
-                ui_h = ui.get_height()
-                eh = ui_h
-                if eh > 0:
-                    if debug_draw and 0 < i < last:
-                        bgl.glEnable(bgl.GL_BLEND)
-                        bgl.glBegin(bgl.GL_QUADS)
-                        bgl.glColor4f(1,1,1,0.5)
-                        bgl.glVertex2f(l,y+sep)
-                        bgl.glVertex2f(l,y)
-                        bgl.glVertex2f(l+w,y)
-                        bgl.glVertex2f(l+w,y+sep)
-                        bgl.glEnd()
-                    #if y + ui_h >= 0:
-                    ui.draw(l,y,w,eh)
-                    y -= eh + sep
+                if not ui.visible: continue
+                eh = ui.get_height()
+                if eh <= 0: continue
+                if i == last: eh = h
+                if debug_draw and 0 < i < last:
+                    bgl.glEnable(bgl.GL_BLEND)
+                    bgl.glBegin(bgl.GL_QUADS)
+                    bgl.glColor4f(1,1,1,0.5)
+                    bgl.glVertex2f(l,y+sep)
+                    bgl.glVertex2f(l,y)
+                    bgl.glVertex2f(l+w,y)
+                    bgl.glVertex2f(l+w,y+sep)
+                    bgl.glEnd()
+                ui.draw(l,y,w,eh)
+                y -= eh + sep
+                h -= eh + sep
         else:
             x = l
             last = len(self.ui_items) - 1
             for i,ui in enumerate(self.ui_items):
-                ew = ui.get_width() if i < last else w
-                if ew > 0:
-                    ui.draw(x,t,ew,h)
-                    x += ew + sep
-                    w -= ew + sep
+                if not ui.visible: continue
+                ew = ui.get_width()
+                if ew <= 0: continue
+                if i == last: ew = w
+                ui.draw(x,t,ew,h)
+                x += ew + sep
+                w -= ew + sep
 
     def add(self, ui_item, only=False):
         if only: self.ui_items.clear()
@@ -583,7 +607,7 @@ class UI_Label(UI_Element):
         self.cursor_color = (0.1,0.7,1,1)
 
         self.last_text = None
-        self.last_textsize = None
+        self.last_fontsize = None
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
@@ -594,13 +618,13 @@ class UI_Label(UI_Element):
         self.text = str(label)
 
     def _recalc_size(self):
+        fontsize = self.drawing.scale_font(self.textsize)
         recalc = False
         recalc |= self.last_text != self.text
-        recalc |= self.last_textsize != self.textsize
+        recalc |= self.last_fontsize != fontsize
         if recalc:
             self.last_text = self.text
-            self.last_textsize = self.textsize
-            fontsize = self.drawing.scale_font(self.textsize)
+            self.last_fontsize = fontsize
             self.text_width = self.drawing.get_text_width(self.text, fontsize=fontsize)
             self.text_height = self.drawing.get_line_height(self.text, fontsize=fontsize)
         self._width_inner = self.text_width
@@ -707,8 +731,8 @@ class UI_WrappedLabel(UI_Element):
             return lines
         lines = self.text.split('\n')
         self.wrapped_lines = [wrapped_line for line in lines for wrapped_line in wrap(line)]
-        w = max(twidth(l) for l in self.wrapped_lines)
-        h = self.line_height * len(self.wrapped_lines)
+        w = twidth(self.wrapped_lines) #max(twidth(l) for l in self.wrapped_lines)
+        h = self.drawing.get_line_height(self.wrapped_lines)
         self.wrapped_size = Vec2D((w, h))
 
         self.drawing.set_font_size(size_prev)
@@ -1032,7 +1056,7 @@ class UI_Options(UI_Container):
             container = self.set_ui_item(UI_Container(margin=margin, vertical=False))
             if icon:           container.add(icon)
             if icon and label: container.add(UI_Spacer(width=4))
-            if label:          container.add(UI_Label(label, color=color, align=align, margin=0))
+            if label:          container.add(UI_Label(label, color=color, align=align, valign=0, margin=0))
 
         def _hover_ui(self, mouse):
             return self if super()._hover_ui(mouse) else None
@@ -1642,18 +1666,18 @@ class UI_Window(UI_Padding):
         self.ui_hover = None
         self.ui_grab = [self]
         self.drawing.set_font_size(12)
-        self.hbf = UI_HBFContainer(vertical=vertical, separation=separation)
-        self.hbf.header.margin = 1
+        self.hbf = self.set_ui_item(UI_HBFContainer(vertical=vertical, separation=separation))
+        self.hbf.header.margin = 0
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
         if title:
+            self.hbf.header.margin = 1
             self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
             self.hbf_title.margin = 1
             self.hbf_title_rule = UI_Rule(color=(0,0,0,0.1))
             self.hbf.add(self.hbf_title, header=True)
             self.hbf.add(self.hbf_title_rule, header=True)
             self.ui_grab += [self.hbf_title, self.hbf_title_rule]
-        self.set_ui_item(self.hbf)
 
         self.update_pos()
 
@@ -1838,11 +1862,6 @@ class UI_Window(UI_Padding):
         sx,sy = self.size
         c = Point2D((mid(px, px+sx, pt.x), mid(py, py-sy, pt.y)))
         return (pt - c).length
-
-class UI_Event:
-    def __init__(self, type, value):
-        self.type = type
-        self.value = value
 
 
 class UI_WindowManager:
