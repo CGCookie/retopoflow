@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import inspect
 
+from ..common.debug import dprint
+
 class RFWidget_Registry:
     class Register_FSM_State:
         def __init__(self, widget_name, state):
@@ -95,13 +97,13 @@ class RFWidget_Registry:
             widgets.setdefault(n, {})
             widgets[n].setdefault('fsm', {})
             widgets[n]['fsm'][fn.state] = fn
-            print('"%s" "%s" %s' % (n, fn.state, str(fn)))
+            dprint('"%s" "%s" %s' % (n, fn.state, str(fn)))
 
         # collect all widget callbacks
         for fn in RFWidget_Registry.Register_Callback.find_all(self):
             n = fn.widget_name
             widgets.setdefault(n, {})
             widgets[n][fn.callback] = fn
-            print('"%s" "%s" %s' % (n, fn.callback, str(fn)))
+            dprint('"%s" "%s" %s' % (n, fn.callback, str(fn)))
 
         # self.widgets = widgets

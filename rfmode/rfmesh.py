@@ -1354,7 +1354,6 @@ class RFTarget(RFMesh):
         dist = lambda p: (p - point).length_squared
         px,py,pz = point
         threshold = self.symmetry_threshold * self.unit_scaling_factor / 2.0
-        print(self.symmetry_threshold, self.unit_scaling_factor)
         if 'x' in self.symmetry and px <= threshold:
             edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
