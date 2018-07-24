@@ -87,9 +87,16 @@ class RFTool_Patches(RFTool):
             if self.crosses == nv: return
             self.crosses = nv
             self.recompute()
+        def get_angle():
+            return options['patches angle']
+        def set_angle(v):
+            v = mid(int(v), 0, 180)
+            if options['patches angle'] == v: return
+            options['patches angle'] = v
+            self.update()
         self.ui_crosses = UI_IntValue('Crosses', get_crosses, set_crosses)
         return [
-            UI_IntValue('Angle', *options.gettersetter('patches angle', setwrap=lambda v:mid(0,180,int(v))), tooltip='Minimum angle for edges to be in same strip'),
+            UI_IntValue('Angle', get_angle, set_angle, tooltip='A vertex between connected edges that form an angles below this threshold is a corner'),
             self.ui_crosses,
         ]
 
@@ -107,6 +114,7 @@ class RFTool_Patches(RFTool):
             'L':    [],
             'I':    [],
             'else': [],
+            'corners': [],
         }
         self.previz = []
 
@@ -315,6 +323,7 @@ class RFTool_Patches(RFTool):
             else:
                 self.shapes['ngon'].append(loop_strips)
 
+        self.shapes['corners'] = list(string_corners | loop_corners)
 
         ###################
         # generate previz
@@ -693,3 +702,10 @@ class RFTool_Patches(RFTool):
 
         self.drawing.disable_stipple()
 
+        self.drawing.point_size(6.0)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glColor4f(1,1,0.1,1.0)
+        bgl.glBegin(bgl.GL_POINTS)
+        for corner in self.shapes['corners']:
+            bgl.glVertex2f(*point_to_point2D(corner.co))
+        bgl.glEnd()
