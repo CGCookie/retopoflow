@@ -538,10 +538,12 @@ class RFTool_Patches(RFTool):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
+            self.update()
             #self.mergeSnapped()
             return 'main'
         if self.move_done_released and all(released(item) for item in self.move_done_released):
             self.defer_recomputing = False
+            self.update()
             #self.mergeSnapped()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
