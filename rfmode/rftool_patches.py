@@ -72,6 +72,7 @@ class RFTool_Patches(RFTool):
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('default')
+        self.crosses = None
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('patches_32.png')
@@ -79,9 +80,21 @@ class RFTool_Patches(RFTool):
         return self.ui_icon
 
     def get_ui_options(self):
+        def get_crosses():
+            return (getattr(self, 'crosses', None) or 1) - 1
+        def set_crosses(v):
+            nv = max(2, int(v+1))
+            if self.crosses == nv: return
+            self.crosses = nv
+            self.recompute()
+        self.ui_crosses = UI_IntValue('Crosses', get_crosses, set_crosses)
         return [
-            UI_IntValue('Angle', *options.gettersetter('patches angle', setwrap=lambda v:mid(0,180,int(v))), tooltip='Minimum angle for edges to be in same strip', margin=0),
+            UI_IntValue('Angle', *options.gettersetter('patches angle', setwrap=lambda v:mid(0,180,int(v))), tooltip='Minimum angle for edges to be in same strip'),
+            self.ui_crosses,
         ]
+
+    def update_ui(self):
+        self.ui_crosses.visible = getattr(self, 'crosses', None) is not None
 
     def _clear_shapes(self):
         self.shapes = {
@@ -117,11 +130,16 @@ class RFTool_Patches(RFTool):
         note: could visualize the found patch regions?
         '''
 
+        self.crosses = None
+        self.recompute()
+        self.update_ui()
+
+
+    def recompute(self):
         min_angle = options['patches angle']
         nearest_sources_Point = self.rfcontext.nearest_sources_Point
 
         self._clear_shapes()
-
 
         ##############################################
         # find edges that could be part of a strip
@@ -431,7 +449,9 @@ class RFTool_Patches(RFTool):
             avg1 = (sv1[0].co-sv1[-1].co).length / (len(sv1)-1)
 
             l0 = len(sv0)
-            l1 = max(2, math.floor(dist / max(avg0,avg1)))
+            if getattr(self, 'crosses', None) is None:
+                self.crosses = max(2, math.floor(dist / max(avg0,avg1)))
+            l1 = self.crosses
 
             verts,edges,faces = [],[],[]
             for i in range(l0):
@@ -497,6 +517,17 @@ class RFTool_Patches(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
+
+        if self.rfcontext.actions.pressed('increase count'):
+            if self.crosses is not None:
+                self.crosses += 1
+                self.recompute()
+
+        if self.rfcontext.actions.pressed('decrease count'):
+            if self.crosses is not None and self.crosses > 2:
+                self.crosses -= 1
+                self.recompute()
+
 
     @profiler.profile
     def modal_selectadd_deselect(self):

@@ -1374,7 +1374,7 @@ class UI_IntValue(UI_Container):
         self.fn_get_print_value = fn_get_print_value
         self.fn_set_print_value = fn_set_print_value
 
-        self.lbl = self.add(UI_Label(label, margin=0))
+        self.lbl = self.add(UI_Label(label, margin=0, align=-1, valign=0))
         self.add(UI_Spacer(width=4))
         self.add(UI_Label('=', margin=0))
         self.add(UI_Spacer(width=4))
