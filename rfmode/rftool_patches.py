@@ -522,12 +522,13 @@ class RFTool_Patches(RFTool):
     @profiler.profile
     def prep_move(self, bmverts=None, defer_recomputing=True):
         self.sel_verts = self.rfcontext.get_selected_verts()
+        self.vis_accel = self.rfcontext.get_vis_accel()
         self.vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
         if not bmverts: bmverts = self.sel_verts
         self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
+        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv and bmv not in self.sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
         self.defer_recomputing = defer_recomputing
 

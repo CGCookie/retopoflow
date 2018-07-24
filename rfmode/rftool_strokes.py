@@ -698,6 +698,7 @@ class RFTool_Strokes(RFTool):
     @profiler.profile
     def prep_move(self, bmverts=None, defer_recomputing=True):
         self.sel_verts = self.rfcontext.get_selected_verts()
+        self.vis_accel = self.rfcontext.get_vis_accel()
         self.vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
