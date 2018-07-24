@@ -688,8 +688,6 @@ class UI_WrappedLabel(UI_Element):
         self.shadowcolor = shadowcolor
         self.min_size = min_size
         self.wrapped_size = min_size
-        self.drawing.set_font_size(self.textsize)
-        self.line_height = self.drawing.get_line_height()
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
@@ -747,6 +745,7 @@ class UI_WrappedLabel(UI_Element):
     def _draw(self):
         fontsize = self.drawing.scale_font(self.textsize)
         size_prev = self.drawing.set_font_size(fontsize)
+        line_height = self.drawing.get_line_height()
 
         l,t = self.pos
         w,h = self.size
@@ -769,7 +768,7 @@ class UI_WrappedLabel(UI_Element):
             if self.shadowcolor:
                 self.drawing.text_draw2D(line, Point2D((l+2, y-2)), self.shadowcolor)
             self.drawing.text_draw2D(line, Point2D((l, y)), self.color)
-            y -= self.line_height #lheight
+            y -= self.drawing.get_line_height(line) #line_height #lheight
 
         self.drawing.set_font_size(size_prev)
 

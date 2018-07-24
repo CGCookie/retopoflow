@@ -124,7 +124,7 @@ class Drawing:
             all_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()`~[}{]/?=+\\|-_\'",<.>'
             all_caps = all_chars.upper()
             self.line_cache[self.fontsize] = {
-                'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(3)),
+                'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(4)),
                 'line base': round(blf.dimensions(self.font_id, all_caps)[1]),
             }
         info = self.line_cache[self.fontsize]
