@@ -109,7 +109,7 @@ class RFTool_Patches(RFTool):
             - rectangle
             - n-gon     <- not handled
         5. given remaining strips (not in a loop), find all potential patch regions
-            - I-shaped  (find two parallel I-shaped strips)
+            - I-shaped  (find two parallel I-shaped strips ||)
             - L-shaped
             - C-shaped
             - other     <- not handled
