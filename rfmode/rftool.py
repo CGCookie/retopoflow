@@ -107,12 +107,15 @@ class RFTool(metaclass=SingletonRegisterClass):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self): pass
 
-    ''' Called the tool is being switched into. Returns initial state '''
+    ''' Called when the tool is being switched into. Returns initial state '''
     def start(self):
         if not self._success: return
         self.rfwidget.set_widget('default')
         self.mode = 'main'
         return None
+
+    ''' Called when the tool is switched away from. '''
+    def end(self): pass
 
     def update_tool_options(self):
         if not options['tools autocollapse']: return

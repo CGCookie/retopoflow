@@ -304,6 +304,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if self.tool_setting: return
         if not forceUpdate and hasattr(self, 'tool') and self.tool == tool: return
         if changeTool or not self.tool:
+            if self.tool: self.tool.end()
             self.tool_setting = True
             self.tool = tool
             # update tool window

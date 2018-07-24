@@ -77,11 +77,24 @@ class RFTool_Strokes(RFTool):
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.7, 0.7, 1.0))
         self.rfwidget.set_stroke_callback(self.stroke)
+        self.reset()
+        self.update()
+
+    def end(self):
+        self.reset()
+
+    def reset(self):
         self.replay = None
         self.strip_crosses = None
         self.strip_loops = None
         self.strip_edges = False
-        self.update()
+        self.just_created = False
+        self.defer_recomputing = False
+        self.update_ui()
+
+    def update_ui(self):
+        self.ui_cross_count.visible = self.strip_crosses is not None and not self.strip_edges
+        self.ui_loop_count.visible = self.strip_loops is not None
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('strokes_32.png')
@@ -114,8 +127,11 @@ class RFTool_Strokes(RFTool):
 
     @profiler.profile
     def update(self):
-        self.ui_cross_count.visible = self.strip_crosses is not None and not self.strip_edges
-        self.ui_loop_count.visible = self.strip_loops is not None
+        if self.defer_recomputing: return
+        if not self.just_created: self.reset()
+        else: self.just_created = False
+
+        self.update_ui()
 
         self.edge_collections = []
         edges = {e for e in self.rfcontext.get_selected_edges() if not e.is_manifold}
@@ -271,9 +287,16 @@ class RFTool_Strokes(RFTool):
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
+
+        self.defer_recomputing = True
+
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
+
+        self.just_created = True
         self.rfcontext.select(edges)
+        self.defer_recomputing = False
+        self.update()
 
     @RFTool.dirty_when_done
     def create_strip(self):
@@ -295,6 +318,8 @@ class RFTool_Strokes(RFTool):
         snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidget.size)
         snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidget.size)
 
+        self.defer_recomputing = True
+
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
 
@@ -309,7 +334,10 @@ class RFTool_Strokes(RFTool):
             verts[-1].co = co
             self.rfcontext.clean_duplicate_bmedges(verts[-1])
 
+        self.just_created = True
         self.rfcontext.select(edges)
+        self.defer_recomputing = False
+        self.update()
 
     @RFTool.dirty_when_done
     def extrude_cycle(self):
@@ -381,6 +409,8 @@ class RFTool_Strokes(RFTool):
             self.strip_loops = max(1, math.ceil(1))  # TODO: calculate!
         loops = self.strip_loops
 
+        self.defer_recomputing = True
+
         patch = []
         for i in range(crosses):
             v = Point_to_Point2D(vert_cycle[i].co)
@@ -400,7 +430,11 @@ class RFTool_Strokes(RFTool):
                 self.rfcontext.new_face([patch[i0][j0], patch[i0][j1], patch[i1][j1], patch[i1][j0]])
         end_verts = [l[-1] for l in patch]
         edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
+
+        self.just_created = True
         self.rfcontext.select(edges)
+        self.defer_recomputing = False
+        self.update()
 
     @RFTool.dirty_when_done
     def extrude_c(self):
@@ -462,6 +496,8 @@ class RFTool_Strokes(RFTool):
         nstroke = restroke(stroke, percentages)
         nsegments = len(diffs0)
 
+        self.defer_recomputing = True
+
         nedges = []
         nverts = None
         for istroke,s in enumerate(nstroke):
@@ -484,6 +520,9 @@ class RFTool_Strokes(RFTool):
                 bmv0 = bmv1
 
         self.rfcontext.select(nedges)
+        self.just_created = True
+        self.defer_recomputing = False
+        self.update()
 
     @RFTool.dirty_when_done
     def extrude_t(self):
@@ -536,6 +575,8 @@ class RFTool_Strokes(RFTool):
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
 
+        self.defer_recomputing = True
+
         nedges = []
         for s in nstroke[1:]:
             pverts = nverts
@@ -548,7 +589,10 @@ class RFTool_Strokes(RFTool):
             nedges.append(bmv0.shared_edge(bmv1))
             bmv0 = bmv1
 
+        self.just_created = True
         self.rfcontext.select(nedges)
+        self.defer_recomputing = False
+        self.update()
 
     @RFTool.dirty_when_done
     def extrude_strip(self):
@@ -632,6 +676,8 @@ class RFTool_Strokes(RFTool):
             self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidget.size)), 2)
         crosses = self.strip_crosses + 1
 
+        self.defer_recomputing = True
+
         # extrude!
         patch = []
         prev, last = None, []
@@ -669,7 +715,11 @@ class RFTool_Strokes(RFTool):
                 self.rfcontext.clean_duplicate_bmedges(b)
 
         nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
+
+        self.just_created = True
         self.rfcontext.select(nedges)
+        self.defer_recomputing = False
+        self.update()
 
     @profiler.profile
     def modal_select(self):
