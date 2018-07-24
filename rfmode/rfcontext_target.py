@@ -303,6 +303,20 @@ class RFContext_Target:
         if 'z' in self.rftarget.symmetry and p.z < 0: return True
         return False
 
+    def mirror_point(self, point):
+        p = self.rftarget.xform.w2l_point(point)
+        if 'x' in self.rftarget.symmetry: p.x = abs(p.x)
+        if 'y' in self.rftarget.symmetry: p.y = abs(p.y)
+        if 'z' in self.rftarget.symmetry: p.z = abs(p.z)
+        return self.rftarget.xform.l2w_point(p)
+
+    def clamp_point_to_symmetry(self, point):
+        p = self.rftarget.xform.w2l_point(point)
+        if 'x' in self.rftarget.symmetry: p.x = max(0, p.x)
+        if 'y' in self.rftarget.symmetry: p.y = max(0, p.y)
+        if 'z' in self.rftarget.symmetry: p.z = max(0, p.z)
+        return self.rftarget.xform.l2w_point(p)
+
     def snap_all_verts(self):
         self.undo_push('snap all verts')
         self.rftarget.snap_all_verts(self.nearest_sources_Point)

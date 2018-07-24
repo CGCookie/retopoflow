@@ -45,10 +45,21 @@ def process_stroke_filter(stroke, min_distance=1.0, max_distance=2.0):
             l -= max_distance
     return nstroke
 
-def process_stroke_source(stroke, raycast, is_point_on_mirrored_side):
+def process_stroke_source(stroke, raycast, Point_to_Point2D=None, is_point_on_mirrored_side=None, mirror_point=None, clamp_point_to_symmetry=None):
     ''' filter out pts that don't hit source on non-mirrored side '''
     pts = [(pt, raycast(pt)[0]) for pt in stroke]
-    return [pt for pt,p3d in pts if p3d and not is_point_on_mirrored_side(p3d)]
+    pts = [(pt, p3d) for (pt, p3d) in pts if p3d]
+    if Point_to_Point2D and mirror_point:
+        pts_ = [Point_to_Point2D(mirror_point(p3d)) for (_, p3d) in pts]
+        pts = [(pt, raycast(pt)[0]) for pt in pts_]
+        pts = [(pt, p3d) for (pt, p3d) in pts if p3d]
+    if Point_to_Point2D and clamp_point_to_symmetry:
+        pts_ = [Point_to_Point2D(clamp_point_to_symmetry(p3d)) for (_, p3d) in pts]
+        pts = [(pt, raycast(pt)[0]) for pt in pts_]
+        pts = [(pt, p3d) for (pt, p3d) in pts if p3d]
+    if is_point_on_mirrored_side:
+        pts = [(pt, p3d) for (pt, p3d) in pts if not is_point_on_mirrored_side(p3d)]
+    return [pt for (pt, _) in pts]
 
 def find_edge_cycles(edges):
     edges = set(edges)

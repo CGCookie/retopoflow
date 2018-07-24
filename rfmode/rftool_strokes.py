@@ -207,9 +207,13 @@ class RFTool_Strokes(RFTool):
         size = self.rfwidget.size
         stroke = self.rfwidget.stroke2D
         stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
+        #stroke = process_stroke_source(stroke, raycast_sources_Point2D, is_point_on_mirrored_side=self.rfcontext.is_point_on_mirrored_side)
+        #stroke = process_stroke_source(stroke, raycast_sources_Point2D, Point_to_Point2D=Point_to_Point2D, mirror_point=self.rfcontext.mirror_point)
+        stroke = process_stroke_source(stroke, raycast_sources_Point2D, Point_to_Point2D=Point_to_Point2D, clamp_point_to_symmetry=self.rfcontext.clamp_point_to_symmetry)
         stroke3D = [raycast_sources_Point2D(s)[0] for s in stroke]
         stroke3D = [s for s in stroke3D if s]
+
+        if len(stroke3D) < 2: return
 
         self.strip_stroke3D = stroke3D
         self.strip_crosses = None
