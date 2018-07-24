@@ -198,6 +198,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self._init_ui()                 # set up user interface
         self._init_target()             # set up target object
         self._init_sources()            # set up source objects, must call *AFTER* target is initialized!
+        self._init_sources_symmetry()   # set up symmetry plane info
         self._init_rotate_about_active()    # must call *AFTER* target is initialized!
         self.fps_time = time.time()
         self.frames = 0

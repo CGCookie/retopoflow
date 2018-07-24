@@ -24,12 +24,39 @@ from itertools import chain
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace, RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
 from ..common.utils import iter_pairs
-from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane, BBox, Ray
-from ..common.maths import Point2D, Vec2D, Direction2D
+from ..common.maths import (
+    Point, Vec, Direction, Normal,
+    Point2D, Vec2D, Direction2D,
+    Ray, XForm, Plane, BBox,
+    Accel2D,
+    mid,
+)
 from ..common.profiler import profiler
 from ..common.debug import dprint
 from ..common.decorators import stats_wrapper
 
+class SimpleVert:
+    def __init__(self, co):
+        self.co = co
+        self.is_valid = True
+class SimpleEdge:
+    def __init__(self, verts):
+        self.verts = verts
+        self.p0 = verts[0].co
+        self.p1 = verts[1].co
+        self.v01 = self.p1 - self.p0
+        self.l = self.v01.length
+        self.d01 = self.v01 / max(self.l, 0.00000001)
+        self.is_valid = True
+    def closest(self, p):
+        v0p = p - self.p0
+        d = self.d01.dot(v0p)
+        return self.p0 + self.d01 * mid(d, 0, self.l)
+
+def gen_accel(edges, w2l_point, Point_to_Point2D):
+    sedges = [SimpleEdge((SimpleVert(w2l_point(v0)), SimpleVert(w2l_point(v1)))) for (v0,v1) in edges]
+    sverts = [v for e in sedges for v in e.verts]
+    return Accel2D(sverts, sedges, [], Point_to_Point2D)
 
 class RFContext_Sources:
     '''
@@ -44,10 +71,19 @@ class RFContext_Sources:
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
+
+    @profiler.profile
+    def _init_sources_symmetry(self):
         xyplane,xzplane,yzplane = self.rftarget.get_xy_plane(),self.rftarget.get_xz_plane(),self.rftarget.get_yz_plane()
-        self.rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]
-        self.rfsources_xzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xzplane)]
-        self.rfsources_yzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(yzplane)]
+        w2l_point = self.rftarget.w2l_point
+        rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]
+        rfsources_xzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xzplane)]
+        rfsources_yzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(yzplane)]
+        self.rftarget.set_symmetry_accel(
+            gen_accel(rfsources_xyplanes, w2l_point, lambda p:Point2D((p.x,p.y))),
+            gen_accel(rfsources_xzplanes, w2l_point, lambda p:Point2D((p.x,p.z))),
+            gen_accel(rfsources_yzplanes, w2l_point, lambda p:Point2D((p.y,p.z))),
+        )
 
     ###################################################
     # ray casting functions

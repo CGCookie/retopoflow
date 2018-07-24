@@ -134,8 +134,17 @@ class RFMesh():
 
     ##########################################################
 
-    def get_frame(self):
-        return self.xform.to_frame()
+    def get_frame(self): return self.xform.to_frame()
+
+    def w2l_point(self, p): return self.xform.w2l_point(p)
+    def w2l_normal(self, n): return self.xform.w2l_normal(n)
+    def w2l_vec(self, v): return self.xform.w2l_vector(v)
+    def w2l_direction(self, d): return self.xform.w2l_direction(d)
+
+    def l2w_point(self, p): return self.xform.l2w_point(p)
+    def l2w_normal(self, n): return self.xform.l2w_normal(n)
+    def l2w_vec(self, v): return self.xform.l2w_vector(v)
+    def l2w_direction(self, d): return self.xform.l2w_direction(d)
 
     ##########################################################
 
@@ -1324,6 +1333,15 @@ class RFTarget(RFMesh):
             self.mirror_mod.use_y = False
             self.mirror_mod.use_z = False
         self.editmesh_version = None
+        self.xy_symmetry_accel = None
+        self.xz_symmetry_accel = None
+        self.yz_symmetry_accel = None
+
+    def set_symmetry_accel(self, xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel):
+        BMElemWrapper.set_symmetry_accel(xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel)
+        # self.xy_symmetry_accel = xy_symmetry_accel
+        # self.xz_symmetry_accel = xz_symmetry_accel
+        # self.yz_symmetry_accel = yz_symmetry_accel
 
     def __deepcopy__(self, memo):
         '''
