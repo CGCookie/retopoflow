@@ -42,7 +42,7 @@ class RFContext_Target:
         ''' target is the active object.  must be selected and visible '''
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
-        self.rftarget = RFTarget.new(self.tar_object)
+        self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
         opts = self.get_target_render_options()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 

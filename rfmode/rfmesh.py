@@ -1296,13 +1296,13 @@ class RFTarget(RFMesh):
 
     @staticmethod
     @profiler.profile
-    def new(obj:bpy.types.Object):
+    def new(obj:bpy.types.Object, unit_scaling_factor):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 
         RFTarget.creating = True
         rftarget = RFTarget()
         del RFTarget.creating
-        rftarget.__setup__(obj)
+        rftarget.__setup__(obj, unit_scaling_factor=unit_scaling_factor)
         rftarget.rewrap()
 
         return rftarget
@@ -1310,7 +1310,7 @@ class RFTarget(RFMesh):
     def __init__(self):
         assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
 
-    def __setup__(self, obj:bpy.types.Object, rftarget_copy=None):
+    def __setup__(self, obj:bpy.types.Object, unit_scaling_factor:float, rftarget_copy=None):
         bme = rftarget_copy.bme.copy() if rftarget_copy else None
         xy_symmetry_accel = rftarget_copy.xy_symmetry_accel if rftarget_copy else None
         xz_symmetry_accel = rftarget_copy.xz_symmetry_accel if rftarget_copy else None
@@ -1342,6 +1342,7 @@ class RFTarget(RFMesh):
         self.xy_symmetry_accel = xy_symmetry_accel
         self.xz_symmetry_accel = xz_symmetry_accel
         self.yz_symmetry_accel = yz_symmetry_accel
+        self.unit_scaling_factor = unit_scaling_factor
 
     def set_symmetry_accel(self, xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel):
         self.xy_symmetry_accel = xy_symmetry_accel
@@ -1352,7 +1353,8 @@ class RFTarget(RFMesh):
         if from_world: point = self.xform.w2l_point(point)
         dist = lambda p: (p - point).length_squared
         px,py,pz = point
-        threshold = self.symmetry_threshold
+        threshold = self.symmetry_threshold * self.unit_scaling_factor / 2.0
+        print(self.symmetry_threshold, self.unit_scaling_factor)
         if 'x' in self.symmetry and px <= threshold:
             edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
@@ -1371,7 +1373,7 @@ class RFTarget(RFMesh):
         '''
         rftarget = RFTarget.__new__(RFTarget)
         memo[id(self)] = rftarget
-        rftarget.__setup__(self.obj, rftarget_copy=self)
+        rftarget.__setup__(self.obj, self.unit_scaling_factor, rftarget_copy=self)
         # deepcopy all remaining settings
         for k,v in self.__dict__.items():
             if k not in {'prev_state'} and k in rftarget.__dict__: continue
