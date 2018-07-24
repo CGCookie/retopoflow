@@ -263,6 +263,9 @@ class RFContext_Target:
                 else:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.x / (p0.x - p1.x))]
+            if npl:
+                npl[0].x = 0
+                npl[-1].x = 0
             pointloop = npl
         if 'y' in self.rftarget.symmetry and any(p.y > 0 for p in pointloop):
             if connected:
@@ -276,6 +279,9 @@ class RFContext_Target:
                 else:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.y / (p0.y - p1.y))]
+            if npl:
+                npl[0].y = 0
+                npl[-1].y = 0
             pointloop = npl
         if 'z' in self.rftarget.symmetry and any(p.z < 0 for p in pointloop):
             if connected:
@@ -289,6 +295,9 @@ class RFContext_Target:
                 else:
                     connected = False
                     npl += [p0 + (p1 - p0) * (p0.z / (p0.z - p1.z))]
+            if npl:
+                npl[0].z = 0
+                npl[-1].z = 0
             pointloop = npl
         pointloop = [l2w_point(pt) for pt in pointloop]
         return (pointloop, connected)
