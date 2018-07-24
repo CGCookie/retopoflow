@@ -1310,12 +1310,17 @@ class RFTarget(RFMesh):
     def __init__(self):
         assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
 
-    def __setup__(self, obj:bpy.types.Object, bme:bmesh.types.BMesh=None):
+    def __setup__(self, obj:bpy.types.Object, rftarget_copy=None):
+        bme = rftarget_copy.bme.copy() if rftarget_copy else None
+        xy_symmetry_accel = rftarget_copy.xy_symmetry_accel if rftarget_copy else None
+        xz_symmetry_accel = rftarget_copy.xz_symmetry_accel if rftarget_copy else None
+        yz_symmetry_accel = rftarget_copy.yz_symmetry_accel if rftarget_copy else None
+
         super().__setup__(obj, bme=bme)
         # if Mirror modifier is attached, set up symmetry to match
         self.symmetry = set()
+        self.symmetry_threshold = 0.001
         self.mirror_mod = None
-        self.mirror_obj = None
         for mod in self.obj.modifiers:
             if mod.type != 'MIRROR': continue
             self.mirror_mod = mod
@@ -1323,25 +1328,42 @@ class RFTarget(RFMesh):
             if mod.use_x: self.symmetry.add('x')
             if mod.use_y: self.symmetry.add('y')
             if mod.use_z: self.symmetry.add('z')
-            self.mirror_obj = mod.mirror_object.name if mod.mirror_object else None
+            self.symmetry_threshold = mod.merge_threshold
         if not self.mirror_mod:
             # add mirror modifier
             bpy.ops.object.modifier_add(type='MIRROR')
             self.mirror_mod = self.obj.modifiers[-1]
             self.mirror_mod.show_on_cage = True
-            self.mirror_mod.use_x = False
-            self.mirror_mod.use_y = False
-            self.mirror_mod.use_z = False
+            self.mirror_mod.use_x = 'x' in self.symmetry
+            self.mirror_mod.use_y = 'y' in self.symmetry
+            self.mirror_mod.use_z = 'z' in self.symmetry
+            self.mirror_mod.merge_threshold = self.symmetry_threshold
         self.editmesh_version = None
-        self.xy_symmetry_accel = None
-        self.xz_symmetry_accel = None
-        self.yz_symmetry_accel = None
+        self.xy_symmetry_accel = xy_symmetry_accel
+        self.xz_symmetry_accel = xz_symmetry_accel
+        self.yz_symmetry_accel = yz_symmetry_accel
 
     def set_symmetry_accel(self, xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel):
-        BMElemWrapper.set_symmetry_accel(xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel)
-        # self.xy_symmetry_accel = xy_symmetry_accel
-        # self.xz_symmetry_accel = xz_symmetry_accel
-        # self.yz_symmetry_accel = yz_symmetry_accel
+        self.xy_symmetry_accel = xy_symmetry_accel
+        self.xz_symmetry_accel = xz_symmetry_accel
+        self.yz_symmetry_accel = yz_symmetry_accel
+
+    def symmetry_real(self, point:Point, from_world=True, to_world=True):
+        if from_world: point = self.xform.w2l_point(point)
+        dist = lambda p: (p - point).length_squared
+        px,py,pz = point
+        threshold = self.symmetry_threshold
+        if 'x' in self.symmetry and px <= threshold:
+            edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
+            point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
+        if 'y' in self.symmetry and py >= threshold:
+            edges = self.xz_symmetry_accel.get_edges(Point2D((px, pz)), py)
+            point = min((e.closest(point) for e in edges), key=dist, default=Point((px, 0, pz)))
+        if 'z' in self.symmetry and pz <= threshold:
+            edges = self.xy_symmetry_accel.get_edges(Point2D((px, py)), -pz)
+            point = min((e.closest(point) for e in edges), key=dist, default=Point((px, py, 0)))
+        if to_world: point = self.xform.l2w_point(point)
+        return point
 
     def __deepcopy__(self, memo):
         '''
@@ -1349,7 +1371,7 @@ class RFTarget(RFMesh):
         '''
         rftarget = RFTarget.__new__(RFTarget)
         memo[id(self)] = rftarget
-        rftarget.__setup__(self.obj, bme=self.bme.copy())
+        rftarget.__setup__(self.obj, rftarget_copy=self)
         # deepcopy all remaining settings
         for k,v in self.__dict__.items():
             if k not in {'prev_state'} and k in rftarget.__dict__: continue
@@ -1393,6 +1415,9 @@ class RFTarget(RFMesh):
         self.mirror_mod.use_x = 'x' in self.symmetry
         self.mirror_mod.use_y = 'y' in self.symmetry
         self.mirror_mod.use_z = 'z' in self.symmetry
+        self.mirror_mod.use_clip = True
+        self.mirror_mod.use_mirror_merge = True
+        self.mirror_mod.merge_threshold = self.symmetry_threshold
 
     def enable_symmetry(self, axis): self.symmetry.add(axis)
     def disable_symmetry(self, axis): self.symmetry.discard(axis)

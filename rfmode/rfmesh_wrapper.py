@@ -61,10 +61,6 @@ NOTE: RFVert, RFEdge, RFFace do NOT mark RFMesh as dirty!
 
 
 class BMElemWrapper:
-    xy_symmetry_accel = None
-    xz_symmetry_accel = None
-    yz_symmetry_accel = None
-
     @staticmethod
     def wrap(rftarget):
         BMElemWrapper.rftarget = rftarget
@@ -73,13 +69,7 @@ class BMElemWrapper:
         BMElemWrapper.w2l_point = rftarget.xform.w2l_point
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
-        BMElemWrapper.symmetry = rftarget.symmetry
-
-    @staticmethod
-    def set_symmetry_accel(xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel):
-        BMElemWrapper.xy_symmetry_accel = xy_symmetry_accel
-        BMElemWrapper.xz_symmetry_accel = xz_symmetry_accel
-        BMElemWrapper.yz_symmetry_accel = yz_symmetry_accel
+        BMElemWrapper.symmetry_real = rftarget.symmetry_real
 
     @staticmethod
     def _unwrap(bmelem):
@@ -156,22 +146,8 @@ class RFVert(BMElemWrapper):
 
     @co.setter
     def co(self, co):
-        assert not any(math.isnan(v)
-                       for v in co), 'Setting RFVert.co to ' + str(co)
-        co = self.w2l_point(co)
-        if 'x' in self.symmetry and co.x < 0:
-            edges = BMElemWrapper.yz_symmetry_accel.get_edges(Point2D((co.y, co.z)), -co.x)
-            pts = [e.closest(co) for e in edges]
-            co = min(pts, key=lambda pt:(pt-co).length, default=Point((0, co.y, co.z)))
-        if 'y' in self.symmetry and co.y > 0:
-            edges = BMElemWrapper.xz_symmetry_accel.get_edges(Point2D((co.x, co.z)), co.y)
-            pts = [e.closest(co) for e in edges]
-            co = min(pts, key=lambda pt:(pt-co).length, default=Point((co.x, 0, co.z)))
-        if 'z' in self.symmetry and co.z < 0:
-            edges = BMElemWrapper.xy_symmetry_accel.get_edges(Point2D((co.x, co.y)), -co.z)
-            pts = [e.closest(co) for e in edges]
-            co = min(pts, key=lambda pt:(pt-co).length, default=Point((co.x, co.y, 0)))
-        self.bmelem.co = co
+        assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
+        self.bmelem.co = self.symmetry_real(co, to_world=False)
 
     @property
     def normal(self):

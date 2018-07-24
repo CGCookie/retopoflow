@@ -517,6 +517,15 @@ class RFContext_UI:
         def set_clip_start_print_value(v): set_clip_start(v)
         def get_clip_end_print_value():   return '%0.4f' % self.actions.space.clip_end
         def set_clip_end_print_value(v): set_clip_end(v)
+        def set_symmetry_threshold(v):
+            self.rftarget.symmetry_threshold = max(0, v)
+        def get_symmetry_threshold():
+            return self.rftarget.symmetry_threshold if hasattr(self, 'rftarget') else 0
+        def get_symmetry_threshold_print():
+            return '%0.4f' % get_symmetry_threshold()
+        def set_symmetry_threshold_print(v):
+            self.rftarget.symmetry_threshold = max(0, float(v))
+
 
         def wrap_pos_option(key):
             def get():
@@ -607,6 +616,7 @@ class RFContext_UI:
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), tooltip='Toggle X-Symmetry for target', spacing=0))
         dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), tooltip='Toggle Y-Symmetry for target', spacing=0))
         dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), tooltip='Toggle Z-Symmetry for target', spacing=0))
+        container_symmetry.add(UI_IntValue('Threshold', get_symmetry_threshold, set_symmetry_threshold, fn_get_print_value=get_symmetry_threshold_print, fn_set_print_value=set_symmetry_threshold_print, tooltip='Distance within which mirrored vertices are merged'))
         opt_symmetry_view = container_symmetry.add(UI_Options(*optgetset('symmetry view', setcallback=replace_opts), vertical=False))
         opt_symmetry_view.add_option('None', tooltip='Disable visualization of symmetry', align=0)
         opt_symmetry_view.add_option('Edge', tooltip='Highlight symmetry on source meshes as edge loop(s)', align=0)

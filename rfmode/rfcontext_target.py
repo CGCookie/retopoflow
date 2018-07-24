@@ -320,11 +320,7 @@ class RFContext_Target:
         return self.rftarget.xform.l2w_point(p)
 
     def clamp_point_to_symmetry(self, point):
-        p = self.rftarget.xform.w2l_point(point)
-        if 'x' in self.rftarget.symmetry: p.x = max(0, p.x)
-        if 'y' in self.rftarget.symmetry: p.y = max(0, p.y)
-        if 'z' in self.rftarget.symmetry: p.z = max(0, p.z)
-        return self.rftarget.xform.l2w_point(p)
+        return self.rftarget.symmetry_real(point)
 
     def snap_all_verts(self):
         self.undo_push('snap all verts')
