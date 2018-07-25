@@ -151,21 +151,20 @@ class RFContext_Drawing:
                 pr = profiler.start('fps postpixel')
                 rgn = self.actions.region
                 sw,sh = rgn.width,rgn.height
-                lw = len(self.fps_list)
+                lw,lh = len(self.fps_list),60
+                m = self.drawing.get_dpi_mult()
+                def p(x, y): return (sw - 10 + (-lw + x) * m, 10 + y * m)
+                def v(x, y): bgl.glVertex2f(*p(x,y))
 
                 bgl.glBegin(bgl.GL_QUADS)
                 bgl.glColor4f(0,0,0,0.2)
-                bgl.glVertex2f((sw-10)-lw-1, 10-1)
-                bgl.glVertex2f((sw-10), 10-1)
-                bgl.glVertex2f((sw-10), 10+60+1)
-                bgl.glVertex2f((sw-10)-lw-1, 10+60+1)
+                v(0, 0); v(lw, 0); v(lw, lh); v(0, lh)
                 bgl.glEnd()
 
                 bgl.glBegin(bgl.GL_LINES)
                 bgl.glColor4f(0.2,0.2,0.2,0.3)
                 for i in [10,20,30,40,50]:
-                    bgl.glVertex2f((sw-10)-lw, 10+i)
-                    bgl.glVertex2f((sw-10), 10+i)
+                    v(0, i); v(lw, i)
                 bgl.glEnd()
 
                 if options['low fps warn']:
@@ -173,30 +172,21 @@ class RFContext_Drawing:
                     fh = options['low fps threshold']
                     bgl.glBegin(bgl.GL_QUADS)
                     bgl.glColor4f(0.5,0.1,0.1,0.3)
-                    bgl.glVertex2f((sw-10)-fw, 10)
-                    bgl.glVertex2f((sw-10), 10)
-                    bgl.glVertex2f((sw-10), 10+fh)
-                    bgl.glVertex2f((sw-10)-fw, 10+fh)
+                    v(lw - fw, 0); v(lw, 0); v(lw, fh); v(lw - fw, fh)
                     bgl.glEnd()
 
                 bgl.glBegin(bgl.GL_LINE_STRIP)
                 bgl.glColor4f(0.1,0.8,1.0,0.3)
                 for i in range(lw):
-                    bgl.glVertex2f((sw-10)-lw+i, 10+min(60, self.fps_list[i]))
+                    v(i, min(lh, self.fps_list[i]))
                 bgl.glEnd()
 
                 bgl.glBegin(bgl.GL_LINE_STRIP)
                 bgl.glColor4f(0,0,0,0.5)
-                bgl.glVertex2f((sw-10)-lw-1, 10-1)
-                bgl.glVertex2f((sw-10), 10-1)
-                bgl.glVertex2f((sw-10), 10+60+1)
-                bgl.glVertex2f((sw-10)-lw-1, 10+60+1)
-                bgl.glVertex2f((sw-10)-lw-1, 10-1)
+                v(0, 0); v(lw, 0); v(lw, lh); v(0, lh); v(0, 0)
                 bgl.glEnd()
 
-                self.drawing.set_font_size(12)
-                s = '%2.2f' % self.fps
-                self.drawing.text_draw2D(s, Point2D((sw-10-lw+2,10+58)), (1,1,1,0.5))
+                self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
                 pr.done()
 
             pr = profiler.start('tool draw postpixel')

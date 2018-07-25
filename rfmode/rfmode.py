@@ -448,7 +448,8 @@ class RFMode(Operator):
 
         self.rfctx.timer = bpy.context.window_manager.event_timer_add(1.0 / 120, bpy.context.window)
 
-        Drawing.set_cursor('CROSSHAIR')
+        self.drawing = Drawing.get_instance()
+        self.drawing.set_cursor('CROSSHAIR')
 
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
@@ -518,7 +519,7 @@ class RFMode(Operator):
         if self.maximize_area:
             bpy.ops.screen.screen_full_area(use_hide_panels=False)
 
-        Drawing.set_cursor('DEFAULT')
+        self.drawing.set_cursor('DEFAULT')
 
         # restore space info
         for space,data in self.space_info.items():
@@ -580,7 +581,8 @@ class RFMode(Operator):
 
     def draw_callback_preview(self, context):
         if not still_registered(self): return
-        Drawing.update_dpi()
+        self.drawing.update_dpi()
+        self.drawing.set_font_size(12, force=True)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_preview()
         except: self.handle_exception()
@@ -588,7 +590,8 @@ class RFMode(Operator):
 
     def draw_callback_postview(self, context):
         if not still_registered(self): return
-        Drawing.update_dpi()
+        self.drawing.update_dpi()
+        self.drawing.set_font_size(12, force=True)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_postview()
         except: self.handle_exception()
@@ -596,7 +599,8 @@ class RFMode(Operator):
 
     def draw_callback_postpixel(self, context):
         if not still_registered(self): return
-        Drawing.update_dpi()
+        self.drawing.update_dpi()
+        self.drawing.set_font_size(12, force=True)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:
             self.rfctx.draw_postpixel()

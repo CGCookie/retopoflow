@@ -1749,7 +1749,7 @@ class UI_Window(UI_Padding):
     def draw_postpixel(self):
         if not self.visible: return
 
-        self.drawing.set_font_size(12, force=True)
+        self.drawing.set_font_size(12)
 
         self.update_pos()
 

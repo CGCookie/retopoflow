@@ -187,13 +187,15 @@ class Drawing:
         if enable: self.enable_stipple()
         else: self.disable_stipple()
 
-    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None):
+    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None, fontsize=None):
+        if fontsize: size_prev = self.set_font_size(fontsize)
+
         lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
         lh = self.line_height
         lb = self.line_base
 
-        if dropshadow: self.text_draw2D(text, (l+1,t-1), dropshadow)
+        if dropshadow: self.text_draw2D(text, (l+1,t-1), dropshadow, fontsize=fontsize)
 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glColor4f(*color)
@@ -207,6 +209,8 @@ class Drawing:
             blf.draw(self.font_id, line)
             #y -= self.line_height
             t -= lh #self.get_line_height(line) - self.scale(3)
+
+        if fontsize: self.set_font_size(size_prev)
 
     def get_mvp_matrix(self, view3D=True):
         '''
