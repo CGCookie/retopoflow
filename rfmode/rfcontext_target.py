@@ -391,16 +391,6 @@ class RFContext_Target:
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
 
-
-    def bridge_vertloop(self, vloop0, vloop1, connected):
-        assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
-        faces = []
-        for pair0,pair1 in zip(iter_pairs(vloop0, connected), iter_pairs(vloop1, connected)):
-            v00,v01 = pair0
-            v10,v11 = pair1
-            faces += [self.new_face((v00,v01,v11,v10))]
-        return faces
-
     def bridge_vertloop(self, vloop0, vloop1, connected):
         assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
         faces = []
