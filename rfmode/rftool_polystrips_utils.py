@@ -249,6 +249,7 @@ def process_stroke_get_marks(stroke, at_dists):
 def mark_info(marks, imark):
     imark0 = max(imark-1, 0)
     imark1 = min(imark+1, len(marks)-1)
+    #assert imark0!=imark1, '%d %d %d %d' % (marks, imark, imark0, imark1)
     tangent = (marks[imark1] - marks[imark0]).normalized()
     perpendicular = Vec2D((-tangent.y, tangent.x))
     return (marks[imark], tangent, perpendicular)

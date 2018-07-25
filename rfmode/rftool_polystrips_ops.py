@@ -45,14 +45,10 @@ from .rftool_polystrips_utils import (
     )
 
 class RFTool_PolyStrips_Ops:
-    
+
     @RFTool.dirty_when_done
     def stroke(self):
         # called when artist finishes a stroke
-        self.stroke_new()
-        #self.stroke_old()
-    
-    def stroke_new(self):
         radius = self.rfwidget.size
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
@@ -63,10 +59,10 @@ class RFTool_PolyStrips_Ops:
         vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
         vis_edges2D,vis_faces2D = [],[]
         new_geom = []
-        
+
         def add_edge(bme): vis_edges2D.append((bme, [Point_to_Point2D(bmv.co) for bmv in bme.verts]))
         def add_face(bmf): vis_faces2D.append((bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]))
-        
+
         def intersect_face(pt):
             # todo: rewrite! inefficient!
             nonlocal vis_faces2D
@@ -75,31 +71,42 @@ class RFTool_PolyStrips_Ops:
                 for v1,v2 in iter_pairs(vs[1:], False):
                     if intersect_point_tri_2d(pt, v0, v1, v2): return f
             return None
-        
-        def create_vert(p2D_init, dist):
+
+        def snap_point(p2D_init, dist):
             p = raycast(p2D_init)[0]
             if p is None:
+                # did not hit source, so find nearest point on source to where the point would have been
                 r = Point2D_to_Ray(p2D_init)
                 p = nearest_sources_Point(r.eval(dist))[0]
             return p
-        
+
         def create_edge(center, tangent, mult, perpendicular):
             nonlocal new_geom
-            bmv0,bmv1 = None,None
-            d,mmult = None,mult
-            while not d:
+
+            # find direction of projecting tangent
+            # p0,n0,_,d0 = raycast(center)
+            # p1 = raycast(center+tangent*0.01)[0] # snap_point(center+tangent*0.0001, d0)
+            # d01 = (p1 - p0).normalize()
+            # t = n0.cross(d01).normalize()
+            # r = Point2D_to_Ray(center)
+            # print(tangent,p0,p1,d01,n0,t,r.d,t.dot(r.d), mult)
+            # rad = radius * abs(t.dot(r.d))
+            rad = radius
+
+            hd,mmult = None,mult
+            while not hd:
                 p = center + tangent * mmult
-                d = raycast(p)[3]
+                hp,hn,hi,hd = raycast(p)
                 mmult -= 0.1
-            p0 = create_vert(center + tangent * mult + perpendicular * radius, d)
-            p1 = create_vert(center + tangent * mult - perpendicular * radius, d)
+            p0 = snap_point(center + tangent * mult + perpendicular * rad, hd)
+            p1 = snap_point(center + tangent * mult - perpendicular * rad, hd)
             bmv0 = self.rfcontext.new_vert_point(p0)
             bmv1 = self.rfcontext.new_vert_point(p1)
             bme = self.rfcontext.new_edge([bmv0,bmv1])
             add_edge(bme)
             new_geom += [bme]
             return bme
-        
+
         def create_face_in_l(bme0, bme1):
             '''
             creates a face strip between edges that share a vertex (L-shaped)
@@ -118,7 +125,7 @@ class RFTool_PolyStrips_Ops:
             add_edge(bme3)
             new_geom += [bme2,bme3,bmf]
             return bmf
-            
+
         def create_face(bme01, bme23):
             #  0  3      0--3
             #  |  |  ->  |  |
@@ -136,23 +143,23 @@ class RFTool_PolyStrips_Ops:
             add_face(bmf)
             new_geom += [bme12, bme30, bmf]
             return bmf
-        
-        
+
+
         for bme in vis_edges: add_edge(bme)
         for bmf in vis_faces: add_face(bmf)
-        
+
         self.rfcontext.undo_push('stroke')
-        
+
         stroke = list(self.rfwidget.stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
-        
+
         from_edge = None
         while len(stroke) > 2:
             # get stroke segment to work on
             from_edge,cstroke,to_edge,cont,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
-            
+
             # filter cstroke to contain unique points
             while True:
                 ncstroke = [cstroke[0]]
@@ -160,7 +167,7 @@ class RFTool_PolyStrips_Ops:
                     if (cp-np).length > 0: ncstroke += [np]
                 if len(cstroke) == len(ncstroke): break
                 cstroke = ncstroke
-            
+
             # discard stroke segment if it lies in a face
             if intersect_face(cstroke[1]):
                 dprint('stroke is on face (1)')
@@ -170,10 +177,10 @@ class RFTool_PolyStrips_Ops:
                 dprint('stroke is on face (-2)')
                 from_edge = to_edge
                 continue
-            
+
             # estimate length of stroke (used with radius to determine num of quads)
             stroke_len = sum((p0-p1).length for (p0,p1) in iter_pairs(cstroke,False))
-            
+
             # marks start and end at center of quad, and alternate with
             # edge and face, each approx radius distance apart
             # +---+---+---+---+---+
@@ -200,16 +207,16 @@ class RFTool_PolyStrips_Ops:
             at_dists = [stroke_len*i/(nmarks-1) for i in range(nmarks)]
             # compute marks
             marks = process_stroke_get_marks(cstroke, at_dists)
-            
+
             # compute number of quads
             nquads = int(((nmarks-markoff0-markoff1) + 1) / 2)
             dprint('nmarks = %d, markoff0 = %d, markoff1 = %d, nquads = %d' % (nmarks, markoff0, markoff1, nquads))
-            
+
             if from_edge and to_edge and nquads == 1:
                 if from_edge.share_vert(to_edge):
                     create_face_in_l(from_edge, to_edge)
                     continue
-            
+
             # add edges
             if from_edge is None:
                 # create from_edge
@@ -218,14 +225,14 @@ class RFTool_PolyStrips_Ops:
                 from_edge = create_edge(pt, -tn, radius, pe)
             else:
                 new_geom += list(from_edge.link_faces)
-            
+
             if to_edge is None:
                 dprint('creating to_edge')
                 pt,tn,pe = mark_info(marks, nmarks-1)
                 to_edge = create_edge(pt, tn, radius, pe)
             else:
                 new_geom += list(to_edge.link_faces)
-            
+
             for iquad in range(1, nquads):
                 #print('creating edge')
                 pt,tn,pe = mark_info(marks, iquad*2+markoff0-1)
@@ -233,27 +240,27 @@ class RFTool_PolyStrips_Ops:
                 bmf = create_face(from_edge, bme)
                 from_edge = bme
             bmf = create_face(from_edge, to_edge)
-            
+
             from_edge = to_edge if cont else None
-        
+
         self.rfcontext.select(new_geom, supparts=False)
-    
+
     def stroke_old(self):
         radius = self.rfwidget.get_scaled_size()
         stroke2D = list(self.rfwidget.stroke2D)
         bmfaces = []
         all_bmfaces = []
-        
+
         if len(stroke2D) < 10: return
-        
+
         self.rfcontext.undo_push('stroke')
-        
+
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         vis_verts = self.rfcontext.visible_verts()
         vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
         vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
         vis_faces2D = [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in vis_faces]
-        
+
         def get_state(point:Point2D):
             nonlocal vis_faces2D
             point3D = self.rfcontext.get_point3D(point)
@@ -270,7 +277,7 @@ class RFTool_PolyStrips_Ops:
             pt = stroke2D.pop()
             state,face = get_state(pt)
             return (pt,state,face)
-        
+
         def merge(p0, p1, q0, q1):
             nonlocal bmfaces
             dp = p1.co - p0.co
@@ -282,7 +289,7 @@ class RFTool_PolyStrips_Ops:
             bmfaces = [mapping.get(f, f) for f in bmfaces]
             mapping = self.rfcontext.clean_duplicate_bmedges(q1)
             bmfaces = [mapping.get(f, f) for f in bmfaces]
-        
+
         def insert(cb, bme_start, bme_end):
             nonlocal bmfaces
             if bme_start and bme_start == bme_end: return
@@ -290,10 +297,10 @@ class RFTool_PolyStrips_Ops:
                 bmv0,bmv1 = bme_start.verts
                 bmv2,bmv3 = bme_end.verts
                 if bmv0 == bmv2 or bmv0 == bmv3 or bmv1 == bmv2 or bmv1 == bmv3: return
-            
+
             length = cb.approximate_length_uniform(lambda p,q: (p-q).length)
             steps = math.floor((length / radius) / 2)
-            
+
             if steps == 0:
                 if bme_start == None or bme_end == None: return
                 bmv0,bmv1 = bme_start.verts
@@ -304,10 +311,10 @@ class RFTool_PolyStrips_Ops:
                 else:
                     bmfaces.append(self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3]))
                 return
-            
+
             intervals = [(i/steps)*length for i in range(steps+1)]
             ts = cb.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
-            
+
             fp0,fp1 = None,None
             lp2,lp3 = None,None
             p0,p1,p2,p3 = None,None,None,None
@@ -330,14 +337,14 @@ class RFTool_PolyStrips_Ops:
                 if not fp0: fp0,fp1 = p0,p1
                 p0,p1 = p3,p2
             lp2,lp3 = p2,p3
-            
+
             if bme_start:
                 bmv0,bmv1 = bme_start.verts
                 merge(fp0, fp1, bmv0, bmv1)
             if bme_end:
                 bmv0,bmv1 = bme_end.verts
                 merge(lp2, lp3, bmv0, bmv1)
-        
+
         def absorb(cb, bme):
             if not bme: return cb
             Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -358,41 +365,41 @@ class RFTool_PolyStrips_Ops:
                 cb = CubicBezier.create_from_points(npts)
             dprint('absorb: %d -> %d' % (len(pts), len(npts)))
             return cb
-        
+
         def stroke_to_quads(stroke):
             nonlocal bmfaces, all_bmfaces, vis_faces2D, vis_edges, radius
             cbs = CubicBezierSpline.create_from_points([stroke], radius/60.0)
             nearest2D_edge = self.rfcontext.nearest2D_edge
             radius2D = self.rfcontext.size_to_size2D(radius, stroke[0])
-           
+
             for cb in cbs:
                 # pre-pass curve to see if we cross existing geo
                 p0,_,_,p3 = cb.points()
                 bme0,d0 = nearest2D_edge(p0, radius2D, edges=vis_edges)
                 bme3,d3 = nearest2D_edge(p3, radius2D, edges=vis_edges)
-                
+
                 # print((len(vis_edges), radius2D,bme0,d0,bme3,d3))
                 # bme0,bme3 = None,None
-                
+
                 cb = absorb(cb, bme0)
                 cb = absorb(cb, bme3)
-                
+
                 # post-pass to create
                 bmfaces = []
                 insert(cb, bme0, bme3)
                 all_bmfaces += bmfaces
                 # vis_edges |= set(bme for bmf in bmfaces for bme in bmf.edges)
                 # vis_faces2D += [(bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]) for bmf in bmfaces]
-            
+
             self.stroke_cbs = self.stroke_cbs + cbs
-        
+
         def process_stroke():
             # scan through all the points of stroke
             # if stroke goes off source or crosses a visible face, stop and insert,
             # then skip ahead until stroke goes back on source
-            
+
             self.stroke_cbs = CubicBezierSpline()
-            
+
             strokes = []
             pt,state,face0 = next_state()
             while stroke2D:
@@ -411,10 +418,10 @@ class RFTool_PolyStrips_Ops:
                 else:
                     assert False, 'Unexpected state'
             self.strokes = strokes
-            
+
             map(self.rfcontext.update_face_normal, all_bmfaces)
             self.rfcontext.select(all_bmfaces)
-        
+
         def merge_faces():
             nonlocal all_bmfaces
             # go through all the faces and merge newly created faces that overlap
@@ -442,7 +449,7 @@ class RFTool_PolyStrips_Ops:
                     for vert in bmf0.verts:
                         self.rfcontext.clean_duplicate_bmedges(vert)
                     done = False
-        
+
         try:
             process_stroke()
         except Exception as e:
@@ -457,28 +464,28 @@ class RFTool_PolyStrips_Ops:
             dprint('Unhandled exception raised while merging faces\n' + str(e))
             show_blender_popup('Unhandled exception raised while merging faces.\nPlease try again.')
             raise e
-        
+
         self.rfcontext.reselect()
-        
+
         for bmf in all_bmfaces:
             if not bmf.is_valid: continue
             for bmv in bmf.verts:
                 self.rfcontext.snap2D_vert(bmv)
-    
+
     @RFTool.dirty_when_done
     def change_count(self, delta):
         '''
         find parallel strips of boundary edges, fit curve to verts of strips, then
         recompute faces based on curves.
-        
+
         note: this op will only change counts along boundaries.  otherwise, use loop cut
         '''
-        
+
         nfaces = []
-        
+
         def process(bmfs, bmes):
             nonlocal nfaces
-            
+
             # find edge strips
             strip0,strip1 = [bmes[0].verts[0]], [bmes[0].verts[1]]
             edges0,edges1 = [],[]
@@ -493,15 +500,15 @@ class RFTool_PolyStrips_Ops:
             lengths0 = [(p0-p1).length for p0,p1 in iter_pairs(pts0, False)]
             lengths1 = [(p0-p1).length for p0,p1 in iter_pairs(pts1, False)]
             length0,length1 = sum(lengths0),sum(lengths1)
-            
+
             max_error = min(min(lengths0),min(lengths1)) / 100.0   # arbitrary!
             spline0 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts0]], max_error)
             spline1 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts1]], max_error)
             len0,len1 = len(spline0), len(spline1)
-            
+
             count = len(bmfs)
             ncount = max(1, count + delta)
-            
+
             # approximate ts along each strip
             def approx_ts(spline_len, lengths):
                 nonlocal ncount,count
@@ -515,23 +522,23 @@ class RFTool_PolyStrips_Ops:
                 return ts
             ts0 = approx_ts(len0, lengths0)
             ts1 = approx_ts(len1, lengths1)
-            
+
             self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
-            
+
             new_vert = self.rfcontext.new_vert_point
             verts0 = strip0[:1] + [new_vert(spline0.eval(t)) for t in ts0[1:-1]] + strip0[-1:]
             verts1 = strip1[:1] + [new_vert(spline1.eval(t)) for t in ts1[1:-1]] + strip1[-1:]
-            
+
             for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
                 nfaces.append(self.rfcontext.new_face([v00,v01,v11,v10]))
-            
-            
-        
+
+
+
         # find selected faces that are not part of strips
         #  [ | | | | | | | ]
         #      |O|     |O|    <- with either of these selected, split into two
         #  [ | | | ]
-        
+
         bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
         bmquads = [bmq for bmq in bmquads if not any(bmq in strip for strip in self.strips)]
         for bmf in bmquads:
@@ -543,7 +550,7 @@ class RFTool_PolyStrips_Ops:
             if (boundaries[1] or boundaries[3]) and not boundaries[0] and not boundaries[2]:
                 process([bmf], [bmes[1],bmes[3]])
                 continue
-        
+
         # find boundary portions of each strip
         # TODO: what if there are multiple boundary portions??
         #  [ | |O| | ]
@@ -552,7 +559,7 @@ class RFTool_PolyStrips_Ops:
         #      |O|      <-
         #      |O| | ]
         #  [ | |O| | ]
-        
+
         for strip in self.strips:
             bmfs,bmes = [],[]
             bme0 = strip.bme0
@@ -572,18 +579,18 @@ class RFTool_PolyStrips_Ops:
                 bmes.append(bme0)
             if not bmfs: continue
             process(bmfs, bmes)
-        
+
         if nfaces:
             self.rfcontext.select(nfaces, supparts=False, only=False)
         else:
             #self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
             pass
-    
+
     @RFTool.dirty_when_done
     def insert_strip(self, cb, steps, radius, bme_start=None, bme_end=None):
         steps = max(steps, 0 if bme_start and bme_end else 2)
         bmfaces = []
-        
+
         def merge_edges(p0, p1, q0, q1):
             nonlocal bmfaces
             dp,dq = p1.co - p0.co, q1.co - q0.co
@@ -594,13 +601,13 @@ class RFTool_PolyStrips_Ops:
             bmfaces = [mapping.get(f, f) for f in bmfaces]
             mapping = self.rfcontext.clean_duplicate_bmedges(q1)
             bmfaces = [mapping.get(f, f) for f in bmfaces]
-        
+
         if bme_start and bme_start == bme_end: return
         if bme_start and bme_end:
             bmv0,bmv1 = bme_start.verts
             bmv2,bmv3 = bme_end.verts
             if bmv0 == bmv2 or bmv0 == bmv3 or bmv1 == bmv2 or bmv1 == bmv3: return
-        
+
         if steps == 1:
             if bme_start == None or bme_end == None: return
             bmv0,bmv1 = bme_start.verts
@@ -611,12 +618,12 @@ class RFTool_PolyStrips_Ops:
             else:
                 bmfaces.append(self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3]))
             return bmfaces
-        
+
         length = cb.approximate_length_uniform(lambda p,q: (p-q).length)
         #radius = length / steps/2
         intervals = [(i/(steps-1))*length for i in range(steps)]
         ts = cb.approximate_ts_at_intervals_uniform(intervals, lambda p,q: (p-q).length)
-        
+
         fp0,fp1 = None,None
         lp2,lp3 = None,None
         p0,p1,p2,p3 = None,None,None,None
@@ -639,7 +646,7 @@ class RFTool_PolyStrips_Ops:
             if not fp0: fp0,fp1 = p0,p1
             p0,p1 = p3,p2
         lp2,lp3 = p2,p3
-        
+
         # TODO: redo this to not use merge!
         if bme_start:
             bmv0,bmv1 = bme_start.verts
@@ -647,5 +654,5 @@ class RFTool_PolyStrips_Ops:
         if bme_end:
             bmv0,bmv1 = bme_end.verts
             merge_edges(lp2, lp3, bmv0, bmv1)
-        
+
         return bmfaces
