@@ -302,6 +302,7 @@ class RFMeshRender():
 
         opts['cull backfaces'] = cull_backfaces
         opts['alpha backface'] = alpha_backface
+        opts['dpi mult'] = self.drawing.get_dpi_mult()
 
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)

@@ -583,6 +583,8 @@ class RFMode(Operator):
         if not still_registered(self): return
         self.drawing.update_dpi()
         self.drawing.set_font_size(12, force=True)
+        self.drawing.point_size(1)
+        self.drawing.line_width(1)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_preview()
         except: self.handle_exception()
@@ -592,6 +594,8 @@ class RFMode(Operator):
         if not still_registered(self): return
         self.drawing.update_dpi()
         self.drawing.set_font_size(12, force=True)
+        self.drawing.point_size(1)
+        self.drawing.line_width(1)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:    self.rfctx.draw_postview()
         except: self.handle_exception()
@@ -601,6 +605,8 @@ class RFMode(Operator):
         if not still_registered(self): return
         self.drawing.update_dpi()
         self.drawing.set_font_size(12, force=True)
+        self.drawing.point_size(1)
+        self.drawing.line_width(1)
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
         try:
             self.rfctx.draw_postpixel()
