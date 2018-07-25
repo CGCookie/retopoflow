@@ -188,7 +188,8 @@ class RFTool_Strokes(RFTool):
             selectable_edges = [e for e in self.rfcontext.visible_edges() if e.is_boundary]
             edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
             if not edge: return
-            self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+            #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')

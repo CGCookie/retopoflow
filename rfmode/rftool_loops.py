@@ -41,41 +41,41 @@ class RFTool_Loops(RFTool):
         self.FSM['select'] = self.modal_select
         self.FSM['slide'] = self.modal_slide
         self.FSM['slide after select'] = self.modal_slide_after_select
-    
+
     def name(self): return "Loops"
     def icon(self): return "rf_loops_icon"
     def description(self): return 'Loops creation, shifting, and deletion'
     def helptext(self): return help_loops
     def get_label(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
     def get_tooltip(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
-    
+
     ''' Called the tool is being switched into '''
     def start(self):
         self.rfwidget.set_widget('default')
-        
+
         self.nearest_edge = None
-    
+
     def get_ui_icon(self):
         self.ui_icon = UI_Image('loops_32.png')
         self.ui_icon.set_size(16, 16)
         return self.ui_icon
-    
+
     @profiler.profile
     def update(self):
         # selection has changed, undo/redo was called, etc.
         pass
-    
+
     @profiler.profile
     def set_next_state(self):
         self.edges_ = None
-        
+
         self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        
+
         self.percent = 0
         self.edges = None
-        
+
         if not self.nearest_edge: return
-        
+
         self.edges,self.edge_loop = self.rfcontext.get_face_loop(self.nearest_edge)
         if not self.edges:
             # nearest, but no loop
@@ -104,10 +104,10 @@ class RFTool_Loops(RFTool):
             self.edges = None
             return
         self.percent = a.dot(b) / adota;
-        
+
     def modal_main(self):
         self.set_next_state()
-        
+
         if self.rfcontext.actions.pressed('action'):
             self.rfcontext.undo_push('select and grab')
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
@@ -117,7 +117,7 @@ class RFTool_Loops(RFTool):
             self.prep_edit()
             if not self.edit_ok: return
             return 'slide after select'
-        
+
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
@@ -128,7 +128,7 @@ class RFTool_Loops(RFTool):
                 return
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
             return
-        
+
         if self.rfcontext.actions.pressed('select add'):
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
@@ -136,12 +136,12 @@ class RFTool_Loops(RFTool):
                 self.mousedown = self.rfcontext.actions.mouse
                 return 'selectadd/deselect'
             return 'select'
-        
+
         if self.rfcontext.actions.pressed('select'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
-        
+
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
             self.rfcontext.undo_push('slide edge loop/strip')
@@ -153,16 +153,16 @@ class RFTool_Loops(RFTool):
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'slide'
-        
+
         if self.rfcontext.actions.pressed('insert'):
             # insert edge loop / strip, select it, prep slide!
             if not self.edges_: return
-            
+
             self.rfcontext.undo_push('insert edge %s' % ('loop' if self.edge_loop else 'strip'))
-            
+
             # if quad strip is a loop, then need to connect first and last new verts
             is_looped = self.rfcontext.is_quadstrip_looped(self.nearest_edge)
-            
+
             def split_face(v0, v1):
                 nonlocal new_edges
                 f0 = next(iter(v0.shared_faces(v1)), None)
@@ -172,10 +172,10 @@ class RFTool_Loops(RFTool):
                     return
                 f1 = f0.split(v0, v1)
                 new_edges.append(f0.shared_edge(f1))
-            
+
             # create new verts by splitting all the edges
             new_verts, new_edges = [],[]
-            
+
             def compute_percent():
                 v0,v1 = self.nearest_edge.verts
                 c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
@@ -184,7 +184,7 @@ class RFTool_Loops(RFTool):
                 if adota <= 0.0000001: return 0
                 return a.dot(b) / adota;
             percent = compute_percent()
-            
+
             for e,flipped in self.rfcontext.iter_quadstrip(self.nearest_edge):
                 bmv0,bmv1 = e.verts
                 if flipped: bmv0,bmv1 = bmv1,bmv0
@@ -193,13 +193,13 @@ class RFTool_Loops(RFTool):
                 self.rfcontext.snap_vert(nv)
                 if new_verts: split_face(new_verts[-1], nv)
                 new_verts.append(nv)
-            
+
             # connecting first and last new verts if quad strip is looped
             if is_looped and len(new_verts) > 2: split_face(new_verts[-1], new_verts[0])
-            
+
             self.rfcontext.dirty()
             self.rfcontext.select(new_edges)
-            
+
             self.prep_edit()
             if not self.edit_ok:
                 self.rfcontext.undo_cancel()
@@ -209,7 +209,7 @@ class RFTool_Loops(RFTool):
             self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
-    
+
     @profiler.profile
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
@@ -229,15 +229,15 @@ class RFTool_Loops(RFTool):
         bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
         if not bme or bme.select: return
         self.rfcontext.select(bme, supparts=False, only=False)
-    
+
     def prep_edit(self):
         self.edit_ok = False
-        
+
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        
+
         sel_verts = self.rfcontext.get_selected_verts()
         sel_edges = self.rfcontext.get_selected_edges()
-        
+
         # slide_data holds info on left,right vectors for moving
         slide_data = {}
         working = set(sel_edges)
@@ -250,12 +250,12 @@ class RFTool_Loops(RFTool):
                 co0,co1 = v0.co,v1.co
                 if bme not in working: continue
                 working.discard(bme)
-                
+
                 # add verts of edge if not already added
                 for bmv in bme.verts:
                     if bmv in slide_data: continue
                     slide_data[bmv] = { 'left':[], 'orig':bmv.co, 'right':[], 'other':set() }
-                
+
                 # process edge
                 bmfl,bmfr = bme.get_left_right_link_faces()
                 bmefln = bmfl.neighbor_edges(bme) if bmfl else None
@@ -300,7 +300,7 @@ class RFTool_Loops(RFTool):
                 if bmvr1 not in slide_data[v1]['other']:
                     slide_data[v1]['right'].append(co1-cor1)
                     slide_data[v1]['other'].add(bmvr1)
-                
+
                 # crawl to neighboring edges in strip/loop
                 bmes_next = { bme.get_next_edge_in_strip(bmv) for bmv in bme.verts }
                 for bme_next in bmes_next:
@@ -308,7 +308,7 @@ class RFTool_Loops(RFTool):
                     v0_next,v1_next = bme_next.verts
                     side_next = side * (1 if (v1 == v0_next or v0 == v1_next) else -1)
                     crawl_set.add((bme_next, side_next))
-        
+
         # find nearest selected edge
         #   vector is perpendicular to edge
         #   tangent is vector with unit length
@@ -323,7 +323,7 @@ class RFTool_Loops(RFTool):
         self.mouse_down = self.rfcontext.actions.mouse
         self.percent_start = 0.0
         self.edit_ok = True
-    
+
     @profiler.profile
     def modal_slide_after_select(self):
         if self.rfcontext.actions.released('action'):
@@ -334,7 +334,7 @@ class RFTool_Loops(RFTool):
             self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
-    
+
     @RFTool.dirty_when_done
     @profiler.profile
     def modal_slide(self):
@@ -346,7 +346,7 @@ class RFTool_Loops(RFTool):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-        
+
         mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
         a,b = self.vector, self.tangent.dot(mouse_delta) * self.tangent
         percent = clamp(self.percent_start + a.dot(b) / a.dot(a), -1, 1)
@@ -356,14 +356,14 @@ class RFTool_Loops(RFTool):
             delta = sum((v*percent for v in vecs), Vec((0,0,0))) / len(vecs)
             bmv.co = co + delta
             self.rfcontext.snap_vert(bmv)
-    
+
     @profiler.profile
     def draw_postview(self):
         if self.rfcontext.nav: return
         if not self.nearest_edge: return
         if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift and self.mode == 'main':
             # draw new edge strip/loop
-            
+
             def draw():
                 if not self.edges_: return
                 self.drawing.enable_stipple()
@@ -376,27 +376,27 @@ class RFTool_Loops(RFTool):
                     bgl.glVertex3f(*c)
                 bgl.glEnd()
                 self.drawing.disable_stipple()
-            
+
             self.drawing.point_size(5.0)
             self.drawing.line_width(2.0)
             bgl.glDisable(bgl.GL_CULL_FACE)
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glDepthMask(bgl.GL_FALSE)
-            bgl.glDepthRange(0, 0.9990)     # squeeze depth just a bit 
-            
+            bgl.glDepthRange(0, 0.9990)     # squeeze depth just a bit
+
             # draw above
             bgl.glEnable(bgl.GL_DEPTH_TEST)
             bgl.glDepthFunc(bgl.GL_LEQUAL)
             bgl.glColor4f(0.15, 1.00, 0.15, 1.00)
             draw()
-            
+
             # draw below
             bgl.glDepthFunc(bgl.GL_GREATER)
             bgl.glColor4f(0.15, 1.00, 0.15, 0.25)
             draw()
-            
+
             bgl.glEnable(bgl.GL_CULL_FACE)
             bgl.glDepthMask(bgl.GL_TRUE)
             bgl.glDepthFunc(bgl.GL_LEQUAL)
             bgl.glDepthRange(0, 1)
-            
+

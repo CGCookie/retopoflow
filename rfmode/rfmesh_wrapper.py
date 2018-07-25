@@ -303,16 +303,28 @@ class RFEdge(BMElemWrapper):
         v0, v1 = self.bmelem.verts
         return self.l2w_point((v0.co + v1.co) / 2)
 
-    def vector(self):
+    def vector(self, from_vert=None, to_vert=None):
         v0, v1 = self.verts
+        if from_vert:
+            if v1 == from_vert: v0, v1 = v1, v0
+            assert v0 == from_vert
+        elif to_vert:
+            if v0 == to_vert: v0, v1 = v1, v0
+            assert v1 == to_vert
         return v1.co - v0.co
 
-    def vector2D(self, Point_to_Point2D):
+    def vector2D(self, Point_to_Point2D, from_vert=None, to_vert=None):
         v0, v1 = self.verts
+        if from_vert:
+            if v1 == from_vert: v0, v1 = v1, v0
+            assert v0 == from_vert
+        elif to_vert:
+            if v0 == to_vert: v0, v1 = v1, v0
+            assert v1 == to_vert
         return Point_to_Point2D(v1.co) - Point_to_Point2D(v0.co)
 
-    def direction(self):
-        return Direction(self.vector())
+    def direction(self, from_vert=None, to_vert=None):
+        return Direction(self.vector(from_vert=from_vert, to_vert=to_vert))
 
     def perpendicular(self):
         d = self.vector()
@@ -359,14 +371,14 @@ class RFEdge(BMElemWrapper):
         # find edge most similar in direction
         # NOTE: should remove the component along normal at vert?
         best_other, best_dot = None, 0
-        self_dir = self.direction()
+        self_dir = self.direction(to_vert=rfvert)
         for bme in bmv.link_edges:
             if len(bme.link_faces) > 2:
                 continue
             if (set(bme.link_faces) & link_faces):
                 continue
             rfedge = RFEdge(bme)
-            dot = abs(self_dir.dot(rfedge.direction()))
+            dot = self_dir.dot(rfedge.direction(from_vert=rfvert))
             if dot < best_dot:
                 continue
             best_other, best_dot = rfedge, dot
