@@ -427,6 +427,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
+            if not bmv.is_valid: continue
             set2D_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
         self.update()
