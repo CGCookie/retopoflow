@@ -649,6 +649,7 @@ class RFContext_UI:
 
         ui_lowfps = info_adv.add(UI_Collapsible('FPS Options', collapsed=True))
         self.window_debug_fps = ui_lowfps.add(UI_Label('FPS: 0.00'))
+        ui_lowfps.add(UI_Checkbox('Chart', *optgetset('visualize fps'), tooltip='Enable to visualize FPS in chart'))
         ui_lowfps.add(UI_Checkbox('Perform Check', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
         ui_lowfps.add(UI_IntValue('Threshold', *optgetset('low fps threshold', setwrap=lambda v:min(60,max(1,v))), tooltip='Set low FPS threshold'))
         ui_lowfps.add(UI_IntValue('Timing', *optgetset('low fps time', setwrap=lambda v:min(120,max(1,v))), tooltip='Set low FPS timing'))

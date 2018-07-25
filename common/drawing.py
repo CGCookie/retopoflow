@@ -109,6 +109,7 @@ class Drawing:
     def scale(self, s): return s * self._dpi_mult if s is not None else None
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
     def get_dpi_mult(self): return self._dpi_mult
+    def get_pixel_size(self): return self._pixel_size
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width) * self._pixel_size))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size) * self._pixel_size))
 
