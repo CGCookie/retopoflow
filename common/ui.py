@@ -562,6 +562,9 @@ class UI_Container(UI_Element):
         self.ui_items.append(ui_item)
         return ui_item
 
+    def get_ui_items(self):
+        return list(self.ui_items)
+
 
 class UI_EqualContainer(UI_Container):
     def __init__(self, vertical=True, margin=0):
@@ -1032,7 +1035,7 @@ class UI_Options(UI_Container):
     color_unselect = None
     color_hover = (1.00, 1.00, 1.00, 0.10)
 
-    def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2, separation=0):
+    def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2, separation=0, hovercolor=(1,1,1,0.1)):
         super().__init__(vertical=vertical, margin=margin, separation=separation)
         if vertical: align,valign = -1,-1
         else: align,valign = -1,0
@@ -1043,11 +1046,12 @@ class UI_Options(UI_Container):
         self.fn_set_option = fn_set_option
         self.options = {}
         self.values = set()
+        self.hovercolor = hovercolor
+        self.mouse_prev = None
 
     def set_label(self, label):
         self.ui_label.visible = label is not None
         self.ui_label.set_label(label or '')
-
 
     class UI_Option(UI_Background):
         def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
@@ -1090,8 +1094,8 @@ class UI_Options(UI_Container):
     def add_option(self, label, value=None, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
         if value is None: value=label
         assert value not in self.values, "All option values must be unique!"
-        self.values.add(value)
         option = self.container.add(UI_Options.UI_Option(self, label, value, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel, margin=margin))
+        self.values.add(value)
         self.options[option] = value
 
     def set_option(self, value):
@@ -1102,7 +1106,16 @@ class UI_Options(UI_Container):
         assert False, "Do not call UI_Options.add()"
 
     def _hover_ui(self, mouse):
-        return self if super()._hover_ui(mouse) else None
+        if not super()._hover_ui(mouse): return None
+        if self.mouse_prev != mouse:
+            self.mouse_prev = mouse
+            ui_hover = self.container._hover_ui(mouse)
+            for ui in self.container.get_ui_items():
+                if ui == ui_hover:
+                    ui.mouse_enter()
+                else:
+                    ui.mouse_leave()
+        return self
     def _get_tooltip(self, mouse):
         ui = super()._hover_ui(mouse)
         return ui._get_tooltip(mouse) if ui and ui != self else None
@@ -1113,6 +1126,10 @@ class UI_Options(UI_Container):
         ui = self.container._hover_ui(mouse)
         if ui is None or ui == self.container: return
         self.set_option(self.options[ui])
+
+    def mouse_leave(self):
+        for ui in self.container.get_ui_items():
+            ui.mouse_leave()
 
     @profiler.profile
     def _draw(self):
@@ -1302,6 +1319,8 @@ class UI_Checkbox(UI_Container):
     '''
     def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
         spacing = kwopts.get('spacing', 4)
+        hovercolor = kwopts.get('hovercolor', (1,1,1,0.1))
+        tooltip = kwopts.get('tooltip', None)
         super().__init__(vertical=False, margin=2)
         self.chk = UI_Graphic()
         self.add(self.chk)
@@ -1310,7 +1329,9 @@ class UI_Checkbox(UI_Container):
             self.lbl = self.add(UI_Label(label, margin=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
-        self.tooltip = kwopts.get('tooltip', None)
+        self.tooltip = tooltip
+        self.hovercolor = hovercolor
+        self.hovering = False
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1319,8 +1340,17 @@ class UI_Checkbox(UI_Container):
 
     def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
 
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
+
     def predraw(self):
         self.chk.set_graphic('box checked' if self.fn_get_checked() else 'box unchecked')
+        if self.hovering:
+            self.background = self.hovercolor
+        else:
+            self.background = None
 
 
 class UI_Checkbox2(UI_Container):
@@ -1329,13 +1359,17 @@ class UI_Checkbox2(UI_Container):
     Label  <- highlighted if checked
     '''
     def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
+        hovercolor = kwopts.get('hovercolor', (1,1,1,0.1))
+        tooltip = kwopts.get('tooltip', None)
         super().__init__()
         self.margin = 0
         self.bg = self.add(UI_Background(border_thickness=1, rounded=True))
         self.bg.set_ui_item(UI_Label(label, align=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
-        self.tooltip = kwopts.get('tooltip', None)
+        self.tooltip = tooltip
+        self.hovercolor = hovercolor
+        self.hovering = False
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1343,12 +1377,20 @@ class UI_Checkbox2(UI_Container):
         return self if super()._hover_ui(mouse) else None
     def mouse_up(self, mouse): self.fn_set_checked(not self.fn_get_checked())
 
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
+
     def predraw(self):
         if self.fn_get_checked():
             self.bg.background = (0.27, 0.50, 0.72, 0.90)
             self.bg.border = (1,1,1,0.5)
         else:
-            self.bg.background = None
+            if self.hovering:
+                self.bg.background = self.hovercolor
+            else:
+                self.bg.background = None
             self.bg.border = (0,0,0,0.2)
 
     @profiler.profile
