@@ -53,6 +53,7 @@ With an established and solid framework, we will focus more on features in futur
 - Every change automatically commits to the target mesh; geometry is created in real-time! No more lost work from crashing.
 - Auto saves will trigger!
 - Undo and redo are universally available within RF Mode. Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
+- New Strokes tool!
 
 
 ## Feedback
@@ -396,6 +397,7 @@ Select the strip of boundary edges that you wish to fill.
 
 - SELECT / SHIFT+SELECT: select edge
 - CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
+- SHIFT+UP / SHIFT+DOWN: adjust segment count
 - F: fill visualized patch
 
 ## Notes
@@ -417,7 +419,33 @@ Adjust the Angle parameter to help Patches determine which connected edges shoul
 help_strokes = '''
 # Strokes Help
 
-foo bar!
+The Strokes tool helps fill in holes in your topology.
+This tool lets you insert edge strips and extruding edges by brushing a stroke on the source.
+Strokes is very similar to the Bsurfaces add-on.
 
+![](help_strokes.png)
 
+## Drawing
+
+- SELECT / SHIFT+SELECT: select geometry
+- CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
+- CTRL+ACTION: insert edge strip / extrude selected geometry
+- A: deselect / select all
+- SHIFT+UP / SHIFT+DOWN: adjust segment count
+
+## Other
+
+- X: delete/dissolve selected
+
+## Tips
+
+Creating geometry is dependent on your selection:
+
+- When nothing is selected, a new edge strip is added
+- When an edge strip is selected and stroke is not a loop, the selected edge strip is extruded to the stroke
+- When an edge loop is selected and stroke is a loop, the selected edge loop is extruded to the stroke
+
+Note: only edges on boundary of target are considered in selection.
+
+If stroke starts or ends on existing vertex, the Strokes tool will try to bridge the extruded geometry.
 '''
