@@ -611,6 +611,7 @@ class RFMode(Operator):
         #if self.settings.show_help and self.help_box: self.help_box.draw()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
+    @profiler.profile
     def draw_callback_cover(self, context):
         if not still_registered(self): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)

@@ -200,16 +200,11 @@ class Drawing:
 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glColor4f(*color)
-        for (i, line) in enumerate(lines):
+        for line in lines:
             th = self.get_text_height(line)
-            # x,y = l,t - (i+1)*lh + int((lh-th)/2)
-            x = l
-            #y = t - (i+1)*lh + int((lh-lb)/2+2*self._dpi_mult)
-            y = t - lb
-            blf.position(self.font_id, x, y, 0)
+            blf.position(self.font_id, l, t - lb, 0)
             blf.draw(self.font_id, line)
-            #y -= self.line_height
-            t -= lh #self.get_line_height(line) - self.scale(3)
+            t -= lh
 
         if fontsize: self.set_font_size(size_prev)
 

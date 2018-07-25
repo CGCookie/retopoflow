@@ -180,6 +180,7 @@ class UI_Element:
             self._draw()
         ScissorStack.pop()
 
+    @profiler.profile
     def recalc_size(self):
         self._width, self._height = 0, 0
         self._width_inner, self._height_inner = 0, 0
@@ -499,6 +500,7 @@ class UI_Container(UI_Element):
         sep = self.drawing.scale(self.separation)
 
         if self.background:
+            pr = profiler.start('background')
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
@@ -523,16 +525,15 @@ class UI_Container(UI_Element):
                 bgl.glVertex2f(l+w, t-h)
                 bgl.glVertex2f(l, t-h)
             bgl.glEnd()
+            pr.done()
 
         if self.vertical:
+            pr = profiler.start('vertical')
             y = t
-            b = t - h
-            last = len(self.ui_items) - 1
-            for i,ui in enumerate(self.ui_items):
-                if not ui.visible: continue
-                eh = ui.get_height()
-                if eh <= 0: continue
-                if i == last: eh = h
+            ui_items = [ui for ui in self.ui_items if ui.get_height() > 0]
+            last = len(ui_items) - 1
+            for i,ui in enumerate(ui_items):
+                eh = ui.get_height() if i < last else h
                 if debug_draw and 0 < i < last:
                     bgl.glEnable(bgl.GL_BLEND)
                     bgl.glBegin(bgl.GL_QUADS)
@@ -545,17 +546,18 @@ class UI_Container(UI_Element):
                 ui.draw(l,y,w,eh)
                 y -= eh + sep
                 h -= eh + sep
+            pr.done()
         else:
+            pr = profiler.start('horizontal')
             x = l
-            last = len(self.ui_items) - 1
-            for i,ui in enumerate(self.ui_items):
-                if not ui.visible: continue
-                ew = ui.get_width()
-                if ew <= 0: continue
-                if i == last: ew = w
+            ui_items = [ui for ui in self.ui_items if ui.get_width() > 0]
+            last = len(ui_items) - 1
+            for i,ui in enumerate(ui_items):
+                ew = ui.get_width() if i < last else w
                 ui.draw(x,t,ew,h)
                 x += ew + sep
                 w -= ew + sep
+            pr.done()
 
     def add(self, ui_item, only=False):
         if only: self.ui_items.clear()
@@ -577,18 +579,18 @@ class UI_EqualContainer(UI_Container):
         w,h = self.size
         if self.vertical:
             y = t
-            eh = math.floor(h / len(self.ui_items))
-            for ui in self.ui_items:
+            ui_items = [ui for ui in self.ui_items if ui.get_height() > 0]
+            eh = math.floor(h / len(ui_items))
+            for ui in ui_items:
                 ui.draw(l,y,w,eh)
                 y -= eh
         else:
             x = l
-            l = len(self.ui_items)
-            ew = math.floor(w / len(self.ui_items))
-            for i,ui in enumerate(self.ui_items):
+            ui_items = [ui for ui in self.ui_items if ui.get_width() > 0]
+            ew = math.floor(w / len(ui_items))
+            for ui in ui_items:
                 ui.draw(x,t,ew,h)
                 x += ew
-                w -= ew
 
 
 class UI_Label(UI_Element):
@@ -661,10 +663,10 @@ class UI_Label(UI_Element):
         elif self.valign > 0: loc_f = t - h + self.text_height
         else: loc_y = t - (h - self.text_height) / 2
 
+        size_prev = self.drawing.set_font_size(self.fontsize)
+
         if self.shadowcolor:
             self.drawing.text_draw2D(self.text, Point2D((loc_x+2, loc_y-2)), self.shadowcolor)
-
-        size_prev = self.drawing.set_font_size(self.fontsize)
 
         self.drawing.text_draw2D(self.text, Point2D((loc_x, loc_y)), self.color)
 
