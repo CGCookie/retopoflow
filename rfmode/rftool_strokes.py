@@ -185,7 +185,7 @@ class RFTool_Strokes(RFTool):
             self.rfcontext.actions.unpress()
 
             self.rfcontext.undo_push('select smart')
-            selectable_edges = [e for e in self.rfcontext.visible_edges() if e.is_boundary]
+            selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces) < 2]
             edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
             if not edge: return
             #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
