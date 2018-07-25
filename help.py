@@ -80,8 +80,7 @@ Below is a list of known issues that we are working on.
 - Very large source meshes cause a delay and stutter at start-up time.  Note: the sources are cached, so RF will load much more quickly the second time.
 - Very large target meshes causes slowness in some tools.
 - Patches supports only rudimentary fills
-- Display scales other than 1.0 (ex: Retina) do not display correct.
-- RF runs _very_ slowly on Macs with certain types of graphics cards (M, or mobile, versions of cards)
+- RF runs _very_ slowly (<1.0 FPS) on certain machines
 
 
 ## Final Words

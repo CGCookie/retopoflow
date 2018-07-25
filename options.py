@@ -33,7 +33,7 @@ from .common.logger import Logger
 from .common.profiler import Profiler
 
 
-retopoflow_version = '2.0.0 beta 2'
+retopoflow_version = '2.0.0'
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
@@ -71,8 +71,7 @@ gpu_shading = bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
-# XXX: JUST A TEST!!!
-# TODO: REPLACE WITH ACTUAL, COOKIE-RELATED ACCOUNT!! :)
+# TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
 # NOTE: can add number to url to start the amount off
 # ex: https://paypal.me/retopoflow/5
 retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
@@ -84,6 +83,8 @@ class Options:
                                                     # will be located at root of RF plug-in
 
     default_options = {                 # all the default settings for unset or reset
+        'rf version':           None,   # if versions differ, flush stored options
+
         'welcome':              True,   # show welcome message?
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
@@ -94,7 +95,7 @@ class Options:
         'visualize fps':        False,  # visualize fps
         'low fps threshold':    1,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         5,      # time (seconds) before warning user of low fps
+        'low fps time':         10,     # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
@@ -129,10 +130,10 @@ class Options:
         'symmetry view':        'Face',
         'symmetry effect':      0.5,
 
-        'target alpha':         1.0,
-        'target hidden alpha':  0.1,
-        'target alpha backface': 0.2,
-        'target cull backfaces': False,
+        'target alpha':             1.0,
+        'target hidden alpha':      0.1,
+        'target alpha backface':    0.2,
+        'target cull backfaces':    False,
 
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
@@ -142,12 +143,12 @@ class Options:
         'profiler_filename':    'RetopoFlow_profiler.txt',
 
         'contours count':   16,
-        'contours uniform': True,   # should new cuts be made uniformly about circumference?
+        'contours uniform': True,               # should new cuts be made uniformly about circumference?
 
-        'polystrips scale falloff': -1,
-        'polystrips draw curve':    False,
-        'polystrips max strips':    10,         # PS will not show handles if knot count is above max
-        'polystrips arrows':        False,
+        'polystrips scale falloff':     -1,
+        'polystrips draw curve':        False,
+        'polystrips max strips':        10,     # PS will not show handles if knot count is above max
+        'polystrips arrows':            False,
         'polystrips handle inner size': 15,
         'polystrips handle outer size': 20,
         'polystrips handle border':     2,
@@ -165,7 +166,7 @@ class Options:
         'tweak mask boundary':  False,
         'tweak mask hidden':    True,
 
-        'patches angle': 120,
+        'patches angle':        120,
     }
 
     db = None                           # current options dict
@@ -177,6 +178,9 @@ class Options:
             Options.fndb = os.path.join(path, Options.options_filename)
             print('RetopoFlow Options path: %s' % Options.fndb)
             self.read()
+            if self['rf version'] != retopoflow_version:
+                print('RetopoFlow version has changed.  Reseting options')
+                self.reset()
         self.update_external_vars()
     def __del__(self):
         #self.write()
@@ -218,6 +222,7 @@ class Options:
         keys = list(Options.db.keys())
         for key in keys:
             del Options.db[key]
+        Options.db['rf version'] = retopoflow_version
         self.write()
     def set_default(self, key, val):
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
