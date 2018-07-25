@@ -1645,6 +1645,44 @@ class UI_Collapsible(UI_Container):
             self.collapse()
 
 
+class UI_Frame(UI_Container):
+    def __init__(self, title, equal=False, vertical=True):
+        super().__init__()
+        self.margin = 0
+        self.separation = 0
+
+        self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0))
+        self.body_wrap = super().add(UI_Container(vertical=False, margin=0))
+        self.footer = super().add(UI_Container(margin=0))
+
+        self.title = self.header.add(UI_Label(title))
+
+        self.body_wrap.add(UI_Spacer(width=2))
+        self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
+        if equal:
+            self.body = self.body_wrap.add(UI_EqualContainer(vertical=vertical, margin=1))
+        else:
+            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1))
+
+        self.footer.add(UI_Spacer(height=1))
+        self.footer.add(UI_Rule(color=(0,0,0,0.25)))
+        self.footer.add(UI_Spacer(height=1))
+
+    def _recalc_size(self):
+        sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
+        widths = [w for (w,h) in sizes]
+        heights = [h for (w,h) in sizes]
+        self._width_inner = max(widths)
+        self._height_inner = sum(heights)
+
+    def add(self, ui_item):
+        return self.body.add(ui_item)
+
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
+        return self.body.hover_ui(mouse) or self
+
+
 
 class UI_Window(UI_Padding):
     screen_margin = 5

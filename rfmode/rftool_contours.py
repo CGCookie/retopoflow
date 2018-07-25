@@ -82,16 +82,16 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(-1)
 
-        container = UI_Container(vertical=False)
-        container.add(UI_Label('Count:'))
-        container_incdec = container.add(UI_EqualContainer(vertical=False))
+        container_count = UI_Container(vertical=False)
+        container_count.add(UI_Label('Count:', valign=0))
+        container_incdec = container_count.add(UI_EqualContainer(vertical=False))
         container_incdec.add(UI_Button('+', inc_count, tooltip='Increase segment count (Shift+Up)'))
         container_incdec.add(UI_Button('-', dec_count, tooltip='Decrease segment count (Shift+Down)'))
 
         return [
             UI_Checkbox('Uniform Cut', *options.gettersetter('contours uniform'), tooltip='Enable to force new cuts to distribute vertices uniformly about circumference'),
             UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour'),
-            container,
+            container_count,
             ]
 
     def get_ui_icon(self):

@@ -588,7 +588,7 @@ class RFContext_UI:
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)'))
         container_snap = dd_general.add(UI_Container(vertical=False))
-        container_snap.add(UI_Label('Snap Verts:', margin=0))
+        container_snap.add(UI_Label('Snap Verts:', margin=0, valign=0))
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
         container_view = dd_general.add(UI_Collapsible('View Options'))

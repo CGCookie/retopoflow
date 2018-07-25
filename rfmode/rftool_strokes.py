@@ -118,7 +118,9 @@ class RFTool_Strokes(RFTool):
             self.replay()
 
         self.ui_cross_count = UI_IntValue('Crosses', get_crosses, set_crosses)
+        self.ui_cross_count.visible = False
         self.ui_loop_count = UI_IntValue('Loops', get_loops, set_loops)
+        self.ui_loop_count.visible = False
 
         return [
             self.ui_cross_count,
@@ -160,7 +162,7 @@ class RFTool_Strokes(RFTool):
         self.rfwidget.set_widget('brush stroke')
 
         if self.rfcontext.actions.pressed('select'):
-            edge, _ = self.rfcontext.accel_nearest2D_edge()
+            edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
             vert = min(edge.verts, key=lambda v:(self.rfcontext.Point_to_Point2D(v.co) - self.rfcontext.actions.mouse).length)
             self.guide = vert
@@ -169,7 +171,7 @@ class RFTool_Strokes(RFTool):
             return 'select'
 
         if self.rfcontext.actions.pressed('select add'):
-            edge, _ = self.rfcontext.accel_nearest2D_edge()
+            edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
             if edge.select: return 'deselect'
             vert = min(edge.verts, key=lambda v:(self.rfcontext.Point_to_Point2D(v.co) - self.rfcontext.actions.mouse).length)

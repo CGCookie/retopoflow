@@ -95,6 +95,7 @@ class RFTool_Patches(RFTool):
             options['patches angle'] = v
             self.update()
         self.ui_crosses = UI_IntValue('Crosses', get_crosses, set_crosses)
+        self.ui_crosses.visible = False
         return [
             UI_IntValue('Angle', get_angle, set_angle, tooltip='A vertex between connected edges that form an angles below this threshold is a corner'),
             self.ui_crosses,

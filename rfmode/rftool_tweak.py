@@ -23,7 +23,7 @@ import math
 import bpy
 from .rftool import RFTool
 from ..common.maths import Point,Point2D,Vec2D,Vec,Accel2D
-from ..common.ui import UI_Image, UI_BoolValue, UI_Label, UI_Container, UI_IntValue
+from ..common.ui import UI_Image, UI_BoolValue, UI_Label, UI_Container, UI_IntValue, UI_Frame
 from ..common.profiler import profiler
 from ..keymaps import default_rf_keymaps
 from ..options import options
@@ -45,13 +45,11 @@ class RFTool_Tweak(RFTool):
     def get_tooltip(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
 
     def get_ui_options(self):
-        ui_mask = UI_Container()
-        ui_mask.add(UI_Label('Masking Options:'))
+        ui_mask = UI_Frame('Masking Options')
         ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('tweak mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)'))
         ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source'))
 
-        ui_brush = UI_Container()
-        ui_brush.add(UI_Label('Brush Properties:'))
+        ui_brush = UI_Container('Brush Properties')
         ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush'))
         ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of tweak brush'))
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of tweak brush'))
