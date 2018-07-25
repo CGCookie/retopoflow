@@ -39,7 +39,7 @@ from mathutils import Matrix
 from .decorators import blender_version_wrapper
 from .maths import Point2D, Vec2D, clamp, mid
 from .profiler import profiler
-
+from .debug import dprint
 
 
 class Drawing:
@@ -67,12 +67,11 @@ class Drawing:
         Drawing._dpi *= Drawing._ui_scale
         Drawing._dpi *= Drawing._pixel_size
         Drawing._dpi = int(Drawing._dpi)
-        Drawing._dpi_mult = Drawing._ui_scale * Drawing._pixel_size * Drawing._sysdpi / 72 # / Drawing._pixel_size
-        Drawing._font_mult = Drawing._ui_scale * Drawing._pixel_size * Drawing._sysdpi / 72 # / Drawing._pixel_size # math.pow(self._dpi_mult, 0.25)
-        s = 'DPI INFORMATION: scale:%0.2f, pixel:%0.2f, dpi:%d' % (Drawing._ui_scale, Drawing._pixel_size, Drawing._sysdpi)
-        if s != getattr(Drawing, 'last_s', None):
-            Drawing.last_s = s
-            print(s)
+        Drawing._dpi_mult = Drawing._ui_scale * Drawing._pixel_size * Drawing._sysdpi / 72
+        s = 'DPI information: scale:%0.2f, pixel:%0.2f, dpi:%d' % (Drawing._ui_scale, Drawing._pixel_size, Drawing._sysdpi)
+        if s != getattr(Drawing, '_last_dpi_info', None):
+            Drawing._last_dpi_info = s
+            dprint(s)
 
     @staticmethod
     def get_instance():
@@ -89,6 +88,7 @@ class Drawing:
         self.rgn,self.r3d,self.window = None,None,None
         self.font_id = 0
         self.fontsize = None
+        self.fontsize_scaled = None
         self.line_cache = {}
         self.size_cache = {}
         self.set_font_size(12)
@@ -108,43 +108,46 @@ class Drawing:
 
     def scale(self, s): return s * self._dpi_mult if s is not None else None
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
-    def scale_font(self, s): return int(s * self._font_mult)
     def get_dpi_mult(self): return self._dpi_mult
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width) * self._pixel_size))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size) * self._pixel_size))
 
-    def set_font_size(self, fontsize):
-        size_prev = self.fontsize
-        fontsize = int(fontsize)
-        if fontsize == size_prev:
-            return size_prev
+    def set_font_size(self, fontsize, force=False):
+        fontsize, fontsize_scaled = int(fontsize), int(int(fontsize) * self._dpi_mult)
+        if not force and fontsize_scaled == self.fontsize_scaled:
+            return self.fontsize
+        fontsize_prev = self.fontsize
+        fontsize_scaled_prev = self.fontsize_scaled
         self.fontsize = fontsize
-        blf.size(self.font_id, self.fontsize, 72) #self._sysdpi)
-        if self.fontsize not in self.line_cache:
+        self.fontsize_scaled = fontsize_scaled
+
+        blf.size(self.font_id, fontsize_scaled, 72) #self._sysdpi)
+
+        # cache away useful details about font (line height, line base)
+        key = (self.fontsize_scaled)
+        if key not in self.line_cache:
+            dprint('Caching new scaled font size:', key)
             all_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()`~[}{]/?=+\\|-_\'",<.>'
             all_caps = all_chars.upper()
-            self.line_cache[self.fontsize] = {
+            self.line_cache[key] = {
                 'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(4)),
                 'line base': round(blf.dimensions(self.font_id, all_caps)[1]),
             }
-        info = self.line_cache[self.fontsize]
+        info = self.line_cache[key]
         self.line_height = info['line height']
         self.line_base = info['line base']
-        return size_prev
+
+        return fontsize_prev
 
     def get_text_size_info(self, text, item, fontsize=None):
-        if fontsize:
-            fontsize = int(fontsize)
-            size_prev = self.set_font_size(fontsize)
-        if text is None:
-            text = ''
-        if type(text) is list:
-            lines = text
-            text = '\n'.join(lines)
-        else:
-            lines = text.splitlines()
-        t = (text, self.fontsize, self.font_id)
-        if t not in self.size_cache:
+        if fontsize: size_prev = self.set_font_size(fontsize)
+
+        if text is None: text, lines = '', []
+        elif type(text) is list: text, lines = '\n'.join(text), text
+        else: text, lines = text, text.splitlines()
+
+        key = (text, self.fontsize_scaled, self.font_id)
+        if key not in self.size_cache:
             d = {}
             if not text:
                 d['width'] = 0
@@ -156,10 +159,9 @@ class Drawing:
                 d['width'] = max(get_width(l) for l in lines)
                 d['height'] = get_height(text)
                 d['line height'] = self.line_height * len(lines)
-            self.size_cache[t] = d
-        if fontsize:
-            self.set_font_size(size_prev)
-        return self.size_cache[t][item]
+            self.size_cache[key] = d
+        if fontsize: self.set_font_size(size_prev)
+        return self.size_cache[key][item]
 
     def get_text_width(self, text, fontsize=None):
         return self.get_text_size_info(text, 'width', fontsize=fontsize)

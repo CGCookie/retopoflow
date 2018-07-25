@@ -32,7 +32,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import bgl
-import blf
 from bpy.types import BoolProperty
 from mathutils import Matrix
 
@@ -590,7 +589,7 @@ class UI_EqualContainer(UI_Container):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, textsize=12, shadowcolor=None, margin=2):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2):
         super().__init__()
         self.icon = icon
         self.tooltip = tooltip
@@ -598,7 +597,7 @@ class UI_Label(UI_Element):
         self.shadowcolor = shadowcolor
         self.align = align
         self.valign = valign
-        self.textsize = textsize
+        self.fontsize = fontsize
         self.margin = margin
         self.set_label(label)
         self.set_bgcolor(bgcolor)
@@ -608,6 +607,7 @@ class UI_Label(UI_Element):
 
         self.last_text = None
         self.last_fontsize = None
+        self.last_dpi = None
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
@@ -618,14 +618,15 @@ class UI_Label(UI_Element):
         self.text = str(label)
 
     def _recalc_size(self):
-        fontsize = self.drawing.scale_font(self.textsize)
         recalc = False
         recalc |= self.last_text != self.text
-        recalc |= self.last_fontsize != fontsize
+        recalc |= self.last_fontsize != self.fontsize
+        recalc |= self.last_dpi != self.drawing.get_dpi_mult()
         if recalc:
             self.last_text = self.text
-            self.last_fontsize = fontsize
-            fontsize_prev = self.drawing.set_font_size(fontsize)
+            self.last_fontsize = self.fontsize
+            self.last_dpi = self.drawing.get_dpi_mult()
+            fontsize_prev = self.drawing.set_font_size(self.fontsize)
             self.text_width = self.drawing.get_text_width(self.text)
             self.text_height = self.drawing.get_line_height(self.text)
             self.drawing.set_font_size(fontsize_prev)
@@ -636,9 +637,6 @@ class UI_Label(UI_Element):
 
     @profiler.profile
     def _draw(self):
-        fontsize = self.drawing.scale_font(self.textsize)
-        size_prev = self.drawing.set_font_size(fontsize)
-
         l,t = self.pos
         w,h = self.size
 
@@ -663,6 +661,8 @@ class UI_Label(UI_Element):
         if self.shadowcolor:
             self.drawing.text_draw2D(self.text, Point2D((loc_x+2, loc_y-2)), self.shadowcolor)
 
+        size_prev = self.drawing.set_font_size(self.fontsize)
+
         self.drawing.text_draw2D(self.text, Point2D((loc_x, loc_y)), self.color)
 
         if self.cursor_pos is not None and self.cursor_symbol:
@@ -678,16 +678,19 @@ class UI_WrappedLabel(UI_Element):
     '''
     Handles text wrapping
     '''
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), textsize=12, bgcolor=None, margin=0, shadowcolor=None):
+    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
         super().__init__()
         self.margin = margin
-        self.textsize = textsize
+        self.fontsize = fontsize
         self.set_label(label)
         self.set_bgcolor(bgcolor)
         self.color = color
         self.shadowcolor = shadowcolor
         self.min_size = min_size
         self.wrapped_size = min_size
+        self.last_size = None
+        self.last_text = None
+        self.last_dpi = None
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
@@ -699,17 +702,19 @@ class UI_WrappedLabel(UI_Element):
         paras = label.split('\n\n')                         # split into paragraphs
         paras = [re.sub(r'\n', '  ', p) for p in paras]     # join sentences of paragraphs
         label = '\n\n'.join(paras)                          # join paragraphs
-
         self.text = str(label)
-        self.last_size = None
 
     def predraw(self):
-        if self.last_size == self.size: return
+        recalc = False
+        recalc |= self.last_size != self.size
+        recalc |= self.last_text != self.text
+        recalc |= self.last_dpi != self.drawing.get_dpi_mult()
+        if not recalc: return
         self.last_size = self.size
+        self.last_text = self.text
+        self.last_dpi = self.drawing.get_dpi_mult()
 
-        fontsize = self.drawing.scale_font(self.textsize)
-        size_prev = self.drawing.set_font_size(fontsize)
-
+        size_prev = self.drawing.set_font_size(self.fontsize)
         mwidth = self.size.x
         twidth = self.drawing.get_text_width
         swidth = twidth(' ')
@@ -743,8 +748,7 @@ class UI_WrappedLabel(UI_Element):
 
     @profiler.profile
     def _draw(self):
-        fontsize = self.drawing.scale_font(self.textsize)
-        size_prev = self.drawing.set_font_size(fontsize)
+        size_prev = self.drawing.set_font_size(self.fontsize)
         line_height = self.drawing.get_line_height()
 
         l,t = self.pos
@@ -884,13 +888,13 @@ class UI_Markdown(UI_Container):
                 # h1 heading!
                 h1text = re.sub(r'# +', r'', p)
                 container.add(UI_Spacer(height=4))
-                h1 = container.add(UI_WrappedLabel(h1text, textsize=20, shadowcolor=(0,0,0,0.5)))
+                h1 = container.add(UI_WrappedLabel(h1text, fontsize=20, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=14))
             elif p.startswith('## '):
                 # h2 heading!
                 h2text = re.sub(r'## +', r'', p)
                 container.add(UI_Spacer(height=8))
-                h2 = container.add(UI_WrappedLabel(h2text, textsize=16, shadowcolor=(0,0,0,0.5)))
+                h2 = container.add(UI_WrappedLabel(h2text, fontsize=16, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=4))
             elif p.startswith('- '):
                 # unordered list!
@@ -1673,7 +1677,6 @@ class UI_Window(UI_Padding):
 
         self.ui_hover = None
         self.ui_grab = [self]
-        self.drawing.set_font_size(12)
         self.hbf = self.set_ui_item(UI_HBFContainer(vertical=vertical, separation=separation))
         self.hbf.header.margin = 0
         self.hbf.footer.margin = 0
@@ -1746,7 +1749,7 @@ class UI_Window(UI_Padding):
     def draw_postpixel(self):
         if not self.visible: return
 
-        self.drawing.set_font_size(12)
+        self.drawing.set_font_size(12, force=True)
 
         self.update_pos()
 

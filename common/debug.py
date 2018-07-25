@@ -37,7 +37,6 @@ from datetime import datetime
 from hashlib import md5
 
 # Blender imports
-import blf
 import bmesh
 import bpy
 from bpy_extras.view3d_utils import (

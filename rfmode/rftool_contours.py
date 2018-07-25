@@ -21,7 +21,6 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 import bgl
-import blf
 import os
 import math
 from itertools import chain

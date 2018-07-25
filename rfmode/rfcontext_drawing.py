@@ -22,7 +22,6 @@ Created by Jonathan Denning, Jonathan Williamson
 import os
 import bpy
 import bgl
-import blf
 import math
 import time
 import urllib

@@ -25,7 +25,6 @@ import ctypes
 
 import bmesh
 import bgl
-import blf
 import bpy
 from bpy_extras.view3d_utils import (
     location_3d_to_region_2d, region_2d_to_vector_3d

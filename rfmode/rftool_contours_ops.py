@@ -25,7 +25,6 @@ from itertools import chain
 
 import bpy
 import bgl
-import blf
 from mathutils import Matrix
 
 from .rftool import RFTool

@@ -35,7 +35,6 @@ import importlib
 from copy import deepcopy
 
 import bgl
-import blf
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
