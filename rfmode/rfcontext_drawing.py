@@ -234,17 +234,18 @@ class RFContext_Drawing:
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
 
-        bgl.glBegin(bgl.GL_TRIANGLES)
-        for i in range(0,360,10):
-            r0,r1 = i*math.pi/180.0, (i+10)*math.pi/180.0
-            x0,y0 = math.cos(r0)*2,math.sin(r0)*2
-            x1,y1 = math.cos(r1)*2,math.sin(r1)*2
-            bgl.glColor4f(0,0,0.01,0.0)
-            bgl.glVertex2f(0,0)
-            bgl.glColor4f(0,0,0.01,0.8)
-            bgl.glVertex2f(x0,y0)
-            bgl.glVertex2f(x1,y1)
-        bgl.glEnd()
+        if options['background gradient']:
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            for i in range(0,360,10):
+                r0,r1 = i*math.pi/180.0, (i+10)*math.pi/180.0
+                x0,y0 = math.cos(r0)*2,math.sin(r0)*2
+                x1,y1 = math.cos(r1)*2,math.sin(r1)*2
+                bgl.glColor4f(0,0,0.01,0.0)
+                bgl.glVertex2f(0,0)
+                bgl.glColor4f(0,0,0.01,0.8)
+                bgl.glVertex2f(x0,y0)
+                bgl.glVertex2f(x1,y1)
+            bgl.glEnd()
 
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopMatrix()

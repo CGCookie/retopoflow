@@ -111,6 +111,7 @@ class Options:
         'async mesh loading': True,
 
         'tools autocollapse': True,             # should tool's options auto-open/-collapse when switching tools?
+        'background gradient': True,
 
         # True=tool's options are collapsed
         'tools general collapsed': False,       # is general tools collapsed
