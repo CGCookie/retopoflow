@@ -268,8 +268,9 @@ class RFMode(Operator):
         if self.prev_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
 
-        self.area = context.area
+        #print([(k,str(getattr(context,k))) for k in sorted(dir(context))])
         self.context = context
+        self.area = self.context.area
         self.space = self.area.spaces[0]
         self.region_3d = self.space.region_3d
 
@@ -457,9 +458,9 @@ class RFMode(Operator):
         self.rfctx.rftarget.obj_hide()
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
 
-    def ui_toggle_maximize_area(self):
+    def ui_toggle_maximize_area(self, use_hide_panels=True):
         try:
-            bpy.ops.screen.screen_full_area(use_hide_panels=not self.region_overlap)
+            bpy.ops.screen.screen_full_area(use_hide_panels=use_hide_panels)
         except Exception as e:
             print('Exception caught while trying to toggle area')
             print(e)
@@ -467,9 +468,16 @@ class RFMode(Operator):
         self.maximize_area = not self.maximize_area
 
     def ui_end(self):
-        if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
-        if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
         if self.maximize_area: self.ui_toggle_maximize_area()
+        if self.region_overlap:
+            try:
+                # TODO: CONTEXT IS INCORRECT when maximize_area was True????
+                ctx = { 'area': self.area, 'space_data': self.space }
+                if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
+                if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
+            except:
+                pass
+                #self.ui_toggle_maximize_area(use_hide_panels=False)
 
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
