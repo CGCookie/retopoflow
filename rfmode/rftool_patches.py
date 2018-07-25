@@ -634,18 +634,22 @@ class RFTool_Patches(RFTool):
         bgl.glColor4f(*line_color)
         bgl.glBegin(bgl.GL_LINES)
         for i0,i1 in previz['edges']:
-            bgl.glVertex2f(*verts[i0])
-            bgl.glVertex2f(*verts[i1])
+            v0,v1 = verts[i0],verts[i1]
+            if v0 and v1:
+                bgl.glVertex2f(*v0)
+                bgl.glVertex2f(*v1)
         bgl.glEnd()
 
         bgl.glColor4f(*poly_color)
         bgl.glBegin(bgl.GL_TRIANGLES)
         for f in previz['faces']:
-            co0 = verts[f[0]]
-            for i1,i2 in zip(f[1:-1],f[2:]):
-                bgl.glVertex2f(*co0)
-                bgl.glVertex2f(*verts[i1])
-                bgl.glVertex2f(*verts[i2])
+            coords = [verts[i] for i in f]
+            if all(coords):
+                co0 = coords[0]
+                for i in range(1, len(coords)-1):
+                    bgl.glVertex2f(*co0)
+                    bgl.glVertex2f(*coords[i])
+                    bgl.glVertex2f(*coords[i+1])
         bgl.glEnd()
 
     def draw_postpixel(self):
@@ -708,5 +712,6 @@ class RFTool_Patches(RFTool):
         bgl.glColor4f(1,1,0.1,1.0)
         bgl.glBegin(bgl.GL_POINTS)
         for corner in self.shapes['corners']:
-            bgl.glVertex2f(*point_to_point2D(corner.co))
+            p = point_to_point2D(corner.co)
+            if p: bgl.glVertex2f(*p)
         bgl.glEnd()

@@ -805,5 +805,6 @@ class RFTool_Strokes(RFTool):
             l = len(collection['edges'])
             c = collection['center']
             xy = point_to_point2d(c)
+            if not xy: continue
             xy.y += 10
             text_draw2D(str(l), xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
