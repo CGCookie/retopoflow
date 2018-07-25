@@ -68,7 +68,7 @@ class Drawing:
         Drawing._dpi *= Drawing._pixel_size
         Drawing._dpi = int(Drawing._dpi)
         Drawing._dpi_mult = Drawing._ui_scale * Drawing._pixel_size * Drawing._sysdpi / 72 # / Drawing._pixel_size
-        Drawing._font_mult = Drawing._ui_scale # / Drawing._pixel_size # math.pow(self._dpi_mult, 0.25)
+        Drawing._font_mult = Drawing._ui_scale * Drawing._pixel_size * Drawing._sysdpi / 72 # / Drawing._pixel_size # math.pow(self._dpi_mult, 0.25)
         s = 'DPI INFORMATION: scale:%0.2f, pixel:%0.2f, dpi:%d' % (Drawing._ui_scale, Drawing._pixel_size, Drawing._sysdpi)
         if s != getattr(Drawing, 'last_s', None):
             Drawing.last_s = s
