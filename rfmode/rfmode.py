@@ -270,6 +270,8 @@ class RFMode(Operator):
 
         self.area = context.area
         self.context = context
+        self.space = self.area.spaces[0]
+        self.region_3d = self.space.region_3d
 
         self.context_start()
         self.ui_start()
@@ -456,26 +458,19 @@ class RFMode(Operator):
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
 
     def ui_toggle_maximize_area(self):
-        bpy.ops.screen.screen_full_area(use_hide_panels=False)
+        try:
+            bpy.ops.screen.screen_full_area(use_hide_panels=not self.region_overlap)
+        except Exception as e:
+            print('Exception caught while trying to toggle area')
+            print(e)
+            raise e
         self.maximize_area = not self.maximize_area
-        if not self.region_overlap:
-            pass
-            # ctx_toolshelf = dict(self.blender_op_context)
-            # ctx_properties = dict(self.blender_op_context)
-            # ctx_toolshelf['region'] = ctx_toolshelf['area'].regions[1]
-            # ctx_properties['region'] = ctx_properties['area'].regions[3]
-            # if self.maximize_area:
-            #     if self.show_toolshelf and self.rgn_toolshelf.width > 1:
-            #         bpy.ops.view3d.toolshelf(ctx_toolshelf)
-            #     if self.show_properties and self.rgn_properties.width > 1:
-            #         bpy.ops.view3d.properties(ctx_properties)
-            # else:
-            #     if self.show_toolshelf and self.rgn_toolshelf.width <= 1:
-            #         bpy.ops.view3d.toolshelf(ctx_toolshelf)
-            #     if self.show_properties and self.rgn_properties.width <= 1:
-            #         bpy.ops.view3d.properties(ctx_properties)
 
     def ui_end(self):
+        if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
+        if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
+        if self.maximize_area: self.ui_toggle_maximize_area()
+
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
@@ -510,14 +505,6 @@ class RFMode(Operator):
         if hasattr(self, 'cb_pp_all'):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
-
-        if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf()
-        if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties()
-        #if self.region_overlap:
-        #    if self.show_toolshelf: bpy.ops.view3d.toolshelf()
-        #    if self.show_properties: bpy.ops.view3d.properties()
-        if self.maximize_area:
-            bpy.ops.screen.screen_full_area(use_hide_panels=False)
 
         self.drawing.set_cursor('DEFAULT')
 

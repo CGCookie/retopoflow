@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Williamson
 
 
 default_rf_keymaps = {
+    'toggle full area': {'CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'},
+
     'action': {'LEFTMOUSE'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},

@@ -49,6 +49,7 @@ from ..common.ui import (
     )
 from ..common import bmesh_render as bmegl
 
+from ..keymaps import default_rf_keymaps
 from ..options import (
     retopoflow_version,retopoflow_version_git,
     retopoflow_profiler,
@@ -586,7 +587,7 @@ class RFContext_UI:
         })
 
         dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
-        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area (make 3D View fill entire window)'))
+        dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area and make 3D View fill entire window (%s)' % ','.join(default_rf_keymaps['toggle full area'])))
         container_snap = dd_general.add(UI_Container(vertical=False))
         container_snap.add(UI_Label('Snap Verts:', margin=0, valign=0))
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))

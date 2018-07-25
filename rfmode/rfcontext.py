@@ -284,10 +284,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
                 for j in range(4):
                     o.matrix_world[i][j] *= factor
 
-        self.rfmode.context.area.spaces[0].region_3d.view_distance *= factor
-        self.rfmode.context.area.spaces[0].region_3d.view_location *= factor
-        self.rfmode.context.area.spaces[0].clip_start *= factor
-        self.rfmode.context.area.spaces[0].clip_end *= factor
+        self.rfmode.region_3d.view_distance *= factor
+        self.rfmode.region_3d.view_location *= factor
+        self.rfmode.space.clip_start *= factor
+        self.rfmode.space.clip_end *= factor
         for src in self.get_sources(): scale_object(src)
         scale_object(self.get_target())
 
@@ -406,6 +406,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 
+        if self.actions.pressed('toggle full area'):
+            self.rfmode.ui_toggle_maximize_area()
+            return {}
         if self.actions.using('window actions'):
             return {'pass'}
 
