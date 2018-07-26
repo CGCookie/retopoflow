@@ -152,7 +152,7 @@ class RFTool_Patches(RFTool):
 
         ##############################################
         # find edges that could be part of a strip
-        edges = set(e for e in self.rfcontext.get_selected_edges() if len(e.link_faces) <= 1)
+        edges = set(e for e in self.rfcontext.get_selected_edges() if len(e.link_faces) < 2)
 
 
         ###################
@@ -512,10 +512,11 @@ class RFTool_Patches(RFTool):
             self.rfcontext.actions.unpress()
 
             self.rfcontext.undo_push('select smart')
-            selectable_edges = [e for e in self.rfcontext.visible_edges() if e.is_boundary]
+            selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces) < 2]
             edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
             if not edge: return
-            self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+            #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
