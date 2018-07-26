@@ -21,16 +21,20 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import math
 from itertools import chain
-from mathutils import Vector
+from mathutils import Vector, Quaternion
 
 import bpy
 import bgl
 
 from .rftool import RFTool
 from .rfmesh import RFVert
-from ..common.utils import iter_pairs
+from ..common.utils import iter_pairs, max_index
 from ..common.hasher import hash_cycle
-from ..common.maths import Point,Point2D,Vec2D,Vec,Normal,Plane,Frame, Direction
+from ..common.maths import (
+    Point, Vec, Normal, Direction,
+    Point2D, Vec2D,
+    Plane, Frame,
+)
 from ..common.profiler import profiler
 
 
@@ -39,7 +43,7 @@ def draw2D_arrow(p0:Point2D, p1:Point2D):
     c = Vec2D((d.y,-d.x))
     p2 = p1 + d + c
     p3 = p1 + d - c
-    
+
     bgl.glBegin(bgl.GL_LINE_STRIP)
     bgl.glVertex2f(*p0)
     bgl.glVertex2f(*p1)
@@ -116,9 +120,9 @@ def find_parallel_loops(loop, wrap=True):
         if not ploop: return None
         if not wrap: ploop.append(bmv_opposite)
         return ploop
-    
+
     ploops = []
-    
+
     bmv0,bmv1 = loop[:2]
     bme01 = bmv0.shared_edge(bmv1)
     bmfs = [bmf for bmf in bme01.link_faces]
@@ -137,7 +141,7 @@ def find_parallel_loops(loop, wrap=True):
             bmf = next((bmf_ for bmf_ in bme1.link_faces if bmf_ != bmf), None)
             bme0 = bme1
             lloop = ploop
-    
+
     return ploops
 
 def find_strings(edges, min_length=3):
@@ -273,7 +277,7 @@ class Contours_Loop:
     def __init__(self, vert_loop, connected, offset=0):
         self.connected = connected
         self.set_vert_loop(vert_loop, offset)
-    
+
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
@@ -294,7 +298,7 @@ class Contours_Loop:
         self.proj_dists = [self.plane.signed_distance_to(p) for p in self.pts]
         self.circumference = sum(self.dists)
         self.radius = sum(self.w2l_point(pt).length for pt in self.pts) / self.count
-    
+
     def get_origin(self): return self.plane.o
     def get_normal(self): return self.plane.n
     def get_local_by_index(self, idx): return self.w2l_point(self.pts[idx])
@@ -302,24 +306,29 @@ class Contours_Loop:
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
         pts_local = [self.w2l_point(pt+self.frame.o) for pt in pts]
-        idx = max(range(len(pts_local)), key=lambda i:pts_local[i].y) # / pts_local[i].length)
+        idx = max_index(pts_local, key=lambda pt:pt.y)
         t = pts_local[idx]
+        #print(pts_local, idx, t)
         offset = ((math.pi/2 - math.atan2(t.y, t.x)) * self.circumference / (math.pi*2)) % self.circumference
         return (idx,offset)
 
     def align_to(self, other):
-        is_opposite = self.get_normal().dot(other.get_normal()) < 0
+        n0, n1 = self.get_normal(), other.get_normal()
+        is_opposite = n0.dot(n1) < 0
         vert_loop = list(reversed(self.verts)) if is_opposite else self.verts
-        
-        if self.connected:
-            # rotate to align "topmost" vertex
-            rot_by,offset = other.get_index_of_top([to_point(p)-self.frame.o for p in vert_loop])
-            vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
-            offset = (offset * self.circumference / other.circumference)
-        else:
-            offset = 0
+        if not self.connected:
+            self.set_vert_loop(vert_loop, 0)
+            return
+        if is_opposite: n0 = -n0
+        q = Quaternion(n0.cross(n1), n0.angle(n1))
+
+        # rotate to align "topmost" vertex
+        rel_pos = [Vec(q * (to_point(p) - self.frame.o)) for p in vert_loop]
+        rot_by,offset = other.get_index_of_top(rel_pos)
+        vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
+        offset = (offset * self.circumference / other.circumference)
         self.set_vert_loop(vert_loop, offset)
-    
+
     def get_closest_point(self, point):
         point = to_point(point)
         cp,cd = None,None
@@ -331,13 +340,13 @@ class Contours_Loop:
             dist = (point - pp).length
             if not cp or dist < cd: cp,cd = pp,dist
         return cp
-    
+
     def get_points_relative_to(self, other):
         scale = other.radius / self.radius
         return [other.l2w_point(Vector(self.w2l_point(pt)) * scale) for pt in self.pts]
-    
+
     def iter_pts(self, repeat=False):
         return iter_pairs(self.pts, self.connected, repeat=repeat)
-    
+
     def move_2D(self, xy_delta:Vec2D):
         pass

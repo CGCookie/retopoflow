@@ -552,11 +552,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             if self.show_arrows:
                 self.drawing.line_width(2.0)
                 p0 = point_to_point2d(plane.o)
-                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                p1 = point_to_point2d(plane.o+plane.n*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,1,0,0.5)
                     draw2D_arrow(p0, p1)
-                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
@@ -577,11 +577,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             # draw arrows
             if self.show_arrows:
                 p0 = point_to_point2d(plane.o)
-                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                p1 = point_to_point2d(plane.o+plane.n*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,1,0,0.5)
                     draw2D_arrow(p0, p1)
-                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
@@ -600,11 +600,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 plane = cl.plane
                 self.drawing.line_width(2.0)
                 p0 = point_to_point2d(plane.o)
-                p1 = point_to_point2d(plane.o+plane.n*0.1)
+                p1 = point_to_point2d(plane.o+plane.n*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,1,0,0.5)
                     draw2D_arrow(p0, p1)
-                p1 = point_to_point2d(plane.o+cl.up_dir*0.1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)

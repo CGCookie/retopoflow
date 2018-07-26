@@ -511,6 +511,9 @@ class Plane(Entity3D):
         print('%s %s %s' % (str(p01), str(p12), str(p20)))
         assert False
 
+    def line_intersection(self, p0:Point, p1:Point):
+        return intersect_line_plane(p0, p1, self.o, self.n)
+
     @stats_wrapper
     def edge_intersect(self, points: List[Point]):
         return abs(sum(self.side(p) for p in points)) != 2

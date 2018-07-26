@@ -213,6 +213,9 @@ class RFEdge(BMElemWrapper):
     def smooth(self, v):
         self.bmelem.smooth = v
 
+    def first_vert(self):
+        return RFVert(self.bmelem.verts[0])
+
     def other_vert(self, bmv):
         bmv = self._unwrap(bmv)
         o = self.bmelem.other_vert(bmv)
