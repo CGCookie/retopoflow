@@ -348,7 +348,7 @@ class RFTool_Patches(RFTool):
             l0,l1 = len(sv0),len(sv1)
 
             # single edge strips: edge may be "facing" the wrong way
-            if l0==2 and sv0[1] not in sv1: sv0.reverse()
+            if l0==2 and sv0[0] not in sv3: sv0.reverse()
             if l1==2 and sv1[0] not in sv0: sv1.reverse()
             if l0==2 and sv2[0] not in sv1: sv2.reverse()
             if l1==2 and sv3[0] not in sv2: sv3.reverse()
