@@ -214,21 +214,27 @@ class RF_Panel(Panel):
         col.operator("cgcookie.rf_open_webissues",  "Report an Issue")
         # col.operator("cgcookie.rf_open_webtip",     "Send us a tip")
 
-        if RFMode.dense_target():
-            box = layout.box()
-            box.alert = True
-            col = box.column(align=True)
-            col.alignment = 'EXPAND'
-            col.label("WARNING:", icon="ERROR")
-            col.label("Target polycount is high!")
-            col.label("RetopoFlow may load slowly.")
+        target_name = RFMode.get_target_name()
+        box = layout.box()
+        if not target_name:
+            box.label("Creating new target")
+        else:
+            box.label("Target Name: %s" % target_name)
+            if RFMode.dense_target():
+                #warnbox = layout.box()
+                box.alert = True
+                warncol = box.column(align=True)
+                warncol.alignment = 'EXPAND'
+                warncol.label("TARGET WARNING:", icon="ERROR")
+                warncol.label("Polycount is high!")
+                warncol.label("RetopoFlow may load slowly.")
 
         if RFMode.dense_sources():
             box = layout.box()
             box.alert = True
             col = box.column(align=True)
             col.alignment = 'EXPAND'
-            col.label("WARNING:", icon="ERROR")
+            col.label("SOURCE WARNING:", icon="ERROR")
             col.label("Source polycount is high!")
             col.label("RetopoFlow may load slowly.")
 
@@ -257,8 +263,8 @@ class RF_Panel(Panel):
         col = layout.column(align=True)
         col.alignment = 'CENTER'
         col.label('Help')
-        col.operator('cgcookie.rf_recover', icon_value=icons.get('rf_recover_icon').icon_id)
-        col.operator('cgcookie.rf_recover_clear', icon_value=icons.get('rf_recover_icon').icon_id)
+        col.operator('cgcookie.rf_recover') #, icon_value=icons.get('rf_recover_icon').icon_id)
+        col.operator('cgcookie.rf_recover_clear') #, icon_value=icons.get('rf_recover_icon').icon_id)
         col.operator("cgcookie.rf_open_errorlog", "Open Error Log")
 
         addon_updater_ops.update_notice_box_ui(self, context)

@@ -120,6 +120,12 @@ class RFMode(Operator):
         return count
 
     @staticmethod
+    def get_target_name():
+        target = RFContext.get_target()
+        if not target: return None
+        return target.name
+
+    @staticmethod
     @profiler.profile
     def dense_target():
         count = RFMode.get_polygon_count(RFContext.get_target(), check_modifiers=False)
