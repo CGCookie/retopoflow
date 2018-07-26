@@ -246,6 +246,17 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
             if not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+                nearest_vert,d = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=10)
+                if nearest_vert:
+                    bmv1 = nearest_vert
+                    lbmf = bmv0.shared_faces(bmv1)
+                    if len(lbmf) == 1 and not bmv0.share_edge(bmv1):
+                        # split face
+                        bmf = lbmf[0]
+                        bmf.split(bmv0, bmv1)
+                        self.rfcontext.select(bmv1)
+                        return 'main'
+
                 nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1 = self.rfcontext.new2D_vert_mouse()
                 if not bmv1:
