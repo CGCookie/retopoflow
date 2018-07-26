@@ -73,6 +73,7 @@ class RFTool_Patches(RFTool):
     def start(self):
         self.rfwidget.set_widget('default')
         self.crosses = None
+        self.corners = dict()
 
     def get_ui_icon(self):
         self.ui_icon = UI_Image('patches_32.png')
@@ -149,6 +150,7 @@ class RFTool_Patches(RFTool):
         nearest_sources_Point = self.rfcontext.nearest_sources_Point
 
         self._clear_shapes()
+        self.corners = {v:corner for (v, corner) in self.corners.items() if v.is_valid and v.select}
 
         ##############################################
         # find edges that could be part of a strip
@@ -171,12 +173,13 @@ class RFTool_Patches(RFTool):
                 for e in chain(v0.link_edges, v1.link_edges):
                     if e not in remaining_edges: continue
                     bmv1 = edge.shared_vert(e)
+                    if self.corners.get(bmv1, False): continue
                     bmv0 = edge.other_vert(bmv1)
                     bmv2 = e.other_vert(bmv1)
                     d10 = Direction(bmv0.co-bmv1.co)
                     d12 = Direction(bmv2.co-bmv1.co)
                     angle = math.degrees(math.acos(mid(-1,1,d10.dot(d12))))
-                    if angle < min_angle: continue
+                    if self.corners.get(bmv1, True) and angle < min_angle: continue
                     neighbors[edge].append(e)
                     neighbors[e].append(edge)
                     working.add(e)
@@ -494,6 +497,13 @@ class RFTool_Patches(RFTool):
                 print('  %d %s-shaped %s' % (len(self.shapes[k]), k, d))
 
     def modal_main(self):
+        if self.rfcontext.actions.pressed('action alt1'):
+            vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
+            if not vert or not vert.select: return
+            self.corners[vert] = not self.corners.get(vert, False)
+            self.update()
+            return
+
         if self.rfcontext.actions.using('select'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
