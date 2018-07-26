@@ -162,22 +162,21 @@ class RFTool_Strokes(RFTool):
         self.rfwidget.set_widget('brush stroke')
 
         if self.rfcontext.actions.pressed('select'):
+            self.rfcontext.undo_push('select')
+            self.rfcontext.deselect_all()
             edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
-            vert = min(edge.verts, key=lambda v:(self.rfcontext.Point_to_Point2D(v.co) - self.rfcontext.actions.mouse).length)
-            self.guide = vert
-            self.selection = []
-            self.rfcontext.undo_push('select')
+            self.rfcontext.select(edge)
             return 'select'
 
         if self.rfcontext.actions.pressed('select add'):
             edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
-            if edge.select: return 'deselect'
-            vert = min(edge.verts, key=lambda v:(self.rfcontext.Point_to_Point2D(v.co) - self.rfcontext.actions.mouse).length)
-            self.guide = vert
-            self.selection = list(self.rfcontext.get_selected_verts() | self.rfcontext.get_selected_edges() | self.rfcontext.get_selected_faces())
+            if edge.select:
+                self.rfcontext.undo_push('deselect')
+                return 'deselect'
             self.rfcontext.undo_push('select add')
+            self.rfcontext.select(edge, supparts=False, only=False)
             return 'select'
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
@@ -726,20 +725,26 @@ class RFTool_Strokes(RFTool):
 
     @profiler.profile
     def modal_select(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
         if not self.rfcontext.actions.using(['select','select add']):
             return 'main'
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        mouse = self.rfcontext.actions.mouse
-        dist = lambda p: (Point_to_Point2D(p) - mouse).length
-        v = self.guide
-        l = []
-        while v.link_edges:
-            # find next edge
-            e = min(v.link_edges, key=lambda e:dist(e.other_vert(v).co))
-            if l and e == l[-1]: break
-            l.append(e)
-            v = e.other_vert(v)
-        self.rfcontext.select(l + self.selection, supparts=False, only=True)
+
+        edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        if not edge: return
+        v0,v1 = edge.verts
+        if v1.select: v0,v1 = v1,v0
+        if not v0.select:
+            return
+        if v1.select:
+            self.rfcontext.select(edge, supparts=False, only=False)
+            return
+        p0,p1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
+        v01, v0m = (p1 - p0), (self.rfcontext.actions.mouse - p0)
+        l01 = v01.length
+        l0m_proj = (v01/l01).dot(v0m)
+        if l0m_proj / l01 < 0.25:
+            return
+        self.rfcontext.select(edge, supparts=False, only=False)
 
     @profiler.profile
     def modal_deselect(self):
