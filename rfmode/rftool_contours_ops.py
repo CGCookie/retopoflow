@@ -228,7 +228,7 @@ class RFTool_Contours_Ops:
                     if v0.share_edge(v1): offset = i
                 if offset is not None:
                     verts1 = verts1[offset:] + verts1[:offset]
-                    if verts0[1] == verts1[-1]:
+                    if verts0[1].share_edge(verts1[-1]):
                         verts1 = [verts1[0]] + list(reversed(verts1[1:]))
 
                     new_edges = []
