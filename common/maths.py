@@ -863,6 +863,9 @@ class XForm:
     def to_bglMatrix_Model(self):
         return self.to_bglMatrix(self.mx_p)
 
+    def to_bglMatrix_Inverse(self):
+        return self.to_bglMatrix(self.imx_p)
+
     def to_bglMatrix_Normal(self):
         return self.to_bglMatrix(self.mx_n)
 

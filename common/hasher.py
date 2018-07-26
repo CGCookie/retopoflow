@@ -63,7 +63,7 @@ def hash_object(obj:bpy.types.Object):
     me = obj.data
     counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
     if me.vertices:
-        bbox   = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
+        bbox = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
     else:
         bbox = (None, None)
     vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
@@ -77,6 +77,7 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
+    #print(hashed)
     return hashed
 
 def hash_bmesh(bme:BMesh):

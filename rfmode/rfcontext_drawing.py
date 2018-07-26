@@ -73,7 +73,9 @@ class RFContext_Drawing:
             'no selection': True,
             'no below': True,
             'triangles only': True,     # source bmeshes are triangles only!
+            'cull backfaces': True,
 
+            'normal offset': 0.0005,
             'focus mult': 0.01,
         }
         return opts
@@ -116,6 +118,7 @@ class RFContext_Drawing:
             'point mirror dotoffset': 1.0,
 
             'focus mult': 1.0,
+            'normal offset': 0.001,
         }
         return opts
 
@@ -260,6 +263,7 @@ class RFContext_Drawing:
         if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
 
         buf_matrix_target = self.rftarget_draw.buf_matrix_model
+        buf_matrix_target_inv = self.rftarget_draw.buf_matrix_inverse
         buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
         buf_matrix_view_invtrans = XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
         buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.window_matrix)
@@ -277,16 +281,26 @@ class RFContext_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.symmetry:
             pr = profiler.start('render sources')
             for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, 1.00, 0.05, False, 0.5,
+                rfs.draw(
+                    view_forward,
+                    buf_matrix_target, buf_matrix_target_inv,
+                    buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                    1.00, 0.05, False, 0.5,
                     symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
-                    symmetry_effect=options['symmetry effect'], symmetry_frame=ft)
+                    symmetry_effect=options['symmetry effect'], symmetry_frame=ft
+                )
             pr.done()
 
         pr = profiler.start('render target')
         alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
         cull_backfaces = options['target cull backfaces']
         alpha_backface = options['target alpha backface']
-        self.rftarget_draw.draw(view_forward, buf_matrix_target, buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj, alpha_above, alpha_below, cull_backfaces, alpha_backface)
+        self.rftarget_draw.draw(
+            view_forward,
+            buf_matrix_target, buf_matrix_target_inv,
+            buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+            alpha_above, alpha_below, cull_backfaces, alpha_backface
+        )
         pr.done()
 
         pr = profiler.start('render other')

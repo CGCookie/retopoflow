@@ -141,6 +141,7 @@ class RFMeshRender():
         self.load_edges = opts.get('load edges', True)
 
         self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
+        self.buf_matrix_inverse = rfmesh.xform.to_bglMatrix_Inverse()
         self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
         self.buf_verts = BGLBufferedRender(bgl.GL_POINTS)
         self.buf_edges = BGLBufferedRender(bgl.GL_LINES)
@@ -153,6 +154,8 @@ class RFMeshRender():
     def __del__(self):
         if hasattr(self, 'buf_matrix_model'):
             del self.buf_matrix_model
+        if hasattr(self, 'buf_matrix_inverse'):
+            del self.buf_matrix_inverse
         if hasattr(self, 'buf_matrix_normal'):
             del self.buf_matrix_normal
         if hasattr(self, 'buf_verts'):
@@ -307,11 +310,10 @@ class RFMeshRender():
         # do not change attribs if they're not set
         bmegl.glSetDefaultOptions(opts=self.opts)
 
-        bgl.glDisable(bgl.GL_CULL_FACE)
+        bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
 
         pr = profiler.start('geometry above')
         bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthMask(bgl.GL_FALSE)
         opts['poly hidden'] = 1 - alpha_above
         opts['poly mirror hidden'] = 1 - alpha_above
         opts['line hidden'] = 1 - alpha_above
@@ -324,9 +326,9 @@ class RFMeshRender():
         pr.done()
 
         if not opts.get('no below', False):
+            # draw geometry hidden behind
             pr = profiler.start('geometry below')
             bgl.glDepthFunc(bgl.GL_GREATER)
-            bgl.glDepthMask(bgl.GL_FALSE)
             opts['poly hidden'] = 1 - alpha_below
             opts['poly mirror hidden'] = 1 - alpha_below
             opts['line hidden'] = 1 - alpha_below
@@ -340,7 +342,6 @@ class RFMeshRender():
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthRange(0, 1)
 
     @profiler.profile
@@ -384,7 +385,7 @@ class RFMeshRender():
     def draw(
         self,
         view_forward,
-        buf_matrix_target,
+        buf_matrix_target, buf_matrix_target_inv,
         buf_matrix_view, buf_matrix_view_invtrans,
         buf_matrix_proj,
         alpha_above, alpha_below,
@@ -401,6 +402,7 @@ class RFMeshRender():
             bmegl.bmeshShader.assign('matrix_m', self.buf_matrix_model)
             bmegl.bmeshShader.assign('matrix_mn', self.buf_matrix_normal)
             bmegl.bmeshShader.assign('matrix_t', buf_matrix_target)
+            bmegl.bmeshShader.assign('matrix_ti', buf_matrix_target_inv)
             bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
             bmegl.bmeshShader.assign('matrix_vn', buf_matrix_view_invtrans)
             bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
