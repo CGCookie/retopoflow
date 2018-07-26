@@ -203,6 +203,10 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
         if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
 
+        if self.rfcontext.actions.pressed('fill'):
+            self.fill()
+            return
+
         if self.rfcontext.actions.pressed('increase count'):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1)

@@ -62,6 +62,31 @@ class RFTool_Contours_Ops:
         self.new_cut(ray, plane, walk=True, count=count_new)
 
     @RFTool.dirty_when_done
+    def fill(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+
+        if len(sel_loops) != 2:
+            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            return
+        loop0, loop1 = sel_loops
+        if len(loop0) != len(loop1):
+            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            return
+        if any(v0.share_edge(v1) for v0 in loop0 for v1 in loop1):
+            self.rfcontext.alert_user('Contours', 'The 2 selected loops cannot share an edge')
+            return
+
+        self.rfcontext.undo_push('fill')
+        cl_pos = Contours_Loop(loop0, True)
+        cl_neg = Contours_Loop(loop1, True)
+        cl_neg.align_to(cl_pos)
+        faces = self.rfcontext.bridge_vertloop(cl_neg.verts, cl_pos.verts, True)
+        #self.rfcontext.select(faces)
+        self.update()
+
+
+    @RFTool.dirty_when_done
     def new_cut(self, ray, plane, count=None, walk=True, check_hit=None):
         self.pts = []
         self.cut_pts = []
@@ -201,42 +226,42 @@ class RFTool_Contours_Ops:
                 offset = None
                 for i,v1 in enumerate(verts1):
                     if v0.share_edge(v1): offset = i
-                assert offset is not None
-                verts1 = verts1[offset:] + verts1[:offset]
-                if verts0[1] == verts1[-1]:
-                    verts1 = [verts1[0]] + list(reversed(verts1[1:]))
+                if offset is not None:
+                    verts1 = verts1[offset:] + verts1[:offset]
+                    if verts0[1] == verts1[-1]:
+                        verts1 = [verts1[0]] + list(reversed(verts1[1:]))
 
-                new_edges = []
-                def split_face(v0, v1):
-                    nonlocal new_edges
-                    f0 = next(iter(v0.shared_faces(v1)), None)
-                    if not f0:
-                        self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
-                        self.rfcontext.undo_cancel()
-                        return
-                    f1 = f0.split(v0, v1)
-                    new_edges.append(f0.shared_edge(f1))
+                    new_edges = []
+                    def split_face(v0, v1):
+                        nonlocal new_edges
+                        f0 = next(iter(v0.shared_faces(v1)), None)
+                        if not f0:
+                            self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
+                            self.rfcontext.undo_cancel()
+                            return
+                        f1 = f0.split(v0, v1)
+                        new_edges.append(f0.shared_edge(f1))
 
-                nvs = []
-                for v0,v2 in zip(verts0, verts1):
-                    e1 = v0.shared_edge(v2)
-                    assert e1
-                    intersection = cl_cut.plane.line_intersection(v0.co, v2.co)
-                    v0,v2 = e1.verts
-                    e0,v1 = e1.split()
-                    assert v0 in e0.verts
-                    assert v2 in e1.verts
-                    v1.co = intersection
-                    self.rfcontext.snap_vert(v1)
-                    nvs.append(v1)
+                    nvs = []
+                    for v0,v2 in zip(verts0, verts1):
+                        e1 = v0.shared_edge(v2)
+                        assert e1
+                        intersection = cl_cut.plane.line_intersection(v0.co, v2.co)
+                        v0,v2 = e1.verts
+                        e0,v1 = e1.split()
+                        assert v0 in e0.verts
+                        assert v2 in e1.verts
+                        v1.co = intersection
+                        self.rfcontext.snap_vert(v1)
+                        nvs.append(v1)
 
-                for v0,v1 in iter_pairs(nvs, wrap=True):
-                    split_face(v0, v1)
+                    for v0,v1 in iter_pairs(nvs, wrap=True):
+                        split_face(v0, v1)
 
-                self.rfcontext.select(new_edges)
-                self.update()
+                    self.rfcontext.select(new_edges)
+                    self.update()
 
-                return
+                    return
 
                 cl_neg.align_to(cl_pos)
                 cl_cut.align_to(cl_pos)
