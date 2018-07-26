@@ -249,6 +249,7 @@ You can draw as many strokes as you like, in any order, from any direction.
 - CTRL+SELECT / CTRL+SHIFT+SELECT: select loop
 - CTRL+ACTION: draw contour stroke perpendicular to form. newly created contour extends selection if applicable.
 - A: deselect / select all
+- F: Bridge selected edge loops
 
 ## Transform
 
@@ -285,6 +286,7 @@ Clean mesh previews are generated on the fly, showing you the exact mesh that wi
 
 - ACTION: select quad then grab and move
 - SELECT / SHIFT+SELECT: select quads
+- CTRL+SELECT / CTRL+SHIFT+SELECT: select quad strip
 - CTRL+ACTION: draw strip of quads
 - F: adjust brush size
 - A: deselect / select all
