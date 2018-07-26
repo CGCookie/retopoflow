@@ -270,6 +270,8 @@ class RFMode(Operator):
 
         #print([(k,str(getattr(context,k))) for k in sorted(dir(context))])
         self.context = context
+        self.window = self.context.window
+        self.screen = self.context.screen
         self.area = self.context.area
         self.space = self.area.spaces[0]
         self.region_3d = self.space.region_3d
@@ -472,10 +474,11 @@ class RFMode(Operator):
         if self.region_overlap:
             try:
                 # TODO: CONTEXT IS INCORRECT when maximize_area was True????
-                ctx = { 'area': self.area, 'space_data': self.space }
+                ctx = { 'area': self.area, 'space_data': self.space, 'window': self.window, 'screen': self.screen }
                 if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
                 if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
-            except:
+            except Exception as e:
+                print(str(e))
                 pass
                 #self.ui_toggle_maximize_area(use_hide_panels=False)
 
