@@ -366,31 +366,36 @@ class RFEdge(BMElemWrapper):
         bmv = self._unwrap(rfvert)
         assert bmv in self.bmelem.verts, "Vert not part of Edge"
 
-        link_faces = set(self.bmelem.link_faces)
+        link_faces = list(self.bmelem.link_faces)
+        link_edges = [bme for bme in bmv.link_edges if bme != self.bmelem]
 
-        if len(bmv.link_faces) == 4 and len(bmv.link_edges) == 4:
+        # for details, see: https://github.com/CGCookie/retopoflow/issues/554#issuecomment-408185805
+
+        if len(link_faces) == 0:
+            if len(link_edges) != 1: return None
+            bme = link_edges[0]
+            if len(bme.link_faces) != 0: return None
+            return RFEdge(bme)
+
+        if len(link_faces) == 1:
+            bmf0 = link_faces[0]
+            lbme = [bme for bme in link_edges if len(bme.link_faces) == 1]
+            lbme = [bme for bme in lbme if bmf0 not in bme.link_faces]
+            lbme = [bme for bme in lbme if any(bme0 == bme1 for bme0 in bmf0.edges for bmf1 in bme.link_faces for bme1 in bmf1.edges)]
+            if len(lbme) != 1: return None
+            return RFEdge(lbme[0])
+
+        if len(link_faces) == 2 and len(bmv.link_faces) == 4 and len(bmv.link_edges) == 4:
             # bmv is part of 4 touching quads and all quads are touching
             # (left figure above)
             # find bme that does not share a face with self
             for bme in rfvert.link_edges:
-                if not (set(bme.link_faces) & link_faces):
+                if len(bme.link_faces) != 2: continue
+                if not (set(bme.link_faces) & set(link_faces)):
                     return bme
+            return None
 
-        # find edge most similar in direction
-        # NOTE: should remove the component along normal at vert?
-        best_other, best_dot = None, 0
-        self_dir = self.direction(to_vert=rfvert)
-        for bme in bmv.link_edges:
-            if len(bme.link_faces) > 2:
-                continue
-            if (set(bme.link_faces) & link_faces):
-                continue
-            rfedge = RFEdge(bme)
-            dot = self_dir.dot(rfedge.direction(from_vert=rfvert))
-            if dot < best_dot:
-                continue
-            best_other, best_dot = rfedge, dot
-        return best_other
+        return None
 
     #############################################
 
