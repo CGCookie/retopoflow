@@ -27,7 +27,11 @@ from itertools import chain
 from .rftool import RFTool
 from ..common.profiler import profiler
 from ..common.utils import max_index
-from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
+from ..common.maths import (
+    Point, Vec,
+    Point2D, Vec2D,
+    Plane,
+)
 from ..common.ui import (
     UI_Image, UI_IntValue, UI_BoolValue, UI_Checkbox,
     UI_Button, UI_Label,
@@ -256,17 +260,39 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             ray = self.rfcontext.Point2D_to_Ray(xy)
             crawl = self.rfcontext.plane_intersection_crawl(ray, cloop.plane, walk=True)
             if not crawl:
+                dprint('could not crawl around sources for loop')
                 self.move_cuts += [None]
                 continue
             crawl_pts = [c for _,_,_,c in crawl]
-            connected = crawl[0][0] is not None
+            connected = cloop.connected         # XXX why was `crawl[0][0] is not None` here?
             crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
             if not crawl_pts or connected != cloop.connected:
+                dprint('could not clip loop to symmetry')
                 self.move_cuts += [None]
                 continue
             cl_cut = Contours_Loop(crawl_pts, connected)
             cl_cut.align_to(cloop)
             self.move_cuts += [cl_cut]
+        if not any(self.move_cuts):
+            dprint('Found no loops to shift')
+            return
+
+        self.rot_axis = Vec((0,0,0))
+        self.rot_origin = Point.average(cut.get_origin() for cut in self.move_cuts if cut)
+        self.shift_about = self.rfcontext.Point_to_Point2D(self.rot_origin)
+        for cut in self.move_cuts:
+            if not cut: continue
+            a = cut.get_normal()
+            o = cut.get_origin()
+            if self.rot_axis.dot(a) < 0: a = -a
+            self.rot_axis += a
+        self.rot_axis.normalize()
+        p0 = next(iter(cut.get_origin() for cut in self.move_cuts if cut))
+        p1 = p0 + self.rot_axis * 0.001
+        self.rot_axis2D = (self.rfcontext.Point_to_Point2D(p1) - self.rfcontext.Point_to_Point2D(p0))
+        self.rot_axis2D.normalize()
+        self.rot_perp2D = Vec2D((self.rot_axis2D.y, -self.rot_axis2D.x))
+        print(self.rot_axis, self.rot_axis2D, self.rot_perp2D)
 
         self.rfcontext.undo_push('shift contours')
 
@@ -295,20 +321,23 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         self.move_prevmouse = self.rfcontext.actions.mouse
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        shift_offset = self.rfcontext.drawing.unscale(delta.x) / 1000
+        shift_offset = self.rfcontext.drawing.unscale(self.rot_perp2D.dot(delta)) / 1000
+        up_dir = self.rfcontext.Vec_up()
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
             cloop  = self.move_cloops[i_cloop]
             cl_cut = self.move_cuts[i_cloop]
             if not cl_cut: continue
+            shift_dir = 1 if cl_cut.get_normal().dot(self.rot_axis) > 0 else -1
+
             verts  = self.move_verts[i_cloop]
             dists  = self.move_dists[i_cloop]
             proj_dists = self.move_proj_dists[i_cloop]
             circumference = self.move_circumferences[i_cloop]
 
             lc = cl_cut.circumference
-            shft = (cl_cut.offset + shift_offset * lc) % lc
+            shft = (cl_cut.offset + shift_offset * shift_dir * lc) % lc
             ndists = [shft] + [0.999 * lc * (d/circumference) for d in dists]
             i,dist = 0,ndists[0]
             l = len(ndists)-1 if cloop.connected else len(ndists)
@@ -613,11 +642,24 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
 
-        if self.mode == 'rotate':
+        if self.mode == 'rotate' and self.rotate_about:
             bgl.glEnable(bgl.GL_BLEND)
-            bgl.glColor4f(1,1,1,0.5)
-            self.drawing.line_width(1.0)
+            bgl.glColor4f(1,1,0.1,1)
+            self.drawing.enable_stipple()
+            self.drawing.line_width(2.0)
             bgl.glBegin(bgl.GL_LINES)
             bgl.glVertex2f(*self.rotate_about)
             bgl.glVertex2f(*self.rfcontext.actions.mouse)
             bgl.glEnd()
+            self.drawing.disable_stipple()
+
+        if self.mode == 'shift' and self.shift_about:
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(1,1,0.1,1)
+            self.drawing.enable_stipple()
+            self.drawing.line_width(2.0)
+            bgl.glBegin(bgl.GL_LINES)
+            bgl.glVertex2f(*(self.shift_about + self.rot_axis2D * 1000))
+            bgl.glVertex2f(*(self.shift_about - self.rot_axis2D * 1000))
+            bgl.glEnd()
+            self.drawing.disable_stipple()
