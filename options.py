@@ -93,7 +93,7 @@ class Options:
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
         'visualize fps':        False,  # visualize fps
-        'low fps threshold':    1,      # threshold of a low fps
+        'low fps threshold':    5,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
         'low fps time':         10,     # time (seconds) before warning user of low fps
 
