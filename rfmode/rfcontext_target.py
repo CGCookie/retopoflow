@@ -319,6 +319,12 @@ class RFContext_Target:
         if 'z' in self.rftarget.symmetry: p.z = abs(p.z)
         return self.rftarget.xform.l2w_point(p)
 
+    def get_point_symmetry(self, point):
+        return self.rftarget.get_point_symmetry(point)
+
+    def snap_to_symmetry(self, point, symmetry):
+        return self.rftarget.snap_to_symmetry(point, symmetry)
+
     def clamp_point_to_symmetry(self, point):
         return self.rftarget.symmetry_real(point)
 

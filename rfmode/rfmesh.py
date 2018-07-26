@@ -1349,6 +1349,37 @@ class RFTarget(RFMesh):
         self.xz_symmetry_accel = xz_symmetry_accel
         self.yz_symmetry_accel = yz_symmetry_accel
 
+    def get_point_symmetry(self, point, from_world=True):
+        if from_world: point = self.xform.w2l_point(point)
+        px,py,pz = point
+        threshold = self.symmetry_threshold * self.unit_scaling_factor / 2.0
+        symmetry = set()
+        if 'x' in self.symmetry and px <= threshold: symmetry.add('x')
+        if 'y' in self.symmetry and py <= threshold: symmetry.add('y')
+        if 'z' in self.symmetry and pz <= threshold: symmetry.add('z')
+        return symmetry
+
+    def snap_to_symmetry(self, point, symmetry, from_world=True, to_world=True):
+        if not symmetry and from_world == to_world: return point
+        if from_world: point = self.xform.w2l_point(point)
+        if symmetry:
+            dist = lambda p: (p - point).length_squared
+            px,py,pz = point
+            if 'x' in symmetry:
+                edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
+                point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
+                px,py,pz = point
+            if 'y' in symmetry:
+                edges = self.xz_symmetry_accel.get_edges(Point2D((px, pz)), py)
+                point = min((e.closest(point) for e in edges), key=dist, default=Point((px, 0, pz)))
+                px,py,pz = point
+            if 'z' in symmetry:
+                edges = self.xy_symmetry_accel.get_edges(Point2D((px, py)), -pz)
+                point = min((e.closest(point) for e in edges), key=dist, default=Point((px, py, 0)))
+                px,py,pz = point
+        if to_world: point = self.xform.l2w_point(point)
+        return point
+
     def symmetry_real(self, point:Point, from_world=True, to_world=True):
         if from_world: point = self.xform.w2l_point(point)
         dist = lambda p: (p - point).length_squared
@@ -1357,12 +1388,15 @@ class RFTarget(RFMesh):
         if 'x' in self.symmetry and px <= threshold:
             edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
+            px,py,pz = point
         if 'y' in self.symmetry and py >= threshold:
             edges = self.xz_symmetry_accel.get_edges(Point2D((px, pz)), py)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((px, 0, pz)))
+            px,py,pz = point
         if 'z' in self.symmetry and pz <= threshold:
             edges = self.xy_symmetry_accel.get_edges(Point2D((px, py)), -pz)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((px, py, 0)))
+            px,py,pz = point
         if to_world: point = self.xform.l2w_point(point)
         return point
 

@@ -147,7 +147,9 @@ class RFTool_Patches(RFTool):
 
     def recompute(self):
         min_angle = options['patches angle']
-        nearest_sources_Point = self.rfcontext.nearest_sources_Point
+        def nearest_sources_Point(p):
+            p,n,i,d = self.rfcontext.nearest_sources_Point(p)
+            return self.rfcontext.clamp_point_to_symmetry(p)
 
         self._clear_shapes()
         self.corners = {v:corner for (v, corner) in self.corners.items() if v.is_valid and v.select}
@@ -347,11 +349,11 @@ class RFTool_Patches(RFTool):
             sv0,sv1,sv2,sv3 = get_verts(s0),get_verts(s1),get_verts(s2,True),get_verts(s3,True)
             l0,l1 = len(sv0),len(sv1)
 
-            # single edge strips: edge may be "facing" the wrong way
-            if l0==2 and sv0[0] not in sv3: sv0.reverse()
-            if l1==2 and sv1[0] not in sv0: sv1.reverse()
-            if l0==2 and sv2[0] not in sv1: sv2.reverse()
-            if l1==2 and sv3[0] not in sv2: sv3.reverse()
+            # make sure each strip is in the correct order
+            if sv0[-1] not in sv1: sv0.reverse()
+            if sv1[-1] not in sv2: sv1.reverse()
+            if sv2[-1] not in sv1: sv2.reverse()
+            if sv3[-1] not in sv2: sv3.reverse()
 
             verts,edges,faces = [],[],[]
             for i in range(l0):
@@ -366,7 +368,7 @@ class RFTool_Patches(RFTool):
                         pi,pj = i / (l0-1), j / (l1-1)
                         lr = Vec(l.co)*(1-pj) + Vec(r.co)*pj
                         tb = Vec(b.co)*(1-pi) + Vec(t.co)*pi
-                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+                        verts += [nearest_sources_Point((lr+tb)/2.0)]
             edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(1,l0-1) for j in range(l1-1)]
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
@@ -378,9 +380,16 @@ class RFTool_Patches(RFTool):
             sv0,sv1 = get_verts(s0),get_verts(s1)
             l0,l1 = len(sv0),len(sv1)
 
-            # single edge strips: edge may be "facing" the wrong way
-            if l0==2 and sv0[1] not in sv1: sv0.reverse()
-            if l1==2 and sv1[0] not in sv0: sv1.reverse()
+            # make sure each strip is in the correct order
+            if sv0[-1] not in sv1: sv0.reverse()
+            if sv1[0] not in sv0: sv1.reverse()
+
+            symmetry0 = self.rfcontext.get_point_symmetry(sv0[0].co)
+            symmetry1 = self.rfcontext.get_point_symmetry(sv1[-1].co)
+            if symmetry0 and symmetry1:
+                # both are at symmetry... artist is trying to fill a triangle
+                # we cannot do that, yet, so bail!
+                continue
 
             off0,off1 = sv0[-1].co-sv0[0].co, sv1[-1].co-sv1[0].co
 
@@ -395,7 +404,10 @@ class RFTool_Patches(RFTool):
                         pi,pj = i / (l0-1), j / (l1-1)
                         lr = Vec(l)*(1-pj) + Vec(r)*pj
                         tb = Vec(b)*(1-pi) + Vec(t)*pi
-                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+                        point = nearest_sources_Point((lr+tb)/2.0)
+                        if i == 0: point = self.rfcontext.snap_to_symmetry(point, symmetry0)
+                        if j == l1-1: point = self.rfcontext.snap_to_symmetry(point, symmetry1)
+                        verts += [point]
             edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0-1) for j in range(l1-1)]
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
@@ -408,10 +420,17 @@ class RFTool_Patches(RFTool):
             sv0,sv1,sv2 = get_verts(s0),get_verts(s1),get_verts(s2,True)
             l0,l1 = len(sv0),len(sv1)
 
-            # single edge strips: edge may be "facing" the wrong way
-            if l0==2 and sv0[1] not in sv1: sv0.reverse()
-            if l1==2 and sv1[0] not in sv0: sv1.reverse()
-            if l0==2 and sv2[-1] not in sv1: sv2.reverse()
+            # make sure each strip is in the correct order
+            if sv0[-1] not in sv1: sv0.reverse()
+            if sv1[-1] not in sv2: sv1.reverse()
+            if sv2[-1] not in sv1: sv2.reverse()
+
+            symmetry0 = self.rfcontext.get_point_symmetry(sv0[0].co)
+            symmetry2 = self.rfcontext.get_point_symmetry(sv2[0].co)
+            use_symmetry = (symmetry0 == symmetry2)
+            print([v.co for v in sv0])
+            print([v.co for v in sv2])
+            print(symmetry0, symmetry2, use_symmetry)
 
             off0,off2 = sv0[0].co-sv0[-1].co, sv2[0].co-sv2[-1].co
 
@@ -428,7 +447,9 @@ class RFTool_Patches(RFTool):
                         t,b = sv1[j].co,sv1[j].co+off
                         lr = Vec(l)*(1-pj) + Vec(r)*pj
                         tb = Vec(b)*(1-pi) + Vec(t)*pi
-                        verts += [nearest_sources_Point((lr+tb)/2.0)[0]]
+                        point = nearest_sources_Point((lr+tb)/2.0)
+                        if use_symmetry and i == 0: point = self.rfcontext.snap_to_symmetry(point, symmetry0)
+                        verts += [point]
             edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0-1) for j in range(l1-1)]
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
@@ -475,7 +496,7 @@ class RFTool_Patches(RFTool):
                         pi,pj = i / (l0-1), j / (l1-1)
                         l,r = sv0[i].co,sv1[i].co
                         lr = Vec(l)*(1-pj) + Vec(r)*pj
-                        verts += [nearest_sources_Point(lr)[0]]
+                        verts += [nearest_sources_Point(lr)]
             edges += [(i*l1+(j+0), i*l1+(j+1)) for i in range(l0) for j in range(l1-1)]
             edges += [((i+0)*l1+j, (i+1)*l1+j) for j in range(1,l1-1) for i in range(l0-1)]
             faces += [( (i+0)*l1+(j+0), (i+1)*l1+(j+0), (i+1)*l1+(j+1), (i+0)*l1+(j+1) ) for i in range(l0-1) for j in range(l1-1)]
