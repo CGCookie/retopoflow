@@ -99,8 +99,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             ]
 
     def get_ui_icon(self):
-        self.ui_icon = UI_Image('contours_32.png')
-        self.ui_icon.set_size(16, 16)
+        self.ui_icon = UI_Image('contours_32.png', width=16, height=16)
         return self.ui_icon
 
     def update(self):

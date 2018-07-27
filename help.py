@@ -400,6 +400,7 @@ Select the strip of boundary edges that you wish to fill.
 - SELECT / SHIFT+SELECT: select edge
 - CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
 - SHIFT+UP / SHIFT+DOWN: adjust segment count
+- CTRL+SHIFT+ACTION: toggle vertex as corner
 - F: fill visualized patch
 
 ## Notes
@@ -415,7 +416,9 @@ More support coming soon!
 ![](help_patches_2sides_beforeafter.png)
 
 If no pre-visualized regions show after selection, no geometry will be created after pressing F.
+
 Adjust the Angle parameter to help Patches determine which connected edges should be in the same strip.
+Alternatively, you can manually toggle vertex corners using CTRL+SHIFT+ACTION.
 '''
 
 help_strokes = '''

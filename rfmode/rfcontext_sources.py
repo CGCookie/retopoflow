@@ -35,28 +35,6 @@ from ..common.profiler import profiler
 from ..common.debug import dprint
 from ..common.decorators import stats_wrapper
 
-class SimpleVert:
-    def __init__(self, co):
-        self.co = co
-        self.is_valid = True
-class SimpleEdge:
-    def __init__(self, verts):
-        self.verts = verts
-        self.p0 = verts[0].co
-        self.p1 = verts[1].co
-        self.v01 = self.p1 - self.p0
-        self.l = self.v01.length
-        self.d01 = self.v01 / max(self.l, 0.00000001)
-        self.is_valid = True
-    def closest(self, p):
-        v0p = p - self.p0
-        d = self.d01.dot(v0p)
-        return self.p0 + self.d01 * mid(d, 0, self.l)
-
-def gen_accel(edges, w2l_point, Point_to_Point2D):
-    sedges = [SimpleEdge((SimpleVert(w2l_point(v0)), SimpleVert(w2l_point(v1)))) for (v0,v1) in edges]
-    sverts = [v for e in sedges for v in e.verts]
-    return Accel2D(sverts, sedges, [], Point_to_Point2D)
 
 class RFContext_Sources:
     '''
@@ -79,10 +57,16 @@ class RFContext_Sources:
         rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]
         rfsources_xzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xzplane)]
         rfsources_yzplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(yzplane)]
+
+        def gen_accel(edges, Point_to_Point2D):
+            nonlocal w2l_point
+            edges = [(w2l_point(v0), w2l_point(v1)) for (v0, v1) in edges]
+            return Accel2D.simple_edges(edges, Point_to_Point2D)
+
         self.rftarget.set_symmetry_accel(
-            gen_accel(rfsources_xyplanes, w2l_point, lambda p:Point2D((p.x,p.y))),
-            gen_accel(rfsources_xzplanes, w2l_point, lambda p:Point2D((p.x,p.z))),
-            gen_accel(rfsources_yzplanes, w2l_point, lambda p:Point2D((p.y,p.z))),
+            gen_accel(rfsources_xyplanes, lambda p:Point2D((p.x,p.y))),
+            gen_accel(rfsources_xzplanes, lambda p:Point2D((p.x,p.z))),
+            gen_accel(rfsources_yzplanes, lambda p:Point2D((p.y,p.z))),
         )
 
     ###################################################

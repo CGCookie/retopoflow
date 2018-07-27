@@ -940,6 +940,36 @@ class Accel2D:
     bin_cols = 20
     bin_rows = 20
 
+    class SimpleVert:
+        def __init__(self, co):
+            self.co = co
+            self.is_valid = True
+
+    class SimpleEdge:
+        def __init__(self, verts):
+            self.verts = verts
+            self.p0 = verts[0].co
+            self.p1 = verts[1].co
+            self.v01 = self.p1 - self.p0
+            self.l = self.v01.length
+            self.d01 = self.v01 / max(self.l, 0.00000001)
+            self.is_valid = True
+        def closest(self, p):
+            v0p = p - self.p0
+            d = self.d01.dot(v0p)
+            return self.p0 + self.d01 * mid(d, 0, self.l)
+
+    @staticmethod
+    def simple_verts(verts, Point_to_Point2D):
+        verts = [Accel2D.SimpleVert(v) for v in verts]
+        return Accel2D(verts, [], [], Point_to_Point2D)
+
+    @staticmethod
+    def simple_edges(edges, Point_to_Point2D):
+        edges = [Accel2D.SimpleEdge((Accel2D.SimpleVert(v0), Accel2D.SimpleVert(v1))) for (v0, v1) in edges]
+        verts = [v for e in edges for v in e.verts]
+        return Accel2D(verts, edges, [], Point_to_Point2D)
+
     @profiler.profile
     def __init__(self, verts, edges, faces, Point_to_Point2D):
         self.verts = list(verts) if verts else []
@@ -1097,6 +1127,35 @@ class Accel2D:
     def get_faces(self, v2d, within):
         face_type = self.face_type
         return {g for g in self.get(v2d, within) if type(g) is face_type}
+
+    def nearest_vert(self, v2d):
+        Point_to_Point2D = self.Point_to_Point2D
+        vert_type = self.vert_type
+        x,y = v2d
+        i, j = self.compute_ij(v2d)
+        working = {(i,j)}
+        touched = set()
+        bv,bd = None,0
+        while working:
+            binij = working.pop()
+            if binij in touched: continue
+            touched.add(binij)
+            i,j = binij
+            if i < 0 or j < 0 or i >= self.bin_cols or j >= self.bin_rows: continue
+            mx,my = self.min + Vec2D((self.size.x * i / self.bin_cols, self.size.y * j / self.bin_rows))
+            Mx,My = self.min + Vec2D((self.size.x * (i+1) / self.bin_cols, self.size.y * (j+1) / self.bin_rows))
+            closest = Point2D((mid(x, mx, Mx), mid(y, my, My)))
+            d = (v2d - closest).length
+            if bv and d > bd:
+                # we have seen a vert that is closer than anything in this bin
+                continue
+            for v in self._get(i, j):
+                if type(v) is not vert_type: continue
+                d = (Point_to_Point2D(v.co) - v2d).length
+                if bv and d > bd: continue
+                bv,bd = v,d
+            working |= {(i-1,j-1), (i,j-1), (i+1,j-1), (i-1,j), (i+1,j), (i-1,j+1), (i,j+1), (i+1,j+1)}
+        return Point_to_Point2D(bv.co)
 
     @profiler.profile
     def nearest_face(self, v2d):
