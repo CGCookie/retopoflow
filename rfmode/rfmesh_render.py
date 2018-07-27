@@ -169,6 +169,7 @@ class RFMeshRender():
 
     @profiler.profile
     def _gather_data(self):
+        self.buffered_renders = []
 
         def gather():
             vert_count = 100000
@@ -204,7 +205,10 @@ class RFMeshRender():
                             'sel': [sel(bmv) for bmv in verts[i0:i1]],
                             'idx': None,  # list(range(len(self.bmesh.verts))),
                         }
-                        self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
+                        if self.async_load:
+                            self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
+                        else:
+                            self.add_buffered_render(bgl.GL_POINTS, vert_data)
 
                 if self.load_edges:
                     edges = self.bmesh.edges
@@ -229,7 +233,10 @@ class RFMeshRender():
                             ],
                             'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                         }
-                        self.buf_data_queue.put((bgl.GL_LINES, edge_data))
+                        if self.async_load:
+                            self.buf_data_queue.put((bgl.GL_LINES, edge_data))
+                        else:
+                            self.add_buffered_render(bgl.GL_LINES, edge_data)
 
                 tri_faces = [(bmf, list(bmvs))
                              for bmf in self.bmesh.faces
@@ -256,9 +263,13 @@ class RFMeshRender():
                         ],
                         'idx': None,  # list(range(len(tri_faces)*3)),
                     }
-                    self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
+                    if self.async_load:
+                        self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
+                    else:
+                        self.add_buffered_render(bgl.GL_TRIANGLES, face_data)
 
-                self.buf_data_queue.put('done')
+                if self.async_load:
+                    self.buf_data_queue.put('done')
 
                 prdone(pr)
 
