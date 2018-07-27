@@ -85,6 +85,8 @@ class Options:
     default_options = {                 # all the default settings for unset or reset
         'rf version':           None,   # if versions differ, flush stored options
 
+        'show experimental':    False,  # should show experimental tools?
+
         'welcome':              True,   # show welcome message?
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?

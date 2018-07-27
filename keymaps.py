@@ -83,4 +83,5 @@ default_rf_keymaps = {
     'loops tool': {'Y'},
     'patches tool': {'U'},
     'strokes tool': {'I'},
+    'stretch tool': {'O'},
 }

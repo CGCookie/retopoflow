@@ -57,6 +57,8 @@ class RFTool(metaclass=SingletonRegisterClass):
     ]
     order = None
 
+    experimental_tools = []
+
     @staticmethod
     def init_tools(rfcontext):
         RFTool.rfcontext = rfcontext
@@ -82,6 +84,11 @@ class RFTool(metaclass=SingletonRegisterClass):
             RFTool.action_tool.append((action, tool))
             return tool
         return decorator
+
+    @staticmethod
+    def is_experimental(tool):
+        RFTool.experimental_tools.append(tool)
+        return tool
 
     ''' a base class for all RetopoFlow Tools '''
     def __init__(self):
@@ -143,3 +150,4 @@ class RFTool(metaclass=SingletonRegisterClass):
     def get_ui_options(self): return None
     def get_tooltip(self): return None
     def get_label(self): return 'Unlabeled RFTool'
+

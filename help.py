@@ -454,3 +454,9 @@ Note: only edges on boundary of target are considered in selection.
 
 If stroke starts or ends on existing vertex, the Strokes tool will try to bridge the extruded geometry.
 '''
+
+help_stretch = '''
+# Stretch Help
+
+Foo Bar!!
+'''

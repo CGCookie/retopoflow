@@ -487,14 +487,16 @@ class RFContext_UI:
             prof_reset.visible = v
             prof_disable.visible = v
             prof_enable.visible = not v
+        def need_restart(title):
+            self.alert_user(title, 'You will need to restart Blender for this change to take effect.')
         def enable_profiler():
             options['profiler'] = True
             update_profiler_visible()
-            self.alert_user('Profiler', 'You will need to restart Blender for this change to take effect.')
+            need_restart('Profiler')
         def disable_profiler():
             options['profiler'] = False
             update_profiler_visible()
-            self.alert_user('Profiler', 'You will need to restart Blender for this change to take effect.')
+            need_restart('Profiler')
         def get_lens():  return int(self.actions.space.lens)
         def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)
         def get_clip_start():  return self.actions.space.clip_start
@@ -645,6 +647,7 @@ class RFContext_UI:
 
         info_adv = window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
 
+        info_adv.add(UI_Checkbox('Experimental Tools', *options.gettersetter('show experimental', setcallback=lambda v:need_restart('Experimental Tools')), tooltip='Enable to show experimental tools'))
         info_adv.add(UI_IntValue('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
         info_adv.add(UI_Checkbox('Debug Actions', *optgetset('debug actions'), tooltip="Print actions (except MOUSEMOVE) to console"))
         info_adv.add(UI_Checkbox('Instrument', *optgetset('instrument'), tooltip="Enable to record all of your actions to a text block. CAUTION: will slow down responsiveness!"))

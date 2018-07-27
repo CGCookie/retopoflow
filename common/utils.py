@@ -80,7 +80,9 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 try:
                     tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
                 except Exception as e:
-                    print('Caught exception while attempting to search for %s' % str(cls))
+                    print('Caught exception while attempting to search for classes')
+                    print('  cls: %s' % str(cls))
+                    print('  pyfile: %s' % pyfile)
                     print('  %s' % str(e))
                     #print('      Could not import')
                     continue

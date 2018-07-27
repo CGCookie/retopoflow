@@ -744,6 +744,7 @@ rfmode_tools = {}
 @stats_wrapper
 def setup_tools():
     for rft in RFTool:
+        if rft in RFTool.experimental_tools and not options['show experimental']: continue
         def classfactory(rft):
             rft_name = rft().name()
             pylegal_name = re.sub(r'[ ()-]+', '_', rft_name)
