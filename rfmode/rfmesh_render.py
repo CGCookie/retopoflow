@@ -26,6 +26,7 @@ import json
 import time
 import random
 
+from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
@@ -47,7 +48,7 @@ from ..common.utils import min_index
 from ..common.hasher import hash_object, hash_bmesh
 from ..common.decorators import stats_wrapper
 from ..common import bmesh_render as bmegl
-from ..common.bmesh_render import BGLBufferedRender
+from ..common.bmesh_render import BGLBufferedRender, triangulateFace
 
 from ..options import options
 
@@ -91,23 +92,13 @@ class RFMeshRender_Simple:
         ]
 
 
-def sel(g):
-    return 1.0 if g.select else 0.0
-
-
-def triangulateFace(verts):
-    iv = iter(verts)
-    v0, v2 = next(iv), next(iv)
-    for v3 in iv:
-        v1, v2 = v2, v3
-        yield (v0, v1, v2)
-
 
 class RFMeshRender():
     '''
     RFMeshRender handles rendering RFMeshes.
     '''
 
+    queue = Queue()
     executor = ThreadPoolExecutor()
     cache = {}
 
@@ -204,23 +195,30 @@ class RFMeshRender():
 
         def gather():
             '''
-            IMPORTANT NOTE: DO NOT USE PROFILER IF LOADING ASYNCHRONOUSLY!
+            IMPORTANT NOTE: DO NOT USE PROFILER INSIDE THIS FUNCTION IF LOADING ASYNCHRONOUSLY!
             '''
+            def prstart(label):
+                if self.async_load: return None
+                return profiler.start(label)
+            def prdone(pr):
+                if pr: pr.done()
+            def sel(g):
+                return 1.0 if g.select else 0.0
+
             nonlocal vert_data, edge_data, face_data
             try:
-                if not self.async_load:
-                    pr = profiler.start('triangulating faces')
+                time_start = time.time()
+
+                pr = prstart('triangulating faces')
                 tri_faces = [(bmf, list(bmvs))
                              for bmf in self.bmesh.faces
                              for bmvs in triangulateFace(bmf.verts)
                              ]
-                if not self.async_load:
-                    pr.done()
+                prdone(pr)
 
                 # NOTE: duplicating data rather than using indexing, otherwise
                 # selection will bleed
-                if not self.async_load:
-                    pr = profiler.start('gathering')
+                pr = prstart('gathering')
 
                 if self.load_verts:
                     vert_data = {
@@ -233,6 +231,7 @@ class RFMeshRender():
                     vert_data = {
                         'vco': [], 'vno': [], 'sel': [], 'idx': [],
                     }
+
                 if self.load_edges:
                     edge_data = {
                         'vco': [
@@ -256,6 +255,7 @@ class RFMeshRender():
                     edge_data = {
                         'vco': [], 'vno': [], 'sel': [], 'idx': [],
                     }
+
                 face_data = {
                     'vco': [
                         tuple(bmv.co)
@@ -274,13 +274,19 @@ class RFMeshRender():
                     ],
                     'idx': None,  # list(range(len(tri_faces)*3)),
                 }
-                if not self.async_load:
-                    pr.done()
+
+                prdone(pr)
+
+                time_end = time.time()
+                dprint('Gather time: %0.2f' % (time_end - time_start))
 
                 if self.async_load:
                     self._buffer_data = buffer_data
                 else:
+                    time_start = time.time()
                     buffer_data()
+                    time_end = time.time()
+                    dprint('Buffer time: %0.2f' % (time_end - time_start))
             except Exception as e:
                 print('EXCEPTION WHILE GATHERING: ' + str(e))
                 raise e

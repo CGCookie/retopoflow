@@ -159,6 +159,16 @@ def glDrawBMFace(bmf, opts=None, enableShader=True):
 
 
 def triangulateFace(verts):
+    l = len(verts)
+    if l < 3: return
+    if l == 3:
+        yield verts
+        return
+    if l == 4:
+        v0,v1,v2,v3 = verts
+        yield (v0,v1,v2)
+        yield (v0,v2,v3)
+        return
     iv = iter(verts)
     v0, v2 = next(iv), next(iv)
     for v3 in iv:
