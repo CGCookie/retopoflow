@@ -98,7 +98,6 @@ class RFMeshRender():
     RFMeshRender handles rendering RFMeshes.
     '''
 
-    queue = Queue()
     executor = ThreadPoolExecutor()
     cache = {}
 
@@ -126,17 +125,15 @@ class RFMeshRender():
         self.async_load = options['async mesh loading']
         self._is_loading = False
         self._is_loaded = False
-        self._buffer_data = None
 
         self.load_verts = opts.get('load verts', True)
         self.load_edges = opts.get('load edges', True)
 
+        self.buf_data_queue = Queue()
         self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
         self.buf_matrix_inverse = rfmesh.xform.to_bglMatrix_Inverse()
         self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
-        self.buf_verts = BGLBufferedRender(bgl.GL_POINTS)
-        self.buf_edges = BGLBufferedRender(bgl.GL_LINES)
-        self.buf_faces = BGLBufferedRender(bgl.GL_TRIANGLES)
+        self.buffered_renders = []
         self.drawing = Drawing.get_instance()
 
         self.replace_rfmesh(rfmesh)
@@ -149,12 +146,8 @@ class RFMeshRender():
             del self.buf_matrix_inverse
         if hasattr(self, 'buf_matrix_normal'):
             del self.buf_matrix_normal
-        if hasattr(self, 'buf_verts'):
-            del self.buf_verts
-        if hasattr(self, 'buf_edges'):
-            del self.buf_edges
-        if hasattr(self, 'buf_faces'):
-            del self.buf_faces
+        if hasattr(self, 'buffered_renders'):
+            del self.buffered_renders
 
     @profiler.profile
     def replace_opts(self, opts):
@@ -169,31 +162,19 @@ class RFMeshRender():
         self.rfmesh_version = None
 
     @profiler.profile
-    def _gather_data(self):
-        vert_data, edge_data, face_data = None, None, None
+    def add_buffered_render(self, bgl_type, data):
+        buffered_render = BGLBufferedRender(bgl_type)
+        buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
+        self.buffered_renders.append(buffered_render)
 
-        def buffer_data():
-            nonlocal vert_data, edge_data, face_data
-            pr = profiler.start('buffering')
-            self.buf_verts.buffer(
-                vert_data['vco'], vert_data['vno'],
-                vert_data['sel'], vert_data['idx']
-            )
-            self.buf_edges.buffer(
-                edge_data['vco'], edge_data['vno'],
-                edge_data['sel'], edge_data['idx']
-            )
-            self.buf_faces.buffer(
-                face_data['vco'], face_data['vno'],
-                face_data['sel'], face_data['idx']
-            )
-            pr.done()
-            self._buffer_data = None
-            self._is_loading = False
-            self._is_loaded = True
-            self.async_load = False
+    @profiler.profile
+    def _gather_data(self):
 
         def gather():
+            vert_count = 100000
+            edge_count = 50000
+            face_count = 10000
+
             '''
             IMPORTANT NOTE: DO NOT USE PROFILER INSIDE THIS FUNCTION IF LOADING ASYNCHRONOUSLY!
             '''
@@ -205,95 +186,91 @@ class RFMeshRender():
             def sel(g):
                 return 1.0 if g.select else 0.0
 
-            nonlocal vert_data, edge_data, face_data
             try:
                 time_start = time.time()
-
-                pr = prstart('triangulating faces')
-                tri_faces = [(bmf, list(bmvs))
-                             for bmf in self.bmesh.faces
-                             for bmvs in triangulateFace(bmf.verts)
-                             ]
-                prdone(pr)
 
                 # NOTE: duplicating data rather than using indexing, otherwise
                 # selection will bleed
                 pr = prstart('gathering')
 
                 if self.load_verts:
-                    vert_data = {
-                        'vco': [tuple(bmv.co) for bmv in self.bmesh.verts],
-                        'vno': [tuple(bmv.normal) for bmv in self.bmesh.verts],
-                        'sel': [sel(bmv) for bmv in self.bmesh.verts],
-                        'idx': None,  # list(range(len(self.bmesh.verts))),
-                    }
-                else:
-                    vert_data = {
-                        'vco': [], 'vno': [], 'sel': [], 'idx': [],
-                    }
+                    verts = self.bmesh.verts
+                    l = len(verts)
+                    for i0 in range(0, l, vert_count):
+                        i1 = min(l, i0 + vert_count)
+                        vert_data = {
+                            'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
+                            'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
+                            'sel': [sel(bmv) for bmv in verts[i0:i1]],
+                            'idx': None,  # list(range(len(self.bmesh.verts))),
+                        }
+                        self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
 
                 if self.load_edges:
-                    edge_data = {
+                    edges = self.bmesh.edges
+                    l = len(edges)
+                    for i0 in range(0, l, edge_count):
+                        i1 = min(l, i0 + edge_count)
+                        edge_data = {
+                            'vco': [
+                                tuple(bmv.co)
+                                for bme in self.bmesh.edges[i0:i1]
+                                for bmv in bme.verts
+                            ],
+                            'vno': [
+                                tuple(bmv.normal)
+                                for bme in self.bmesh.edges[i0:i1]
+                                for bmv in bme.verts
+                            ],
+                            'sel': [
+                                sel(bme)
+                                for bme in self.bmesh.edges[i0:i1]
+                                for bmv in bme.verts
+                            ],
+                            'idx': None,  # list(range(len(self.bmesh.edges)*2)),
+                        }
+                        self.buf_data_queue.put((bgl.GL_LINES, edge_data))
+
+                tri_faces = [(bmf, list(bmvs))
+                             for bmf in self.bmesh.faces
+                             for bmvs in triangulateFace(bmf.verts)
+                             ]
+                l = len(tri_faces)
+                for i0 in range(0, l, face_count):
+                    i1 = min(l, i0 + face_count)
+                    face_data = {
                         'vco': [
                             tuple(bmv.co)
-                            for bme in self.bmesh.edges
-                            for bmv in bme.verts
+                            for bmf, verts in tri_faces[i0:i1]
+                            for bmv in verts
                         ],
                         'vno': [
                             tuple(bmv.normal)
-                            for bme in self.bmesh.edges
-                            for bmv in bme.verts
+                            for bmf, verts in tri_faces[i0:i1]
+                            for bmv in verts
                         ],
                         'sel': [
-                            sel(bme)
-                            for bme in self.bmesh.edges
-                            for bmv in bme.verts
+                            sel(bmf)
+                            for bmf, verts in tri_faces[i0:i1]
+                            for bmv in verts
                         ],
-                        'idx': None,  # list(range(len(self.bmesh.edges)*2)),
+                        'idx': None,  # list(range(len(tri_faces)*3)),
                     }
-                else:
-                    edge_data = {
-                        'vco': [], 'vno': [], 'sel': [], 'idx': [],
-                    }
+                    self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
 
-                face_data = {
-                    'vco': [
-                        tuple(bmv.co)
-                        for bmf, verts in tri_faces
-                        for bmv in verts
-                    ],
-                    'vno': [
-                        tuple(bmv.normal)
-                        for bmf, verts in tri_faces
-                        for bmv in verts
-                    ],
-                    'sel': [
-                        sel(bmf)
-                        for bmf, verts in tri_faces
-                        for bmv in verts
-                    ],
-                    'idx': None,  # list(range(len(tri_faces)*3)),
-                }
+                self.buf_data_queue.put('done')
 
                 prdone(pr)
 
                 time_end = time.time()
                 dprint('Gather time: %0.2f' % (time_end - time_start))
 
-                if self.async_load:
-                    self._buffer_data = buffer_data
-                else:
-                    time_start = time.time()
-                    buffer_data()
-                    time_end = time.time()
-                    dprint('Buffer time: %0.2f' % (time_end - time_start))
             except Exception as e:
                 print('EXCEPTION WHILE GATHERING: ' + str(e))
                 raise e
 
         self._is_loading = True
         self._is_loaded = False
-        self._buffer_data = None
 
         pr = profiler.start('Gathering data for RFMesh (%ssync)' %
                             ('a' if self.async_load else ''))
@@ -326,9 +303,8 @@ class RFMeshRender():
         opts['line mirror hidden'] = 1 - alpha_above
         opts['point hidden'] = 1 - alpha_above
         opts['point mirror hidden'] = 1 - alpha_above
-        self.buf_faces.draw(opts)
-        self.buf_edges.draw(opts)
-        self.buf_verts.draw(opts)
+        for buffered_render in self.buffered_renders:
+            buffered_render.draw(opts)
         pr.done()
 
         if not opts.get('no below', False):
@@ -341,9 +317,8 @@ class RFMeshRender():
             opts['line mirror hidden'] = 1 - alpha_below
             opts['point hidden'] = 1 - alpha_below
             opts['point mirror hidden'] = 1 - alpha_below
-            self.buf_faces.draw(opts)
-            self.buf_edges.draw(opts)
-            self.buf_verts.draw(opts)
+            for buffered_render in self.buffered_renders:
+                buffered_render.draw(opts)
             pr.done()
 
         bgl.glDepthFunc(bgl.GL_LEQUAL)
@@ -352,18 +327,14 @@ class RFMeshRender():
 
     @profiler.profile
     def clean(self):
-        if self._buffer_data:
-            self._buffer_data()
-
-        if self.async_load and self._is_loading:
-            if not self._gather_submit.done():
-                profiler.start('--> waiting').done()
-                return
-            # we should not reach this point ever unless something bad happened
-            print('ASYNC EXCEPTION!')
-            err = self._gather_submit.exception()
-            print(str(err))
-            return
+        while not self.buf_data_queue.empty():
+            data = self.buf_data_queue.get()
+            if data == 'done':
+                self._is_loading = False
+                self._is_loaded = True
+                self.async_load = False
+            else:
+                self.add_buffered_render(*data)
 
         try:
             # return if rfmesh hasn't changed
@@ -400,8 +371,7 @@ class RFMeshRender():
         symmetry_effect=0.0, symmetry_frame: Frame=None
     ):
         self.clean()
-        if not self._is_loaded:
-            return
+        if not self.buffered_renders: return
 
         try:
             bmegl.bmeshShader.enable()
