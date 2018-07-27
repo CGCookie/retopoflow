@@ -19,6 +19,18 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+
+'''
+notes: something is really wrong here to have such poor performance
+
+Below are some related, interesting links
+
+- https://machinesdontcare.wordpress.com/2008/02/02/glsl-discard-z-fighting-supersampling/
+- https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/BestPracticesforShaders/BestPracticesforShaders.html
+- https://stackoverflow.com/questions/16415037/opengl-core-profile-incredible-slowdown-on-os-x
+'''
+
+
 import os
 import re
 import math
@@ -56,44 +68,6 @@ from .profiler import profiler
 dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
 
-# https://www.blender.org/api/blender_python_api_2_77_1/bgl.html
-# https://en.wikibooks.org/wiki/GLSL_Programming/Blender/Shading_in_View_Space
-# https://www.khronos.org/opengl/wiki/Built-in_Variable_(GLSL)
-def loadShaderFromFile(fn):
-    uniforms, varyings, attributes = [],[],[]
-    vertSource, fragSource = [],[]
-    vertVersion, fragVersion = '', ''
-    mode = None
-    for line in open(fn,'rt').read().splitlines():
-        if line.startswith('uniform '):
-            uniforms.append(line)
-        elif line.startswith('attribute '):
-            attributes.append(line)
-        elif line.startswith('varying '):
-            varyings.append(line)
-        elif line.startswith('#version '):
-            if mode == 'vert':
-                vertVersion = line
-            elif mode == 'frag':
-                fragVersion = line
-        elif line == '// vertex shader':
-            mode = 'vert'
-        elif line == '// fragment shader':
-            mode = 'frag'
-        else:
-            if not line.strip(): continue
-            if mode == 'vert':
-                vertSource.append(line)
-            elif mode == 'frag':
-                fragSource.append(line)
-    return (
-        '\n'.join([vertVersion] + uniforms + attributes + varyings + vertSource),
-        '\n'.join([fragVersion] + uniforms + varyings + fragSource),
-    )
-
-fnShader = os.path.join(os.path.dirname(__file__), 'bmesh_render.glsl')
-shaderVertSource, shaderFragSource = loadShaderFromFile(fnShader)
-
 def setupBMeshShader(shader):
     ctx = bpy.context
     area, spc, r3d = ctx.area, ctx.space_data, ctx.space_data.region_3d
@@ -105,9 +79,7 @@ def setupBMeshShader(shader):
     shader.assign('vert_scale', Vector((1, 1, 1)))
     shader.assign('screen_size', Vector((area.width, area.height)))
 
-
-bmeshShader = Shader('bmeshShader', shaderVertSource,
-                     shaderFragSource, setupBMeshShader)
+bmeshShader = Shader.load_from_file('bmeshShader', 'bmesh_render.glsl', funcStart=setupBMeshShader)
 
 
 def glColor(color):
