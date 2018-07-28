@@ -33,6 +33,7 @@ import random
 import binascii
 import importlib
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 
 import bgl
 import bpy
@@ -93,6 +94,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     RFContext object is passed to tools, and tools perform manipulations through the RFContext object.
     '''
 
+    executor = ThreadPoolExecutor()
     instance = None     # reference to the current instance of RFContext
 
     undo_depth = 100    # set in RF settings?
@@ -196,10 +198,25 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self._init_actions()                # set up default and user-defined actions
         self._init_usersettings()           # set up user-defined settings and key mappings
         self._init_ui()                     # set up user interface
-        self._init_target()                 # set up target object
-        self._init_sources()                # set up source objects, must call *AFTER* target is initialized!
-        self._init_sources_symmetry()       # set up symmetry plane info
-        self._init_rotate_about_active()    # must call *AFTER* target is initialized!
+
+        # target is the active object.  must be selected and visible
+        self.tar_object = self.get_target()
+        assert self.tar_object, 'Could not find valid target?'
+
+        # find all valid source objects, which are mesh objects that are visible and not active
+        self.src_objects = self.get_sources()
+
+        def load_heavier_stuff():
+            self._init_target()                 # set up target object
+            self._init_sources()                # set up source objects, must call *AFTER* target is initialized!
+            self._init_sources_symmetry()       # set up symmetry plane info
+            self._init_rotate_about_active()    # must call *AFTER* target is initialized!
+            self._is_still_loading = False
+
+        self.show_loading_window()
+        self._is_still_loading = True
+        self._loading_thread = self.executor.submit(load_heavier_stuff)
+
         self.fps_time = time.time()
         self.frames = 0
         self.timer = None
@@ -212,6 +229,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.tool = None
         self.tool_setting = False
         self.set_tool(starting_tool)
+
 
         # touching undo stack to work around weird bug
         # to reproduce:
@@ -402,6 +420,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         #   {'confirm'}:    done with RFMode
         #   {'pass'}:       pass-through to Blender
         #   empty or None:  stay in modal
+
+        if self._is_still_loading: return
+        self.hide_loading_window()
 
         self._process_event(context, event)
 

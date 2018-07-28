@@ -158,6 +158,25 @@ class RFContext_UI:
                 prev_container = False
         self.window_manager.set_focus(win, darken=False, close_on_leave=True)
 
+    def show_loading_window(self):
+        opts = {
+            'sticky': 5,
+            'movable': False,
+            'bgcolor': (0.1,0.1,0.1,0.8),
+            }
+        win = self.window_manager.create_window('Loading...', opts)
+        win.add(UI_Rule())
+        win.add(UI_Label('Please wait while RetopoFlow processes the meshes...'))
+        win.add(UI_Rule())
+        self.window_manager.set_focus(win, darken=True)
+        self.loading_window = win
+
+    def hide_loading_window(self):
+        if self.loading_window is None: return
+        print('hiding')
+        self.window_manager.delete_window(self.loading_window)
+        self.loading_window = None
+
     def alert_user(self, title=None, message=None, level=None, msghash=None):
         show_quit = False
         level = level.lower() if level else 'note'

@@ -43,8 +43,7 @@ class RFContext_Sources:
 
     @profiler.profile
     def _init_sources(self):
-        ''' find all valid source objects, which are mesh objects that are visible and not active '''
-        self.rfsources = [RFSource.new(src) for src in self.get_sources()]
+        self.rfsources = [RFSource.new(src) for src in self.src_objects]
         self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
         dprint('%d sources found' % len(self.rfsources))
         opts = self.get_source_render_options()

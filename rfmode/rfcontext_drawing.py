@@ -194,13 +194,15 @@ class RFContext_Drawing:
                 self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
                 pr.done()
 
-            pr = profiler.start('tool draw postpixel')
-            self.tool.draw_postpixel()
-            pr.done()
+            if not self._is_still_loading:
+                pr = profiler.start('tool draw postpixel')
+                self.tool.draw_postpixel()
+                pr.done()
 
-            pr = profiler.start('widget draw postpixel')
-            self.rfwidget.draw_postpixel()
-            pr.done()
+            if not self._is_still_loading:
+                pr = profiler.start('widget draw postpixel')
+                self.rfwidget.draw_postpixel()
+                pr.done()
 
             pr = profiler.start('window manager draw postpixel')
             self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
@@ -261,6 +263,7 @@ class RFContext_Drawing:
     def draw_postview(self):
         if not self.actions.r3d: return
         if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
+        if self._is_still_loading: return   # skip if we are still loading data!
 
         buf_matrix_target = self.rftarget_draw.buf_matrix_model
         buf_matrix_target_inv = self.rftarget_draw.buf_matrix_inverse
