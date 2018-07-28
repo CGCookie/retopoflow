@@ -463,7 +463,7 @@ class RFMode(Operator):
         self.drawing.set_cursor('CROSSHAIR')
 
         # hide meshes so we can render internally
-        self.rfctx.rftarget.obj_hide()
+        #self.rfctx.rftarget.obj_hide()
         #for rfsource in rfctx.rfsources: rfsource.obj_hide()
 
     def ui_toggle_maximize_area(self, use_hide_panels=True):

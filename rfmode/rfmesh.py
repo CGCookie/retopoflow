@@ -1156,6 +1156,8 @@ class RFTarget(RFMesh):
         assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
 
     def __setup__(self, obj:bpy.types.Object, unit_scaling_factor:float, rftarget_copy=None):
+        self.obj_hide()
+
         bme = rftarget_copy.bme.copy() if rftarget_copy else None
         xy_symmetry_accel = rftarget_copy.xy_symmetry_accel if rftarget_copy else None
         xz_symmetry_accel = rftarget_copy.xz_symmetry_accel if rftarget_copy else None

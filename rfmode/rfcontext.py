@@ -199,6 +199,18 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self._init_usersettings()           # set up user-defined settings and key mappings
         self._init_ui()                     # set up user interface
 
+        self.fps_time = time.time()
+        self.frames = 0
+        self.timer = None
+        self.time_to_save = None
+        self.fps = 0
+        self.fps_list = [0] * 100
+        self.fps_low_start = time.time()    # time when low fps started
+        self.fps_low_warning = False        # are we showing a low-fps warning?
+        self.exit = False
+        self.tool = None
+        self.tool_setting = False
+
         # target is the active object.  must be selected and visible
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
@@ -211,34 +223,24 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             self._init_sources()                # set up source objects, must call *AFTER* target is initialized!
             self._init_sources_symmetry()       # set up symmetry plane info
             self._init_rotate_about_active()    # must call *AFTER* target is initialized!
+            self.set_tool(starting_tool)
+
+            # touching undo stack to work around weird bug
+            # to reproduce:
+            #     start PS, select a strip, drag a handle but then cancel, exit RF
+            #     start PS again, drag (already selected) handle... but strip does not move
+            # i believe the bug has something to do with caching of RFMesh, but i'm not sure
+            # pushing and then canceling an undo will flush the cache enough to circumvent it
+            self.undo_push('initial')
+            self.undo_cancel()
+
             self._is_still_loading = False
 
         self.show_loading_window()
         self._is_still_loading = True
-        self._loading_thread = self.executor.submit(load_heavier_stuff)
+        #self._loading_thread = self.executor.submit(load_heavier_stuff)
+        load_heavier_stuff()
 
-        self.fps_time = time.time()
-        self.frames = 0
-        self.timer = None
-        self.time_to_save = None
-        self.fps = 0
-        self.fps_list = [0] * 100
-        self.fps_low_start = time.time()    # time when low fps started
-        self.fps_low_warning = False        # are we showing a low-fps warning?
-        self.exit = False
-        self.tool = None
-        self.tool_setting = False
-        self.set_tool(starting_tool)
-
-
-        # touching undo stack to work around weird bug
-        # to reproduce:
-        #     start PS, select a strip, drag a handle but then cancel, exit RF
-        #     start PS again, drag (already selected) handle... but strip does not move
-        # i believe the bug has something to do with caching of RFMesh, but i'm not sure
-        # pushing and then canceling an undo will flush the cache enough to circumvent it
-        self.undo_push('initial')
-        self.undo_cancel()
 
     def _init_usersettings(self):
         # user-defined settings

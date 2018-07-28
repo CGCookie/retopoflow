@@ -460,6 +460,7 @@ class RFContext_UI:
         replace_opts = lambda v: self.replace_opts()
 
         def get_selected_tool():
+            if not self.tool: return ''
             return self.tool.name()
         def set_selected_tool(value):
             for ids,rft in RFTool.get_tools():
