@@ -1812,7 +1812,6 @@ class UI_Collapsible(UI_Container):
 
         def get_collapsed(): return fn_collapsed.get() if fn_collapsed else self.collapsed
         def set_collapsed(v):
-            if self.collapsed == v: return
             if fn_collapsed:
                 fn_collapsed.set(v)
                 self.collapsed = fn_collapsed.get()
