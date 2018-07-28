@@ -493,11 +493,11 @@ class RFContext_UI:
         def enable_profiler():
             options['profiler'] = True
             update_profiler_visible()
-            need_restart('Profiler')
+            #need_restart('Profiler')
         def disable_profiler():
             options['profiler'] = False
             update_profiler_visible()
-            need_restart('Profiler')
+            #need_restart('Profiler')
         def get_lens():  return int(self.actions.space.lens)
         def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)
         def get_clip_start():  return self.actions.space.clip_start

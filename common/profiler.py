@@ -155,9 +155,6 @@ class Profiler:
         pass
 
     def profile(self, fn):
-        if not Profiler._enabled:
-            return fn
-
         frame = inspect.currentframe().f_back
         f_locals = frame.f_locals
         filename = os.path.basename(frame.f_code.co_filename)
@@ -173,6 +170,9 @@ class Profiler:
             # assert not Profiler._broken
             if Profiler._broken:
                 return fn(*args, **kwargs)
+            if not Profiler._enabled:
+                return fn(*args, **kwargs)
+
             pr = self.start(text=text, addFile=False)
             ret = None
             try:
