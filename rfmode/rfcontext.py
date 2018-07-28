@@ -192,13 +192,13 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.unit_scaling_factor = RFContext.get_unit_scaling_factor()
         self.scale_to_unit_box()
 
-        self._init_tools()              # set up tools and widgets used in RetopoFlow
-        self._init_actions()            # set up default and user-defined actions
-        self._init_usersettings()       # set up user-defined settings and key mappings
-        self._init_ui()                 # set up user interface
-        self._init_target()             # set up target object
-        self._init_sources()            # set up source objects, must call *AFTER* target is initialized!
-        self._init_sources_symmetry()   # set up symmetry plane info
+        self._init_tools()                  # set up tools and widgets used in RetopoFlow
+        self._init_actions()                # set up default and user-defined actions
+        self._init_usersettings()           # set up user-defined settings and key mappings
+        self._init_ui()                     # set up user interface
+        self._init_target()                 # set up target object
+        self._init_sources()                # set up source objects, must call *AFTER* target is initialized!
+        self._init_sources_symmetry()       # set up symmetry plane info
         self._init_rotate_about_active()    # must call *AFTER* target is initialized!
         self.fps_time = time.time()
         self.frames = 0
@@ -239,7 +239,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.actions.update(context, event, self.timer, print_actions=options['debug actions'])
 
     def _init_rotate_about_active(self):
-        self._end_rotate_about_active()
+        self._end_rotate_about_active()     # clear out previous rotate-about object
         o = bpy.data.objects.new('RetopoFlow_Rotate', None)
         bpy.context.scene.objects.link(o)
         o.select = True

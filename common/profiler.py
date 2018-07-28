@@ -210,7 +210,7 @@ class Profiler:
             last = self.d_last[text]
             calls = text.split('^')
             t = text if len(calls) == 1 else (
-                '    '*(len(calls)-2) + ' \\- ' + calls[-1])
+                ' |  '*(len(calls)-2) + ' \\- ' + calls[-1])
             fps = totcount / tottime if tottime > 0 else 1000
             fps = ' 1k+ ' if fps >= 1000 else '%5.1f' % fps
             s += ['  %6.2f / %7d = %6.4f, %6.4f, %6.4f, %6.4f, (%s) - %6.2f - %s' % (

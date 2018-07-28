@@ -235,70 +235,6 @@ class RFMesh():
             clear_outer=False, clear_inner=False
         )
 
-    # @profiler.profile
-    # def plane_split_negative(self, plane: Plane):
-    #     return None
-    #     pr = profiler.start('verts')
-    #     verts = [emv.co for emv in self.eme.vertices]
-    #     pr.done()
-
-    #     pr = profiler.start('edges')
-    #     edges = [tuple(eme.vertices) for eme in self.eme.edges]
-    #     pr.done()
-
-    #     pr = profiler.start('faces')
-    #     faces = [tuple(emf.vertices) for emf in self.eme.polygons]
-    #     pr.done()
-    #     return None
-
-    #     l2w_point = self.xform.l2w_point
-    #     plane_local = self.xform.w2l_plane(plane)
-    #     side = plane_local.side
-    #     triangle_intersection = plane_local.triangle_intersection
-
-    #     pr = profiler.start('copying')
-    #     bme = self.bme.copy()
-    #     pr.done()
-
-    #     pr = profiler.start('vert sides')
-    #     verts_pos = {
-    #         bmv
-    #         for bmv in self.bme.verts
-    #         if side(bmv.co) > 0
-    #     }
-    #     pr.done()
-    #     pr = profiler.start('split edges')
-    #     edges = {
-    #         bme
-    #         for bme in self.bme.edges
-    #         if (bme.verts[0] in verts_pos) != (bme.verts[1] in verts_pos)
-    #     }
-    #     pr.done()
-    #     pr = profiler.start('split faces')
-    #     faces = {
-    #         bmf
-    #         for bme in edges
-    #         for bmf in bme.link_faces
-    #     }
-    #     pr.done()
-    #     pr = profiler.start('culling all positive faces')
-    #     cull = [
-    #         bmf
-    #         for bmf in bme.faces
-    #         if all(bmv in verts_pos for bmv in bmf.verts)
-    #     ]
-    #     pr.done()
-    #     pr = profiler.start('intersections')
-    #     intersection = [
-    #         (l2w_point(p0), l2w_point(p1))
-    #         for bmf in faces
-    #         for (p0, p1) in triangle_intersection([
-    #             bmv.co for bmv in bmf.verts
-    #         ])
-    #     ]
-    #     pr.done()
-    #     return bme
-
     @profiler.profile
     def plane_intersection(self, plane: Plane):
         # TODO: do not duplicate vertices!
@@ -307,49 +243,12 @@ class RFMesh():
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
 
-        # res = bmesh.ops.bisect_plane(
-        #     self.bme,
-        #     geom=(
-        #         list(self.bme.verts) +
-        #         list(self.bme.edges) +
-        #         list(self.bme.faces)),
-        #     dist=0.0000001,
-        #     plane_co=plane_local.o, plane_no=plane_local.n,
-        #     use_snap_center=True,
-        #     clear_outer=False, clear_inner=False
-        # )
-        # verts = {
-        #     bmv
-        #     for bmv in self.bme.verts
-        #     if plane_local.side(bmv.co) == 0
-        # }
-        # print(len(verts))
-        # intersection = [
-        #     (l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co))
-        #     for bme in self.bme.edges
-        #     if bme.verts[0] in verts and bme.verts[1] in verts
-        # ]
-        # print(len(intersection))
-        # return intersection
-
         pr = profiler.start('vert sides')
         vert_side = {
             bmv: side(bmv.co)
             for bmv in self.bme.verts
         }
-        # verts_neg = {
-        #     bmv
-        #     for bmv in self.bme.verts
-        #     if plane_local.side(bmv.co) < 0
-        # }
         pr.done()
-        # faces = {
-        #     bmf
-        #     for bmf in self.bme.faces
-        #     if (
-        #         sum(1 if bmv in verts_pos else 0 for bmv in bmf.verts)
-        #     ) in {1, 2}
-        # }
         pr = profiler.start('split edges')
         edges = {
             bme
@@ -477,60 +376,6 @@ class RFMesh():
             bme_next, cross = bme_next_, cross_
 
         return ret
-
-        # touched = set()
-        # def crawl(bmf0):
-        #     if not bmf0: return []
-        #     assert bmf0 not in touched
-        #     touched.add(bmf0)
-        #     best = []
-        #     for bme in bmf0.edges:
-        #         # find where plane crosses edge
-        #         bmv0,bmv1 = bme.verts
-        #         crosses = plane.edge_intersection((bmv0.co, bmv1.co))
-        #         if not crosses: continue
-        #         cross = crosses[0][0]   # only care about one crossing for now (TODO: coplanar??)
-
-        #         if len(bme.link_faces) == 1:
-        #             # non-manifold edge
-        #             ret = [(bmf0, bme, None, cross)]
-        #             if len(ret) > len(best): best = ret
-
-        #         for bmf1 in bme.link_faces:
-        #             if bmf1 == bmf0: continue
-        #             if bmf1 == bmf:
-        #                 # wrapped completely around!
-        #                 ret = [(bmf0, bme, bmf1, cross)]
-        #             elif bmf1 in touched:
-        #                 # we've seen this face before
-        #                 continue
-        #             else:
-        #                 # recursively crawl on!
-        #                 ret = [(bmf0, bme, bmf1, cross)] + crawl(bmf1)
-
-        #             if bmf0 == bmf:
-        #                 # on first face
-        #                 # stop crawling if we wrapped around
-        #                 if ret[-1][2] == bmf: return ret
-        #                 # reverse and add to best
-        #                 if not best:
-        #                     best = [(f1,e,f0,c) for f0,e,f1,c in reversed(ret)]
-        #                 else:
-        #                     best = best + ret
-        #             elif len(ret) > len(best):
-        #                 best = ret
-        #     #touched.remove(bmf0)
-        #     return best
-
-        # try:
-        #     res = crawl(bmf)
-        # except KeyboardInterrupt as e:
-        #     print('breaking')
-        #     ex_type,ex_val,tb = sys.exc_info()
-        #     traceback.print_tb(tb)
-        #     res = []
-
-        # return res
 
     @profiler.profile
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
@@ -1601,13 +1446,6 @@ class RFTarget(RFMesh):
                     break
                 if check: break
         return mapping
-
-    # def modify_bmverts(self, bmverts, update_fn):
-    #     l2w = self.xform.l2w_point
-    #     w2l = self.xform.w2l_point
-    #     for bmv in bmverts:
-    #         bmv.co = w2l(update_fn(bmv, l2w(bmv.co)))
-    #     self.dirty()
 
     def snap_all_verts(self, nearest):
         for v in self.get_verts():
