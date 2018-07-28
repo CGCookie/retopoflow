@@ -2002,7 +2002,7 @@ class UI_WindowManager:
         return win
 
     def delete_window(self, win):
-        win.fn_event_handler(None, UI_Event('WINDOW', 'CLOSE'))
+        if win.fn_event_handler: win.fn_event_handler(None, UI_Event('WINDOW', 'CLOSE'))
         win.delete()
         if win == self.focus: self.clear_focus()
         if win == self.active: self.clear_active()
