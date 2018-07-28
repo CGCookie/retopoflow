@@ -60,6 +60,7 @@ class RFTool_Relax(RFTool):
         ui_mask = UI_Frame('Masking Options')
         ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('relax mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)'))
         ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('relax mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source'))
+        ui_mask.add(UI_BoolValue('Selected', *options.gettersetter('relax mask selected'), tooltip='Enable to mask off vertices that are selected'))
 
         ui_brush = UI_Frame('Brush Properties')
         ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of relax brush'))
@@ -163,6 +164,7 @@ class RFTool_Relax(RFTool):
         opt_steps = options['relax steps']
         opt_mask_boundary = options['relax mask boundary']
         opt_mask_hidden = options['relax mask hidden']
+        opt_mask_selected = options['relax mask selected']
         opt_edge_length = options['relax edge length']
         opt_face_radius = options['relax face radius']
         opt_face_sides = options['relax face sides']
@@ -249,6 +251,7 @@ class RFTool_Relax(RFTool):
                 if self.sel_only and not bmv.select: continue
                 if opt_mask_boundary and bmv.is_boundary: continue
                 if vistest and opt_mask_hidden and not is_visible(bmv): continue
+                if opt_mask_selected and bmv.select: continue
                 f = displace[bmv] * vert_strength[bmv]
                 bmv.co += f
                 self.rfcontext.snap_vert(bmv)

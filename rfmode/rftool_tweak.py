@@ -48,6 +48,7 @@ class RFTool_Tweak(RFTool):
         ui_mask = UI_Frame('Masking Options')
         ui_mask.add(UI_BoolValue('Boundary', *options.gettersetter('tweak mask boundary'), tooltip='Enable to mask off vertices that are along boundary of target (includes along symmetry plane)'))
         ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source'))
+        ui_mask.add(UI_BoolValue('Selected', *options.gettersetter('tweak mask selected'), tooltip='Enable to mask off vertices that are selected'))
 
         ui_brush = UI_Container('Brush Properties')
         ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush'))
@@ -116,6 +117,7 @@ class RFTool_Tweak(RFTool):
         # gather options
         opt_mask_hidden = options['tweak mask hidden']
         opt_mask_boundary = options['tweak mask boundary']
+        opt_mask_selected = options['tweak mask selected']
 
         self.rfcontext.undo_push('tweak move')
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -125,6 +127,7 @@ class RFTool_Tweak(RFTool):
         if self.sel_only: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
         if opt_mask_boundary: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
         if opt_mask_hidden:   self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
+        if opt_mask_selected: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.select]
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
         self.mousedown = self.rfcontext.actions.mousedown
         return 'move'

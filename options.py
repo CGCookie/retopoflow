@@ -160,6 +160,7 @@ class Options:
 
         'relax mask boundary':  True,
         'relax mask hidden':    True,
+        'relax mask selected':  False,
         'relax steps':          2,
         'relax edge length':    True,
         'relax face radius':    True,
@@ -168,6 +169,7 @@ class Options:
 
         'tweak mask boundary':  False,
         'tweak mask hidden':    True,
+        'tweak mask selected':  False,
 
         'patches angle':        120,
     }
