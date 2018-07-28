@@ -171,12 +171,6 @@ class RFContext_UI:
         self.window_manager.set_focus(win, darken=True)
         self.loading_window = win
 
-    def hide_loading_window(self):
-        if self.loading_window is None: return
-        print('hiding')
-        self.window_manager.delete_window(self.loading_window)
-        self.loading_window = None
-
     def alert_user(self, title=None, message=None, level=None, msghash=None):
         show_quit = False
         level = level.lower() if level else 'note'
@@ -697,12 +691,11 @@ class RFContext_UI:
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
                 hide_reporting()
-        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
+        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Markdown(firsttime_message))
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Button('Close', hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
-        if options['welcome']: self.window_manager.set_focus(self.window_welcome)
 
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':

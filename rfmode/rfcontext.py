@@ -422,7 +422,11 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         #   empty or None:  stay in modal
 
         if self._is_still_loading: return
-        self.hide_loading_window()
+        if self.loading_window:
+            self.window_manager.delete_window(self.loading_window)
+            self.loading_window = None
+            if options['welcome']:
+                self.window_manager.set_focus(self.window_welcome)
 
         self._process_event(context, event)
 
