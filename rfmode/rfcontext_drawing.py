@@ -205,7 +205,7 @@ class RFContext_Drawing:
             pr = profiler.start('window manager draw postpixel')
             self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
             self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
-            if True:
+            if self.draw_ui:
                 self.window_manager.draw_postpixel(self.actions.context)
             pr.done()
 

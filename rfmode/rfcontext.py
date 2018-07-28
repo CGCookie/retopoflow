@@ -511,6 +511,8 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         if self.actions.pressed('F8'):
             ui.debug_draw = not ui.debug_draw
+        if self.actions.pressed('F9'):
+            self.draw_ui = not self.draw_ui
         #    assert False, 'this is a test!'
         #    return
 

@@ -440,6 +440,7 @@ class RFContext_UI:
         self.drawing.set_region(self.actions.region, self.actions.r3d, bpy.context.window)
 
         self.alert_windows = 0
+        self.draw_ui = True
 
         optget = options.getter
         optset = options.setter
