@@ -1751,7 +1751,7 @@ class UI_Window(UI_Padding):
         self.fn_sticky = GetSet(get_sticky, set_sticky)
         self.visible   = options.get('visible', True)
         self.movable   = options.get('movable', True)
-        self.bgcolor   = options.get('bgcolor', (0,0,0,0.25))
+        self.bgcolor   = options.get('bgcolor', (0.1,0.1,0.1,0.75))
 
         self.fn_event_handler = options.get('event handler', None)
 
