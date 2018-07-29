@@ -310,7 +310,7 @@ Any continuous face loop of quads may be manipulated with PolyStrips via the aut
 help_polypen = '''
 # PolyPen Help
 
-The PolyPen tool provides everything you need for fast retopology in those scenarios where you need absolute control of every vertex position (e.g., low-poly game models).
+The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
 
 ![](help_polypen.png)
@@ -319,7 +319,6 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 - SELECT / SHIFT+SELECT: select geometry
 - CTRL+ACTION: insert geometry connected to selected geometry
-- SHIFT+ACTION: insert edge strip
 - A: deselect / select all
 
 ## Other
@@ -336,20 +335,22 @@ Creating vertices/edges/faces is dependent on your selection:
 - When a triangle is selected, a vertex is added to the triangle, turning the triangle into a quad
 
 Selecting an edge and clicking onto another edge will create a quad in one step.
+
+The PolyPen tool can be used like a knife, cutting vertices into existing edges for creating new topology routes.
 '''
 
 help_tweak = '''
 # Tweak Help
 
-The Tweak tool allows you to easily adjust the vertex positions using a brush.
+The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 ![](help_tweak.png)
 
 - ACTION: move all vertices within brush radius
 - SHIFT+ACTION: move only selected vertices within brush radius
 - F: adjust brush size
-- SHIFT+F: adjust strength
-- CTRL+F: adjust falloff
+- SHIFT+F: adjust brush strength
+- CTRL+F: adjust brush falloff
 
 ## Options
 
@@ -357,6 +358,7 @@ Tweak has several options to control which vertices are or are not moved.
 
 - Boundary: allow boundary vertices to be moved.
 - Hidden: allow vertices that are behind geometry to be moved.
+- Selected: limit transformation to selection
 '''
 
 help_relax = '''
@@ -369,8 +371,8 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 - ACTION: relax all vertices within brush radius
 - SHIFT+ACTION: relax only selected vertices within brush radius
 - F: adjust brush size
-- SHIFT+F: adjust strength
-- CTRL+F: adjust falloff
+- SHIFT+F: adjust brush strength
+- CTRL+F: adjust brush falloff
 
 ## Options
 
@@ -378,6 +380,7 @@ Relax has several options to control which vertices are or are not moved.
 
 - Boundary: allow boundary vertices to be moved.
 - Hidden: allow vertices that are behind geometry to be moved.
+- Selected: limit transformation to selection
 '''
 
 help_loops = '''
@@ -428,7 +431,6 @@ help_strokes = '''
 
 The Strokes tool helps fill in holes in your topology.
 This tool lets you insert edge strips and extruding edges by brushing a stroke on the source.
-Strokes is very similar to the Bsurfaces add-on.
 
 ![](help_strokes.png)
 
