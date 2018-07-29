@@ -260,6 +260,7 @@ You may draw strokes in any order, from any direction.
 
 ## Other
 
+- X: delete/dissolve selected
 - SHIFT+UP / SHIFT+DOWN: increase / decrease segment counts
 - EQUALS / MINUS: increase / decrease segment counts
 
@@ -273,13 +274,13 @@ You may draw strokes in any order, from any direction.
 help_polystrips = '''
 # PolyStrips Help
 
-The PolyStrips tool provides quick and easy ways to create the key face loops needed to retopologize a complex model.
+The PolyStrips tool provides quick and easy ways methods to map out key face loops for complex models.
 For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.
 
 PolyStrips works by hand-drawing stokes on to the high-resolution source object.
-The strokes are instantly converted into spline-based strips of polygons, which can be used to quickly map out the key topology flows.
+The strokes are instantly converted into spline-based strips of polygons.
 
-Clean mesh previews are generated on the fly, showing you the exact mesh that will be created.
+Any continuous face loop of quads may be manipulated with PolyStrips via the auto-generated spline handles.
 
 ![](help_polystrips.png)
 
