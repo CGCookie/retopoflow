@@ -87,8 +87,23 @@ class UI_Event:
 
 class UI_Element:
     def __init__(self, margin=0):
+        self.is_dirty = True
+        self.dirty_callbacks = []
+        self.defer_recalc = False
+
         self.drawing = Drawing.get_instance()
         self.context = bpy.context
+        self.last_dpi = self.drawing.get_dpi_mult()
+
+        self._visible = None
+        self._size = None
+        self._width = 0
+        self._height = 0
+        self.margin_left = None
+        self.margin_right = None
+        self.margin_top = None
+        self.margin_bottom = None
+
         self.pos = None
         self.size = None
         self.clip = None
@@ -99,19 +114,55 @@ class UI_Element:
         self.deleted = False
 
     @property
+    def visible(self):
+        return self._visible
+
+    @visible.setter
+    def visible(self, v):
+        if self._visible == v: return
+        self._visible = v
+        self.dirty()
+
+    @property
+    def size(self):
+        return self._size
+
+    @size.setter
+    def size(self, s):
+        if self._size == s: return
+        self._size = s
+        self.dirty()
+
+    @property
     def margin(self):
         return max(self.margin_left, self.margin_right, self.margin_top, self.margin_bottom)
 
     @margin.setter
     def margin(self, v):
+        v = max(0, v)
+        if self.margin_left == v and self.margin_right == v and self.margin_top == v and self.margin_bottom == v: return
         self.margin_left = v
         self.margin_right = v
         self.margin_top = v
         self.margin_bottom = v
+        self.dirty()
+
+    def register_dirty_callback(self, ui_item):
+        self.dirty_callbacks.append(ui_item)
+
+    def unregister_dirty_callback(self, ui_item):
+        self.dirty_callbacks = [ui for ui in self.dirty_callbacks if ui != ui_item]
+
+    def dirty(self):
+        if self.is_dirty: return
+        self.is_dirty = True
+        for ui_item in self.dirty_callbacks:
+            ui_item.dirty()
 
     def delete(self):
         self.deleted = True
         self._delete()
+        self.dirty()
 
     def hover_ui(self, mouse):
         if self.clip:
@@ -134,6 +185,10 @@ class UI_Element:
     #@profiler.profile
     def draw(self, left, top, width, height):
         if not self.visible: return
+
+        if self.last_dpi != self.drawing.get_dpi_mult():
+            self.last_dpi = self.drawing.get_dpi_mult()
+            self.dirty()
 
         ml = self.drawing.scale(self.margin_left)
         mr = self.drawing.scale(self.margin_right)
@@ -182,14 +237,21 @@ class UI_Element:
 
     @profiler.profile
     def recalc_size(self):
+        if not self.is_dirty: return (self._width, self._height)
+        if self.defer_recalc: return (self._width, self._height)
+
         self._width, self._height = 0, 0
         self._width_inner, self._height_inner = 0, 0
         if not self.visible: return (0, 0)
+        pr = profiler.start('UI_Element: calling _recalc_size on %s' % str(type(self)))
         self._recalc_size()
+        pr.done()
         if self._width_inner <= 0 or self._height_inner <= 0:
-            return (0, 0)
+            return (self._width, self._height)
         self._width = self._width_inner + self.drawing.scale(self.margin_left + self.margin_right)
         self._height = self._height_inner + self.drawing.scale(self.margin_top + self.margin_bottom)
+
+        self.is_dirty = False
         return (self._width, self._height)
 
     def get_width(self): return self._width if self.visible else 0
@@ -217,11 +279,23 @@ class UI_Element:
 class UI_Padding(UI_Element):
     def __init__(self, ui_item=None, margin=5):
         super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self.ui_item = None
+
         self.margin = margin
         self.set_ui_item(ui_item)
 
+        self.defer_recalc = False
+
     def set_ui_item(self, ui_item):
+        if self.ui_item == ui_item: return
+        if self.ui_item:
+            self.ui_item.unregister_dirty_callback(self)
         self.ui_item = ui_item
+        if self.ui_item:
+            self.ui_item.register_dirty_callback(self)
+        self.dirty()
         return self.ui_item
 
     def _hover_ui(self, mouse):
@@ -246,15 +320,27 @@ class UI_Padding(UI_Element):
 class UI_Background(UI_Element):
     def __init__(self, background=None, rounded=False, border=None, border_thickness=1, ui_item=None, margin=0):
         super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self.ui_item = None
+
         self.background = background
         self.rounded_background = rounded
         self.border = border
+        # TODO: should border_thickness add to margin?
         self.border_thickness = 0
-        self.margin = margin
         self.set_ui_item(ui_item)
 
+        self.defer_recalc = False
+
     def set_ui_item(self, ui_item):
+        if self.ui_item == ui_item: return
+        if self.ui_item:
+            self.ui_item.unregister_dirty_callback(self)
         self.ui_item = ui_item
+        if self.ui_item:
+            self.ui_item.register_dirty_callback(self)
+        self.dirty()
         return self.ui_item
 
     def _hover_ui(self, mouse):
@@ -328,7 +414,9 @@ class UI_Background(UI_Element):
 class UI_VScrollable(UI_Padding):
     def __init__(self, ui_item=None, margin=0):
         super().__init__(margin=margin)
+        self.defer_recalc = True
         self.set_ui_item(ui_item)
+        self.defer_recalc = False
 
     def set_ui_item(self, ui_item):
         super().set_ui_item(ui_item)
@@ -393,10 +481,39 @@ class UI_VScrollable(UI_Padding):
 class UI_Spacer(UI_Element):
     def __init__(self, width=1, height=1, background=None):
         super().__init__()
+        self.defer_recalc = True
+
+        self._spacer_width = None
+        self._spacer_height = None
+
         self.width = width
         self.height = height
         self.margin = 0
         self.background = background
+
+        self.defer_recalc = False
+
+    @property
+    def width(self):
+        return self._spacer_width
+
+    @width.setter
+    def width(self, w):
+        w = max(0, w)
+        if self._spacer_width == w: return
+        self._spacer_width = w
+        self.dirty()
+
+    @property
+    def height(self):
+        return self._spacer_height
+
+    @height.setter
+    def height(self, h):
+        h = max(0, h)
+        if self._spacer_height == h: return
+        self._spacer_height = h
+        self.dirty()
 
     def _recalc_size(self):
         self._width_inner = self.drawing.scale(self.width)
@@ -430,9 +547,38 @@ class UI_Spacer(UI_Element):
 class UI_Rule(UI_Element):
     def __init__(self, thickness=2, padding=0, color=(1.0,1.0,1.0,0.25)):
         super().__init__(margin=0)
+        self.defer_recalc = True
+
+        self._padding = None
+        self._thickness = None
+
         self.thickness = thickness
         self.color = color
         self.padding = padding
+
+        self.defer_recalc = False
+
+    @property
+    def padding(self):
+        return self._padding
+
+    @padding.setter
+    def padding(self, p):
+        p = max(0, p)
+        if p == self._padding: return
+        self._padding = p
+        self.dirty()
+
+    @property
+    def thickness(self):
+        return self._thickness
+
+    @thickness.setter
+    def thickness(self, t):
+        t = max(0, t)
+        if self._thickness == t: return
+        self._thickness = t
+        self.dirty()
 
     def _recalc_size(self):
         self._width_inner = self.drawing.scale(self.padding*2 + 1)
@@ -455,17 +601,57 @@ class UI_Rule(UI_Element):
 
 class UI_Container(UI_Element):
     def __init__(self, vertical=True, background=None, margin=0, separation=2):
-        super().__init__()
+        super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self._vertical = None
+        self._separation = None
+
         self.vertical = vertical
         self.ui_items = []
         self.background = background
         self.rounded_background = False
-        self.margin = margin
         self.separation = separation
+
+        self.defer_recalc = False
+
+    @property
+    def vertical(self):
+        return self._vertical
+
+    @vertical.setter
+    def vertical(self, v):
+        if self._vertical == v: return
+        self._vertical = v
+        self.dirty()
+
+    @property
+    def separation(self):
+        return self._separation
+
+    @separation.setter
+    def separation(self, s):
+        s = max(0, s)
+        if self._separation == s: return
+        self._separation = s
+        self.dirty()
 
     def _delete(self):
         for ui_item in self.ui_items:
-            ui_item.delete()
+            self.unregister_dirty_callback(self)
+            # ui_item.delete()
+
+    def add(self, ui_item):
+        self.ui_items.append(ui_item)
+        ui_item.register_dirty_callback(self)
+        self.dirty()
+        return ui_item
+
+    def replace(self, ui_item):
+        for ui_item in self.ui_items:
+            ui_item.unregister_dirty_callback(self)
+        self.ui_items = []
+        return self.add(ui_item)
 
     def _hover_ui(self, mouse):
         if not super()._hover_ui(mouse): return None
@@ -559,11 +745,6 @@ class UI_Container(UI_Element):
                 w -= ew + sep
             pr.done()
 
-    def add(self, ui_item, only=False):
-        if only: self.ui_items.clear()
-        self.ui_items.append(ui_item)
-        return ui_item
-
     def get_ui_items(self):
         return list(self.ui_items)
 
@@ -595,7 +776,13 @@ class UI_EqualContainer(UI_Container):
 
 class UI_Label(UI_Element):
     def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2):
-        super().__init__()
+        super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self.text = None
+        self._fontsize = None
+        self._icon = None
+
         self.icon = icon
         self.tooltip = tooltip
         self.color = color
@@ -603,16 +790,34 @@ class UI_Label(UI_Element):
         self.align = align
         self.valign = valign
         self.fontsize = fontsize
-        self.margin = margin
         self.set_label(label)
         self.set_bgcolor(bgcolor)
         self.cursor_pos = None
         self.cursor_symbol = None
         self.cursor_color = (0.1,0.7,1,1)
 
-        self.last_text = None
-        self.last_fontsize = None
-        self.last_dpi = None
+        self.defer_recalc = False
+
+    @property
+    def fontsize(self):
+        return self._fontsize
+
+    @fontsize.setter
+    def fontsize(self, f):
+        f = max(1, f)
+        if self._fontsize == f: return
+        self._fontsize = f
+        self.dirty()
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @icon.setter
+    def icon(self, i):
+        if self._icon == i: return
+        self._icon = i
+        self.dirty()
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
@@ -620,21 +825,16 @@ class UI_Label(UI_Element):
 
     @profiler.profile
     def set_label(self, label):
-        self.text = str(label)
+        label = str(label)
+        if self.text == label: return
+        self.text = label
+        self.dirty()
 
     def _recalc_size(self):
-        recalc = False
-        recalc |= self.last_text != self.text
-        recalc |= self.last_fontsize != self.fontsize
-        recalc |= self.last_dpi != self.drawing.get_dpi_mult()
-        if recalc:
-            self.last_text = self.text
-            self.last_fontsize = self.fontsize
-            self.last_dpi = self.drawing.get_dpi_mult()
-            fontsize_prev = self.drawing.set_font_size(self.fontsize)
-            self.text_width = self.drawing.get_text_width(self.text)
-            self.text_height = self.drawing.get_line_height(self.text)
-            self.drawing.set_font_size(fontsize_prev)
+        fontsize_prev = self.drawing.set_font_size(self.fontsize)
+        self.text_width = self.drawing.get_text_width(self.text)
+        self.text_height = self.drawing.get_line_height(self.text)
+        self.drawing.set_font_size(fontsize_prev)
         self._width_inner = self.text_width
         self._height_inner = self.text_height
 
@@ -684,8 +884,12 @@ class UI_WrappedLabel(UI_Element):
     Handles text wrapping
     '''
     def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
-        super().__init__()
-        self.margin = margin
+        super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self._fontsize = None
+        self.text = None
+
         self.fontsize = fontsize
         self.set_label(label)
         self.set_bgcolor(bgcolor)
@@ -693,31 +897,39 @@ class UI_WrappedLabel(UI_Element):
         self.shadowcolor = shadowcolor
         self.min_size = min_size
         self.wrapped_size = min_size
-        self.last_size = None
-        self.last_text = None
-        self.last_dpi = None
+
+        self.defer_recalc = False
+
+    @property
+    def fontsize(self):
+        return self._fontsize
+
+    @fontsize.setter
+    def fontsize(self, f):
+        f = max(1, f)
+        if self._fontsize == f: return
+        self._fontsize = f
+        self.dirty()
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
 
     def set_label(self, label):
         # process message similarly to Markdown
+        label = str(label)
         label = re.sub(r'^\n*', r'', label)                 # remove leading \n
         label = re.sub(r'\n*$', r'', label)                 # remove trailing \n
         label = re.sub(r'\n\n\n*', r'\n\n', label)          # 2+ \n => \n\n
         paras = label.split('\n\n')                         # split into paragraphs
         paras = [re.sub(r'\n', '  ', p) for p in paras]     # join sentences of paragraphs
         label = '\n\n'.join(paras)                          # join paragraphs
-        self.text = str(label)
+
+        if self.text == label: return
+
+        self.text = label
+        self.dirty()
 
     def predraw(self):
-        recalc = False
-        recalc |= self.last_size != self.size
-        recalc |= self.last_text != self.text
-        recalc |= self.last_dpi != self.drawing.get_dpi_mult()
-        if not recalc: return
-        self.last_size = self.size
-        self.last_text = self.text
-        self.last_dpi = self.drawing.get_dpi_mult()
+        # TODO: move code below to _recalc_size?
 
         size_prev = self.drawing.set_font_size(self.fontsize)
         mwidth = self.size.x
@@ -782,103 +994,15 @@ class UI_WrappedLabel(UI_Element):
         self.drawing.set_font_size(size_prev)
 
 
-
-
-
-# class UI_TableContainer(UI_Element):
-#     def __init__(self, nrows, ncols, background=None, margin=0):
-#         super().__init__()
-#         self.nrows = nrows
-#         self.ncols = ncols
-#         self.rows = [[UI_Element() for i in range(ncols)] for j in range(nrows)]
-#         self.background = background
-#         self.margin = margin
-#         self.offset = 0
-
-#     def _delete(self):
-#         for row in self.rows:
-#             for cell in row:
-#                 cell.delete()
-
-#     def _hover_ui(self, mouse):
-#         if not super()._hover_ui(mouse): return None
-#         for row in self.rows:
-#             for cell in row:
-#                 hover = cell.hover_ui(mouse)
-#                 if hover: return hover
-#         return self
-
-#     def get_col_width(self, c):
-#         return max(row[c].get_width() for row in self.rows)
-#     def get_row_height(self, r):
-#         return max(cell.get_height() for cell in self.rows[r])
-
-#     def _get_width(self):
-#         return sum(self.get_col_width(c) for c in range(self.ncols))
-#     def _get_height(self):
-#         return sum(self.get_row_height(r) for r in range(self.nrows))
-
-#     @profiler.profile
-#     def _draw(self):
-#         l,t_ = self.pos
-#         w,h = self.size
-#         t = t_ + self.offset
-
-#         if self.background:
-#             bgl.glEnable(bgl.GL_BLEND)
-#             bgl.glColor4f(*self.background)
-#             bgl.glBegin(bgl.GL_QUADS)
-#             bgl.glVertex2f(l, t)
-#             bgl.glVertex2f(l+w, t)
-#             bgl.glVertex2f(l+w, t-h)
-#             bgl.glVertex2f(l, t-h)
-#             bgl.glEnd()
-
-#         widths = [self.get_col_width(c) for c in range(self.ncols)]
-#         heights = [self.get_row_height(r) for r in range(self.nrows)]
-#         y = t
-#         for r in range(self.nrows):
-#             x = l
-#             h = heights[r]
-#             for c in range(self.ncols):
-#                 w = widths[c]
-#                 ui = self.rows[r][c]
-#                 ui.draw(x,y,w,h)
-#                 x += w
-#             y -= h
-
-#         # if self.offset > 0:
-#         #     bgl.glEnable(bgl.GL_BLEND)
-#         #     bgl.glBegin(bgl.GL_QUADS)
-#         #     bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
-#         #     bgl.glVertex2f(l, t_+1)
-#         #     bgl.glVertex2f(l+w, t_+1)
-#         #     bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
-#         #     bgl.glVertex2f(l+w, t_-30)
-#         #     bgl.glVertex2f(l, t_-30)
-#         #     bgl.glEnd()
-#         # if h+self.offset+2 < self._get_height():
-#         #     bgl.glEnable(bgl.GL_BLEND)
-#         #     bgl.glBegin(bgl.GL_QUADS)
-#         #     bgl.glColor4f(0.25, 0.25, 0.25, 1.00)
-#         #     bgl.glVertex2f(l, t_-h)
-#         #     bgl.glVertex2f(l+w, t_-h)
-#         #     bgl.glColor4f(0.25, 0.25, 0.25, 0.00)
-#         #     bgl.glVertex2f(l+w, t_-h+30)
-#         #     bgl.glVertex2f(l, t_-h+30)
-#         #     bgl.glEnd()
-
-
-#     def set(self, row, col, ui_item):
-#         self.rows[row][col] = ui_item
-#         return ui_item
-
-
-class UI_Markdown(UI_Container):
+class UI_Markdown(UI_Padding):
     def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0):
         super().__init__(margin=margin)
+        self.defer_recalc = True
+
         self.min_size = self.drawing.scale(min_size)
         self.set_markdown(markdown)
+
+        self.defer_recalc = False
 
     def set_markdown(self, mdown):
         # process message similarly to Markdown
@@ -932,11 +1056,13 @@ class UI_Markdown(UI_Container):
             else:
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
                 container.add(UI_WrappedLabel(p, min_size=self.min_size))
-        self.add(container, only=True)
+        self.set_ui_item(container)
 
 class UI_OnlineMarkdown(UI_Markdown):
     def __init__(self, url, min_size=Vec2D((600,36)), margin=4):
         super().__init__(margin=margin)
+        self.defer_recalc = True
+
         self.min_size = min_size
 
         response = urllib.request.urlopen(url)
@@ -947,9 +1073,12 @@ class UI_OnlineMarkdown(UI_Markdown):
 
         self.set_markdown(markdown)
 
+        self.defer_recalc = False
+
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=0, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=None):
-        super().__init__(vertical=False)
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=0, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=0):
+        super().__init__(vertical=False, margin=margin)
+        self.defer_recalc = True
         if icon:
             self.add(icon)
             self.add(UI_Spacer(width=4))
@@ -963,7 +1092,7 @@ class UI_Button(UI_Container):
         self.hovercolor = hovercolor
         self.mouse = None
         self.hovering = False
-        if margin is not None: self.margin = margin
+        self.defer_recalc = False
 
     def get_label(self): return self.label.get_label()
     def set_label(self, label): self.label.set_label(label)
@@ -1039,6 +1168,7 @@ class UI_Options(UI_Container):
 
     def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2, separation=0, hovercolor=(1,1,1,0.1)):
         super().__init__(vertical=vertical, margin=margin, separation=separation)
+        self.defer_recalc = True
         if vertical: align,valign = -1,-1
         else: align,valign = -1,0
         self.ui_label = super().add(UI_Label('', margin=0, align=align, valign=valign))
@@ -1050,6 +1180,7 @@ class UI_Options(UI_Container):
         self.values = set()
         self.hovercolor = hovercolor
         self.mouse_prev = None
+        self.defer_recalc = False
 
     def set_label(self, label):
         self.ui_label.visible = label is not None
@@ -1058,6 +1189,7 @@ class UI_Options(UI_Container):
     class UI_Option(UI_Background):
         def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
             super().__init__(rounded=True, margin=0)
+            self.defer_recalc = True
             self.label = label
             self.value = value
             self.options = options
@@ -1068,6 +1200,7 @@ class UI_Options(UI_Container):
             if icon:           container.add(icon)
             if icon and label: container.add(UI_Spacer(width=4))
             if label:          container.add(UI_Label(label, color=color, align=align, valign=0, margin=0))
+            self.defer_recalc = False
 
         def _hover_ui(self, mouse):
             return self if super()._hover_ui(mouse) else None
@@ -1155,10 +1288,11 @@ class UI_Image(UI_Element):
 
     def __init__(self, image_data, margin=0, async=True, width=None, height=None):
         super().__init__()
+        self.defer_recalc = True
         self.image_data = image_data
-        self.image_width,self.image_height = 10,10
-        self.width = width or 10
-        self.height = height or 10
+        self.image_width,self.image_height = 16,16
+        self.width = width or 16
+        self.height = height or 16
         self.size_set = (width is not None) or (height is not None)
         self.loaded = False
         self.buffered = False
@@ -1171,6 +1305,7 @@ class UI_Image(UI_Element):
 
         if async: self.executor.submit(self.load_image)
         else: self.load_image()
+        self.defer_recalc = False
 
     def load_image(self):
         image_data = self.image_data
@@ -1179,6 +1314,7 @@ class UI_Image(UI_Element):
         assert self.image_depth == 4
         self.image_flat = [d for r in image_data for c in r for d in c]
         self.loaded = True
+        self.dirty()
 
     def buffer_image(self):
         if not self.loaded: return
@@ -1234,12 +1370,39 @@ class UI_Image(UI_Element):
 
 
 class UI_Graphic(UI_Element):
-    def __init__(self, graphic=None, margin=0):
-        super().__init__()
+    def __init__(self, graphic=None, margin=0, width=12, height=12):
+        super().__init__(margin=margin)
+        self.defer_recalc = True
+
+        self._graphic_width = None
+        self._graphic_height = None
+
         self._graphic = graphic
-        self.width = 12
-        self.height = 12
-        self.margin = margin
+        self.width = width
+        self.height = height
+        self.defer_recalc = False
+
+    @property
+    def width(self):
+        return self._graphic_width
+
+    @width.setter
+    def width(self, w):
+        w = max(0, w)
+        if self._graphic_width == w: return
+        self._graphic_width = w
+        self.dirty()
+
+    @property
+    def height(self):
+        return self._graphic_height
+
+    @height.setter
+    def height(self, h):
+        h = max(0, h)
+        if self._graphic_height == h: return
+        self._graphic_height =h
+        self.dirty()
 
     def set_graphic(self, graphic): self._graphic = graphic
 
@@ -1323,17 +1486,21 @@ class UI_Checkbox(UI_Container):
         spacing = kwopts.get('spacing', 4)
         hovercolor = kwopts.get('hovercolor', (1,1,1,0.1))
         tooltip = kwopts.get('tooltip', None)
-        super().__init__(vertical=False, margin=2)
+
+        super().__init__(vertical=False, margin=2, separation=spacing)
+        self.defer_recalc = True
+
         self.chk = UI_Graphic()
         self.add(self.chk)
         if label:
-            self.add(UI_Spacer(width=spacing))
+            # self.add(UI_Spacer(width=spacing))
             self.lbl = self.add(UI_Label(label, margin=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
         self.tooltip = tooltip
         self.hovercolor = hovercolor
         self.hovering = False
+        self.defer_recalc = False
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1363,8 +1530,10 @@ class UI_Checkbox2(UI_Container):
     def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
         hovercolor = kwopts.get('hovercolor', (1,1,1,0.1))
         tooltip = kwopts.get('tooltip', None)
-        super().__init__()
-        self.margin = 0
+
+        super().__init__(margin=0)
+        self.defer_recalc = True
+
         self.bg = self.add(UI_Background(border_thickness=1, rounded=True))
         self.bg.set_ui_item(UI_Label(label, align=0))
         self.fn_get_checked = fn_get_checked
@@ -1372,6 +1541,8 @@ class UI_Checkbox2(UI_Container):
         self.tooltip = tooltip
         self.hovercolor = hovercolor
         self.hovering = False
+
+        self.defer_recalc = False
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1412,8 +1583,8 @@ class UI_BoolValue(UI_Checkbox):
 class UI_IntValue(UI_Container):
     def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
-        super().__init__(vertical=False, margin=margin)
-        # self.margin = 0
+        super().__init__(vertical=False, margin=margin, separation=4)
+        self.defer_recalc = True
 
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
@@ -1422,9 +1593,7 @@ class UI_IntValue(UI_Container):
         self.fn_set_print_value = fn_set_print_value
 
         self.lbl = self.add(UI_Label(label, margin=0, align=-1, valign=0))
-        self.add(UI_Spacer(width=4))
         self.add(UI_Label('=', margin=0))
-        self.add(UI_Spacer(width=4))
         fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
         self.val = self.add(UI_Label(fn(), margin=0))
 
@@ -1436,6 +1605,7 @@ class UI_IntValue(UI_Container):
         self.presscolor = presscolor
         self.hovercolor = hovercolor
         self.hovering = False
+        self.defer_recalc = False
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1560,7 +1730,7 @@ class UI_IntValue(UI_Container):
             if event.type in self.keys:
                 self.val_edit = self.val_edit[:self.val_pos] + self.keys[event.type] + self.val_edit[self.val_pos:]
                 self.val_pos += 1
-            self.val.set_label(self.val_edit)
+            self.val.set_label(self.val_edit or '0')
 
 
 class UI_HBFContainer(UI_Container):
@@ -1569,6 +1739,7 @@ class UI_HBFContainer(UI_Container):
     '''
     def __init__(self, vertical=True, separation=2):
         super().__init__(margin=0, separation=2)
+        self.defer_recalc = True
         self.header = super().add(UI_Container())
         self.body_scroll = super().add(UI_VScrollable())
         self.body = self.body_scroll.set_ui_item(UI_Container(vertical=vertical, separation=separation))
@@ -1576,6 +1747,7 @@ class UI_HBFContainer(UI_Container):
         self.header.visible = False
         self.body_scroll.visible = False
         self.footer.visible = False
+        self.defer_recalc = False
 
     def _hover_ui(self, mouse):
         if not super()._hover_ui(mouse): return None
@@ -1615,9 +1787,8 @@ class UI_HBFContainer(UI_Container):
 
 class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=True, fn_collapsed=None, equal=False, vertical=True):
-        super().__init__()
-        self.margin = 0
-        self.separation = 0
+        super().__init__(margin=0, separation=0)
+        self.defer_recalc = True
 
         self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0))
         self.body_wrap = super().add(UI_Container(vertical=False, margin=0))
@@ -1646,6 +1817,7 @@ class UI_Collapsible(UI_Container):
                 self.collapsed = fn_collapsed.get()
             else:
                 self.collapsed = v
+            self.dirty()
 
         self.collapsed = fn_collapsed.get() if fn_collapsed else collapsed
         self.fn_collapsed = GetSet(get_collapsed, set_collapsed)
@@ -1654,9 +1826,14 @@ class UI_Collapsible(UI_Container):
             False: 'triangle down',
             True: 'triangle right',
         }
+        self.defer_recalc = False
 
-    def expand(self): self.fn_collapsed.set(False)
-    def collapse(self): self.fn_collapsed.set(True)
+    def expand(self):
+        self.fn_collapsed.set(False)
+        self.dirty()
+    def collapse(self):
+        self.fn_collapsed.set(True)
+        self.dirty()
 
     def predraw(self):
         #self.title.set_bgcolor(self.bgcolors[self.fn_collapsed.get()])
@@ -1665,12 +1842,12 @@ class UI_Collapsible(UI_Container):
         self.body.visible = expanded
         self.footer.visible = expanded
 
-    def _recalc_size(self):
-        sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
-        widths = [w for (w,h) in sizes]
-        heights = [h for (w,h) in sizes]
-        self._width_inner = max(widths)
-        self._height_inner = sum(heights)
+    # def _recalc_size(self):
+    #     sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
+    #     widths = [w for (w,h) in sizes]
+    #     heights = [h for (w,h) in sizes]
+    #     self._width_inner = max(widths)
+    #     self._height_inner = sum(heights)
 
     def add(self, ui_item, header=False):
         if header: self.header.add(ui_item)
@@ -1692,6 +1869,7 @@ class UI_Collapsible(UI_Container):
 class UI_Frame(UI_Container):
     def __init__(self, title, equal=False, vertical=True):
         super().__init__()
+        self.defer_recalc = True
         self.margin = 0
         self.separation = 0
 
@@ -1711,13 +1889,14 @@ class UI_Frame(UI_Container):
         self.footer.add(UI_Spacer(height=1))
         self.footer.add(UI_Rule(color=(0,0,0,0.25)))
         self.footer.add(UI_Spacer(height=1))
+        self.defer_recalc = False
 
-    def _recalc_size(self):
-        sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
-        widths = [w for (w,h) in sizes]
-        heights = [h for (w,h) in sizes]
-        self._width_inner = max(widths)
-        self._height_inner = sum(heights)
+    # def _recalc_size(self):
+    #     sizes = [ui_item.recalc_size() for ui_item in self.ui_items]
+    #     widths = [w for (w,h) in sizes]
+    #     heights = [h for (w,h) in sizes]
+    #     self._width_inner = max(widths)
+    #     self._height_inner = sum(heights)
 
     def add(self, ui_item):
         return self.body.add(ui_item)
@@ -1737,6 +1916,7 @@ class UI_Window(UI_Padding):
         separation = options.get('separation', 2)
 
         super().__init__(margin=margin)
+        self.defer_recalc = True
 
         fn_sticky = options.get('fn_pos', None)
         def get_sticky(): return fn_sticky.get() if fn_sticky else self.sticky
@@ -1772,7 +1952,7 @@ class UI_Window(UI_Padding):
             self.hbf.add(self.hbf_title_rule, header=True)
             self.ui_grab += [self.hbf_title, self.hbf_title_rule]
 
-        self.update_pos()
+        # self.update_pos()
 
         self.FSM = {}
         self.FSM['main'] = self.modal_main
@@ -1781,6 +1961,7 @@ class UI_Window(UI_Padding):
         self.FSM['capture'] = self.modal_capture
         self.FSM['scroll'] = self.modal_scroll
         self.state = 'main'
+        self.defer_recalc = False
 
     def show(self): self.visible = True
     def hide(self): self.visible = False
@@ -1833,7 +2014,9 @@ class UI_Window(UI_Padding):
 
         self.drawing.set_font_size(12)
 
+        pr = profiler.start('UI_Window: updating position')
         self.update_pos()
+        pr.done()
 
         l,t = self.pos
         w,h = self.size
@@ -1859,7 +2042,9 @@ class UI_Window(UI_Padding):
         bgl.glVertex2f(l,t)
         bgl.glEnd()
 
+        pr = profiler.start('UI_Window: drawing contents')
         self.draw(l, t, w, h)
+        pr.done()
 
     def update_hover(self, new_elem):
         if self.ui_hover == new_elem: return
@@ -2003,10 +2188,10 @@ class UI_WindowManager:
 
     def delete_window(self, win):
         if win.fn_event_handler: win.fn_event_handler(None, UI_Event('WINDOW', 'CLOSE'))
-        win.delete()
         if win == self.focus: self.clear_focus()
         if win == self.active: self.clear_active()
         if win in self.windows: self.windows.remove(win)
+        win.delete()
 
     def clear_active(self): self.active = None
 
