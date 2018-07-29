@@ -43,7 +43,7 @@ from ..common.ui import (
     UI_Checkbox, UI_Checkbox2,
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
-    UI_Container, UI_Collapsible, UI_EqualContainer,
+    UI_Container, UI_Collapsible, UI_EqualContainer, UI_Frame,
     UI_IntValue,
     GetSet,
     )
@@ -131,7 +131,7 @@ class RFContext_UI:
             def fn():
                 close()
                 callback(grpopt)
-            return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90)))
+            return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), padding=1))
 
         opts = {
             'pos': self.actions.mouse + Vec2D((-20,10)),
@@ -141,15 +141,15 @@ class RFContext_UI:
             'padding': 0,
             }
         win = self.window_manager.create_window(title, opts)
-        bigcontainer = win.add(UI_Container(margin=0))
+        bigcontainer = win.add(UI_Container(margin=0, separation=0))
         # win.add(UI_Rule())
         prev_container = False
         for opt in options:
-            if prev_container: bigcontainer.add(UI_Rule(color=(0,0,0,0.1)))
+            #if prev_container: bigcontainer.add(UI_Rule(color=(0,0,0,0.1)))
             if type(opt) is tuple:
                 n,opts2 = opt
-                container = bigcontainer.add(UI_Container(margin=0))
-                container.add(UI_Label(n, align=0, color=(1,1,1,0.5)))
+                container = bigcontainer.add(UI_Frame(n))
+                #container.add(UI_Label(n, align=0, color=(1,1,1,0.5)))
                 for opt2 in opts2:
                     create_option(opt2, (n,opt2), '%s: %s' % (n,opt2), container)
                 prev_container = True
@@ -313,6 +313,7 @@ class RFContext_UI:
             message = message or 'a note'
 
         def toggle_details():
+            nonlocal ui_details
             ui_details.visible = not ui_details.visible
             if ui_details.visible:
                 ui_show.set_label('Hide Details')

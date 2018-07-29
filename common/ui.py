@@ -154,7 +154,6 @@ class UI_Element:
         self.dirty_callbacks = [ui for ui in self.dirty_callbacks if ui != ui_item]
 
     def dirty(self):
-        if self.is_dirty: return
         self.is_dirty = True
         for ui_item in self.dirty_callbacks:
             ui_item.dirty()
@@ -242,7 +241,8 @@ class UI_Element:
 
         self._width, self._height = 0, 0
         self._width_inner, self._height_inner = 0, 0
-        if not self.visible: return (0, 0)
+        if not self.visible: return (self._width, self._height)
+
         pr = profiler.start('UI_Element: calling _recalc_size on %s' % str(type(self)))
         self._recalc_size()
         pr.done()
@@ -1076,14 +1076,14 @@ class UI_OnlineMarkdown(UI_Markdown):
         self.defer_recalc = False
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=0, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=0):
+    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=0, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=0, padding=4):
         super().__init__(vertical=False, margin=margin)
         self.defer_recalc = True
         if icon:
             self.add(icon)
             self.add(UI_Spacer(width=4))
         self.tooltip = tooltip
-        self.label = self.add(UI_Label(label, color=color, align=align, margin=4))
+        self.label = self.add(UI_Label(label, color=color, align=align, margin=padding))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = bgcolor
@@ -1812,6 +1812,7 @@ class UI_Collapsible(UI_Container):
 
         def get_collapsed(): return fn_collapsed.get() if fn_collapsed else self.collapsed
         def set_collapsed(v):
+            if v == get_collapsed(): return
             if fn_collapsed:
                 fn_collapsed.set(v)
                 self.collapsed = fn_collapsed.get()
@@ -1830,10 +1831,8 @@ class UI_Collapsible(UI_Container):
 
     def expand(self):
         self.fn_collapsed.set(False)
-        self.dirty()
     def collapse(self):
         self.fn_collapsed.set(True)
-        self.dirty()
 
     def predraw(self):
         #self.title.set_bgcolor(self.bgcolors[self.fn_collapsed.get()])
@@ -1867,7 +1866,7 @@ class UI_Collapsible(UI_Container):
 
 
 class UI_Frame(UI_Container):
-    def __init__(self, title, equal=False, vertical=True):
+    def __init__(self, title, equal=False, vertical=True, separation=2):
         super().__init__()
         self.defer_recalc = True
         self.margin = 0
@@ -1884,7 +1883,7 @@ class UI_Frame(UI_Container):
         if equal:
             self.body = self.body_wrap.add(UI_EqualContainer(vertical=vertical, margin=1))
         else:
-            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1))
+            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1, separation=separation))
 
         self.footer.add(UI_Spacer(height=1))
         self.footer.add(UI_Rule(color=(0,0,0,0.25)))
@@ -1915,7 +1914,7 @@ class UI_Window(UI_Padding):
         margin = options.get('padding', 2)
         separation = options.get('separation', 2)
 
-        super().__init__(margin=margin)
+        super().__init__(margin=0)
         self.defer_recalc = True
 
         fn_sticky = options.get('fn_pos', None)
@@ -1939,7 +1938,8 @@ class UI_Window(UI_Padding):
 
         self.ui_hover = None
         self.ui_grab = [self]
-        self.hbf = self.set_ui_item(UI_HBFContainer(vertical=vertical, separation=separation))
+        padded = self.set_ui_item(UI_Padding(margin=margin))
+        self.hbf = padded.set_ui_item(UI_HBFContainer(vertical=vertical, separation=separation))
         self.hbf.header.margin = 0
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
@@ -1952,7 +1952,7 @@ class UI_Window(UI_Padding):
             self.hbf.add(self.hbf_title_rule, header=True)
             self.ui_grab += [self.hbf_title, self.hbf_title_rule]
 
-        # self.update_pos()
+        self.update_pos()
 
         self.FSM = {}
         self.FSM['main'] = self.modal_main
