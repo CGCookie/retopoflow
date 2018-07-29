@@ -236,15 +236,16 @@ The Contours tool gives you a quick and easy way to retopologize cylindrical for
 For example, it's ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
 
 The tool works by drawing strokes perpendicular to the form to define the contour of the shape.
-Immediately upon drawing the first stroke, a preview mesh is generated, showing you exactly what you'll get.
-You can draw as many strokes as you like, in any order, from any direction.
+Each additional stroke drawn will either extrude the current selection or cut a new loop into the edges drawn over.
+
+You may draw strokes in any order, from any direction.
 
 ![](help_contours.png)
 
 
 ## Drawing
 
-- ACTION: select edge then grab and move
+- ACTION: select and slide loop
 - SELECT / SHIFT+SELECT: select edge
 - CTRL+SELECT / CTRL+SHIFT+SELECT: select loop
 - CTRL+ACTION: draw contour stroke perpendicular to form. newly created contour extends selection if applicable.
@@ -264,7 +265,7 @@ You can draw as many strokes as you like, in any order, from any direction.
 
 ## Tips
 
-- Extrude Contours from an existing edge loop by selecting it in Edit Mode before starting Contours.
+- Extrude Contours from an existing edge loop by selecting it first.
 - Contours works with symmetry, enabling you to contour torsos and other symmetrical objects!
 '''
 
