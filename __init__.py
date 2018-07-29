@@ -22,10 +22,10 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 bl_info = {
     "name":        "RetopoFlow",
-    "description": "A retopology-focused mode with dedicated retopology tools for Blender",
+    "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version":     (2, 0, 0),
-    "blender":     (2, 7, 8),
+    "blender":     (2, 7, 9),
     "location":    "View 3D > Tool Shelf",
     "warning":     "beta 2",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
@@ -120,4 +120,3 @@ def unregister():
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
-
