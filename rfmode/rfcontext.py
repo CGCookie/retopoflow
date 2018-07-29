@@ -530,12 +530,13 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         # handle delete/dissolve
         if self.actions.pressed('delete'):
+            default_option = getattr(self, 'last_delete_dissolve_option', None)
             self.option_user([
                 ('Delete',  ['Vertices', 'Edges', 'Faces', 'Only Edges & Faces', 'Only Faces']),
                 ('Dissolve',['Vertices', 'Edges', 'Faces', 'Loops']),
                 # 'Limited Dissolve',
                 # 'Edge Collapse', 'Edge Loops',
-                ], self.delete_dissolve_option)
+                ], self.delete_dissolve_option, default_option=default_option)
             return
 
         # update rfwidget and cursor

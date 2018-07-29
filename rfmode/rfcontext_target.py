@@ -507,6 +507,7 @@ class RFContext_Target:
     # delete / dissolve
 
     def delete_dissolve_option(self, opt):
+        self.last_delete_dissolve_option = opt
         if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces'), ('Dissolve','Loops')]:
             self.dissolve_option(opt[1])
         elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:

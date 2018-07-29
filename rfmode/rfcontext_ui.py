@@ -115,7 +115,7 @@ class RFContext_UI:
         if throw: assert False
         return False
 
-    def option_user(self, options, callback, title=None):
+    def option_user(self, options, callback, default_option=None, title=None):
         def close():
             nonlocal win
             self.window_manager.delete_window(win)
@@ -134,7 +134,7 @@ class RFContext_UI:
             return container.add(UI_Button(opt, fn, tooltip=tooltip, align=-1, bordercolor=None, hovercolor=(0.27, 0.50, 0.72, 0.90), padding=1))
 
         opts = {
-            'pos': self.actions.mouse + Vec2D((-20,10)),
+            'pos': self.actions.mouse,
             'movable': False,
             'bgcolor': (0.2, 0.2, 0.2, 0.8),
             'event handler': event_handler,
@@ -144,6 +144,7 @@ class RFContext_UI:
         bigcontainer = win.add(UI_Container(margin=0, separation=0))
         # win.add(UI_Rule())
         prev_container = False
+        ui_def_option = None
         for opt in options:
             #if prev_container: bigcontainer.add(UI_Rule(color=(0,0,0,0.1)))
             if type(opt) is tuple:
@@ -151,11 +152,21 @@ class RFContext_UI:
                 container = bigcontainer.add(UI_Frame(n))
                 #container.add(UI_Label(n, align=0, color=(1,1,1,0.5)))
                 for opt2 in opts2:
-                    create_option(opt2, (n,opt2), '%s: %s' % (n,opt2), container)
+                    ui_opt = create_option(opt2, (n,opt2), '%s: %s' % (n,opt2), container)
+                    if default_option == (n, opt2):
+                        ui_def_option = ui_opt
                 prev_container = True
             else:
-                create_option(opt, opt, opt, bigcontainer)
+                ui_opt = create_option(opt, opt, opt, bigcontainer)
+                if default_option == opt:
+                    ui_def_option = ui_opt
                 prev_container = False
+        win.recalc_size()
+        if ui_def_option:
+            x,y,w,h = win.find_rel_pos_size(ui_def_option)
+            win.sticky = self.actions.mouse + Vec2D((-(x + w/2), y+h/2))
+        else:
+            win.sticky = self.actions.mouse + Vec2D((-win.get_width() / 2, 10))
         self.window_manager.set_focus(win, darken=False, close_on_leave=True)
 
     def alert_user(self, title=None, message=None, level=None, msghash=None):

@@ -254,6 +254,15 @@ class UI_Element:
         self.is_dirty = False
         return (self._width, self._height)
 
+    def find_rel_pos_size(self, ui_item):
+        if self == ui_item: return (0, 0, self._width, self._height)
+        pos_size = self._find_rel_pos_size(ui_item)
+        if not pos_size: return pos_size
+        x, y, w, h = pos_size
+        return (self.margin_left + x, self.margin_top + y, w, h)
+    def _find_rel_pos_size(self, ui_item):
+        return None
+
     def get_width(self): return self._width if self.visible else 0
     def get_height(self): return self._height if self.visible else 0
     def get_inner_width(self): return self._width_inner if self.visible else 0
@@ -287,6 +296,10 @@ class UI_Padding(UI_Element):
         self.set_ui_item(ui_item)
 
         self.defer_recalc = False
+
+    def _find_rel_pos_size(self, ui_item):
+        if self.ui_item == None: return None
+        return self.ui_item.find_rel_pos_size(ui_item)
 
     def set_ui_item(self, ui_item):
         if self.ui_item == ui_item: return
@@ -342,6 +355,10 @@ class UI_Background(UI_Element):
             self.ui_item.register_dirty_callback(self)
         self.dirty()
         return self.ui_item
+
+    def _find_rel_pos_size(self, ui_item):
+        if self.ui_item == None: return None
+        return self.ui_item.find_rel_pos_size(ui_item)
 
     def _hover_ui(self, mouse):
         if not super()._hover_ui(mouse): return None
@@ -422,6 +439,10 @@ class UI_VScrollable(UI_Padding):
         super().set_ui_item(ui_item)
         self.offset = 0
         return self.ui_item
+
+    def _find_rel_pos_size(self, ui_item):
+        if self.ui_item == None: return None
+        return self.ui_item.find_rel_pos_size(ui_item)
 
     # def _hover_ui(self, mouse):
     #     if not super()._hover_ui(mouse): return None
@@ -647,11 +668,20 @@ class UI_Container(UI_Element):
         self.dirty()
         return ui_item
 
-    def replace(self, ui_item):
+    def clear(self, ui_item):
         for ui_item in self.ui_items:
             ui_item.unregister_dirty_callback(self)
         self.ui_items = []
-        return self.add(ui_item)
+
+    def _find_rel_pos_size(self, ui_item):
+        oy = 0
+        for my_ui_item in self.ui_items:
+            res = my_ui_item.find_rel_pos_size(ui_item)
+            if res:
+                x,y,w,h = res
+                return (x,y+oy,w,h)
+            oy += my_ui_item.get_height()
+        return None
 
     def _hover_ui(self, mouse):
         if not super()._hover_ui(mouse): return None
