@@ -110,6 +110,10 @@ class Actions:
         'screen.screen_full_area',
     }
 
+    save_actions = {
+        'wm.save_mainfile',
+    }
+
     def load_keymap(self, keyconfig_name):
         if keyconfig_name not in bpy.context.window_manager.keyconfigs:
             dprint('No keyconfig named "%s"' % keyconfig_name)
@@ -121,9 +125,12 @@ class Actions:
             else: self.keymap['navigate'].discard(kmi_details(kmi))
         for map_name in ['Screen', 'Window']:
             for kmi in keyconfig.keymaps[map_name].keymap_items:
-                if kmi.idname not in self.window_actions: continue
-                if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
-                else: self.keymap['window actions'].discard(kmi_details(kmi))
+                if kmi.idname in self.window_actions:
+                    if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
+                    else: self.keymap['window actions'].discard(kmi_details(kmi))
+                if kmi.idname in self.save_actions:
+                    if kmi.active: self.keymap['save action'].add(kmi_details(kmi))
+                    else: self.keymap['save action'].discard(kmi_details(kmi))
 
     def __init__(self, context, keymap):
         self.keymap = deepcopy(keymap)
@@ -134,6 +141,7 @@ class Actions:
             else: self.keymap[k] = {self.keymap[k]}
         self.keymap['navigate'] = set()         # filled in below
         self.keymap['window actions'] = set()   # filled in by load_keymap
+        self.keymap['save action'] = set()     # filled in by load_keymap
 
         self.keymap['navigate'] |= Actions.trackpad_actions
         self.keymap['navigate'] |= Actions.ndof_actions

@@ -384,15 +384,15 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     # auto save
 
     def check_auto_save(self):
-        use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
-        auto_save_time = context.user_preferences.filepaths.auto_save_time * 60
+        use_auto_save_temporary_files = self.actions.context.user_preferences.filepaths.use_auto_save_temporary_files
+        auto_save_time = self.actions.context.user_preferences.filepaths.auto_save_time * 60
         if not use_auto_save_temporary_files: return
         if self.time_to_save is None:
             self.time_to_save = auto_save_time
         else:
             self.time_to_save -= self.actions.time_delta
         if self.time_to_save > 0: return
-        self.rfmode.backup_save()
+        self.rfmode.save_backup()
         self.time_to_save = auto_save_time
 
     ###################################################
@@ -410,8 +410,13 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if self.actions.pressed('toggle full area'):
             self.rfmode.ui_toggle_maximize_area()
             return {}
+
         if self.actions.using('window actions'):
             return {'pass'}
+
+        if self.actions.pressed('save action'):
+            self.rfmode.save_normal()
+            return {}
 
         if self.actions.using('autosave'):
             return {'pass'}
@@ -419,22 +424,14 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if self.actions.pressed('general help'):
             self.toggle_general_help()
             return {}
+
         if self.actions.pressed('tool help'):
             self.toggle_tool_help()
             return {}
 
-        use_auto_save_temporary_files = context.user_preferences.filepaths.use_auto_save_temporary_files
-        auto_save_time = context.user_preferences.filepaths.auto_save_time * 60
-        if use_auto_save_temporary_files and event.type == 'TIMER':
-            if self.time_to_save is None: self.time_to_save = auto_save_time
-            else: self.time_to_save -= self.actions.time_delta
-            if self.time_to_save <= 0:
-                # tempdir = bpy.app.tempdir
-                filepath = options.temp_filepath('blend')
-                dprint('auto saving to %s' % filepath)
-                if os.path.exists(filepath): os.remove(filepath)
-                bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
-                self.time_to_save = auto_save_time
+        if event.type == 'TIMER':
+            self.check_auto_save()
+            # do not return here!  might need TIMER event in RFTool
 
         try:
             ret = self.window_manager.modal(context, event)

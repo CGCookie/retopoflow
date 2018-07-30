@@ -87,6 +87,47 @@ def report_broken_rfmode():
     show_blender_popup('Something went wrong. Please try restarting Blender or create an error report with CG Cookie so we can fix it!', icon='ERROR', wrap=240)
 
 
+@blender_version_wrapper('<','2.80')
+def set_object_layers(o):
+    o.layers = list(bpy.context.scene.layers)
+@blender_version_wrapper('>=','2.80')
+def set_object_layers(o):
+    print('unhandled: set_object_layers')
+    pass
+
+@blender_version_wrapper('<','2.80')
+def set_object_selection(o, sel):
+    o.select = sel
+@blender_version_wrapper('>=','2.80')
+def set_object_selection(o, sel):
+    o.select_set('SELECT' if sel else 'DESELECT')
+
+@blender_version_wrapper('<','2.80')
+def link_object(o):
+    bpy.context.scene.objects.link(o)
+@blender_version_wrapper('>=','2.80')
+def link_object(o):
+    print('unhandled: link_object')
+    pass
+
+@blender_version_wrapper('<','2.80')
+def set_active_object(o):
+    bpy.context.scene.objects.active = o
+@blender_version_wrapper('>=','2.80')
+def set_active_object(o):
+    print('unhandled: set_active_object')
+    pass
+
+@blender_version_wrapper('<','2.80')
+def get_active_object():
+    return bpy.context.scene.objects.active
+@blender_version_wrapper('>=','2.80')
+def get_active_object():
+    return bpy.context.active_object
+
+
+
+
 
 class RFMode(Operator):
     bl_category    = "Retopology"
@@ -105,6 +146,24 @@ class RFMode(Operator):
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
         return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
+
+    def invoke(self, context, event):
+        ''' called when the user invokes (calls/runs) our tool '''
+        if not still_registered(self):
+            report_broken_rfmode()
+            return {'CANCELLED'}
+        if not self.poll(context):
+            # tool cannot start
+            return {'CANCELLED'}
+        self.framework_start(context)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
+
+    def modal(self, context, event):
+        return self.framework_modal(context, event)
+
+    def check(self, context):
+        return True
 
     @staticmethod
     @profiler.profile
@@ -150,16 +209,35 @@ class RFMode(Operator):
         sz = (bbox.max-bbox.min).length_squared
         return sz > 15
 
+    ################################################
+    # Blender State methods
+
     @staticmethod
-    def save_window_state():
-        data = {
-            'data_wm': {},
-            'selected': [o.name for o in bpy.data.objects if o.select],
-            'mode': bpy.context.mode,
-            'region overlap': False,    # TODO
-            'region toolshelf': False,  # TODO
-            'region properties': False, # TODO
-            }
+    def store_window_state():
+        data = {}
+        # 'region overlap': False,    # TODO
+        # 'region toolshelf': False,  # TODO
+        # 'region properties': False, # TODO
+
+        # remember current mode and set to object mode so we can control
+        # how the target mesh is rendered and so we can push new data
+        # into target mesh
+        data['mode'] = bpy.context.mode
+        data['mode translated'] = {
+            'OBJECT':        'OBJECT',          # for some reason, we must
+            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
+            'SCULPT':        'SCULPT',          # to something that
+            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
+            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts...
+            'PAINT_TEXTURE': 'TEXTURE_PAINT',
+            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
+
+        tar = RFContext.get_target()
+        data['active object'] = tar.name if tar else ''
+
+        data['screen name'] = bpy.context.screen.name
+
+        data['data_wm'] = {}
         for wm in bpy.data.window_managers:
             data_wm = []
             for win in wm.windows:
@@ -179,14 +257,34 @@ class RFMode(Operator):
                 data_wm.append(data_win)
             data['data_wm'][wm.name] = data_wm
 
+        # assuming RF is invoked from 3D View context
+        rgn_toolshelf = bpy.context.area.regions[1]
+        rgn_properties = bpy.context.area.regions[3]
+        data['show_toolshelf'] = rgn_toolshelf.width > 1
+        data['show_properties'] = rgn_properties.width > 1
+        data['region_overlap'] = bpy.context.user_preferences.system.use_region_overlap
+
+        data['selected objects'] = [o.name for o in bpy.data.objects if getattr(o, 'select', False)]
+        data['hidden objects'] = [o.name for o in bpy.data.objects if getattr(o, 'hide', False)]
+
         filepath = options.temp_filepath('state')
         open(filepath, 'wt').write(json.dumps(data))
 
     @staticmethod
-    def restore_window_state():
+    def update_window_state(key, val):
         filepath = options.temp_filepath('state')
         if not os.path.exists(filepath): return
         data = json.loads(open(filepath, 'rt').read())
+        data[key] = val
+        open(filepath, 'wt').write(json.dumps(data))
+
+    def restore_window_state(self, ignore_panels=False):
+        filepath = options.temp_filepath('state')
+        if not os.path.exists(filepath): return
+        data = json.loads(open(filepath, 'rt').read())
+
+        bpy.context.window.screen = bpy.data.screens[data['screen name']]
+
         for wm in bpy.data.window_managers:
             data_wm = data['data_wm'][wm.name]
             for win,data_win in zip(wm.windows, data_wm):
@@ -196,9 +294,65 @@ class RFMode(Operator):
                         if space.type != 'VIEW_3D': continue
                         space.show_only_render = data_space['show_only_render']
                         space.show_manipulator = data_space['show_manipulator']
-        for oname in data['selected']:
-            if oname in bpy.data.objects:
-                bpy.data.objects[oname].select = True
+
+        if data['region_overlap'] and not ignore_panels:
+            try:
+                # TODO: CONTEXT IS INCORRECT when maximize_area was True????
+                ctx = { 'area': self.area, 'space_data': self.space, 'window': self.window, 'screen': self.screen }
+                rgn_toolshelf = bpy.context.area.regions[1]
+                rgn_properties = bpy.context.area.regions[3]
+                if data['show_toolshelf'] and rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
+                if data['show_properties'] and rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
+            except Exception as e:
+                print(str(e))
+                pass
+                #self.ui_toggle_maximize_area(use_hide_panels=False)
+
+        Drawing.set_cursor('DEFAULT')
+
+        for o in bpy.data.objects:
+            if hasattr(o, 'hide'):
+                o.hide = o.name in data['hidden objects']
+            if hasattr(o, 'select'):
+                set_object_selection(o, o.name in data['selected objects'])
+            if o.name == data['active object']:
+                set_object_selection(o, True)
+                set_active_object(o)
+
+        bpy.ops.object.mode_set(mode=data['mode translated'])
+
+    def overwrite_window_state(self):
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # overwrite space info by hiding all non-renderable items
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                for area in win.screen.areas:
+                    if area.type != 'VIEW_3D': continue
+                    for space in area.spaces:
+                        if space.type != 'VIEW_3D': continue
+                        space.show_only_render = True
+                        space.show_manipulator = False
+
+        # hide tool shelf and properties panel if region overlap is enabled
+        rgn_overlap = bpy.context.user_preferences.system.use_region_overlap
+        if rgn_overlap:
+            show_toolshelf = bpy.context.area.regions[1].width > 1
+            show_properties = bpy.context.area.regions[3].width > 1
+            if show_toolshelf: bpy.ops.view3d.toolshelf()
+            if show_properties: bpy.ops.view3d.properties()
+
+        # hide meshes so we can render internally
+        self.rfctx.rftarget.obj_hide()
+        for rfsource in self.rfctx.rfsources:
+            rfsource.obj_set_select(False)
+            # rfsource.obj_hide()
+
+
+
+    ################################################
+    # Saving methods
 
     @staticmethod
     def backup_recover():
@@ -206,36 +360,23 @@ class RFMode(Operator):
         if 'RetopoFlow_Rotate' in bpy.data.objects:
             # need to remove empty object for rotation
             bpy.data.objects.remove(bpy.data.objects['RetopoFlow_Rotate'], do_unlink=True)
-        tar_object = next(o for o in bpy.data.objects if o.select)
-        bpy.context.scene.objects.active = tar_object
-        tar_object.hide = False
+        #RFMode.restore_window_state()
 
-        RFMode.restore_window_state()
-
-    @staticmethod
-    def backup_save():
-        use_auto_save_temporary_files = bpy.context.user_preferences.filepaths.use_auto_save_temporary_files
+    def save_backup(self):
         filepath = options.temp_filepath('blend')
         dprint('saving backup to %s' % filepath)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        if os.path.exists(filepath): os.remove(filepath)
+        self.restore_window_state(ignore_panels=True)
         bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
+        self.overwrite_window_state()
 
-    def invoke(self, context, event):
-        ''' called when the user invokes (calls/runs) our tool '''
-        if not still_registered(self):
-            report_broken_rfmode()
-            return {'CANCELLED'}
-        if not self.poll(context): return {'CANCELLED'}    # tool cannot start
-        self.framework_start(context)
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal
-
-    def modal(self, context, event):
-        return self.framework_modal(context, event)
-
-    def check(self, context):
-        return True
+    def save_normal(self):
+        self.restore_window_state(ignore_panels=True)
+        bpy.ops.wm.save_mainfile()
+        self.overwrite_window_state()
+        # note: filepath might not be set until after save
+        filepath = os.path.abspath(bpy.data.filepath)
+        dprint('saved to %s' % filepath)
 
     #############################################
     # initialization method
@@ -260,21 +401,14 @@ class RFMode(Operator):
         self.exception_quit = False
         profiler.reset()
 
-        # remember current mode and set to object mode so we can control
-        # how the target mesh is rendered and so we can push new data
-        # into target mesh
-        self.prev_mode = {
-            'OBJECT':        'OBJECT',          # for some reason, we must
-            'EDIT_MESH':     'EDIT',            # translate bpy.context.mode
-            'SCULPT':        'SCULPT',          # to something that
-            'PAINT_VERTEX':  'VERTEX_PAINT',    # bpy.ops.object.mode_set()
-            'PAINT_WEIGHT':  'WEIGHT_PAINT',    # accepts (for ui_end())...
-            'PAINT_TEXTURE': 'TEXTURE_PAINT',
-            }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
-        if self.prev_mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
+        self.store_window_state()
 
-        #print([(k,str(getattr(context,k))) for k in sorted(dir(context))])
+        # if 'RetopoFlow' not in bpy.data.screens:
+        #     screen_names = {s.name for s in bpy.data.screens}
+        #     bpy.ops.screen.new()
+        #     screen_name = next(iter({s.name for s in bpy.data.screens} - screen_names))
+        #     bpy.data.screens[screen_name].name = 'RetopoFlow'
+
         self.context = context
         self.window = self.context.window
         self.screen = self.context.screen
@@ -284,6 +418,9 @@ class RFMode(Operator):
 
         self.context_start()
         self.ui_start()
+
+        self.overwrite_window_state()
+        self.area.header_text_set('RetopFlow Mode')
 
     def framework_end(self):
         '''
@@ -300,69 +437,27 @@ class RFMode(Operator):
             err = True
         if err: self.handle_exception(serious=True)
 
-        # restore previous mode
-        bpy.ops.object.mode_set(mode=self.prev_mode)
+        self.restore_window_state()
+        self.area.header_text_set()
 
         stats_report()
 
     def context_start(self):
-        @blender_version_wrapper('<','2.80')
-        def set_object_layers(o):
-            o.layers = list(bpy.context.scene.layers)
-        @blender_version_wrapper('>=','2.80')
-        def set_object_layers(o):
-            print('unhandled: set_object_layers')
-            pass
-
-        @blender_version_wrapper('<','2.80')
-        def set_object_selection(o, sel):
-            o.select = sel
-        @blender_version_wrapper('>=','2.80')
-        def set_object_selection(o, sel):
-            o.select_set('SELECT' if sel else 'DESELECT')
-
-        @blender_version_wrapper('<','2.80')
-        def link_object(o):
-            bpy.context.scene.objects.link(o)
-        @blender_version_wrapper('>=','2.80')
-        def link_object(o):
-            print('unhandled: link_object')
-            pass
-
-        @blender_version_wrapper('<','2.80')
-        def set_active_object(o):
-            bpy.context.scene.objects.active = o
-        @blender_version_wrapper('>=','2.80')
-        def set_active_object(o):
-            print('unhandled: set_active_object')
-            pass
-
-        @blender_version_wrapper('<','2.80')
-        def get_active_object():
-            return bpy.context.scene.objects.active
-        @blender_version_wrapper('>=','2.80')
-        def get_active_object():
-            return bpy.context.active_object
-
         # should we generate new target object?
         if not RFContext.has_valid_target():
             dprint('generating new target')
-            tar_name = "RetopoFlow"
             tar_location = bpy.context.scene.cursor_location
-            tar_editmesh = bpy.data.meshes.new(tar_name)
-            tar_object = bpy.data.objects.new(tar_name, tar_editmesh)
+            tar_editmesh = bpy.data.meshes.new('RetopoFlow')
+            tar_object = bpy.data.objects.new('RetopoFlow', tar_editmesh)
             tar_object.matrix_world = Matrix.Translation(tar_location)  # place new object at scene's cursor location
             set_object_layers(tar_object)                               # set object on visible layers
             #tar_object.show_x_ray = get_settings().use_x_ray
             link_object(tar_object)
             set_active_object(tar_object)
             set_object_selection(tar_object, True)
+            self.update_window_state('active object', tar_object.name)
 
         tar_object = get_active_object()
-
-        # remember selection and unselect all
-        self.selected_objects = [o for o in bpy.data.objects if o != tar_object and o.select]
-        for o in self.selected_objects: set_object_selection(o, False)
 
         starting_tool = self.context_start_tool()
         self.rfctx = RFContext(self, starting_tool)
@@ -376,29 +471,10 @@ class RFMode(Operator):
             self.rfctx.end()
             del self.rfctx
 
-        # restore selection
-        for o in self.selected_objects: o.select = True
-
 
     def ui_start(self):
         # report something useful to user
         # bpy.context.area.header_text_set('RetopoFlow Mode')
-
-        # remember space info and hide all non-renderable items
-        RFMode.save_window_state()
-        self.space_info = {}
-        for wm in bpy.data.window_managers:
-            for win in wm.windows:
-                for area in win.screen.areas:
-                    if area.type != 'VIEW_3D': continue
-                    for space in area.spaces:
-                        if space.type != 'VIEW_3D': continue
-                        self.space_info[space] = {
-                            'show_only_render': space.show_only_render,
-                            'show_manipulator': space.show_manipulator,
-                        }
-                        space.show_only_render = True
-                        space.show_manipulator = False
 
         # add callback handlers
         self.cb_pr_handle = SpaceView3D.draw_handler_add(self.draw_callback_preview,   (bpy.context, ), 'WINDOW', 'PRE_VIEW')
@@ -446,14 +522,6 @@ class RFMode(Operator):
         }
 
         self.maximize_area = False
-        self.rgn_toolshelf = bpy.context.area.regions[1]
-        self.rgn_properties = bpy.context.area.regions[3]
-        self.show_toolshelf = self.rgn_toolshelf.width > 1
-        self.show_properties = self.rgn_properties.width > 1
-        self.region_overlap = bpy.context.user_preferences.system.use_region_overlap
-        if self.region_overlap:
-            if self.show_toolshelf: bpy.ops.view3d.toolshelf()
-            if self.show_properties: bpy.ops.view3d.properties()
 
         self.wrap_panels()
 
@@ -461,10 +529,6 @@ class RFMode(Operator):
 
         self.drawing = Drawing.get_instance()
         self.drawing.set_cursor('CROSSHAIR')
-
-        # hide meshes so we can render internally
-        self.rfctx.rftarget.obj_hide()
-        #for rfsource in rfctx.rfsources: rfsource.obj_hide()
 
     def ui_toggle_maximize_area(self, use_hide_panels=True):
         try:
@@ -477,16 +541,6 @@ class RFMode(Operator):
 
     def ui_end(self):
         if self.maximize_area: self.ui_toggle_maximize_area()
-        if self.region_overlap:
-            try:
-                # TODO: CONTEXT IS INCORRECT when maximize_area was True????
-                ctx = { 'area': self.area, 'space_data': self.space, 'window': self.window, 'screen': self.screen }
-                if self.show_toolshelf and self.rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
-                if self.show_properties and self.rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
-            except Exception as e:
-                print(str(e))
-                pass
-                #self.ui_toggle_maximize_area(use_hide_panels=False)
 
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
@@ -522,15 +576,6 @@ class RFMode(Operator):
         if hasattr(self, 'cb_pp_all'):
             for s,a,cb in self.cb_pp_all: s.draw_handler_remove(cb, a)
             del self.cb_pp_all
-
-        self.drawing.set_cursor('DEFAULT')
-
-        # restore space info
-        for space,data in self.space_info.items():
-            for k,v in data.items(): space.__setattr__(k, v)
-
-        # remove useful reporting
-        self.area.header_text_set()
 
         self.tag_redraw_all()
 

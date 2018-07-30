@@ -39,7 +39,7 @@ from ..common.maths import Point2D
 from ..common.maths import Ray, XForm, BBox, Plane
 from ..common.hasher import hash_object
 from ..common.utils import min_index, UniqueCounter
-from ..common.decorators import stats_wrapper
+from ..common.decorators import stats_wrapper, blender_version_wrapper
 from ..common.debug import dprint
 from ..common.profiler import profiler
 
@@ -199,11 +199,27 @@ class RFMesh():
         for attr, val in self.prev_state.items():
             self.obj.__setattr__(attr, val)
 
+    def get_obj_name(self):
+        return self.obj.name
+
     def obj_hide(self):
         self.obj.hide = True
 
     def obj_unhide(self):
         self.obj.hide = False
+
+    def obj_select(self):
+        self.obj_set_select(True)
+
+    def obj_unselect(self):
+        self.obj_set_select(False)
+
+    @blender_version_wrapper('<','2.80')
+    def obj_set_select(self, sel):
+        self.obj.select = sel
+    @blender_version_wrapper('>=','2.80')
+    def obj_set_select(o, sel):
+        self.obj.select_set('SELECT' if sel else 'DESELECT')
 
     def ensure_lookup_tables(self):
         self.bme.verts.ensure_lookup_table()

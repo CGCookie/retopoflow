@@ -668,7 +668,7 @@ class RFContext_UI:
 
         ui_save = info_adv.add(UI_Collapsible('Auto Save', collapsed=True))
         self.window_debug_save = ui_save.add(UI_Label('Time: inf', tooltip="Seconds until auto save is triggered (based on Blender settings)"))
-        ui_save.add(UI_Button('Save Now', self.rfmode.backup_save, tooltip="Save backup now"))
+        ui_save.add(UI_Button('Save Now', self.rfmode.save_backup, tooltip="Save backup now"))
 
         ui_lowfps = info_adv.add(UI_Collapsible('FPS Options', collapsed=True))
         self.window_debug_fps = ui_lowfps.add(UI_Label('FPS: 0.00'))
