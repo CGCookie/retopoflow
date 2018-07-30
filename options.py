@@ -28,7 +28,7 @@ import platform
 import bgl
 import bpy
 
-from .common.debug import Debugger
+from .common.debug import Debugger, dprint
 from .common.logger import Logger
 from .common.profiler import Profiler
 
@@ -195,6 +195,7 @@ class Options:
         return Options.db[key] if key in Options.db else Options.default_options[key]
     def __setitem__(self, key, val):
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
+        if self[key] == val: return
         Options.db[key] = val
         self.write()
     def update_external_vars(self):
@@ -207,6 +208,7 @@ class Options:
         Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self['profiler_filename'])
     def write(self):
+        dprint('Writing options:', Options.db)
         json.dump(Options.db, open(Options.fndb, 'wt'))
         self.update_external_vars()
     def read(self):
