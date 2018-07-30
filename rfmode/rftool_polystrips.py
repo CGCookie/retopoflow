@@ -248,14 +248,14 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             self.rfcontext.select(faces, only=False)
             return
 
-        if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('select then grab')
-            face = self.rfcontext.accel_nearest2D_face()
-            if not face:
-                self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select(face)
-            return self.prep_move()
+        # if self.rfcontext.actions.pressed('action'):
+        #     self.rfcontext.undo_push('select then grab')
+        #     face = self.rfcontext.accel_nearest2D_face()
+        #     if not face:
+        #         self.rfcontext.deselect_all()
+        #         return
+        #     self.rfcontext.select(face)
+        #     return self.prep_move()
 
         if self.rfcontext.actions.pressed('grab'):
             return self.prep_move()
@@ -673,31 +673,40 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 bgl.glEnd()
                 self.drawing.disable_stipple()
 
+        if True:
+            # always draw on top!
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glDisable(bgl.GL_DEPTH_TEST)
+            bgl.glDepthMask(bgl.GL_FALSE)
+            draw(1.0, 1.0, False)
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
+            bgl.glDepthMask(bgl.GL_TRUE)
+        else:
+            # allow handles to go under surface
+            bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-        bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
+            # draw in front of geometry
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            draw(
+                options['target alpha'],
+                options['target alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
 
-        # draw in front of geometry
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        draw(
-            options['target alpha'],
-            options['target alpha'], # hover
-            False, #options['polystrips handle hover']
-        )
+            # draw behind geometry
+            bgl.glDepthFunc(bgl.GL_GREATER)
+            draw(
+                options['target hidden alpha'],
+                options['target hidden alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
 
-        # draw behind geometry
-        bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(
-            options['target hidden alpha'],
-            options['target hidden alpha'], # hover
-            False, #options['polystrips handle hover']
-        )
-
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthRange(0.0, 1.0)
-        bgl.glDepthMask(bgl.GL_TRUE)
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            bgl.glDepthRange(0.0, 1.0)
+            bgl.glDepthMask(bgl.GL_TRUE)
 
     def draw_postpixel(self):
         self.rfcontext.drawing.set_font_size(12)
