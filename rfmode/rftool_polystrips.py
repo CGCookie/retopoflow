@@ -564,6 +564,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         strips = self.strips
         hov_strips = self.hovering_strips
 
+        def is_visible(v):
+            return True
+            return self.rfcontext.is_visible(v, None)
+
         def draw(alphamult, hov_alphamult, hover):
             nonlocal strips
 
@@ -585,23 +589,24 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
             for strip in strips:
                 a = hov_alphamult if strip in hov_strips else alphamult
                 p0,p1,p2,p3 = strip.curve.points()
-                edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
-                edgeShortenShader['vFrom'] = (p1.x, p1.y, p1.z, 1.0)
-                edgeShortenShader['vRadius'] = size_outer + 2
-                bgl.glVertex3f(*p0)
-                edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
-                edgeShortenShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
-                edgeShortenShader['vRadius'] = size_inner + 2
-                bgl.glVertex3f(*p1)
-
-                edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
-                edgeShortenShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
-                edgeShortenShader['vRadius'] = size_inner + 2
-                bgl.glVertex3f(*p2)
-                edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
-                edgeShortenShader['vFrom'] = (p2.x, p2.y, p2.z, 1.0)
-                edgeShortenShader['vRadius'] = size_outer + 2
-                bgl.glVertex3f(*p3)
+                if is_visible(p0) and is_visible(p1):
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
+                    edgeShortenShader['vFrom'] = (p1.x, p1.y, p1.z, 1.0)
+                    edgeShortenShader['vRadius'] = size_outer + 2
+                    bgl.glVertex3f(*p0)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
+                    edgeShortenShader['vFrom'] = (p0.x, p0.y, p0.z, 1.0)
+                    edgeShortenShader['vRadius'] = size_inner + 2
+                    bgl.glVertex3f(*p1)
+                if is_visible(p2) and is_visible(p3):
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
+                    edgeShortenShader['vFrom'] = (p3.x, p3.y, p3.z, 1.0)
+                    edgeShortenShader['vRadius'] = size_inner + 2
+                    bgl.glVertex3f(*p2)
+                    edgeShortenShader['vColor'] = (1.00, 1.00, 1.00, 0.45 * a)
+                    edgeShortenShader['vFrom'] = (p2.x, p2.y, p2.z, 1.0)
+                    edgeShortenShader['vRadius'] = size_outer + 2
+                    bgl.glVertex3f(*p3)
             bgl.glEnd()
             edgeShortenShader.disable()
 
@@ -619,10 +624,12 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 bmf0,bmf1 = strip.end_faces()
                 p0,p1,p2,p3 = strip.curve.points()
                 if bmf0 not in faces_drawn:
-                    bgl.glVertex3f(*p0)
+                    if is_visible(p0):
+                        bgl.glVertex3f(*p0)
                     faces_drawn.add(bmf0)
                 if bmf1 not in faces_drawn:
-                    bgl.glVertex3f(*p3)
+                    if is_visible(p3):
+                        bgl.glVertex3f(*p3)
                     faces_drawn.add(bmf1)
             bgl.glEnd()
             circleShader.disable()
@@ -656,8 +663,10 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                     circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.4*a)
                     circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.8*a)
                     p0,p1,p2,p3 = strip.curve.points()
-                    bgl.glVertex3f(*p1)
-                    bgl.glVertex3f(*p2)
+                    if is_visible(p1):
+                        bgl.glVertex3f(*p1)
+                    if is_visible(p2):
+                        bgl.glVertex3f(*p2)
                 bgl.glEnd()
                 circleShader.disable()
 
