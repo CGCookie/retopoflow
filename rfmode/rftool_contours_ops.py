@@ -31,7 +31,7 @@ from .rftool import RFTool
 from ..common.profiler import profiler
 from ..common.utils import max_index
 from ..common.maths import Point,Point2D,Vec2D,Vec,Plane
-from ..common.ui import UI_Label, UI_IntValue, UI_Image
+from ..common.ui import UI_Label, UI_Number, UI_Image
 from ..options import options
 
 from .rftool_contours_utils import *

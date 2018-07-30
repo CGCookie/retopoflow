@@ -42,7 +42,7 @@ from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Image, UI_Number, UI_BoolValue,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
@@ -95,10 +95,10 @@ class RFTool_Patches(RFTool):
             if options['patches angle'] == v: return
             options['patches angle'] = v
             self.update()
-        self.ui_crosses = UI_IntValue('Crosses', get_crosses, set_crosses)
+        self.ui_crosses = UI_Number('Crosses', get_crosses, set_crosses)
         self.ui_crosses.visible = False
         return [
-            UI_IntValue('Angle', get_angle, set_angle, tooltip='A vertex between connected edges that form an angles below this threshold is a corner'),
+            UI_Number('Angle', get_angle, set_angle, tooltip='A vertex between connected edges that form an angles below this threshold is a corner'),
             self.ui_crosses,
         ]
 

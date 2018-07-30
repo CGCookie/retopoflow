@@ -1691,7 +1691,7 @@ class UI_BoolValue(UI_Checkbox):
     pass
 
 
-class UI_IntValue(UI_Container):
+class UI_Number(UI_Container):
     def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_formatter=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False, margin=margin, separation=4)

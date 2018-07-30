@@ -41,7 +41,7 @@ from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Image, UI_Number, UI_BoolValue,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )

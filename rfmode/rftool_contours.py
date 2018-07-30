@@ -33,7 +33,7 @@ from ..common.maths import (
     Plane,
 )
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue, UI_Checkbox,
+    UI_Image, UI_Number, UI_BoolValue, UI_Checkbox,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
@@ -94,7 +94,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
         return [
             UI_Checkbox('Uniform Cut', *options.gettersetter('contours uniform'), tooltip='Enable to force new cuts to distribute vertices uniformly about circumference'),
-            UI_IntValue('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour'),
+            UI_Number('Initial Count', self.get_count, self.set_count, tooltip='Default segment count of newly created contour'),
             container_count,
             ]
 

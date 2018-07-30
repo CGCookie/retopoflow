@@ -43,7 +43,7 @@ from ..common.maths import Point,Point2D,Vec2D,Vec,clamp,Accel2D,Direction
 from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Image, UI_Number, UI_BoolValue,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer, UI_Collapsible, UI_Frame,
     )
@@ -115,13 +115,13 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
 
         container_adv = UI_Collapsible('Advanced')
         container_handles = container_adv.add(UI_Frame('Handle Size'))
-        container_handles.add(UI_IntValue('Outer', *options.gettersetter('polystrips handle outer size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of outer handles (junctions)'))
-        container_handles.add(UI_IntValue('Inner', *options.gettersetter('polystrips handle inner size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of inner handles'))
-        container_adv.add(UI_IntValue('Max Strips', get_max_strips, set_max_strips, tooltip='Sets maximum count of strips to detect (0=no max)'))
+        container_handles.add(UI_Number('Outer', *options.gettersetter('polystrips handle outer size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of outer handles (junctions)'))
+        container_handles.add(UI_Number('Inner', *options.gettersetter('polystrips handle inner size', getwrap=lambda v:int(v), setwrap=lambda v:max(1,v)), tooltip='Size of inner handles'))
+        container_adv.add(UI_Number('Max Strips', get_max_strips, set_max_strips, tooltip='Sets maximum count of strips to detect (0=no max)'))
         container_adv.add(UI_BoolValue('Draw Curve', get_draw_curve, set_draw_curve, tooltip='Debug: draw Bezier curve for each strip'))
         return [
             container_count,
-            UI_IntValue('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
+            UI_Number('Scale Falloff', self.get_scale_falloff, self.set_scale_falloff, tooltip='Controls how quickly control point scaling falls off', fn_get_print_value=self.get_scale_falloff_print, fn_set_print_value=self.set_scale_falloff_print),
             container_adv,
         ]
 

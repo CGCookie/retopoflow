@@ -44,7 +44,7 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer, UI_Frame,
-    UI_IntValue,
+    UI_Number,
     GetSet,
     )
 from ..common import bmesh_render as bmegl
@@ -608,16 +608,16 @@ class RFContext_UI:
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
 
         container_view = dd_general.add(UI_Collapsible('View Options'))
-        container_view.add(UI_IntValue('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        container_view.add(UI_IntValue('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
-        container_view.add(UI_IntValue('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
+        container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
+        container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
 
         container_target = dd_general.add(UI_Collapsible('Target Rendering'))
-        container_target.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
-        container_target.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
-        container_target.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
+        container_target.add(UI_Number('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
+        container_target.add(UI_Number('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
+        container_target.add(UI_Number('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
         container_target.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
-        container_target.add(UI_IntValue('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+        container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
 
         opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
@@ -637,7 +637,7 @@ class RFContext_UI:
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), tooltip='Toggle X-Symmetry for target', spacing=0))
         dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), tooltip='Toggle Y-Symmetry for target', spacing=0))
         dd_symmetry.add(UI_Checkbox2('z', lambda: self.get_symmetry('z'), lambda v: self.set_symmetry('z',v), tooltip='Toggle Z-Symmetry for target', spacing=0))
-        container_symmetry.add(UI_IntValue('Threshold', get_symmetry_threshold, set_symmetry_threshold, fn_update_value=update_symmetry_threshold, fn_get_print_value=get_symmetry_threshold_print, fn_set_print_value=set_symmetry_threshold_print, tooltip='Distance within which mirrored vertices are merged'))
+        container_symmetry.add(UI_Number('Threshold', get_symmetry_threshold, set_symmetry_threshold, fn_update_value=update_symmetry_threshold, fn_get_print_value=get_symmetry_threshold_print, fn_set_print_value=set_symmetry_threshold_print, tooltip='Distance within which mirrored vertices are merged'))
         opt_symmetry_view = container_symmetry.add(UI_Options(*optgetset('symmetry view', setcallback=replace_opts), vertical=False))
         opt_symmetry_view.add_option('None', tooltip='Disable visualization of symmetry', align=0)
         opt_symmetry_view.add_option('Edge', tooltip='Highlight symmetry on source meshes as edge loop(s)', align=0)
@@ -646,7 +646,7 @@ class RFContext_UI:
             return int(options['symmetry effect'] * 100)
         def set_symmetry_effect(v):
             options['symmetry effect'] = clamp(v / 100.0, 0.0, 1.0)
-        container_symmetry.add(UI_IntValue('Effect', *optgetset('symmetry effect', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(v/100, 0.0, 1.0)), tooltip='Controls strength of symmetry visualization'))
+        container_symmetry.add(UI_Number('Effect', *optgetset('symmetry effect', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(v/100, 0.0, 1.0)), tooltip='Controls strength of symmetry visualization'))
 
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
@@ -656,7 +656,7 @@ class RFContext_UI:
         info_adv = self.window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
 
         info_adv.add(UI_Checkbox('Experimental Tools', *options.gettersetter('show experimental', setcallback=lambda v:need_restart('Experimental Tools')), tooltip='Enable to show experimental tools'))
-        info_adv.add(UI_IntValue('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
+        info_adv.add(UI_Number('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
         info_adv.add(UI_Checkbox('Debug Actions', *optgetset('debug actions'), tooltip="Print actions (except MOUSEMOVE) to console"))
         info_adv.add(UI_Checkbox('Instrument', *optgetset('instrument'), tooltip="Enable to record all of your actions to a text block. CAUTION: will slow down responsiveness!"))
         info_adv.add(UI_Checkbox('Async Loading', *optgetset('async mesh loading'), tooltip="Load meshes asynchronously"))
@@ -669,8 +669,8 @@ class RFContext_UI:
         self.window_debug_fps = ui_lowfps.add(UI_Label('FPS: 0.00'))
         ui_lowfps.add(UI_Checkbox('Chart', *optgetset('visualize fps'), tooltip='Enable to visualize FPS in chart'))
         ui_lowfps.add(UI_Checkbox('Perform Check', *optgetset('low fps warn'), tooltip='Enable low FPS checking'))
-        ui_lowfps.add(UI_IntValue('Threshold', *optgetset('low fps threshold', setwrap=lambda v:min(60,max(1,v))), tooltip='Set low FPS threshold'))
-        ui_lowfps.add(UI_IntValue('Timing', *optgetset('low fps time', setwrap=lambda v:min(120,max(1,v))), tooltip='Set low FPS timing'))
+        ui_lowfps.add(UI_Number('Threshold', *optgetset('low fps threshold', setwrap=lambda v:min(60,max(1,v))), tooltip='Set low FPS threshold'))
+        ui_lowfps.add(UI_Number('Timing', *optgetset('low fps time', setwrap=lambda v:min(120,max(1,v))), tooltip='Set low FPS timing'))
         ui_lowfps.add(UI_Button('Show FPS Dialog', self.show_lowfps_warning, tooltip='Show FPS dialog'))
 
         if retopoflow_profiler:

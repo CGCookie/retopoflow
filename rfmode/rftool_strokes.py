@@ -41,7 +41,7 @@ from ..common.bezier import CubicBezierSpline, CubicBezier
 from ..common.shaders import circleShader, edgeShortenShader, arrowShader
 from ..common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ..common.ui import (
-    UI_Image, UI_IntValue, UI_BoolValue,
+    UI_Image, UI_Number, UI_BoolValue,
     UI_Button, UI_Label,
     UI_Container, UI_EqualContainer
     )
@@ -117,9 +117,9 @@ class RFTool_Strokes(RFTool):
             self.strip_loops = v
             self.replay()
 
-        self.ui_cross_count = UI_IntValue('Crosses', get_crosses, set_crosses)
+        self.ui_cross_count = UI_Number('Crosses', get_crosses, set_crosses)
         self.ui_cross_count.visible = False
-        self.ui_loop_count = UI_IntValue('Loops', get_loops, set_loops)
+        self.ui_loop_count = UI_Number('Loops', get_loops, set_loops)
         self.ui_loop_count.visible = False
 
         return [

@@ -34,7 +34,7 @@ from ..common.maths import (
 from ..common.ui import (
     UI_Container, UI_Collapsible, UI_Frame,
     UI_Image, UI_Label,
-    UI_BoolValue, UI_IntValue, UI_Checkbox,
+    UI_BoolValue, UI_Number, UI_Checkbox,
 )
 from ..common.profiler import profiler
 from ..keymaps import default_rf_keymaps
@@ -63,13 +63,13 @@ class RFTool_Relax(RFTool):
         ui_mask.add(UI_BoolValue('Selected', *options.gettersetter('relax mask selected'), tooltip='Enable to mask off vertices that are selected'))
 
         ui_brush = UI_Frame('Brush Properties')
-        ui_brush.add(UI_IntValue('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of relax brush'))
-        ui_brush.add(UI_IntValue('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of relax brush'))
-        ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of relax brush'))
+        ui_brush.add(UI_Number('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of relax brush'))
+        ui_brush.add(UI_Number('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of relax brush'))
+        ui_brush.add(UI_Number('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of relax brush'))
 
         ui_algorithm = UI_Collapsible('Advanced')
-        ui_algorithm.add(UI_IntValue('Multiplier', *options.gettersetter('relax force multiplier', setwrap=lambda v: max(0.1, int(v*10)/10)), fn_formatter=lambda v:'%0.1f'%v, tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
-        ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, int(v))), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
+        ui_algorithm.add(UI_Number('Multiplier', *options.gettersetter('relax force multiplier', setwrap=lambda v: max(0.1, int(v*10)/10)), fn_formatter=lambda v:'%0.1f'%v, tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
+        ui_algorithm.add(UI_Number('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, int(v))), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
         ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length')))
         ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius')))
         ui_algorithm.add(UI_Checkbox('Face Sides', *options.gettersetter('relax face sides')))
