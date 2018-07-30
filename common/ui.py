@@ -327,6 +327,7 @@ class UI_Element:
     def mouse_down(self, mouse): pass
     def mouse_move(self, mouse): pass
     def mouse_up(self, mouse): pass
+    def mouse_cancel(self): pass
     def capture_start(self): pass
     def capture_event(self, event): pass
 
@@ -1748,6 +1749,9 @@ class UI_IntValue(UI_Container):
     def mouse_up(self, mouse):
         self.downed = False
 
+    def mouse_cancel(self):
+        self.fn_set_value(self.down_val)
+
     def mouse_enter(self):
         self.hovering = True
     def mouse_leave(self):
@@ -1821,7 +1825,7 @@ class UI_IntValue(UI_Container):
             if event.type in {'RET','NUMPAD_ENTER'}:
                 self.captured = False
                 try:
-                    v = float(self.val_edit)
+                    v = float(self.val_edit or '0')
                 except:
                     v = self.val_orig
                 if self.fn_set_print_value: self.fn_set_print_value(v)
@@ -2052,7 +2056,7 @@ class UI_Window(UI_Padding):
 
         self.fn_event_handler = options.get('event handler', None)
 
-        self.mouse = Point2D((0,0))
+        self.mouse_pos = Point2D((0,0))
 
         self.ui_hover = None
         self.ui_grab = [self]
@@ -2167,11 +2171,12 @@ class UI_Window(UI_Padding):
         self.ui_hover = new_elem
         if self.ui_hover and self.ui_hover != self: self.ui_hover.mouse_enter()
 
-    def mouse_enter(self): self.update_hover(self.hover_ui(self.mouse))
+    def mouse_enter(self): self.update_hover(self.hover_ui(self.mouse_pos))
     def mouse_leave(self): self.update_hover(None)
 
     def modal(self, context, event):
-        self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+        if event.mouse_region_x >= 0 and event.mouse_region_y >= 0:
+            self.mouse_pos = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
         self.context = context
         self.event = event
 
@@ -2180,12 +2185,12 @@ class UI_Window(UI_Padding):
         nstate = self.FSM[self.state]()
         self.state = nstate or self.state
 
-        return {'hover'} if self.hover_ui(self.mouse) or self.state != 'main' else {}
+        return {'hover'} if self.hover_ui(self.mouse_pos) or self.state != 'main' else {}
 
     def get_tooltip(self):
         self.mouse_enter()
-        #self.ui_hover = self.hover_ui(self.mouse)
-        return self.ui_hover._get_tooltip(self.mouse) if self.ui_hover else None
+        #self.ui_hover = self.hover_ui(self.mouse_pos)
+        return self.ui_hover._get_tooltip(self.mouse_pos) if self.ui_hover else None
 
     def modal_main(self):
         self.mouse_enter()
@@ -2193,13 +2198,13 @@ class UI_Window(UI_Padding):
         self.drawing.set_cursor(self.ui_hover.mouse_cursor())
 
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'PRESS':
-            self.mouse_down = self.mouse
+            self.mouse_pos_down = self.mouse_pos
             if self.movable and self.ui_hover in self.ui_grab:
-                self.mouse_prev = self.mouse
+                self.mouse_pos_prev = self.mouse_pos
                 self.pos_prev = self.pos
                 return 'move'
             self.ui_down = self.ui_hover
-            self.ui_down.mouse_down(self.mouse)
+            self.ui_down.mouse_down(self.mouse_pos)
             self.mouse_moved = False
             return 'down'
 
@@ -2212,17 +2217,17 @@ class UI_Window(UI_Padding):
             return
 
         if self.event.type == 'MIDDLEMOUSE' and self.event.value == 'PRESS':
-            self.mouse_down = self.mouse
-            self.mouse_prev = self.mouse
+            self.mouse_pos_down = self.mouse_pos
+            self.mouse_pos_prev = self.mouse_pos
             return 'scroll'
 
     def modal_scroll(self):
         self.drawing.set_cursor('HAND')
         if self.event.type == 'MIDDLEMOUSE' and self.event.value == 'RELEASE':
             return 'main'
-        move = (self.mouse.y - self.mouse_prev.y)
+        move = (self.mouse_pos.y - self.mouse_pos_prev.y)
         self.hbf.body_scroll.offset += move
-        self.mouse_prev = self.mouse
+        self.mouse_pos_prev = self.mouse_pos
 
     def scrollto_top(self):
         self.hbf.body_scroll.offset = 0
@@ -2234,18 +2239,21 @@ class UI_Window(UI_Padding):
         self.drawing.set_cursor('HAND')
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
             return 'main'
-        diff = self.mouse - self.mouse_down
+        diff = self.mouse_pos - self.mouse_pos_down
         self.fn_sticky.set(self.pos_prev + diff)
         self.update_pos()
-        self.mouse_prev = self.mouse
+        self.mouse_pos_prev = self.mouse_pos
 
     def modal_down(self):
         if self.event.type == 'LEFTMOUSE' and self.event.value == 'RELEASE':
-            self.ui_down.mouse_up(self.mouse)
+            self.ui_down.mouse_up(self.mouse_pos)
             if not self.mouse_moved and self.ui_down.capture_start(): return 'capture'
             return 'main'
-        self.mouse_moved |= self.mouse_down != self.mouse
-        self.ui_down.mouse_move(self.mouse)
+        if self.event.type == 'ESC' and self.event.value == 'RELEASE':
+            self.ui_down.mouse_cancel()
+            return 'main'
+        self.mouse_moved |= (self.mouse_pos_down != self.mouse_pos)
+        self.ui_down.mouse_move(self.mouse_pos)
 
     def modal_capture(self):
         if self.ui_down.capture_event(self.event): return 'main'
