@@ -152,6 +152,7 @@ class RFTool_Patches(RFTool):
             return self.rfcontext.clamp_point_to_symmetry(p)
 
         self._clear_shapes()
+        # remove old corners that are no longer valid or selected
         self.corners = {v:corner for (v, corner) in self.corners.items() if v.is_valid and v.select}
 
         ##############################################
@@ -330,6 +331,7 @@ class RFTool_Patches(RFTool):
                 self.shapes['ngon'].append(loop_strips)
 
         self.shapes['corners'] = list(string_corners | loop_corners)
+        self.corners.update({c:True for c in self.shapes['corners']})
 
         ###################
         # generate previz
