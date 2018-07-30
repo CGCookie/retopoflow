@@ -105,6 +105,25 @@ class RFTool_Relax(RFTool):
                 return 'selectadd/deselect'
             return 'select'
 
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            if self.rfcontext.actions.pressed('select smart'):
+                self.rfcontext.deselect_all()
+            self.rfcontext.actions.unpress()
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge: return
+            faces = set()
+            walk = {edge}
+            touched = set()
+            while walk:
+                edge = walk.pop()
+                if edge in touched: continue
+                touched.add(edge)
+                nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
+                walk |= {f.opposite_edge(edge) for f in nfaces}
+                faces |= nfaces
+            self.rfcontext.select(faces, only=False)
+            return
+
         if self.rfcontext.actions.pressed(['action', 'action alt0'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('action alt0')
             self.rfcontext.actions.unpress()
