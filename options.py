@@ -133,6 +133,7 @@ class Options:
         'color theme':          'Green',
         'symmetry view':        'Edge',
         'symmetry effect':      0.5,
+        'normal offset multiplier': 1.0,
 
         'target alpha':             1.0,
         'target hidden alpha':      0.1,
@@ -327,12 +328,17 @@ class Themes:
 
 class Visualization_Settings:
     def __init__(self):
-        self._last_theme = None
+        self._last = {}
         self.update_settings()
 
     def update_settings(self):
-        if self._last_theme == options['color theme']: return
-        self._last_theme = options['color theme']
+        watch = ['color theme', 'normal offset multiplier']
+        if all(getattr(self._last, key, None) == options[key] for key in watch): return
+        for key in watch: self._last[key] = options[key]
+
+        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
+        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
+        normal_offset_multiplier = options['normal offset multiplier']
 
         self._source_settings = {
             'poly color': (0.0, 0.0, 0.0, 0.0),
@@ -346,12 +352,11 @@ class Visualization_Settings:
             'no below': True,
             'triangles only': True,     # source bmeshes are triangles only!
             'cull backfaces': True,
-            'normal offset': 0.0005,
+
             'focus mult': 0.01,
+            'normal offset': 0.0005 * normal_offset_multiplier,    # pushes vertices out along normal
         }
 
-        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
-        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
         self._target_settings = {
             'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
             'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
@@ -389,7 +394,7 @@ class Visualization_Settings:
             'point mirror dotoffset': 1.0,
 
             'focus mult': 1.0,
-            'normal offset': 0.001,
+            'normal offset': 0.001 * normal_offset_multiplier,         # pushes vertices out along normal
         }
 
     def get_source_settings(self):

@@ -612,11 +612,12 @@ class RFContext_UI:
         container_view.add(UI_IntValue('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         container_view.add(UI_IntValue('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
 
-        container_alpha = dd_general.add(UI_Collapsible('Target Rendering'))
-        container_alpha.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
-        container_alpha.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
-        container_alpha.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
-        container_alpha.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
+        container_target = dd_general.add(UI_Collapsible('Target Rendering'))
+        container_target.add(UI_IntValue('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
+        container_target.add(UI_IntValue('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
+        container_target.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
+        container_target.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
+        container_target.add(UI_IntValue('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
 
         opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
