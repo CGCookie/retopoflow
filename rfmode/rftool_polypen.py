@@ -65,6 +65,7 @@ class RFTool_PolyPen(RFTool):
     def get_ui_options(self):
         return [
             UI_Checkbox('Automerge', *options.gettersetter('polypen automerge'), tooltip='Automatically merge nearby vertices'),
+            UI_Checkbox('Triangle Only', *options.gettersetter('polypen triangle only'), tooltip='If enabled, PolyPen prefers to insert triangles only.'),
             ]
 
     @profiler.profile
@@ -113,7 +114,10 @@ class RFTool_PolyPen(RFTool):
             else:
                 self.next_state = 'edge-face'
         elif num_verts == 3 and num_edges == 3 and num_faces == 1:
-            self.next_state = 'tri-quad'
+            if options['polypen triangle only']:
+                self.next_state = 'edge-face'
+            else:
+                self.next_state = 'tri-quad'
         else:
             self.next_state = 'new vertex'
 

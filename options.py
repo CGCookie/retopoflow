@@ -157,7 +157,8 @@ class Options:
         'polystrips handle outer size': 20,
         'polystrips handle border':     2,
 
-        'polypen automerge': True,
+        'polypen automerge':        True,
+        'polypen triangle only':    False,
 
         'relax mask boundary':  True,
         'relax mask hidden':    True,
