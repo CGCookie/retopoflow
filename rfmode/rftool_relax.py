@@ -68,6 +68,7 @@ class RFTool_Relax(RFTool):
         ui_brush.add(UI_IntValue('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of relax brush'))
 
         ui_algorithm = UI_Collapsible('Advanced')
+        ui_algorithm.add(UI_IntValue('Multiplier', *options.gettersetter('relax force multiplier', setwrap=lambda v: max(0.1, int(v*10)/10)), fn_formatter=lambda v:'%0.1f'%v, tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
         ui_algorithm.add(UI_IntValue('Steps', *options.gettersetter('relax steps', setwrap=lambda v: max(1, int(v))), tooltip='Number of steps taken (small=fast,less accurate.  large=slow,more accurate)'))
         ui_algorithm.add(UI_Checkbox('Edge Length', *options.gettersetter('relax edge length')))
         ui_algorithm.add(UI_Checkbox('Face Radius', *options.gettersetter('relax face radius')))
@@ -169,6 +170,7 @@ class RFTool_Relax(RFTool):
         opt_face_radius = options['relax face radius']
         opt_face_sides = options['relax face sides']
         opt_face_angles = options['relax face angles']
+        opt_mult = options['relax force multiplier']
 
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
 
@@ -252,6 +254,6 @@ class RFTool_Relax(RFTool):
                 if opt_mask_boundary and bmv.is_boundary: continue
                 if vistest and opt_mask_hidden and not is_visible(bmv): continue
                 if opt_mask_selected and bmv.select: continue
-                f = displace[bmv] * vert_strength[bmv]
+                f = displace[bmv] * (opt_mult * vert_strength[bmv])
                 bmv.co += f
                 self.rfcontext.snap_vert(bmv)

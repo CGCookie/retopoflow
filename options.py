@@ -166,6 +166,7 @@ class Options:
         'relax face radius':    True,
         'relax face sides':     True,
         'relax face angles':    False,
+        'relax force multiplier': 1.5,
 
         'tweak mask boundary':  False,
         'tweak mask hidden':    True,

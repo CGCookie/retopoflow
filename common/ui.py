@@ -1639,7 +1639,7 @@ class UI_BoolValue(UI_Checkbox):
 
 
 class UI_IntValue(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
+    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_formatter=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False, margin=margin, separation=4)
         self.defer_recalc = True
@@ -1647,13 +1647,13 @@ class UI_IntValue(UI_Container):
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
         self.fn_update_value = fn_update_value
+        self.fn_formatter = fn_formatter
         self.fn_get_print_value = fn_get_print_value
         self.fn_set_print_value = fn_set_print_value
 
         self.lbl = self.add(UI_Label(label, margin=0, align=-1, valign=0))
         self.add(UI_Label('=', margin=0))
-        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
-        self.val = self.add(UI_Label(fn(), margin=0))
+        self.val = self.add(UI_Label(self.get_formatted_value(), margin=0))
 
         self.downed = False
         self.captured = False
@@ -1664,6 +1664,15 @@ class UI_IntValue(UI_Container):
         self.hovercolor = hovercolor
         self.hovering = False
         self.defer_recalc = False
+
+    def get_formatted_value(self):
+        if self.fn_get_print_value:
+            val = self.fn_get_print_value()
+        else:
+            val = self.fn_get_value()
+        if self.fn_formatter:
+            val = self.fn_formatter(val)
+        return val
 
     def _get_tooltip(self, mouse): return self.tooltip
 
@@ -1694,8 +1703,7 @@ class UI_IntValue(UI_Container):
 
     def predraw(self):
         if not self.captured:
-            fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
-            self.val.set_label(fn())
+            self.val.set_label(self.get_formatted_value())
             self.val.cursor_pos = None
         else:
             self.val.cursor_pos = self.val_pos
@@ -1733,8 +1741,7 @@ class UI_IntValue(UI_Container):
         super()._draw()
 
     def capture_start(self):
-        fn = self.fn_get_print_value if self.fn_get_print_value else self.fn_get_value
-        self.val_orig = fn()
+        self.val_orig = self.get_formatted_value()
         self.val_edit = str(self.val_orig)
         self.val_pos = len(self.val_edit)
         self.captured = True
