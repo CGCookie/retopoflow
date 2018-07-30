@@ -589,7 +589,7 @@ class RFContext_UI:
         self.tool_window.add(self.tool_min)
 
 
-        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos')})
+        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
         #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
         container = window_info.add(UI_Container(margin=0, vertical=False))
         container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message'))
@@ -619,8 +619,7 @@ class RFContext_UI:
         container_alpha.add(UI_IntValue('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
         container_alpha.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
 
-        container_theme = dd_general.add(UI_Container(vertical=False))
-        opt_theme = container_theme.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
+        opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
         opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
         opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)

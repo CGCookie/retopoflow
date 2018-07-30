@@ -154,6 +154,8 @@ class UI_Element:
         self.dirty_callbacks = [ui for ui in self.dirty_callbacks if ui != ui_item]
 
     def dirty(self):
+        # print('Marking %s as dirty' % type(self))
+        # if type(self) is UI_Label: print('  %s' % self.text)
         self.is_dirty = True
         for ui_item in self.dirty_callbacks:
             ui_item.dirty()
@@ -622,11 +624,11 @@ class UI_Rule(UI_Element):
 
 class UI_Container(UI_Element):
     def __init__(self, vertical=True, background=None, margin=0, separation=2):
-        super().__init__(margin=margin)
-        self.defer_recalc = True
-
         self._vertical = None
         self._separation = None
+
+        super().__init__(margin=margin)
+        self.defer_recalc = True
 
         self.vertical = vertical
         self.ui_items = []
@@ -716,7 +718,6 @@ class UI_Container(UI_Element):
         sep = self.drawing.scale(self.separation)
 
         if self.background:
-            pr = profiler.start('background')
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
@@ -741,7 +742,6 @@ class UI_Container(UI_Element):
                 bgl.glVertex2f(l+w, t-h)
                 bgl.glVertex2f(l, t-h)
             bgl.glEnd()
-            pr.done()
 
         if self.vertical:
             pr = profiler.start('vertical')
@@ -806,12 +806,12 @@ class UI_EqualContainer(UI_Container):
 
 class UI_Label(UI_Element):
     def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2):
-        super().__init__(margin=margin)
-        self.defer_recalc = True
-
         self.text = None
         self._fontsize = None
         self._icon = None
+
+        super().__init__(margin=margin)
+        self.defer_recalc = True
 
         self.icon = icon
         self.tooltip = tooltip
@@ -1242,13 +1242,14 @@ class UI_Options(UI_Container):
         def predraw(self):
             if self.value == self.options.fn_get_option():
                 self.background = UI_Options.color_select
-                self.border = (1,1,1,0.5)
+                #self.border = (1,1,1,0.5)
+                self.border = None
             elif self.hovering:
                 self.background = UI_Options.color_hover
                 self.border = (0,0,0,0.2)
             else:
                 self.background = UI_Options.color_unselect
-                self.border = None
+                #self.border = None
 
         #@profiler.profile
         #def _draw(self):
@@ -1448,9 +1449,10 @@ class UI_Graphic(UI_Element):
         l,t = cx-w/2, cy+h/2
 
         self.drawing.line_width(1.0)
+        bgl.glEnable(bgl.GL_BLEND)
 
         if self._graphic == 'box unchecked':
-            bgl.glColor4f(1,1,1,1)
+            bgl.glColor4f(1,1,1,0.5)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             bgl.glVertex2f(l,t)
             bgl.glVertex2f(l,t-h)
@@ -1468,13 +1470,16 @@ class UI_Graphic(UI_Element):
             bgl.glVertex2f(l+w,t)
             bgl.glEnd()
             bgl.glColor4f(1,1,1,1)
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            bgl.glVertex2f(l,t)
-            bgl.glVertex2f(l,t-h)
-            bgl.glVertex2f(l+w,t-h)
-            bgl.glVertex2f(l+w,t)
-            bgl.glVertex2f(l,t)
-            bgl.glEnd()
+            if False:
+                # outline
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                bgl.glVertex2f(l,t)
+                bgl.glVertex2f(l,t-h)
+                bgl.glVertex2f(l+w,t-h)
+                bgl.glVertex2f(l+w,t)
+                bgl.glVertex2f(l,t)
+                bgl.glEnd()
+            # check
             bgl.glBegin(bgl.GL_LINE_STRIP)
             bgl.glVertex2f(l+2,cy)
             bgl.glVertex2f(cx,t-h+2)
@@ -1513,7 +1518,7 @@ class UI_Checkbox(UI_Container):
     [V] Label
     '''
     def __init__(self, label, fn_get_checked, fn_set_checked, **kwopts):
-        spacing = kwopts.get('spacing', 4)
+        spacing = kwopts.get('spacing', 8)
         hovercolor = kwopts.get('hovercolor', (1,1,1,0.1))
         tooltip = kwopts.get('tooltip', None)
 
@@ -1772,7 +1777,7 @@ class UI_HBFContainer(UI_Container):
         self.defer_recalc = True
         self.header = super().add(UI_Container())
         self.body_scroll = super().add(UI_VScrollable())
-        self.body = self.body_scroll.set_ui_item(UI_Container(vertical=vertical, separation=separation))
+        self.body = self.body_scroll.set_ui_item(UI_Container(vertical=vertical, separation=separation, margin=0))
         self.footer = super().add(UI_Container())
         self.header.visible = False
         self.body_scroll.visible = False
@@ -1817,27 +1822,28 @@ class UI_HBFContainer(UI_Container):
 
 class UI_Collapsible(UI_Container):
     def __init__(self, title, collapsed=True, fn_collapsed=None, equal=False, vertical=True):
-        super().__init__(margin=0, separation=0)
+        super().__init__(margin=0, separation=2)
         self.defer_recalc = True
 
-        self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0))
-        self.body_wrap = super().add(UI_Container(vertical=False, margin=0))
-        self.footer = super().add(UI_Container(margin=0))
+        self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0, separation=0))
+        self.body_wrap = super().add(UI_Container(vertical=False, margin=0, separation=0))
+        self.footer = super().add(UI_Container(margin=0, separation=0))
 
         self.title = self.header.add(UI_Container(vertical=False, margin=0))
+        self.title.add(UI_Spacer(width=4))
         self.title_arrow = self.title.add(UI_Graphic('triangle down'))
         self.title_label = self.title.add(UI_Label(title))
         # self.header.add(UI_Rule(color=(0,0,0,0.25)))
 
-        self.body_wrap.add(UI_Spacer(width=2))
-        self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
+        self.body_wrap.add(UI_Spacer(width=8))
+        #self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
         if equal:
             self.body = self.body_wrap.add(UI_EqualContainer(vertical=vertical, margin=1))
         else:
-            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1))
+            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1, separation=0))
 
-        self.footer.add(UI_Spacer(height=1))
-        self.footer.add(UI_Rule(color=(0,0,0,0.25)))
+        #self.footer.add(UI_Spacer(height=1))
+        #self.footer.add(UI_Rule(color=(0,0,0,0.25)))
         self.footer.add(UI_Spacer(height=1))
 
         def get_collapsed(): return fn_collapsed.get() if fn_collapsed else self.collapsed
@@ -1868,7 +1874,7 @@ class UI_Collapsible(UI_Container):
         #self.title.set_bgcolor(self.bgcolors[self.fn_collapsed.get()])
         self.title_arrow.set_graphic(self.graphics[self.fn_collapsed.get()])
         expanded = not self.fn_collapsed.get()
-        self.body.visible = expanded
+        self.body_wrap.visible = expanded
         self.footer.visible = expanded
 
     # def _recalc_size(self):
@@ -1902,14 +1908,14 @@ class UI_Frame(UI_Container):
         self.margin = 0
         self.separation = 0
 
-        self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0))
-        self.body_wrap = super().add(UI_Container(vertical=False, margin=0))
-        self.footer = super().add(UI_Container(margin=0))
+        self.header = super().add(UI_Container(background=(0,0,0,0.2), margin=0, separation=0))
+        self.body_wrap = super().add(UI_Container(vertical=False, margin=0, separation=0))
+        self.footer = super().add(UI_Container(margin=0, separation=0))
 
         self.title = self.header.add(UI_Label(title))
 
-        self.body_wrap.add(UI_Spacer(width=2))
-        self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
+        self.body_wrap.add(UI_Spacer(width=8))
+        #self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
         if equal:
             self.body = self.body_wrap.add(UI_EqualContainer(vertical=vertical, margin=1))
         else:
@@ -1941,8 +1947,8 @@ class UI_Window(UI_Padding):
 
     def __init__(self, title, options):
         vertical = options.get('vertical', True)
-        margin = options.get('padding', 2)
-        separation = options.get('separation', 2)
+        margin = options.get('padding', 0)
+        separation = options.get('separation', 0)
 
         super().__init__(margin=0)
         self.defer_recalc = True
@@ -1971,16 +1977,13 @@ class UI_Window(UI_Padding):
         padded = self.set_ui_item(UI_Padding(margin=margin))
         self.hbf = padded.set_ui_item(UI_HBFContainer(vertical=vertical, separation=separation))
         self.hbf.header.margin = 0
+        self.hbf.body.margin = 0
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
         if title:
-            self.hbf.header.margin = 1
-            self.hbf_title = UI_Label(title, align=0, color=(1,1,1,0.5))
-            self.hbf_title.margin = 1
-            self.hbf_title_rule = UI_Rule(color=(0,0,0,0.1))
-            self.hbf.add(self.hbf_title, header=True)
-            self.hbf.add(self.hbf_title_rule, header=True)
-            self.ui_grab += [self.hbf_title, self.hbf_title_rule]
+            self.hbf_title = self.hbf.add(UI_Label(title, align=0, color=(1,1,1,0.5)), header=True)
+            #self.hbf_title_rule = self.hbf.add(UI_Rule(color=(0,0,0,0.1)), header=True)
+            self.ui_grab += self.hbf.header.ui_items # [self.hbf_title, self.hbf_title_rule]
 
         self.update_pos()
 
@@ -2263,6 +2266,7 @@ class UI_WindowManager:
 
     def draw_postpixel(self, context):
         ScissorStack.start(context)
+        bgl.glEnable(bgl.GL_BLEND)
         if self.focus:
             for win in self.windows_unfocus:
                 win.draw_postpixel()
