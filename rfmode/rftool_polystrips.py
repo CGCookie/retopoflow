@@ -257,7 +257,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         #     self.rfcontext.select(face)
         #     return self.prep_move()
 
-        if self.rfcontext.actions.pressed('grab'):
+        if self.rfcontext.actions.pressed({'grab','action'}, unpress=False):
             return self.prep_move()
 
         if self.rfcontext.actions.pressed('increase count'):
@@ -420,6 +420,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
 
     @profiler.profile
     def prep_move(self, bmfaces=None):
+        lmb_drag = self.rfcontext.actions.using('action')
+        self.rfcontext.actions.unpress()
         if not bmfaces: bmfaces = self.rfcontext.get_selected_faces()
         if not bmfaces: return
         bmverts = set(bmv for bmf in bmfaces for bmv in bmf.verts)
@@ -427,8 +429,8 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         self.mousedown = self.rfcontext.actions.mouse
         self.rfwidget.set_widget('default')
         self.rfcontext.undo_push('move grabbed')
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
+        self.move_done_pressed = None if lmb_drag else 'confirm'
+        self.move_done_released = 'action' if lmb_drag else None
         self.move_cancelled = 'cancel'
         return 'move'
 
