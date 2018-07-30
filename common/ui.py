@@ -86,7 +86,7 @@ class UI_Event:
 
 
 class UI_Element:
-    def __init__(self, margin=0):
+    def __init__(self, margin=0, margin_left=None, margin_right=None, margin_top=None, margin_bottom=None):
         self.is_dirty = True
         self.dirty_callbacks = []
         self.defer_recalc = False
@@ -99,15 +99,19 @@ class UI_Element:
         self._size = None
         self._width = 0
         self._height = 0
-        self.margin_left = None
-        self.margin_right = None
-        self.margin_top = None
-        self.margin_bottom = None
+        self._margin_left = None
+        self._margin_right = None
+        self._margin_top = None
+        self._margin_bottom = None
 
         self.pos = None
         self.size = None
         self.clip = None
         self.margin = margin
+        if margin_left is not None: self.margin_left = margin_left
+        if margin_right is not None: self.margin_right = margin_right
+        if margin_top is not None: self.margin_top = margin_top
+        if margin_bottom is not None: self.margin_bottom = margin_bottom
         self.visible = True
         self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
         self.scissor_enabled = None
@@ -135,16 +139,60 @@ class UI_Element:
 
     @property
     def margin(self):
-        return max(self.margin_left, self.margin_right, self.margin_top, self.margin_bottom)
+        return max(self._margin_left, self._margin_right, self._margin_top, self._margin_bottom)
 
     @margin.setter
     def margin(self, v):
         v = max(0, v)
-        if self.margin_left == v and self.margin_right == v and self.margin_top == v and self.margin_bottom == v: return
-        self.margin_left = v
-        self.margin_right = v
-        self.margin_top = v
-        self.margin_bottom = v
+        if self._margin_left == v and self._margin_right == v and self._margin_top == v and self._margin_bottom == v: return
+        self._margin_left = v
+        self._margin_right = v
+        self._margin_top = v
+        self._margin_bottom = v
+        self.dirty()
+
+    @property
+    def margin_left(self):
+        return self._margin_left
+
+    @margin_left.setter
+    def margin_left(self, v):
+        v = max(0, v)
+        if self._margin_left == v: return
+        self._margin_left = v
+        self.dirty()
+
+    @property
+    def margin_right(self):
+        return self._margin_right
+
+    @margin_right.setter
+    def margin_right(self, v):
+        v = max(0, v)
+        if self._margin_right == v: return
+        self._margin_right = v
+        self.dirty()
+
+    @property
+    def margin_top(self):
+        return self._margin_top
+
+    @margin_top.setter
+    def margin_top(self, v):
+        v = max(0, v)
+        if self._margin_top == v: return
+        self._margin_top = v
+        self.dirty()
+
+    @property
+    def margin_bottom(self):
+        return self._margin_bottom
+
+    @margin_bottom.setter
+    def margin_bottom(self, v):
+        v = max(0, v)
+        if self._margin_bottom == v: return
+        self._margin_bottom = v
         self.dirty()
 
     def register_dirty_callback(self, ui_item):
@@ -191,10 +239,10 @@ class UI_Element:
             self.last_dpi = self.drawing.get_dpi_mult()
             self.dirty()
 
-        ml = self.drawing.scale(self.margin_left)
-        mr = self.drawing.scale(self.margin_right)
-        mt = self.drawing.scale(self.margin_top)
-        mb = self.drawing.scale(self.margin_bottom)
+        ml = self.drawing.scale(self._margin_left)
+        mr = self.drawing.scale(self._margin_right)
+        mt = self.drawing.scale(self._margin_top)
+        mb = self.drawing.scale(self._margin_bottom)
 
         self.pos = Point2D((left + ml, top - mt))
         self.size = Vec2D((width - ml - mr, height - mt - mb))
@@ -250,8 +298,8 @@ class UI_Element:
         pr.done()
         if self._width_inner <= 0 or self._height_inner <= 0:
             return (self._width, self._height)
-        self._width = self._width_inner + self.drawing.scale(self.margin_left + self.margin_right)
-        self._height = self._height_inner + self.drawing.scale(self.margin_top + self.margin_bottom)
+        self._width = self._width_inner + self.drawing.scale(self._margin_left + self._margin_right)
+        self._height = self._height_inner + self.drawing.scale(self._margin_top + self._margin_bottom)
 
         self.is_dirty = False
         return (self._width, self._height)
@@ -261,7 +309,7 @@ class UI_Element:
         pos_size = self._find_rel_pos_size(ui_item)
         if not pos_size: return pos_size
         x, y, w, h = pos_size
-        return (self.margin_left + x, self.margin_top + y, w, h)
+        return (self._margin_left + x, self._margin_top + y, w, h)
     def _find_rel_pos_size(self, ui_item):
         return None
 
@@ -288,15 +336,12 @@ class UI_Element:
 
 
 class UI_Padding(UI_Element):
-    def __init__(self, ui_item=None, margin=5):
-        super().__init__(margin=margin)
-        self.defer_recalc = True
-
+    def __init__(self, ui_item=None, margin=5, margin_left=None, margin_right=None):
         self.ui_item = None
 
-        self.margin = margin
+        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
+        self.defer_recalc = True
         self.set_ui_item(ui_item)
-
         self.defer_recalc = False
 
     def _find_rel_pos_size(self, ui_item):
@@ -312,6 +357,10 @@ class UI_Padding(UI_Element):
             self.ui_item.register_dirty_callback(self)
         self.dirty()
         return self.ui_item
+
+    def _delete(self):
+        if self.ui_item:
+            self.ui_item.unregister_dirty_callback(self)
 
     def _hover_ui(self, mouse):
         if not super()._hover_ui(mouse): return None
@@ -357,6 +406,10 @@ class UI_Background(UI_Element):
             self.ui_item.register_dirty_callback(self)
         self.dirty()
         return self.ui_item
+
+    def _delete(self):
+        if self.ui_item:
+            self.ui_item.unregister_dirty_callback(self)
 
     def _find_rel_pos_size(self, ui_item):
         if self.ui_item == None: return None
@@ -461,7 +514,7 @@ class UI_VScrollable(UI_Padding):
         if self.offset == 0: return
         sl,st,sw,sh = ScissorStack.get_current_view()
         ah = self.get_height()
-        self.offset = mid(self.offset, 0, ah - sh - 1)
+        self.offset = mid(self.offset, 0, ah - sh)
 
     @profiler.profile
     def _draw(self):
@@ -661,8 +714,7 @@ class UI_Container(UI_Element):
 
     def _delete(self):
         for ui_item in self.ui_items:
-            self.unregister_dirty_callback(self)
-            # ui_item.delete()
+            ui_item.unregister_dirty_callback(self)
 
     def add(self, ui_item):
         self.ui_items.append(ui_item)
@@ -1025,8 +1077,8 @@ class UI_WrappedLabel(UI_Element):
 
 
 class UI_Markdown(UI_Padding):
-    def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0):
-        super().__init__(margin=margin)
+    def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0, margin_left=None, margin_right=None):
+        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
         self.defer_recalc = True
 
         self.min_size = self.drawing.scale(min_size)
