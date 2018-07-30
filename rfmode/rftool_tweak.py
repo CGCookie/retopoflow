@@ -100,7 +100,7 @@ class RFTool_Tweak(RFTool):
                 nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
                 walk |= {f.opposite_edge(edge) for f in nfaces}
                 faces |= nfaces
-            self.rfcontext.select(faces, supparts=False, only=False)
+            self.rfcontext.select(faces, only=False)
             return
 
         if self.rfcontext.actions.pressed(['action', 'action alt0'], unpress=False):
