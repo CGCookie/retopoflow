@@ -513,21 +513,21 @@ class RFContext_UI:
         def get_lens():  return int(self.actions.space.lens)
         def set_lens(v): self.actions.space.lens = clamp(int(v), 1, 250)
         def get_clip_start():  return self.actions.space.clip_start
-        def set_clip_start(v): self.actions.space.clip_start = clamp(v, 1e-6, 1e9)
+        def set_clip_start(v): self.actions.space.clip_start = clamp(v, 1e-6, get_clip_end()-1e-6)
         def upd_clip_start(u):
             l = 2
             v = math.log(self.actions.space.clip_start) / math.log(l)
             v = clamp(v + u/10, -10, 10)
             v = math.pow(l, v)
-            self.actions.space.clip_start = v
+            self.actions.space.clip_start = clamp(v, 1e-6, get_clip_end()-1e-6)
         def get_clip_end():    return self.actions.space.clip_end
-        def set_clip_end(v):   self.actions.space.clip_end = clamp(v, 1e-6, 1e9)
+        def set_clip_end(v):   self.actions.space.clip_end = clamp(v, get_clip_start()+1e-6, 1e9)
         def upd_clip_end(u):
             l = 2
             v = math.log(self.actions.space.clip_end) / math.log(l)
             v = clamp(v + u/10, -10, 10)
             v = math.pow(l, v)
-            self.actions.space.clip_end = v
+            self.actions.space.clip_end = clamp(v, get_clip_start()+1e-6, 1e9)
         def get_clip_start_print_value(): return '%0.4f' % (self.actions.space.clip_start * self.unit_scaling_factor)
         def set_clip_start_print_value(v): set_clip_start(v / self.unit_scaling_factor)
         def get_clip_end_print_value():   return '%0.4f' % (self.actions.space.clip_end * self.unit_scaling_factor)
