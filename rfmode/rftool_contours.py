@@ -160,6 +160,19 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
 
     def modal_main(self):
+        if self.rfcontext.actions.pressed('select'):
+            self.rfcontext.undo_push('select')
+            self.rfcontext.deselect_all()
+            return 'select'
+
+        if self.rfcontext.actions.pressed('select add'):
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not bme: return
+            if bme.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
+
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
@@ -173,51 +186,35 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.update()
             return
 
-        if self.rfcontext.actions.pressed('action'):
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                self.rfcontext.deselect_all()
-                return
-            self.rfcontext.undo_push('select and grab')
-            self.rfcontext.select_edge_loop(edge, only=True)
-            self.update()
-            return self.prep_move(after_action=True)
+        # if self.rfcontext.actions.pressed('action'):
+        #     edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        #     if not edge:
+        #         self.rfcontext.deselect_all()
+        #         return
+        #     self.rfcontext.undo_push('select and grab')
+        #     self.rfcontext.select_edge_loop(edge, only=True)
+        #     self.update()
+        #     return self.prep_move(after_action=True)
 
-        if self.rfcontext.actions.pressed('select add'):
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not bme: return
-            if bme.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
-
-        if self.rfcontext.actions.pressed('grab'):
+        if self.rfcontext.actions.pressed({'grab', 'action'}, unpress=False):
             ''' grab for translations '''
-            return self.prep_move()
+            return self.prep_move(after_action=self.rfcontext.actions.pressed('action'))
 
         if self.rfcontext.actions.pressed('shift'):
-            ''' rotation of loops '''
+            ''' rotation of loops about plane normal '''
             return self.prep_shift()
 
-        if self.rfcontext.actions.pressed('rotate'): return self.prep_rotate()
+        if self.rfcontext.actions.pressed('rotate'):
+            ''' screen-space rotation of loops about plane origin '''
+            return self.prep_rotate()
 
         if self.rfcontext.actions.pressed('fill'):
             self.fill()
             return
 
-        if self.rfcontext.actions.pressed('increase count'):
+        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
             self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(1)
-            return
-
-        if self.rfcontext.actions.pressed('decrease count'):
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(-1)
+            self.change_count(1 if self.rfcontext.actions.using('increase count') else -1)
             return
 
     @profiler.profile
