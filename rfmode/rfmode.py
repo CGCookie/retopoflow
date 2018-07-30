@@ -749,6 +749,7 @@ class RFMode(Operator):
         #     return {'RUNNING_MODAL'}
 
         profiler.printfile()
+        options.clean()
 
         # TODO: can we not redraw only when necessary?
         self.tag_redraw()

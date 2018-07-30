@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import os
 import re
 import json
+import time
 import shelve
 import platform
 
@@ -175,8 +176,11 @@ class Options:
         'patches angle':        120,
     }
 
-    db = None                           # current options dict
-    fndb = None
+    db = None           # current options dict
+    fndb = None         # name of file in which to store db (set up in __init__)
+    is_dirty = False    # does the internal db differ from db stored in file? (need writing)
+    last_change = None  # when did we last change an entry?
+    write_delay = 2.0   # seconds to wait before writing db to file
 
     def __init__(self):
         if not Options.fndb:
@@ -188,29 +192,39 @@ class Options:
                 print('RetopoFlow version has changed.  Reseting options')
                 self.reset()
         self.update_external_vars()
-    def __del__(self):
-        #self.write()
-        pass
+
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
+
     def __setitem__(self, key, val):
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
         if self[key] == val: return
         Options.db[key] = val
-        self.write()
+        self.dirty()
+        self.clean()
+
     def update_external_vars(self):
-        # print('Updating:')
-        # print('- Debugger: %d' % self['debug level'])
-        # print('- Logger: %s' % self['log_filename'])
-        # print('- Profiler: %s %s' % (str(self['profiler'] and retopoflow_profiler), self['profiler_filename']))
         Debugger.set_error_level(self['debug level'])
         Logger.set_log_filename(self['log_filename'])
         Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self['profiler_filename'])
-    def write(self):
+
+    def dirty(self):
+        Options.is_dirty = True
+        Options.last_change = time.time()
+        self.update_external_vars()
+
+    def clean(self):
+        if not Options.is_dirty:
+            # nothing has changed
+            return
+        if Options.last_change and time.time() < Options.last_change + Options.write_delay:
+            # we haven't waited long enough before storing db
+            return
         dprint('Writing options:', Options.db)
         json.dump(Options.db, open(Options.fndb, 'wt'))
-        self.update_external_vars()
+        Options.is_dirty = False
+
     def read(self):
         Options.db = {}
         if os.path.exists(Options.fndb):
@@ -225,23 +239,36 @@ class Options:
                 del Options.db[k]
         else:
             print('No options file')
-    def keys(self): return Options.db.keys()
+        self.update_external_vars()
+        Options.is_dirty = False
+
+    def keys(self):
+        return Options.db.keys()
+
     def reset(self):
         keys = list(Options.db.keys())
         for key in keys:
             del Options.db[key]
         Options.db['rf version'] = retopoflow_version
-        self.write()
+        self.dirty()
+        self.clean()
+
     def set_default(self, key, val):
+        # does not dirty nor invoke write!
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
-        if key not in Options.db: Options.db[key] = val
+        if key not in Options.db:
+            Options.db[key] = val
+
     def set_defaults(self, d_key_vals):
+        # does not dirty nor invoke write!
         for key in d_key_vals:
             self.set_default(key, d_key_vals[key])
+
     def getter(self, key, getwrap=None):
         if not getwrap: getwrap = lambda v: v
         def _getter(): return getwrap(options[key])
         return _getter
+
     def setter(self, key, setwrap=None, setcallback=None):
         if not setwrap: setwrap = lambda v: v
         if not setcallback:
@@ -251,12 +278,14 @@ class Options:
             options[key] = setwrap(v)
             setcallback(options[key])
         return _setter
+
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
     def temp_filepath(self, ext):
         tempdir = bpy.context.user_preferences.filepaths.temporary_directory
         return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
+
 
 def rgba_to_float(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
 class Themes:
