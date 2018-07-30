@@ -23,7 +23,7 @@ from math import sqrt, acos, cos, sin
 from typing import List
 
 import bgl
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, Quaternion
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
 
@@ -57,6 +57,32 @@ class Entity3D:
         return True
 
 
+class VecUtils(Vector):
+    def normalize(self):
+        super().normalize()
+        return self
+
+    def as_vector(self):
+        return Vector(self)
+
+    def from_vector(self, v):
+        self.x, self.y, self.z = v
+
+    def perpendicular_direction(self):
+        q0 = Quaternion(Vector((42, 1.618034, 2.71828)), 1.5707963)
+        q1 = Quaternion(Vector((1.41421, 2, 1.73205)), -1.5707963)
+        v = q1 * q0 * self
+        return Direction(self.cross(v))
+
+    def cross(self, other):
+        t = type(other)
+        if t is Vector:
+            return Vec(super().cross(other))
+        if t is Vec or t is Direction or t is Normal:
+            return Vec(super().cross(Vector(other)))
+        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
+
+
 class Vec2D(Vector, Entity2D):
     @stats_wrapper
     def __init__(self, *args, **kwargs):
@@ -75,7 +101,7 @@ class Vec2D(Vector, Entity2D):
         self.x, self.y = v
 
 
-class Vec(Vector, Entity3D):
+class Vec(VecUtils, Entity3D):
     @stats_wrapper
     def __init__(self, *args, **kwargs):
         Vector.__init__(*args, **kwargs)
@@ -85,24 +111,6 @@ class Vec(Vector, Entity3D):
 
     def __repr__(self):
         return self.__str__()
-
-    def normalize(self):
-        super().normalize()
-        return self
-
-    def cross(self, other):
-        t = type(other)
-        if t is Vector:
-            return Vec(super().cross(other))
-        if t is Vec or t is Direction or t is Normal:
-            return Vec(super().cross(Vector(other)))
-        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
-
-    def as_vector(self):
-        return Vector(self)
-
-    def from_vector(self, v):
-        self.x, self.y, self.z = v
 
 
 class Point2D(Vector, Entity2D):
@@ -186,7 +194,7 @@ class Point(Vector, Entity3D):
 
     def __add__(self, other):
         t = type(other)
-        if t is Direction:
+        if t is Direction or t is Normal:
             return Point((
                 self.x + other.x,
                 self.y + other.y,
@@ -282,7 +290,7 @@ class Direction2D(Vector, Entity2D):
         self.normalize()
 
 
-class Direction(Vector, Entity3D):
+class Direction(VecUtils, Entity3D):
     @stats_wrapper
     def __init__(self, t=None):
         if t is not None:
@@ -303,18 +311,6 @@ class Direction(Vector, Entity3D):
     def __rmul__(self, other):
         return self.__mul__(other)
 
-    def normalize(self):
-        super().normalize()
-        return self
-
-    def cross(self, other):
-        t = type(other)
-        if t is Vector:
-            return Vec(super().cross(other))
-        if t is Vec or t is Direction or t is Normal:
-            return Vec(super().cross(Vector(other)))
-        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
-
     def reverse(self):
         self.x *= -1
         self.y *= -1
@@ -324,15 +320,12 @@ class Direction(Vector, Entity3D):
     def angleBetween(self, other):
         return acos(mid(-1, 1, self.dot(other.normalized())))
 
-    def as_vector(self):
-        return Vector(self)
-
     def from_vector(self, v):
-        self.x, self.y, self.z = v
+        super().from_vector(v)
         self.normalize()
 
 
-class Normal(Vector, Entity3D):
+class Normal(VecUtils, Entity3D):
     @stats_wrapper
     def __init__(self, t=None):
         if t is not None:
@@ -353,23 +346,8 @@ class Normal(Vector, Entity3D):
     def __rmul__(self, other):
         return self.__mul__(other)
 
-    def normalize(self):
-        super().normalize()
-        return self
-
-    def cross(self, other):
-        t = type(other)
-        if t is Vector:
-            return Vec(super().cross(other))
-        if t is Vec or t is Direction or t is Normal:
-            return Vec(super().cross(Vector(other)))
-        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
-
-    def as_vector(self):
-        return Vector(self)
-
     def from_vector(self, v):
-        self.x, self.y, self.z = v
+        super().from_vector(v)
         self.normalize()
 
 
