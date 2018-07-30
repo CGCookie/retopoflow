@@ -330,8 +330,7 @@ class RFTool_Patches(RFTool):
             else:
                 self.shapes['ngon'].append(loop_strips)
 
-        self.shapes['corners'] = list(string_corners | loop_corners)
-        self.corners.update({c:True for c in self.shapes['corners']})
+        self.shapes['corners'] = (string_corners | loop_corners)
 
         ###################
         # generate previz
@@ -523,7 +522,10 @@ class RFTool_Patches(RFTool):
         if self.rfcontext.actions.pressed('action alt1'):
             vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
             if not vert or not vert.select: return
-            self.corners[vert] = not self.corners.get(vert, False)
+            if vert in self.shapes['corners']:
+                self.corners[vert] = False
+            else:
+                self.corners[vert] = not self.corners.get(vert, False)
             self.update()
             return
 
