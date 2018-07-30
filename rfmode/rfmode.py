@@ -337,7 +337,7 @@ class RFMode(Operator):
 
         # hide tool shelf and properties panel if region overlap is enabled
         rgn_overlap = bpy.context.user_preferences.system.use_region_overlap
-        if rgn_overlap:
+        if rgn_overlap and bpy.context.area:
             show_toolshelf = bpy.context.area.regions[1].width > 1
             show_properties = bpy.context.area.regions[3].width > 1
             if show_toolshelf: bpy.ops.view3d.toolshelf()
