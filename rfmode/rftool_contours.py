@@ -42,7 +42,7 @@ from .rftool_contours_ops import RFTool_Contours_Ops
 from mathutils import Matrix
 
 from ..keymaps import default_rf_keymaps
-from ..options import options
+from ..options import options, visualization
 from ..help import help_contours
 
 
@@ -110,6 +110,25 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges)
 
+        if sel_loops or sel_strings:
+            # prefer to move loops over strings
+            if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+            else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+            self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+            self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+            self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+            self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+            self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+            self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+        else:
+            self.move_cloops = []
+            self.move_verts = []
+            self.move_pts = []
+            self.move_dists = []
+            self.move_circumferences = []
+            self.move_origins = []
+            self.move_proj_dists = []
+
         # filter out any loops or strings that are in the middle of a selected patch
         def in_middle(bmvs, is_loop):
             return any(len(bmv0.shared_edge(bmv1).link_faces) > 1 for bmv0,bmv1 in iter_pairs(bmvs, is_loop))
@@ -157,6 +176,8 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             'cl': Contours_Loop(string, False),
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
+
+
 
 
     def modal_main(self):
@@ -353,6 +374,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 dist -= d
                 if i == l: break
 
+            cloop.set_vert_loop(verts)
             self.rfcontext.update_verts_faces(verts)
 
     def prep_move(self, after_action=False):
@@ -444,6 +466,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 dist -= d
                 if i == l: break
 
+            cloop.set_vert_loop(verts)
             self.rfcontext.update_verts_faces(verts)
 
     def prep_rotate(self):
@@ -538,9 +561,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 dist -= d
                 if i == l: break
 
+            cloop.set_vert_loop(verts)
             self.rfcontext.update_verts_faces(verts)
 
     def draw_postview(self):
+        bgl.glEnable(bgl.GL_BLEND)
         if self.show_cut:
             self.drawing.line_width(1.0)
 
@@ -555,6 +580,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 bgl.glVertex3f(*pt0)
                 bgl.glVertex3f(*pt1)
             bgl.glEnd()
+
 
     def draw_postpixel(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
@@ -640,6 +666,30 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 if p0 and p1:
                     bgl.glColor4f(1,0,1,0.5)
                     draw2D_arrow(p0, p1)
+
+        # draw widget for selection
+        for cloop in self.move_cloops:
+            o = cloop.plane.o
+            n = cloop.plane.n
+            r = cloop.max_radius
+            bgl.glEnable(bgl.GL_BLEND)
+            self.drawing.line_width(2)
+            self.drawing.point_size(visualization['point size highlight'])
+            bgl.glColor4f(1,1,0.1,1)
+            bgl.glBegin(bgl.GL_LINES)
+            bgl.glVertex2f(*point_to_point2d(o-n))
+            bgl.glVertex2f(*point_to_point2d(o+n))
+            bgl.glEnd()
+            bgl.glBegin(bgl.GL_POINTS)
+            bgl.glVertex2f(*point_to_point2d(o))
+            bgl.glEnd()
+            bgl.glColor4f(1,1,0.1,0.2)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for i in range(0, 361, 10):
+                p = o + cloop.frame.x * math.cos(i*math.pi/180)*r + cloop.frame.y * math.sin(i*math.pi/180)*r
+                bgl.glVertex2f(*point_to_point2d(p))
+            bgl.glEnd()
+            #self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
 
         if self.mode == 'rotate' and self.rotate_about:
             bgl.glEnable(bgl.GL_BLEND)

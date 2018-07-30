@@ -276,15 +276,16 @@ def project_loop_to_plane(vert_loop, plane):
 class Contours_Loop:
     def __init__(self, vert_loop, connected, offset=0):
         self.connected = connected
-        self.set_vert_loop(vert_loop, offset)
+        self.offset = offset
+        self.set_vert_loop(vert_loop)
 
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
     @profiler.profile
-    def set_vert_loop(self, vert_loop, offset):
+    def set_vert_loop(self, vert_loop, offset=None):
         self.verts = vert_loop
-        self.offset = offset
+        if offset: self.offset = offset
         self.pts = [to_point(bmv) for bmv in self.verts]
         self.count = len(self.pts)
         self.plane = loop_plane(self.pts)
@@ -298,6 +299,7 @@ class Contours_Loop:
         self.proj_dists = [self.plane.signed_distance_to(p) for p in self.pts]
         self.circumference = sum(self.dists)
         self.radius = sum(self.w2l_point(pt).length for pt in self.pts) / self.count
+        self.max_radius = max(self.w2l_point(pt).length for pt in self.pts)
 
     def get_origin(self): return self.plane.o
     def get_normal(self): return self.plane.n
@@ -305,11 +307,17 @@ class Contours_Loop:
     def w2l_point(self, co): return self.frame.w2l_point(to_point(co))
     def l2w_point(self, co): return self.frame.l2w_point(to_point(co))
     def get_index_of_top(self, pts):
-        pts_local = [self.w2l_point(pt+self.frame.o) for pt in pts]
-        idx = max_index(pts_local, key=lambda pt:pt.y)
+        pts_local = [Direction(self.w2l_point(pt)) for pt in pts]
+        y = Direction((0,1,0))
+        print(self.pts)
+        print([self.w2l_point(p) for p in self.pts])
+        idx = max_index(pts_local, key=lambda pt:y.dot(pt))
         t = pts_local[idx]
-        #print(pts_local, idx, t)
-        offset = ((math.pi/2 - math.atan2(t.y, t.x)) * self.circumference / (math.pi*2)) % self.circumference
+        angle = math.pi / 2 - math.atan2(t.y, t.x)
+        offset = (angle / (math.pi * 2)) % 1
+        print(offset)
+        offset *= self.circumference
+        #offset = ((math.pi/2 + math.atan2(t.y, t.x) * (-1 if t.x < 0 else 1)) * self.circumference / (math.pi*2)) % self.circumference
         return (idx,offset)
 
     def align_to(self, other):
@@ -320,11 +328,14 @@ class Contours_Loop:
             self.set_vert_loop(vert_loop, 0)
             return
         if is_opposite: n0 = -n0
-        q = Quaternion(n0.cross(n1), n0.angle(n1))
+        pd = n0.perpendicular_direction()
+        ang = n0.angle(n1)
+        q = Quaternion(pd, ang)
 
         # rotate to align "topmost" vertex
-        rel_pos = [Vec(q * (to_point(p) - self.frame.o)) for p in vert_loop]
-        rot_by,offset = other.get_index_of_top(rel_pos)
+        xformed_pos = [Vec(q * (to_point(p) - self.frame.o) + other.frame.o) for p in vert_loop]
+        rot_by,offset = other.get_index_of_top(xformed_pos)
+        #print(rot_by, offset / other.circumference, vert_loop[rot_by], other.up_dir, other.verts[0].co)
         vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         offset = (offset * self.circumference / other.circumference)
         self.set_vert_loop(vert_loop, offset)
