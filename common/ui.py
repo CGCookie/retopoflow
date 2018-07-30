@@ -1452,7 +1452,7 @@ class UI_Graphic(UI_Element):
         bgl.glEnable(bgl.GL_BLEND)
 
         if self._graphic == 'box unchecked':
-            bgl.glColor4f(1,1,1,0.5)
+            bgl.glColor4f(1,1,1,0.25)
             bgl.glBegin(bgl.GL_LINE_STRIP)
             bgl.glVertex2f(l,t)
             bgl.glVertex2f(l,t-h)
@@ -1503,6 +1503,29 @@ class UI_Graphic(UI_Element):
             bgl.glEnd()
 
         elif self._graphic == 'dash':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l+2,cy-2)
+            bgl.glVertex2f(l+w-2,cy-2)
+            bgl.glVertex2f(l+w-2,cy+2)
+            bgl.glVertex2f(l+2,cy+2)
+            bgl.glEnd()
+
+        elif self._graphic == 'plus':
+            bgl.glColor4f(1,1,1,1)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l+2,cy-2)
+            bgl.glVertex2f(l+w-2,cy-2)
+            bgl.glVertex2f(l+w-2,cy+2)
+            bgl.glVertex2f(l+2,cy+2)
+
+            bgl.glVertex2f(cx-2,t-2)
+            bgl.glVertex2f(cx-2,t-h+2)
+            bgl.glVertex2f(cx+2,t-h+2)
+            bgl.glVertex2f(cx+2,t-2)
+            bgl.glEnd()
+
+        elif self._graphic == 'minus':
             bgl.glColor4f(1,1,1,1)
             bgl.glBegin(bgl.GL_QUADS)
             bgl.glVertex2f(l+2,cy-2)
