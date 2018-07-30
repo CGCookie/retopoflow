@@ -128,6 +128,7 @@ class RFMeshRender():
 
         self.load_verts = opts.get('load verts', True)
         self.load_edges = opts.get('load edges', True)
+        self.load_faces = opts.get('load faces', True)
 
         self.buf_data_queue = Queue()
         self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
@@ -194,21 +195,36 @@ class RFMeshRender():
                 # selection will bleed
                 pr = prstart('gathering')
 
-                if self.load_verts:
-                    verts = self.bmesh.verts
-                    l = len(verts)
-                    for i0 in range(0, l, vert_count):
-                        i1 = min(l, i0 + vert_count)
-                        vert_data = {
-                            'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
-                            'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
-                            'sel': [sel(bmv) for bmv in verts[i0:i1]],
-                            'idx': None,  # list(range(len(self.bmesh.verts))),
+                if self.load_faces:
+                    tri_faces = [(bmf, list(bmvs))
+                                 for bmf in self.bmesh.faces
+                                 for bmvs in triangulateFace(bmf.verts)
+                                 ]
+                    l = len(tri_faces)
+                    for i0 in range(0, l, face_count):
+                        i1 = min(l, i0 + face_count)
+                        face_data = {
+                            'vco': [
+                                tuple(bmv.co)
+                                for bmf, verts in tri_faces[i0:i1]
+                                for bmv in verts
+                            ],
+                            'vno': [
+                                tuple(bmv.normal)
+                                for bmf, verts in tri_faces[i0:i1]
+                                for bmv in verts
+                            ],
+                            'sel': [
+                                sel(bmf)
+                                for bmf, verts in tri_faces[i0:i1]
+                                for bmv in verts
+                            ],
+                            'idx': None,  # list(range(len(tri_faces)*3)),
                         }
                         if self.async_load:
-                            self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
+                            self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
                         else:
-                            self.add_buffered_render(bgl.GL_POINTS, vert_data)
+                            self.add_buffered_render(bgl.GL_TRIANGLES, face_data)
 
                 if self.load_edges:
                     edges = self.bmesh.edges
@@ -238,35 +254,21 @@ class RFMeshRender():
                         else:
                             self.add_buffered_render(bgl.GL_LINES, edge_data)
 
-                tri_faces = [(bmf, list(bmvs))
-                             for bmf in self.bmesh.faces
-                             for bmvs in triangulateFace(bmf.verts)
-                             ]
-                l = len(tri_faces)
-                for i0 in range(0, l, face_count):
-                    i1 = min(l, i0 + face_count)
-                    face_data = {
-                        'vco': [
-                            tuple(bmv.co)
-                            for bmf, verts in tri_faces[i0:i1]
-                            for bmv in verts
-                        ],
-                        'vno': [
-                            tuple(bmv.normal)
-                            for bmf, verts in tri_faces[i0:i1]
-                            for bmv in verts
-                        ],
-                        'sel': [
-                            sel(bmf)
-                            for bmf, verts in tri_faces[i0:i1]
-                            for bmv in verts
-                        ],
-                        'idx': None,  # list(range(len(tri_faces)*3)),
-                    }
-                    if self.async_load:
-                        self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
-                    else:
-                        self.add_buffered_render(bgl.GL_TRIANGLES, face_data)
+                if self.load_verts:
+                    verts = self.bmesh.verts
+                    l = len(verts)
+                    for i0 in range(0, l, vert_count):
+                        i1 = min(l, i0 + vert_count)
+                        vert_data = {
+                            'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
+                            'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
+                            'sel': [sel(bmv) for bmv in verts[i0:i1]],
+                            'idx': None,  # list(range(len(self.bmesh.verts))),
+                        }
+                        if self.async_load:
+                            self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
+                        else:
+                            self.add_buffered_render(bgl.GL_POINTS, vert_data)
 
                 if self.async_load:
                     self.buf_data_queue.put('done')

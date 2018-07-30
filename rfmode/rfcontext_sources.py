@@ -34,6 +34,7 @@ from ..common.maths import (
 from ..common.profiler import profiler
 from ..common.debug import dprint
 from ..common.decorators import stats_wrapper
+from ..options import visualization
 
 
 class RFContext_Sources:
@@ -47,7 +48,7 @@ class RFContext_Sources:
         self.rfsources = [RFSource.new(src) for src in self.get_sources()]
         self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
         dprint('%d sources found' % len(self.rfsources))
-        opts = self.get_source_render_options()
+        opts = visualization.get_source_settings()
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
 
     @profiler.profile

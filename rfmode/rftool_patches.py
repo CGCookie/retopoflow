@@ -47,7 +47,7 @@ from ..common.ui import (
     UI_Container, UI_EqualContainer
     )
 from ..keymaps import default_rf_keymaps
-from ..options import options, themes
+from ..options import options, themes, visualization
 from ..help import help_patches
 
 
@@ -739,9 +739,9 @@ class RFTool_Patches(RFTool):
 
         self.drawing.disable_stipple()
 
-        self.drawing.point_size(6.0)
+        self.drawing.point_size(visualization['point size highlight'])
+        bgl.glColor4f(*visualization['point color highlight'])
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glColor4f(1,1,0.1,1.0)
         bgl.glBegin(bgl.GL_POINTS)
         for corner in self.shapes['corners']:
             p = point_to_point2D(corner.co)

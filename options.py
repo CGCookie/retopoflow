@@ -295,7 +295,94 @@ class Themes:
 
     def __getitem__(self, key): return self.themes[options['color theme']][key]
 
+class Visualization_Settings:
+    def __init__(self):
+        self._last_theme = None
+        self.update_settings()
+
+    def update_settings(self):
+        if self._last_theme == options['color theme']: return
+        self._last_theme = options['color theme']
+
+        self._source_settings = {
+            'poly color': (0.0, 0.0, 0.0, 0.0),
+            'poly offset': 0.000008,
+            'poly dotoffset': 1.0,
+            'line width': 0.0,
+            'point size': 0.0,
+            'load edges': False,
+            'load verts': False,
+            'no selection': True,
+            'no below': True,
+            'triangles only': True,     # source bmeshes are triangles only!
+            'cull backfaces': True,
+            'normal offset': 0.0005,
+            'focus mult': 0.01,
+        }
+
+        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
+        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
+        self._target_settings = {
+            'poly color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.20),
+            'poly color selected': (color_select[0], color_select[1], color_select[2], 0.20),
+            'poly offset': 0.000010,
+            'poly dotoffset': 1.0,
+            'poly mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.10),
+            'poly mirror color selected': (color_select[0], color_select[1], color_select[2], 0.10),
+            'poly mirror offset': 0.000010,
+            'poly mirror dotoffset': 1.0,
+
+            'line color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'line color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'line width': 2.0,
+            'line offset': 0.000012,
+            'line dotoffset': 1.0,
+            'line mirror stipple': False,
+            'line mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
+            'line mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
+            'line mirror width': 1.5,
+            'line mirror offset': 0.000012,
+            'line mirror dotoffset': 1.0,
+            'line mirror stipple': False,
+
+            'point color': (color_frozen[0], color_frozen[1], color_frozen[2], 1.00),
+            'point color selected': (color_select[0], color_select[1], color_select[2], 1.00),
+            'point color highlight': (1.0, 1.0, 0.1, 1.0),
+            'point size': 7.5,
+            'point size highlight': 10.0,
+            'point offset': 0.000015,
+            'point dotoffset': 1.0,
+            'point mirror color': (color_frozen[0], color_frozen[1], color_frozen[2], 0.25),
+            'point mirror color selected': (color_select[0], color_select[1], color_select[2], 0.25),
+            'point mirror size': 3.0,
+            'point mirror offset': 0.000015,
+            'point mirror dotoffset': 1.0,
+
+            'focus mult': 1.0,
+            'normal offset': 0.001,
+        }
+
+    def get_source_settings(self):
+        self.update_settings()
+        return self._source_settings
+
+    def get_target_settings(self):
+        self.update_settings()
+        return self._target_settings
+
+    def source(self, key):
+        self.update_settings()
+        return self._source_settings[key]
+
+    def target(self, key):
+        self.update_settings()
+        return self._target_settings[key]
+
+    def __getitem__(self, key):
+        return self.target(key)
+
 
 # set all the default values!
 options = Options()
 themes = Themes()
+visualization = Visualization_Settings()

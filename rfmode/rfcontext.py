@@ -58,7 +58,7 @@ from ..common.decorators import stats_wrapper, blender_version_wrapper
 from ..common.useractions import Actions
 from ..common import ui
 
-from ..options import options, themes
+from ..options import options, themes, visualization
 from ..keymaps import default_rf_keymaps
 
 from .rfmesh import RFSource, RFTarget
@@ -258,10 +258,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     def replace_opts(self, target=True, sources=False):
         if not hasattr(self, 'rftarget_draw'): return
         if target:
-            target_opts = self.get_target_render_options()
+            target_opts = visualization.get_target_settings()
             self.rftarget_draw.replace_opts(target_opts)
         if sources:
-            source_opts = self.get_source_render_options()
+            source_opts = visualization.get_source_settings()
             for rfsd in self.rfsources_draw:
                rfsd.replace_opts(source_opts)
 
