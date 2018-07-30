@@ -510,6 +510,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             ui.debug_draw = not ui.debug_draw
         if self.actions.pressed('F9'):
             self.draw_ui = not self.draw_ui
+            self.window_info.visible = self.draw_ui
+            self.tool_window.visible = self.draw_ui
+            self.window_tool_options.visible = self.draw_ui
         #    assert False, 'this is a test!'
         #    return
 

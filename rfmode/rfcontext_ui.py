@@ -589,19 +589,18 @@ class RFContext_UI:
         self.tool_window.add(self.tool_min)
 
 
-        window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
-        #window_info.add(UI_Label('RetopoFlow %s' % retopoflow_version, align=0))
-        container = window_info.add(UI_Container(margin=0, vertical=False))
+        self.window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
+        container = self.window_info.add(UI_Container(margin=0, vertical=False))
         container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message'))
         container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
-        window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
+        self.window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
 
-        window_tool_options = self.window_manager.create_window('Options', {
+        self.window_tool_options = self.window_manager.create_window('Options', {
             'fn_pos':wrap_pos_option('options pos'),
             'separation': 0,
         })
 
-        dd_general = window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
+        dd_general = self.window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area and make 3D View fill entire window (%s)' % ','.join(default_rf_keymaps['toggle full area'])))
         container_snap = dd_general.add(UI_Container(vertical=False))
         container_snap.add(UI_Label('Snap Verts:', margin=0, valign=0))
@@ -632,11 +631,7 @@ class RFContext_UI:
         dd_general.add(UI_Checkbox('Show Tooltips', *optgetset('show tooltips', setcallback=self.window_manager.set_show_tooltips), tooltip='If enabled, tooltips (like these!) will show'))
         dd_general.add(UI_Checkbox('Undo Changes Tool', *optgetset('undo change tool'), tooltip='If enabled, undoing will switch to the previously selected tool'))
 
-        # inform window manager about the tooltip checkbox option
-        self.window_manager.set_show_tooltips(options['show tooltips'])
-
-
-        container_symmetry = window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
+        container_symmetry = self.window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
         dd_symmetry = container_symmetry.add(UI_EqualContainer(vertical=False))
         dd_symmetry.add(UI_Checkbox2('x', lambda: self.get_symmetry('x'), lambda v: self.set_symmetry('x',v), tooltip='Toggle X-Symmetry for target', spacing=0))
         dd_symmetry.add(UI_Checkbox2('y', lambda: self.get_symmetry('y'), lambda v: self.set_symmetry('y',v), tooltip='Toggle Y-Symmetry for target', spacing=0))
@@ -654,10 +649,10 @@ class RFContext_UI:
 
         for tool_name,tool_options in tools_options:
             # window_tool_options.add(UI_Spacer(height=5))
-            ui_options = window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
+            ui_options = self.window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
             for tool_option in tool_options: ui_options.add(tool_option)
 
-        info_adv = window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
+        info_adv = self.window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
 
         info_adv.add(UI_Checkbox('Experimental Tools', *options.gettersetter('show experimental', setcallback=lambda v:need_restart('Experimental Tools')), tooltip='Enable to show experimental tools'))
         info_adv.add(UI_IntValue('Debug Level', *optgetset('debug level', setwrap=lambda v:clamp(int(v),0,5))))
@@ -686,6 +681,9 @@ class RFContext_UI:
             update_profiler_visible()
 
         info_adv.add(UI_Button('Reset Options', reset_options, tooltip='Reset all of the options to default values'))
+
+        # inform window manager about the tooltip checkbox option
+        self.window_manager.set_show_tooltips(options['show tooltips'])
 
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
