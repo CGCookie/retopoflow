@@ -440,6 +440,7 @@ class RFMode(Operator):
             err = True
         if err: self.handle_exception(serious=True)
 
+        options.clean(force=True)
         self.restore_window_state()
         self.area.header_text_set()
 

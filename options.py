@@ -181,7 +181,7 @@ class Options:
     db = None           # current options dict
     fndb = None         # name of file in which to store db (set up in __init__)
     is_dirty = False    # does the internal db differ from db stored in file? (need writing)
-    last_change = None  # when did we last change an entry?
+    last_save = 0       # when did we last successfully store in file?
     write_delay = 2.0   # seconds to wait before writing db to file
 
     def __init__(self):
@@ -213,19 +213,19 @@ class Options:
 
     def dirty(self):
         Options.is_dirty = True
-        Options.last_change = time.time()
         self.update_external_vars()
 
-    def clean(self):
+    def clean(self, force=False):
         if not Options.is_dirty:
             # nothing has changed
             return
-        if Options.last_change and time.time() < Options.last_change + Options.write_delay:
+        if not force and time.time() < Options.last_save + Options.write_delay:
             # we haven't waited long enough before storing db
             return
         dprint('Writing options:', Options.db)
-        json.dump(Options.db, open(Options.fndb, 'wt'))
+        json.dump(Options.db, open(Options.fndb, 'wt'), indent=2, sort_keys=True)
         Options.is_dirty = False
+        Options.last_save = time.time()
 
     def read(self):
         Options.db = {}
