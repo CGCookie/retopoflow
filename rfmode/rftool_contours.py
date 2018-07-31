@@ -166,6 +166,8 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             # both verts are selected, so return True
             return True
         if not s0 and not s1:
+            # neither are selected, so return True by default
+            return True
             # return True if none are selected; otherwise return False
             return self.rfcontext.none_selected()
         # if mouse is at least 33% of the way toward unselected vert, return True
