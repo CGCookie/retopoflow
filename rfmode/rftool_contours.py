@@ -183,7 +183,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
     def modal_main(self):
         if self.rfcontext.actions.pressed({'select', 'select add'}):
-            return self.setup_selection_painting('edge', fn_filter_bmelem=self.filter_edge, kwargs_select={'supparts':False})
+            return self.setup_selection_painting('edge', fn_filter_bmelem=self.filter_edge, kwargs_select={'supparts':False}, kwargs_deselect={'subparts':False})
 
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
