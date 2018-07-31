@@ -403,6 +403,9 @@ class RFMode(Operator):
 
         self.store_window_state()
 
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         # if 'RetopoFlow' not in bpy.data.screens:
         #     screen_names = {s.name for s in bpy.data.screens}
         #     bpy.ops.screen.new()
