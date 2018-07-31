@@ -68,6 +68,9 @@ default_rf_keymaps = {
     # patches
     'fill': {'F'},
 
+    # grease pencil
+    'grease clear': {'C'},
+
     # widget
     'brush radius': {'F'},
     'brush size': {'F'},
@@ -84,4 +87,5 @@ default_rf_keymaps = {
     'patches tool': {'U'},
     'strokes tool': {'I'},
     'stretch tool': {'O'},
+    'grease pencil tool': {'P'},
 }

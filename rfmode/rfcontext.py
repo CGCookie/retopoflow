@@ -213,6 +213,8 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.tool_setting = False
         self.set_tool(starting_tool)
 
+        self.grease_marks = []
+
         # touching undo stack to work around weird bug
         # to reproduce:
         #     start PS, select a strip, drag a handle but then cancel, exit RF
@@ -324,12 +326,14 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             'action':       action,
             'tool':         self.tool,
             'rftarget':     copy.deepcopy(self.rftarget),
+            'grease_marks': copy.deepcopy(self.grease_marks),
             }
     def _restore_state(self, state, set_tool=True):
         self.rftarget = state['rftarget']
         self.rftarget.rewrap()
         self.rftarget.dirty()
         self.rftarget_draw.replace_rfmesh(self.rftarget)
+        self.grease_marks = state['grease_marks']
         if set_tool:
             self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
 

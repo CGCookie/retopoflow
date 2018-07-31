@@ -40,6 +40,7 @@ icon_data = {
     'rf_patches_icon':          'patches_32.png',
     'rf_strokes_icon':          'strokes_32.png',
     'rf_stretch_icon':          'stretch_32.png',
+    'rf_greasepencil_icon':     'greasepencil_32.png',
 }
 
 def load_icons():

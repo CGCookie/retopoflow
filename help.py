@@ -462,5 +462,13 @@ If stroke starts or ends on existing vertex, the Strokes tool will try to bridge
 help_stretch = '''
 # Stretch Help
 
-Foo Bar!!
+This is an experimental tool.
+More details will come as the tool matures.
+'''
+
+help_greasepencil = '''
+# Stretch Help
+
+This is an experimental tool.
+More details will come as the tool matures.
 '''

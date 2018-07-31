@@ -46,7 +46,7 @@ from ..common.ui import (
     )
 from ..common import bmesh_render as bmegl
 from ..common.globals import debugger
-from ..common.maths import matrix_normal
+from ..common.maths import matrix_normal, Direction
 
 from ..options import (
     retopoflow_version,
@@ -239,6 +239,26 @@ class RFContext_Drawing:
             buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
             alpha_above, alpha_below, cull_backfaces, alpha_backface
         )
+        pr.done()
+
+        pr = profiler.start('grease marks')
+        bgl.glBegin(bgl.GL_QUADS)
+        for stroke_data in self.grease_marks:
+            bgl.glColor4f(*stroke_data['color'])
+            t = stroke_data['thickness']
+            s0,p0,n0,d0,d1 = None,None,None,None,None
+            for s1 in stroke_data['marks']:
+                p1,n1 = s1
+                if p0 and p1:
+                    v01 = p1 - p0
+                    if d0 is None: d0 = Direction(v01.cross(n0))
+                    d1 = Direction(v01.cross(n1))
+                    bgl.glVertex3f(*(p0-d0*t+n0*0.001))
+                    bgl.glVertex3f(*(p0+d0*t+n0*0.001))
+                    bgl.glVertex3f(*(p1+d1*t+n1*0.001))
+                    bgl.glVertex3f(*(p1-d1*t+n1*0.001))
+                s0,p0,n0,d0 = s1,p1,n1,d1
+        bgl.glEnd()
         pr.done()
 
         pr = profiler.start('render other')
