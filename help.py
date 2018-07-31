@@ -38,13 +38,13 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 
 ## Major Changes from Version 1.x
 
-What you see behind this message is here is a complete rewrite of the code base.
-RetopoFlow 2.x now works like another any Blender mode, especially Edit Mode, but it will also feel distinct.
+What you see behind this message window is a complete rewrite of the code base.
+RetopoFlow 2.x now works like any other Blender mode, like Edit Mode or Sculpt Mode, but it will also feel distinct.
 We focused our 2.x development on two main items: stability and user experience.
 With an established and solid framework, we will focus more on features in future releases.
 
 - Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
-- Each tool has been simplified to do perform its job well.
+- Each tool has been simplified to perform its job well.
 - All tools use the current selection for their context.  For example, PolyStrips can edit any strip of quads by simply selecting them.
 - The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
 - Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
@@ -53,7 +53,7 @@ With an established and solid framework, we will focus more on features in futur
 - Every change automatically commits to the target mesh; geometry is created in real-time! No more lost work from crashing.
 - Auto saves will trigger!
 - Undo and redo are universally available within RF Mode. Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
-- New Strokes tool!
+- The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
 ## Feedback
@@ -65,7 +65,7 @@ Please consider doing the following:
 - Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
 - Consider donating to our drink funds :)
 
-We have worked hard to make this as production ready as possible.
+We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
 However, if you find a bug or a missing feature, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
@@ -76,12 +76,12 @@ We have added buttons to open the issue tracker in your default browser and to s
 
 ## Known Issues / Future Work
 
-Below is a list of known issues that we are working on.
+Below is a list of known issues that are currently being addressed.
 
-- Very large source meshes cause a delay and stutter at start-up time.  Note: the sources are cached, so RF will load much more quickly the second time.
-- Very large target meshes causes slowness in some tools.
-- Patches supports only rudimentary fills
-- RF runs _very_ slowly (<1.0 FPS) on certain machines
+- Source meshes with very high poly count can cause a delay and stutter at start-up time.
+- A target mesh with high poly count target mesh can cause slowness in some tools.
+- RF runs _very_ slowly (<1.0 FPS) on a few rare machines.
+- Patches supports only rudimentary fills.
 
 
 ## Final Words
@@ -141,15 +141,15 @@ Note: only newly created or edited target geometry will snap to the source.
 RetopoFlow Mode
 ---------------
 
-The tools in RetopoFlow 1.x were set of disjoint tools, where you would need to quit one tool in order to start another.
+Notes about earlier version: the tools in RetopoFlow 1.x were set of disjointed tools, where you would need to quit one tool in order to start another.
 Also, because we wrote RF 1.x tools separately, the visualizations and settings were not consistent.
 Furthermore, the only indication that a tool was running in RetopoFlow 1.x was a small "Click for Help" button in the top-right corner, which is easily missed.
 
 In RetopoFlow 2.x, we completely rewrote the framework so that RF acts like any other Blender Mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
 
-When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and panels will be added to the 3D view.
-These panels allow you to switch between RF tools, set tool options, and get more information.
+When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
+These windows allow you to switch between RF tools, set tool options, and get more information.
 Also, a one-time Welcome message will greet you.
 
 '''
@@ -162,12 +162,16 @@ help_general = '''
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
 For tool-specific help, select the tool from the Tools panel, and either press F1 or click Tool Help.
 
+Below is a brief description of some of the features in RetopoFlow.
+For more details, see the tooltips when hovering or the product documentation page.
+
 
 ## RetopoFlow Shortcuts
 
 - TAB: quit RetopoFlow and enter Edit Mode
 - F1: general help
 - F2: tool help
+- F9: toggle on/off main RF windows
 
 ## Tool Shortcuts
 
@@ -208,7 +212,7 @@ The SELECT command is set to the right mouse button.
 
 ## General Options
 
-The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing CTRL+UP / SHIFT+SPACE.
+The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing CTRL+UP / SHIFT+SPACE / ALT+F10.
 
 The Snap Verts button will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
 
@@ -274,13 +278,13 @@ You may draw strokes in any order, from any direction.
 help_polystrips = '''
 # PolyStrips Help
 
-The PolyStrips tool provides quick and easy ways methods to map out key face loops for complex models.
+The PolyStrips tool provides quick and easy ways to map out key face loops for complex models.
 For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.
 
-PolyStrips works by hand-drawing stokes on to the high-resolution source object.
+PolyStrips works by hand drawing strokes on to the high-resolution source object.
 The strokes are instantly converted into spline-based strips of polygons.
 
-Any continuous face loop of quads may be manipulated with PolyStrips via the auto-generated spline handles.
+Any continuous quad strip may be manipulated with PolyStrips via the auto-generated spline handles.
 
 ![](help_polystrips.png)
 
@@ -387,6 +391,7 @@ help_loops = '''
 # Loops Help
 
 The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
+The Loops tool also works on any strip of edges.
 
 ![](help_loops.png)
 
