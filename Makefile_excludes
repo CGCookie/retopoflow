@@ -3,6 +3,8 @@ __pycache__
 /test_models/
 /tools/
 /retopoflow_updater/
+/icons/working/
+tmp/
 
 .DS_Store
 .*/
@@ -13,6 +15,7 @@ __pycache__
 *.orig
 *.sh
 *.xcf
+*.svg
 *.blend*
 
 RetopoFlow_options.*
