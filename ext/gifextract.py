@@ -1,6 +1,4 @@
 import os
-from PIL import Image
-from PIL.ImageChops import difference
 import numpy as np
 
 # pulled from https://gist.github.com/BigglesZX/4016539 on 2018 Jan 16
@@ -32,9 +30,12 @@ Nov 2012
 def analyseImage(path):
     '''
     Pre-process pass over the image to determine the mode (full or additive).
-    Necessary as assessing single frames isn't reliable. Need to know the mode 
+    Necessary as assessing single frames isn't reliable. Need to know the mode
     before processing all frames.
     '''
+    from PIL import Image
+    from PIL.ImageChops import difference
+
     im = Image.open(path)
     results = {
         'size': im.size,
@@ -59,34 +60,37 @@ def processImage(path):
     '''
     Iterate the GIF, extracting each frame.
     '''
+    from PIL import Image
+    from PIL.ImageChops import difference
+
     mode = analyseImage(path)['mode']
-    
+
     im = Image.open(path)
 
     i = 0
     p = im.getpalette()
     last_frame = im.convert('RGBA')
-    
+
     try:
         while True:
             print("saving %s (%s) frame %d, %s %s" % (path, mode, i, im.size, im.tile))
-            
+
             '''
             If the GIF uses local colour tables, each frame will have its own palette.
             If not, we need to apply the global palette to the new frame.
             '''
             if not im.getpalette():
                 im.putpalette(p)
-            
+
             new_frame = Image.new('RGBA', im.size)
-            
+
             '''
             Is this file a "partial"-mode GIF where frames update a region of a different size to the entire image?
             If so, we need to construct the new frame by pasting it on top of the preceding frames.
             '''
             if mode == 'partial':
                 new_frame.paste(last_frame)
-            
+
             new_frame.paste(im, (0,0), im.convert('RGBA'))
             new_frame.save('%s-%d.png' % (''.join(os.path.basename(path).split('.')[:-1]), i), 'PNG')
             diff_frame = difference(last_frame, new_frame)
@@ -105,7 +109,7 @@ def processImage(path):
 
 def main():
     processImage('tmp/tooltip.gif')
-    
+
 
 if __name__ == "__main__":
     main()

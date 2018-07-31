@@ -13,9 +13,11 @@ __pycache__
 *.orig
 *.sh
 *.xcf
+*.blend*
 
 RetopoFlow_options.*
 RetopoFlow_profiler.*
+RetopoFlow_screenshot.*
 
 retopoflow.sublime*
 
@@ -23,3 +25,7 @@ Makefile
 Makefile_excludes
 
 blender
+b278c
+b279a
+b279b
+b280
