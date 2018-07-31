@@ -174,7 +174,7 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             if not edge:
                 if sel_only: self.rfcontext.deselect_all()
                 return
-            self.rfcontext.select_edge_loop(edge, only=sel_only)
+            self.rfcontext.select_edge_loop(edge, only=sel_only, supparts=False)
             self.update()
             return
 
