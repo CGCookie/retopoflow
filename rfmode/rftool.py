@@ -168,21 +168,23 @@ class RFTool(metaclass=SingletonRegisterClass):
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
-    def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, **kwargs):
+    def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         accel_nearest2D = {
             'vert': self.rfcontext.accel_nearest2D_vert,
             'edge': self.rfcontext.accel_nearest2D_edge,
             'face': self.rfcontext.accel_nearest2D_face,
         }[bmelem]
 
-        if not fn_filter_bmelem:
-            fn_filter_bmelem = lambda bmelem: True
+        fn_filter_bmelem = fn_filter_bmelem or (lambda bmelem: True)
+        kwargs_filter = kwargs_filter or {}
+        kwargs_select = kwargs_select or {}
+        kwargs_deselect = kwargs_deselect or {}
 
         def get_bmelem(use_filter=True):
             nonlocal accel_nearest2D, fn_filter_bmelem
             bmelem, dist = accel_nearest2D(max_dist=options['select dist'])
             if not use_filter or not bmelem: return bmelem
-            return bmelem if fn_filter_bmelem(bmelem) else None
+            return bmelem if fn_filter_bmelem(bmelem, **kwargs_filter) else None
 
         if select == None:
             # look at what's under the mouse and check if select add is used
@@ -195,9 +197,9 @@ class RFTool(metaclass=SingletonRegisterClass):
         else:
             bmelem = None
 
-        if select and kwargs_select:
+        if select:
             kwargs.update(kwargs_select)
-        if not select and kwargs_deselect:
+        else:
             kwargs.update(kwargs_deselect)
 
         self.selection_painting_opts = {
