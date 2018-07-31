@@ -156,34 +156,14 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
 
-    def filter_edge(self, bme):
-        if bme.select:
-            # edge is already selected
-            return True
-        bmv0, bmv1 = bme.verts
-        s0, s1 = bmv0.select, bmv1.select
-        if s0 and s1:
-            # both verts are selected, so return True
-            return True
-        if not s0 and not s1:
-            # neither are selected, so return True by default
-            return True
-            # return True if none are selected; otherwise return False
-            return self.rfcontext.none_selected()
-        # if mouse is at least 33% of the way toward unselected vert, return True
-        if s1: bmv0, bmv1 = bmv1, bmv0
-        p = self.rfcontext.actions.mouse
-        p0 = self.rfcontext.Point_to_Point2D(bmv0.co)
-        p1 = self.rfcontext.Point_to_Point2D(bmv1.co)
-        v01 = p1 - p0
-        l01 = v01.length
-        d01 = v01 / l01
-        dot = d01.dot(p - p0)
-        return dot / l01 > 0.33
-
     def modal_main(self):
         if self.rfcontext.actions.pressed({'select', 'select add'}):
-            return self.setup_selection_painting('edge', fn_filter_bmelem=self.filter_edge, kwargs_select={'supparts':False}, kwargs_deselect={'subparts':False})
+            return self.setup_selection_painting(
+                'edge',
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
 
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
