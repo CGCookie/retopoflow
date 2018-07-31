@@ -796,20 +796,20 @@ class RFMesh():
     def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
-        s = set()
-        for bmv in self.bme.verts:
-            if bmv.select: s.add(self._wrap_bmvert(bmv))
-        return s
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.select}
     def get_selected_edges(self):
-        s = set()
-        for bme in self.bme.edges:
-            if bme.select: s.add(self._wrap_bmedge(bme))
-        return s
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.select}
     def get_selected_faces(self):
-        s = set()
-        for bmf in self.bme.faces:
-            if bmf.select: s.add(self._wrap_bmface(bmf))
-        return s
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.select}
+
+    def any_verts_selected(self):
+        return any(bmv.select for bmv in self.bme.verts)
+    def any_edges_selected(self):
+        return any(bme.select for bme in self.bme.edges)
+    def any_faces_selected(self):
+        return any(bmf.select for bmf in self.bme.faces)
+    def any_selected(self):
+        return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
 
     def get_selection_center(self):
         v,c = Vector(),0

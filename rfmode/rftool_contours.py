@@ -50,8 +50,6 @@ from ..help import help_contours
 class RFTool_Contours(RFTool, RFTool_Contours_Ops):
     ''' Called when RetopoFlow is started, but not necessarily when the tool is used '''
     def init(self):
-        self.FSM['selectadd/deselect'] = self.modal_selectadd_deselect
-        self.FSM['select'] = self.modal_select
         self.FSM['move']  = self.modal_move
         self.FSM['shift'] = self.modal_shift
         self.FSM['rotate'] = self.modal_rotate
@@ -158,20 +156,32 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
 
+    def filter_edge(self, bme):
+        if bme.select:
+            # edge is already selected
+            return True
+        bmv0, bmv1 = bme.verts
+        s0, s1 = bmv0.select, bmv1.select
+        if s0 and s1:
+            # both verts are selected, so return True
+            return True
+        if not s0 and not s1:
+            # return True if none are selected; otherwise return False
+            return self.rfcontext.none_selected()
+        # if mouse is at least 33% of the way toward unselected vert, return True
+        if s1: bmv0, bmv1 = bmv1, bmv0
+        p = self.rfcontext.actions.mouse
+        p0 = self.rfcontext.Point_to_Point2D(bmv0.co)
+        p1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+        v01 = p1 - p0
+        l01 = v01.length
+        d01 = v01 / l01
+        dot = d01.dot(p - p0)
+        return dot / l01 > 0.33
 
     def modal_main(self):
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select add'):
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not bme: return
-            if bme.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
+        if self.rfcontext.actions.pressed({'select', 'select add'}):
+            return self.setup_selection_painting('edge', fn_filter_bmelem=self.filter_edge, kwargs_select={'supparts':False})
 
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
@@ -185,16 +195,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.rfcontext.select_edge_loop(edge, only=sel_only)
             self.update()
             return
-
-        # if self.rfcontext.actions.pressed('action'):
-        #     edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        #     if not edge:
-        #         self.rfcontext.deselect_all()
-        #         return
-        #     self.rfcontext.undo_push('select and grab')
-        #     self.rfcontext.select_edge_loop(edge, only=True)
-        #     self.update()
-        #     return self.prep_move(after_action=True)
 
         if self.rfcontext.actions.pressed({'grab', 'action'}, unpress=False):
             ''' grab for translations '''
@@ -216,26 +216,6 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(1 if self.rfcontext.actions.using('increase count') else -1)
             return
-
-    @profiler.profile
-    def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
-            self.rfcontext.undo_push('deselect')
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if bme and bme.select: self.rfcontext.deselect(bme)
-            return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        if delta.length > self.drawing.scale(5):
-            self.rfcontext.undo_push('select add')
-            return 'select'
-
-    @profiler.profile
-    def modal_select(self):
-        if not self.rfcontext.actions.using(['select','select add']):
-            return 'main'
-        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        if not bme or bme.select: return
-        self.rfcontext.select(bme, supparts=False, only=False)
 
     def prep_shift(self):
         sel_edges = self.rfcontext.get_selected_edges()

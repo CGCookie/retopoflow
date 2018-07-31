@@ -97,6 +97,8 @@ class RFTool(metaclass=SingletonRegisterClass):
         try:
             self.init()
             self.FSM['main'] = self.modal_main
+            self.FSM['selection painting'] = self.modal_selection_painting
+            self.selection_painting_opts = None
             self.mode = 'main'
             self._success = True
         except Exception as e:
@@ -138,6 +140,63 @@ class RFTool(metaclass=SingletonRegisterClass):
     def update(self): pass
 
     def modal_main(self): pass
+
+    def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, **kwargs):
+        accel_nearest2D = {
+            'vert': self.rfcontext.accel_nearest2D_vert,
+            'edge': self.rfcontext.accel_nearest2D_edge,
+            'face': self.rfcontext.accel_nearest2D_face,
+        }[bmelem]
+
+        if not fn_filter_bmelem:
+            fn_filter_bmelem = lambda bmelem: True
+
+        def get_bmelem(use_filter=True):
+            nonlocal accel_nearest2D, fn_filter_bmelem
+            bmelem, dist = accel_nearest2D(max_dist=options['select dist'])
+            if not use_filter or not bmelem: return bmelem
+            return bmelem if fn_filter_bmelem(bmelem) else None
+
+        if select == None:
+            # look at what's under the mouse and check if select add is used
+            bmelem = get_bmelem(use_filter=False)
+            adding = self.rfcontext.actions.using('select add')
+            if not bmelem: return               # nothing there; leave!
+            if not bmelem.select: select = True # bmelem is not selected, so we are selecting
+            else: select = not adding           # bmelem is selected, so we are deselecting if "select add"
+            deselect_all = not adding           # deselect all if not "select add"
+        else:
+            bmelem = None
+
+        if select and kwargs_select:
+            kwargs.update(kwargs_select)
+        if not select and kwargs_deselect:
+            kwargs.update(kwargs_deselect)
+
+        self.selection_painting_opts = {
+            'select': select,
+            'get': get_bmelem,
+            'kwargs': kwargs,
+        }
+
+        self.rfcontext.undo_push('select' if select else 'deselect')
+        if deselect_all: self.rfcontext.deselect_all()
+        if bmelem: self.rfcontext.select(bmelem, only=False, **kwargs)
+
+        return 'selection painting'
+
+    def modal_selection_painting(self):
+        assert self.selection_painting_opts
+        if not self.rfcontext.actions.using(['select','select add']):
+            self.selection_painting_opts = None
+            return 'main'
+        bmelem = self.selection_painting_opts['get']()
+        if not bmelem or bmelem.select == self.selection_painting_opts['select']:
+            return
+        if self.selection_painting_opts['select']:
+            self.rfcontext.select(bmelem, only=False, **self.selection_painting_opts['kwargs'])
+        else:
+            self.rfcontext.deselect(bmelem, **self.selection_painting_opts['kwargs'])
 
     def draw_postview(self): pass
     def draw_postpixel(self): pass
