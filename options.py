@@ -129,6 +129,7 @@ class Options:
         'tool strokes collapsed': True,
 
         'select dist':          10,             # pixels away to select
+        'remove doubles dist':  0.001,
 
         'color theme':          'Green',
         'symmetry view':        'Edge',

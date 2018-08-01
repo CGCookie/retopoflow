@@ -27,7 +27,8 @@ import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
-    dissolve_verts, dissolve_edges, dissolve_faces
+    dissolve_verts, dissolve_edges, dissolve_faces,
+    remove_doubles,
 )
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
@@ -1478,4 +1479,11 @@ class RFTarget(RFMesh):
             v.normal = norm
         self.dirty()
 
+    def remove_all_doubles(self, dist):
+        remove_doubles(self.bme, verts=self.bme.verts, dist=dist)
+        self.dirty()
+
+    def remove_selected_doubles(self, dist):
+        remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
+        self.dirty()
 

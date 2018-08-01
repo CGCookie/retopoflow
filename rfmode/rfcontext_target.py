@@ -30,7 +30,7 @@ from ..common.maths import Point2D, Vec2D, Direction2D, Accel2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
-from ..options import visualization
+from ..options import visualization, options
 
 
 class RFContext_Target:
@@ -336,6 +336,14 @@ class RFContext_Target:
     def snap_selected_verts(self):
         self.undo_push('snap selected verts')
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+
+    def remove_all_doubles(self):
+        self.undo_push('remove all doubles')
+        self.rftarget.remove_all_doubles(options['remove doubles dist'])
+
+    def remove_selected_doubles(self):
+        self.undo_push('remove selected doubles')
+        self.rftarget.remove_selected_doubles(options['remove doubles dist'])
 
     #######################################
     # target manipulation functions

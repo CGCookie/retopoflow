@@ -1692,13 +1692,14 @@ class UI_BoolValue(UI_Checkbox):
 
 
 class UI_Number(UI_Container):
-    def __init__(self, label, fn_get_value, fn_set_value, fn_update_value=None, fn_formatter=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
+    def __init__(self, label, fn_get_value, fn_set_value, update_multiplier=0.1, fn_update_value=None, fn_formatter=None, fn_get_print_value=None, fn_set_print_value=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), **kwargs):
         assert (fn_get_print_value is None and fn_set_print_value is None) or (fn_get_print_value is not None and fn_set_print_value is not None)
         super().__init__(vertical=False, margin=margin, separation=4)
         self.defer_recalc = True
 
         self.fn_get_value = fn_get_value
         self.fn_set_value = fn_set_value
+        self.update_multiplier = update_multiplier
         self.fn_update_value = fn_update_value
         self.fn_formatter = fn_formatter
         self.fn_get_print_value = fn_get_print_value
@@ -1741,10 +1742,10 @@ class UI_Number(UI_Container):
 
     def mouse_move(self, mouse):
         if self.fn_update_value:
-            self.fn_update_value((mouse.x - self.prev_mouse.x) / 10)
+            self.fn_update_value((mouse.x - self.prev_mouse.x) * self.update_multiplier)
             self.prev_mouse = mouse
         else:
-            self.fn_set_value(self.down_val + (mouse.x - self.down_mouse.x) / 10)
+            self.fn_set_value(self.down_val + (mouse.x - self.down_mouse.x) * self.update_multiplier)
 
     def mouse_up(self, mouse):
         self.downed = False

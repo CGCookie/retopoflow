@@ -602,15 +602,15 @@ class RFContext_UI:
 
         dd_general = self.window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area and make 3D View fill entire window (%s)' % ','.join(default_rf_keymaps['toggle full area'])))
-        container_snap = dd_general.add(UI_Container(vertical=False))
-        container_snap.add(UI_Label('Snap Verts:', margin=0, valign=0))
+        container_clean = dd_general.add(UI_Collapsible('Target Cleaning'))
+        container_snap = container_clean.add(UI_Collapsible('Snap Verts', vertical=False, equal=True))
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
-
-        container_view = dd_general.add(UI_Collapsible('View Options'))
-        container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
-        container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_doubles = container_clean.add(UI_Collapsible('Remove Doubles'))
+        container_doubles.add(UI_Number('Distance', *options.gettersetter('remove doubles dist', setwrap=lambda v:max(0,v)), update_multiplier=0.001, fn_formatter=lambda v:'%0.3f'%v))
+        container_doubles_btns = container_doubles.add(UI_EqualContainer(vertical=False))
+        container_doubles_btns.add(UI_Button('All', self.remove_all_doubles, tooltip='Remove all doubled vertices'))
+        container_doubles_btns.add(UI_Button('Selected', self.remove_selected_doubles, tooltip='Remove selected doubled vertices'))
 
         container_target = dd_general.add(UI_Collapsible('Target Rendering'))
         container_target.add(UI_Number('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
@@ -618,6 +618,11 @@ class RFContext_UI:
         container_target.add(UI_Number('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
         container_target.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
         container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+
+        container_view = dd_general.add(UI_Collapsible('View Options'))
+        container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
+        container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
+        container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
 
         opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")

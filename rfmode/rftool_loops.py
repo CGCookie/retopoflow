@@ -317,6 +317,9 @@ class RFTool_Loops(RFTool):
         bmv0,bmv1 = nearest_edge.verts
         co0,co1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
         diff = co1 - co0
+        if diff.length == 0:
+            # nearest edge has no length!
+            return
         self.tangent = Direction2D((-diff.y, diff.x))
         self.vector = self.tangent * self.drawing.scale(40)
         self.slide_data = slide_data
