@@ -176,7 +176,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             verts = [(v[0]/v[3], v[1]/v[3], v[2]/v[3]) for v in verts]
             bboxes.append(BBox(from_coords=verts))
         bbox = BBox.merge(bboxes)
-        return bbox.get_max_dimension() / 10.0
+        return bbox.get_max_dimension() / bpy.context.scene.unit_settings.scale_length / 10.0
 
     @stats_wrapper
     @profiler.profile
