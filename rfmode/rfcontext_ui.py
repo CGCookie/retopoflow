@@ -623,6 +623,7 @@ class RFContext_UI:
         container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_view.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
 
         opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
@@ -631,7 +632,7 @@ class RFContext_UI:
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
 
-        dd_general.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
+        dd_general.add(UI_Number('Select Dist', *options.gettersetter('select dist', setwrap=lambda v:max(1, int(v))), tooltip='Pixel distance for selection'))
 
         dd_general.add(UI_Checkbox('Auto Collapse Options', *optgetset('tools autocollapse'), tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
         dd_general.add(UI_Checkbox('Show Tooltips', *optgetset('show tooltips', setcallback=self.window_manager.set_show_tooltips), tooltip='If enabled, tooltips (like these!) will show'))

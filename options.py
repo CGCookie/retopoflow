@@ -159,6 +159,7 @@ class Options:
         'polystrips handle outer size': 20,
         'polystrips handle border':     2,
 
+        'polypen merge dist':       10,         # pixels away to merge
         'polypen automerge':        True,
         'polypen triangle only':    False,
 

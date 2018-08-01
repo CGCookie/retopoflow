@@ -26,7 +26,7 @@ import bgl
 from .rftool import RFTool
 from .rfmesh import RFVert, RFEdge, RFFace
 from ..common.maths import Point,Point2D,Vec2D,Vec
-from ..common.ui import UI_Image, UI_Checkbox
+from ..common.ui import UI_Image, UI_Checkbox, UI_Number
 from ..common.utils import iter_pairs
 from ..common.decorators import stats_wrapper
 from ..common.debug import dprint
@@ -64,6 +64,7 @@ class RFTool_PolyPen(RFTool):
 
     def get_ui_options(self):
         return [
+            UI_Number('Merge Dist', *options.gettersetter('polypen merge dist', setwrap=lambda v:max(1, int(v))), tooltip='Pixel distance for merging and snapping'),
             UI_Checkbox('Automerge', *options.gettersetter('polypen automerge'), tooltip='Automatically merge nearby vertices'),
             UI_Checkbox('Triangle Only', *options.gettersetter('polypen triangle only'), tooltip='If enabled, PolyPen prefers to insert triangles only.'),
             ]
@@ -91,9 +92,9 @@ class RFTool_PolyPen(RFTool):
         pr.done()
 
         pr = profiler.start('getting nearest geometry')
-        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
-        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        self.nearest_face = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
+        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
+        self.nearest_face = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
         pr.done()
 
         # determine next state based on current selection, hovered geometry
@@ -153,9 +154,9 @@ class RFTool_PolyPen(RFTool):
             return 'select'
 
         if self.rfcontext.actions.pressed('select add'):
-            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+            bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
             sel = bmv or bme or bmf
             if not sel: return
             if sel.select:
@@ -175,9 +176,9 @@ class RFTool_PolyPen(RFTool):
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
             self.rfcontext.undo_push('deselect')
-            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+            bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
             sel = bmv or bme or bmf
             if sel and sel.select: self.rfcontext.deselect(sel)
             return 'main'
@@ -190,9 +191,9 @@ class RFTool_PolyPen(RFTool):
     def modal_select(self):
         if not self.rfcontext.actions.using(['select','select add']):
             return 'main'
-        bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
-        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+        bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
         sel = bmv or bme or bmf
         if not sel or sel.select: return
         self.rfcontext.select(sel, supparts=False, only=False)
@@ -217,7 +218,7 @@ class RFTool_PolyPen(RFTool):
 
         if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
-            nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
+            nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
             self.rfcontext.select(nearest_vert)
 
         sel_verts = self.sel_verts
@@ -250,7 +251,7 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
             if not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
-                nearest_vert,d = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=10)
+                nearest_vert,d = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=options['polypen merge dist'])
                 if nearest_vert:
                     bmv1 = nearest_vert
                     lbmf = bmv0.shared_faces(bmv1)
@@ -417,7 +418,7 @@ class RFTool_PolyPen(RFTool):
             xy_updated = xy + delta
             for bmv1,xy1 in self.vis_bmverts:
                 if not bmv1.is_valid: continue
-                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
                     shared_edge = bmv.shared_edge(bmv1)
                     if shared_edge:
                         bmv1 = shared_edge.collapse()
@@ -470,7 +471,7 @@ class RFTool_PolyPen(RFTool):
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
                 for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
                         set2D_vert(bmv, xy1)
                         break
                 else:
@@ -577,7 +578,7 @@ class RFTool_PolyPen(RFTool):
 
         elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
             if self.next_state in ['edge-face', 'edge-quad', 'tri-quad']:
-                nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
+                nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
                 self.draw_lines([nearest_vert.co, hit_pos])
 
         elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
