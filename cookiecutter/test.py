@@ -29,13 +29,13 @@ from ..common.drawing import Drawing
 class CookieCutter_Test(CookieCutter):
     bl_idname = "view3d.cookiecutter_test"
     bl_label = "CookieCutter Test (Example)"
-    
+
     default_keymap = {
         'commit': 'RET',
         'cancel': 'ESC',
         'grab': 'G',
     }
-    
+
     def start(self):
         opts = {
             'pos': 9,
@@ -50,22 +50,22 @@ class CookieCutter_Test(CookieCutter):
         exitbuttons.add(ui.UI_Button('commit', self.done))
         exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
         #self.window_manager.set_focus(win, darken=False, close_on_leave=True)
-    
+
     def update(self):
         self.ui_action.set_label('Press: %s' % (','.join(self.actions.now_pressed.keys()),))
-    
+
     @CookieCutter.FSM_State('main')
     def modal_main(self):
         Drawing.set_cursor('DEFAULT')
-        
+
         if self.actions.pressed('grab'):
             self.lbl.set_label('grab!')
             return 'grab'
-    
+
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
         Drawing.set_cursor('HAND')
-        
+
         if self.actions.pressed('commit'):
             self.lbl.set_label('commit grab')
             return 'main'
@@ -82,10 +82,10 @@ class CookieCutter_Test(CookieCutter):
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
-        
+
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
-        
+
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
         bgl.glColor4f(0,0,0.2,0.5)
         bgl.glVertex2f(-1, -1)
@@ -94,13 +94,13 @@ class CookieCutter_Test(CookieCutter):
         bgl.glVertex2f( 1,  1)
         bgl.glVertex2f(-1,  1)
         bgl.glEnd()
-        
+
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
-    
+
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
@@ -110,10 +110,10 @@ class CookieCutter_Test(CookieCutter):
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
-        
+
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
-        
+
         bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
         bgl.glColor4f(0,0,0,0)
         bgl.glVertex2f(-1, -1)
@@ -122,26 +122,26 @@ class CookieCutter_Test(CookieCutter):
         bgl.glVertex2f( 1,  1)
         bgl.glVertex2f(-1,  1)
         bgl.glEnd()
-        
+
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
-    
+
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
-        
+
         bgl.glEnable(bgl.GL_BLEND)
-        
+
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPushMatrix()
         bgl.glLoadIdentity()
-        
+
         bgl.glColor4f(1,0,0,0.2)    # TODO: use window background color??
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
@@ -151,10 +151,10 @@ class CookieCutter_Test(CookieCutter):
         bgl.glVertex2f( 1,  1)
         bgl.glVertex2f(-1,  1)
         bgl.glEnd()
-        
+
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPopMatrix()
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
-    
+
