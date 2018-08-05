@@ -32,11 +32,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import bgl
-import blf
+# import blf
 from bpy.types import BoolProperty
 from mathutils import Matrix
 
 from .decorators import blender_version_wrapper
+from .fontmanager import FontManager as fm
 from .maths import Point2D, Vec2D, clamp, mid
 from .profiler import profiler
 from .debug import dprint
@@ -86,7 +87,7 @@ class Drawing:
         assert hasattr(self, '_creating'), "Do not instantiate directly.  Use Drawing.get_instance()"
 
         self.rgn,self.r3d,self.window = None,None,None
-        self.font_id = 0
+        # self.font_id = 0
         self.fontsize = None
         self.fontsize_scaled = None
         self.line_cache = {}
@@ -113,7 +114,7 @@ class Drawing:
     def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
     def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
 
-    def set_font_size(self, fontsize, force=False):
+    def set_font_size(self, fontsize, fontid=None, force=False):
         fontsize, fontsize_scaled = int(fontsize), int(int(fontsize) * self._dpi_mult)
         if not force and fontsize_scaled == self.fontsize_scaled:
             return self.fontsize
@@ -122,7 +123,8 @@ class Drawing:
         self.fontsize = fontsize
         self.fontsize_scaled = fontsize_scaled
 
-        blf.size(self.font_id, fontsize_scaled, 72) #self._sysdpi)
+        fm.size(fontsize_scaled, 72, fontid=fontid)
+        # blf.size(self.font_id, fontsize_scaled, 72) #self._sysdpi)
 
         # cache away useful details about font (line height, line base)
         key = (self.fontsize_scaled)
@@ -131,8 +133,10 @@ class Drawing:
             all_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()`~[}{]/?=+\\|-_\'",<.>'
             all_caps = all_chars.upper()
             self.line_cache[key] = {
-                'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(4)),
-                'line base': round(blf.dimensions(self.font_id, all_caps)[1]),
+                'line height': round(fm.dimensions(all_chars, fontid=fontid)[1] + self.scale(4)),
+                'line base': round(fm.dimensions(all_caps, fontid=fontid)[1]),
+                # 'line height': round(blf.dimensions(self.font_id, all_chars)[1] + self.scale(4)),
+                # 'line base': round(blf.dimensions(self.font_id, all_caps)[1]),
             }
         info = self.line_cache[key]
         self.line_height = info['line height']
@@ -140,14 +144,16 @@ class Drawing:
 
         return fontsize_prev
 
-    def get_text_size_info(self, text, item, fontsize=None):
-        if fontsize: size_prev = self.set_font_size(fontsize)
+    def get_text_size_info(self, text, item, fontsize=None, fontid=None):
+        if fontsize: size_prev = self.set_font_size(fontsize, fontid=fontid)
 
         if text is None: text, lines = '', []
         elif type(text) is list: text, lines = '\n'.join(text), text
         else: text, lines = text, text.splitlines()
 
-        key = (text, self.fontsize_scaled, self.font_id)
+        fontid = fm.load(fontid)
+        key = (text, self.fontsize_scaled, fontid)
+        # key = (text, self.fontsize_scaled, self.font_id)
         if key not in self.size_cache:
             d = {}
             if not text:
@@ -155,13 +161,15 @@ class Drawing:
                 d['height'] = 0
                 d['line height'] = self.line_height
             else:
-                get_width = lambda t: math.ceil(blf.dimensions(self.font_id, t)[0])
-                get_height = lambda t: math.ceil(blf.dimensions(self.font_id, t)[1])
+                get_width = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[0])
+                get_height = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[1])
+                # get_width = lambda t: math.ceil(blf.dimensions(self.font_id, t)[0])
+                # get_height = lambda t: math.ceil(blf.dimensions(self.font_id, t)[1])
                 d['width'] = max(get_width(l) for l in lines)
                 d['height'] = get_height(text)
                 d['line height'] = self.line_height * len(lines)
             self.size_cache[key] = d
-        if fontsize: self.set_font_size(size_prev)
+        if fontsize: self.set_font_size(size_prev, fontid=fontid)
         return self.size_cache[key][item]
 
     def get_text_width(self, text, fontsize=None):
@@ -171,13 +179,16 @@ class Drawing:
     def get_line_height(self, text=None, fontsize=None):
         return self.get_text_size_info(text, 'line height', fontsize=fontsize)
 
-    def set_clipping(self, xmin, ymin, xmax, ymax):
-        blf.clipping(self.font_id, xmin, ymin, xmax, ymax)
+    def set_clipping(self, xmin, ymin, xmax, ymax, fontid=None):
+        fm.clipping((xmin, ymin), (xmax, ymax), fontid=fontid)
+        # blf.clipping(self.font_id, xmin, ymin, xmax, ymax)
         self.enable_clipping()
-    def enable_clipping(self):
-        blf.enable(self.font_id, blf.CLIPPING)
-    def disable_clipping(self):
-        blf.disable(self.font_id, blf.CLIPPING)
+    def enable_clipping(self, fontid=None):
+        fm.enable_clipping(fontid=fontid)
+        # blf.enable(self.font_id, blf.CLIPPING)
+    def disable_clipping(self, fontid=None):
+        fm.disable_clipping(fontid=fontid)
+        # blf.disable(self.font_id, blf.CLIPPING)
 
     def enable_stipple(self):
         bgl.glLineStipple(4, 0x5555)
@@ -188,8 +199,8 @@ class Drawing:
         if enable: self.enable_stipple()
         else: self.disable_stipple()
 
-    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None, fontsize=None):
-        if fontsize: size_prev = self.set_font_size(fontsize)
+    def text_draw2D(self, text, pos:Point2D, color, dropshadow=None, fontsize=None, fontid=None):
+        if fontsize: size_prev = self.set_font_size(fontsize, fondid=fontid)
 
         lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
@@ -202,11 +213,12 @@ class Drawing:
         bgl.glColor4f(*color)
         for line in lines:
             th = self.get_text_height(line)
-            blf.position(self.font_id, l, t - lb, 0)
-            blf.draw(self.font_id, line)
+            fm.draw(line, xyz=(l, t-lb, 0), fontid=fontid)
+            # blf.position(self.font_id, l, t - lb, 0)
+            # blf.draw(self.font_id, line)
             t -= lh
 
-        if fontsize: self.set_font_size(size_prev)
+        if fontsize: self.set_font_size(size_prev, fontid=fontid)
 
     def get_mvp_matrix(self, view3D=True):
         '''
@@ -260,7 +272,7 @@ class Drawing:
         if not self.r3d: return None
         return bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_view_matrix_list())
 
-    def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7):
+    def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7, fontid=None):
         '''
         textbox_position specifies where the textbox is drawn in relation to pos.
         ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
@@ -310,8 +322,9 @@ class Drawing:
         for i,line in enumerate(lines):
             th = self.get_text_height(line)
             y = t - (i+1)*lh + int((lh-th) / 2)
-            blf.position(self.font_id, l, y, 0)
-            blf.draw(self.font_id, line)
+            fm.draw(line, xyz=(l, y, 0), fontid=fontid)
+            # blf.position(self.font_id, l, y, 0)
+            # blf.draw(self.font_id, line)
 
     def glCheckError(self, title):
         err = bgl.glGetError()

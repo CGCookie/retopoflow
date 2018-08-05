@@ -39,6 +39,7 @@ from .rftool import RFTool
 from ..common.drawing import Drawing
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.debug import dprint, Debugger
+from ..common.fontmanager import FontManager as fm
 from ..common.maths import BBox
 from ..common.profiler import profiler
 from ..common.logger import Logger
@@ -533,6 +534,7 @@ class RFMode(Operator):
 
         self.drawing = Drawing.get_instance()
         self.drawing.set_cursor('CROSSHAIR')
+        # fm.load(os.path.join(os.path.dirname(__file__), '..', 'fonts', 'ubuntu', 'Ubuntu-R.ttf'))
 
     def ui_toggle_maximize_area(self, use_hide_panels=True):
         try:
