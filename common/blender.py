@@ -60,6 +60,8 @@ def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
     return
 
+def show_error_message(message, title="Error", wrap=80):
+    show_blender_popup(message, title, "ERROR", wrap)
 
 def show_blender_text(textblock_name, hide_header=True, goto_top=True):
     if textblock_name not in bpy.data.texts:
@@ -86,4 +88,6 @@ def show_blender_text(textblock_name, hide_header=True, goto_top=True):
                 # hide header
                 bpy.ops.screen.header({'window':win, 'region':area.regions[2], 'area':area})
 
-
+def bversion():
+    bversion = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+    return bversion

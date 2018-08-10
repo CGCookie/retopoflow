@@ -1318,6 +1318,22 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
 
 
 
+def delta_angles(vec_about, l_vecs):
+    '''
+    will find the difference betwen each element and the next element in the list
+    this is a foward difference.  Eg delta[n] = item[n+1] - item[n]
+
+    deltas should add up to 2*pi
+    '''
+
+    v0 = l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+
+    L = len(l_angles)
+
+    deltas = [l_angles[n + 1] - l_angles[n] for n in range(0, L-1)] + [2*math.pi - l_angles[-1]]
+    return deltas
+
 
 # https://rosettacode.org/wiki/Determine_if_two_triangles_overlap#C.2B.2B
 def triangle2D_det(p0, p1, p2):
