@@ -200,7 +200,7 @@ class Drawing:
         else: self.disable_stipple()
 
     def text_draw2D(self, text, pos:Point2D, color, dropshadow=None, fontsize=None, fontid=None):
-        if fontsize: size_prev = self.set_font_size(fontsize, fondid=fontid)
+        if fontsize: size_prev = self.set_font_size(fontsize, fontid=fontid)
 
         lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
