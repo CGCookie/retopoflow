@@ -114,17 +114,30 @@ class Actions:
         'wm.save_mainfile',
     }
 
+    def translate(self, text):
+        return bpy.app.translations.pgettext(text)
+
     def load_keymap(self, keyconfig_name):
         if keyconfig_name not in bpy.context.window_manager.keyconfigs:
             dprint('No keyconfig named "%s"' % keyconfig_name)
             return
         keyconfig = bpy.context.window_manager.keyconfigs[keyconfig_name]
-        for kmi in keyconfig.keymaps['3D View'].keymap_items:
-            if kmi.name not in self.navigation_events: continue
+        def get_keymap_items(key):
+            nonlocal keyconfig
+            if key in keyconfig.keymaps:
+                keymap = keyconfig.keymaps[key]
+            else:
+                keymap = keyconfig.keymaps[translate(key)]
+            return keymap.keymap_items
+        navigation_events = self.navigation_events
+        #navigation_events = { self.translate(key): val for key,val in self.navigation_events.items() }
+        navigation_idnames = navigation_events.values()
+        for kmi in get_keymap_items('3D View'):
+            if kmi.name not in navigation_events and kmi.idname not in navigation_idnames: continue
             if kmi.active: self.keymap['navigate'].add(kmi_details(kmi))
             else: self.keymap['navigate'].discard(kmi_details(kmi))
         for map_name in ['Screen', 'Window']:
-            for kmi in keyconfig.keymaps[map_name].keymap_items:
+            for kmi in get_keymap_items(map_name):
                 if kmi.idname in self.window_actions:
                     if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
                     else: self.keymap['window actions'].discard(kmi_details(kmi))
