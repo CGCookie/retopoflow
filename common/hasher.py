@@ -77,7 +77,6 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
-    #print(hashed)
     return hashed
 
 def hash_bmesh(bme:BMesh):

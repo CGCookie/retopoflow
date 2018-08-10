@@ -138,7 +138,8 @@ class Debugger:
         message += ['  - %s' % s for s in errormsg.splitlines()]
         message = '\n'.join(message)
         print('%s\n%s\n%s' % ('_' * 100, message, '^' * 100))
-        get_global('logger').add(message) # write error to log text object
+        logger = get_global('logger')
+        if logger: logger.add(message)   # write error to log text object
         # if Debugger._exception_count < 10:
         #     show_blender_popup(
         #         message,

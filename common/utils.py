@@ -39,6 +39,39 @@ from .maths import (
 )
 
 
+##################################################
+
+StructRNA = bpy.types.bpy_struct
+def still_registered(self, oplist):
+    if getattr(still_registered, 'is_broken', False): return False
+    def is_registered():
+        cur = bpy.ops
+        for n in oplist:
+            if not hasattr(cur, n): return False
+            cur = getattr(cur, n)
+        try:    StructRNA.path_resolve(self, "properties")
+        except:
+            print('no properties!')
+            return False
+        return True
+    if is_registered(): return True
+    still_registered.is_broken = True
+    print('bpy.ops.%s is no longer registered!' % '.'.join(oplist))
+    return False
+
+registered_objects = {}
+def registered_object_add(self):
+    global registered_objects
+    opid = self.operator_id
+    print('Registering bpy.ops.%s' % opid)
+    registered_objects[opid] = (self, opid.split('.'))
+
+def registered_check():
+    global registered_objects
+    return all(still_registered(s, o) for (s, o) in registered_objects.values())
+
+
+#################################################
 
 
 def find_and_import_all_subclasses(cls, root_path=None):
