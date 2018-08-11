@@ -29,6 +29,7 @@ __all__ = [
     'fontmanager',
     'globals',
     'hasher',
+    'irc',
     'logger',
     'maths',
     'metaclasses',

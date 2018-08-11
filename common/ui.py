@@ -1079,10 +1079,12 @@ class UI_WrappedLabel(UI_Element):
 
 class UI_Markdown(UI_Padding):
     def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0, margin_left=None, margin_right=None):
+        self._markdown = None
+
         super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
         self.defer_recalc = True
 
-        self.min_size = self.drawing.scale(min_size)
+        self.min_size = self.drawing.scale(Vec2D(min_size))
         self.set_markdown(markdown)
 
         self.defer_recalc = False
@@ -1092,6 +1094,10 @@ class UI_Markdown(UI_Padding):
         mdown = re.sub(r'^\n*', r'', mdown)                 # remove leading \n
         mdown = re.sub(r'\n*$', r'', mdown)                 # remove trailing \n
         mdown = re.sub(r'\n\n\n*', r'\n\n', mdown)          # 2+ \n => \n\n
+
+        if mdown == self._markdown: return
+        self._markdown = mdown
+
         paras = mdown.split('\n\n')                         # split into paragraphs
 
         container = UI_Container(margin=4)

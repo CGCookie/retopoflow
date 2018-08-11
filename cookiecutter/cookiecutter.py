@@ -22,7 +22,7 @@ import time
 import bpy
 from bpy.types import Operator
 
-from ..common.drawing import Drawing
+from ..common.debug import debugger
 from ..common.useractions import Actions
 
 from .cookiecutter_fsm import CookieCutter_FSM
@@ -109,12 +109,12 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
                     self.end_cancel()
             except Exception as e:
                 print('Caught exception while trying to end with %s' % self._done)
-                print(e)
+                debugger.print_exception()
             try:
                 self.end()
             except Exception as e:
                 print('Caught exception while trying to end')
-                print(e)
+                debugger.print_exception()
 
             return {'FINISHED'} if self._done=='finish' else {'CANCELLED'}
 
@@ -132,7 +132,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Uti
             # let Blender handle navigation
             self.actions.unuse('navigate')  # pass-through commands do not receive a release event
             self._nav = True
-            if not self.actions.trackpad: Drawing.set_cursor('HAND')
+            if not self.actions.trackpad: self.drawing.set_cursor('HAND')
             ret = {'PASS_THROUGH'}
         elif self._nav:
             self._nav = False
