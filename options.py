@@ -34,7 +34,7 @@ from .common.logger import Logger
 from .common.profiler import Profiler
 
 
-retopoflow_version = '2.0.0'
+retopoflow_version = '2.0.1'
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
