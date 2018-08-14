@@ -35,6 +35,7 @@ default_rf_keymaps = {
 
     'general help': {'F1'},
     'tool help': {'F2'},
+    'toggle ui': {'F9'},
 
     'autosave': {'TIMER_AUTOSAVE'},
 

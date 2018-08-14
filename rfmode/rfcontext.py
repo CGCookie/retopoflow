@@ -510,10 +510,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             print('Clearing profiler')
             profiler.clear()
             return
-
         if self.actions.pressed('F8'):
             ui.debug_draw = not ui.debug_draw
-        if self.actions.pressed('F9'):
+
+        if self.actions.pressed('toggle ui'):
             self.draw_ui = not self.draw_ui
             self.window_info.visible = self.draw_ui
             self.tool_window.visible = self.draw_ui
