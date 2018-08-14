@@ -238,5 +238,7 @@ void main() {
             ;
     }
 
+    alpha *= pow(max(vCNormal.z, 0.01), 0.25);
+
     gl_FragColor = coloring(vec4(rgb, alpha));
 }
