@@ -408,6 +408,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         #   empty or None:  stay in modal
 
         self._process_event(context, event)
+        self.window_manager.update()
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 

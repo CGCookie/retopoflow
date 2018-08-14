@@ -86,7 +86,7 @@ class UI_Event:
 
 
 class UI_Element:
-    def __init__(self, margin=0, margin_left=None, margin_right=None, margin_top=None, margin_bottom=None):
+    def __init__(self, margin=0, margin_left=None, margin_right=None, margin_top=None, margin_bottom=None, min_size=(0,0), max_size=None):
         self.is_dirty = True
         self.dirty_callbacks = []
         self.defer_recalc = False
@@ -103,6 +103,8 @@ class UI_Element:
         self._margin_right = None
         self._margin_top = None
         self._margin_bottom = None
+        self._min_size = None
+        self._max_size = None
 
         self.pos = None
         self.size = None
@@ -112,6 +114,8 @@ class UI_Element:
         if margin_right is not None: self.margin_right = margin_right
         if margin_top is not None: self.margin_top = margin_top
         if margin_bottom is not None: self.margin_bottom = margin_bottom
+        self.min_size = min_size
+        self.max_size = max_size
         self.visible = True
         self.scissor_buffer = bgl.Buffer(bgl.GL_INT, 4)
         self.scissor_enabled = None
@@ -135,6 +139,33 @@ class UI_Element:
     def size(self, s):
         if self._size == s: return
         self._size = s
+        self.dirty()
+
+    @property
+    def min_size(self):
+        return self._min_size
+
+    @min_size.setter
+    def min_size(self, v):
+        vx, vy = v
+        vx, vy = max(0, vx), max(0, vy)
+        if self._min_size and self._min_size.x == vx and self._min_size.y == vy: return
+        self._min_size = Vec2D((vx, vy))
+        self.dirty()
+
+    @property
+    def max_size(self):
+        return self._max_size
+
+    @max_size.setter
+    def max_size(self, v):
+        if v is None:
+            if self._max_size is None: return
+            self._max_size = v
+        else:
+            vx, vy = v
+            if self._max_size and self._max_size.x == vx and self._max_size.y == vy: return
+            self._max_size = Vec2D((vx, vy))
         self.dirty()
 
     @property
@@ -295,6 +326,13 @@ class UI_Element:
 
         pr = profiler.start('UI_Element: calling _recalc_size on %s' % str(type(self)))
         self._recalc_size()
+
+        self._width_inner = max(self._min_size.x, self._width_inner)
+        self._height_inner = max(self._min_size.y, self._height_inner)
+        if self._max_size:
+            self._width_inner = min(self._max_size.x, self._width_inner)
+            self._height_inner = min(self._max_size.y, self._height_inner)
+
         pr.done()
         if self._width_inner <= 0 or self._height_inner <= 0:
             return (self._width, self._height)
@@ -337,10 +375,10 @@ class UI_Element:
 
 
 class UI_Padding(UI_Element):
-    def __init__(self, ui_item=None, margin=5, margin_left=None, margin_right=None):
+    def __init__(self, ui_item=None, margin=5, margin_left=None, margin_right=None, min_size=(0,0), max_size=None):
         self.ui_item = None
 
-        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
+        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
         self.set_ui_item(ui_item)
         self.defer_recalc = False
@@ -485,8 +523,8 @@ class UI_Background(UI_Element):
 
 
 class UI_VScrollable(UI_Padding):
-    def __init__(self, ui_item=None, margin=0):
-        super().__init__(margin=margin)
+    def __init__(self, ui_item=None, margin=0, min_size=(0,0), max_size=None):
+        super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
         self.set_ui_item(ui_item)
         self.defer_recalc = False
@@ -499,6 +537,12 @@ class UI_VScrollable(UI_Padding):
     def _find_rel_pos_size(self, ui_item):
         if self.ui_item == None: return None
         return self.ui_item.find_rel_pos_size(ui_item)
+
+    def scroll_to_top(self):
+        self.offset = 0
+
+    def scroll_to_bottom(self):
+        self.offset = self.get_height()
 
     # def _hover_ui(self, mouse):
     #     if not super()._hover_ui(mouse): return None
@@ -677,11 +721,11 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True, background=None, margin=0, separation=2):
+    def __init__(self, vertical=True, background=None, margin=0, separation=2, min_size=(0,0)):
         self._vertical = None
         self._separation = None
 
-        super().__init__(margin=margin)
+        super().__init__(margin=margin, min_size=min_size)
         self.defer_recalc = True
 
         self.vertical = vertical
@@ -723,7 +767,7 @@ class UI_Container(UI_Element):
         self.dirty()
         return ui_item
 
-    def clear(self, ui_item):
+    def clear(self):
         for ui_item in self.ui_items:
             ui_item.unregister_dirty_callback(self)
         self.ui_items = []
@@ -858,12 +902,12 @@ class UI_EqualContainer(UI_Container):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2):
+    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2, min_size=(0,0)):
         self.text = None
         self._fontsize = None
         self._icon = None
 
-        super().__init__(margin=margin)
+        super().__init__(margin=margin, min_size=min_size)
         self.defer_recalc = True
 
         self.icon = icon
@@ -966,8 +1010,8 @@ class UI_WrappedLabel(UI_Element):
     '''
     Handles text wrapping
     '''
-    def __init__(self, label, color=(1,1,1,1), min_size=Vec2D((600, 36)), fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
-        super().__init__(margin=margin)
+    def __init__(self, label, color=(1,1,1,1), min_size=(0, 0), max_size=(600, 36000), fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
+        super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
 
         self._fontsize = None
@@ -978,8 +1022,7 @@ class UI_WrappedLabel(UI_Element):
         self.set_bgcolor(bgcolor)
         self.color = color
         self.shadowcolor = shadowcolor
-        self.min_size = min_size
-        self.wrapped_size = min_size
+        self.wrapped_size = Vec2D(max_size)
 
         self.defer_recalc = False
 
@@ -1043,7 +1086,7 @@ class UI_WrappedLabel(UI_Element):
         self.drawing.set_font_size(size_prev)
 
     def _recalc_size(self):
-        self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.min_size.x))
+        self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.max_size.x))
         self._height_inner = self.wrapped_size.y
 
     @profiler.profile
@@ -1078,13 +1121,13 @@ class UI_WrappedLabel(UI_Element):
 
 
 class UI_Markdown(UI_Padding):
-    def __init__(self, markdown, min_size=Vec2D((600, 36)), margin=0, margin_left=None, margin_right=None):
+    def __init__(self, markdown, min_size=(0, 36), max_size=(600, 36000), margin=0, margin_left=None, margin_right=None):
         self._markdown = None
 
-        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
+        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
 
-        self.min_size = self.drawing.scale(Vec2D(min_size))
+        #self.max_size = self.drawing.scale(Vec2D(max_size))
         self.set_markdown(markdown)
 
         self.defer_recalc = False
@@ -1122,7 +1165,7 @@ class UI_Markdown(UI_Padding):
                     li = ul.add(UI_Container(margin=0, vertical=False))
                     li.add(UI_Label('-')).margin=0
                     li.add(UI_Spacer(width=8))
-                    li.add(UI_WrappedLabel(litext, min_size=self.min_size)).margin=0
+                    li.add(UI_WrappedLabel(litext, max_size=self.max_size)).margin=0
             elif p.startswith('!['):
                 # image!
                 m = re.match(r'^!\[(?P<caption>.*)\]\((?P<filename>.*)\)$', p)
@@ -1141,18 +1184,16 @@ class UI_Markdown(UI_Padding):
                         if c == 0:
                             t.set(r, c, UI_Label(data[r][c]))
                         else:
-                            t.set(r, c, UI_WrappedLabel(data[r][c], min_size=Vec2D((400, 12))))
+                            t.set(r, c, UI_WrappedLabel(data[r][c], min_size=(0, 12), max_size=(400, 12000)))
             else:
                 p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
-                container.add(UI_WrappedLabel(p, min_size=self.min_size))
+                container.add(UI_WrappedLabel(p, max_size=self.max_size))
         self.set_ui_item(container)
 
 class UI_OnlineMarkdown(UI_Markdown):
-    def __init__(self, url, min_size=Vec2D((600,36)), margin=4):
-        super().__init__(margin=margin)
+    def __init__(self, url, min_size=(0, 36), max_size=(600, 36000), margin=4):
+        super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
-
-        self.min_size = min_size
 
         response = urllib.request.urlopen(url)
         data = response.read()
@@ -1861,12 +1902,188 @@ class UI_Number(UI_Container):
             self.val.set_label(self.val_edit or '0')
 
 
+class UI_Textbox(UI_Container):
+    def __init__(self, fn_get_value, fn_set_value, always_commit=False, fn_enter=None, allow_chars=None, label=None, margin=2, bgcolor=None, hovercolor=(1,1,1,0.1), min_size=(0,0), **kwargs):
+        super().__init__(vertical=False, margin=margin, separation=4)
+        self.defer_recalc = True
+
+        self.always_commit = always_commit
+        self.fn_get_value = fn_get_value
+        self.fn_set_value = fn_set_value
+        self.fn_enter = fn_enter
+        self.allow_chars = set(allow_chars) if allow_chars else None
+
+        if label:
+            self.add(UI_Label(label, margin=0, align=-1, valign=0))
+            self.add(UI_Label('=', margin=0))
+        self.val = self.add(UI_Label(self.get_formatted_value(), margin=0, min_size=min_size))
+
+        self.downed = False
+        self.captured = False
+        self.time_start = time.time()
+        self.tooltip = kwargs.get('tooltip', None)
+        self.bgcolor = bgcolor
+        self.hovercolor = hovercolor
+        self.hovering = False
+        self.defer_recalc = False
+
+        self.lshift_pressed = False
+        self.rshift_pressed = False
+
+    def get_formatted_value(self):
+        return self.fn_get_value()
+
+    def _get_tooltip(self, mouse): return self.tooltip
+
+    def _hover_ui(self, mouse):
+        return self if super()._hover_ui(mouse) else None
+
+    def mouse_down(self, mouse):
+        self.down_mouse = mouse
+        self.prev_mouse = mouse
+        self.down_val = self.fn_get_value()
+        self.downed = True
+        self.drawing.set_cursor('MOVE_X')
+
+    def mouse_up(self, mouse):
+        self.downed = False
+
+    def mouse_cancel(self):
+        self.fn_set_value(self.down_val)
+
+    def mouse_enter(self):
+        self.hovering = True
+    def mouse_leave(self):
+        self.hovering = False
+
+    def predraw(self):
+        if not self.captured:
+            self.val.set_label(self.get_formatted_value())
+            self.val.cursor_pos = None
+        else:
+            self.val.cursor_pos = self.val_pos
+
+    @profiler.profile
+    def _draw(self):
+        r,g,b,a = (0,0,0,0.1) if not (self.downed or self.captured) else (0.8,0.8,0.8,0.5)
+        l,t = self.pos
+        w,h = self.size
+        bgl.glEnable(bgl.GL_BLEND)
+        self.drawing.line_width(1)
+
+        if self.hovering:
+            bgcolor = self.hovercolor or self.bgcolor
+        else:
+            bgcolor = self.bgcolor
+
+        if bgcolor:
+            bgl.glColor4f(*bgcolor)
+            bgl.glBegin(bgl.GL_QUADS)
+            bgl.glVertex2f(l,t)
+            bgl.glVertex2f(l,t-h)
+            bgl.glVertex2f(l+w,t-h)
+            bgl.glVertex2f(l+w,t)
+            bgl.glEnd()
+
+        bgl.glColor4f(r,g,b,a)
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2f(l,t)
+        bgl.glVertex2f(l,t-h)
+        bgl.glVertex2f(l+w,t-h)
+        bgl.glVertex2f(l+w,t)
+        bgl.glVertex2f(l,t)
+        bgl.glEnd()
+        super()._draw()
+
+    def capture_start(self):
+        self.val_orig = self.get_formatted_value()
+        self.val_edit = str(self.val_orig)
+        self.val_pos = len(self.val_edit)
+        self.captured = True
+        # https://docs.blender.org/api/blender_python_api_current/bpy.types.Event.html#bpy.types.Event.type
+        self.keys = {
+            'ZERO':   '0', 'NUMPAD_0':      '0',
+            'ONE':    '1', 'NUMPAD_1':      '1',
+            'TWO':    '2', 'NUMPAD_2':      '2',
+            'THREE':  '3', 'NUMPAD_3':      '3',
+            'FOUR':   '4', 'NUMPAD_4':      '4',
+            'FIVE':   '5', 'NUMPAD_5':      '5',
+            'SIX':    '6', 'NUMPAD_6':      '6',
+            'SEVEN':  '7', 'NUMPAD_7':      '7',
+            'EIGHT':  '8', 'NUMPAD_8':      '8',
+            'NINE':   '9', 'NUMPAD_9':      '9',
+            'PERIOD': '.', 'NUMPAD_PERIOD': '.',
+            'MINUS':  '-', 'NUMPAD_MINUS':  '-',
+            'SPACE':  ' ',
+            'SEMI_COLON': ';', 'COMMA': ',',
+            'QUOTE': "'", 'ACCENT_GRAVE': '`',
+            'PLUS': '+', 'SLASH': '/', 'BACK_SLASH': '\\',
+            'EQUAL': '=', 'LEFT_BRACKET': '[', 'RIGHT_BRACKET': ']',
+        }
+        self.keys.update({ key.upper(): key.lower() for key in 'abcdefghijklmnopqrstuvwxyz' })
+        self.upper_keys = {
+            '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+            '6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+            '-': '_', '[': '{', ']': '}', '/': '?', '=': '+',
+            '\\': '|', "'": '"', ',': '<', '.': '>', ' ': ' ',
+            '`': '~', '+': '+',
+        }
+        self.upper_keys.update({key.lower(): key.upper() for key in 'abcdefghijklmnopqrstuvwxyz'})
+        self.drawing.set_cursor('TEXT')
+        return True
+
+    def capture_event(self, event):
+        time_delta = time.time() - self.time_start
+        self.val.cursor_symbol = None if int(time_delta*10)%5 == 0 else '|'
+        if event.value == 'RELEASE':
+            if event.type in {'RET','NUMPAD_ENTER'}:
+                self.captured = False
+                self.fn_set_value(self.val_edit)
+                if self.fn_enter:
+                    self.fn_enter()
+                return True
+            if event.type == 'ESC':
+                self.captured = False
+                return True
+            if event.type == 'LEFT_SHIFT':
+                self.lshift_pressed = False
+            if event.type == 'RIGHT_SHIFT':
+                self.rshift_pressed = False
+        if event.value == 'PRESS':
+            if event.type == 'LEFT_ARROW':
+                self.val_pos = max(0, self.val_pos - 1)
+            if event.type == 'RIGHT_ARROW':
+                self.val_pos = min(len(self.val_edit), self.val_pos + 1)
+            if event.type == 'HOME':
+                self.val_pos = 0
+            if event.type == 'END':
+                self.val_pos = len(self.val_edit)
+            if event.type == 'BACK_SPACE' and self.val_pos > 0:
+                self.val_edit = self.val_edit[:self.val_pos-1] + self.val_edit[self.val_pos:]
+                self.val_pos -= 1
+            if event.type == 'DEL' and self.val_pos < len(self.val_edit):
+                self.val_edit = self.val_edit[:self.val_pos] + self.val_edit[self.val_pos+1:]
+            if event.type == 'LEFT_SHIFT':
+                self.lshift_pressed = True
+            if event.type == 'RIGHT_SHIFT':
+                self.rshift_pressed = True
+            if event.type in self.keys:
+                k = self.keys[event.type]
+                if self.lshift_pressed or self.rshift_pressed: k = self.upper_keys[k]
+                if not self.allow_chars or k in self.allow_chars:
+                    self.val_edit = self.val_edit[:self.val_pos] + k + self.val_edit[self.val_pos:]
+                    self.val_pos += 1
+            if self.always_commit:
+                self.fn_set_value(self.val_edit)
+            self.val.set_label(self.val_edit)
+
+
 class UI_HBFContainer(UI_Container):
     '''
     container with header, body, and footer
     '''
-    def __init__(self, vertical=True, separation=2):
-        super().__init__(margin=0, separation=2)
+    def __init__(self, vertical=True, separation=2, min_size=(0,0)):
+        super().__init__(margin=0, separation=2, min_size=min_size)
         self.defer_recalc = True
         self.header = super().add(UI_Container())
         self.body_scroll = super().add(UI_VScrollable())
@@ -2073,10 +2290,12 @@ class UI_Window(UI_Padding):
         self.hbf.body.margin = 0
         self.hbf.footer.margin = 0
         self.hbf.header.background = (0,0,0,0.2)
-        if title:
-            self.hbf_title = self.hbf.add(UI_Label(title, align=0, color=(1,1,1,0.5)), header=True)
-            #self.hbf_title_rule = self.hbf.add(UI_Rule(color=(0,0,0,0.1)), header=True)
-            self.ui_grab += self.hbf.header.ui_items # [self.hbf_title, self.hbf_title_rule]
+
+        #if title:
+        self.hbf_title = self.hbf.add(UI_Label('', align=0, color=(1,1,1,0.5)), header=True)
+        self.set_title(title)
+        #self.hbf_title_rule = self.hbf.add(UI_Rule(color=(0,0,0,0.1)), header=True)
+        self.ui_grab += self.hbf.header.ui_items # [self.hbf_title, self.hbf_title_rule]
 
         self.update_pos()
 
@@ -2088,6 +2307,13 @@ class UI_Window(UI_Padding):
         self.FSM['scroll'] = self.modal_scroll
         self.state = 'main'
         self.defer_recalc = False
+
+    def set_title(self, title):
+        if title is None:
+            self.hbf_title.visible = False
+        else:
+            self.hbf_title.set_label(title)
+            self.hbf_title.visible = True
 
     def show(self): self.visible = True
     def hide(self): self.visible = False
@@ -2292,6 +2518,9 @@ class UI_WindowManager:
         self.tooltip_label = self.tooltip_window.add(UI_Label('foo bar'))
         self.tooltip_offset = Vec2D((15, -15))
 
+        self.interval_id = 0
+        self.intervals = {}
+
     def set_show_tooltips(self, v):
         self.tooltip_show = v
         if not v: self.tooltip_window.visible = v
@@ -2375,6 +2604,26 @@ class UI_WindowManager:
                 win.draw_postpixel()
         self.tooltip_window.draw_postpixel()
         ScissorStack.end()
+
+    def register_interval_callback(self, fn_callback, interval):
+        self.interval_id += 1
+        self.intervals[self.interval_id] = {
+            'callback': fn_callback,
+            'interval': interval,
+            'next': 0,
+        }
+        return self.interval_id
+
+    def unregister_interval_callback(self, interval_id):
+        del self.intervals[self.interval_id]
+
+    def update(self):
+        cur_time = time.time()
+        for interval_id in self.intervals:
+            interval = self.intervals[interval_id]
+            if interval['next'] > cur_time: continue
+            interval['callback']()
+            interval['next'] = cur_time + interval['interval']
 
     def modal(self, context, event):
         if event.type == 'MOUSEMOVE':

@@ -1,31 +1,45 @@
-# https://pythonspot.com/building-an-irc-bot/
-
 import socket
 import sys
 
+from concurrent.futures import ThreadPoolExecutor
 
+
+# https://pythonspot.com/building-an-irc-bot/
 class IRC:
-    irc = socket.socket()
-
     def __init__(self):
-        self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.done = False
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    def __del__(self):
+        self.close()
+
+    def send_text(self, text):
+        if not text.endswith('\n'): text += '\n'
+        self.socket.send(bytes(text, encoding='utf-8'))
 
     def send(self, chan, msg):
-        self.irc.send(bytes("PRIVMSG " + chan + " " + msg + "\n", encoding='utf-8'))
+        self.socket.send(bytes("PRIVMSG " + chan + " :" + msg + "\n", encoding='utf-8'))
 
-    def connect(self, server, channel, botnick):
+    def connect(self, server, channel, nickname):
         #defines the socket
         print("connecting to:", server)
-        self.irc.connect((server, 6667))                                                         #connects to the server
-        self.irc.send(bytes("USER " + botnick + " " + botnick +" " + botnick + " :This is a fun bot!\n", encoding='utf-8')) #user authentication
-        self.irc.send(bytes("NICK " + botnick + "\n", encoding='utf-8'))
-        self.irc.send(bytes("JOIN " + channel + "\n", encoding='utf-8'))        #join the chan
+        self.socket.connect((server, 6667))                                                         #connects to the server
+        self.socket.send(bytes("USER " + nickname + " " + nickname +" " + nickname + " :This is a fun bot!\n", encoding='utf-8')) #user authentication
+        self.socket.send(bytes("NICK " + nickname + "\n", encoding='utf-8'))
+        self.socket.send(bytes("JOIN " + channel + "\n", encoding='utf-8'))        #join the chan
 
-    def get_text(self):
-        text = str(self.irc.recv(2040), encoding='utf-8')  #receive the text
-        # if text.find('PING') != -1:
-        #     self.irc.send(bytes('PONG ' + text.split() [2] + '\n', encoding='utf-8'))
+    def get_text(self, blocking=True):
+        self.socket.setblocking(blocking)
+        try:
+            text = str(self.socket.recv(4096), encoding='utf-8')  #receive the text
+        except socket.error:
+            text = None
         return text
+
+    def close(self):
+        if self.done: return
+        self.socket.close()
+        self.done = True
 
 
 if __name__ == '__main__':
