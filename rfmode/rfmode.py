@@ -180,10 +180,12 @@ class RFMode(Operator):
         return count
 
     @staticmethod
-    def get_target_name():
-        target = RFContext.get_target()
-        if not target: return None
-        return target.name
+    def get_target():
+        return RFContext.get_target()
+
+    @staticmethod
+    def get_sources():
+        return RFContext.get_sources()
 
     @staticmethod
     @profiler.profile

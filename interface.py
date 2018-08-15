@@ -201,6 +201,17 @@ class RF_Panel(Panel):
     bl_region_type = 'TOOLS'
 
     def draw(self, context):
+        # https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout
+
+        def human_readable(c):
+            if c < 10000:
+                return str(c)
+            if c < 1000000:
+                c = round(c / 1000)
+                return '%sk' % str(c)
+            c = round(c / 1000000)
+            return '%sm' % str(c)
+
         layout = self.layout
 
         # explicitly call to check for update in background
@@ -214,29 +225,39 @@ class RF_Panel(Panel):
         col.operator("cgcookie.rf_open_webissues",  "Report an Issue")
         # col.operator("cgcookie.rf_open_webtip",     "Send us a tip")
 
-        target_name = RFMode.get_target_name()
+        target = RFMode.get_target()
+        layout.label('Target:')
         box = layout.box()
-        if not target_name:
-            box.label("Creating new target")
+        if not target:
+            box.label("Creating New", icon='NEW')
         else:
-            box.label("Target Name: %s" % target_name)
             if RFMode.dense_target():
-                #warnbox = layout.box()
                 box.alert = True
                 warncol = box.column(align=True)
-                warncol.alignment = 'EXPAND'
-                warncol.label("TARGET WARNING:", icon="ERROR")
-                warncol.label("Polycount is high!")
-                warncol.label("RetopoFlow may load slowly.")
+                warncol.label("High Polycount!", icon="ERROR")
+                warncol.label("Might load slowly")
+            n = target.name
+            c = len(target.data.polygons)
+            box.label('%s (%s)' % (n, human_readable(c)))
 
-        if RFMode.dense_sources():
-            box = layout.box()
-            box.alert = True
-            col = box.column(align=True)
-            col.alignment = 'EXPAND'
-            col.label("SOURCE WARNING:", icon="ERROR")
-            col.label("Source polycount is high!")
-            col.label("RetopoFlow may load slowly.")
+        sources = RFMode.get_sources()
+        c = len(sources)
+        layout.label('%d Source%s:' % (c, '' if c==1 else 's'))
+        box = layout.box()
+        if not sources:
+            warncol = box.column(align=True)
+            warncol.label('None detected', icon='ERROR')
+        else:
+            if RFMode.dense_sources():
+                box.alert = True
+                warncol = box.column(align=True)
+                warncol.label("High Polycount!", icon="ERROR")
+                warncol.label("Might load slowly")
+            namecol = box.column(align=True)
+            for source in sources:
+                n = source.name
+                c = len(source.data.polygons)
+                namecol.label('%s (%s)' % (n, human_readable(c)))
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'
