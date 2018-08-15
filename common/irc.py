@@ -1,8 +1,6 @@
 import socket
 import sys
 
-from concurrent.futures import ThreadPoolExecutor
-
 
 # https://pythonspot.com/building-an-irc-bot/
 class IRC:
