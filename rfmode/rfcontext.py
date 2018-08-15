@@ -33,6 +33,8 @@ import random
 import binascii
 import importlib
 from copy import deepcopy
+from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
 
 import bgl
 import bpy
@@ -96,6 +98,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     instance = None     # reference to the current instance of RFContext
 
     undo_depth = 100    # set in RF settings?
+
+    executor = ThreadPoolExecutor()
+    instrument_queue = Queue()
+    instrument_thread = None
 
     @staticmethod
     @blender_version_wrapper('<','2.80')
@@ -377,12 +383,24 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         target_json = self.rftarget.to_json()
         data = {'action': action, 'target': target_json}
-        data_str = json.dumps(data, separators=[',',':'])
+        data_str = json.dumps(data, separators=[',',':'], indent=0)
+        RFContext.instrument_queue.put(data_str)
 
-        # write data to end of textblock
-        tb.write('')        # position cursor to end
-        tb.write(data_str)
-        tb.write('\n')
+        # write data to end of textblock asynchronously
+        # TODO: try writing to file (text/binary), because writing to textblock is _very_ slow! :(
+        def write_out():
+            while True:
+                if RFContext.instrument_queue.empty():
+                    time.sleep(0.1)
+                    continue
+                data_str = RFContext.instrument_queue.get()
+                data_str = data_str.splitlines()
+                tb.write('')        # position cursor to end
+                for line in data_str:
+                    tb.write(line)
+                tb.write('\n')
+        if not RFContext.instrument_thread:
+            RFContext.instrument_thread = RFContext.executor.submit(write_out)
 
     ###################################################
     # auto save
