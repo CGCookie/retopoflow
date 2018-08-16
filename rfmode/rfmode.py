@@ -139,7 +139,6 @@ class RFMode(Operator):
 
     rf_icon = None
 
-
     ################################################
     # Blender Operator methods
 
@@ -186,6 +185,14 @@ class RFMode(Operator):
     @staticmethod
     def get_sources():
         return RFContext.get_sources()
+
+    @staticmethod
+    def get_source_snap(name):
+        return RFContext.get_source_snap(name)
+
+    @staticmethod
+    def set_source_snap(name, val):
+        return RFContext.set_source_snap(name, val)
 
     @staticmethod
     @profiler.profile

@@ -194,6 +194,45 @@ class RF_Recover_Clear(Operator):
         return {'FINISHED'}
 
 
+class RF_SnapObjects(bpy.types.PropertyGroup):
+    max_count = 1000
+    name_map = {}
+    name_map_rev = {}
+
+    @staticmethod
+    def get_boolprop_name(name):
+        if name not in RF_SnapObjects.name_map:
+            c = len(RF_SnapObjects.name_map)
+            assert c < RF_SnapObjects.max_count
+            RF_SnapObjects.name_map[name] = c
+            RF_SnapObjects.name_map_rev[c] = name
+        return 'mesh%04d' % RF_SnapObjects.name_map[name]
+
+    @staticmethod
+    def get_boolprop_value(name):
+        name = RF_SnapObjects.get_boolprop_name(name)
+        return getattr(RF_SnapObjects, name)
+
+    @staticmethod
+    def generate_boolprops():
+        # generate a bunch of BoolProperty objects, because we (seemingly) cannot
+        # instantiate them when we need them (during draw of RF_Panel)
+        for i in range(RF_SnapObjects.max_count):
+            name = 'mesh%04d' % i
+            def getter_setter():
+                i_ = i
+                name_ = name
+                def getter(self):
+                    return RFMode.get_source_snap(RF_SnapObjects.name_map_rev[i_])
+                def setter(self, val):
+                    return RFMode.set_source_snap(RF_SnapObjects.name_map_rev[i_], val)
+                return (getter, setter)
+            getter, setter = getter_setter()
+            setattr(RF_SnapObjects, name, BoolProperty(name=name, description="Check to snap target to this source.", default=True, get=getter, set=setter))
+
+RF_SnapObjects.generate_boolprops()
+
+
 class RF_Panel(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
@@ -249,7 +288,7 @@ class RF_Panel(Panel):
             warncol.label('None detected', icon='ERROR')
         else:
             if RFMode.dense_sources():
-                box.alert = True
+                #box.alert = True
                 warncol = box.column(align=True)
                 warncol.label("High Polycount!", icon="ERROR")
                 warncol.label("Might load slowly")
@@ -257,7 +296,9 @@ class RF_Panel(Panel):
             for source in sources:
                 n = source.name
                 c = len(source.data.polygons)
-                namecol.label('%s (%s)' % (n, human_readable(c)))
+                namecol.prop(context.scene.snapobjects, RF_SnapObjects.get_boolprop_name(n), text='%s (%s)' % (n, human_readable(c)))
+                #namecol.label('%s (%s)' % (n, human_readable(c)))
+            namecol.label('Check = Snap')
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'

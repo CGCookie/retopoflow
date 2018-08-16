@@ -231,6 +231,14 @@ class RFMesh():
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
 
+    @property
+    def tag(self):
+        return self.obj.data.tag
+
+    @tag.setter
+    def tag(self, v):
+        self.obj.data.tag = v
+
     ##########################################################
 
     @profiler.profile

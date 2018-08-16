@@ -46,14 +46,15 @@ try:
 
     # Operators, Menus, Panels, Icons
     from .interface import (
-        RF_Panel,
-        RF_Menu,
+        RF_SnapObjects,
         RF_Preferences,
         RF_Recover, RF_Recover_Clear,
+        RF_Panel,
+        RF_Menu,
         RF_OpenLog,
-        RF_OpenWebTip,
-        RF_OpenWebIssues,
         RF_OpenQuickStart,
+        RF_OpenWebIssues,
+        RF_OpenWebTip,
     )
     from .icons import clear_icons
 
@@ -73,6 +74,7 @@ except Exception as e:
 addon_keymaps = []
 
 register_classes = [
+    RF_SnapObjects,
     RF_Preferences,
     RF_Recover,
     RF_Recover_Clear,
@@ -104,10 +106,14 @@ def register():
     # addon updater code and configurations
     addon_updater_ops.register(bl_info)
 
+    bpy.types.Scene.snapobjects = bpy.props.PointerProperty(type=RF_SnapObjects)
+
 def unregister():
     global register_classes, addon_keymaps
 
     clear_icons()
+
+    del bpy.types.Scene.snapobjects
 
     # unregister all of the classes in reverse order
     for c in reversed(register_classes):
