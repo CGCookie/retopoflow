@@ -579,7 +579,8 @@ class RFTool_PolyPen(RFTool):
         elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
             if self.next_state in ['edge-face', 'edge-quad', 'tri-quad']:
                 nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
-                self.draw_lines([nearest_vert.co, hit_pos])
+                if nearest_vert:
+                    self.draw_lines([nearest_vert.co, hit_pos])
 
         elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
             if self.next_state == 'edge-face':
