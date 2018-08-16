@@ -190,7 +190,7 @@ class RFMesh():
     ##########################################################
 
     def store_state(self):
-        attributes = ['hide']       # list of attributes to remember
+        attributes = ['hide', 'hide_render']    # list of attributes to remember
         self.prev_state = {
             attr: self.obj.__getattribute__(attr)
             for attr in attributes
@@ -198,6 +198,7 @@ class RFMesh():
 
     def restore_state(self):
         for attr, val in self.prev_state.items():
+            #print(self.obj.name, attr, val)
             self.obj.__setattr__(attr, val)
 
     def get_obj_name(self):
@@ -208,6 +209,9 @@ class RFMesh():
 
     def obj_unhide(self):
         self.obj.hide = False
+
+    def obj_unhide_render(self):
+        self.obj.hide_render = False
 
     def obj_select(self):
         self.obj_set_select(True)

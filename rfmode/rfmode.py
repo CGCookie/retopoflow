@@ -348,9 +348,10 @@ class RFMode(Operator):
 
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
+        self.rfctx.rftarget.obj_unhide_render()
         for rfsource in self.rfctx.rfsources:
             rfsource.obj_set_select(False)
-            # rfsource.obj_hide()
+            rfsource.obj_unhide_render()
 
 
 
@@ -553,7 +554,7 @@ class RFMode(Operator):
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
-        #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
+        for rfsource in self.rfctx.rfsources: rfsource.restore_state()
 
         if self.rfctx.timer:
             bpy.context.window_manager.event_timer_remove(self.rfctx.timer)
