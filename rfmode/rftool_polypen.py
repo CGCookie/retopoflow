@@ -216,6 +216,9 @@ class RFTool_PolyPen(RFTool):
         self.move_done_released = ['insert', 'insert alt0']
         self.move_cancelled = 'cancel'
 
+        insert_normal     = self.rfcontext.actions.ctrl  and not self.rfcontext.actions.shift
+        insert_edges_only = self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl
+
         if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
             nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
@@ -228,7 +231,7 @@ class RFTool_PolyPen(RFTool):
         # overriding
         # if hovering over a selected edge, knife it!
         if self.nearest_edge and self.nearest_edge.select:
-            if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
+            if insert_normal:
                 #print('knifing selected, hovered edge')
                 bmv = self.rfcontext.new2D_vert_mouse()
                 if not bmv:
@@ -250,8 +253,8 @@ class RFTool_PolyPen(RFTool):
 
         if self.next_state == 'vert-edge':
             bmv0 = next(iter(sel_verts))
-            if not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
-                nearest_vert,d = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=options['polypen merge dist'])
+            if insert_normal:
+                nearest_vert,dist = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=options['polypen merge dist'])
                 if nearest_vert:
                     bmv1 = nearest_vert
                     lbmf = bmv0.shared_faces(bmv1)
@@ -262,31 +265,32 @@ class RFTool_PolyPen(RFTool):
                         self.rfcontext.select(bmv1)
                         return 'main'
 
-                nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                nearest_edge,dist = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1 = self.rfcontext.new2D_vert_mouse()
                 if not bmv1:
                     self.rfcontext.undo_cancel()
                     return 'main'
-                if d is not None and d < self.rfcontext.drawing.scale(15):
-                    bme0,bmv2 = nearest_edge.split()
-                    bmv1.merge(bmv2)
-                    bmf = None
-                    for f0 in bmv0.link_faces:
-                        for f1 in bmv1.link_faces:
-                            if f0 == f1:
-                                bmf = f0
-                                break
-                    if bmf is not None:
-                        if not bmv0.share_edge(bmv1):
-                            bmf.split(bmv0, bmv1)
-                    if not bmv0.shared_faces(bmv1):
-                        bme = self.rfcontext.new_edge((bmv0, bmv1))
-                        self.rfcontext.select(bme)
-                    self.rfcontext.select(bmv1)
+                if dist is not None and dist < self.rfcontext.drawing.scale(15):
+                    if bmv0 in nearest_edge.verts:
+                        # selected vert already part of edge; split
+                        bme0,bmv2 = nearest_edge.split()
+                        bmv1.merge(bmv2)
+                        self.rfcontext.select(bmv1)
+                    else:
+                        bme0,bmv2 = nearest_edge.split()
+                        bmv1.merge(bmv2)
+                        bmf = next(iter(bmv0.shared_faces(bmv1)), None)
+                        if bmf:
+                            if not bmv0.share_edge(bmv1):
+                                bmf.split(bmv0, bmv1)
+                        if not bmv0.share_face(bmv1):
+                            bme = self.rfcontext.new_edge((bmv0, bmv1))
+                            self.rfcontext.select(bme)
+                        self.rfcontext.select(bmv1)
                 else:
                     bme = self.rfcontext.new_edge((bmv0, bmv1))
                     self.rfcontext.select(bme)
-            elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+            elif insert_edges_only:
                 if self.nearest_vert:
                     bmv1 = self.nearest_vert
                 else:
@@ -316,9 +320,6 @@ class RFTool_PolyPen(RFTool):
                 bmv2 = self.nearest_vert
                 bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
                 self.rfcontext.clean_duplicate_bmedges(bmv2)
-                # else:
-                #     self.rfcontext.undo_cancel()
-                #     return 'main'
             else:
                 bmv2 = self.rfcontext.new2D_vert_mouse()
                 if not bmv2:
