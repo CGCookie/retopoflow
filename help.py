@@ -323,6 +323,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 - SELECT / SHIFT+SELECT: select geometry
 - CTRL+ACTION: insert geometry connected to selected geometry
+- SHIFT+ACTION: insert edges only
 - A: deselect / select all
 
 ## Other
