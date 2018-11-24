@@ -304,8 +304,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 while dist - d <= 0:
                     # create new vert between c0 and c1
                     p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
-                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    p,n,_,_ = self.rfcontext.nearest_sources_Point(p)
                     verts[i].co = p
+                    verts[i].normal = n
                     i += 1
                     if i == l: break
                     dist += ndists[i]
