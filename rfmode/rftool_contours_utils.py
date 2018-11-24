@@ -320,7 +320,10 @@ class Contours_Loop:
             self.set_vert_loop(vert_loop, 0)
             return
         if is_opposite: n0 = -n0
-        q = Quaternion(n0.cross(n1), n0.angle(n1))
+
+        # issue #659
+        angle = 0 if n0.length_squared == 0 or n1.length_squared == 0 else n0.angle(n1)
+        q = Quaternion(n0.cross(n1), angle)
 
         # rotate to align "topmost" vertex
         rel_pos = [Vec(q * (to_point(p) - self.frame.o)) for p in vert_loop]
