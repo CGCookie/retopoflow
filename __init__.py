@@ -33,63 +33,173 @@ bl_info = {
     "category":    "3D View"
 }
 
+import sys
+import traceback
+
 # Blender imports
 import bpy
 import bpy.utils.previews
+from bpy.types import Panel, Operator
 
+from .common.debug import Debugger
+from .common.blender import create_and_show_blender_text, show_blender_text
+
+from .options import retopoflow_version
+
+
+addon_keymaps = []          # Used to store keymaps for addon
+register_classes = []       # RF classes to register
+
+
+
+# in case something breaks while registering...
+retopoflow_is_broken = False
+retopoflow_broken_message = None
+class RF_OpenBrokenMessage(Operator):
+    """Open RetopoFlow Broken Message in new window"""
+
+    bl_category = 'Retopology'
+    bl_idname = 'cgcookie.rf_open_brokenmessage'
+    bl_label = "Open RetopoFlow Broken Message"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+
+    @classmethod
+    def poll(cls, context):
+        global retopoflow_is_broken
+        return retopoflow_is_broken
+
+    def execute(self, context):
+        self.openTextFile()
+        return {'FINISHED'}
+
+    def openTextFile(self):
+        global retopoflow_broken_message
+        txtname = 'retopoflow broken message'
+        # simple processing of help_quickstart
+        if txtname not in bpy.data.texts:
+            bpy.data.texts.new(txtname)
+        txt = bpy.data.texts[txtname]
+        txt.from_string(retopoflow_broken_message)
+        txt.current_line_index = 0
+        show_blender_text(txtname)
+
+class RF_Panel_Broken(Panel):
+    bl_category = "Retopology"
+    bl_label = "RetopoFlow %s" % retopoflow_version
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.label('RetopoFlow broke while registering.', icon="ERROR")
+        col.label('Click Open button below to view message.')
+        col.operator('cgcookie.rf_open_brokenmessage', 'Open Message')
+
+
+
+
+# attempt to import some Python packages that are sometimes missing from the
+# system Python3 install (but should be included in Blender's Python)
 try:
-    from .common.debug import debugger
-    from .common.profiler import profiler
-    from .common.logger import logger
-
-    from .options import options
-
-    # Operators, Menus, Panels, Icons
-    from .interface import (
-        RF_SnapObjects,
-        RF_Preferences,
-        RF_Recover, RF_Recover_Clear,
-        RF_Panel,
-        RF_Menu,
-        RF_OpenLog,
-        RF_OpenQuickStart,
-        RF_OpenWebIssues,
-        RF_OpenWebTip,
-    )
-    from .icons import clear_icons
-
-    #Tools
-    from .rfmode.rfmode import rfmode_tools
-
-    from .cookiecutter.test import CookieCutter_Test
-
-    # updater import
-    from . import addon_updater_ops
-
+    import numpy
+    import urllib.request
+    #import doesnotexist
 except Exception as e:
-    raise e
+    i,h = Debugger.get_exception_info_and_hash()
+    text = []
+    text += ['COULD NOT FIND PYTHON PACKAGES']
+    text += ['exception: %s' % str(e)]
+    text += ['hash: %s' % h]
+    text += ['sys.path:'] + ['\n'.join('    %s'%l for l in sys.path)]
+    text += ['trackback:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
+    text = '\n'.join(text)
+
+    print('\n\n')
+    print('='*100)
+    print(text)
+    print('='*100)
+    print('\n\n')
+
+    retopoflow_is_broken = True
+    retopoflow_broken_message = text
+    #create_and_show_blender_text(text)
+    #raise Exception(text)
 
 
-# Used to store keymaps for addon
-addon_keymaps = []
+if not retopoflow_is_broken:
+    try:
+        from .common.debug import debugger
+        from .common.profiler import profiler
+        from .common.logger import logger
 
-register_classes = [
-    RF_SnapObjects,
-    RF_Preferences,
-    RF_Recover,
-    RF_Recover_Clear,
-    RF_Panel,
-    RF_Menu,
-    RF_OpenLog,
-    RF_OpenQuickStart,
-    RF_OpenWebIssues,
-    RF_OpenWebTip,
-    CookieCutter_Test,
-]
-register_classes += [rft for (idname, rft) in rfmode_tools.items()]
+        from .options import options
+
+        # Operators, Menus, Panels, Icons
+        from .interface import (
+            RF_SnapObjects,
+            RF_Preferences,
+            RF_Recover, RF_Recover_Clear,
+            RF_Panel,
+            RF_Menu,
+            RF_OpenLog,
+            RF_OpenQuickStart,
+            RF_OpenWebIssues,
+            RF_OpenWebTip,
+        )
+        from .icons import clear_icons
+
+        #Tools
+        from .rfmode.rfmode import rfmode_tools
+
+        from .cookiecutter.test import CookieCutter_Test
+
+        # updater import
+        from . import addon_updater_ops
+
+        register_classes += [
+            RF_SnapObjects,
+            RF_Preferences,
+            RF_Recover,
+            RF_Recover_Clear,
+            RF_Panel,
+            RF_Menu,
+            RF_OpenLog,
+            RF_OpenQuickStart,
+            RF_OpenWebIssues,
+            RF_OpenWebTip,
+            CookieCutter_Test,
+        ]
+        register_classes += [rft for (idname, rft) in rfmode_tools.items()]
+
+    except Exception as e:
+        i,h = Debugger.get_exception_info_and_hash()
+        text = []
+        text += ['COULD NOT IMPORT RETOPOFLOW MODULES']
+        text += ['exception: %s' % str(e)]
+        text += ['hash: %s' % h]
+        text += ['sys.path:'] + ['\n'.join('    %s'%l for l in sys.path)]
+        text += ['trackback:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
+        text = '\n'.join(text)
+        retopoflow_is_broken = True
+        retopoflow_broken_message = text
+        #raise e
+
+
+
+
 
 def register():
     global register_classes, addon_keymaps
+    global retopoflow_is_broken, retopoflow_broken_message
+
+    if retopoflow_is_broken:
+        for c in [RF_OpenBrokenMessage, RF_Panel_Broken]:
+            bpy.utils.register_class(c)
+        #raise Exception(retopoflow_broken_message)
+        #create_and_show_blender_text(retopoflow_broken_message)
+        return
 
     # register all of the classes
     for c in register_classes:
@@ -110,6 +220,9 @@ def register():
 
 def unregister():
     global register_classes, addon_keymaps
+    global retopoflow_is_broken, retopoflow_broken_message
+
+    if retopoflow_is_broken: return
 
     clear_icons()
 
