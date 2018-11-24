@@ -45,7 +45,7 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer, UI_Frame,
-    UI_Number,
+    UI_Number, UI_Textbox,
     GetSet,
     )
 from ..common import bmesh_render as bmegl
@@ -182,6 +182,7 @@ class RFContext_UI:
         ui_details = None
         ui_show = None
         message_orig = message
+        report_details = ''
 
         def screenshot():
             ss_filename = options['screenshot filename']
@@ -200,6 +201,8 @@ class RFContext_UI:
             url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
             bpy.ops.wm.url_open(url=url)
         def report():
+            nonlocal msg_report
+            nonlocal report_details
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
@@ -216,6 +219,37 @@ class RFContext_UI:
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
+        # def add_details():
+        #     nonlocal report_details
+        #     win = None
+        #     def close():
+        #         nonlocal win
+        #         self.window_manager.delete_window(win)
+        #     def event_handler(context, event):
+        #         if event.type == 'WINDOW' and event.value == 'CLOSE':
+        #             self.alert_windows -= 1
+        #         if event.type == 'ESC' and event.value == 'RELEASE':
+        #             close()
+        #     opts = {
+        #         'sticky': 5,
+        #         'movable': False,
+        #         'bgcolor': bgcolor,
+        #         'event handler': event_handler,
+        #         }
+        #     message = []
+        #     message += ['Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.']
+        #     message += ['Provide details on how to reproduce this issue so that we can fix it.']
+        #     win = self.window_manager.create_window('Provide details', opts)
+        #     win.add(UI_Rule())
+        #     win.add(UI_Markdown('\n'.join(message), max_size=(400,36000)))
+        #     win.add(UI_Textbox())
+        #     win.add(UI_Rule())
+        #     container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        #     if ui_details:
+        #         ui_show = container.add(UI_Button('Show Details', toggle_details, tooltip='Show/hide crash details', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     container.add(UI_Button('Close', close, tooltip='Close this alert window', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     self.window_manager.set_focus(win, darken=darken)
+        #     self.alert_windows += 1
 
         if msghash:
             ui_checker = UI_Container(background=(0,0,0,0.4))
@@ -301,10 +335,14 @@ class RFContext_UI:
             msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
             msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
             msg_report += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+            msg_report += ['- Undo: %s' % (', '.join(self.undo_stack_actions()[:10]),)]
             if msghash:
-                msg_report += ['\n\nError Hash: %s' % (str(msghash),)]
+                msg_report += ['']
+                msg_report += ['Error Hash: %s' % (str(msghash),)]
             if message_orig:
-                msg_report += ['\n\nTrace:\n\n%s' % (message_orig,)]
+                msg_report += ['']
+                msg_report += ['Trace:\n']
+                msg_report += [message_orig]
             msg_report = '\n'.join(msg_report)
 
             def clipboard():
