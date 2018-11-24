@@ -150,7 +150,6 @@ class RFMesh():
     ##########################################################
 
     def dirty(self, selectionOnly=False):
-        # TODO: add option for dirtying only selection or geo+topo
         if not selectionOnly:
             if hasattr(self, 'bvh'):
                 del self.bvh
@@ -774,53 +773,52 @@ class RFMesh():
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         is_vis = lambda bmv: is_visible(l2w_point(bmv.co), None)
-        return { bmv for bmv in self.bme.verts if is_vis(bmv) }
+        return { bmv for bmv in self.bme.verts if bmv.is_valid and is_vis(bmv) }
 
     def _visible_edges(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bme for bme in self.bme.edges if all(bmv in bmvs for bmv in bme.verts) }
+        return { bme for bme in self.bme.edges if bme.is_valid and all(bmv in bmvs for bmv in bme.verts) }
 
     def _visible_faces(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bmf for bmf in self.bme.faces if all(bmv in bmvs for bmv in bmf.verts) }
+        return { bmf for bmf in self.bme.faces if bmf.is_valid and all(bmv in bmvs for bmv in bmf.verts) }
 
     def visible_verts(self, is_visible):
         return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) }
 
     def visible_edges(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
         return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs) }
 
     def visible_faces(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
         bmfs = { self._wrap_bmface(bmf) for bmf in self._visible_faces(is_visible, bmvs=bmvs) }
-        #print('seeing %d / %d faces' % (len(bmfs), len(self.bme.faces)))
         return bmfs
 
 
     ##########################################################
 
-    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
-    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
-    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
+    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid]
+    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid]
+    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid]
 
     def get_vert_count(self): return len(self.bme.verts)
     def get_edge_count(self): return len(self.bme.edges)
     def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.select}
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.select}
     def get_selected_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.select}
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.select}
     def get_selected_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.select}
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select}
 
     def any_verts_selected(self):
-        return any(bmv.select for bmv in self.bme.verts)
+        return any(bmv.select for bmv in self.bme.verts if bmv.is_valid)
     def any_edges_selected(self):
-        return any(bme.select for bme in self.bme.edges)
+        return any(bme.select for bme in self.bme.edges if bme.is_valid)
     def any_faces_selected(self):
-        return any(bmf.select for bmf in self.bme.faces)
+        return any(bmf.select for bmf in self.bme.faces if bmf.is_valid)
     def any_selected(self):
         return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
 
@@ -1304,7 +1302,6 @@ class RFTarget(RFMesh):
         BMElemWrapper.wrap(self)
 
     def commit(self):
-        self.write_editmesh()
         self.restore_state()
 
     def cancel(self):
