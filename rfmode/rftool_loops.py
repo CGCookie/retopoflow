@@ -355,6 +355,7 @@ class RFTool_Loops(RFTool):
         percent = clamp(self.percent_start + a.dot(b) / a.dot(a), -1, 1)
         for bmv in self.slide_data.keys():
             vecs = self.slide_data[bmv]['left' if percent > 0 else 'right']
+            if len(vecs) == 0: continue
             co = self.slide_data[bmv]['orig']
             delta = sum((v*percent for v in vecs), Vec((0,0,0))) / len(vecs)
             bmv.co = co + delta
