@@ -1370,7 +1370,7 @@ class UI_Options(UI_Container):
 class UI_Image(UI_Element):
     executor = ThreadPoolExecutor()
 
-    def __init__(self, image_data, margin=0, async=True, width=None, height=None):
+    def __init__(self, image_data, margin=0, async_run=True, width=None, height=None):
         super().__init__()
         self.defer_recalc = True
         self.image_data = image_data
@@ -1387,7 +1387,7 @@ class UI_Image(UI_Element):
         bgl.glGenTextures(1, self.texbuffer)
         self.texture_id = self.texbuffer[0]
 
-        if async: self.executor.submit(self.load_image)
+        if async_run: self.executor.submit(self.load_image)
         else: self.load_image()
         self.defer_recalc = False
 
