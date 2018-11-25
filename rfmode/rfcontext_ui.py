@@ -76,6 +76,23 @@ class RFContext_UI:
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
 
+    def show_reporting(self):
+        options['welcome'] = True
+        self.window_manager.set_focus(self.window_welcome)
+        #self.window_welcome.visible = options['welcome']
+    def hide_reporting(self):
+        options['welcome'] = False
+        self.window_welcome.visible = options['welcome']
+        #self.window_manager.clear_active()
+        self.window_manager.clear_focus()
+
+    def open_github(self):
+        bpy.ops.wm.url_open(url=retopoflow_issues_url)
+    def open_tip(self):
+        bpy.ops.wm.url_open(url=retopoflow_tip_url)
+    def open_irc(self):
+        RFIRCChat(self.window_manager)
+
     def toggle_help(self, general=None):
         if general is None:
             self.window_manager.clear_focus()
@@ -98,12 +115,14 @@ class RFContext_UI:
             self.toggle_tool_help()
 
     def toggle_general_help(self):
+        self.hide_reporting()
         if self.help_button.get_label() == 'Tool Help':
             self.toggle_help()
         else:
             self.help_button.set_label('Tool Help')
             self.toggle_help(True)
     def toggle_tool_help(self):
+        self.hide_reporting()
         if self.help_button.get_label() == 'General Help':
             self.toggle_help()
         else:
@@ -514,22 +533,6 @@ class RFContext_UI:
         def set_tool_collapsed(b):
             options['tools_min'] = b
             update_tool_collapsed()
-        def show_reporting():
-            options['welcome'] = True
-            self.window_manager.set_focus(self.window_welcome)
-            #self.window_welcome.visible = options['welcome']
-        def hide_reporting():
-            options['welcome'] = False
-            self.window_welcome.visible = options['welcome']
-            #self.window_manager.clear_active()
-            self.window_manager.clear_focus()
-
-        def open_github():
-            bpy.ops.wm.url_open(url=retopoflow_issues_url)
-        def open_tip():
-            bpy.ops.wm.url_open(url=retopoflow_tip_url)
-        def open_irc():
-            RFIRCChat(self.window_manager)
 
         def reset_options():
             options.reset()
@@ -632,11 +635,11 @@ class RFContext_UI:
 
         self.window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
         container = self.window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message'))
-        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
-        self.window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
+        container.add(UI_Button('Welcome!', self.show_reporting, tooltip='Show "Welcome!" message'))
+        container.add(UI_Button('Report Issue', self.open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
+        self.window_info.add(UI_Button('Buy us a drink', self.open_tip, tooltip='Send us a "Thank you"'))
         if options['show experimental']:
-            self.window_info.add(UI_Button('Chat on IRC', open_irc, tooltip='Chat with us on IRC'))
+            self.window_info.add(UI_Button('Chat on IRC', self.open_irc, tooltip='Chat with us on IRC'))
 
         self.window_tool_options = self.window_manager.create_window('Options', {
             'fn_pos':wrap_pos_option('options pos'),
@@ -737,12 +740,12 @@ class RFContext_UI:
 
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
-                hide_reporting()
+                self.hide_reporting()
         self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Markdown(firsttime_message, margin_left=8, margin_right=8))
         self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Button('Close', hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
+        self.window_welcome.add(UI_Button('Close', self.hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
         if options['welcome']: self.window_manager.set_focus(self.window_welcome)
 
         def help_event_handler(context, event):

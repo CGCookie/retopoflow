@@ -35,6 +35,13 @@ The RetopoFlow tools automatically generate geometry by drawing on an existing s
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
+## Minor Changes from Version 2.0.0
+
+- Fixed bug where navigation broke with internationalization settings
+- Improved many UX/UI issues.  For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.  For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
+- Squashed many hard-to-find bugs in Loops, PolyPen, Patches, Strokes, Contours
+- Better error handling with shader compilation.
+
 
 ## Major Changes from Version 1.x
 
@@ -105,9 +112,9 @@ More detailed help is available by pressing F1 after you start RF.
 TL;DR
 -----
 
-When you are retopologizing for the first time, deselect all objects and click one of the RetopoFlow tools.
+==> When you are retopologizing for the first time, deselect all objects and click one of the RetopoFlow tools.
 
-When continuing work on a previous retopology session, select the target object, and click one of the RetopoFlow tools.
+==> When continuing work on a previous retopology session, select the target object, and click one of the RetopoFlow tools.
 
 
 Terminology
@@ -129,7 +136,7 @@ In RetopoFlow 1.x you were required to select the source and target objects expl
 
 The target object is either:
 
-- the active mesh object if it is also selected (Object Mode)
+- the active mesh object if it is also selected and visible (Object Mode)
 - the mesh object currently being edited (Edit Mode)
 - otherwise, a newly created mesh object
 
