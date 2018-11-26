@@ -741,7 +741,14 @@ class RFContext_UI:
         def welcome_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
                 self.hide_reporting()
-        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
+        self.window_welcome = self.window_manager.create_window('Welcome!', {
+            'sticky': 5,
+            'visible': options['welcome'],
+            'movable': False,
+            'bgcolor': (0.2,0.2,0.2,0.95),
+            'event handler': welcome_event_handler,
+            'min_size': (800, 300),
+        })
         self.window_welcome.add(UI_Rule())
         self.window_welcome.add(UI_Markdown(firsttime_message, margin_left=8, margin_right=8))
         self.window_welcome.add(UI_Rule())
@@ -751,7 +758,14 @@ class RFContext_UI:
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
                 self.toggle_help()
-        self.window_help = self.window_manager.create_window('Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':help_event_handler})
+        self.window_help = self.window_manager.create_window('Help', {
+            'sticky': 5,
+            'visible': False,
+            'movable': False,
+            'bgcolor': (0.2,0.2,0.2,0.95),
+            'event handler': help_event_handler,
+            'min_size': (800, 300),
+        })
         self.window_help.add(UI_Rule())
         self.ui_helplabel = self.window_help.add(UI_Markdown('help text here!', margin_left=8, margin_right=8))
         self.window_help.add(UI_Rule())

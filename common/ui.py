@@ -82,6 +82,35 @@ def load_image_png(fn):
     return load_image_png.cache[fn]
 
 
+def kwargopts(kwargs, defvals=None):
+    opts = defvals.copy() if defvals else {}
+    opts.update(kwargs)
+    if 'opts' in kwargs: opts.update(opts['opts'])
+    def factory():
+        class Opts():
+            ''' pretend to be a dictionary, but also add . access fns '''
+            def __init__(self):
+                self.touched = set()
+            def __getattr__(self, opt):
+                self.touched.add(opt)
+                return opts[opt]
+            def __getitem__(self, opt):
+                self.touched.add(opt)
+                return opts[opt]
+            def __len__(self): return len(opts)
+            def has_key(self, opt): return opt in opts
+            def keys(self): return opts.keys()
+            def values(self): return opts.values()
+            def items(self): return opts.items()
+            def __contains__(self, opt): return opt in opts
+            def __iter__(self): return iter(opts)
+            def print_untouched(self):
+                print('untouched: %s' % str(set(opts.keys()) - self.touched))
+        return Opts()
+    return factory()
+
+
+
 class GetSet:
     def __init__(self, fn_get, fn_set):
         self.fn_get = fn_get
@@ -432,18 +461,26 @@ class UI_Padding(UI_Element):
 
 
 class UI_Background(UI_Element):
-    def __init__(self, background=None, rounded=False, border=None, border_thickness=1, ui_item=None, margin=0):
-        super().__init__(margin=margin)
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs, {
+            'background': None,
+            'rounded': 0,
+            'border': None,
+            'border_thickness': 1,
+            'ui_item': None,
+            'margin': 0,
+        })
+        super().__init__(margin=opts.margin)
         self.defer_recalc = True
 
         self.ui_item = None
 
-        self.background = background
-        self.rounded_background = rounded
-        self.border = border
+        self.background = opts.background
+        self.rounded = opts.rounded
+        self.border = opts.border
         # TODO: should border_thickness add to margin?
         self.border_thickness = 0
-        self.set_ui_item(ui_item)
+        self.set_ui_item(opts.ui_item)
 
         self.defer_recalc = False
 
@@ -481,47 +518,62 @@ class UI_Background(UI_Element):
         if not self.ui_item or not self.ui_item.visible: return
         l,t = self.pos
         w,h = self.size
+        r,b = l + w, t - h + 1
+        rounded_count = 10  # number of segments for each rounded corner
 
         bgl.glEnable(bgl.GL_BLEND)
 
         if self.background:
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
-            if self.rounded_background:
-                bgl.glVertex2f(l+1, t)
-                bgl.glVertex2f(l+w-1, t)
-                bgl.glVertex2f(l+w-1, t-h)
-                bgl.glVertex2f(l+1, t-h)
-
-                bgl.glVertex2f(l, t-1)
-                bgl.glVertex2f(l+1, t-1)
-                bgl.glVertex2f(l+1, t-h+1)
-                bgl.glVertex2f(l, t-h+1)
-
-                bgl.glVertex2f(l+w-1, t-1)
-                bgl.glVertex2f(l+w, t-1)
-                bgl.glVertex2f(l+w, t-h+1)
-                bgl.glVertex2f(l+w-1, t-h+1)
+            if self.rounded:
+                cos,sin,radians = math.cos,math.sin,math.radians
+                rounded = self.rounded
+                lr,rr = l + rounded, r - rounded
+                tr,br = t - rounded, b + rounded
+                first = True
+                for i in range(rounded_count+1):
+                    ir = 90 * i / rounded_count
+                    rad0, rad1 = radians(90 + ir), radians(90 - ir)
+                    bx0,by0 = lr + rounded * cos(rad0), tr + rounded * sin(rad0)
+                    bx1,by1 = rr + rounded * cos(rad1), tr + rounded * sin(rad1)
+                    if not first:
+                        bgl.glVertex2f(tx1, ty1)
+                        bgl.glVertex2f(tx0, ty0)
+                        bgl.glVertex2f(bx0, by0)
+                        bgl.glVertex2f(bx1, by1)
+                    first = False
+                    tx0,ty0,tx1,ty1 = bx0,by0,bx1,by1
+                for i in range(rounded_count+1):
+                    ir = 90 * (rounded_count - i) / rounded_count
+                    rad0, rad1 = radians(270 - ir), radians(270 + ir)
+                    bx0,by0 = lr + rounded * cos(rad0), br + rounded * sin(rad0)
+                    bx1,by1 = rr + rounded * cos(rad1), br + rounded * sin(rad1)
+                    bgl.glVertex2f(tx1, ty1)
+                    bgl.glVertex2f(tx0, ty0)
+                    bgl.glVertex2f(bx0, by0)
+                    bgl.glVertex2f(bx1, by1)
+                    tx0,ty0,tx1,ty1 = bx0,by0,bx1,by1
             else:
                 bgl.glVertex2f(l, t)
                 bgl.glVertex2f(l+w, t)
                 bgl.glVertex2f(l+w, t-h)
                 bgl.glVertex2f(l, t-h)
             bgl.glEnd()
+
         if self.border:
             bgl.glColor4f(*self.border)
             self.drawing.line_width(self.border_thickness)
             bgl.glBegin(bgl.GL_LINE_STRIP)
-            if self.rounded_background:
-                bgl.glVertex2f(l+1,t)
-                bgl.glVertex2f(l,t-1)
-                bgl.glVertex2f(l,t-h+1)
-                bgl.glVertex2f(l+1,t-h)
-                bgl.glVertex2f(l+w-1,t-h)
-                bgl.glVertex2f(l+w,t-h+1)
-                bgl.glVertex2f(l+w,t-1)
-                bgl.glVertex2f(l+w-1,t)
-                bgl.glVertex2f(l+1,t)
+            if self.rounded:
+                cos,sin,radians = math.cos,math.sin,math.radians
+                rounded = self.rounded
+                lr,rr = l + rounded, r - rounded
+                tr,br = t - rounded, b + rounded
+                for ci,cx,cy in [(0,rr,tr),(90,lr,tr),(180,lr,br),(270,rr,br)]:
+                    for i in range(rounded_count+1):
+                        rad = radians(ci + 90 * i / rounded_count)
+                        bgl.glVertex2f(cx + cos(rad) * rounded, cy + sin(rad) * rounded)
             else:
                 bgl.glVertex2f(l,t)
                 bgl.glVertex2f(l,t-h)
@@ -732,18 +784,26 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True, background=None, margin=0, separation=2, min_size=(0,0)):
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs, {
+            'vertical': True,
+            'background': None,
+            'rounded': 0,
+            'margin': 0,
+            'separation': 2,
+            'min_size': (0,0),
+        })
         self._vertical = None
         self._separation = None
 
-        super().__init__(margin=margin, min_size=min_size)
+        super().__init__(margin=opts.margin, min_size=opts.min_size)
         self.defer_recalc = True
 
-        self.vertical = vertical
         self.ui_items = []
-        self.background = background
-        self.rounded_background = False
-        self.separation = separation
+        self.vertical   = opts.vertical
+        self.background = opts.background
+        self.rounded    = opts.rounded
+        self.separation = opts.separation
 
         self.defer_recalc = False
 
@@ -829,7 +889,7 @@ class UI_Container(UI_Element):
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
-            if self.rounded_background:
+            if self.rounded:
                 bgl.glVertex2f(l+1, t)
                 bgl.glVertex2f(l+w-1, t)
                 bgl.glVertex2f(l+w-1, t-h)
@@ -1033,6 +1093,7 @@ class UI_WrappedLabel(UI_Element):
         self.set_bgcolor(bgcolor)
         self.color = color
         self.shadowcolor = shadowcolor
+        self.min_size = min_size
         self.wrapped_size = Vec2D(max_size)
 
         self.defer_recalc = False
@@ -1097,7 +1158,7 @@ class UI_WrappedLabel(UI_Element):
         self.drawing.set_font_size(size_prev)
 
     def _recalc_size(self):
-        self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.max_size.x))
+        self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.min_size.x))
         self._height_inner = self.wrapped_size.y
 
     @profile_fn
@@ -1137,8 +1198,9 @@ class UI_Markdown(UI_Padding):
 
         super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
-
+        #self.min_size = self.drawing.scale(Vec2D(min_size))
         #self.max_size = self.drawing.scale(Vec2D(max_size))
+
         self.set_markdown(markdown)
 
         self.defer_recalc = False
@@ -1206,6 +1268,8 @@ class UI_OnlineMarkdown(UI_Markdown):
         super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
 
+        self.min_size = min_size
+
         response = urllib.request.urlopen(url)
         data = response.read()
         text = data.decode('utf-8')
@@ -1217,20 +1281,34 @@ class UI_OnlineMarkdown(UI_Markdown):
         self.defer_recalc = False
 
 class UI_Button(UI_Container):
-    def __init__(self, label, fn_callback, icon=None, tooltip=None, color=(1,1,1,1), align=0, bgcolor=None, bordercolor=(0,0,0,0.4), hovercolor=(1,1,1,0.1), presscolor=(0,0,0,0.2), margin=0, padding=4):
-        super().__init__(vertical=False, margin=margin)
+    def __init__(self, label, fn_callback, **kwargs):
+        opts = kwargopts(kwargs, {
+            'icon':    None,
+            'tooltip': None,
+            'align':   0,
+            'valign':  0,
+            'margin':  0,
+            'padding': 4,
+            'color':       (1,1,1,1),
+            'bgcolor':     None,
+            'bordercolor': (0,0,0,0.4),
+            'hovercolor':  (1,1,1,0.1),
+            'presscolor':  (0,0,0,0.2),
+        })
+        super().__init__(vertical=False, margin=opts.margin)
+        self.container = self.add(UI_Container(vertical=False, margin=opts.padding))
         self.defer_recalc = True
-        if icon:
-            self.add(icon)
-            self.add(UI_Spacer(width=4))
-        self.tooltip = tooltip
-        self.label = self.add(UI_Label(label, color=color, align=align, margin=padding))
+        if opts.icon:
+            self.container.add(opts.icon)
+            self.container.add(UI_Spacer(width=opts.padding))
+        self.tooltip = opts.tooltip
+        self.label = self.container.add(UI_Label(label, color=opts.color, align=opts.align, valign=opts.valign))
         self.fn_callback = fn_callback
         self.pressed = False
-        self.bgcolor = bgcolor
-        self.bordercolor = bordercolor
-        self.presscolor = presscolor
-        self.hovercolor = hovercolor
+        self.bgcolor = opts.bgcolor
+        self.bordercolor = opts.bordercolor
+        self.presscolor = opts.presscolor
+        self.hovercolor = opts.hovercolor
         self.mouse = None
         self.hovering = False
         self.defer_recalc = False
@@ -1307,40 +1385,57 @@ class UI_Options(UI_Container):
     color_unselect = None
     color_hover = (1.00, 1.00, 1.00, 0.10)
 
-    def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2, separation=0, hovercolor=(1,1,1,0.1)):
-        super().__init__(vertical=vertical, margin=margin, separation=separation)
+    def __init__(self, fn_get_option, fn_set_option, **kwargs):
+        opts = kwargopts(kwargs, {
+            'label':          None,
+            'label_fontsize': None,
+            'label_margin':   0,
+            'label_align':    None,
+            'vertical':   True,
+            'margin':     2,
+            'separation': 0,
+            'hovercolor': (1,1,1,0.1),
+            'rounded':    4,
+        })
+        super().__init__(vertical=opts.vertical, margin=opts.margin)
         self.defer_recalc = True
-        if vertical: align,valign = -1,-1
-        else: align,valign = -1,0
-        self.ui_label = super().add(UI_Label('', margin=0, align=align, valign=valign))
-        self.set_label(label)
-        self.container = super().add(UI_EqualContainer(vertical=vertical, margin=0))
+        align,valign = (-1,-1) if opts.vertical else (-1,0)
+        if opts.label_align: align = opts.label_align
+        self.ui_label = super().add(UI_Label('', margin=opts.label_margin, align=align, valign=valign))
+        self.set_label(opts.label, fontsize=opts.label_fontsize, align=align)
+        self.container = super().add(UI_EqualContainer(vertical=opts.vertical, margin=0))
         self.fn_get_option = fn_get_option
         self.fn_set_option = fn_set_option
         self.options = {}
         self.values = set()
-        self.hovercolor = hovercolor
+        self.hovercolor = opts.hovercolor
         self.mouse_prev = None
         self.defer_recalc = False
+        self.separation = opts.separation
+        self.rounded = opts.rounded
 
-    def set_label(self, label):
+    def set_label(self, label, fontsize=None, align=None, margin=None):
         self.ui_label.visible = label is not None
         self.ui_label.set_label(label or '')
+        if fontsize is not None: self.ui_label.fontsize = fontsize
+        if align is not None: self.ui_label.align = align
+        if margin is not None: self.ui_label.margin = margin
 
     class UI_Option(UI_Background):
-        def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
-            super().__init__(rounded=True, margin=0)
+        def __init__(self, options, label, value, **kwargs):
+            opts = kwargopts(kwargs)
+            super().__init__(rounded=opts.rounded, margin=0)
             self.defer_recalc = True
             self.label = label
             self.value = value
             self.options = options
-            self.tooltip = tooltip
+            self.tooltip = opts.tooltip
             self.hovering = False
-            if not showlabel: label = None
-            container = self.set_ui_item(UI_Container(margin=margin, vertical=False))
-            if icon:           container.add(icon)
-            if icon and label: container.add(UI_Spacer(width=4))
-            if label:          container.add(UI_Label(label, color=color, align=align, valign=0, margin=0))
+            if not opts.showlabel: label = None
+            container = self.set_ui_item(UI_Container(margin=opts.margin, vertical=False))
+            if opts.icon:           container.add(opts.icon)
+            if opts.icon and label: container.add(UI_Spacer(width=4))
+            if label:               container.add(UI_Label(label, color=opts.color, align=opts.align, valign=0, margin=0))
             self.defer_recalc = False
 
         def _hover_ui(self, mouse):
@@ -1354,12 +1449,13 @@ class UI_Options(UI_Container):
             if self.value == self.options.fn_get_option():
                 self.background = UI_Options.color_select
                 #self.border = (1,1,1,0.5)
-                self.border = None
+                self.border = (0,0,0,0) #None
             elif self.hovering:
                 self.background = UI_Options.color_hover
                 self.border = (0,0,0,0.2)
             else:
                 self.background = UI_Options.color_unselect
+                self.border = (0,0,0,0) #None
                 #self.border = None
 
         #@profile_fn
@@ -1368,10 +1464,22 @@ class UI_Options(UI_Container):
 
         def _get_tooltip(self, mouse): return self.tooltip
 
-    def add_option(self, label, value=None, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
-        if value is None: value=label
+    def add_option(self, label, **kwargs):
+        opts = kwargopts(kwargs, {
+            'value': None,
+            'icon': None,
+            'tooltip': None,
+            'color': (1,1,1,1),
+            'align': -1,
+            'showlabel': True,
+            'margin': 2,
+            'rounded': self.rounded,
+        })
+        value = opts.value or label
         assert value not in self.values, "All option values must be unique!"
-        option = self.container.add(UI_Options.UI_Option(self, label, value, icon=icon, tooltip=tooltip, color=color, align=align, showlabel=showlabel, margin=margin))
+        # if len(self.values) and self.separation:
+        #     self.container.add(UI_Spacer(height=self.separation))
+        option = self.container.add(UI_Options.UI_Option(self, label, value, opts=opts))
         self.values.add(value)
         self.options[option] = value
 
@@ -1428,24 +1536,30 @@ class UI_Options(UI_Container):
 class UI_Image(UI_Element):
     executor = ThreadPoolExecutor()
 
-    def __init__(self, image_data, margin=0, async_load=True, width=None, height=None):
+    def __init__(self, image_data, **kwargs):
+        opts = kwargopts(kwargs, {
+            'margin': 0,
+            'async_load': True,
+            'width': None,
+            'height': None,
+        })
         super().__init__()
         self.defer_recalc = True
         self.image_data = image_data
         self.image_width,self.image_height = 16,16
-        self.width = width or 16
-        self.height = height or 16
-        self.size_set = (width is not None) or (height is not None)
+        self.width = opts.width or 16
+        self.height = opts.height or 16
+        self.size_set = (opts.width is not None) or (opts.height is not None)
         self.loaded = False
         self.buffered = False
         self.deleted = False
-        self.margin = margin
+        self.margin = opts.margin
 
         self.texbuffer = bgl.Buffer(bgl.GL_INT, [1])
         bgl.glGenTextures(1, self.texbuffer)
         self.texture_id = self.texbuffer[0]
 
-        if async_load: self.executor.submit(self.load_image)
+        if opts.async_load: self.executor.submit(self.load_image)
         else: self.load_image()
         self.defer_recalc = False
 
@@ -1703,7 +1817,7 @@ class UI_Checkbox2(UI_Container):
         super().__init__(margin=0)
         self.defer_recalc = True
 
-        self.bg = self.add(UI_Background(border_thickness=1, rounded=True))
+        self.bg = self.add(UI_Background(border_thickness=1, rounded=1))
         self.bg.set_ui_item(UI_Label(label, align=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
@@ -2223,7 +2337,15 @@ class UI_Collapsible(UI_Container):
 
 
 class UI_Frame(UI_Container):
-    def __init__(self, title, equal=False, vertical=True, separation=2):
+    defargs = {
+        'equal': False,
+        'vertical': True,
+        'separation': 2,
+        'fontsize': 12,
+        'spacer': 8,
+    }
+    def __init__(self, title, **kwargs):
+        opts = kwargopts(kwargs, UI_Frame.defargs)
         super().__init__()
         self.defer_recalc = True
         self.margin = 0
@@ -2233,14 +2355,15 @@ class UI_Frame(UI_Container):
         self.body_wrap = super().add(UI_Container(vertical=False, margin=0, separation=0))
         self.footer = super().add(UI_Container(margin=0, separation=0))
 
-        self.title = self.header.add(UI_Label(title))
+        self.title = self.header.add(UI_Label(title, fontsize=opts.fontsize))
 
-        self.body_wrap.add(UI_Spacer(width=8))
+        if opts.spacer:
+            self.body_wrap.add(UI_Spacer(width=opts.spacer))
         #self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
-        if equal:
-            self.body = self.body_wrap.add(UI_EqualContainer(vertical=vertical, margin=1))
+        if opts.equal:
+            self.body = self.body_wrap.add(UI_EqualContainer(vertical=opts.vertical, margin=1))
         else:
-            self.body = self.body_wrap.add(UI_Container(vertical=vertical, margin=1, separation=separation))
+            self.body = self.body_wrap.add(UI_Container(vertical=opts.vertical, margin=1, separation=opts.separation))
 
         self.footer.add(UI_Spacer(height=1))
         self.footer.add(UI_Rule(color=(0,0,0,0.25)))
@@ -2270,8 +2393,10 @@ class UI_Window(UI_Padding):
         vertical = options.get('vertical', True)
         margin = options.get('padding', 0)
         separation = options.get('separation', 0)
+        min_size = options.get('min_size', (0,0))
+        print(min_size)
 
-        super().__init__(margin=0)
+        super().__init__(margin=0, min_size=min_size)
         self.defer_recalc = True
 
         fn_sticky = options.get('fn_pos', None)

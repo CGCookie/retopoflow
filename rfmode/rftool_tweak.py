@@ -50,7 +50,7 @@ class RFTool_Tweak(RFTool):
         ui_mask.add(UI_BoolValue('Hidden', *options.gettersetter('tweak mask hidden'), tooltip='Enable to mask off vertices that are hidden behind source'))
         ui_mask.add(UI_BoolValue('Selected', *options.gettersetter('tweak mask selected'), tooltip='Enable to mask off vertices that are selected'))
 
-        ui_brush = UI_Container('Brush Properties')
+        ui_brush = UI_Frame('Brush Properties')
         ui_brush.add(UI_Number('Radius', *self.rfwidget.radius_gettersetter(), tooltip='Set radius of tweak brush'))
         ui_brush.add(UI_Number('Falloff', *self.rfwidget.falloff_gettersetter(), tooltip='Set falloff of tweak brush'))
         ui_brush.add(UI_Number('Strength', *self.rfwidget.strength_gettersetter(), tooltip='Set strength of tweak brush'))
