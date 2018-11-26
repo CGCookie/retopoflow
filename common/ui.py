@@ -518,7 +518,7 @@ class UI_Background(UI_Element):
         if not self.ui_item or not self.ui_item.visible: return
         l,t = self.pos
         w,h = self.size
-        r,b = l + w, t - h + 1
+        r,b = l + w - 1, t - h + 1
         rounded_count = 10  # number of segments for each rounded corner
 
         bgl.glEnable(bgl.GL_BLEND)
