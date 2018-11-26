@@ -130,20 +130,20 @@ class Actions:
                 keymap = keyconfig.keymaps[translate(key)]
             return keymap.keymap_items
         navigation_events = self.navigation_events
-        #navigation_events = { self.translate(key): val for key,val in self.navigation_events.items() }
+        # navigation_events = { self.translate(key): val for key,val in self.navigation_events.items() }
         navigation_idnames = navigation_events.values()
         for kmi in get_keymap_items('3D View'):
             if kmi.name not in navigation_events and kmi.idname not in navigation_idnames: continue
             if kmi.active: self.keymap['navigate'].add(kmi_details(kmi))
-            else: self.keymap['navigate'].discard(kmi_details(kmi))
+            # else: self.keymap['navigate'].discard(kmi_details(kmi))
         for map_name in ['Screen', 'Window']:
             for kmi in get_keymap_items(map_name):
                 if kmi.idname in self.window_actions:
                     if kmi.active: self.keymap['window actions'].add(kmi_details(kmi))
-                    else: self.keymap['window actions'].discard(kmi_details(kmi))
+                    # else: self.keymap['window actions'].discard(kmi_details(kmi))
                 if kmi.idname in self.save_actions:
                     if kmi.active: self.keymap['save action'].add(kmi_details(kmi))
-                    else: self.keymap['save action'].discard(kmi_details(kmi))
+                    # else: self.keymap['save action'].discard(kmi_details(kmi))
 
     def __init__(self, context, keymap):
         self.keymap = deepcopy(keymap)
