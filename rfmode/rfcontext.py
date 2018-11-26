@@ -274,7 +274,6 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
                rfsd.replace_opts(source_opts)
 
     def commit(self):
-        #self.rftarget.commit()
         pass
 
     def end(self):
@@ -373,6 +372,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self.undo.append(self._create_state('redo'))
         self._restore_state(self.redo.pop())
         self.instrument_write('redo')
+
+    def undo_stack_actions(self):
+        return [u['action'] for u in reversed(self.undo)]
 
     def instrument_write(self, action):
         if not options['instrument']: return

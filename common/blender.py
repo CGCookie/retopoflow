@@ -63,6 +63,14 @@ def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
 def show_error_message(message, title="Error", wrap=80):
     show_blender_popup(message, title, "ERROR", wrap)
 
+def create_and_show_blender_text(text, hide_header=True, goto_top=True):
+    # create a new textblock for reporting
+    bpy.ops.text.new()
+    bpy.data.texts[-1].name = 'RetopoFlow Reporting'
+    name = bpy.data.texts[-1].name
+    bpy.data.texts[name].text = text
+    show_blender_text(name, hide_header=hide_header, goto_top=goto_top)
+
 def show_blender_text(textblock_name, hide_header=True, goto_top=True):
     if textblock_name not in bpy.data.texts:
         # no textblock to show

@@ -298,7 +298,7 @@ class RF_Panel(Panel):
                 c = len(source.data.polygons)
                 namecol.prop(context.scene.snapobjects, RF_SnapObjects.get_boolprop_name(n), text='%s (%s)' % (n, human_readable(c)))
                 #namecol.label('%s (%s)' % (n, human_readable(c)))
-            namecol.label('Check = Snap')
+            namecol.label('Check to snap')
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'

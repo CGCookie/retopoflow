@@ -97,12 +97,13 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 if not path.endswith('__pycache__'):
                     search(path)
                 continue
-            if os.path.splitext(path)[1] != '.py':
-                continue
+            pyfile,ext = os.path.splitext(os.path.basename(path))
+            if ext != '.py': continue
+            if pyfile == '__init__': continue
 
             try:
-                pyfile = os.path.splitext(os.path.basename(path))[0]
-                if pyfile == '__init__': continue
+                # a hack to turn a file path into a python import
+                # TODO: find a better way!
                 pyfile = os.path.join(relpath, pyfile)
                 pyfile = re.sub(r'\\', '/', pyfile)
                 if pyfile.startswith('./'): pyfile = pyfile[2:]
@@ -113,11 +114,15 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 try:
                     tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
                 except Exception as e:
+                    se = str(e)
+                    # pass over ignorable exceptions
+                    if se == 'attempted relative import beyond top-level package':
+                        # if symlink to another folder, this exception can get thrown
+                        continue
                     print('Caught exception while attempting to search for classes')
                     print('  cls: %s' % str(cls))
                     print('  pyfile: %s' % pyfile)
                     print('  %s' % str(e))
-                    #print('      Could not import')
                     continue
                 for tk in dir(tmp):
                     m = getattr(tmp, tk)
