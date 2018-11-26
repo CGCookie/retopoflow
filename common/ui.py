@@ -1280,7 +1280,7 @@ class UI_OnlineMarkdown(UI_Markdown):
 
         self.defer_recalc = False
 
-class UI_Button(UI_Container):
+class UI_Button(UI_Background):
     def __init__(self, label, fn_callback, **kwargs):
         opts = kwargopts(kwargs, {
             'icon':    None,
@@ -1289,14 +1289,16 @@ class UI_Button(UI_Container):
             'valign':  0,
             'margin':  0,
             'padding': 4,
+            'rounded': 4,
             'color':       (1,1,1,1),
             'bgcolor':     None,
             'bordercolor': (0,0,0,0.4),
             'hovercolor':  (1,1,1,0.1),
             'presscolor':  (0,0,0,0.2),
         })
-        super().__init__(vertical=False, margin=opts.margin)
-        self.container = self.add(UI_Container(vertical=False, margin=opts.padding))
+
+        super().__init__(vertical=False, margin=opts.margin, background=opts.bgcolor, rounded=opts.rounded, border_thickness=1, border=opts.bordercolor)
+        self.container = self.set_ui_item(UI_Container(vertical=False, margin=opts.padding))
         self.defer_recalc = True
         if opts.icon:
             self.container.add(opts.icon)
@@ -1335,47 +1337,14 @@ class UI_Button(UI_Container):
 
     def mouse_cursor(self): return 'DEFAULT'
 
-    @profile_fn
-    def _draw(self):
-        l,t = self.pos
-        w,h = self.size
-        bgl.glEnable(bgl.GL_BLEND)
-        self.drawing.line_width(1)
-
+    def predraw(self):
         if self.hovering:
             bgcolor = self.hovercolor or self.bgcolor
         else:
             bgcolor = self.bgcolor
-
-        if bgcolor:
-            bgl.glColor4f(*bgcolor)
-            bgl.glBegin(bgl.GL_QUADS)
-            bgl.glVertex2f(l,t)
-            bgl.glVertex2f(l,t-h)
-            bgl.glVertex2f(l+w,t-h)
-            bgl.glVertex2f(l+w,t)
-            bgl.glEnd()
-
         if self.pressed and self.presscolor:
-            bgl.glColor4f(*self.presscolor)
-            bgl.glBegin(bgl.GL_QUADS)
-            bgl.glVertex2f(l,t)
-            bgl.glVertex2f(l,t-h)
-            bgl.glVertex2f(l+w,t-h)
-            bgl.glVertex2f(l+w,t)
-            bgl.glEnd()
-
-        if self.bordercolor:
-            bgl.glColor4f(*self.bordercolor)
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            bgl.glVertex2f(l,t)
-            bgl.glVertex2f(l,t-h)
-            bgl.glVertex2f(l+w,t-h)
-            bgl.glVertex2f(l+w,t)
-            bgl.glVertex2f(l,t)
-            bgl.glEnd()
-
-        super()._draw()
+            bgcolor = self.presscolor
+        self.background = bgcolor
 
     def _get_tooltip(self, mouse): return self.tooltip
 
