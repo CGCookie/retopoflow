@@ -74,11 +74,13 @@ class RFMesh():
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
+        pr = profiler.start('checking for NaNs')
         hasnan = any(
             math.isnan(v)
             for emv in obj.data.vertices
             for v in emv.co
         )
+        pr2 = profiler.start('validating mesh data')
         if hasnan:
             dprint('Mesh data contains NaN in vertex coordinate!')
             dprint('Cleaning mesh')
@@ -86,6 +88,8 @@ class RFMesh():
         else:
             # cleaning mesh quietly
             obj.data.validate(verbose=False, clean_customdata=False)
+        pr2.done()
+        pr.done()
 
         pr = profiler.start('setup init')
         self.obj = obj
@@ -163,6 +167,7 @@ class RFMesh():
     def get_version(self, selection=True):
         return self._version + (self._version_selection if selection else 0)
 
+    @profiler.profile
     def get_bvh(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bvh') or self.bvh_version != ver:
@@ -170,6 +175,7 @@ class RFMesh():
             self.bvh_version = ver
         return self.bvh
 
+    @profiler.profile
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
@@ -177,6 +183,7 @@ class RFMesh():
             self.bbox_version = ver
         return self.bbox
 
+    @profiler.profile
     def get_kdtree(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'kdt') or self.kdt_version != ver:
