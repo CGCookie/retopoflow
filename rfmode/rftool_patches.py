@@ -64,10 +64,10 @@ class RFTool_Patches(RFTool):
 
     def name(self): return "Patches"
     def icon(self): return "rf_patches_icon"
-    def description(self): return 'Patches'
+    def description(self): return 'Fill holes in your topology'
     def helptext(self): return help_patches
     def get_label(self): return 'Patches (%s)' % ','.join(default_rf_keymaps['patches tool'])
-    def get_tooltip(self): return 'Patches (%s)' % ','.join(default_rf_keymaps['patches tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     ''' Called the tool is being switched into '''
     def start(self):

@@ -39,10 +39,10 @@ class RFTool_Tweak(RFTool):
 
     def name(self): return "Tweak"
     def icon(self): return "rf_tweak_icon"
-    def description(self): return 'Moves vertices with falloff'
+    def description(self): return 'Adjust vertex positions with a smooth brush'
     def helptext(self): return help_tweak
     def get_label(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
-    def get_tooltip(self): return 'Tweak (%s)' % ','.join(default_rf_keymaps['move tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def get_ui_options(self):
         ui_mask = UI_Frame('Masking Options')

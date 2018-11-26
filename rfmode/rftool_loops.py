@@ -44,10 +44,10 @@ class RFTool_Loops(RFTool):
 
     def name(self): return "Loops"
     def icon(self): return "rf_loops_icon"
-    def description(self): return 'Loops creation, shifting, and deletion'
+    def description(self): return 'Edge loops creation, shifting, and deletion'
     def helptext(self): return help_loops
     def get_label(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
-    def get_tooltip(self): return 'Loops (%s)' % ','.join(default_rf_keymaps['loops tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     ''' Called the tool is being switched into '''
     def start(self):

@@ -48,10 +48,10 @@ class RFTool_PolyPen(RFTool):
 
     def name(self): return "PolyPen"
     def icon(self): return "rf_polypen_icon"
-    def description(self): return 'Insert vertices one at a time'
+    def description(self): return 'Create complex topology on vertex-by-vertex basis'
     def helptext(self): return help_polypen
     def get_label(self): return 'PolyPen (%s)' % ','.join(default_rf_keymaps['polypen tool'])
-    def get_tooltip(self): return 'PolyPen (%s)' % ','.join(default_rf_keymaps['polypen tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def start(self):
         self.rfwidget.set_widget('default', color=(1.0, 1.0, 1.0))

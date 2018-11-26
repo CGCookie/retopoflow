@@ -67,10 +67,10 @@ class RFTool_Strokes(RFTool):
 
     def name(self): return "Strokes"
     def icon(self): return "rf_strokes_icon"
-    def description(self): return 'Extrude and fill with strokes!'
+    def description(self): return 'Insert edge strips and extrude edges into a patch'
     def helptext(self): return help_strokes
     def get_label(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokes tool'])
-    def get_tooltip(self): return 'Strokes (%s)' % ','.join(default_rf_keymaps['strokes tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.7, 0.7, 1.0))

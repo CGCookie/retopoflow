@@ -51,10 +51,10 @@ class RFTool_Relax(RFTool):
 
     def name(self): return "Relax"
     def icon(self): return "rf_relax_icon"
-    def description(self): return 'Relax topology by changing length of edges to average'
+    def description(self): return 'Relax the vertex positions to smooth out topology'
     def helptext(self): return help_relax
     def get_label(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
-    def get_tooltip(self): return 'Relax (%s)' % ','.join(default_rf_keymaps['relax tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def get_ui_options(self):
         ui_mask = UI_Frame('Masking Options')
@@ -221,6 +221,14 @@ class RFTool_Relax(RFTool):
                     f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
                     displace[bmv0] -= f
                     displace[bmv1] += f
+
+            # push verts if neighboring faces seem flipped (still WiP!)
+            if options['show experimental']:
+                for bmv in verts:
+                    vn,fn = bmv.normal,bmv.compute_normal()
+                    d = fn - vn * vn.dot(fn)
+                    print(vn, fn, d)
+                    displace[bmv] += d
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
