@@ -273,7 +273,7 @@ class RFContext_UI:
         if msghash:
             ui_checker = UI_Container(background=(0,0,0,0.4))
             ui_checker.add(UI_Label('RetopoFlow Issue Tracker', align=0))
-            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...', max_size=(400,36000)))
+            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...'))
             ui_buttons = ui_checker.add(UI_EqualContainer(margin=1, vertical=False))
 
             def check_github():
@@ -370,7 +370,7 @@ class RFContext_UI:
 
             ui_details = UI_Container(background=(0,0,0,0.4))
             ui_details.add(UI_Label('Crash Details', align=0))
-            ui_details.add(UI_Markdown(msg_report, max_size=(600,36000)))
+            ui_details.add(UI_Markdown(msg_report))
             ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             ui_details.visible = False
 
@@ -414,7 +414,7 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, max_size=(400,36000)))
+        win.add(UI_Markdown(message))
         if ui_details: win.add(ui_details)
         if ui_checker: win.add(ui_checker)
         win.add(UI_Rule())
@@ -458,7 +458,7 @@ class RFContext_UI:
 
         ui_details = UI_Container(background=(0,0,0,0.4))
         ui_details.add(UI_Label('System Details', align=0))
-        ui_details.add(UI_Markdown(msg_report, max_size=(600,36000)))
+        ui_details.add(UI_Markdown(msg_report))
         ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy System Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         def submit():
@@ -493,7 +493,7 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window('Low FPS Warning', opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, max_size=(400,36000)))
+        win.add(UI_Markdown(message))
         win.add(ui_details)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)

@@ -973,23 +973,35 @@ class UI_EqualContainer(UI_Container):
 
 
 class UI_Label(UI_Element):
-    def __init__(self, label, icon=None, tooltip=None, color=(1,1,1,1), bgcolor=None, align=-1, valign=-1, fontsize=12, shadowcolor=None, margin=2, min_size=(0,0)):
+    def __init__(self, label, **kwargs):
+        opts = kwargopts(kwargs, {
+            'icon': None,
+            'tooltip': None,
+            'color': (1,1,1,1),
+            'bgcolor': None,
+            'align': -1,
+            'valign': -1,
+            'fontsize': 12,
+            'shadowcolor': None,
+            'margin': 2,
+            'min_size': (0, 0),
+        })
         self.text = None
         self._fontsize = None
         self._icon = None
 
-        super().__init__(margin=margin, min_size=min_size)
+        super().__init__(margin=opts.margin, min_size=opts.min_size)
         self.defer_recalc = True
 
-        self.icon = icon
-        self.tooltip = tooltip
-        self.color = color
-        self.shadowcolor = shadowcolor
-        self.align = align
-        self.valign = valign
-        self.fontsize = fontsize
+        self.icon = opts.icon
+        self.tooltip = opts.tooltip
+        self.color = opts.color
+        self.shadowcolor = opts.shadowcolor
+        self.align = opts.align
+        self.valign = opts.valign
+        self.fontsize = opts.fontsize
         self.set_label(label)
-        self.set_bgcolor(bgcolor)
+        self.set_bgcolor(opts.bgcolor)
         self.cursor_pos = None
         self.cursor_symbol = None
         self.cursor_color = (0.1,0.7,1,1)
@@ -1081,7 +1093,7 @@ class UI_WrappedLabel(UI_Element):
     '''
     Handles text wrapping
     '''
-    def __init__(self, label, color=(1,1,1,1), min_size=(0, 0), max_size=(600, 36000), fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
+    def __init__(self, label, color=(1,1,1,1), min_size=(0, 0), max_size=None, fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
         super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
 
@@ -1094,7 +1106,7 @@ class UI_WrappedLabel(UI_Element):
         self.color = color
         self.shadowcolor = shadowcolor
         self.min_size = min_size
-        self.wrapped_size = Vec2D(max_size)
+        self.wrapped_size = Vec2D((1,1))
 
         self.defer_recalc = False
 
@@ -1193,7 +1205,7 @@ class UI_WrappedLabel(UI_Element):
 
 
 class UI_Markdown(UI_Padding):
-    def __init__(self, markdown, min_size=(0, 36), max_size=(600, 36000), margin=0, margin_left=None, margin_right=None):
+    def __init__(self, markdown, min_size=(0, 36), max_size=None, margin=0, margin_left=None, margin_right=None):
         self._markdown = None
 
         super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
@@ -1264,7 +1276,7 @@ class UI_Markdown(UI_Padding):
         self.set_ui_item(container)
 
 class UI_OnlineMarkdown(UI_Markdown):
-    def __init__(self, url, min_size=(0, 36), max_size=(600, 36000), margin=4):
+    def __init__(self, url, min_size=(0, 36), max_size=None, margin=4):
         super().__init__(margin=margin, min_size=min_size, max_size=max_size)
         self.defer_recalc = True
 
@@ -1379,9 +1391,9 @@ class UI_Options(UI_Container):
         self.values = set()
         self.hovercolor = opts.hovercolor
         self.mouse_prev = None
-        self.defer_recalc = False
         self.separation = opts.separation
         self.rounded = opts.rounded
+        self.defer_recalc = False
 
     def set_label(self, label, fontsize=None, align=None, margin=None):
         self.ui_label.visible = label is not None
