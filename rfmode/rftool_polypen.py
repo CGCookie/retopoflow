@@ -314,6 +314,7 @@ class RFTool_PolyPen(RFTool):
 
         if self.next_state == 'edge-face':
             bme,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            if not bme: return
             bmv0,bmv1 = bme.verts
 
             if self.nearest_vert and not self.nearest_vert.select:
@@ -341,6 +342,7 @@ class RFTool_PolyPen(RFTool):
         if self.next_state == 'edge-quad':
             e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
             e1 = self.nearest_edge
+            if not e0 or not e1: return
             bmv0,bmv1 = e0.verts
             bmv2,bmv3 = e1.verts
             if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
@@ -361,6 +363,7 @@ class RFTool_PolyPen(RFTool):
             if not self.sel_edges:
                 return 'main'
             bme0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            if not bme0: return
             bmv0,bmv2 = bme0.verts
             bme1,bmv1 = bme0.split()
             bme0.select = True
@@ -486,6 +489,7 @@ class RFTool_PolyPen(RFTool):
         poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
         l = len(coords)
         coords = [self.rfcontext.Point_to_Point2D(co) for co in coords]
+        if not all(coords): return
 
         if l == 1:
             bgl.glColor4f(*line_color)
@@ -586,6 +590,7 @@ class RFTool_PolyPen(RFTool):
         elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
             if self.next_state == 'edge-face':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
+                if not e0: return
                 e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 if e1 and d < self.rfcontext.drawing.scale(15) and e0 == e1:
                     bmv1,bmv2 = e1.verts
@@ -613,6 +618,7 @@ class RFTool_PolyPen(RFTool):
             elif self.next_state == 'edge-quad':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
                 e1 = self.nearest_edge
+                if not e0 or not e1: return
                 bmv0,bmv1 = e0.verts
                 bmv2,bmv3 = e1.verts
                 if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
@@ -625,8 +631,10 @@ class RFTool_PolyPen(RFTool):
                 else:
                     p0 = hit_pos
                 e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                if not e1: return
                 bmv1,bmv2 = e1.verts
                 f = next(iter(e1.link_faces), None)
+                if not f: return
                 lco = []
                 for v0,v1 in iter_pairs(f.verts, True):
                     lco.append(v0.co)
