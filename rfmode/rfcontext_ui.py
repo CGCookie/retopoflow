@@ -410,6 +410,7 @@ class RFContext_UI:
             'movable': False,
             'bgcolor': bgcolor,
             'event handler': event_handler,
+            'min_size': (600, 100),
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
