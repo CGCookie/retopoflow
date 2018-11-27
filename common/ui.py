@@ -2363,7 +2363,6 @@ class UI_Window(UI_Padding):
         margin = options.get('padding', 0)
         separation = options.get('separation', 0)
         min_size = options.get('min_size', (0,0))
-        print(min_size)
 
         super().__init__(margin=0, min_size=min_size)
         self.defer_recalc = True
