@@ -38,6 +38,7 @@ from .decorators import blender_version_wrapper
 from .maths import Point2D, Vec2D, clamp, mid
 from .profiler import profiler
 from .drawing import Drawing, ScissorStack
+from .fontmanager import FontManager
 
 from ..ext import png
 
@@ -66,10 +67,15 @@ TODO items:
 '''
 
 
-def get_image_path(fn, ext=''):
+def get_image_path(fn, ext=None):
     path_images = os.path.join(os.path.dirname(__file__), '..', 'icons')
     if ext: fn = '%s.%s' % (fn,ext)
     return os.path.join(path_images, fn)
+
+def get_font_path(fn, ext=None):
+    path_fonts = os.path.join(os.path.dirname(__file__), '..', 'fonts')
+    if ext: fn = '%s.%s' % (fn,ext)
+    return os.path.join(path_fonts, fn)
 
 
 def load_image_png(fn):
@@ -80,6 +86,9 @@ def load_image_png(fn):
         w,h,d,m = png.Reader(get_image_path(fn)).read()
         load_image_png.cache[fn] = [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
     return load_image_png.cache[fn]
+
+def load_font_ttf(fn):
+    return FontManager.load(get_font_path(fn))
 
 
 def kwargopts(kwargs, defvals=None, **mykwargs):
@@ -995,12 +1004,14 @@ class UI_Label(UI_Element):
             'align': -1,
             'valign': -1,
             'fontsize': 12,
+            'fontid': None,
             'shadowcolor': None,
             'margin': 2,
             'min_size': (0, 0),
         })
         self.text = None
         self._fontsize = None
+        self._fontid = None
         self._icon = None
 
         super().__init__(margin=opts.margin, min_size=opts.min_size)
@@ -1013,6 +1024,7 @@ class UI_Label(UI_Element):
         self.align = opts.align
         self.valign = opts.valign
         self.fontsize = opts.fontsize
+        self.fontid = opts.fontid
         self.set_label(label)
         self.set_bgcolor(opts.bgcolor)
         self.cursor_pos = None
@@ -1030,6 +1042,16 @@ class UI_Label(UI_Element):
         f = max(1, f)
         if self._fontsize == f: return
         self._fontsize = f
+        self.dirty()
+
+    @property
+    def fontid(self):
+        return self._fontid
+
+    @fontid.setter
+    def fontid(self, f):
+        if self._fontid == f: return
+        self._fontid = f
         self.dirty()
 
     @property
@@ -1054,10 +1076,10 @@ class UI_Label(UI_Element):
         self.dirty()
 
     def _recalc_size(self):
-        fontsize_prev = self.drawing.set_font_size(self.fontsize)
+        fontsize_prev = self.drawing.set_font_size(self.fontsize, fontid=self._fontid, force=True)
         self.text_width = self.drawing.get_text_width(self.text)
         self.text_height = self.drawing.get_line_height(self.text)
-        self.drawing.set_font_size(fontsize_prev)
+        self.drawing.set_font_size(fontsize_prev, fontid=0, force=True)
         self._width_inner = self.text_width
         self._height_inner = self.text_height
 
@@ -1086,7 +1108,7 @@ class UI_Label(UI_Element):
         elif self.valign > 0: loc_f = t - h + self.text_height
         else: loc_y = t - (h - self.text_height) / 2
 
-        size_prev = self.drawing.set_font_size(self.fontsize)
+        size_prev = self.drawing.set_font_size(self.fontsize, fontid=self._fontid, force=True)
 
         if self.shadowcolor:
             self.drawing.text_draw2D(self.text, Point2D((loc_x+2, loc_y-2)), self.shadowcolor)
@@ -1099,7 +1121,7 @@ class UI_Label(UI_Element):
             cloc = Point2D((loc_x+pre-cwid/2, loc_y))
             self.drawing.text_draw2D(self.cursor_symbol, cloc, self.cursor_color)
 
-        self.drawing.set_font_size(size_prev)
+        self.drawing.set_font_size(size_prev, fontid=0, force=True)
 
 
 class UI_WrappedLabel(UI_Element):
@@ -1112,6 +1134,7 @@ class UI_WrappedLabel(UI_Element):
             min_size=(0, 0),
             max_size=None,
             fontsize=12,
+            fontid=None,
             bgcolor=None,
             margin=0,
             shadowcolor=None,
@@ -1120,9 +1143,11 @@ class UI_WrappedLabel(UI_Element):
         self.defer_recalc = True
 
         self._fontsize = None
+        self._fontid = None
         self.text = None
 
         self.fontsize = opts.fontsize
+        self.fontid = opts.fontid
         self.set_label(label)
         self.set_bgcolor(opts.bgcolor)
         self.color = opts.color
@@ -1141,6 +1166,16 @@ class UI_WrappedLabel(UI_Element):
         f = max(1, f)
         if self._fontsize == f: return
         self._fontsize = f
+        self.dirty()
+
+    @property
+    def fontid(self):
+        return self._fontid
+
+    @fontid.setter
+    def fontid(self, f):
+        if self._fontid == f: return
+        self._fontid = f
         self.dirty()
 
     def set_bgcolor(self, bgcolor): self.bgcolor = bgcolor
@@ -1163,7 +1198,7 @@ class UI_WrappedLabel(UI_Element):
     def predraw(self):
         # TODO: move code below to _recalc_size?
 
-        size_prev = self.drawing.set_font_size(self.fontsize)
+        size_prev = self.drawing.set_font_size(self.fontsize, fontid=self._fontid, force=True)
         mwidth = self.size.x
         twidth = self.drawing.get_text_width
         swidth = twidth(' ')
@@ -1189,7 +1224,7 @@ class UI_WrappedLabel(UI_Element):
         h = self.drawing.get_line_height(self.wrapped_lines)
         self.wrapped_size = Vec2D((w, h))
 
-        self.drawing.set_font_size(size_prev)
+        self.drawing.set_font_size(size_prev, fontid=0, force=True)
 
     def _recalc_size(self):
         self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.min_size.x))
@@ -1197,7 +1232,7 @@ class UI_WrappedLabel(UI_Element):
 
     @profile_fn
     def _draw(self):
-        size_prev = self.drawing.set_font_size(self.fontsize)
+        size_prev = self.drawing.set_font_size(self.fontsize, fontid=self._fontid, force=True)
         line_height = self.drawing.get_line_height()
 
         l,t = self.pos
@@ -1223,7 +1258,7 @@ class UI_WrappedLabel(UI_Element):
             self.drawing.text_draw2D(line, Point2D((l, y)), self.color)
             y -= self.drawing.get_line_height(line) #line_height #lheight
 
-        self.drawing.set_font_size(size_prev)
+        self.drawing.set_font_size(size_prev, fontid=0, force=True)
 
 
 # class UI_TableContainer(UI_Padding):
@@ -1401,7 +1436,8 @@ class UI_Markdown(UI_Padding):
 
         paras = mdown.split('\n\n')                         # split into paragraphs
 
-        def process_para(p):
+        def process_para(p, **kwargs):
+            opts = kwargopts(kwargs, shadowcolor=None)
             p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
             p = re.sub(r'   *', '  ', p)    # 2+ spaces => 2 spaces
             m_link = re.match(r'\[(?P<title>.+)\]\((?P<link>.+)\)', p)
@@ -1410,7 +1446,11 @@ class UI_Markdown(UI_Padding):
                 c.add(UI_Button(m_link.group('title'), lambda:fn_link_callback(m_link.group('link')), max_size=self.max_size, padding=1))
                 c.add(UI_Label(' '))
                 return c
-            return UI_WrappedLabel(p, max_size=self.max_size)
+            m_pre = re.match(r'`(?P<pre>.+)`', p)
+            if m_pre:
+                fontid = load_font_ttf('DejaVuSansMono.ttf')
+                return UI_WrappedLabel(m_pre.group('pre'), max_size=self.max_size, fontid=fontid, color=(0.7,0.7,0.75,1))
+            return UI_WrappedLabel(p, max_size=self.max_size, shadowcolor=opts.shadowcolor)
 
         container = UI_Container(margin=4)
         for p in paras:
@@ -1455,10 +1495,10 @@ class UI_Markdown(UI_Padding):
                 t = container.add(UI_TableContainer(rows+(1 if add_header else 0), cols))
                 if add_header:
                     for c in range(cols):
-                        t.set(0, c, UI_WrappedLabel(header[c], shadowcolor=(0,0,0,0.5)))
+                        t.set(0, c, process_para(header[c], shadowcolor=(0,0,0,0.5)))
                 for r in range(rows):
                     for c in range(cols):
-                        t.set(r+(1 if add_header else 0), c, UI_WrappedLabel(data[r][c]))
+                        t.set(r+(1 if add_header else 0), c, process_para(data[r][c]))
             else:
                 container.add(process_para(p))
         self.set_ui_item(container)
