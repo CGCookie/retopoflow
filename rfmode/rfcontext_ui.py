@@ -47,6 +47,7 @@ from ..common.ui import (
     UI_Container, UI_Collapsible, UI_EqualContainer, UI_Frame,
     UI_Number, UI_Textbox,
     GetSet,
+    load_font_ttf,
     )
 from ..common import bmesh_render as bmegl
 
@@ -346,9 +347,10 @@ class RFContext_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
+            fontid = load_font_ttf('DejaVuSansMono.ttf')
             ui_details = UI_Container(background=(0,0,0,0.4))
             ui_details.add(UI_Label('Crash Details', align=0))
-            ui_details.add(UI_Markdown(msg_report))
+            ui_details.add(UI_Markdown(msg_report, fontid=fontid))
             ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             ui_details.visible = False
 

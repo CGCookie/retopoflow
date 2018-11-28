@@ -1418,12 +1418,25 @@ class UI_Markdown(UI_Padding):
             margin=0,
             margin_left=None,
             margin_right=None,
+            fontid=None,
         )
         self._markdown = None
+        self._fontid = None
         super().__init__(margin=opts.margin, margin_left=opts.margin_left, margin_right=opts.margin_right, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
+        self.fontid = opts.fontid
         self.set_markdown(markdown)
         self.defer_recalc = False
+
+    @property
+    def fontid(self):
+        return self._fontid
+
+    @fontid.setter
+    def fontid(self, f):
+        if self._fontid == f: return
+        self._fontid = f
+        self.dirty()
 
     def set_markdown(self, mdown, fn_link_callback=None):
         # process message similarly to Markdown
@@ -1444,13 +1457,13 @@ class UI_Markdown(UI_Padding):
             if m_link:
                 c = UI_Container(vertical=False)
                 c.add(UI_Button(m_link.group('title'), lambda:fn_link_callback(m_link.group('link')), max_size=self.max_size, padding=1))
-                c.add(UI_Label(' '))
+                c.add(UI_Label(' ', fontid=self._fontid))
                 return c
             m_pre = re.match(r'`(?P<pre>.+)`', p)
             if m_pre:
                 fontid = load_font_ttf('DejaVuSansMono.ttf')
                 return UI_WrappedLabel(m_pre.group('pre'), max_size=self.max_size, fontid=fontid, color=(0.7,0.7,0.75,1))
-            return UI_WrappedLabel(p, max_size=self.max_size, shadowcolor=opts.shadowcolor)
+            return UI_WrappedLabel(p, max_size=self.max_size, fontid=self._fontid, shadowcolor=opts.shadowcolor)
 
         container = UI_Container(margin=4)
         for p in paras:
@@ -1458,13 +1471,13 @@ class UI_Markdown(UI_Padding):
                 # h1 heading!
                 h1text = re.sub(r'# +', r'', p)
                 container.add(UI_Spacer(height=4))
-                h1 = container.add(UI_WrappedLabel(h1text, fontsize=20, shadowcolor=(0,0,0,0.5)))
+                h1 = container.add(UI_WrappedLabel(h1text, fontsize=20, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=14))
             elif p.startswith('## '):
                 # h2 heading!
                 h2text = re.sub(r'## +', r'', p)
                 container.add(UI_Spacer(height=8))
-                h2 = container.add(UI_WrappedLabel(h2text, fontsize=16, shadowcolor=(0,0,0,0.5)))
+                h2 = container.add(UI_WrappedLabel(h2text, fontsize=16, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=4))
             elif p.startswith('- '):
                 # unordered list!
@@ -1472,7 +1485,7 @@ class UI_Markdown(UI_Padding):
                 p = p[2:]
                 for litext in p.split('\n- '):
                     li = ul.add(UI_Container(margin=0, vertical=False))
-                    li.add(UI_Label('-')).margin=0
+                    li.add(UI_Label('-', fontid=self._fontid)).margin=0
                     li.add(UI_Spacer(width=8))
                     li.add(process_para(litext))
             elif p.startswith('!['):
