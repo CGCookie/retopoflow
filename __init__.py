@@ -184,7 +184,15 @@ if not retopoflow_is_broken:
         text = '\n'.join(text)
         retopoflow_is_broken = True
         retopoflow_broken_message = text
+
+        print('\n\n')
+        print('='*100)
+        print(text)
+        print('='*100)
+        print('\n\n')
+
         #raise e
+
 
 
 

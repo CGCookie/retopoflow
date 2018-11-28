@@ -792,13 +792,24 @@ class UI_Container(UI_Element):
             'background': None,
             'rounded': 0,
             'margin': 0,
+            'margin_left': None,
+            'margin_right': None,
+            'margin_top': None,
+            'margin_bottom': None,
             'separation': 2,
             'min_size': (0,0),
         })
         self._vertical = None
         self._separation = None
 
-        super().__init__(margin=opts.margin, min_size=opts.min_size)
+        super().__init__(
+            margin=opts.margin,
+            margin_left=opts.margin_left,
+            margin_right=opts.margin_right,
+            margin_top=opts.margin_top,
+            margin_bottom=opts.margin_bottom,
+            min_size=opts.min_size,
+        )
         self.defer_recalc = True
 
         self.ui_items = []
@@ -1215,6 +1226,144 @@ class UI_WrappedLabel(UI_Element):
         self.drawing.set_font_size(size_prev)
 
 
+# class UI_TableContainer(UI_Padding):
+#     def __init__(self, nrows, ncols, **kwargs):
+#         opts = kwargopts(kwargs,
+#             margin=0,
+#             padding=0,
+#         )
+#         super().__init__(margin=opts.margin)
+#         self._nrows = nrows
+#         self._ncols = ncols
+#         self.defer_recalc = True
+#         self.container = UI_Container(separation=0)
+#         for r in range(nrows):
+#             row = self.container.add(UI_Container(separation=0, vertical=False))
+#             # row = self.container.add(UI_EqualContainer(vertical=False))
+#             for c in range(ncols):
+#                 row.add(UI_Padding(margin=opts.padding))
+#         self.set_ui_item(self.container)
+#         self.defer_recalc = False
+
+#     def _recalc_size(self):
+#         sizes = [[ui_item.recalc_size() for ui_item in row] for row in self.ui_item.ui_items]
+#         widths = [max(sz[irow][icol] for irow in range(self._nrows)) for icol in range(self._ncols)]
+#         #sizes = [sz for (sz,ui_item) in zip(sizes, self.ui_items) if ui_item.visible]
+#         sizes = [(w,h) for (w,h) in sizes if w > 0 and h > 0]
+#         widths = [w for (w,h) in sizes]
+#         heights = [h for (w,h) in sizes]
+#         c = len(sizes)
+#         if c == 0:
+#             self._width, self._height = 0, 0
+#             self._width_inner, self._height_inner = 0, 0
+#             return
+#         sep = self.drawing.scale(self.separation)
+#         if self.vertical:
+#             self._width_inner = max(widths)
+#             self._height_inner = sum(heights) + (sep * max(0,c-1))
+#         else:
+#             self._width_inner = sum(widths) + (sep * max(0,c-1))
+#             self._height_inner = max(heights)
+
+#     def set(self, irow, icol, ui_item):
+#         self.container.ui_items[irow].ui_items[icol].set_ui_item(ui_item)
+
+
+class UI_TableContainer(UI_Element):
+    def __init__(self, nrows, ncols, **kwargs):
+        opts = kwargopts(kwargs, {
+            'margin': 0,
+            'separation': 2,
+        })
+        super().__init__(margin_left=32, margin_top=4, margin_bottom=4, margin_right=opts.margin)
+        self._nrows = nrows
+        self._ncols = ncols
+        self._separation = opts.separation
+        self.defer_recalc = True
+        self.table = [[UI_Padding(margin=self.separation) for icol in range(ncols)] for irow in range(nrows)]
+        self.widths = [0 for icol in range(ncols)]
+        self.heights = [0 for irow in range(nrows)]
+        for row in self.table:
+            for col in row:
+                col.register_dirty_callback(self)
+        self.defer_recalc = False
+
+    @property
+    def separation(self):
+        return self._separation
+
+    @separation.setter
+    def separation(self, s):
+        s = max(0, s)
+        if self._separation == s: return
+        self._separation = s
+        for row in self.table:
+            for col in row:
+                col.margin = s
+        self.dirty()
+
+    def set(self, irow, icol, ui_item):
+        self.table[irow][icol].set_ui_item(ui_item)
+
+    def _delete(self):
+        for row in self.table:
+            for col in row:
+                col.unregister_dirty_callback(self)
+
+    def _find_rel_pos_size(self, ui_item):
+        oy = 0
+        for row,hrow in zip(self.table,self.heights):
+            ox = 0
+            for col,wcol in zip(row,self.widths):
+                res = col.find_rel_pos_size(ui_item)
+                if res:
+                    x,y,w,h = res
+                    return (x+ox,y+oy,w,h)
+                ox += wcol
+            oy += hrow
+        return None
+
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
+        for row in self.table:
+            for col in row:
+                hover = col.hover_ui(mouse)
+                if hover: return hover
+        return self
+
+    def _recalc_size(self):
+        sizes = [[col.recalc_size() for col in row] for row in self.table]
+        self.widths = [max(sizes[irow][icol][0] for irow in range(self._nrows)) for icol in range(self._ncols)]
+        self.heights = [max(sizes[irow][icol][1] for icol in range(self._ncols)) for irow in range(self._nrows)]
+        self._width_inner = sum(self.widths)
+        self._height_inner = sum(self.heights)
+
+    @profile_fn
+    def _draw(self):
+        l,t = self.pos
+
+        y = t
+        h = self.size[1]
+        for irow in range(self._nrows):
+            row = self.table[irow]
+            x = l
+            w = self.size[0]
+            eh = self.heights[irow]
+            for icol in range(self._ncols):
+                if icol == self._ncols - 1:
+                    ew = w
+                else:
+                    ew = self.widths[icol]
+                self.table[irow][icol].draw(x, y, ew, eh)
+                x += ew
+                w -= ew
+            y -= eh
+
+    def get_ui_items(self):
+        return [col for row in self.table for col in row]
+
+
+
 class UI_Markdown(UI_Padding):
     '''
     This UI Element takes in text in a markdown-like format (subset of markdown) and
@@ -1279,7 +1428,7 @@ class UI_Markdown(UI_Padding):
                 container.add(UI_Spacer(height=4))
             elif p.startswith('- '):
                 # unordered list!
-                ul = container.add(UI_Container())
+                ul = container.add(UI_Container(margin_top=4, margin_bottom=4))
                 p = p[2:]
                 for litext in p.split('\n- '):
                     li = ul.add(UI_Container(margin=0, vertical=False))
@@ -1292,19 +1441,24 @@ class UI_Markdown(UI_Padding):
                 fn = m.group('filename')
                 img = container.add(UI_Image(fn))
             elif p.startswith('| '):
-                # table
+                # table!
+                def split_row(row):
+                    row = re.sub(r'^\| ', r'', row)
+                    row = re.sub(r' \|$', r'', row)
+                    return [col.strip() for col in row.split(' | ')]
                 data = [l for l in p.split('\n')]
-                data = [re.sub(r'^\| ', r'', l) for l in data]
-                data = [re.sub(r' \|$', r'', l) for l in data]
-                data = [l.split(' | ') for l in data]
+                header = split_row(data[0])
+                add_header = any(header)
+                align = data[1]
+                data = [split_row(row) for row in data[2:]]
                 rows,cols = len(data),len(data[0])
-                t = container.add(UI_TableContainer(rows, cols))
+                t = container.add(UI_TableContainer(rows+(1 if add_header else 0), cols))
+                if add_header:
+                    for c in range(cols):
+                        t.set(0, c, UI_WrappedLabel(header[c], shadowcolor=(0,0,0,0.5)))
                 for r in range(rows):
                     for c in range(cols):
-                        if c == 0:
-                            t.set(r, c, UI_Label(data[r][c]))
-                        else:
-                            t.set(r, c, UI_WrappedLabel(data[r][c], min_size=(0, 12), max_size=(400, 12000)))
+                        t.set(r+(1 if add_header else 0), c, UI_WrappedLabel(data[r][c]))
             else:
                 container.add(process_para(p))
         self.set_ui_item(container)
