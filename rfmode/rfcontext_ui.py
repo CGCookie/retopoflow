@@ -62,7 +62,7 @@ from ..options import (
     gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
 
-from ..help import help_general, firsttime_message
+from ..help import help_general, firsttime_message, help_all
 
 
 class RFContext_UI:
@@ -98,7 +98,7 @@ class RFContext_UI:
             self.window_manager.clear_focus()
             self.window_help.visible = False
             self.window_manager.clear_active()
-            self.help_button.set_label('')
+            #self.help_button.set_label('')
         else:
             if general:
                 self.ui_helplabel.set_markdown(help_general)
@@ -109,25 +109,17 @@ class RFContext_UI:
             #self.window_help.visible = True
 
     def toggle_help_button(self):
-        if self.help_button.get_label() == 'General Help':
-            self.toggle_general_help()
-        else:
-            self.toggle_tool_help()
+        def choose_help(i):
+            self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'])
+        self.ui_helplabel.set_markdown(help_all + '\n'.join('- [%s](%s)' % (h['title'], i) for i,h in enumerate(self.help_docs)), choose_help)
 
     def toggle_general_help(self):
         self.hide_reporting()
-        if self.help_button.get_label() == 'Tool Help':
-            self.toggle_help()
-        else:
-            self.help_button.set_label('Tool Help')
-            self.toggle_help(True)
+        self.toggle_help(True)
+
     def toggle_tool_help(self):
         self.hide_reporting()
-        if self.help_button.get_label() == 'General Help':
-            self.toggle_help()
-        else:
-            self.help_button.set_label('General Help')
-            self.toggle_help(False)
+        self.toggle_help(False)
 
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
@@ -608,6 +600,16 @@ class RFContext_UI:
             options.set_default(key, default_val)
             return GetSet(get, set)
 
+        self.help_docs = []
+        self.help_docs += [{
+            'title': 'Welcome Message',
+            'help': firsttime_message,
+        }]
+        self.help_docs += [{
+            'title': 'General Help',
+            'help': help_general,
+        }]
+
         self.tool_window = self.window_manager.create_window('Tools', {'fn_pos':wrap_pos_option('tools pos')})
         self.tool_max = UI_Container(margin=0)
         self.tool_min = UI_Container(margin=0, vertical=False)
@@ -616,10 +618,20 @@ class RFContext_UI:
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_selection_max.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip())
-            self.tool_selection_min.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
-            ui_options = rft.rft_class().get_ui_options()
-            if ui_options: tools_options.append((rft.bl_label, ui_options))
+            rfc = rft.rft_class()
+            bl_label = rft.bl_label
+            label = rft.get_label()
+            tooltip = rft.get_tooltip()
+            icon = rfc.get_ui_icon()
+            ui_options = rfc.get_ui_options()
+            self.tool_selection_max.add_option(label, value=bl_label, icon=icon, tooltip=tooltip)
+            self.tool_selection_min.add_option(label, value=bl_label, icon=icon, tooltip=tooltip, showlabel=False)
+            if ui_options: tools_options.append((bl_label, ui_options))
+            self.help_docs += [{
+                'title': rfc.name(),
+                'help': rfc.helptext(),
+            }]
+
         extra = UI_Container()
         extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
@@ -771,6 +783,6 @@ class RFContext_UI:
         self.ui_helplabel = self.window_help.add(UI_Markdown('help text here!', margin_left=8, margin_right=8))
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General Help (F1) and Tool Help (F2)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('All Help Documents', self.toggle_help_button, tooltip='Show all help documents', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', self.toggle_help, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 

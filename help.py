@@ -38,7 +38,9 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 ## Minor Changes from Version 2.0.0
 
 - Fixed bug where navigation broke with internationalization settings
-- Improved many UX/UI issues.  For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.  For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
+- Improved many UX/UI issues.
+  For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.
+  For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
 - Squashed many hard-to-find bugs in Loops, PolyPen, Patches, Strokes, Contours
 - Better error handling with shader compilation.
 
@@ -50,16 +52,20 @@ RetopoFlow 2.x now works like any other Blender mode, like Edit Mode or Sculpt M
 We focused our 2.x development on two main items: stability and user experience.
 With an established and solid framework, we will focus more on features in future releases.
 
-- Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
+- Everything runs within the RF Mode; no more separation of tools!
+  In fact, the shortcut keys Q, W, E, R, T, Y, U, and I will switch quickly between the tools.
 - Each tool has been simplified to perform its job well.
-- All tools use the current selection for their context.  For example, PolyStrips can edit any strip of quads by simply selecting them.
+- All tools use the current selection for their context.
+  For example, PolyStrips can edit any strip of quads by simply selecting them.
 - The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
 - Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
 - All tools have similar and consistent visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
 - Mirroring (X, Y, and/or Z) is now visualized by overlaying a color on all the source meshes.
-- Every change automatically commits to the target mesh; geometry is created in real-time! No more lost work from crashing.
+- Every change automatically commits to the target mesh; geometry is created in real-time!
+  No more lost work from crashing.
 - Auto saves will trigger!
-- Undo and redo are universally available within RF Mode. Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
+- Undo and redo are universally available within RF Mode.
+  Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
 - The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
@@ -68,7 +74,8 @@ With an established and solid framework, we will focus more on features in futur
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
 
-- Give us a rating with comments on the Blender Market. (requires purchasing a copy through Blender Market)
+- Give us a rating with comments on the Blender Market.
+  (requires purchasing a copy through Blender Market)
 - Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
 - Consider donating to our drink funds :)
 
@@ -162,12 +169,25 @@ Also, a one-time Welcome message will greet you.
 '''
 
 
+help_all = '''
+# All Help Documents
+
+Below are links to all of the help documents built into RetopoFlow.
+
+More detailed online documentation coming soon!
+
+## Help Documents
+
+'''
+
 
 help_general = '''
 # General Help
 
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
-For tool-specific help, select the tool from the Tools panel, and either press F1 or click Tool Help.
+For tool-specific help, select the tool from the Tools panel, and either press F2 or click Tool Help.
+
+Click the All Help Documents button below to see all of the built-in documentation.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -485,3 +505,4 @@ help_greasepencil = '''
 This is an experimental tool.
 More details will come as the tool matures.
 '''
+

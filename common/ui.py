@@ -82,8 +82,9 @@ def load_image_png(fn):
     return load_image_png.cache[fn]
 
 
-def kwargopts(kwargs, defvals=None):
+def kwargopts(kwargs, defvals=None, **mykwargs):
     opts = defvals.copy() if defvals else {}
+    opts.update(mykwargs)
     opts.update(kwargs)
     if 'opts' in kwargs: opts.update(opts['opts'])
     def factory():
@@ -574,11 +575,12 @@ class UI_Background(UI_Element):
                     for i in range(rounded_count+1):
                         rad = radians(ci + 90 * i / rounded_count)
                         bgl.glVertex2f(cx + cos(rad) * rounded, cy + sin(rad) * rounded)
+                bgl.glVertex2f(rr + rounded, tr)
             else:
                 bgl.glVertex2f(l,t)
-                bgl.glVertex2f(l,t-h)
-                bgl.glVertex2f(l+w,t-h)
-                bgl.glVertex2f(l+w,t)
+                bgl.glVertex2f(l,b)
+                bgl.glVertex2f(r,b)
+                bgl.glVertex2f(r,t)
                 bgl.glVertex2f(l,t)
             bgl.glEnd()
 
@@ -647,17 +649,17 @@ class UI_VScrollable(UI_Padding):
             bgl.glBegin(bgl.GL_QUADS)
             if bar_top:
                 bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
-                bgl.glVertex2f(sl+sw, st+1)
+                bgl.glVertex2f(sl+sw-1, st+1)
                 bgl.glVertex2f(sl, st+1)
                 bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
                 bgl.glVertex2f(sl, st-s)
-                bgl.glVertex2f(sl+sw, st-s)
+                bgl.glVertex2f(sl+sw-1, st-s)
             if bar_bot:
                 bgl.glColor4f(0.25, 0.30, 0.35, 1.00)
                 bgl.glVertex2f(sl, st-sh)
-                bgl.glVertex2f(sl+sw, st-sh)
+                bgl.glVertex2f(sl+sw-1, st-sh)
                 bgl.glColor4f(0.25, 0.30, 0.35, 0.00)
-                bgl.glVertex2f(sl+sw, st-sh+s)
+                bgl.glVertex2f(sl+sw-1, st-sh+s)
                 bgl.glVertex2f(sl, st-sh+s)
             bgl.glEnd()
 
@@ -1093,19 +1095,28 @@ class UI_WrappedLabel(UI_Element):
     '''
     Handles text wrapping
     '''
-    def __init__(self, label, color=(1,1,1,1), min_size=(0, 0), max_size=None, fontsize=12, bgcolor=None, margin=0, shadowcolor=None):
-        super().__init__(margin=margin, min_size=min_size, max_size=max_size)
+    def __init__(self, label, **kwargs):
+        opts = kwargopts(kwargs,
+            color=(1, 1, 1, 1),
+            min_size=(0, 0),
+            max_size=None,
+            fontsize=12,
+            bgcolor=None,
+            margin=0,
+            shadowcolor=None,
+        )
+        super().__init__(margin=opts.margin, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
 
         self._fontsize = None
         self.text = None
 
-        self.fontsize = fontsize
+        self.fontsize = opts.fontsize
         self.set_label(label)
-        self.set_bgcolor(bgcolor)
-        self.color = color
-        self.shadowcolor = shadowcolor
-        self.min_size = min_size
+        self.set_bgcolor(opts.bgcolor)
+        self.color = opts.color
+        self.shadowcolor = opts.shadowcolor
+        self.min_size = opts.min_size
         self.wrapped_size = Vec2D((1,1))
 
         self.defer_recalc = False
@@ -1205,19 +1216,32 @@ class UI_WrappedLabel(UI_Element):
 
 
 class UI_Markdown(UI_Padding):
-    def __init__(self, markdown, min_size=(0, 36), max_size=None, margin=0, margin_left=None, margin_right=None):
+    '''
+    This UI Element takes in text in a markdown-like format (subset of markdown) and
+    creates appropriate the UI Elements to display the text.
+
+    All sections of markdown are delimited by empty lines.
+    Some of the elements must be in there own section, such as headings, subheadings, and images.
+
+    Unordered lists can only be at one level.
+
+    There is very, very rudimentary support for tables... actually, I'd say that it's not supported at this point. :(
+    '''
+    def __init__(self, markdown, **kwargs):
+        opts = kwargopts(kwargs,
+            min_size=(0, 36),
+            max_size=None,
+            margin=0,
+            margin_left=None,
+            margin_right=None,
+        )
         self._markdown = None
-
-        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
+        super().__init__(margin=opts.margin, margin_left=opts.margin_left, margin_right=opts.margin_right, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
-        #self.min_size = self.drawing.scale(Vec2D(min_size))
-        #self.max_size = self.drawing.scale(Vec2D(max_size))
-
         self.set_markdown(markdown)
-
         self.defer_recalc = False
 
-    def set_markdown(self, mdown):
+    def set_markdown(self, mdown, fn_link_callback=None):
         # process message similarly to Markdown
         mdown = re.sub(r'^\n*', r'', mdown)                 # remove leading \n
         mdown = re.sub(r'\n*$', r'', mdown)                 # remove trailing \n
@@ -1227,6 +1251,17 @@ class UI_Markdown(UI_Padding):
         self._markdown = mdown
 
         paras = mdown.split('\n\n')                         # split into paragraphs
+
+        def process_para(p):
+            p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
+            p = re.sub(r'   *', '  ', p)    # 2+ spaces => 2 spaces
+            m_link = re.match(r'\[(?P<title>.+)\]\((?P<link>.+)\)', p)
+            if m_link:
+                c = UI_Container(vertical=False)
+                c.add(UI_Button(m_link.group('title'), lambda:fn_link_callback(m_link.group('link')), max_size=self.max_size, padding=1))
+                c.add(UI_Label(' '))
+                return c
+            return UI_WrappedLabel(p, max_size=self.max_size)
 
         container = UI_Container(margin=4)
         for p in paras:
@@ -1245,12 +1280,12 @@ class UI_Markdown(UI_Padding):
             elif p.startswith('- '):
                 # unordered list!
                 ul = container.add(UI_Container())
-                for litext in p.split('\n'):
-                    litext = re.sub(r'- ', r'', litext)
+                p = p[2:]
+                for litext in p.split('\n- '):
                     li = ul.add(UI_Container(margin=0, vertical=False))
                     li.add(UI_Label('-')).margin=0
                     li.add(UI_Spacer(width=8))
-                    li.add(UI_WrappedLabel(litext, max_size=self.max_size)).margin=0
+                    li.add(process_para(litext))
             elif p.startswith('!['):
                 # image!
                 m = re.match(r'^!\[(?P<caption>.*)\]\((?P<filename>.*)\)$', p)
@@ -1271,8 +1306,7 @@ class UI_Markdown(UI_Padding):
                         else:
                             t.set(r, c, UI_WrappedLabel(data[r][c], min_size=(0, 12), max_size=(400, 12000)))
             else:
-                p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
-                container.add(UI_WrappedLabel(p, max_size=self.max_size))
+                container.add(process_para(p))
         self.set_ui_item(container)
 
 class UI_OnlineMarkdown(UI_Markdown):
