@@ -44,6 +44,7 @@ class RFContext_Target:
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
+        self.update_displace_option()
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 

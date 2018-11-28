@@ -1200,23 +1200,36 @@ class RFTarget(RFMesh):
         self.symmetry = set()
         self.symmetry_threshold = 0.001
         self.mirror_mod = None
+        self.displace_mod = None
+        self.displace_strength = 0.020
         for mod in self.obj.modifiers:
-            if mod.type != 'MIRROR': continue
-            self.mirror_mod = mod
-            if not mod.show_viewport: continue
-            if mod.use_x: self.symmetry.add('x')
-            if mod.use_y: self.symmetry.add('y')
-            if mod.use_z: self.symmetry.add('z')
-            self.symmetry_threshold = mod.merge_threshold
+            if mod.type == 'MIRROR':
+                self.mirror_mod = mod
+                if not mod.show_viewport: continue
+                if mod.use_x: self.symmetry.add('x')
+                if mod.use_y: self.symmetry.add('y')
+                if mod.use_z: self.symmetry.add('z')
+                self.symmetry_threshold = mod.merge_threshold
+            if mod.type == 'DISPLACE':
+                self.displace_mod = mod
+                self.displace_strength = mod.strength
         if not self.mirror_mod:
             # add mirror modifier
             bpy.ops.object.modifier_add(type='MIRROR')
             self.mirror_mod = self.obj.modifiers[-1]
+            self.mirror_mod.show_expanded = False
             self.mirror_mod.show_on_cage = True
             self.mirror_mod.use_x = 'x' in self.symmetry
             self.mirror_mod.use_y = 'y' in self.symmetry
             self.mirror_mod.use_z = 'z' in self.symmetry
             self.mirror_mod.merge_threshold = self.symmetry_threshold
+        if not self.displace_mod:
+            bpy.ops.object.modifier_add(type='DISPLACE')
+            self.displace_mod = self.obj.modifiers[-1]
+            self.displace_mod.show_expanded = False
+            self.displace_mod.strength = self.displace_strength
+            self.displace_mod.show_render = False
+            self.displace_mod.show_viewport = False
         self.editmesh_version = None
         self.xy_symmetry_accel = xy_symmetry_accel
         self.xz_symmetry_accel = xz_symmetry_accel
@@ -1331,6 +1344,7 @@ class RFTarget(RFMesh):
         self.mirror_mod.use_clip = True
         self.mirror_mod.use_mirror_merge = True
         self.mirror_mod.merge_threshold = self.symmetry_threshold
+        self.displace_mod.strength = self.displace_strength
 
     def enable_symmetry(self, axis): self.symmetry.add(axis)
     def disable_symmetry(self, axis): self.symmetry.discard(axis)

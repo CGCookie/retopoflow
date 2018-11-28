@@ -77,6 +77,17 @@ class RFContext_UI:
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
 
+    def set_displace(self, strength):
+        self.rftarget.displace_strength = strength * 0.020 / 10
+        self.rftarget.dirty()
+    def get_displace(self):
+        return self.rftarget.displace_strength * (10 / 0.020)
+    def update_displace_option(self):
+        options['normal offset multiplier'] = self.rftarget.displace_strength * (10 / 0.020)
+        self.replace_opts()
+    def update_displace_modifier(self):
+        self.rftarget.displace_strength = options['normal offset multiplier'] * (0.020 / 10)
+
     def open_github(self):
         bpy.ops.wm.url_open(url=retopoflow_issues_url)
     def open_tip(self):
@@ -664,7 +675,16 @@ class RFContext_UI:
         container_target.add(UI_Number('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
         container_target.add(UI_Number('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
         container_target.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
-        container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+        def get_displace():
+            v = options['normal offset multiplier']
+            return int(v)
+        def set_displace(v):
+            v = clamp(float(v), 0, 100)
+            options['normal offset multiplier'] = v
+            self.set_displace(v)
+            self.replace_opts()
+        #container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+        container_target.add(UI_Number('Normal Offset', get_displace, set_displace, tooltip='Set how far the target is rendered away from source'))
 
         container_view = dd_general.add(UI_Collapsible('View Options'))
         container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
