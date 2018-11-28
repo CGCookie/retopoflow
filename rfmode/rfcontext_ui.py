@@ -62,7 +62,7 @@ from ..options import (
     gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
 
-from ..help import help_general, firsttime_message, help_all
+from ..help import help_general, help_firsttime, help_all
 
 
 class RFContext_UI:
@@ -76,16 +76,6 @@ class RFContext_UI:
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
 
-    def show_reporting(self):
-        options['welcome'] = True
-        self.window_manager.set_focus(self.window_welcome)
-        #self.window_welcome.visible = options['welcome']
-    def hide_reporting(self):
-        options['welcome'] = False
-        self.window_welcome.visible = options['welcome']
-        #self.window_manager.clear_active()
-        self.window_manager.clear_focus()
-
     def open_github(self):
         bpy.ops.wm.url_open(url=retopoflow_issues_url)
     def open_tip(self):
@@ -93,33 +83,29 @@ class RFContext_UI:
     def open_irc(self):
         RFIRCChat(self.window_manager)
 
-    def toggle_help(self, general=None):
-        if general is None:
-            self.window_manager.clear_focus()
-            self.window_help.visible = False
-            self.window_manager.clear_active()
-            #self.help_button.set_label('')
-        else:
-            if general:
-                self.ui_helplabel.set_markdown(help_general)
-            else:
-                self.ui_helplabel.set_markdown(self.tool.helptext())
-            self.window_help.scrollto_top()
-            self.window_manager.set_focus(self.window_help)
-            #self.window_help.visible = True
+    def help_hide(self):
+        self.window_manager.clear_focus()
+        self.window_help.visible = False
+        self.window_manager.clear_active()
 
-    def toggle_help_button(self):
+    def help_show(self, text):
+        self.ui_helplabel.set_markdown(text)
+        self.window_help.scrollto_top()
+        self.window_manager.set_focus(self.window_help)
+
+    def help_show_all(self):
         def choose_help(i):
             self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'])
-        self.ui_helplabel.set_markdown(help_all + '\n'.join('- [%s](%s)' % (h['title'], i) for i,h in enumerate(self.help_docs)), choose_help)
+        markdown = help_all + '\n'.join('- [%s](%s)' % (h['title'], i) for i,h in enumerate(self.help_docs))
+        self.ui_helplabel.set_markdown(markdown, choose_help)
+        self.window_help.scrollto_top()
+        self.window_manager.set_focus(self.window_help)
 
-    def toggle_general_help(self):
-        self.hide_reporting()
-        self.toggle_help(True)
+    def help_show_general(self):
+        self.help_show(help_general)
 
-    def toggle_tool_help(self):
-        self.hide_reporting()
-        self.toggle_help(False)
+    def help_show_tool(self):
+        self.help_show(self.tool.helptext())
 
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
@@ -603,7 +589,7 @@ class RFContext_UI:
         self.help_docs = []
         self.help_docs += [{
             'title': 'Welcome Message',
-            'help': firsttime_message,
+            'help': help_firsttime,
         }]
         self.help_docs += [{
             'title': 'General Help',
@@ -633,8 +619,8 @@ class RFContext_UI:
             }]
 
         extra = UI_Container()
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('General Help', lambda: self.help_show_general(), tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('Tool Help', lambda: self.help_show_tool(), tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
         extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)'))
         get_tool_collapsed()
@@ -648,7 +634,7 @@ class RFContext_UI:
 
         self.window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
         container = self.window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', self.show_reporting, tooltip='Show "Welcome!" message'))
+        container.add(UI_Button('Welcome!', lambda: self.help_show(help_firsttime), tooltip='Show "Welcome!" message'))
         container.add(UI_Button('Report Issue', self.open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
         self.window_info.add(UI_Button('Buy us a drink', self.open_tip, tooltip='Send us a "Thank you"'))
         if options['show experimental']:
@@ -751,26 +737,9 @@ class RFContext_UI:
         # inform window manager about the tooltip checkbox option
         self.window_manager.set_show_tooltips(options['show tooltips'])
 
-        def welcome_event_handler(context, event):
-            if event.type == 'ESC' and event.value == 'RELEASE':
-                self.hide_reporting()
-        self.window_welcome = self.window_manager.create_window('Welcome!', {
-            'sticky': 5,
-            'visible': options['welcome'],
-            'movable': False,
-            'bgcolor': (0.2,0.2,0.2,0.95),
-            'event handler': welcome_event_handler,
-            'min_size': (800, 300),
-        })
-        self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Markdown(firsttime_message, margin_left=8, margin_right=8))
-        self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Button('Close', self.hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
-        if options['welcome']: self.window_manager.set_focus(self.window_welcome)
-
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
-                self.toggle_help()
+                self.help_hide()
         self.window_help = self.window_manager.create_window('Help', {
             'sticky': 5,
             'visible': False,
@@ -783,6 +752,10 @@ class RFContext_UI:
         self.ui_helplabel = self.window_help.add(UI_Markdown('help text here!', margin_left=8, margin_right=8))
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('All Help Documents', self.toggle_help_button, tooltip='Show all help documents', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', self.toggle_help, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('All Help Documents', lambda: self.help_show_all(), tooltip='Show all help documents', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', lambda: self.help_hide(), bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+
+        if options['welcome']:
+            self.help_show(help_firsttime)
+            options['welcome'] = False
 

@@ -25,7 +25,7 @@ from .options import retopoflow_version
 # sync help texts with https://github.com/CGCookie/retopoflow-docs (http://docs.retopoflow.com/)
 
 
-firsttime_message = '''
+help_firsttime = '''
 # Welcome to RetopoFlow {version}!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
@@ -37,6 +37,8 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 
 ## Minor Changes from Version 2.0.0
 
+- Can navigate to all help documents through help system.
+  (Click All Help Documents button below)
 - Fixed bug where navigation broke with internationalization settings
 - Improved many UX/UI issues.
   For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.

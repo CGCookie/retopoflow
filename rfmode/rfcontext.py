@@ -447,11 +447,11 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             return {'pass'}
 
         if self.actions.pressed('general help'):
-            self.toggle_general_help()
+            self.help_show_general()
             return {}
 
         if self.actions.pressed('tool help'):
-            self.toggle_tool_help()
+            self.help_show_tool()
             return {}
 
         if event.type == 'TIMER':

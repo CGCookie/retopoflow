@@ -58,8 +58,6 @@ from ..options import (
     )
 from ..keymaps import default_rf_keymaps
 
-from ..help import help_general, firsttime_message
-
 
 class RFContext_Drawing:
     def get_view_version(self):
