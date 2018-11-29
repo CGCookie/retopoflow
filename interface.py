@@ -51,24 +51,6 @@ from .options import (
 from .help import help_quickstart
 
 
-class RF_OpenWebIssues(Operator):
-    """Open RetopoFlow Issues page in default web browser"""
-
-    bl_category = 'Retopology'
-    bl_idname = "cgcookie.rf_open_webissues"
-    bl_label = "Open RetopoFlow Issues Page"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def execute(self, context):
-        bpy.ops.wm.url_open(url=options['github issues url'])
-        return {'FINISHED'}
-
-
 class RF_OpenWebTip(Operator):
     """Open RetopoFlow Tip page in default web browser"""
 
@@ -194,6 +176,45 @@ class RF_Recover_Clear(Operator):
         return {'FINISHED'}
 
 
+class RF_SnapObjects(bpy.types.PropertyGroup):
+    max_count = 1000
+    name_map = {}
+    name_map_rev = {}
+
+    @staticmethod
+    def get_boolprop_name(name):
+        if name not in RF_SnapObjects.name_map:
+            c = len(RF_SnapObjects.name_map)
+            assert c < RF_SnapObjects.max_count
+            RF_SnapObjects.name_map[name] = c
+            RF_SnapObjects.name_map_rev[c] = name
+        return 'mesh%04d' % RF_SnapObjects.name_map[name]
+
+    @staticmethod
+    def get_boolprop_value(name):
+        name = RF_SnapObjects.get_boolprop_name(name)
+        return getattr(RF_SnapObjects, name)
+
+    @staticmethod
+    def generate_boolprops():
+        # generate a bunch of BoolProperty objects, because we (seemingly) cannot
+        # instantiate them when we need them (during draw of RF_Panel)
+        for i in range(RF_SnapObjects.max_count):
+            name = 'mesh%04d' % i
+            def getter_setter():
+                i_ = i
+                name_ = name
+                def getter(self):
+                    return RFMode.get_source_snap(RF_SnapObjects.name_map_rev[i_])
+                def setter(self, val):
+                    return RFMode.set_source_snap(RF_SnapObjects.name_map_rev[i_], val)
+                return (getter, setter)
+            getter, setter = getter_setter()
+            setattr(RF_SnapObjects, name, BoolProperty(name=name, description="Check to snap target to this source.", default=True, get=getter, set=setter))
+
+RF_SnapObjects.generate_boolprops()
+
+
 class RF_Panel(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
@@ -201,6 +222,17 @@ class RF_Panel(Panel):
     bl_region_type = 'TOOLS'
 
     def draw(self, context):
+        # https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout
+
+        def human_readable(c):
+            if c < 10000:
+                return str(c)
+            if c < 1000000:
+                c = round(c / 1000)
+                return '%sk' % str(c)
+            c = round(c / 1000000)
+            return '%sm' % str(c)
+
         layout = self.layout
 
         # explicitly call to check for update in background
@@ -214,29 +246,41 @@ class RF_Panel(Panel):
         col.operator("cgcookie.rf_open_webissues",  "Report an Issue")
         # col.operator("cgcookie.rf_open_webtip",     "Send us a tip")
 
-        target_name = RFMode.get_target_name()
+        target = RFMode.get_target()
+        layout.label('Target:')
         box = layout.box()
-        if not target_name:
-            box.label("Creating new target")
+        if not target:
+            box.label("Creating New", icon='NEW')
         else:
-            box.label("Target Name: %s" % target_name)
             if RFMode.dense_target():
-                #warnbox = layout.box()
                 box.alert = True
                 warncol = box.column(align=True)
-                warncol.alignment = 'EXPAND'
-                warncol.label("TARGET WARNING:", icon="ERROR")
-                warncol.label("Polycount is high!")
-                warncol.label("RetopoFlow may load slowly.")
+                warncol.label("High Polycount!", icon="ERROR")
+                warncol.label("Might load slowly")
+            n = target.name
+            c = len(target.data.polygons)
+            box.label('%s (%s)' % (n, human_readable(c)))
 
-        if RFMode.dense_sources():
-            box = layout.box()
-            box.alert = True
-            col = box.column(align=True)
-            col.alignment = 'EXPAND'
-            col.label("SOURCE WARNING:", icon="ERROR")
-            col.label("Source polycount is high!")
-            col.label("RetopoFlow may load slowly.")
+        sources = RFMode.get_sources()
+        c = len(sources)
+        layout.label('%d Source%s:' % (c, '' if c==1 else 's'))
+        box = layout.box()
+        if not sources:
+            warncol = box.column(align=True)
+            warncol.label('None detected', icon='ERROR')
+        else:
+            if RFMode.dense_sources():
+                #box.alert = True
+                warncol = box.column(align=True)
+                warncol.label("High Polycount!", icon="ERROR")
+                warncol.label("Might load slowly")
+            namecol = box.column(align=True)
+            for source in sources:
+                n = source.name
+                c = len(source.data.polygons)
+                namecol.prop(context.scene.snapobjects, RF_SnapObjects.get_boolprop_name(n), text='%s (%s)' % (n, human_readable(c)))
+                #namecol.label('%s (%s)' % (n, human_readable(c)))
+            namecol.label('Check to snap')
 
         col = layout.column(align=True)
         col.alignment = 'CENTER'

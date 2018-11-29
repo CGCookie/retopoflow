@@ -39,6 +39,39 @@ from .maths import (
 )
 
 
+##################################################
+
+StructRNA = bpy.types.bpy_struct
+def still_registered(self, oplist):
+    if getattr(still_registered, 'is_broken', False): return False
+    def is_registered():
+        cur = bpy.ops
+        for n in oplist:
+            if not hasattr(cur, n): return False
+            cur = getattr(cur, n)
+        try:    StructRNA.path_resolve(self, "properties")
+        except:
+            print('no properties!')
+            return False
+        return True
+    if is_registered(): return True
+    still_registered.is_broken = True
+    print('bpy.ops.%s is no longer registered!' % '.'.join(oplist))
+    return False
+
+registered_objects = {}
+def registered_object_add(self):
+    global registered_objects
+    opid = self.operator_id
+    print('Registering bpy.ops.%s' % opid)
+    registered_objects[opid] = (self, opid.split('.'))
+
+def registered_check():
+    global registered_objects
+    return all(still_registered(s, o) for (s, o) in registered_objects.values())
+
+
+#################################################
 
 
 def find_and_import_all_subclasses(cls, root_path=None):
@@ -64,12 +97,13 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 if not path.endswith('__pycache__'):
                     search(path)
                 continue
-            if os.path.splitext(path)[1] != '.py':
-                continue
+            pyfile,ext = os.path.splitext(os.path.basename(path))
+            if ext != '.py': continue
+            if pyfile == '__init__': continue
 
             try:
-                pyfile = os.path.splitext(os.path.basename(path))[0]
-                if pyfile == '__init__': continue
+                # a hack to turn a file path into a python import
+                # TODO: find a better way!
                 pyfile = os.path.join(relpath, pyfile)
                 pyfile = re.sub(r'\\', '/', pyfile)
                 if pyfile.startswith('./'): pyfile = pyfile[2:]
@@ -80,11 +114,15 @@ def find_and_import_all_subclasses(cls, root_path=None):
                 try:
                     tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
                 except Exception as e:
+                    se = str(e)
+                    # pass over ignorable exceptions
+                    if se == 'attempted relative import beyond top-level package':
+                        # if symlink to another folder, this exception can get thrown
+                        continue
                     print('Caught exception while attempting to search for classes')
                     print('  cls: %s' % str(cls))
                     print('  pyfile: %s' % pyfile)
                     print('  %s' % str(e))
-                    #print('      Could not import')
                     continue
                 for tk in dir(tmp):
                     m = getattr(tmp, tk)
@@ -180,6 +218,23 @@ def shorten_floats(s):
     s = re.sub(r'(?P<digs>\d\.\d\d\d)\d+', r'\g<digs>', s)
     return s
 
+
+def get_matrices(ob):
+    ''' obtain blender object matrices '''
+    mx = ob.matrix_world
+    imx = mx.inverted()
+    return [mx, imx]
+
+
+class AddonLocator(object):
+    def __init__(self, f=None):
+        self.fullInitPath = f if f else __file__
+        self.FolderPath = os.path.dirname(self.fullInitPath)
+        self.FolderName = os.path.basename(self.FolderPath)
+
+    def AppendPath(self):
+        sys.path.append(self.FolderPath)
+        print("Addon path has been registered into system path for this session")
 
 
 

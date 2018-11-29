@@ -27,7 +27,8 @@ import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
-    dissolve_verts, dissolve_edges, dissolve_faces
+    dissolve_verts, dissolve_edges, dissolve_faces,
+    remove_doubles,
 )
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
@@ -73,11 +74,13 @@ class RFMesh():
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
+        pr = profiler.start('checking for NaNs')
         hasnan = any(
             math.isnan(v)
             for emv in obj.data.vertices
             for v in emv.co
         )
+        pr2 = profiler.start('validating mesh data')
         if hasnan:
             dprint('Mesh data contains NaN in vertex coordinate!')
             dprint('Cleaning mesh')
@@ -85,6 +88,8 @@ class RFMesh():
         else:
             # cleaning mesh quietly
             obj.data.validate(verbose=False, clean_customdata=False)
+        pr2.done()
+        pr.done()
 
         pr = profiler.start('setup init')
         self.obj = obj
@@ -149,7 +154,6 @@ class RFMesh():
     ##########################################################
 
     def dirty(self, selectionOnly=False):
-        # TODO: add option for dirtying only selection or geo+topo
         if not selectionOnly:
             if hasattr(self, 'bvh'):
                 del self.bvh
@@ -162,6 +166,7 @@ class RFMesh():
     def get_version(self, selection=True):
         return self._version + (self._version_selection if selection else 0)
 
+    @profiler.profile
     def get_bvh(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bvh') or self.bvh_version != ver:
@@ -169,6 +174,7 @@ class RFMesh():
             self.bvh_version = ver
         return self.bvh
 
+    @profiler.profile
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
@@ -176,6 +182,7 @@ class RFMesh():
             self.bbox_version = ver
         return self.bbox
 
+    @profiler.profile
     def get_kdtree(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'kdt') or self.kdt_version != ver:
@@ -189,7 +196,7 @@ class RFMesh():
     ##########################################################
 
     def store_state(self):
-        attributes = ['hide']       # list of attributes to remember
+        attributes = ['hide', 'hide_render']    # list of attributes to remember
         self.prev_state = {
             attr: self.obj.__getattribute__(attr)
             for attr in attributes
@@ -197,6 +204,7 @@ class RFMesh():
 
     def restore_state(self):
         for attr, val in self.prev_state.items():
+            #print(self.obj.name, attr, val)
             self.obj.__setattr__(attr, val)
 
     def get_obj_name(self):
@@ -207,6 +215,9 @@ class RFMesh():
 
     def obj_unhide(self):
         self.obj.hide = False
+
+    def obj_unhide_render(self):
+        self.obj.hide_render = False
 
     def obj_select(self):
         self.obj_set_select(True)
@@ -225,6 +236,14 @@ class RFMesh():
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
+
+    @property
+    def tag(self):
+        return self.obj.data.tag
+
+    @tag.setter
+    def tag(self, v):
+        self.obj.data.tag = v
 
     ##########################################################
 
@@ -761,60 +780,59 @@ class RFMesh():
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         is_vis = lambda bmv: is_visible(l2w_point(bmv.co), None)
-        return { bmv for bmv in self.bme.verts if is_vis(bmv) }
+        return { bmv for bmv in self.bme.verts if bmv.is_valid and is_vis(bmv) }
 
     def _visible_edges(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bme for bme in self.bme.edges if all(bmv in bmvs for bmv in bme.verts) }
+        return { bme for bme in self.bme.edges if bme.is_valid and all(bmv in bmvs for bmv in bme.verts) }
 
     def _visible_faces(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bmf for bmf in self.bme.faces if all(bmv in bmvs for bmv in bmf.verts) }
+        return { bmf for bmf in self.bme.faces if bmf.is_valid and all(bmv in bmvs for bmv in bmf.verts) }
 
     def visible_verts(self, is_visible):
         return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) }
 
     def visible_edges(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
         return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs) }
 
     def visible_faces(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts }
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
         bmfs = { self._wrap_bmface(bmf) for bmf in self._visible_faces(is_visible, bmvs=bmvs) }
-        #print('seeing %d / %d faces' % (len(bmfs), len(self.bme.faces)))
         return bmfs
 
 
     ##########################################################
 
-    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts]
-    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges]
-    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces]
+    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid]
+    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid]
+    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid]
 
     def get_vert_count(self): return len(self.bme.verts)
     def get_edge_count(self): return len(self.bme.edges)
     def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.select}
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.select}
     def get_selected_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.select}
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.select}
     def get_selected_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.select}
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select}
 
     def any_verts_selected(self):
-        return any(bmv.select for bmv in self.bme.verts)
+        return any(bmv.select for bmv in self.bme.verts if bmv.is_valid)
     def any_edges_selected(self):
-        return any(bme.select for bme in self.bme.edges)
+        return any(bme.select for bme in self.bme.edges if bme.is_valid)
     def any_faces_selected(self):
-        return any(bmf.select for bmf in self.bme.faces)
+        return any(bmf.select for bmf in self.bme.faces if bmf.is_valid)
     def any_selected(self):
         return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
 
     def get_selection_center(self):
         v,c = Vector(),0
         for bmv in self.bme.verts:
-            if not bmv.select: continue
+            if not bmv.select or not bmv.is_valid: continue
             v += bmv.co
             c += 1
         if c: self.selection_center = v / c
@@ -1182,23 +1200,36 @@ class RFTarget(RFMesh):
         self.symmetry = set()
         self.symmetry_threshold = 0.001
         self.mirror_mod = None
+        self.displace_mod = None
+        self.displace_strength = 0.020
         for mod in self.obj.modifiers:
-            if mod.type != 'MIRROR': continue
-            self.mirror_mod = mod
-            if not mod.show_viewport: continue
-            if mod.use_x: self.symmetry.add('x')
-            if mod.use_y: self.symmetry.add('y')
-            if mod.use_z: self.symmetry.add('z')
-            self.symmetry_threshold = mod.merge_threshold
+            if mod.type == 'MIRROR':
+                self.mirror_mod = mod
+                if not mod.show_viewport: continue
+                if mod.use_x: self.symmetry.add('x')
+                if mod.use_y: self.symmetry.add('y')
+                if mod.use_z: self.symmetry.add('z')
+                self.symmetry_threshold = mod.merge_threshold
+            if mod.type == 'DISPLACE':
+                self.displace_mod = mod
+                self.displace_strength = mod.strength
         if not self.mirror_mod:
             # add mirror modifier
             bpy.ops.object.modifier_add(type='MIRROR')
             self.mirror_mod = self.obj.modifiers[-1]
+            self.mirror_mod.show_expanded = False
             self.mirror_mod.show_on_cage = True
             self.mirror_mod.use_x = 'x' in self.symmetry
             self.mirror_mod.use_y = 'y' in self.symmetry
             self.mirror_mod.use_z = 'z' in self.symmetry
             self.mirror_mod.merge_threshold = self.symmetry_threshold
+        if not self.displace_mod:
+            bpy.ops.object.modifier_add(type='DISPLACE')
+            self.displace_mod = self.obj.modifiers[-1]
+            self.displace_mod.show_expanded = False
+            self.displace_mod.strength = self.displace_strength
+            self.displace_mod.show_render = False
+            self.displace_mod.show_viewport = False
         self.editmesh_version = None
         self.xy_symmetry_accel = xy_symmetry_accel
         self.xz_symmetry_accel = xz_symmetry_accel
@@ -1291,7 +1322,6 @@ class RFTarget(RFMesh):
         BMElemWrapper.wrap(self)
 
     def commit(self):
-        self.write_editmesh()
         self.restore_state()
 
     def cancel(self):
@@ -1314,6 +1344,7 @@ class RFTarget(RFMesh):
         self.mirror_mod.use_clip = True
         self.mirror_mod.use_mirror_merge = True
         self.mirror_mod.merge_threshold = self.symmetry_threshold
+        self.displace_mod.strength = self.displace_strength
 
     def enable_symmetry(self, axis): self.symmetry.add(axis)
     def disable_symmetry(self, axis): self.symmetry.discard(axis)
@@ -1478,4 +1509,11 @@ class RFTarget(RFMesh):
             v.normal = norm
         self.dirty()
 
+    def remove_all_doubles(self, dist):
+        remove_doubles(self.bme, verts=self.bme.verts, dist=dist)
+        self.dirty()
+
+    def remove_selected_doubles(self, dist):
+        remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
+        self.dirty()
 

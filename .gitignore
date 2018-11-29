@@ -70,3 +70,10 @@ RetopoFlow_screenshot.png
 # Profiler output file
 profiler_data.txt
 RetopoFlow_profiler.txt
+
+# Blender symlinks
+blender
+b280
+
+# test models folder
+test-models

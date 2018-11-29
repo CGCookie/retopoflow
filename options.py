@@ -34,7 +34,9 @@ from .common.logger import Logger
 from .common.profiler import Profiler
 
 
-retopoflow_version = '2.0.0'
+# important: update Makefile, too!
+retopoflow_version = '2.0.1'
+
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
@@ -129,6 +131,7 @@ class Options:
         'tool strokes collapsed': True,
 
         'select dist':          10,             # pixels away to select
+        'remove doubles dist':  0.001,
 
         'color theme':          'Green',
         'symmetry view':        'Edge',
@@ -158,6 +161,7 @@ class Options:
         'polystrips handle outer size': 20,
         'polystrips handle border':     2,
 
+        'polypen merge dist':       10,         # pixels away to merge
         'polypen automerge':        True,
         'polypen triangle only':    False,
 

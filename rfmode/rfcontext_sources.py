@@ -71,18 +71,36 @@ class RFContext_Sources:
         )
 
     ###################################################
+    # snap settings
+
+    snap_sources = {}
+
+    @staticmethod
+    def get_source_snap(name):
+        return RFContext_Sources.snap_sources.get(name, True)
+
+    @staticmethod
+    def set_source_snap(name, val):
+        RFContext_Sources.snap_sources[name] = val
+
+    def get_rfsource_snap(self, rfsource):
+        n = rfsource.get_obj_name()
+        return self.snap_sources.get(n, True)
+
+    ###################################################
     # ray casting functions
 
     def raycast_sources_Ray(self, ray:Ray):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
+            if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.raycast(ray)
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
 
     def raycast_sources_Ray_all(self, ray:Ray):
-        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray)]
+        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray) if self.get_rfsource_snap(rfsource)]
 
     def raycast_sources_Point2D(self, xy:Point2D):
         if xy is None: return None,None,None,None
@@ -107,6 +125,7 @@ class RFContext_Sources:
     def nearest_sources_Point(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         bp,bn,bi,bd = None,None,None,None
         for rfsource in self.rfsources:
+            if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.nearest(point, max_dist=max_dist)
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd = hp,hn,hi,hd
@@ -119,18 +138,19 @@ class RFContext_Sources:
     def plane_intersection_crawl(self, ray:Ray, plane:Plane, walk=False):
         bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
+            if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.raycast(ray)
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
         if not bp: return []
-        
+
         if walk:
             return bo.plane_intersection_walk_crawl(ray, plane)
         else:
             return bo.plane_intersection_crawl(ray, plane)
-    
+
     def plane_intersections_crawl(self, plane:Plane):
-        return [crawl for rfsource in self.rfsources for crawl in rfsource.plane_intersections_crawl(plane)]
+        return [crawl for rfsource in self.rfsources for crawl in rfsource.plane_intersections_crawl(plane) if self.get_rfsource_snap(rfsource)]
 
 
     ###################################################
@@ -146,6 +166,6 @@ class RFContext_Sources:
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources)
+        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource))
 
 

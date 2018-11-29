@@ -25,8 +25,11 @@ __all__ = [
     'bmesh_render',
     'debug',
     'decorators',
+    'drawing',
+    'fontmanager',
     'globals',
     'hasher',
+    'irc',
     'logger',
     'maths',
     'metaclasses',
@@ -35,4 +38,5 @@ __all__ = [
     'ui',
     'useractions',
     'utils',
+    'xmesh',
 ]

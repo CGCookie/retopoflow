@@ -39,6 +39,7 @@ from .rftool import RFTool
 from ..common.drawing import Drawing
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.debug import dprint, Debugger
+from ..common.fontmanager import FontManager as fm
 from ..common.maths import BBox
 from ..common.profiler import profiler
 from ..common.logger import Logger
@@ -138,7 +139,6 @@ class RFMode(Operator):
 
     rf_icon = None
 
-
     ################################################
     # Blender Operator methods
 
@@ -179,10 +179,20 @@ class RFMode(Operator):
         return count
 
     @staticmethod
-    def get_target_name():
-        target = RFContext.get_target()
-        if not target: return None
-        return target.name
+    def get_target():
+        return RFContext.get_target()
+
+    @staticmethod
+    def get_sources():
+        return RFContext.get_sources()
+
+    @staticmethod
+    def get_source_snap(name):
+        return RFContext.get_source_snap(name)
+
+    @staticmethod
+    def set_source_snap(name, val):
+        return RFContext.set_source_snap(name, val)
 
     @staticmethod
     @profiler.profile
@@ -345,9 +355,10 @@ class RFMode(Operator):
 
         # hide meshes so we can render internally
         self.rfctx.rftarget.obj_hide()
+        self.rfctx.rftarget.obj_unhide_render()
         for rfsource in self.rfctx.rfsources:
             rfsource.obj_set_select(False)
-            # rfsource.obj_hide()
+            rfsource.obj_unhide_render()
 
 
 
@@ -533,6 +544,7 @@ class RFMode(Operator):
 
         self.drawing = Drawing.get_instance()
         self.drawing.set_cursor('CROSSHAIR')
+        # fm.load(os.path.join(os.path.dirname(__file__), '..', 'fonts', 'ubuntu', 'Ubuntu-R.ttf'))
 
     def ui_toggle_maximize_area(self, use_hide_panels=True):
         try:
@@ -549,7 +561,7 @@ class RFMode(Operator):
         if not hasattr(self, 'rfctx'): return
         # restore states of meshes
         self.rfctx.rftarget.restore_state()
-        #for rfsource in self.rfctx.rfsources: rfsource.restore_state()
+        for rfsource in self.rfctx.rfsources: rfsource.restore_state()
 
         if self.rfctx.timer:
             bpy.context.window_manager.event_timer_remove(self.rfctx.timer)

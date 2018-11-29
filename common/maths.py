@@ -100,6 +100,12 @@ class Vec2D(Vector, Entity2D):
     def from_vector(self, v):
         self.x, self.y = v
 
+    def project(self, other):
+        ''' returns the projection of self onto other '''
+        olen2 = other.length_squared
+        if olen2 <= 0.00000001: return Vec2D((0,0))
+        return (self.dot(other) / olen2) * other
+
 
 class Vec(VecUtils, Entity3D):
     @stats_wrapper
@@ -111,6 +117,12 @@ class Vec(VecUtils, Entity3D):
 
     def __repr__(self):
         return self.__str__()
+
+    def project(self, other):
+        ''' returns the projection of self onto other '''
+        olen2 = other.length_squared
+        if olen2 <= 0.00000001: return Vec3D((0,0,0))
+        return (self.dot(other) / olen2) * other
 
 
 class Point2D(Vector, Entity2D):
@@ -1317,6 +1329,22 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
     return new_verts, eds
 
 
+
+def delta_angles(vec_about, l_vecs):
+    '''
+    will find the difference betwen each element and the next element in the list
+    this is a foward difference.  Eg delta[n] = item[n+1] - item[n]
+
+    deltas should add up to 2*pi
+    '''
+
+    v0 = l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+
+    L = len(l_angles)
+
+    deltas = [l_angles[n + 1] - l_angles[n] for n in range(0, L-1)] + [2*math.pi - l_angles[-1]]
+    return deltas
 
 
 # https://rosettacode.org/wiki/Determine_if_two_triangles_overlap#C.2B.2B

@@ -56,8 +56,7 @@ from ..options import (
     options,
     themes,
     )
-
-from ..help import help_general, firsttime_message
+from ..keymaps import default_rf_keymaps
 
 
 class RFContext_Drawing:
@@ -91,12 +90,14 @@ class RFContext_Drawing:
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         try:
+            rgn = self.actions.region
+            sw,sh = rgn.width,rgn.height
+            m = self.drawing.get_dpi_mult()
+
             if options['visualize fps'] and self.actions.region:
                 pr = profiler.start('fps postpixel')
-                rgn = self.actions.region
-                sw,sh = rgn.width,rgn.height
+
                 lw,lh = len(self.fps_list),60
-                m = self.drawing.get_dpi_mult()
                 def p(x, y): return (sw - 10 + (-lw + x) * m, 10 + y * m)
                 def v(x, y): bgl.glVertex2f(*p(x,y))
 
@@ -132,6 +133,10 @@ class RFContext_Drawing:
 
                 self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
                 pr.done()
+
+            if not self.draw_ui:
+                k = next(iter(default_rf_keymaps['toggle ui']))
+                self.drawing.text_draw2D('Press %s to show UI' % k, Point2D((10, sh-10)), (1,1,1,0.25), fontsize=12)
 
             pr = profiler.start('tool draw postpixel')
             self.tool.draw_postpixel()

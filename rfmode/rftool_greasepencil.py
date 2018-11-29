@@ -58,10 +58,10 @@ class RFTool_Stretch(RFTool):
 
     def name(self): return "Grease Pencil"
     def icon(self): return "rf_greasepencil_icon"
-    def description(self): return 'Mark up the source with grease pencil.'
+    def description(self): return 'Mark up the source with grease pencil (Experimental)'
     def helptext(self): return help_greasepencil
     def get_label(self): return 'Grease Pencil (%s)' % ','.join(default_rf_keymaps['grease pencil tool'])
-    def get_tooltip(self): return 'Grease Pencil (%s)' % ','.join(default_rf_keymaps['grease pencil tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.5, 0.5, 0.5))

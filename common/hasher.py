@@ -25,6 +25,8 @@ import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
 
+from .profiler import profiler
+
 from .maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
@@ -54,11 +56,11 @@ def hash_cycle(cycle):
        h = rotate_cycle(h, 1)
     return ' '.join(str(c) for c in h)
 
-
 def hash_object(obj:bpy.types.Object):
     if obj is None: return None
     assert type(obj) is bpy.types.Object, "Only call hash_object on mesh objects!"
     assert type(obj.data) is bpy.types.Mesh, "Only call hash_object on mesh objects!"
+    pr = profiler.start('hashing object')
     # get object data to act as a hash
     me = obj.data
     counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
@@ -77,14 +79,16 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
-    #print(hashed)
+    pr.done()
     return hashed
 
 def hash_bmesh(bme:BMesh):
     if bme is None: return None
     assert type(bme) is BMesh, 'Only call hash_bmesh on BMesh objects!'
+    pr = profiler.start('hashing bmesh')
     counts = (len(bme.verts), len(bme.edges), len(bme.faces))
     bbox   = BBox(from_bmverts=bme.verts)
     vsum   = tuple(sum((v.co for v in bme.verts), Vector((0,0,0))))
     hashed = (counts, tuple(bbox.min) if bbox.min else None, tuple(bbox.max) if bbox.max else None, vsum)
+    pr.done()
     return hashed

@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from mathutils import Vector
 
 from .rftool import RFTool
+from .rfircchat import RFIRCChat
 
 from ..common.profiler import profiler
 from ..common.maths import Point, Point2D, Vec2D, XForm, clamp, matrix_normal
@@ -44,8 +45,9 @@ from ..common.ui import (
     UI_Label, UI_WrappedLabel, UI_Markdown,
     UI_Spacer, UI_Rule,
     UI_Container, UI_Collapsible, UI_EqualContainer, UI_Frame,
-    UI_Number,
+    UI_Number, UI_Textbox,
     GetSet,
+    load_font_ttf,
     )
 from ..common import bmesh_render as bmegl
 
@@ -61,7 +63,7 @@ from ..options import (
     gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
 
-from ..help import help_general, firsttime_message
+from ..help import help_general, help_firsttime, help_all
 
 
 class RFContext_UI:
@@ -75,39 +77,47 @@ class RFContext_UI:
         self.rftarget.dirty()
     def get_symmetry(self, axis): return self.rftarget.has_symmetry(axis)
 
-    def toggle_help(self, general=None):
-        if general is None:
-            self.window_manager.clear_focus()
-            self.window_help.visible = False
-            self.window_manager.clear_active()
-            self.help_button.set_label('')
-        else:
-            if general:
-                self.ui_helplabel.set_markdown(help_general)
-            else:
-                self.ui_helplabel.set_markdown(self.tool.helptext())
-            self.window_help.scrollto_top()
-            self.window_manager.set_focus(self.window_help)
-            #self.window_help.visible = True
+    def set_displace(self, strength):
+        self.rftarget.displace_strength = strength * 0.020 / 10
+        self.rftarget.dirty()
+    def get_displace(self):
+        return self.rftarget.displace_strength * (10 / 0.020)
+    def update_displace_option(self):
+        options['normal offset multiplier'] = self.rftarget.displace_strength * (10 / 0.020)
+        self.replace_opts()
+    def update_displace_modifier(self):
+        self.rftarget.displace_strength = options['normal offset multiplier'] * (0.020 / 10)
 
-    def toggle_help_button(self):
-        if self.help_button.get_label() == 'General Help':
-            self.toggle_general_help()
-        else:
-            self.toggle_tool_help()
+    def open_github(self):
+        bpy.ops.wm.url_open(url=retopoflow_issues_url)
+    def open_tip(self):
+        bpy.ops.wm.url_open(url=retopoflow_tip_url)
+    def open_irc(self):
+        RFIRCChat(self.window_manager)
 
-    def toggle_general_help(self):
-        if self.help_button.get_label() == 'Tool Help':
-            self.toggle_help()
-        else:
-            self.help_button.set_label('Tool Help')
-            self.toggle_help(True)
-    def toggle_tool_help(self):
-        if self.help_button.get_label() == 'General Help':
-            self.toggle_help()
-        else:
-            self.help_button.set_label('General Help')
-            self.toggle_help(False)
+    def help_hide(self):
+        self.window_manager.clear_focus()
+        self.window_help.visible = False
+        self.window_manager.clear_active()
+
+    def help_show(self, text):
+        self.ui_helplabel.set_markdown(text)
+        self.window_help.scrollto_top()
+        self.window_manager.set_focus(self.window_help)
+
+    def help_show_all(self):
+        def choose_help(i):
+            self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'])
+        markdown = help_all + '\n'.join('- [%s](%s)' % (h['title'], i) for i,h in enumerate(self.help_docs))
+        self.ui_helplabel.set_markdown(markdown, choose_help)
+        self.window_help.scrollto_top()
+        self.window_manager.set_focus(self.window_help)
+
+    def help_show_general(self):
+        self.help_show(help_general)
+
+    def help_show_tool(self):
+        self.help_show(self.tool.helptext())
 
     def alert_assert(self, must_be_true_condition, title=None, message=None, throw=True):
         if must_be_true_condition: return True
@@ -181,6 +191,7 @@ class RFContext_UI:
         ui_details = None
         ui_show = None
         message_orig = message
+        report_details = ''
 
         def screenshot():
             ss_filename = options['screenshot filename']
@@ -199,6 +210,8 @@ class RFContext_UI:
             url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
             bpy.ops.wm.url_open(url=url)
         def report():
+            nonlocal msg_report
+            nonlocal report_details
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
@@ -215,11 +228,42 @@ class RFContext_UI:
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
+        # def add_details():
+        #     nonlocal report_details
+        #     win = None
+        #     def close():
+        #         nonlocal win
+        #         self.window_manager.delete_window(win)
+        #     def event_handler(context, event):
+        #         if event.type == 'WINDOW' and event.value == 'CLOSE':
+        #             self.alert_windows -= 1
+        #         if event.type == 'ESC' and event.value == 'RELEASE':
+        #             close()
+        #     opts = {
+        #         'sticky': 5,
+        #         'movable': False,
+        #         'bgcolor': bgcolor,
+        #         'event handler': event_handler,
+        #         }
+        #     message = []
+        #     message += ['Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.']
+        #     message += ['Provide details on how to reproduce this issue so that we can fix it.']
+        #     win = self.window_manager.create_window('Provide details', opts)
+        #     win.add(UI_Rule())
+        #     win.add(UI_Markdown('\n'.join(message), max_size=(400,36000)))
+        #     win.add(UI_Textbox())
+        #     win.add(UI_Rule())
+        #     container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
+        #     if ui_details:
+        #         ui_show = container.add(UI_Button('Show Details', toggle_details, tooltip='Show/hide crash details', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     container.add(UI_Button('Close', close, tooltip='Close this alert window', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        #     self.window_manager.set_focus(win, darken=darken)
+        #     self.alert_windows += 1
 
         if msghash:
             ui_checker = UI_Container(background=(0,0,0,0.4))
             ui_checker.add(UI_Label('RetopoFlow Issue Tracker', align=0))
-            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...', min_size=Vec2D((400,36))))
+            ui_label = ui_checker.add(UI_Markdown('Checking reported issues...'))
             ui_buttons = ui_checker.add(UI_EqualContainer(margin=1, vertical=False))
 
             def check_github():
@@ -300,19 +344,24 @@ class RFContext_UI:
             msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
             msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
             msg_report += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+            msg_report += ['- Undo: %s' % (', '.join(self.undo_stack_actions()[:10]),)]
             if msghash:
-                msg_report += ['\n\nError Hash: %s' % (str(msghash),)]
+                msg_report += ['']
+                msg_report += ['Error Hash: %s' % (str(msghash),)]
             if message_orig:
-                msg_report += ['\n\nTrace:\n\n%s' % (message_orig,)]
+                msg_report += ['']
+                msg_report += ['Trace:\n']
+                msg_report += [message_orig]
             msg_report = '\n'.join(msg_report)
 
             def clipboard():
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
+            fontid = load_font_ttf('DejaVuSansMono.ttf')
             ui_details = UI_Container(background=(0,0,0,0.4))
             ui_details.add(UI_Label('Crash Details', align=0))
-            ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
+            ui_details.add(UI_Markdown(msg_report, fontid=fontid))
             ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy Crash Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
             ui_details.visible = False
 
@@ -352,10 +401,11 @@ class RFContext_UI:
             'movable': False,
             'bgcolor': bgcolor,
             'event handler': event_handler,
+            'min_size': (600, 100),
             }
         win = self.window_manager.create_window(title, opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
+        win.add(UI_Markdown(message))
         if ui_details: win.add(ui_details)
         if ui_checker: win.add(ui_checker)
         win.add(UI_Rule())
@@ -399,7 +449,7 @@ class RFContext_UI:
 
         ui_details = UI_Container(background=(0,0,0,0.4))
         ui_details.add(UI_Label('System Details', align=0))
-        ui_details.add(UI_Markdown(msg_report, min_size=Vec2D((600,36))))
+        ui_details.add(UI_Markdown(msg_report))
         ui_details.add(UI_Button('Copy Details to Clipboard', clipboard, tooltip='Copy System Details to clipboard', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         def submit():
@@ -434,7 +484,7 @@ class RFContext_UI:
             }
         win = self.window_manager.create_window('Low FPS Warning', opts)
         win.add(UI_Rule())
-        win.add(UI_Markdown(message, min_size=Vec2D((400,36))))
+        win.add(UI_Markdown(message))
         win.add(ui_details)
         win.add(UI_Rule())
         container = win.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
@@ -475,20 +525,6 @@ class RFContext_UI:
         def set_tool_collapsed(b):
             options['tools_min'] = b
             update_tool_collapsed()
-        def show_reporting():
-            options['welcome'] = True
-            self.window_manager.set_focus(self.window_welcome)
-            #self.window_welcome.visible = options['welcome']
-        def hide_reporting():
-            options['welcome'] = False
-            self.window_welcome.visible = options['welcome']
-            #self.window_manager.clear_active()
-            self.window_manager.clear_focus()
-
-        def open_github():
-            bpy.ops.wm.url_open(url=retopoflow_issues_url)
-        def open_tip():
-            bpy.ops.wm.url_open(url=retopoflow_tip_url)
 
         def reset_options():
             options.reset()
@@ -563,6 +599,16 @@ class RFContext_UI:
             options.set_default(key, default_val)
             return GetSet(get, set)
 
+        self.help_docs = []
+        self.help_docs += [{
+            'title': 'Welcome Message',
+            'help': help_firsttime,
+        }]
+        self.help_docs += [{
+            'title': 'General Help',
+            'help': help_general,
+        }]
+
         self.tool_window = self.window_manager.create_window('Tools', {'fn_pos':wrap_pos_option('tools pos')})
         self.tool_max = UI_Container(margin=0)
         self.tool_min = UI_Container(margin=0, vertical=False)
@@ -571,13 +617,23 @@ class RFContext_UI:
         tools_options = []
         for i,rft_data in enumerate(RFTool.get_tools()):
             ids,rft = rft_data
-            self.tool_selection_max.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip())
-            self.tool_selection_min.add_option(rft.get_label(), value=rft.bl_label, icon=rft.rft_class().get_ui_icon(), tooltip=rft.get_tooltip(), showlabel=False)
-            ui_options = rft.rft_class().get_ui_options()
-            if ui_options: tools_options.append((rft.bl_label, ui_options))
+            rfc = rft.rft_class()
+            bl_label = rft.bl_label
+            label = rft.get_label()
+            tooltip = rft.get_tooltip()
+            icon = rfc.get_ui_icon()
+            ui_options = rfc.get_ui_options()
+            self.tool_selection_max.add_option(label, value=bl_label, icon=icon, tooltip=tooltip)
+            self.tool_selection_min.add_option(label, value=bl_label, icon=icon, tooltip=tooltip, showlabel=False)
+            if ui_options: tools_options.append((bl_label, ui_options))
+            self.help_docs += [{
+                'title': rfc.name(),
+                'help': rfc.helptext(),
+            }]
+
         extra = UI_Container()
-        extra.add(UI_Button('General Help', self.toggle_general_help, tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
-        extra.add(UI_Button('Tool Help', self.toggle_tool_help, tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('General Help', lambda: self.help_show_general(), tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
+        extra.add(UI_Button('Tool Help', lambda: self.help_show_tool(), tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
         extra.add(UI_Button('Exit', self.quit, tooltip='Quit RetopoFlow (TAB/ESC)'))
         get_tool_collapsed()
@@ -591,9 +647,11 @@ class RFContext_UI:
 
         self.window_info = self.window_manager.create_window('RetopoFlow %s' % retopoflow_version, {'fn_pos':wrap_pos_option('info pos'), 'separation':2})
         container = self.window_info.add(UI_Container(margin=0, vertical=False))
-        container.add(UI_Button('Welcome!', show_reporting, tooltip='Show "Welcome!" message'))
-        container.add(UI_Button('Report Issue', open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
-        self.window_info.add(UI_Button('Buy us a drink', open_tip, tooltip='Send us a "Thank you"'))
+        container.add(UI_Button('Welcome!', lambda: self.help_show(help_firsttime), tooltip='Show "Welcome!" message'))
+        container.add(UI_Button('Report Issue', self.open_github, tooltip='Report an issue with RetopoFlow (opens default browser)'))
+        self.window_info.add(UI_Button('Buy us a drink', self.open_tip, tooltip='Send us a "Thank you"'))
+        if options['show experimental']:
+            self.window_info.add(UI_Button('Chat on IRC', self.open_irc, tooltip='Chat with us on IRC'))
 
         self.window_tool_options = self.window_manager.create_window('Options', {
             'fn_pos':wrap_pos_option('options pos'),
@@ -602,22 +660,37 @@ class RFContext_UI:
 
         dd_general = self.window_tool_options.add(UI_Collapsible('General', fn_collapsed=wrap_bool_option('tools general collapsed', False)))
         dd_general.add(UI_Button('Maximize Area', self.rfmode.ui_toggle_maximize_area, tooltip='Toggle maximize area and make 3D View fill entire window (%s)' % ','.join(default_rf_keymaps['toggle full area'])))
-        container_snap = dd_general.add(UI_Container(vertical=False))
-        container_snap.add(UI_Label('Snap Verts:', margin=0, valign=0))
+        container_clean = dd_general.add(UI_Collapsible('Target Cleaning'))
+        container_snap = container_clean.add(UI_Collapsible('Snap Verts', vertical=False, equal=True))
         container_snap.add(UI_Button('All', self.snap_all_verts, tooltip='Snap all target vertices to nearest source point'))
         container_snap.add(UI_Button('Selected', self.snap_selected_verts, tooltip='Snap selected target vertices to nearest source point'))
-
-        container_view = dd_general.add(UI_Collapsible('View Options'))
-        container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
-        container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
-        container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_doubles = container_clean.add(UI_Collapsible('Remove Doubles'))
+        container_doubles.add(UI_Number('Distance', *options.gettersetter('remove doubles dist', setwrap=lambda v:max(0,v)), update_multiplier=0.001, fn_formatter=lambda v:'%0.3f'%v))
+        container_doubles_btns = container_doubles.add(UI_EqualContainer(vertical=False))
+        container_doubles_btns.add(UI_Button('All', self.remove_all_doubles, tooltip='Remove all doubled vertices'))
+        container_doubles_btns.add(UI_Button('Selected', self.remove_selected_doubles, tooltip='Remove selected doubled vertices'))
 
         container_target = dd_general.add(UI_Collapsible('Target Rendering'))
         container_target.add(UI_Number('Above', *options.gettersetter('target alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is above the source'))
         container_target.add(UI_Number('Below', *options.gettersetter('target hidden alpha', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is below the source'))
         container_target.add(UI_Number('Backface', *options.gettersetter('target alpha backface', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(float(v)/100,0,1)), tooltip='Set transparency of target mesh that is facing away'))
         container_target.add(UI_Checkbox('Cull Backfaces', *options.gettersetter('target cull backfaces'), tooltip='Enable to hide geometry that is facing away'))
-        container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+        def get_displace():
+            v = options['normal offset multiplier']
+            return int(v)
+        def set_displace(v):
+            v = clamp(float(v), 0, 100)
+            options['normal offset multiplier'] = v
+            self.set_displace(v)
+            self.replace_opts()
+        #container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
+        container_target.add(UI_Number('Normal Offset', get_displace, set_displace, tooltip='Set how far the target is rendered away from source'))
+
+        container_view = dd_general.add(UI_Collapsible('View Options'))
+        container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
+        container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
+        container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_view.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
 
         opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
@@ -626,7 +699,7 @@ class RFContext_UI:
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
 
-        dd_general.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
+        dd_general.add(UI_Number('Select Dist', *options.gettersetter('select dist', setwrap=lambda v:max(1, int(v))), tooltip='Pixel distance for selection'))
 
         dd_general.add(UI_Checkbox('Auto Collapse Options', *optgetset('tools autocollapse'), tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
         dd_general.add(UI_Checkbox('Show Tooltips', *optgetset('show tooltips', setcallback=self.window_manager.set_show_tooltips), tooltip='If enabled, tooltips (like these!) will show'))
@@ -686,24 +759,25 @@ class RFContext_UI:
         # inform window manager about the tooltip checkbox option
         self.window_manager.set_show_tooltips(options['show tooltips'])
 
-        def welcome_event_handler(context, event):
-            if event.type == 'ESC' and event.value == 'RELEASE':
-                hide_reporting()
-        self.window_welcome = self.window_manager.create_window('Welcome!', {'sticky':5, 'visible':options['welcome'], 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':welcome_event_handler})
-        self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Markdown(firsttime_message, margin_left=8, margin_right=8))
-        self.window_welcome.add(UI_Rule())
-        self.window_welcome.add(UI_Button('Close', hide_reporting, bgcolor=(0.5,0.5,0.5,0.4), margin=2), footer=True)
-        if options['welcome']: self.window_manager.set_focus(self.window_welcome)
-
         def help_event_handler(context, event):
             if event.type == 'ESC' and event.value == 'RELEASE':
-                self.toggle_help()
-        self.window_help = self.window_manager.create_window('Help', {'sticky':5, 'visible':False, 'movable':False, 'bgcolor':(0.2,0.2,0.2,0.95), 'event handler':help_event_handler})
+                self.help_hide()
+        self.window_help = self.window_manager.create_window('Help', {
+            'sticky': 5,
+            'visible': False,
+            'movable': False,
+            'bgcolor': (0.2,0.2,0.2,0.95),
+            'event handler': help_event_handler,
+            'min_size': (800, 300),
+        })
         self.window_help.add(UI_Rule())
         self.ui_helplabel = self.window_help.add(UI_Markdown('help text here!', margin_left=8, margin_right=8))
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('', self.toggle_help_button, tooltip='Switch between General Help (F1) and Tool Help (F2)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', self.toggle_help, bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('All Help Documents', lambda: self.help_show_all(), tooltip='Show all help documents', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', lambda: self.help_hide(), bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+
+        if options['welcome']:
+            self.help_show(help_firsttime)
+            options['welcome'] = False
 

@@ -33,6 +33,8 @@ import random
 import binascii
 import importlib
 from copy import deepcopy
+from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
 
 import bgl
 import bpy
@@ -96,6 +98,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     instance = None     # reference to the current instance of RFContext
 
     undo_depth = 100    # set in RF settings?
+
+    executor = ThreadPoolExecutor()
+    instrument_queue = Queue()
+    instrument_thread = None
 
     @staticmethod
     @blender_version_wrapper('<','2.80')
@@ -176,7 +182,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             verts = [(v[0]/v[3], v[1]/v[3], v[2]/v[3]) for v in verts]
             bboxes.append(BBox(from_coords=verts))
         bbox = BBox.merge(bboxes)
-        return bbox.get_max_dimension() / 10.0
+        return bbox.get_max_dimension() / bpy.context.scene.unit_settings.scale_length / 10.0
 
     @stats_wrapper
     @profiler.profile
@@ -268,7 +274,6 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
                rfsd.replace_opts(source_opts)
 
     def commit(self):
-        #self.rftarget.commit()
         pass
 
     def end(self):
@@ -368,6 +373,9 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         self._restore_state(self.redo.pop())
         self.instrument_write('redo')
 
+    def undo_stack_actions(self):
+        return [u['action'] for u in reversed(self.undo)]
+
     def instrument_write(self, action):
         if not options['instrument']: return
 
@@ -377,12 +385,24 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
 
         target_json = self.rftarget.to_json()
         data = {'action': action, 'target': target_json}
-        data_str = json.dumps(data, separators=[',',':'])
+        data_str = json.dumps(data, separators=[',',':'], indent=0)
+        RFContext.instrument_queue.put(data_str)
 
-        # write data to end of textblock
-        tb.write('')        # position cursor to end
-        tb.write(data_str)
-        tb.write('\n')
+        # write data to end of textblock asynchronously
+        # TODO: try writing to file (text/binary), because writing to textblock is _very_ slow! :(
+        def write_out():
+            while True:
+                if RFContext.instrument_queue.empty():
+                    time.sleep(0.1)
+                    continue
+                data_str = RFContext.instrument_queue.get()
+                data_str = data_str.splitlines()
+                tb.write('')        # position cursor to end
+                for line in data_str:
+                    tb.write(line)
+                tb.write('\n')
+        if not RFContext.instrument_thread:
+            RFContext.instrument_thread = RFContext.executor.submit(write_out)
 
     ###################################################
     # auto save
@@ -408,6 +428,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         #   empty or None:  stay in modal
 
         self._process_event(context, event)
+        self.window_manager.update()
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 
@@ -426,11 +447,11 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             return {'pass'}
 
         if self.actions.pressed('general help'):
-            self.toggle_general_help()
+            self.help_show_general()
             return {}
 
         if self.actions.pressed('tool help'):
-            self.toggle_tool_help()
+            self.help_show_tool()
             return {}
 
         if event.type == 'TIMER':
@@ -509,10 +530,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             print('Clearing profiler')
             profiler.clear()
             return
-
         if self.actions.pressed('F8'):
             ui.debug_draw = not ui.debug_draw
-        if self.actions.pressed('F9'):
+
+        if self.actions.pressed('toggle ui'):
             self.draw_ui = not self.draw_ui
             self.window_info.visible = self.draw_ui
             self.tool_window.visible = self.draw_ui

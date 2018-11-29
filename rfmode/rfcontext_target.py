@@ -30,7 +30,7 @@ from ..common.maths import Point2D, Vec2D, Direction2D, Accel2D
 from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from .rfmesh import RFSource, RFTarget
 from .rfmesh_render import RFMeshRender
-from ..options import visualization
+from ..options import visualization, options
 
 
 class RFContext_Target:
@@ -44,6 +44,7 @@ class RFContext_Target:
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
+        self.update_displace_option()
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 
@@ -85,6 +86,10 @@ class RFContext_Target:
             self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
             self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
+        else:
+            self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid }
+            self.accel_vis_edges = { bme for bme in self.accel_vis_edges if bme.is_valid }
+            self.accel_vis_faces = { bmf for bmf in self.accel_vis_faces if bmf.is_valid }
 
         return self.accel_vis_accel
 
@@ -336,6 +341,14 @@ class RFContext_Target:
     def snap_selected_verts(self):
         self.undo_push('snap selected verts')
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+
+    def remove_all_doubles(self):
+        self.undo_push('remove all doubles')
+        self.rftarget.remove_all_doubles(options['remove doubles dist'])
+
+    def remove_selected_doubles(self):
+        self.undo_push('remove selected doubles')
+        self.rftarget.remove_selected_doubles(options['remove doubles dist'])
 
     #######################################
     # target manipulation functions

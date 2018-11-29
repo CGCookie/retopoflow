@@ -56,11 +56,11 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
 
     def name(self): return "Contours"
     def icon(self): return "rf_contours_icon"
-    def description(self): return 'Contours'
+    def description(self): return 'Retopologize cylindrical forms, like arms and legs'
 
     def helptext(self): return help_contours
     def get_label(self): return 'Contours (%s)' % ','.join(default_rf_keymaps['contours tool'])
-    def get_tooltip(self): return 'Contours (%s)' % ','.join(default_rf_keymaps['contours tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def start(self):
         self.rfwidget.set_widget('line', color=(1.0, 1.0, 1.0))
@@ -304,8 +304,9 @@ class RFTool_Contours(RFTool, RFTool_Contours_Ops):
                 while dist - d <= 0:
                     # create new vert between c0 and c1
                     p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
-                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    p,n,_,_ = self.rfcontext.nearest_sources_Point(p)
                     verts[i].co = p
+                    verts[i].normal = n
                     i += 1
                     if i == l: break
                     dist += ndists[i]

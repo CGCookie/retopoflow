@@ -67,10 +67,10 @@ class RFTool_Stretch(RFTool):
 
     def name(self): return "Stretch"
     def icon(self): return "rf_stretch_icon"
-    def description(self): return 'Stretch selected geometry to fit stroke.'
+    def description(self): return 'Stretch selected geometry to fit stroke (Experimental)'
     def helptext(self): return help_stretch
     def get_label(self): return 'Stretch (%s)' % ','.join(default_rf_keymaps['stretch tool'])
-    def get_tooltip(self): return 'Stretch (%s)' % ','.join(default_rf_keymaps['stretch tool'])
+    def get_tooltip(self): return '%s: %s' % (self.get_label(), self.description())
 
     def start(self):
         self.rfwidget.set_widget('brush stroke', color=(0.7, 1.0, 0.7))

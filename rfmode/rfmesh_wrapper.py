@@ -36,7 +36,7 @@ from ..common.profiler import profiler
 from ..common.maths import (
     triangle2D_det, triangle2D_area,
     segment2D_intersection,
-    Vec2D, Point, Point2D, Vec, Direction,
+    Vec2D, Point, Point2D, Vec, Direction, Normal,
 )
 
 
@@ -196,6 +196,10 @@ class RFVert(BMElemWrapper):
     def dissolve(self):
         bmv = BMElemWrapper._unwrap(self)
         vert_dissolve(bmv)
+
+    def compute_normal(self):
+        ''' computes normal as average of normals of all linked faces '''
+        return Normal(sum((f.compute_normal() for f in self.link_faces), Vec((0,0,0))))
 
 
 class RFEdge(BMElemWrapper):
@@ -499,6 +503,19 @@ class RFFace(BMElemWrapper):
         return Point(sum(cos, Vec((0, 0, 0))) / len(cos))
 
     #############################################
+
+    def compute_normal(self):
+        ''' computes normal based on verts '''
+        # TODO: should use loop rather than verts?
+        an = Vec((0,0,0))
+        vs = list(self.bmelem.verts)
+        bmv1,bmv2 = vs[-2],vs[-1]
+        v1 = bmv2.co - bmv1.co
+        for i in range(len(vs)):
+            bmv0,bmv1,bmv2 = bmv1,bmv2,vs[i]
+            v0,v1 = -v1,bmv2.co-bmv1.co
+            an = an + Normal(v0.cross(v1))
+        return self.l2w_normal(Normal(an))
 
     def overlap2D(self, other, Point_to_Point2D):
         return self.overlap2D_center(other, Point_to_Point2D)

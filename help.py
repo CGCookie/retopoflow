@@ -25,7 +25,7 @@ from .options import retopoflow_version
 # sync help texts with https://github.com/CGCookie/retopoflow-docs (http://docs.retopoflow.com/)
 
 
-firsttime_message = '''
+help_firsttime = '''
 # Welcome to RetopoFlow {version}!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
@@ -35,6 +35,17 @@ The RetopoFlow tools automatically generate geometry by drawing on an existing s
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
+## Minor Changes from Version 2.0.0
+
+- Can navigate to all help documents through help system.
+  (Click All Help Documents button below)
+- Fixed bug where navigation broke with internationalization settings
+- Improved many UX/UI issues.
+  For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.
+  For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
+- Squashed many hard-to-find bugs in Loops, PolyPen, Patches, Strokes, Contours
+- Better error handling with shader compilation.
+
 
 ## Major Changes from Version 1.x
 
@@ -43,16 +54,20 @@ RetopoFlow 2.x now works like any other Blender mode, like Edit Mode or Sculpt M
 We focused our 2.x development on two main items: stability and user experience.
 With an established and solid framework, we will focus more on features in future releases.
 
-- Everything runs within the RF Mode; no more separation of tools!  In fact, the shortcut keys Q, W, E, R, T, Y, and U will switch quickly between the tools.
+- Everything runs within the RF Mode; no more separation of tools!
+  In fact, the shortcut keys Q, W, E, R, T, Y, U, and I will switch quickly between the tools.
 - Each tool has been simplified to perform its job well.
-- All tools use the current selection for their context.  For example, PolyStrips can edit any strip of quads by simply selecting them.
+- All tools use the current selection for their context.
+  For example, PolyStrips can edit any strip of quads by simply selecting them.
 - The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
 - Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
 - All tools have similar and consistent visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
 - Mirroring (X, Y, and/or Z) is now visualized by overlaying a color on all the source meshes.
-- Every change automatically commits to the target mesh; geometry is created in real-time! No more lost work from crashing.
+- Every change automatically commits to the target mesh; geometry is created in real-time!
+  No more lost work from crashing.
 - Auto saves will trigger!
-- Undo and redo are universally available within RF Mode. Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
+- Undo and redo are universally available within RF Mode.
+  Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
 - The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
@@ -61,7 +76,8 @@ With an established and solid framework, we will focus more on features in futur
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
 
-- Give us a rating with comments on the Blender Market. (requires purchasing a copy through Blender Market)
+- Give us a rating with comments on the Blender Market.
+  (requires purchasing a copy through Blender Market)
 - Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
 - Consider donating to our drink funds :)
 
@@ -105,9 +121,9 @@ More detailed help is available by pressing F1 after you start RF.
 TL;DR
 -----
 
-When you are retopologizing for the first time, deselect all objects and click one of the RetopoFlow tools.
+==> When you are retopologizing for the first time, deselect all objects and click one of the RetopoFlow tools.
 
-When continuing work on a previous retopology session, select the target object, and click one of the RetopoFlow tools.
+==> When continuing work on a previous retopology session, select the target object, and click one of the RetopoFlow tools.
 
 
 Terminology
@@ -129,7 +145,7 @@ In RetopoFlow 1.x you were required to select the source and target objects expl
 
 The target object is either:
 
-- the active mesh object if it is also selected (Object Mode)
+- the active mesh object if it is also selected and visible (Object Mode)
 - the mesh object currently being edited (Edit Mode)
 - otherwise, a newly created mesh object
 
@@ -155,12 +171,25 @@ Also, a one-time Welcome message will greet you.
 '''
 
 
+help_all = '''
+# All Help Documents
+
+Below are links to all of the help documents built into RetopoFlow.
+
+More detailed online documentation coming soon!
+
+## Help Documents
+
+'''
+
 
 help_general = '''
 # General Help
 
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
-For tool-specific help, select the tool from the Tools panel, and either press F1 or click Tool Help.
+For tool-specific help, select the tool from the Tools panel, and either press F2 or click Tool Help.
+
+Click the All Help Documents button below to see all of the built-in documentation.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -168,39 +197,46 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 ## RetopoFlow Shortcuts
 
-- TAB: quit RetopoFlow and enter Edit Mode
-- F1: general help
-- F2: tool help
-- F9: toggle on/off main RF windows
+|  |  |  |
+| --- | --- | --- |
+| `ESC / TAB` | : | quit RetopoFlow |
+| `F1` | : | general help |
+| `F2` | : | tool help |
+| `F9` | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
 
 Pressing the tool's shortcut will automatically switch to that tool.
 Note: selection and the undo stack is maintained between tools.
 
-- Q: Contours
-- W: PolyStrips
-- E: PolyPen
-- R: Relax
-- T: Tweak
-- Y: Loops
-- U: Patches
-- I: Strokes
+|  |  |  |
+| --- | --- | --- |
+| `Q` | : | Contours |
+| `W` | : | PolyStrips |
+| `E` | : | PolyPen |
+| `R` | : | Relax |
+| `T` | : | Tweak |
+| `Y` | : | Loops |
+| `U` | : | Patches |
+| `I` | : | Strokes |
+
 
 ## Universal Shortcuts
 
 The following shortcuts work across all the tools, although each tool may have a distinct way of performing the action.
 For example, pressing G in Contours will slide the selected loop.
 
-- A: deselect / select all
-- ACTION drag: transform selection
-- SELECT drag / SHIFT+SELECT drag: selection painting
-- SHIFT+SELECT click: toggle selection
-- CTRL+SELECT / CTRL+SHIFT+SELECT: smart selection
-- G: grab and move selected geometry
-- X: delete / dissolve selection
-- CTRL+Z: undo
-- CTRL+SHIFT+Z: redo
+|  |  |  |
+| --- | --- | --- |
+| `A` | : | deselect / select all |
+| `ACTION` drag | : | transform selection |
+| `SHIFT+SELECT` click | : | toggle selection |
+| `SELECT` drag / `SHIFT+SELECT` drag | : | selection painting |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | smart selection |
+| `G` | : | grab and move selected geometry |
+| `X` | : | delete / dissolve selection |
+| `CTRL+Z` | : | undo |
+| `CTRL+SHIFT+Z` | : | redo |
 
 
 ## Defaults
@@ -249,24 +285,30 @@ You may draw strokes in any order, from any direction.
 
 ## Drawing
 
-- ACTION: select and slide loop
-- SELECT / SHIFT+SELECT: select edge
-- CTRL+SELECT / CTRL+SHIFT+SELECT: select loop
-- CTRL+ACTION: draw contour stroke perpendicular to form. newly created contour extends selection if applicable.
-- A: deselect / select all
-- F: Bridge selected edge loops
+|  |  |  |
+| --- | --- | --- |
+| `ACTION` | : | select and slide loop |
+| `SELECT / SHIFT+SELECT` | : | select edge |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select loop |
+| `CTRL+ACTION` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| `A` | : | deselect / select all |
+| `F` | : | Bridge selected edge loops |
 
 ## Transform
 
-- G: slide
-- S: shift
-- SHIFT+S: rotate
+|  |  |  |
+| --- | --- | --- |
+| `G` | : | slide |
+| `S` | : | shift |
+| `SHIFT+S` | : | rotate |
 
 ## Other
 
-- X: delete/dissolve selected
-- SHIFT+UP / SHIFT+DOWN: increase / decrease segment counts
-- EQUALS / MINUS: increase / decrease segment counts
+|  |  |  |
+| --- | --- | --- |
+| `X` | : | delete/dissolve selected |
+| `SHIFT+UP / SHIFT+DOWN` | : | increase / decrease segment counts |
+| `EQUALS / MINUS` | : | increase / decrease segment counts |
 
 ## Tips
 
@@ -290,24 +332,30 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 ## Drawing
 
-- ACTION: select quad then grab and move
-- SELECT / SHIFT+SELECT: select quads
-- CTRL+SELECT / CTRL+SHIFT+SELECT: select quad strip
-- CTRL+ACTION: draw strip of quads
-- F: adjust brush size
-- A: deselect / select all
+|  |  |  |
+| --- | --- | --- |
+| `ACTION` | : | select quad then grab and move |
+| `SELECT / SHIFT+SELECT` | : | select quads |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select quad strip |
+| `CTRL+ACTION` | : | draw strip of quads |
+| `F` | : | adjust brush size |
+| `A` | : | deselect / select all |
 
 ## Control Points
 
-- ACTION: translate control point under mouse
-- SHIFT+ACTION: translate all inner control points around neighboring outer control point
-- CTRL+SHIFT+ACTION: scale strip width by click+dragging on inner control point
+|  |  |  |
+| --- | --- | --- |
+| `ACTION` | : | translate control point under mouse |
+| `SHIFT+ACTION` | : | translate all inner control points around neighboring outer control point |
+| `CTRL+SHIFT+ACTION` | : | scale strip width by click+dragging on inner control point |
 
 ## Other
 
-- X: delete/dissolve selected
-- SHIFT+UP / SHIFT+DOWN: increase / decrease segment count of selected strip(s)
-- EQUALS / MINUS: increase / decrease segment count of selected strip(s)
+|  |  |  |
+| --- | --- | --- |
+| `X` | : | delete/dissolve selected |
+| `SHIFT+UP / SHIFT+DOWN` | : | increase / decrease segment count of selected strip(s) |
+| `EQUALS / MINUS` | : | increase / decrease segment count of selected strip(s) |
 '''
 
 
@@ -321,13 +369,18 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ## Drawing
 
-- SELECT / SHIFT+SELECT: select geometry
-- CTRL+ACTION: insert geometry connected to selected geometry
-- A: deselect / select all
+|  |  |  |
+| --- | --- | --- |
+| `SELECT / SHIFT+SELECT` | : | select geometry |
+| `CTRL+ACTION` | : | insert geometry connected to selected geometry |
+| `SHIFT+ACTION` | : | insert edges only |
+| `A` | : | deselect / select all |
 
 ## Other
 
-- X: delete/dissolve selected
+|  |  |  |
+| --- | --- | --- |
+| `X` | : | delete/dissolve selected |
 
 ## Tips
 
@@ -350,11 +403,15 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 ![](help_tweak.png)
 
-- ACTION: move all vertices within brush radius
-- SHIFT+ACTION: move only selected vertices within brush radius
-- F: adjust brush size
-- SHIFT+F: adjust brush strength
-- CTRL+F: adjust brush falloff
+## Actions
+
+|  |  |  |
+| --- | --- | --- |
+| `ACTION` | : | move all vertices within brush radius |
+| `SHIFT+ACTION` | : | move only selected vertices within brush radius |
+| `F` | : | adjust brush size |
+| `SHIFT+F` | : | adjust brush strength |
+| `CTRL+F` | : | adjust brush falloff |
 
 ## Options
 
@@ -372,11 +429,15 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 ![](help_relax.png)
 
-- ACTION: relax all vertices within brush radius
-- SHIFT+ACTION: relax only selected vertices within brush radius
-- F: adjust brush size
-- SHIFT+F: adjust brush strength
-- CTRL+F: adjust brush falloff
+## Actions
+
+|  |  |  |
+| --- | --- | --- |
+| `ACTION` | : | relax all vertices within brush radius |
+| `SHIFT+ACTION` | : | relax only selected vertices within brush radius |
+| `F` | : | adjust brush size |
+| `SHIFT+F` | : | adjust brush strength |
+| `CTRL+F` | : | adjust brush falloff |
 
 ## Options
 
@@ -395,10 +456,14 @@ The Loops tool also works on any strip of edges.
 
 ![](help_loops.png)
 
-- CTRL+ACTION: insert edge loop
-- SELECT / SHIFT+SELECT: select edge(s)
-- CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
-- S: slide edge loop
+## Actions
+
+|  |  |  |
+| --- | --- | --- |
+| `CTRL+ACTION` | : | insert edge loop |
+| `SELECT / SHIFT+SELECT` | : | select edge(s) |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
+| `S` | : | slide edge loop |
 '''
 
 help_patches = '''
@@ -407,11 +472,15 @@ help_patches = '''
 The Patches tool helps fill in holes in your topology.
 Select the strip of boundary edges that you wish to fill.
 
-- SELECT / SHIFT+SELECT: select edge
-- CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
-- SHIFT+UP / SHIFT+DOWN: adjust segment count
-- CTRL+SHIFT+ACTION: toggle vertex as corner
-- F: fill visualized patch
+## Actions
+
+|  |  |  |
+| --- | --- | --- |
+| `SELECT / SHIFT+SELECT` | : | select edge |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
+| `SHIFT+UP / SHIFT+DOWN` | : | adjust segment count |
+| `CTRL+SHIFT+ACTION` | : | toggle vertex as corner |
+| `F` | : | fill visualized patch |
 
 ## Notes
 
@@ -441,11 +510,13 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ## Drawing
 
-- SELECT / SHIFT+SELECT: select geometry
-- CTRL+SELECT / CTRL+SHIFT+SELECT: select edge loop
-- CTRL+ACTION: insert edge strip / extrude selected geometry
-- A: deselect / select all
-- SHIFT+UP / SHIFT+DOWN: adjust segment count
+|  |  |  |
+| --- | --- | --- |
+| `SELECT / SHIFT+SELECT` | : | select geometry |
+| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
+| `CTRL+ACTION` | : | insert edge strip / extrude selected geometry |
+| `A` | : | deselect / select all |
+| `SHIFT+UP / SHIFT+DOWN` | : | adjust segment count |
 
 ## Other
 
@@ -472,8 +543,9 @@ More details will come as the tool matures.
 '''
 
 help_greasepencil = '''
-# Stretch Help
+# Grease Pencil Help
 
 This is an experimental tool.
 More details will come as the tool matures.
 '''
+
