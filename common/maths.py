@@ -100,6 +100,12 @@ class Vec2D(Vector, Entity2D):
     def from_vector(self, v):
         self.x, self.y = v
 
+    def project(self, other):
+        ''' returns the projection of self onto other '''
+        olen2 = other.length_squared
+        if olen2 <= 0.00000001: return Vec2D((0,0))
+        return (self.dot(other) / olen2) * other
+
 
 class Vec(VecUtils, Entity3D):
     @stats_wrapper
@@ -111,6 +117,12 @@ class Vec(VecUtils, Entity3D):
 
     def __repr__(self):
         return self.__str__()
+
+    def project(self, other):
+        ''' returns the projection of self onto other '''
+        olen2 = other.length_squared
+        if olen2 <= 0.00000001: return Vec3D((0,0,0))
+        return (self.dot(other) / olen2) * other
 
 
 class Point2D(Vector, Entity2D):

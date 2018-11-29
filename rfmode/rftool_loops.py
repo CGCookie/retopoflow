@@ -115,7 +115,9 @@ class RFTool_Loops(RFTool):
             self.rfcontext.select_edge_loop(edge, supparts=False, only=True)
             self.set_next_state()
             self.prep_edit()
-            if not self.edit_ok: return
+            if not self.edit_ok:
+                self.rfcontext.undo_cancel()
+                return
             return 'slide after select'
 
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
@@ -317,11 +319,14 @@ class RFTool_Loops(RFTool):
         bmv0,bmv1 = nearest_edge.verts
         co0,co1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
         diff = co1 - co0
-        if diff.length == 0:
+        if diff.length_squared <= 0.0000001:
             # nearest edge has no length!
             return
         self.tangent = Direction2D((-diff.y, diff.x))
         self.vector = self.tangent * self.drawing.scale(40)
+        if self.vector.length_squared <= 0.0000001:
+            # nearest edge has no length!
+            return
         self.slide_data = slide_data
         self.mouse_down = self.rfcontext.actions.mouse
         self.percent_start = 0.0
@@ -351,7 +356,7 @@ class RFTool_Loops(RFTool):
             return 'main'
 
         mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
-        a,b = self.vector, self.tangent.dot(mouse_delta) * self.tangent
+        a,b = self.vector, mouse_delta.project(self.tangent)
         percent = clamp(self.percent_start + a.dot(b) / a.dot(a), -1, 1)
         for bmv in self.slide_data.keys():
             vecs = self.slide_data[bmv]['left' if percent > 0 else 'right']
