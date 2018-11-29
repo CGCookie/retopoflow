@@ -34,6 +34,7 @@ bl_info = {
 }
 
 import sys
+from datetime import datetime
 import traceback
 
 # Blender imports
@@ -44,7 +45,12 @@ from bpy.types import Panel, Operator
 from .common.debug import Debugger
 from .common.blender import create_and_show_blender_text, show_blender_text
 
-from .options import retopoflow_version
+from .options import (
+    retopoflow_version, retopoflow_version_git,
+    build_platform,
+    platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor,
+    gpu_vendor,gpu_renderer,gpu_version,gpu_shading,
+)
 
 
 addon_keymaps = []          # Used to store keymaps for addon
@@ -84,6 +90,25 @@ class RF_OpenBrokenMessage(Operator):
         txt.current_line_index = 0
         show_blender_text(txtname)
 
+class RF_OpenWebIssues(Operator):
+    """Open RetopoFlow Issues page in default web browser"""
+
+    bl_category = 'Retopology'
+    bl_idname = "cgcookie.rf_open_webissues"
+    bl_label = "Open RetopoFlow Issues Page"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        from .options import options
+        bpy.ops.wm.url_open(url=options['github issues url'])
+        return {'FINISHED'}
+
+
 class RF_Panel_Broken(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
@@ -95,7 +120,8 @@ class RF_Panel_Broken(Panel):
         col = layout.column(align=True)
         col.label('RetopoFlow broke while registering.', icon="ERROR")
         col.label('Click Open button below to view message.')
-        col.operator('cgcookie.rf_open_brokenmessage', 'Open Message')
+        col.operator('cgcookie.rf_open_brokenmessage', 'View Error Message')
+        col.operator("cgcookie.rf_open_webissues",  "Report an Issue")
 
 
 
@@ -105,15 +131,28 @@ class RF_Panel_Broken(Panel):
 try:
     import numpy
     import urllib.request
-    #import doesnotexist
+    # import doesnotexist
 except Exception as e:
     i,h = Debugger.get_exception_info_and_hash()
+    blender_version = '%d.%02d.%d' % bpy.app.version
+    blender_branch = bpy.app.build_branch.decode('utf-8')
+    blender_date = bpy.app.build_commit_date.decode('utf-8')
     text = []
     text += ['COULD NOT FIND PYTHON PACKAGES']
-    text += ['exception: %s' % str(e)]
-    text += ['hash: %s' % h]
-    text += ['sys.path:'] + ['\n'.join('    %s'%l for l in sys.path)]
-    text += ['trackback:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
+    text += ['']
+    text += ['Environment:']
+    text += ['- RetopoFlow: %s' % (retopoflow_version,)]
+    if retopoflow_version_git:
+        text += ['- RF git: %s' % (retopoflow_version_git,)]
+    text += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
+    text += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
+    text += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
+    text += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+    text += ['- Sys Path:'] + ['\n'.join('    %s'%l for l in sys.path)]
+    text += ['']
+    text += ['Exception: %s' % str(e)]
+    text += ['Error Hash: %s' % h]
+    text += ['Trace:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
     text = '\n'.join(text)
 
     print('\n\n')
@@ -145,7 +184,6 @@ if not retopoflow_is_broken:
             RF_Menu,
             RF_OpenLog,
             RF_OpenQuickStart,
-            RF_OpenWebIssues,
             RF_OpenWebTip,
         )
         from .icons import clear_icons
@@ -175,12 +213,25 @@ if not retopoflow_is_broken:
 
     except Exception as e:
         i,h = Debugger.get_exception_info_and_hash()
+        blender_version = '%d.%02d.%d' % bpy.app.version
+        blender_branch = bpy.app.build_branch.decode('utf-8')
+        blender_date = bpy.app.build_commit_date.decode('utf-8')
         text = []
         text += ['COULD NOT IMPORT RETOPOFLOW MODULES']
-        text += ['exception: %s' % str(e)]
-        text += ['hash: %s' % h]
-        text += ['sys.path:'] + ['\n'.join('    %s'%l for l in sys.path)]
-        text += ['trackback:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
+        text += ['']
+        text += ['Environment:']
+        text += ['- RetopoFlow: %s' % (retopoflow_version,)]
+        if retopoflow_version_git:
+            text += ['- RF git: %s' % (retopoflow_version_git,)]
+        text += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
+        text += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
+        text += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
+        text += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+        text += ['- Sys Path:'] + ['\n'.join('    %s'%l for l in sys.path)]
+        text += ['']
+        text += ['Exception: %s' % str(e)]
+        text += ['Error Hash: %s' % h]
+        text += ['Trace:'] + ['\n'.join('    %s'%l for l in i.splitlines())]
         text = '\n'.join(text)
         retopoflow_is_broken = True
         retopoflow_broken_message = text
@@ -203,7 +254,7 @@ def register():
     global retopoflow_is_broken, retopoflow_broken_message
 
     if retopoflow_is_broken:
-        for c in [RF_OpenBrokenMessage, RF_Panel_Broken]:
+        for c in [RF_OpenBrokenMessage, RF_Panel_Broken, RF_OpenWebIssues]:
             bpy.utils.register_class(c)
         #raise Exception(retopoflow_broken_message)
         #create_and_show_blender_text(retopoflow_broken_message)

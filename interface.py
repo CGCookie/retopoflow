@@ -51,24 +51,6 @@ from .options import (
 from .help import help_quickstart
 
 
-class RF_OpenWebIssues(Operator):
-    """Open RetopoFlow Issues page in default web browser"""
-
-    bl_category = 'Retopology'
-    bl_idname = "cgcookie.rf_open_webissues"
-    bl_label = "Open RetopoFlow Issues Page"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def execute(self, context):
-        bpy.ops.wm.url_open(url=options['github issues url'])
-        return {'FINISHED'}
-
-
 class RF_OpenWebTip(Operator):
     """Open RetopoFlow Tip page in default web browser"""
 
