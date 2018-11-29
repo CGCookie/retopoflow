@@ -86,6 +86,10 @@ class RFContext_Target:
             self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
             self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
+        else:
+            self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid }
+            self.accel_vis_edges = { bme for bme in self.accel_vis_edges if bme.is_valid }
+            self.accel_vis_faces = { bmf for bmf in self.accel_vis_faces if bmf.is_valid }
 
         return self.accel_vis_accel
 

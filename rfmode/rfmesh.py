@@ -832,7 +832,7 @@ class RFMesh():
     def get_selection_center(self):
         v,c = Vector(),0
         for bmv in self.bme.verts:
-            if not bmv.select: continue
+            if not bmv.select or not bmv.is_valid: continue
             v += bmv.co
             c += 1
         if c: self.selection_center = v / c
