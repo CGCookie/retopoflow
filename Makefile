@@ -45,7 +45,7 @@ build:
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
 	# rsync flag -a == archive (same as -rlptgoD)
-	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+	rsync -av --progress --no-links . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
 	cd $(BUILD_DIR) ; zip -r $(ZIP_FILE) $(NAME)
 
 	@echo
