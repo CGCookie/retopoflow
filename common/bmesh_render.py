@@ -133,11 +133,11 @@ def glSetOptions(prefix, opts):
         if val is None: val = defval
         if val is None: return
         bmeshShader.assign(glsl, val)
-    assign_if_set('offset')
-    assign_if_set('dotoffset')
+    assign_if_set('offset', defval=0)
+    assign_if_set('dotoffset', defval=0)
     assign_if_set('color', defval=(0.5,0.5,0.5,0.5))
-    assign_if_set('color selected', 'color_selected')
-    assign_if_set('hidden')
+    assign_if_set('color selected', 'color_selected', defval=(0.5,1.0,0.5,0.5))
+    assign_if_set('hidden', defval=0)
     call_if_set('width',   lambda v: bgl.glLineWidth(v*dpi_mult))
     call_if_set('size',    lambda v: bgl.glPointSize(v*dpi_mult))
     call_if_set('stipple', lambda v: glEnableStipple(v))
