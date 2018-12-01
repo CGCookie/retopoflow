@@ -1,3 +1,5 @@
+//precision highp float;
+
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
 uniform float use_selection;    // 0.0: ignore selected, 1.0: consider selected
@@ -68,7 +70,7 @@ varying vec4 vColor;            // color of geometry (considers selection)
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
 
-#version 120
+#version 110
 
 void main() {
     vec4 pos  = vec4((vert_pos + vert_norm * normal_offset) * vert_scale, 1.0);
@@ -115,7 +117,7 @@ void main() {
 /////////////////////////////////////////////////////////////////////////
 // fragment shader
 
-#version 120
+#version 110
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 

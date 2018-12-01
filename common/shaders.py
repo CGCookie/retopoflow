@@ -39,7 +39,7 @@ from ..ext.bgl_ext import VoidBufValue
 #  4.2    420      4.3    430
 dprint('GLSL Version: ' + bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
-DEBUG_PRINT = False
+DEBUG_PRINT = 4
 
 vbv_zero = VoidBufValue(0)
 buf_zero = vbv_zero.buf    #bgl.Buffer(bgl.GL_BYTE, 1, [0])
@@ -63,9 +63,11 @@ class Shader():
         bgl.glGetShaderInfoLog(shader, 2000, bufLen, bufLog)
         log = ''.join(chr(v) for v in bufLog.to_list() if v)
         if bufStatus[0] == 0:
-            print('ERROR WHILE COMPILING SHADER %s' % name)
-            print('\n'.join(['    %s'%l for l in log.splitlines()]))
-            assert False
+            msg = ['ERROR WHILE COMPILING SHADER %s' % name]
+            msg += ['    %s'%l for l in log.splitlines()]
+            msg = '\n'.join(msg)
+            print(msg)
+            assert False, msg
         return log
 
     @staticmethod
@@ -82,12 +84,15 @@ class Shader():
         else:
             assert False, "Shader file could not be found: %s" % filename
 
+        precision = []
         uniforms, varyings, attributes = [],[],[]
         vertSource, fragSource = [],[]
         vertVersion, fragVersion = '', ''
         mode = None
         for line in open(filename,'rt').read().splitlines():
-            if line.startswith('uniform '):
+            if line.startswith('precision '):
+                precision.append(line)
+            elif line.startswith('uniform '):
                 uniforms.append(line)
             elif line.startswith('attribute '):
                 attributes.append(line)
@@ -108,8 +113,8 @@ class Shader():
                     vertSource.append(line)
                 elif mode == 'frag':
                     fragSource.append(line)
-        srcVertex = '\n'.join([vertVersion] + uniforms + attributes + varyings + vertSource)
-        srcFragment = '\n'.join([fragVersion] + uniforms + varyings + fragSource)
+        srcVertex = '\n'.join([vertVersion] + precision + uniforms + attributes + varyings + vertSource)
+        srcFragment = '\n'.join([fragVersion] + precision + uniforms + varyings + fragSource)
         return Shader(name, srcVertex, srcFragment, *args, **kwargs)
 
     def __init__(self, name, srcVertex, srcFragment, funcStart=None, funcEnd=None, checkErrors=True, bindTo0=None):
@@ -188,7 +193,7 @@ class Shader():
                     v['reported'] = True
                 return
             if DEBUG_PRINT:
-                print('%s (%s,%d,%s) = %s' % (varName, q, l, t, str(varValue)))
+                print('GLSL: %s (%s,%d,%s) = %s' % (varName, q, l, t, str(varValue)))
             if q in {'in','attribute'}:
                 if t == 'float':
                     bgl.glVertexAttrib1f(l, varValue)
@@ -237,7 +242,7 @@ class Shader():
                 v['reported'] = True
             return
         if DEBUG_PRINT:
-            print('enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+            print('GLSL: enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glEnableVertexAttribArray(l)
         if self.checkErrors:
             self.drawing.glCheckError('enableVertexAttribArray %s' % varName)
@@ -260,7 +265,7 @@ class Shader():
             return
 
         if DEBUG_PRINT:
-            print('assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride))
+            print('GLSL: assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride))
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
         bgl.glVertexAttribPointer(l, size, gltype, normalized, stride, buf)
         if self.checkErrors:
@@ -278,7 +283,7 @@ class Shader():
                 v['reported'] = True
             return
         if DEBUG_PRINT:
-            print('disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+            print('GLSL: disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
         bgl.glDisableVertexAttribArray(l)
         if self.checkErrors:
             self.drawing.glCheckError('disableVertexAttribArray %s' % varName)
@@ -296,7 +301,7 @@ class Shader():
     def enable(self):
         try:
             if DEBUG_PRINT:
-                print('enabling shader <==================')
+                print('GLSL: enabling shader <==================')
                 if self.checkErrors:
                     self.drawing.glCheckError('using program (%d) pre' % self.shaderProg)
             bgl.glUseProgram(self.shaderProg)
@@ -316,8 +321,10 @@ class Shader():
             bgl.glUseProgram(0)
 
     def disable(self):
+        global DEBUG_PRINT
         if DEBUG_PRINT:
-            print('disabling shader <=================')
+            DEBUG_PRINT -= 1
+            print('GLSL: disabling shader (%d) <=================' % DEBUG_PRINT)
         if self.checkErrors:
             self.drawing.glCheckError('disable program (%d) pre' % self.shaderProg)
         try:
