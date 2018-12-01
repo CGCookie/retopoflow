@@ -119,23 +119,28 @@ def glEnableStipple(enable=True):
 def glSetOptions(prefix, opts):
     if not opts:
         return
-
     prefix = '%s ' % prefix if prefix else ''
-
-    def set_if_set(opt, cb):
-        opt = '%s%s' % (prefix, opt)
-        if opt in opts:
-            cb(opts[opt])
     dpi_mult = opts.get('dpi mult', 1.0)
-    set_if_set('offset', lambda v: bmeshShader.assign('offset', v))
-    set_if_set('dotoffset', lambda v: bmeshShader.assign('dotoffset', v))
-    set_if_set('color', lambda v: bmeshShader.assign('color', v))
-    set_if_set('color selected',
-               lambda v: bmeshShader.assign('color_selected', v))
-    set_if_set('hidden', lambda v: bmeshShader.assign('hidden', v))
-    set_if_set('width', lambda v: bgl.glLineWidth(v*dpi_mult))
-    set_if_set('size', lambda v: bgl.glPointSize(v*dpi_mult))
-    set_if_set('stipple', lambda v: glEnableStipple(v))
+    def getval(opt): return opts.get('%s%s' % (prefix, opt), None)
+    def call_if_set(opt, fn, defval=None):
+        val = getval(opt)
+        if val is None: val = defval
+        if val is None: return
+        fn(val)
+    def assign_if_set(opt, glsl=None, defval=None):
+        val = getval(opt)
+        glsl = glsl or opt
+        if val is None: val = defval
+        if val is None: return
+        bmeshShader.assign(glsl, val)
+    assign_if_set('offset')
+    assign_if_set('dotoffset')
+    assign_if_set('color', defval=(0.5,0.5,0.5,0.5))
+    assign_if_set('color selected', 'color_selected')
+    assign_if_set('hidden')
+    call_if_set('width',   lambda v: bgl.glLineWidth(v*dpi_mult))
+    call_if_set('size',    lambda v: bgl.glPointSize(v*dpi_mult))
+    call_if_set('stipple', lambda v: glEnableStipple(v))
 
 
 def glSetMirror(symmetry=None, view=None, effect=0.0, frame: Frame=None):
@@ -317,8 +322,8 @@ class BGLBufferedRender:
         self.count = 0
         self.gltype = gltype
         self.gltype_name, self.gl_count, self.options_prefix = {
-            bgl.GL_POINTS:   ('points',    1, 'point'),
-            bgl.GL_LINES:    ('lines',     2, 'line'),
+            bgl.GL_POINTS:    ('points',    1, 'point'),
+            bgl.GL_LINES:     ('lines',     2, 'line'),
             bgl.GL_TRIANGLES: ('triangles', 3, 'poly'),
         }[self.gltype]
 
@@ -454,6 +459,12 @@ class BGLBufferedRender:
         if self.count == 0:
             return
 
+        if False:
+            print('{')
+            for k in sorted(opts.keys()):
+                print('  %s: %s,' % (str(k),str(opts[k])))
+            print('}')
+
         if self.gltype == bgl.GL_LINES:
             if opts.get('line width', 1.0) <= 0:
                 return
@@ -484,6 +495,10 @@ class BGLBufferedRender:
         bgl.glBindBuffer(bgl.GL_ELEMENT_ARRAY_BUFFER, self.vbo_idx)
         self._check_error('draw: element array buffer idx')
 
+        # bmeshShader.assign('color',          (1,1,1,1))
+        # bmeshShader.assign('color_selected', (1,1,1,1))
+        # bmeshShader.assign('use_selection',  0.0)
+        # bmeshShader.assign('hidden',         0.0)
         glSetOptions(self.options_prefix, opts)
         self._draw(1, 1, 1)
 
