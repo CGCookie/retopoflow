@@ -792,7 +792,7 @@ class RFContext_UI:
         fontid = load_font_ttf('DroidSans-Blender.ttf')
         i_fontid = load_font_ttf('OpenSans-Italic.ttf')
         b_fontid = load_font_ttf('OpenSans-Bold.ttf')
-        bi_fontid = load_font_ttf('OpenSansSans-BoldItalic.ttf')
+        bi_fontid = load_font_ttf('OpenSans-BoldItalic.ttf')
         pre_fontid = load_font_ttf('DejaVuSansMono.ttf')
         self.ui_helplabel = self.window_help.add(UI_Markdown(
             'help text here!',
