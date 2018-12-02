@@ -55,7 +55,7 @@ We focused our 2.x development on two main items: stability and user experience.
 With an established and solid framework, we will focus more on features in future releases.
 
 - Everything runs within the RF Mode; no more separation of tools!
-  In fact, the shortcut keys Q, W, E, R, T, Y, U, and I will switch quickly between the tools.
+  In fact, the shortcut keys `Q`, `W`, `E`, `R`, `T`, `Y`, `U`, and `I` will switch quickly between the tools.
 - Each tool has been simplified to perform its job well.
 - All tools use the current selection for their context.
   For example, PolyStrips can edit any strip of quads by simply selecting them.
@@ -67,7 +67,7 @@ With an established and solid framework, we will focus more on features in futur
   No more lost work from crashing.
 - Auto saves will trigger!
 - Undo and redo are universally available within RF Mode.
-  Press CTRL+Z roll back any change, or CTRL+SHIFT+Z to redo.
+  Press `CTRL+Z` roll back any change, or `CTRL+SHIFT+Z` to redo.
 - The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
@@ -84,7 +84,7 @@ Please consider doing the following:
 We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
 However, if you find a bug or a missing feature, please let us know so that we can fix them!
-Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting https://github.com/CGCookie/retopoflow/issues.
+Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [https://github.com/CGCookie/retopoflow/issues](https://github.com/CGCookie/retopoflow/issues).
 We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
 ![](help_exception.png)
@@ -115,7 +115,7 @@ RetopoFlow 2.x Quick Start Guide
 ================================
 
 We wrote this guide to help you get started as quickly a possible with the new RetopoFlow 2.x.
-More detailed help is available by pressing F1 after you start RF.
+More detailed help is available by pressing `F1` after you start RetopoFlow.
 
 
 TL;DR
@@ -187,7 +187,7 @@ help_general = '''
 # General Help
 
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
-For tool-specific help, select the tool from the Tools panel, and either press F2 or click Tool Help.
+For tool-specific help, select the tool from the Tools panel, and either press `F2` or click Tool Help.
 
 Click the All Help Documents button below to see all of the built-in documentation.
 
@@ -199,7 +199,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| `ESC / TAB` | : | quit RetopoFlow |
+| `ESC` <br> `TAB` | : | quit RetopoFlow |
 | `F1` | : | general help |
 | `F2` | : | tool help |
 | `F9` | : | toggle on/off main RF windows |
@@ -224,15 +224,15 @@ Note: selection and the undo stack is maintained between tools.
 ## Universal Shortcuts
 
 The following shortcuts work across all the tools, although each tool may have a distinct way of performing the action.
-For example, pressing G in Contours will slide the selected loop.
+For example, pressing `G` in Contours will slide the selected loop.
 
 |  |  |  |
 | --- | --- | --- |
 | `A` | : | deselect / select all |
 | `ACTION` drag | : | transform selection |
 | `SHIFT+SELECT` click | : | toggle selection |
-| `SELECT` drag / `SHIFT+SELECT` drag | : | selection painting |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | smart selection |
+| `SELECT` drag <br> `SHIFT+SELECT` drag | : | selection painting |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | smart selection |
 | `G` | : | grab and move selected geometry |
 | `X` | : | delete / dissolve selection |
 | `CTRL+Z` | : | undo |
@@ -241,14 +241,14 @@ For example, pressing G in Contours will slide the selected loop.
 
 ## Defaults
 
-The ACTION command is set to the left mouse button.
+The `ACTION` command is set to the left mouse button.
 
-The SELECT command is set to the right mouse button.
+The `SELECT` command is set to the right mouse button.
 
 
 ## General Options
 
-The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing CTRL+UP / SHIFT+SPACE / ALT+F10.
+The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing `CTRL+UP` / `SHIFT+SPACE` / `ALT+F10`.
 
 The Snap Verts button will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
 
@@ -261,7 +261,7 @@ When the Auto Collapse Options is checked, tool options will automatically colla
 
 ## Symmetry Options
 
-The X,Y,Z checkboxes turn on/off symmetry or mirroring along the X, Y, and Z axes.
+The X, Y, Z checkboxes turn on/off symmetry or mirroring along the X, Y, Z axes.
 Note: symmetry utilizes the mirror modifier.
 
 When symmetry is turned on, the mirroring planes can be visualized on the sources choosing either the Edge or Face option.
@@ -288,8 +288,8 @@ You may draw strokes in any order, from any direction.
 |  |  |  |
 | --- | --- | --- |
 | `ACTION` | : | select and slide loop |
-| `SELECT / SHIFT+SELECT` | : | select edge |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select loop |
+| `SELECT` <br> `SHIFT+SELECT` | : | select edge |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select loop |
 | `CTRL+ACTION` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
 | `A` | : | deselect / select all |
 | `F` | : | Bridge selected edge loops |
@@ -307,8 +307,8 @@ You may draw strokes in any order, from any direction.
 |  |  |  |
 | --- | --- | --- |
 | `X` | : | delete/dissolve selected |
-| `SHIFT+UP / SHIFT+DOWN` | : | increase / decrease segment counts |
-| `EQUALS / MINUS` | : | increase / decrease segment counts |
+| `SHIFT+UP` <br> `SHIFT+DOWN` | : | increase / decrease segment counts |
+| `EQUALS` <br> `MINUS` | : | increase / decrease segment counts |
 
 ## Tips
 
@@ -335,8 +335,8 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 |  |  |  |
 | --- | --- | --- |
 | `ACTION` | : | select quad then grab and move |
-| `SELECT / SHIFT+SELECT` | : | select quads |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select quad strip |
+| `SELECT` <br> `SHIFT+SELECT` | : | select quads |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select quad strip |
 | `CTRL+ACTION` | : | draw strip of quads |
 | `F` | : | adjust brush size |
 | `A` | : | deselect / select all |
@@ -354,8 +354,8 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 |  |  |  |
 | --- | --- | --- |
 | `X` | : | delete/dissolve selected |
-| `SHIFT+UP / SHIFT+DOWN` | : | increase / decrease segment count of selected strip(s) |
-| `EQUALS / MINUS` | : | increase / decrease segment count of selected strip(s) |
+| `SHIFT+UP` <br> `SHIFT+DOWN` | : | increase / decrease segment count of selected strip(s) |
+| `EQUALS` <br> `MINUS` | : | increase / decrease segment count of selected strip(s) |
 '''
 
 
@@ -371,7 +371,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT / SHIFT+SELECT` | : | select geometry |
+| `SELECT` <br> `SHIFT+SELECT` | : | select geometry |
 | `CTRL+ACTION` | : | insert geometry connected to selected geometry |
 | `SHIFT+ACTION` | : | insert edges only |
 | `A` | : | deselect / select all |
@@ -461,8 +461,8 @@ The Loops tool also works on any strip of edges.
 |  |  |  |
 | --- | --- | --- |
 | `CTRL+ACTION` | : | insert edge loop |
-| `SELECT / SHIFT+SELECT` | : | select edge(s) |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
+| `SELECT` <br> `SHIFT+SELECT` | : | select edge(s) |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
 | `S` | : | slide edge loop |
 '''
 
@@ -476,9 +476,9 @@ Select the strip of boundary edges that you wish to fill.
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT / SHIFT+SELECT` | : | select edge |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
-| `SHIFT+UP / SHIFT+DOWN` | : | adjust segment count |
+| `SELECT` <br> `SHIFT+SELECT` | : | select edge |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
+| `SHIFT+UP` <br> `SHIFT+DOWN` | : | adjust segment count |
 | `CTRL+SHIFT+ACTION` | : | toggle vertex as corner |
 | `F` | : | fill visualized patch |
 
@@ -512,15 +512,17 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT / SHIFT+SELECT` | : | select geometry |
-| `CTRL+SELECT / CTRL+SHIFT+SELECT` | : | select edge loop |
+| `SELECT` <br> `SHIFT+SELECT` | : | select geometry |
+| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
 | `CTRL+ACTION` | : | insert edge strip / extrude selected geometry |
 | `A` | : | deselect / select all |
-| `SHIFT+UP / SHIFT+DOWN` | : | adjust segment count |
+| `SHIFT+UP` <br> `SHIFT+DOWN` | : | adjust segment count |
 
 ## Other
 
-- X: delete/dissolve selected
+|  |  |  |
+| --- | --- | --- |
+| `X` | : | delete/dissolve selected |
 
 ## Tips
 

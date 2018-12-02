@@ -140,6 +140,7 @@ class UI_Element:
         self.is_dirty = True
         self.dirty_callbacks = []
         self.defer_recalc = False
+        self.ignore_dirty = False
 
         self.drawing = Drawing.get_instance()
         self.context = bpy.context
@@ -283,6 +284,7 @@ class UI_Element:
         self.dirty_callbacks = [ui for ui in self.dirty_callbacks if ui != ui_item]
 
     def dirty(self):
+        if self.ignore_dirty: return
         # print('Marking %s as dirty' % type(self))
         # if type(self) is UI_Label: print('  %s' % self.text)
         self.is_dirty = True
@@ -425,12 +427,22 @@ class UI_Element:
 
 
 class UI_Padding(UI_Element):
-    def __init__(self, ui_item=None, margin=5, margin_left=None, margin_right=None, min_size=(0,0), max_size=None):
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs,
+            ui_item=None,
+            margin=5,
+            margin_left=None,
+            margin_right=None,
+            margin_top=None,
+            margin_bottom=None,
+            min_size=(0,0),
+            max_size=None
+        )
         self.ui_item = None
 
-        super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right, min_size=min_size, max_size=max_size)
+        super().__init__(margin=opts.margin, margin_left=opts.margin_left, margin_right=opts.margin_right, margin_top=opts.margin_top, margin_bottom=opts.margin_bottom, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
-        self.set_ui_item(ui_item)
+        self.set_ui_item(opts.ui_item)
         self.defer_recalc = False
 
     def _find_rel_pos_size(self, ui_item):
@@ -538,7 +550,7 @@ class UI_Background(UI_Element):
             bgl.glBegin(bgl.GL_QUADS)
             if self.rounded:
                 cos,sin,radians = math.cos,math.sin,math.radians
-                rounded = self.rounded
+                rounded = self.drawing.scale(self.rounded)
                 lr,rr = l + rounded, r - rounded
                 tr,br = t - rounded, b + rounded
                 first = True
@@ -577,7 +589,7 @@ class UI_Background(UI_Element):
             bgl.glBegin(bgl.GL_LINE_STRIP)
             if self.rounded:
                 cos,sin,radians = math.cos,math.sin,math.radians
-                rounded = self.rounded
+                rounded = self.drawing.scale(self.rounded)
                 lr,rr = l + rounded, r - rounded
                 tr,br = t - rounded, b + rounded
                 for ci,cx,cy in [(0,rr,tr),(90,lr,tr),(180,lr,br),(270,rr,br)]:
@@ -994,6 +1006,219 @@ class UI_EqualContainer(UI_Container):
                 x += ew
 
 
+class UI_WrappedContainer(UI_Element):
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs,
+            min_size=(0, 0),
+            max_size=None,
+            margin=0,
+            separation=2,
+            separation_x=None,
+            separation_y=None,
+        )
+        super().__init__(margin=opts.margin, min_size=opts.min_size, max_size=opts.max_size)
+        self.defer_recalc = True
+        self.min_size = opts.min_size
+        self.separation_x = opts.separation if opts.separation_x is None else opts.separation_x
+        self.separation_y = opts.separation if opts.separation_y is None else opts.separation_y
+        self.wrapped_size = Vec2D((1,1))
+        self.ui_items = []
+        self.defer_recalc = False
+
+    def add(self, ui_item):
+        self.ui_items.append(ui_item)
+        ui_item.register_dirty_callback(self)
+        self.dirty()
+
+    def _delete(self):
+        for ui_item in self.ui_items:
+            ui_item.unregister_dirty_callback(self)
+        self.ui_items.clear()
+
+    def clear(self):
+        for ui_item in self.ui_items:
+            ui_item.unregister_dirty_callback(self)
+        self.ui_items.clear()
+        self.dirty()
+
+    def predraw(self):
+        sep_x = self.separation_x # self.drawing.scale(self.separation_x)
+        sep_y = self.separation_y # self.drawing.scale(self.separation_y)
+        mwidth = self.size.x
+        cwidth = 0
+        cheight = 0
+        mheight = 0
+        self.wrapped_ui_items = [[]]
+        for i,ui_item in enumerate(self.ui_items):
+            w,h = ui_item.recalc_size()
+            if i == 0:
+                # very first item
+                self.wrapped_ui_items[-1].append((ui_item,w,h))
+                mheight = h
+                cwidth = w
+                continue
+            nwidth = cwidth + sep_x + w
+            if nwidth < mwidth:
+                self.wrapped_ui_items[-1].append((ui_item,w,h))
+                cwidth = nwidth
+                mheight = max(mheight, h)
+                continue
+            cheight += mheight
+            self.wrapped_ui_items.append([(ui_item,w,h)])
+            cwidth = w
+            mheight = h
+        c = len(self.wrapped_ui_items)
+        cheight += mheight + sep_y * max(0, c - 1)
+        self.wrapped_size = Vec2D((mwidth, cheight))
+
+    # def _find_rel_pos_size(self, ui_item):
+    #     oy = 0
+    #     for my_ui_item in self.ui_items:
+    #         res = my_ui_item.find_rel_pos_size(ui_item)
+    #         if res:
+    #             x,y,w,h = res
+    #             return (x,y+oy,w,h)
+    #         oy += my_ui_item.get_height()
+    #     return None
+        
+    #     return self.container.find_rel_pos_size(ui_item)
+
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
+        for ui_item in self.ui_items:
+            r = ui_item.hover_ui(mouse)
+            if r: return r
+        return self
+
+    def _recalc_size(self):
+        mw = 0
+        for ui_item in self.ui_items:
+            w,h = ui_item.recalc_size()
+            mw = max(mw, w)
+        self._width_inner = max(self.wrapped_size.x, self.drawing.scale(self.min_size.x), mw)
+        self._height_inner = self.wrapped_size.y
+
+    @profile_fn
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        sep_x = self.separation_x # self.drawing.scale(self.separation_x)
+        sep_y = self.separation_y # self.drawing.scale(self.separation_y)
+
+        y = t
+        for ui_items in self.wrapped_ui_items:
+            x = l
+            mh = 0
+            for (ui_item,iw,ih) in ui_items:
+                ui_item.draw(x,y,iw,ih)
+                x += iw + sep_x
+                mh = max(mh, ih)
+            y -= mh - sep_y
+
+
+
+class UI_WrappedContainer2(UI_Element):
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs, {
+            'margin': 0,
+            'margin_left': None,
+            'margin_right': None,
+            'margin_top': None,
+            'margin_bottom': None,
+            'separation': 2,
+            'min_size': (0,0),
+        })
+        self._separation = None
+
+        super().__init__(min_size=opts.min_size, margin=0)
+
+        self.defer_recalc = True
+        self.ui_items = []
+        self.container = UI_Container(
+            min_size=(1,1),
+            separation=opts.separation,
+            margin=opts.margin,
+            margin_left=opts.margin_left,
+            margin_right=opts.margin_right,
+            margin_top=opts.margin_top,
+            margin_bottom=opts.margin_bottom,
+        )
+        self.separation = opts.separation
+        self.defer_recalc = False
+
+    @property
+    def separation(self):
+        return self._separation
+
+    @separation.setter
+    def separation(self, s):
+        s = max(0, s)
+        if self._separation == s: return
+        self._separation = s
+        self.dirty()
+
+    def add(self, ui_item):
+        self.ui_items.append(ui_item)
+        self.dirty()
+        ui_item.register_dirty_callback(self)
+        return ui_item
+
+    def clear(self):
+        for ui_item in self.ui_items:
+            ui_item.unregister_dirty_callback(self)
+        self.container.clear()
+        self.ui_items = []
+
+    def _delete(self):
+        for ui_item in self.ui_items:
+            ui_item.unregister_dirty_callback(self)
+        self.container.clear()
+        self.ui_items = []
+
+    def predraw(self):
+        self.ignore_dirty = True
+        mwidth = self.size.x
+        self.container.clear()
+        con = self.container.add(UI_Container(separation=self.separation, vertical=False))
+        cwidth = 0
+        for i,ui_item in enumerate(self.ui_items):
+            w = ui_item._width
+            if i == 0:
+                # very first item
+                con.add(ui_item)
+                cwidth = w
+                continue
+            nwidth = cwidth + self.separation + w
+            if nwidth < mwidth:
+                con.add(ui_item)
+                cwidth = nwidth
+                continue
+            con = self.container.add(UI_Container(separation=self.separation, vertical=False))
+            con.add(ui_item)
+            cwidth = w
+        self.ignore_dirty = False
+
+    def _find_rel_pos_size(self, ui_item):
+        return self.container.find_rel_pos_size(ui_item)
+
+    def _hover_ui(self, mouse):
+        if not super()._hover_ui(mouse): return None
+        return self.container.hover_ui(mouse) or self
+
+    def _recalc_size(self):
+        w,h = self.container.recalc_size()
+        self._width_inner = w
+        self._height_inner = h
+        return (w,h)
+
+    @profile_fn
+    def _draw(self):
+        l,t = self.pos
+        w,h = self.size
+        self.container.draw(l,t,w,h)
+
+
+
 class UI_Label(UI_Element):
     def __init__(self, label, **kwargs):
         opts = kwargopts(kwargs, {
@@ -1261,49 +1486,6 @@ class UI_WrappedLabel(UI_Element):
         self.drawing.set_font_size(size_prev, fontid=0, force=True)
 
 
-# class UI_TableContainer(UI_Padding):
-#     def __init__(self, nrows, ncols, **kwargs):
-#         opts = kwargopts(kwargs,
-#             margin=0,
-#             padding=0,
-#         )
-#         super().__init__(margin=opts.margin)
-#         self._nrows = nrows
-#         self._ncols = ncols
-#         self.defer_recalc = True
-#         self.container = UI_Container(separation=0)
-#         for r in range(nrows):
-#             row = self.container.add(UI_Container(separation=0, vertical=False))
-#             # row = self.container.add(UI_EqualContainer(vertical=False))
-#             for c in range(ncols):
-#                 row.add(UI_Padding(margin=opts.padding))
-#         self.set_ui_item(self.container)
-#         self.defer_recalc = False
-
-#     def _recalc_size(self):
-#         sizes = [[ui_item.recalc_size() for ui_item in row] for row in self.ui_item.ui_items]
-#         widths = [max(sz[irow][icol] for irow in range(self._nrows)) for icol in range(self._ncols)]
-#         #sizes = [sz for (sz,ui_item) in zip(sizes, self.ui_items) if ui_item.visible]
-#         sizes = [(w,h) for (w,h) in sizes if w > 0 and h > 0]
-#         widths = [w for (w,h) in sizes]
-#         heights = [h for (w,h) in sizes]
-#         c = len(sizes)
-#         if c == 0:
-#             self._width, self._height = 0, 0
-#             self._width_inner, self._height_inner = 0, 0
-#             return
-#         sep = self.drawing.scale(self.separation)
-#         if self.vertical:
-#             self._width_inner = max(widths)
-#             self._height_inner = sum(heights) + (sep * max(0,c-1))
-#         else:
-#             self._width_inner = sum(widths) + (sep * max(0,c-1))
-#             self._height_inner = max(heights)
-
-#     def set(self, irow, icol, ui_item):
-#         self.container.ui_items[irow].ui_items[icol].set_ui_item(ui_item)
-
-
 class UI_TableContainer(UI_Element):
     def __init__(self, nrows, ncols, **kwargs):
         opts = kwargopts(kwargs, {
@@ -1419,12 +1601,21 @@ class UI_Markdown(UI_Padding):
             margin_left=None,
             margin_right=None,
             fontid=None,
+            fontsize=12,
+            h1_fontsize=20,
+            h2_fontsize=16,
         )
         self._markdown = None
         self._fontid = None
+        self._fontsize = None
+        self._h1_fontsize = None
+        self._h2_fontsize = None
         super().__init__(margin=opts.margin, margin_left=opts.margin_left, margin_right=opts.margin_right, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
         self.fontid = opts.fontid
+        self.fontsize = opts.fontsize
+        self.h1_fontsize = opts.h1_fontsize
+        self.h2_fontsize = opts.h2_fontsize
         self.set_markdown(markdown)
         self.defer_recalc = False
 
@@ -1438,6 +1629,36 @@ class UI_Markdown(UI_Padding):
         self._fontid = f
         self.dirty()
 
+    @property
+    def fontsize(self):
+        return self._fontsize
+
+    @fontsize.setter
+    def fontsize(self, f):
+        if self._fontsize == f: return
+        self._fontsize = f
+        self.dirty()
+
+    @property
+    def h1_fontsize(self):
+        return self._h1_fontsize
+
+    @h1_fontsize.setter
+    def h1_fontsize(self, f):
+        if self._h1_fontsize == f: return
+        self._h1_fontsize = f
+        self.dirty()
+
+    @property
+    def h2_fontsize(self):
+        return self._h2_fontsize
+
+    @h2_fontsize.setter
+    def h2_fontsize(self, f):
+        if self._h2_fontsize == f: return
+        self._h2_fontsize = f
+        self.dirty()
+
     def set_markdown(self, mdown, fn_link_callback=None):
         # process message similarly to Markdown
         mdown = re.sub(r'^\n*', r'', mdown)                 # remove leading \n
@@ -1447,23 +1668,49 @@ class UI_Markdown(UI_Padding):
         if mdown == self._markdown: return
         self._markdown = mdown
 
+        size_prev = self.drawing.set_font_size(self._fontsize, fontid=self._fontid, force=True)
+        space = self.drawing.get_text_width(' ')
+        self.drawing.set_font_size(size_prev, fontid=0, force=True)
+
         paras = mdown.split('\n\n')                         # split into paragraphs
 
-        def process_para(p, **kwargs):
+        re_link = re.compile(r'\[(?P<title>.+?)\]\((?P<link>.+?)\)')
+        re_pre = re.compile(r'`(?P<pre>.+?)`')
+
+        def link_click(link):
+            if link.startswith('http://') or link.startswith('https://'):
+                bpy.ops.wm.url_open(url=link)
+            elif fn_link_callback:
+                fn_link_callback(link)
+        def process_para(para, **kwargs):
+            nonlocal re_link, re_pre
             opts = kwargopts(kwargs, shadowcolor=None)
-            p = re.sub(r'\n', '  ', p)      # join sentences of paragraph
-            p = re.sub(r'   *', '  ', p)    # 2+ spaces => 2 spaces
-            m_link = re.match(r'\[(?P<title>.+)\]\((?P<link>.+)\)', p)
-            if m_link:
-                c = UI_Container(vertical=False)
-                c.add(UI_Button(m_link.group('title'), lambda:fn_link_callback(m_link.group('link')), max_size=self.max_size, padding=1))
-                c.add(UI_Label(' ', fontid=self._fontid))
-                return c
-            m_pre = re.match(r'`(?P<pre>.+)`', p)
-            if m_pre:
-                fontid = load_font_ttf('DejaVuSansMono.ttf')
-                return UI_WrappedLabel(m_pre.group('pre'), max_size=self.max_size, fontid=fontid, color=(0.7,0.7,0.75,1))
-            return UI_WrappedLabel(p, max_size=self.max_size, fontid=self._fontid, shadowcolor=opts.shadowcolor)
+            # break each ui_item onto it's own line
+            para = re.sub(r'\n', '  ', para)    # join sentences of paragraph
+            para = re.sub(r'   *', '  ', para)  # 2+ spaces => 2 spaces
+            container = UI_Container()
+            for p in para.split('<br>'):
+                p = p.strip()
+                wc = container.add(UI_WrappedContainer(separation_x=space, separation_y=2))
+                while p:
+                    m_link = re_link.match(p)
+                    if m_link:
+                        link = m_link.group('link')
+                        if not fn_link_callback:
+                            print('WARNING: link "%s" with no callback' % link)
+                        wc.add(UI_Button(m_link.group('title'), lambda:link_click(link), margin=0, padding=0, bgcolor=(0.5,0.5,0.5,0.4))) #, bgcolor=(1,1,1,0.1), hovercolor=(0,0,0,0.1)))
+                        p = p[m_link.end():].strip()
+                        continue
+                    m_pre = re_pre.match(p)
+                    if m_pre:
+                        w,p = m_pre.group('pre'),p[m_pre.end():].strip()
+                        fontid = load_font_ttf('DejaVuSansMono.ttf')
+                        wc.add(UI_Label(w, fontid=fontid, fontsize=self._fontsize, color=(0.7,0.7,0.75,1), margin=0))
+                        continue
+                    w,p = p.split(' ', 1) if ' ' in p else (p,'')
+                    wc.add(UI_Label(w, fontid=self._fontid, fontsize=self._fontsize, shadowcolor=opts.shadowcolor, margin=0))
+                    p = p.strip()
+            return container
 
         container = UI_Container(margin=4)
         for p in paras:
@@ -1471,14 +1718,16 @@ class UI_Markdown(UI_Padding):
                 # h1 heading!
                 h1text = re.sub(r'# +', r'', p)
                 container.add(UI_Spacer(height=4))
-                h1 = container.add(UI_WrappedLabel(h1text, fontsize=20, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
+                h1 = container.add(UI_WrappedLabel(h1text, fontsize=self.h1_fontsize, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=14))
+
             elif p.startswith('## '):
                 # h2 heading!
                 h2text = re.sub(r'## +', r'', p)
                 container.add(UI_Spacer(height=8))
-                h2 = container.add(UI_WrappedLabel(h2text, fontsize=16, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
+                h2 = container.add(UI_WrappedLabel(h2text, fontsize=self.h2_fontsize, fontid=self._fontid, shadowcolor=(0,0,0,0.5)))
                 container.add(UI_Spacer(height=4))
+
             elif p.startswith('- '):
                 # unordered list!
                 ul = container.add(UI_Container(margin_top=4, margin_bottom=4))
@@ -1488,11 +1737,13 @@ class UI_Markdown(UI_Padding):
                     li.add(UI_Label('-', fontid=self._fontid)).margin=0
                     li.add(UI_Spacer(width=8))
                     li.add(process_para(litext))
+
             elif p.startswith('!['):
                 # image!
                 m = re.match(r'^!\[(?P<caption>.*)\]\((?P<filename>.*)\)$', p)
                 fn = m.group('filename')
                 img = container.add(UI_Image(fn))
+
             elif p.startswith('| '):
                 # table!
                 def split_row(row):
@@ -1512,8 +1763,10 @@ class UI_Markdown(UI_Padding):
                 for r in range(rows):
                     for c in range(cols):
                         t.set(r+(1 if add_header else 0), c, process_para(data[r][c]))
+
             else:
                 container.add(process_para(p))
+
         self.set_ui_item(container)
 
 class UI_OnlineMarkdown(UI_Markdown):
@@ -1554,10 +1807,10 @@ class UI_Button(UI_Background):
         self.container = self.set_ui_item(UI_Container(vertical=False, margin=opts.padding))
         self.defer_recalc = True
         if opts.icon:
-            self.container.add(opts.icon)
+            self.container.add(opts.icon, margin=0)
             self.container.add(UI_Spacer(width=opts.padding))
         self.tooltip = opts.tooltip
-        self.label = self.container.add(UI_Label(label, color=opts.color, align=opts.align, valign=opts.valign))
+        self.label = self.container.add(UI_Label(label, margin=0, color=opts.color, align=opts.align, valign=opts.valign))
         self.fn_callback = fn_callback
         self.pressed = False
         self.bgcolor = opts.bgcolor
