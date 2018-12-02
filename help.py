@@ -190,7 +190,7 @@ help_general = '''
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
 For tool-specific help, select the tool from the Tools panel, and either press `F2` or click Tool Help.
 
-Click the [All Help Documents](All Help Documents) button below to see all of the built-in documentation.
+Click the [All Help Documents](All Help Documents) button below or press `Shift+F1` to see all of the built-in documentation.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -201,8 +201,9 @@ For more details, see the tooltips when hovering or the product documentation pa
 |  |  |  |
 | --- | --- | --- |
 | `Esc` <br> `Tab` | : | quit RetopoFlow |
-| `F1` | : | general help |
-| `F2` | : | tool help |
+| `Shift+F1` | : | view all help documents |
+| `F1` | : | view general help |
+| `F2` | : | view tool help |
 | `F9` | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
