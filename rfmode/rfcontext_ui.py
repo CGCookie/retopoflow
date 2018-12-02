@@ -63,7 +63,7 @@ from ..options import (
     gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
 
-from ..help import help_general, help_firsttime, help_all
+from ..help import help_general, help_firsttime, help_all, help_all_updated
 
 
 class RFContext_UI:
@@ -786,7 +786,7 @@ class RFContext_UI:
             'movable': False,
             'bgcolor': (0.2,0.2,0.2,0.95),
             'event handler': help_event_handler,
-            'min_size': (800, 300),
+            'min_size': (self.drawing.scale(800), self.drawing.scale(300)),
         })
         self.window_help.add(UI_Rule())
         fontid = load_font_ttf('DroidSans-Blender.ttf')
@@ -812,15 +812,17 @@ class RFContext_UI:
         self.help_button = container.add(UI_Button('All Help Documents', lambda: self.help_show_all(), tooltip='Show all help documents (SHIFT+F1)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
         container.add(UI_Button('Close', lambda: self.help_hide(), tooltip='Close help window (ESC)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
-        global help_all
-        help_all += '|  |  |  |\n'
-        help_all += '| --- | --- | --- |\n'
-        help_all += '\n'.join('| [%s](%s) | : | %s |' % (h['title'], i, h['description']) for (i,h) in enumerate(self.help_docs))
-        self.help_docs += [{
-            'title': 'All Help Documents',
-            'help': help_all,
-            'description': 'All built-in documentation',
-        }]
+        global help_all, help_all_updated
+        if not help_all_updated:
+            help_all += '|  |  |  |\n'
+            help_all += '| --- | --- | --- |\n'
+            help_all += '\n'.join('| [%s](%s) | : | %s |' % (h['title'], i, h['description']) for (i,h) in enumerate(self.help_docs))
+            self.help_docs += [{
+                'title': 'All Help Documents',
+                'help': help_all,
+                'description': 'All built-in documentation',
+            }]
+            help_all_updated = True
 
         if options['welcome']:
             self.help_show(help_firsttime)
