@@ -77,3 +77,6 @@ b280
 
 # test models folder
 test-models
+
+# temp folders
+tmp/

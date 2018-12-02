@@ -115,8 +115,19 @@ class Options:
 
         'async mesh loading': True,
 
+        'tools autohide': False,
         'tools autocollapse': True,             # should tool's options auto-open/-collapse when switching tools?
         'background gradient': True,
+
+        # True=tool's options are visible
+        'tool contours visible': True,
+        'tool polystrips visible': True,
+        'tool polypen visible': True,
+        'tool relax visible': True,
+        'tool tweak visible': True,
+        'tool loops visible': True,
+        'tool patches visible': True,
+        'tool strokes visible': True,
 
         # True=tool's options are collapsed
         'tools general collapsed': False,       # is general tools collapsed

@@ -45,6 +45,7 @@ default_rf_keymaps = {
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
     'select all': {'A'},
 
+    'all help': {'SHIFT+F1'},
     'general help': {'F1'},
     'tool help': {'F2'},
     'toggle ui': {'F9'},

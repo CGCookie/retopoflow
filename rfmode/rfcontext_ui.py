@@ -101,15 +101,22 @@ class RFContext_UI:
         self.window_manager.clear_active()
 
     def help_show(self, text):
-        self.ui_helplabel.set_markdown(text)
+        self.ui_helplabel.set_markdown(text, self.choose_help)
         self.window_help.scrollto_top()
         self.window_manager.set_focus(self.window_help)
 
+    def choose_help(self, title):
+        i = None
+        for _i,h in enumerate(self.help_docs):
+            if h['title'] == title:
+                i = _i
+                break
+        else:
+            print(title)
+            i = int(title)
+        self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'], self.choose_help)
     def help_show_all(self):
-        def choose_help(i):
-            self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'])
-        markdown = help_all + '\n'.join('- [%s](%s)' % (h['title'], i) for i,h in enumerate(self.help_docs))
-        self.ui_helplabel.set_markdown(markdown, choose_help)
+        self.ui_helplabel.set_markdown(help_all, self.choose_help)
         self.window_help.scrollto_top()
         self.window_manager.set_focus(self.window_help)
 
@@ -528,6 +535,7 @@ class RFContext_UI:
 
         def reset_options():
             options.reset()
+            self.tool.update_tool_options()
             self.replace_opts()
         def update_profiler_visible():
             nonlocal prof_print, prof_reset, prof_disable, prof_enable
@@ -601,12 +609,14 @@ class RFContext_UI:
 
         self.help_docs = []
         self.help_docs += [{
-            'title': 'Welcome Message',
+            'title': 'Welcome!',
             'help': help_firsttime,
+            'description': 'Welcome message that shows the first time RetopoFlow starts',
         }]
         self.help_docs += [{
-            'title': 'General Help',
+            'title': 'General',
             'help': help_general,
+            'description': 'Help that applies across all RetopoFlow tools',
         }]
 
         self.tool_window = self.window_manager.create_window('Tools', {'fn_pos':wrap_pos_option('tools pos')})
@@ -629,9 +639,11 @@ class RFContext_UI:
             self.help_docs += [{
                 'title': rfc.name(),
                 'help': rfc.helptext(),
+                'description': rfc.description(),
             }]
 
         extra = UI_Container()
+        extra.add(UI_Button('All Help', lambda: self.help_show_all(), tooltip='Show all help documentation for RetopoFlow (SHIFT+F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('General Help', lambda: self.help_show_general(), tooltip='Show help for general RetopoFlow (F1)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('Tool Help', lambda: self.help_show_tool(), tooltip='Show help for selected tool (F2)')) # , icon=UI_Image('help_32.png', width=16, height=16)
         extra.add(UI_Button('Minimize', lambda: set_tool_collapsed(True), tooltip='Minimizes tool menu'))
@@ -691,19 +703,22 @@ class RFContext_UI:
         container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
         container_view.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
-
-        opt_theme = dd_general.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
+        opt_theme = container_view.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")
         opt_theme.add_option('Blue', icon=UI_Image('theme_blue.png'), showlabel=False, align=0)
         opt_theme.add_option('Green', icon=UI_Image('theme_green.png'), showlabel=False, align=0)
         opt_theme.add_option('Orange', icon=UI_Image('theme_orange.png'), showlabel=False, align=0)
         opt_theme.set_option(options['color theme'])
 
-        dd_general.add(UI_Number('Select Dist', *options.gettersetter('select dist', setwrap=lambda v:max(1, int(v))), tooltip='Pixel distance for selection'))
+        container_tool = dd_general.add(UI_Collapsible('Tool Options'))
+        def autohide_click():
+            self.tool.update_tool_options()
+        container_tool.add(UI_Checkbox('Auto Hide Options', *optgetset('tools autohide'), tooltip='If enabled, options for selected tool will show while other tool options hide', fn_callback=autohide_click))
+        container_tool.add(UI_Checkbox('Auto Collapse Options', *optgetset('tools autocollapse'), tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
+        container_tool.add(UI_Checkbox('Undo Changes Tool', *optgetset('undo change tool'), tooltip='If enabled, undoing will switch to the previously selected tool'))
 
-        dd_general.add(UI_Checkbox('Auto Collapse Options', *optgetset('tools autocollapse'), tooltip='If enabled, options for selected tool will expand while other tool options collapse'))
+        dd_general.add(UI_Number('Select Dist', *options.gettersetter('select dist', setwrap=lambda v:max(1, int(v))), tooltip='Pixel distance for selection'))
         dd_general.add(UI_Checkbox('Show Tooltips', *optgetset('show tooltips', setcallback=self.window_manager.set_show_tooltips), tooltip='If enabled, tooltips (like these!) will show'))
-        dd_general.add(UI_Checkbox('Undo Changes Tool', *optgetset('undo change tool'), tooltip='If enabled, undoing will switch to the previously selected tool'))
 
         container_symmetry = self.window_tool_options.add(UI_Collapsible('Symmetry', fn_collapsed=wrap_bool_option('tools symmetry collapsed', True)))
         dd_symmetry = container_symmetry.add(UI_EqualContainer(vertical=False))
@@ -722,8 +737,11 @@ class RFContext_UI:
         container_symmetry.add(UI_Number('Effect', *optgetset('symmetry effect', getwrap=lambda v:int(v*100), setwrap=lambda v:clamp(v/100, 0.0, 1.0)), tooltip='Controls strength of symmetry visualization'))
 
         for tool_name,tool_options in tools_options:
-            # window_tool_options.add(UI_Spacer(height=5))
-            ui_options = self.window_tool_options.add(UI_Collapsible(tool_name, fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True)))
+            ui_options = self.window_tool_options.add(UI_Collapsible(
+                tool_name,
+                fn_collapsed=wrap_bool_option('tool %s collapsed' % tool_name, True),
+                fn_visible=wrap_bool_option('tool %s visible' % tool_name, True),
+            ))
             for tool_option in tool_options: ui_options.add(tool_option)
 
         info_adv = self.window_tool_options.add(UI_Collapsible('Advanced', collapsed=True))
@@ -771,11 +789,38 @@ class RFContext_UI:
             'min_size': (800, 300),
         })
         self.window_help.add(UI_Rule())
-        self.ui_helplabel = self.window_help.add(UI_Markdown('help text here!', margin_left=8, margin_right=8))
+        fontid = load_font_ttf('DroidSans-Blender.ttf')
+        i_fontid = load_font_ttf('OpenSans-Italic.ttf')
+        b_fontid = load_font_ttf('OpenSans-Bold.ttf')
+        bi_fontid = load_font_ttf('OpenSansSans-BoldItalic.ttf')
+        pre_fontid = load_font_ttf('DejaVuSansMono.ttf')
+        self.ui_helplabel = self.window_help.add(UI_Markdown(
+            'help text here!',
+            margin_left=8,
+            margin_right=8,
+            fontsize=12,
+            h1_fontsize=20,
+            h2_fontsize=16,
+            fontid=fontid,
+            i_fontid=i_fontid,
+            b_fontid=b_fontid,
+            bi_fontid=bi_fontid,
+            pre_fontid=pre_fontid
+        ))
         self.window_help.add(UI_Rule())
         container = self.window_help.add(UI_EqualContainer(margin=1, vertical=False), footer=True)
-        self.help_button = container.add(UI_Button('All Help Documents', lambda: self.help_show_all(), tooltip='Show all help documents', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
-        container.add(UI_Button('Close', lambda: self.help_hide(), bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        self.help_button = container.add(UI_Button('All Help Documents', lambda: self.help_show_all(), tooltip='Show all help documents (SHIFT+F1)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        container.add(UI_Button('Close', lambda: self.help_hide(), tooltip='Close help window (ESC)', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+
+        global help_all
+        help_all += '|  |  |  |\n'
+        help_all += '| --- | --- | --- |\n'
+        help_all += '\n'.join('| [%s](%s) | : | %s |' % (h['title'], i, h['description']) for (i,h) in enumerate(self.help_docs))
+        self.help_docs += [{
+            'title': 'All Help Documents',
+            'help': help_all,
+            'description': 'All built-in documentation',
+        }]
 
         if options['welcome']:
             self.help_show(help_firsttime)

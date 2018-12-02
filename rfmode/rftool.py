@@ -127,11 +127,21 @@ class RFTool(metaclass=SingletonRegisterClass):
     def end(self): pass
 
     def update_tool_options(self):
-        if not options['tools autocollapse']: return
-        for k in options.keys():
-            if not k.startswith('tool ') or not k.endswith(' collapsed'): continue
-            t = k.split(' ')[1]
-            options[k] = (t != self.name().lower())
+        if options['tools autohide']:
+            for k in options.keys():
+                if not k.startswith('tool ') or not k.endswith(' visible'): continue
+                t = k.split(' ',1)[1].rsplit(' ',1)[0]  # get [...] from "tool [...] visible"
+                options[k] = (t == self.name().lower())
+        else:
+            for k in options.keys():
+                if not k.startswith('tool ') or not k.endswith(' visible'): continue
+                t = k.split(' ',1)[1].rsplit(' ',1)[0]  # get [...] from "tool [...] visible"
+                options[k] = True
+        if options['tools autocollapse']:
+            for k in options.keys():
+                if not k.startswith('tool ') or not k.endswith(' collapsed'): continue
+                t = k.split(' ',1)[1].rsplit(' ',1)[0]  # get [...] from "tool [...] collapsed"
+                options[k] = (t != self.name().lower())
 
     ''' Called when user undoes action. Prevents bad state of tool is in non-main mode '''
     def undone(self):

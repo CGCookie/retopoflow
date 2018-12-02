@@ -446,6 +446,10 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if self.actions.using('autosave'):
             return {'pass'}
 
+        if self.actions.pressed('all help'):
+            self.help_show_all()
+            return {}
+
         if self.actions.pressed('general help'):
             self.help_show_general()
             return {}
@@ -538,8 +542,6 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
             self.window_info.visible = self.draw_ui
             self.tool_window.visible = self.draw_ui
             self.window_tool_options.visible = self.draw_ui
-        #    assert False, 'this is a test!'
-        #    return
 
         # handle tool shortcut
         for action,tool in RFTool.action_tool:

@@ -24,6 +24,7 @@ from .options import retopoflow_version
 
 # sync help texts with https://github.com/CGCookie/retopoflow-docs (http://docs.retopoflow.com/)
 
+# https://wincent.com/wiki/Unicode_representations_of_modifier_keys
 
 help_firsttime = '''
 # Welcome to RetopoFlow {version}!
@@ -38,7 +39,7 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 ## Minor Changes from Version 2.0.0
 
 - Can navigate to all help documents through help system.
-  (Click All Help Documents button below)
+  (Click [All Help Documents](All Help Documents) button below or press `Shift+F1`)
 - Fixed bug where navigation broke with internationalization settings
 - Improved many UX/UI issues.
   For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.
@@ -67,7 +68,7 @@ With an established and solid framework, we will focus more on features in futur
   No more lost work from crashing.
 - Auto saves will trigger!
 - Undo and redo are universally available within RF Mode.
-  Press `CTRL+Z` roll back any change, or `CTRL+SHIFT+Z` to redo.
+  Press `Ctrl+Z` roll back any change, or `Ctrl+Shift+Z` to redo.
 - The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
@@ -189,7 +190,7 @@ help_general = '''
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
 For tool-specific help, select the tool from the Tools panel, and either press `F2` or click Tool Help.
 
-Click the All Help Documents button below to see all of the built-in documentation.
+Click the [All Help Documents](All Help Documents) button below to see all of the built-in documentation.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -199,7 +200,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| `ESC` <br> `TAB` | : | quit RetopoFlow |
+| `Esc` <br> `Tab` | : | quit RetopoFlow |
 | `F1` | : | general help |
 | `F2` | : | tool help |
 | `F9` | : | toggle on/off main RF windows |
@@ -229,26 +230,26 @@ For example, pressing `G` in Contours will slide the selected loop.
 |  |  |  |
 | --- | --- | --- |
 | `A` | : | deselect / select all |
-| `ACTION` drag | : | transform selection |
-| `SHIFT+SELECT` click | : | toggle selection |
-| `SELECT` drag <br> `SHIFT+SELECT` drag | : | selection painting |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | smart selection |
+| `Action` drag | : | transform selection |
+| `Shift+Select` click | : | toggle selection |
+| `Select` drag <br> `Shift+Select` drag | : | selection painting |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | smart selection |
 | `G` | : | grab and move selected geometry |
 | `X` | : | delete / dissolve selection |
-| `CTRL+Z` | : | undo |
-| `CTRL+SHIFT+Z` | : | redo |
+| `Ctrl+Z` | : | undo |
+| `Ctrl+Shift+Z` | : | redo |
 
 
 ## Defaults
 
-The `ACTION` command is set to the left mouse button.
+The `Action` command is set to the left mouse button.
 
-The `SELECT` command is set to the right mouse button.
+The `Select` command is set to the right mouse button.
 
 
 ## General Options
 
-The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing `CTRL+UP` / `SHIFT+SPACE` / `ALT+F10`.
+The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing `Ctrl+Up` / `Shift+Space` / `Alt+F10`.
 
 The Snap Verts button will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
 
@@ -287,10 +288,10 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| `ACTION` | : | select and slide loop |
-| `SELECT` <br> `SHIFT+SELECT` | : | select edge |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select loop |
-| `CTRL+ACTION` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| `Action` | : | select and slide loop |
+| `Select` <br> `Shift+Select` | : | select edge |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select loop |
+| `Ctrl+Action` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
 | `A` | : | deselect / select all |
 | `F` | : | Bridge selected edge loops |
 
@@ -300,15 +301,15 @@ You may draw strokes in any order, from any direction.
 | --- | --- | --- |
 | `G` | : | slide |
 | `S` | : | shift |
-| `SHIFT+S` | : | rotate |
+| `Shift+S` | : | rotate |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
 | `X` | : | delete/dissolve selected |
-| `SHIFT+UP` <br> `SHIFT+DOWN` | : | increase / decrease segment counts |
-| `EQUALS` <br> `MINUS` | : | increase / decrease segment counts |
+| `Shift+Up` <br> `Shift+Down` | : | increase / decrease segment counts |
+| `Equals` <br> `Minus` | : | increase / decrease segment counts |
 
 ## Tips
 
@@ -334,10 +335,10 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 |  |  |  |
 | --- | --- | --- |
-| `ACTION` | : | select quad then grab and move |
-| `SELECT` <br> `SHIFT+SELECT` | : | select quads |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select quad strip |
-| `CTRL+ACTION` | : | draw strip of quads |
+| `Action` | : | select quad then grab and move |
+| `Select` <br> `Shift+Select` | : | select quads |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select quad strip |
+| `Ctrl+Action` | : | draw strip of quads |
 | `F` | : | adjust brush size |
 | `A` | : | deselect / select all |
 
@@ -345,17 +346,17 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 |  |  |  |
 | --- | --- | --- |
-| `ACTION` | : | translate control point under mouse |
-| `SHIFT+ACTION` | : | translate all inner control points around neighboring outer control point |
-| `CTRL+SHIFT+ACTION` | : | scale strip width by click+dragging on inner control point |
+| `Action` | : | translate control point under mouse |
+| `Shift+Action` | : | translate all inner control points around neighboring outer control point |
+| `Ctrl+Shift+Action` | : | scale strip width by click+dragging on inner control point |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
 | `X` | : | delete/dissolve selected |
-| `SHIFT+UP` <br> `SHIFT+DOWN` | : | increase / decrease segment count of selected strip(s) |
-| `EQUALS` <br> `MINUS` | : | increase / decrease segment count of selected strip(s) |
+| `Shift+Up` <br> `Shift+Down` | : | increase / decrease segment count of selected strip(s) |
+| `Equals` <br> `Minus` | : | increase / decrease segment count of selected strip(s) |
 '''
 
 
@@ -371,9 +372,9 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT` <br> `SHIFT+SELECT` | : | select geometry |
-| `CTRL+ACTION` | : | insert geometry connected to selected geometry |
-| `SHIFT+ACTION` | : | insert edges only |
+| `Select` <br> `Shift+Select` | : | select geometry |
+| `Ctrl+Action` | : | insert geometry connected to selected geometry |
+| `Shift+Action` | : | insert edges only |
 | `A` | : | deselect / select all |
 
 ## Other
@@ -407,11 +408,11 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 |  |  |  |
 | --- | --- | --- |
-| `ACTION` | : | move all vertices within brush radius |
-| `SHIFT+ACTION` | : | move only selected vertices within brush radius |
+| `Action` | : | move all vertices within brush radius |
+| `Shift+Action` | : | move only selected vertices within brush radius |
 | `F` | : | adjust brush size |
-| `SHIFT+F` | : | adjust brush strength |
-| `CTRL+F` | : | adjust brush falloff |
+| `Shift+F` | : | adjust brush strength |
+| `Ctrl+F` | : | adjust brush falloff |
 
 ## Options
 
@@ -433,11 +434,11 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 |  |  |  |
 | --- | --- | --- |
-| `ACTION` | : | relax all vertices within brush radius |
-| `SHIFT+ACTION` | : | relax only selected vertices within brush radius |
+| `Action` | : | relax all vertices within brush radius |
+| `Shift+Action` | : | relax only selected vertices within brush radius |
 | `F` | : | adjust brush size |
-| `SHIFT+F` | : | adjust brush strength |
-| `CTRL+F` | : | adjust brush falloff |
+| `Shift+F` | : | adjust brush strength |
+| `Ctrl+F` | : | adjust brush falloff |
 
 ## Options
 
@@ -460,9 +461,9 @@ The Loops tool also works on any strip of edges.
 
 |  |  |  |
 | --- | --- | --- |
-| `CTRL+ACTION` | : | insert edge loop |
-| `SELECT` <br> `SHIFT+SELECT` | : | select edge(s) |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
+| `Ctrl+Action` | : | insert edge loop |
+| `Select` <br> `Shift+Select` | : | select edge(s) |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
 | `S` | : | slide edge loop |
 '''
 
@@ -476,10 +477,10 @@ Select the strip of boundary edges that you wish to fill.
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT` <br> `SHIFT+SELECT` | : | select edge |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
-| `SHIFT+UP` <br> `SHIFT+DOWN` | : | adjust segment count |
-| `CTRL+SHIFT+ACTION` | : | toggle vertex as corner |
+| `Select` <br> `Shift+Select` | : | select edge |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
+| `Shift+Up` <br> `Shift+Down` | : | adjust segment count |
+| `Ctrl+Shift+Action` | : | toggle vertex as corner |
 | `F` | : | fill visualized patch |
 
 ## Notes
@@ -497,7 +498,7 @@ More support coming soon!
 If no pre-visualized regions show after selection, no geometry will be created after pressing F.
 
 Adjust the Angle parameter to help Patches determine which connected edges should be in the same strip.
-Alternatively, you can manually toggle vertex corners using CTRL+SHIFT+ACTION.
+Alternatively, you can manually toggle vertex corners using `Ctrl+Shift+Action`.
 '''
 
 help_strokes = '''
@@ -512,11 +513,11 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 |  |  |  |
 | --- | --- | --- |
-| `SELECT` <br> `SHIFT+SELECT` | : | select geometry |
-| `CTRL+SELECT` <br> `CTRL+SHIFT+SELECT` | : | select edge loop |
-| `CTRL+ACTION` | : | insert edge strip / extrude selected geometry |
+| `Select` <br> `Shift+Select` | : | select geometry |
+| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
+| `Ctrl+Action` | : | insert edge strip / extrude selected geometry |
 | `A` | : | deselect / select all |
-| `SHIFT+UP` <br> `SHIFT+DOWN` | : | adjust segment count |
+| `Shift+Up` <br> `Shift+Down` | : | adjust segment count |
 
 ## Other
 
