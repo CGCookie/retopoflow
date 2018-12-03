@@ -29,6 +29,7 @@ from ..common.profiler import profiler
 from ..common.maths import Point, Vec, Direction, Normal
 from ..common.maths import Ray, XForm, Plane
 from ..common.maths import Point2D, Vec2D, Direction2D
+from ..options import options
 
 
 class RFContext_Spaces:
@@ -42,13 +43,17 @@ class RFContext_Spaces:
         if xy is None: return None
         return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
 
+    def Point2D_to_Direction(self, xy:Point2D):
+        if xy is None: return None
+        return Direction(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
+
     def Point2D_to_Origin(self, xy:Point2D):
         if xy is None: return None
         return Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
 
     def Point2D_to_Ray(self, xy:Point2D):
         if xy is None: return None
-        return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Vec(xy))
+        return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Direction(xy))
 
     def Point2D_to_Point(self, xy:Point2D, depth:float):
         r = self.Point2D_to_Ray(xy)
@@ -70,11 +75,33 @@ class RFContext_Spaces:
         if xy is None: return None
         return Point2D(xy)
 
+    alerted_small_clip_start = False
     def Point_to_depth(self, xyz):
-        xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
-        if xy is None: return None
-        oxyz = region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy)
-        return (xyz - oxyz).length
+        if not self.alerted_small_clip_start and self.actions.space.clip_start * self.unit_scaling_factor < 0.1:
+            self.alerted_small_clip_start = True
+            message = []
+            message += ['The clip start is very small (<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.']
+            message += ['']
+            message += ['You can increase the clip start in Options > General > View Options > Clip Start.']
+            self.alert_user(
+                title='Very small clip start',
+                message='\n'.join(message),
+                level='Warning'
+            )
+        if True:
+            view_loc = self.actions.r3d.view_location
+            view_dist = self.actions.r3d.view_distance
+            view_rot = self.actions.r3d.view_rotation
+            view_cam = Point(view_loc + view_rot * Vector((0,0,view_dist)))
+            # print(view_cam, (view_cam-xyz).length)
+            return (view_cam - xyz).length
+        else:
+            xy = Point2D(location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz))
+            # print(xyz, xy)
+            if xy is None: return None
+            oxyz = Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
+            # print(oxyz, (xyz-oxyz).length)
+            return (xyz - oxyz).length
 
     @profiler.profile
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):

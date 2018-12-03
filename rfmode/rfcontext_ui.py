@@ -324,6 +324,7 @@ class RFContext_UI:
         elif level in {'error'}:
             bgcolor = (0.30, 0.15, 0.15, 0.95)
             title = 'Error' + (': %s' % title if title else '!')
+            show_quit = True
             darken = True
         elif level in {'assert', 'exception'}:
             if level == 'assert':
