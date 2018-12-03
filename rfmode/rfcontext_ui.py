@@ -112,7 +112,6 @@ class RFContext_UI:
                 i = _i
                 break
         else:
-            print(title)
             i = int(title)
         self.ui_helplabel.set_markdown(self.help_docs[int(i)]['help'], self.choose_help)
     def help_show_all(self):
