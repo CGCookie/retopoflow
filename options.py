@@ -115,9 +115,9 @@ class Options:
 
         'async mesh loading': True,
 
-        'tools autohide': False,
-        'tools autocollapse': True,             # should tool's options auto-open/-collapse when switching tools?
-        'background gradient': True,
+        'tools autohide': False,        # should tool's options auto-hide/-show when switching tools?
+        'tools autocollapse': True,     # should tool's options auto-open/-collapse when switching tools?
+        'background gradient': True,    # draw focus gradient
 
         # True=tool's options are visible
         'tool contours visible': True,
