@@ -119,6 +119,8 @@ def kwargopts(kwargs, defvals=None, **mykwargs):
             def __iter__(self): return iter(opts)
             def print_untouched(self):
                 print('untouched: %s' % str(set(opts.keys()) - self.touched))
+            def pass_through(self, *args):
+                return {key:self[key] for key in args}
         return Opts()
     return factory()
 
@@ -1229,25 +1231,29 @@ class UI_WrappedContainer2(UI_Element):
 
 class UI_Label(UI_Element):
     def __init__(self, label, **kwargs):
-        opts = kwargopts(kwargs, {
-            'icon': None,
-            'tooltip': None,
-            'color': (1,1,1,1),
-            'bgcolor': None,
-            'align': -1,
-            'valign': -1,
-            'fontsize': 12,
-            'fontid': None,
-            'shadowcolor': None,
-            'margin': 2,
-            'min_size': (0, 0),
-        })
+        opts = kwargopts(kwargs,
+            icon=None,
+            tooltip=None,
+            color=(1,1,1,1),
+            bgcolor=None,
+            align=-1,
+            valign=-1,
+            fontsize=12,
+            fontid=None,
+            shadowcolor=None,
+            margin=2,
+            margin_left=None,
+            margin_right=None,
+            margin_top=None,
+            margin_bottom=None,
+            min_size=(0, 0),
+        )
         self.text = None
         self._fontsize = None
         self._fontid = None
         self._icon = None
 
-        super().__init__(margin=opts.margin, min_size=opts.min_size)
+        super().__init__(**opts.pass_through('margin', 'margin_left', 'margin_right', 'margin_top', 'margin_bottom', 'min_size'))
         self.defer_recalc = True
 
         self.icon = opts.icon
@@ -1614,8 +1620,8 @@ class UI_Markdown(UI_Padding):
             b_fontid=None,
             bi_fontid=None,
             fontsize=12,
-            h1_fontsize=20,
-            h2_fontsize=16,
+            h1_fontsize=24,
+            h2_fontsize=18,
         )
         self._markdown = None
         self._fontid = None
@@ -1826,8 +1832,8 @@ class UI_Markdown(UI_Padding):
                 p = p[2:]
                 for litext in p.split('\n- '):
                     li = ul.add(UI_Container(margin=0, vertical=False))
-                    li.add(UI_Label('-', fontid=self._fontid)).margin=0
-                    li.add(UI_Spacer(width=8))
+                    # options: -·•
+                    li.add(UI_Label('•', fontid=self._fontid, margin_left=8, margin_top=0, margin_bottom=0, margin_right=8))
                     li.add(process_para(litext))
 
             elif p.startswith('!['):

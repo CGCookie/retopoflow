@@ -46,6 +46,7 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
   For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
 - Squashed many hard-to-find bugs in Loops, PolyPen, Patches, Strokes, Contours
 - Better error handling with shader compilation.
+- Fixed critical bug with framework.
 
 
 ## Major Changes from Version 1.x
@@ -107,7 +108,8 @@ We thank you for using RetopoFlow, and we look forward to hearing back from you!
 
 Cheers!
 
---The CG Cookie Tool Development Team
+<br>
+---The CG Cookie Tool Development Team
 '''.format(version=retopoflow_version)
 
 
