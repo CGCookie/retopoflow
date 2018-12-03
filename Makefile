@@ -41,7 +41,6 @@ gittag:
 
 
 build:
-	rm -rf $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
