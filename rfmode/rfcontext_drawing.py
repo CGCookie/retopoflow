@@ -94,11 +94,18 @@ class RFContext_Drawing:
             sw,sh = rgn.width,rgn.height
             m = self.drawing.get_dpi_mult()
 
+            if options['visualize counts']:
+                count_str = 'v:%d  e:%d  f:%d' % self.get_target_geometry_counts()
+                tw = self.drawing.get_text_width(count_str)
+                th = self.drawing.get_text_height(count_str)
+                self.drawing.text_draw2D(count_str, Point2D((sw-tw-10,th+10)), (1,1,1,0.25), dropshadow=(0,0,0,0.5), fontsize=12)
+
             if options['visualize fps'] and self.actions.region:
+                bgl.glEnable(bgl.GL_BLEND)
                 pr = profiler.start('fps postpixel')
 
                 lw,lh = len(self.fps_list),60
-                def p(x, y): return (sw - 10 + (-lw + x) * m, 10 + y * m)
+                def p(x, y): return (sw - 10 + (-lw + x) * m, 30 + y * m)
                 def v(x, y): bgl.glVertex2f(*p(x,y))
 
                 bgl.glBegin(bgl.GL_QUADS)

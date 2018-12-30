@@ -702,6 +702,7 @@ class RFContext_UI:
         container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_view.add(UI_Checkbox('Show Geometry Counts', *options.gettersetter('visualize counts'), tooltip='Enable to show geometry counts (verts, edges, faces)'))
         container_view.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
         opt_theme = container_view.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")

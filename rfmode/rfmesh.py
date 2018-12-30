@@ -193,6 +193,16 @@ class RFMesh():
             self.kdt_version = ver
         return self.kdt
 
+    def get_geometry_counts(self):
+        ver = self.get_version(selection=False)
+        if not hasattr(self, 'geocounts') or self.geocounts_version != ver:
+            nv = len(self.bme.verts)
+            ne = len(self.bme.edges)
+            nf = len(self.bme.faces)
+            self.geocounts = (nv,ne,nf)
+            self.geocounts_version = ver
+        return self.geocounts
+
     ##########################################################
 
     def store_state(self):

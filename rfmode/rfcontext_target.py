@@ -446,6 +446,9 @@ class RFContext_Target:
     def get_target_version(self, selection=True):
         return self.rftarget.get_version(selection=selection)
 
+    def get_target_geometry_counts(self):
+        return self.rftarget.get_geometry_counts()
+
     ###################################################
 
 

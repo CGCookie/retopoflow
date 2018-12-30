@@ -97,6 +97,8 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
+        'visualize counts':     True,   # visualize geometry counts
+
         'visualize fps':        False,  # visualize fps
         'low fps threshold':    5,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
