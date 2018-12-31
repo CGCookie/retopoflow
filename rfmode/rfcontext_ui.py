@@ -697,6 +697,7 @@ class RFContext_UI:
             self.replace_opts()
         #container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
         container_target.add(UI_Number('Normal Offset', get_displace, set_displace, tooltip='Set how far the target is rendered away from source'))
+        container_target.add(UI_Checkbox('Constrain Offset', *options.gettersetter('constrain offset', setcallback=lambda v:self.replace_opts()), tooltip='Enable to constrain normal offset based on viewing distance'))
 
         container_view = dd_general.add(UI_Collapsible('View Options'))
         container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))

@@ -21,6 +21,7 @@ uniform vec3  mirror_z;         // mirroring z-axis wrt world
 uniform float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
 uniform vec3  vert_scale;       // used for mirroring
 uniform float normal_offset;    // how far to push geometry along normal
+uniform float constrain_offset; // should constrain offset by focus
 
 uniform vec3  dir_forward;      // forward direction
 
@@ -70,8 +71,22 @@ varying vec4 vColor;            // color of geometry (considers selection)
 
 #version 120
 
+bool floatnear(float v, float n) { return abs(v-n) < 0.5; }
+
+vec4 get_pos(void) {
+    float mult = 1.0;
+    if(floatnear(constrain_offset, 0.0)) {
+        mult = 1.0;
+    } else {
+        float clip_dist  = clip_end - clip_start;
+        float focus = (view_distance - clip_start) / clip_dist + 0.04;
+        mult = focus;
+    }
+    return vec4((vert_pos + vert_norm * normal_offset * mult) * vert_scale, 1.0);
+}
+
 void main() {
-    vec4 pos  = vec4((vert_pos + vert_norm * normal_offset) * vert_scale, 1.0);
+    vec4 pos  = get_pos();
     vec3 norm = normalize(vert_norm * vert_scale);
 
     vec4 wpos = matrix_m * pos;

@@ -150,6 +150,7 @@ class Options:
         'symmetry view':        'Edge',
         'symmetry effect':      0.5,
         'normal offset multiplier': 1.0,
+        'constrain offset':     True,
 
         'target alpha':             1.0,
         'target hidden alpha':      0.1,
@@ -349,13 +350,14 @@ class Visualization_Settings:
         self.update_settings()
 
     def update_settings(self):
-        watch = ['color theme', 'normal offset multiplier']
+        watch = ['color theme', 'normal offset multiplier', 'constrain offset']
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
 
         color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
         color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
         normal_offset_multiplier = options['normal offset multiplier']
+        constrain_offset = options['constrain offset']
 
         self._source_settings = {
             'poly color': (0.0, 0.0, 0.0, 0.0),
@@ -372,6 +374,7 @@ class Visualization_Settings:
 
             'focus mult': 0.01,
             'normal offset': 0.0005 * normal_offset_multiplier,    # pushes vertices out along normal
+            'constrain offset': constrain_offset,
         }
 
         self._target_settings = {
@@ -412,6 +415,7 @@ class Visualization_Settings:
 
             'focus mult': 1.0,
             'normal offset': 0.001 * normal_offset_multiplier,         # pushes vertices out along normal
+            'constrain offset': constrain_offset,
         }
 
     def get_source_settings(self):
