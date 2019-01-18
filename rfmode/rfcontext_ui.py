@@ -221,13 +221,17 @@ class RFContext_UI:
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
-                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
-                    'Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    'Screenshots and .blend files are very helpful.',
-                    'Also, change the title of this bug report to something descriptive and helpful.',
-                    'Thank you!',
+                    #'<!----------------------------------------------------',
+                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
+                    'Below are a few notes that will help us in fixing this problem.',
                     '',
-                    '-------------------------------------',
+                    '- Provide as much information as you can so that we can reproduce the problem and fix it.',
+                    '- Screenshots and .blend files are very helpful.',
+                    '- Change the title of this bug report to something descriptive and helpful.',
+                    '',
+                    'Thank you!',
+                    #'----------------------------------------------------->',
+                    '',
                     '',
                     '```',msg_report,'```'
                 ])
