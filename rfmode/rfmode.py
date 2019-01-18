@@ -260,6 +260,7 @@ class RFMode(Operator):
                             data_space = {}
                             if space.type == 'VIEW_3D':
                                 data_space = {
+                                    'lock_cursor':      space.lock_cursor,
                                     'show_only_render': space.show_only_render,
                                     'show_manipulator': space.show_manipulator,
                                 }
@@ -303,6 +304,7 @@ class RFMode(Operator):
                     if area.type != 'VIEW_3D': continue
                     for space,data_space in zip(area.spaces, data_area):
                         if space.type != 'VIEW_3D': continue
+                        space.lock_cursor = data_space['lock_cursor']
                         space.show_only_render = data_space['show_only_render']
                         space.show_manipulator = data_space['show_manipulator']
 
@@ -343,6 +345,7 @@ class RFMode(Operator):
                     if area.type != 'VIEW_3D': continue
                     for space in area.spaces:
                         if space.type != 'VIEW_3D': continue
+                        space.lock_cursor = False
                         space.show_only_render = True
                         space.show_manipulator = False
 
