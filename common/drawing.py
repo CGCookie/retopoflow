@@ -36,6 +36,7 @@ import bgl
 from bpy.types import BoolProperty
 from mathutils import Matrix
 
+from .blender import get_preferences
 from .decorators import blender_version_wrapper
 from .fontmanager import FontManager as fm
 from .maths import Point2D, Vec2D, clamp, mid
@@ -47,24 +48,25 @@ class Drawing:
     _instance = None
     _dpi = 72
     _dpi_mult = 1
+    _prefs = get_preferences()
 
     @staticmethod
     @blender_version_wrapper('<','2.79')
     def update_dpi():
-        Drawing._dpi = bpy.context.user_preferences.system.dpi
-        if bpy.context.user_preferences.system.virtual_pixel_mode == 'DOUBLE':
+        Drawing._dpi = Drawing._prefs.system.dpi
+        if Drawing._prefs.system.virtual_pixel_mode == 'DOUBLE':
             Drawing._dpi *= 2
-        Drawing._dpi *= bpy.context.user_preferences.system.pixel_size
+        Drawing._dpi *= Drawing._prefs.system.pixel_size
         Drawing._dpi = int(Drawing._dpi)
         Drawing._dpi_mult = Drawing._dpi / 72
 
     @staticmethod
     @blender_version_wrapper('>=','2.79')
     def update_dpi():
-        Drawing._ui_scale = bpy.context.user_preferences.view.ui_scale
-        Drawing._pixel_size = bpy.context.user_preferences.system.pixel_size
-        Drawing._sysdpi = bpy.context.user_preferences.system.dpi
-        Drawing._dpi = 72 # bpy.context.user_preferences.system.dpi
+        Drawing._ui_scale = Drawing._prefs.view.ui_scale
+        Drawing._pixel_size = Drawing._prefs.system.pixel_size
+        Drawing._sysdpi = Drawing._prefs.system.dpi
+        Drawing._dpi = 72 # Drawing._prefs.system.dpi
         Drawing._dpi *= Drawing._ui_scale
         Drawing._dpi *= Drawing._pixel_size
         Drawing._dpi = int(Drawing._dpi)

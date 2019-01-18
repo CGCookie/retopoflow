@@ -20,6 +20,14 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
+from .decorators import blender_version_wrapper
+
+@blender_version_wrapper("<=", "2.79")
+def get_preferences(ctx=None):
+    return (ctx if ctx else bpy.context).user_preferences
+@blender_version_wrapper(">=", "2.80")
+def get_preferences(ctx=None):
+    return (ctx if ctx else bpy.context).preferences
 
 
 def show_blender_popup(message, title="Message", icon="INFO", wrap=80):

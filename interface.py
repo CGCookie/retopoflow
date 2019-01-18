@@ -198,7 +198,7 @@ class RF_SnapObjects(bpy.types.PropertyGroup):
     @staticmethod
     def generate_boolprops():
         # generate a bunch of BoolProperty objects, because we (seemingly) cannot
-        # instantiate them when we need them (during draw of RF_Panel)
+        # instantiate them when we need them (during draw of RF_PT_Panel)
         for i in range(RF_SnapObjects.max_count):
             name = 'mesh%04d' % i
             def getter_setter():
@@ -215,7 +215,7 @@ class RF_SnapObjects(bpy.types.PropertyGroup):
 RF_SnapObjects.generate_boolprops()
 
 
-class RF_Panel(Panel):
+class RF_PT_Panel(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
     bl_space_type = 'VIEW_3D'

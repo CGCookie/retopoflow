@@ -29,6 +29,7 @@ import platform
 import bgl
 import bpy
 
+from .common.blender import get_preferences
 from .common.debug import Debugger, dprint
 from .common.logger import Logger
 from .common.profiler import Profiler
@@ -303,7 +304,7 @@ class Options:
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
     def temp_filepath(self, ext):
-        tempdir = bpy.context.user_preferences.filepaths.temporary_directory
+        tempdir = get_preferences().filepaths.temporary_directory
         return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
 
 

@@ -49,6 +49,7 @@ from .rfcontext_spaces import RFContext_Spaces
 from .rfcontext_target import RFContext_Target
 from .rfcontext_sources import RFContext_Sources
 
+from ..common.blender import get_preferences
 from ..common.utils import get_settings, find_and_import_all_subclasses
 from ..common.debug import dprint, debugger
 from ..common.profiler import profiler
@@ -408,8 +409,8 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     # auto save
 
     def check_auto_save(self):
-        use_auto_save_temporary_files = self.actions.context.user_preferences.filepaths.use_auto_save_temporary_files
-        auto_save_time = self.actions.context.user_preferences.filepaths.auto_save_time * 60
+        use_auto_save_temporary_files = get_preferences(self.actions.context).filepaths.use_auto_save_temporary_files
+        auto_save_time = get_preferences(self.actions.context).filepaths.auto_save_time * 60
         if not use_auto_save_temporary_files: return
         if self.time_to_save is None:
             self.time_to_save = auto_save_time
