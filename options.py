@@ -36,7 +36,7 @@ from .common.profiler import Profiler
 
 
 # important: update Makefile, too!
-retopoflow_version = '2.0.3'
+retopoflow_version = '3.0.0'
 
 
 # the following enables / disables profiler code, overriding the options['profiler']
