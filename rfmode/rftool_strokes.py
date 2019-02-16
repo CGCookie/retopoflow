@@ -678,7 +678,13 @@ class RFTool_Strokes(RFTool):
             last.append(cur[-1])
             if prev:
                 for i in range(crosses-1):
-                    self.rfcontext.new_face([prev[i+0], cur[i+0], cur[i+1], prev[i+1]])
+                    nface = [prev[i+0], cur[i+0], cur[i+1], prev[i+1]]
+                    if all(nface):
+                        self.rfcontext.new_face(nface)
+                    else:
+                        for v0,v1 in iter_pairs(nface, True):
+                            if v0 and v1 and not v0.share_edge(v1):
+                                self.rfcontext.new_edge([v0, v1])
             prev = cur
 
         if edges0:
