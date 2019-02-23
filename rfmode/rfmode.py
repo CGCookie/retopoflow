@@ -146,6 +146,9 @@ class RFMode(Operator):
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
+        if RFContext.instance:
+            # already running RF, so skip the more expensive tests below
+            return False
         return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
 
     def invoke(self, context, event):

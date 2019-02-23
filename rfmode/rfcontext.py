@@ -280,6 +280,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
     def end(self):
         self._end_rotate_about_active()
         self.unscale_from_unit_box()
+        RFContext.instance = None
 
     ###################################################
     # handle scaling objects and view so sources fit
