@@ -34,7 +34,7 @@ bl_info = {
 
 import bpy
 
-from .retopoflow.rfmode import VIEW3D_OT_RetopoFlow
+from .retopoflow.retopoflow import VIEW3D_OT_RetopoFlow
 
 
 # registration
