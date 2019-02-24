@@ -1,25 +1,50 @@
 /*
+
 CookieCutter UI Styling
-this styling file is formatted _very_ similarly to CSS
+
+This styling file is formatted _very_ similarly to CSS.
+
+Important notes/changes from CSS:
+- rules are applied top-down, so any later conflicting rule will override an earlier rule
+    - in other words, specificity is ignored here (https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity)
+- all units are in pixels; do not specify units (ex: px, in, em)
+- colors must be specified with `rgb(<r>, <g>, <b>)` or `rgba(<r>, <g>, <b>, <a>)`
+    - no `#FFFFFF` or `white`
+- all element types must be explicitly specified, except at beginning or when following a `>`; use `*` to match any type
+    - ex: `elem1 .class` is the same as `elem1.class` and never `elem1 *.class`
+- spaces are completely ignored except to separate tokens
+- only `>` and ` ` combinators are implemented
+- setting `width` will set both `min-width` and `max-width`
+- setting `height` will set both `min-height` and `max-height`
+
+Modified shorthands
+- `background: <background-color>;`
+- `border: <border-width> <border-color>;`
+- `margin: <margin-top/margin-right/margin-bottom/margin-left>;`
+- `margin: <margin-top/margin-bottom> <margin-right/margin-left>;`
+- `margin: <margin-top> <margin-right/margin-left> <margin-bottom>;`
+- `margin: <margin-top> <margin-right> <margin-bottom> <margin-left>;`
+- `padding: <padding-top/padding-right/padding-bottom/padding-left>;`
+- `padding: <padding-top/padding-bottom> <padding-right/padding-left>;`
+- `padding: <padding-top> <padding-right/padding-left> <padding-bottom>;`
+- `padding: <padding-top> <padding-right> <padding-bottom> <padding-left>;`
+
 */
 
 * {
-    margin:         0;
-    margin-left:    auto;
-    margin-right:   auto;
-    margin-bottom:  auto;
-    margin-top:     auto;
+    margin:     0 2;
+    padding:    0;
 
-    width:          auto;
-    height:         auto;
-    min-width:      0;
-    min-height:     0;
-    max-width:      auto;
-    max-height:     auto;
+    width:      auto;
+    height:     auto;
+    min-width:  0;
+    min-height: 0;
+    max-width:  auto;
+    max-height: auto;
 
     background-color:   transparent;
 
-    border:         0;
+    border-width:   0;
     border-left:    auto;
     border-right:   auto;
     border-top:     auto;
@@ -33,13 +58,22 @@ pad {
 }
 
 rule {
+    background-color: rgb(128, 128, 128);
+    background: rgba(128, 128, 128, 0.5);
 }
 
-vertical > element {
-    margin: 0;
+vertical>element {
+    margin: 500;
 }
 
 vertical.blah {
-    margin: 0;
+    margin: 0;;
 }
 
+button {
+    border-color: rgba(0, 0, 0, 0.50);
+}
+
+button:hover {
+    border-color: rgba(255, 128, 64, 0.25);
+}
