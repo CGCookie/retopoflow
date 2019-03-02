@@ -64,6 +64,19 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
     def update(self):
         pass
 
+    @CookieCutter.Draw('post2d')
+    def draw_stuff(self):
+        ui.ui_draw.update()
+        mx,my = self.actions.mouse if self.actions.mouse else (0,0)
+        n = 'button'
+        if 500 <= mx <= 500+200 and 420-300 <= my <= 420:
+            n += ':hover'
+            if self.actions.using('LEFTMOUSE'):
+                n += ':active'
+        style = ui.styling.get_style([n])
+        ui.ui_draw.draw(500, 420, 200, 300, style)
+        pass
+
     @CookieCutter.FSM_State('main')
     def modal_main(self):
         self.cursor_modal_set('CROSSHAIR')
