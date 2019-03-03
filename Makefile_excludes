@@ -1,9 +1,9 @@
 __pycache__
 
-/test_models/
-/tools/
-/retopoflow_updater/
-/icons/working/
+test_models
+tools/
+retopoflow_updater/
+icons/working/
 tmp/
 
 .DS_Store

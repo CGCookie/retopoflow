@@ -18,15 +18,15 @@ GIT_TAG_MESSAGE = "Version 2.0.3"
 
 BUILD_DIR       = ../retopoflow_release
 ZIP_FILE        = $(NAME)_$(VERSION).zip
-TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
-
-
-.DEFAULT_GOAL 	:= build
 
 
 # /./././././././././././././././././././././././././././././././
 # TARGETS
 # /./././././././././././././././././././././././././././././././
+
+.DEFAULT_GOAL  := build
+
+.PHONY: clean gittag build
 
 
 clean:
@@ -38,14 +38,18 @@ gittag:
 	# create a new annotated (-a) tag and push to GitHub
 	git tag -a $(GIT_TAG) -m $(GIT_TAG_MESSAGE)
 	git push origin $(GIT_TAG)
+	@echo "git tag is pushed"
 
 
 build:
+	# first remove the build folder, in case there are extra files there
+	# then, create build folder (if they do not already exist)
+	rm -rf $(BUILD_DIR)/$(NAME)
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
 	# rsync flag -a == archive (same as -rlptgoD)
-	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+	rsync -av --progress --no-links . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
 	cd $(BUILD_DIR) ; zip -r $(ZIP_FILE) $(NAME)
 
 	@echo
