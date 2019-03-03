@@ -47,6 +47,7 @@ A full summary is available on [Blender Market](https://blendermarket.com/produc
 - Visualizing target geometry counts in bottom right corner
 - Improved target rendering by constraining normal offset
 - Only showing "small clip start" alert once per Blender run rather than once per RetopoFlow run
+- By default, the options for unselected tools are hidden (can disable Options > General > Tool Options > Auto Hide Options).
 - Overall stability improvements
 
 ### Minor Changes from Version 2.0.0
