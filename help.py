@@ -36,7 +36,20 @@ The RetopoFlow tools automatically generate geometry by drawing on an existing s
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
-## Minor Changes from Version 2.0.0
+## Changelog
+
+Below is a summary of the changes made.
+A full summary is available on [Blender Market](https://blendermarket.com/products/retopoflow).
+
+### Changes in 2.0.3
+
+- Hiding RF buttons in 3D View panel to improve overall performance when Region Overlap is disabled
+- Visualizing target geometry counts in bottom right corner
+- Improved target rendering by constraining normal offset
+- Only showing "small clip start" alert once per Blender run rather than once per RetopoFlow run
+- Overall stability improvements
+
+### Minor Changes from Version 2.0.0
 
 - Can navigate to all help documents through help system.
   (Click [All Help Documents](All Help Documents) button below or press `Shift+F1`)
@@ -48,8 +61,7 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 - Better error handling with shader compilation.
 - Fixed critical bug with framework.
 
-
-## Major Changes from Version 1.x
+### Major Changes from Version 1.x
 
 What you see behind this message window is a complete rewrite of the code base.
 RetopoFlow 2.x now works like any other Blender mode, like Edit Mode or Sculpt Mode, but it will also feel distinct.
@@ -100,6 +112,8 @@ Below is a list of known issues that are currently being addressed.
 - A target mesh with high poly count target mesh can cause slowness in some tools.
 - RF runs _very_ slowly (<1.0 FPS) on a few rare machines.
 - Patches supports only rudimentary fills.
+- RetopoFlow does not work with Blender 2.80 (beta).
+
 
 
 ## Final Words
