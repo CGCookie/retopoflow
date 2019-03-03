@@ -94,16 +94,18 @@ class RFContext_Target:
         return self.accel_vis_accel
 
     @profiler.profile
-    def accel_nearest2D_vert(self, point=None, max_dist=None):
+    def accel_nearest2D_vert(self, point=None, max_dist=None, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
 
-        if not max_dist:
-            verts = self.accel_vis_verts
-        else:
-            max_dist = self.drawing.scale(max_dist)
-            verts = vis_accel.get_verts(xy, max_dist)
+        max_dist = self.drawing.scale(max_dist)
+
+        if not verts:
+            if not max_dist:
+                verts = self.accel_vis_verts
+            else:
+                verts = vis_accel.get_verts(xy, max_dist)
 
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 

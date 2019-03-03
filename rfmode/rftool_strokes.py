@@ -443,11 +443,12 @@ class RFTool_Strokes(RFTool):
 
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
-        bmv0 = bmv0 if bmv0 in sel_verts else None
-        bmv1 = bmv1 if bmv1 in sel_verts else None
-        assert bmv0 and bmv1
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size, verts=sel_verts)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size, verts=sel_verts)
+        # see issue #700
+        #bmv0 = bmv0 if bmv0 in sel_verts else None
+        #bmv1 = bmv1 if bmv1 in sel_verts else None
+        #assert bmv0 and bmv1
 
         edges0,verts0 = [],[bmv0]
         while True:
