@@ -101,16 +101,16 @@ class Options:
         'visualize counts':     True,   # visualize geometry counts
 
         'visualize fps':        False,  # visualize fps
-        'low fps threshold':    5,      # threshold of a low fps
+        'low fps threshold':    2,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         10,     # time (seconds) before warning user of low fps
+        'low fps time':         15,     # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
 
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
-        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',
+        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/710#new_comment_field',
 
         'tools pos':    7,
         'info pos':     1,
