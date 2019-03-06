@@ -24,8 +24,8 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version":     (2, 0, 2),
-    "blender":     (2, 7, 9),
+    "version":     (2, 0, 3),  # 2.0.3
+    "blender":     (2, 79, 0),
     "location":    "View 3D > Tool Shelf",
     # "warning":     "beta 2",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
@@ -109,7 +109,7 @@ class RF_OpenWebIssues(Operator):
         return {'FINISHED'}
 
 
-class RF_Panel_Broken(Panel):
+class RF_PT_Panel_Broken(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
     bl_space_type = 'VIEW_3D'
@@ -180,7 +180,7 @@ if not retopoflow_is_broken:
             RF_SnapObjects,
             RF_Preferences,
             RF_Recover, RF_Recover_Clear,
-            RF_Panel,
+            RF_PT_Panel,
             RF_Menu,
             RF_OpenLog,
             RF_OpenQuickStart,
@@ -201,7 +201,7 @@ if not retopoflow_is_broken:
             RF_Preferences,
             RF_Recover,
             RF_Recover_Clear,
-            RF_Panel,
+            RF_PT_Panel,
             RF_Menu,
             RF_OpenLog,
             RF_OpenQuickStart,
@@ -254,7 +254,7 @@ def register():
     global retopoflow_is_broken, retopoflow_broken_message
 
     if retopoflow_is_broken:
-        for c in [RF_OpenBrokenMessage, RF_Panel_Broken, RF_OpenWebIssues]:
+        for c in [RF_OpenBrokenMessage, RF_PT_Panel_Broken, RF_OpenWebIssues]:
             bpy.utils.register_class(c)
         #raise Exception(retopoflow_broken_message)
         #create_and_show_blender_text(retopoflow_broken_message)

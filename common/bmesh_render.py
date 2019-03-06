@@ -471,6 +471,7 @@ class BGLBufferedRender:
         bmeshShader.assign('cull_backfaces', 1.0 if opts.get('cull backfaces', False) else 0.0)
         bmeshShader.assign('alpha_backface', opts.get('alpha backface', 0.5))
         bmeshShader.assign('normal_offset', opts.get('normal offset', 0.0))
+        bmeshShader.assign('constrain_offset', 1.0 if opts.get('constrain offset', True) else 0.0)
 
         bmeshShader.vertexAttribPointer(
             self.vbo_pos,  'vert_pos',  3, bgl.GL_FLOAT, buf=buf_zero)

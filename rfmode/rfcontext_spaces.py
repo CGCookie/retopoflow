@@ -32,6 +32,13 @@ from ..common.maths import Point2D, Vec2D, Direction2D
 from ..options import options
 
 
+smallclipstart_shown = False
+smallclipstart_message = '\n'.join([
+    'The clip start is very small (<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.',
+    '',
+    'You can increase the clip start in Options > General > View Options > Clip Start.',
+])
+
 class RFContext_Spaces:
     '''
     converts entities between screen space and world space
@@ -75,33 +82,16 @@ class RFContext_Spaces:
         if xy is None: return None
         return Point2D(xy)
 
-    alerted_small_clip_start = False
     def Point_to_depth(self, xyz):
-        if not self.alerted_small_clip_start and self.actions.space.clip_start * self.unit_scaling_factor < 0.1:
-            self.alerted_small_clip_start = True
-            message = []
-            message += ['The clip start is very small (<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.']
-            message += ['']
-            message += ['You can increase the clip start in Options > General > View Options > Clip Start.']
-            self.alert_user(
-                title='Very small clip start',
-                message='\n'.join(message),
-                level='Warning'
-            )
-        if True:
-            view_loc = self.actions.r3d.view_location
-            view_dist = self.actions.r3d.view_distance
-            view_rot = self.actions.r3d.view_rotation
-            view_cam = Point(view_loc + view_rot * Vector((0,0,view_dist)))
-            # print(view_cam, (view_cam-xyz).length)
-            return (view_cam - xyz).length
-        else:
-            xy = Point2D(location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz))
-            # print(xyz, xy)
-            if xy is None: return None
-            oxyz = Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
-            # print(oxyz, (xyz-oxyz).length)
-            return (xyz - oxyz).length
+        global smallclipstart_shown, smallclipstart_message
+        smallclipstart = (self.actions.space.clip_start * self.unit_scaling_factor < 0.1)
+        if smallclipstart and not smallclipstart_shown:
+            smallclipstart_shown = True
+            self.alert_user(title='Very small clip start', message=smallclipstart_message, level='Warning')
+        r3d = self.actions.r3d
+        view_loc, view_dist, view_rot = r3d.view_location, r3d.view_distance, r3d.view_rotation
+        view_cam = Point(view_loc + view_rot * Vector((0, 0, view_dist)))
+        return (view_cam - xyz).length
 
     @profiler.profile
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):

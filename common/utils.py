@@ -30,6 +30,7 @@ import bpy
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
 
+from .blender import get_preferences
 from .profiler import profiler
 from .debug import dprint, debugger
 from .maths import (
@@ -151,12 +152,12 @@ def find_and_import_all_subclasses(cls, root_path=None):
 
 
 def selection_mouse():
-    select_type = bpy.context.user_preferences.inputs.select_mouse
+    select_type = get_preferences().inputs.select_mouse
     return ['%sMOUSE' % select_type, 'SHIFT+%sMOUSE' % select_type]
 
 def get_settings():
     if not hasattr(get_settings, 'cache'):
-        addons = bpy.context.user_preferences.addons
+        addons = get_preferences().addons
         folderpath = os.path.dirname(os.path.abspath(__file__))
         while folderpath:
             folderpath,foldername = os.path.split(folderpath)
@@ -169,7 +170,7 @@ def get_settings():
     return get_settings.cache
 
 def get_dpi():
-    system_preferences = bpy.context.user_preferences.system
+    system_preferences = get_preferences().system
     factor = getattr(system_preferences, "pixel_size", 1)
     return int(system_preferences.dpi * factor)
 

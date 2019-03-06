@@ -29,13 +29,14 @@ import platform
 import bgl
 import bpy
 
+from .common.blender import get_preferences
 from .common.debug import Debugger, dprint
 from .common.logger import Logger
 from .common.profiler import Profiler
 
 
 # important: update Makefile, too!
-retopoflow_version = '2.0.2'
+retopoflow_version = '2.0.3'
 
 
 # the following enables / disables profiler code, overriding the options['profiler']
@@ -97,17 +98,19 @@ class Options:
         'debug level':          0,      # debug level, 0--5 (for printing to console)
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
+        'visualize counts':     True,   # visualize geometry counts
+
         'visualize fps':        False,  # visualize fps
-        'low fps threshold':    5,      # threshold of a low fps
+        'low fps threshold':    2,      # threshold of a low fps
         'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         10,     # time (seconds) before warning user of low fps
+        'low fps time':         15,     # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
         'undo change tool':     False,  # should undo change the selected tool?
 
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
-        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',
+        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/710#new_comment_field',
 
         'tools pos':    7,
         'info pos':     1,
@@ -115,8 +118,8 @@ class Options:
 
         'async mesh loading': True,
 
-        'tools autohide': False,        # should tool's options auto-hide/-show when switching tools?
-        'tools autocollapse': True,     # should tool's options auto-open/-collapse when switching tools?
+        'tools autohide':      True,    # should tool's options auto-hide/-show when switching tools?
+        'tools autocollapse':  True,    # should tool's options auto-open/-collapse when switching tools?
         'background gradient': True,    # draw focus gradient
 
         # True=tool's options are visible
@@ -148,6 +151,7 @@ class Options:
         'symmetry view':        'Edge',
         'symmetry effect':      0.5,
         'normal offset multiplier': 1.0,
+        'constrain offset':     True,
 
         'target alpha':             1.0,
         'target hidden alpha':      0.1,
@@ -300,7 +304,7 @@ class Options:
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
     def temp_filepath(self, ext):
-        tempdir = bpy.context.user_preferences.filepaths.temporary_directory
+        tempdir = get_preferences().filepaths.temporary_directory
         return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
 
 
@@ -347,13 +351,14 @@ class Visualization_Settings:
         self.update_settings()
 
     def update_settings(self):
-        watch = ['color theme', 'normal offset multiplier']
+        watch = ['color theme', 'normal offset multiplier', 'constrain offset']
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
 
         color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
         color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
         normal_offset_multiplier = options['normal offset multiplier']
+        constrain_offset = options['constrain offset']
 
         self._source_settings = {
             'poly color': (0.0, 0.0, 0.0, 0.0),
@@ -370,6 +375,7 @@ class Visualization_Settings:
 
             'focus mult': 0.01,
             'normal offset': 0.0005 * normal_offset_multiplier,    # pushes vertices out along normal
+            'constrain offset': constrain_offset,
         }
 
         self._target_settings = {
@@ -410,6 +416,7 @@ class Visualization_Settings:
 
             'focus mult': 1.0,
             'normal offset': 0.001 * normal_offset_multiplier,         # pushes vertices out along normal
+            'constrain offset': constrain_offset,
         }
 
     def get_source_settings(self):

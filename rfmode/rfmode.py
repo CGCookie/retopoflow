@@ -36,6 +36,7 @@ from bpy.app.handlers import persistent, load_post
 from .rfcontext import RFContext
 from .rftool import RFTool
 
+from ..common.blender import get_preferences
 from ..common.drawing import Drawing
 from ..common.decorators import stats_report, stats_wrapper, blender_version_wrapper
 from ..common.debug import dprint, Debugger
@@ -145,6 +146,9 @@ class RFMode(Operator):
     @classmethod
     def poll(cls, context):
         ''' returns True (modal can start) if there is at least one mesh object visible that is not active '''
+        if RFContext.instance:
+            # already running RF, so skip the more expensive tests below
+            return False
         return RFContext.has_valid_source() and RFContext.is_in_valid_mode()
 
     def invoke(self, context, event):
@@ -259,6 +263,7 @@ class RFMode(Operator):
                             data_space = {}
                             if space.type == 'VIEW_3D':
                                 data_space = {
+                                    'lock_cursor':      space.lock_cursor,
                                     'show_only_render': space.show_only_render,
                                     'show_manipulator': space.show_manipulator,
                                 }
@@ -272,7 +277,7 @@ class RFMode(Operator):
         rgn_properties = bpy.context.area.regions[3]
         data['show_toolshelf'] = rgn_toolshelf.width > 1
         data['show_properties'] = rgn_properties.width > 1
-        data['region_overlap'] = bpy.context.user_preferences.system.use_region_overlap
+        data['region_overlap'] = get_preferences().system.use_region_overlap
 
         data['selected objects'] = [o.name for o in bpy.data.objects if getattr(o, 'select', False)]
         data['hidden objects'] = [o.name for o in bpy.data.objects if getattr(o, 'hide', False)]
@@ -302,6 +307,7 @@ class RFMode(Operator):
                     if area.type != 'VIEW_3D': continue
                     for space,data_space in zip(area.spaces, data_area):
                         if space.type != 'VIEW_3D': continue
+                        space.lock_cursor = data_space['lock_cursor']
                         space.show_only_render = data_space['show_only_render']
                         space.show_manipulator = data_space['show_manipulator']
 
@@ -342,11 +348,12 @@ class RFMode(Operator):
                     if area.type != 'VIEW_3D': continue
                     for space in area.spaces:
                         if space.type != 'VIEW_3D': continue
+                        space.lock_cursor = False
                         space.show_only_render = True
                         space.show_manipulator = False
 
         # hide tool shelf and properties panel if region overlap is enabled
-        rgn_overlap = bpy.context.user_preferences.system.use_region_overlap
+        rgn_overlap = get_preferences().system.use_region_overlap
         if rgn_overlap and bpy.context.area:
             show_toolshelf = bpy.context.area.regions[1].width > 1
             show_properties = bpy.context.area.regions[3].width > 1

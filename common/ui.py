@@ -1622,6 +1622,7 @@ class UI_Markdown(UI_Padding):
             fontsize=12,
             h1_fontsize=24,
             h2_fontsize=18,
+            h3_fontsize=15,
         )
         self._markdown = None
         self._fontid = None
@@ -1632,6 +1633,7 @@ class UI_Markdown(UI_Padding):
         self._fontsize = None
         self._h1_fontsize = None
         self._h2_fontsize = None
+        self._h3_fontsize = None
         super().__init__(margin=opts.margin, margin_left=opts.margin_left, margin_right=opts.margin_right, min_size=opts.min_size, max_size=opts.max_size)
         self.defer_recalc = True
         self.fontid = opts.fontid
@@ -1642,6 +1644,7 @@ class UI_Markdown(UI_Padding):
         self.fontsize = opts.fontsize
         self.h1_fontsize = opts.h1_fontsize
         self.h2_fontsize = opts.h2_fontsize
+        self.h3_fontsize = opts.h3_fontsize
         self.set_markdown(markdown)
         self.defer_recalc = False
 
@@ -1725,6 +1728,16 @@ class UI_Markdown(UI_Padding):
         self._h2_fontsize = f
         self.dirty()
 
+    @property
+    def h3_fontsize(self):
+        return self._h3_fontsize
+
+    @h3_fontsize.setter
+    def h3_fontsize(self, f):
+        if self._h3_fontsize == f: return
+        self._h3_fontsize = f
+        self.dirty()
+
     def set_markdown(self, mdown, fn_link_callback=None):
         # process message similarly to Markdown
         mdown = re.sub(r'^\n*', r'', mdown)                 # remove leading \n
@@ -1785,7 +1798,7 @@ class UI_Markdown(UI_Padding):
                         if is_link_url(link):
                             tooltip = 'Click to open URL in default web browser'
                         else:
-                            tooltip = None
+                            tooltip = 'Click to open help for "%s"' % m_link.group('title')
                             if not fn_link_callback: print('WARNING: link "%s" with no callback' % link)
                         wc.add(UI_Button(' %s '%m_link.group('title'), lambda:link_click(link), tooltip=tooltip, margin=0, padding=0, bgcolor=(0.5,0.5,0.5,0.4), fontid=opts.fontid, fontsize=opts.fontsize))
                         p = p[m_link.end():].strip()
@@ -1825,6 +1838,12 @@ class UI_Markdown(UI_Padding):
                 # h2 heading!
                 h2text = re.sub(r'## +', r'', p)
                 container.add(process_para(h2text, fontsize=self.h2_fontsize, fontid=self._fontid, shadowcolor=(0,0,0,0.5), margin_top=8, margin_bottom=2))
+
+            elif p.startswith('### '):
+                # h2 heading!
+                h3text = re.sub(r'### +', r'', p)
+                container.add(process_para(h3text, fontsize=self.h3_fontsize, fontid=self._fontid, shadowcolor=(0,0,0,0.5), margin_top=6, margin_bottom=2))
+                print(self.h3_fontsize, h3text)
 
             elif p.startswith('- '):
                 # unordered list!

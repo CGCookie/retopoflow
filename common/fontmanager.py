@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 import blf
 
+from .blender import get_preferences
 from .debug import dprint
 
 
@@ -30,7 +31,7 @@ from .debug import dprint
 class FontManager:
     _cache = {}
     _last_fontid = 0
-    _prefs = bpy.context.user_preferences
+    _prefs = get_preferences()
 
     @staticmethod
     def get_dpi():

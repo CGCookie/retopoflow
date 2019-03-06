@@ -221,13 +221,17 @@ class RFContext_UI:
             data = {
                 'title': '%s: %s' % (self.tool.name(), title),
                 'body': '\n'.join([
-                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.',
-                    'Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    'Screenshots and .blend files are very helpful.',
-                    'Also, change the title of this bug report to something descriptive and helpful.',
-                    'Thank you!',
+                    #'<!----------------------------------------------------',
+                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
+                    'Below are a few notes that will help us in fixing this problem.',
                     '',
-                    '-------------------------------------',
+                    '- Provide as much information as you can so that we can reproduce the problem and fix it.',
+                    '- Screenshots and .blend files are very helpful.',
+                    '- Change the title of this bug report to something descriptive and helpful.',
+                    '',
+                    'Thank you!',
+                    #'----------------------------------------------------->',
+                    '',
                     '',
                     '```',msg_report,'```'
                 ])
@@ -697,11 +701,13 @@ class RFContext_UI:
             self.replace_opts()
         #container_target.add(UI_Number('Normal Offset', *options.gettersetter('normal offset multiplier', getwrap=lambda v:int(v*10), setwrap=lambda v:clamp(float(v)/10,0,10), setcallback=replace_opts), tooltip='Set how far the target is rendered away from source'))
         container_target.add(UI_Number('Normal Offset', get_displace, set_displace, tooltip='Set how far the target is rendered away from source'))
+        container_target.add(UI_Checkbox('Constrain Offset', *options.gettersetter('constrain offset', setcallback=lambda v:self.replace_opts()), tooltip='Enable to constrain normal offset based on viewing distance'))
 
         container_view = dd_general.add(UI_Collapsible('View Options'))
         container_view.add(UI_Number('Lens', get_lens, set_lens, tooltip='Set viewport lens angle'))
         container_view.add(UI_Number('Clip Start', get_clip_start, set_clip_start, fn_update_value=upd_clip_start, tooltip='Set viewport clip start', fn_get_print_value=get_clip_start_print_value, fn_set_print_value=set_clip_start_print_value))
         container_view.add(UI_Number('Clip End',   get_clip_end,   set_clip_end,   fn_update_value=upd_clip_end,   tooltip='Set viewport clip end',   fn_get_print_value=get_clip_end_print_value, fn_set_print_value=set_clip_end_print_value))
+        container_view.add(UI_Checkbox('Show Geometry Counts', *options.gettersetter('visualize counts'), tooltip='Enable to show geometry counts (verts, edges, faces)'))
         container_view.add(UI_Checkbox('Background Gradient', *options.gettersetter('background gradient'), tooltip='Enable to draw nice radial gradient behind meshes'))
         opt_theme = container_view.add(UI_Options(*optgetset('color theme', setcallback=replace_opts), vertical=False))
         opt_theme.set_label("Theme:")

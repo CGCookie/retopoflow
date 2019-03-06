@@ -39,6 +39,7 @@ from . import addon_updater_ops
 
 from .rfmode.rftool import RFTool
 from .rfmode.rfmode import RFMode
+from .rfmode.rfcontext import RFContext
 
 from .icons import load_icons
 from .common.blender import show_blender_text
@@ -198,7 +199,7 @@ class RF_SnapObjects(bpy.types.PropertyGroup):
     @staticmethod
     def generate_boolprops():
         # generate a bunch of BoolProperty objects, because we (seemingly) cannot
-        # instantiate them when we need them (during draw of RF_Panel)
+        # instantiate them when we need them (during draw of RF_PT_Panel)
         for i in range(RF_SnapObjects.max_count):
             name = 'mesh%04d' % i
             def getter_setter():
@@ -215,7 +216,13 @@ class RF_SnapObjects(bpy.types.PropertyGroup):
 RF_SnapObjects.generate_boolprops()
 
 
-class RF_Panel(Panel):
+def human_readable(c):
+    if c < 10000:   return str(c)
+    if c < 1000000: return '%sk' % str(round(c / 1000))
+    return '%sm' % str(round(c / 1000000))
+
+
+class RF_PT_Panel(Panel):
     bl_category = "Retopology"
     bl_label = "RetopoFlow %s" % retopoflow_version
     bl_space_type = 'VIEW_3D'
@@ -224,16 +231,12 @@ class RF_Panel(Panel):
     def draw(self, context):
         # https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout
 
-        def human_readable(c):
-            if c < 10000:
-                return str(c)
-            if c < 1000000:
-                c = round(c / 1000)
-                return '%sk' % str(c)
-            c = round(c / 1000000)
-            return '%sm' % str(c)
-
         layout = self.layout
+
+        if RFContext.instance:
+            # RF is currently running, so show a simplified UI
+            layout.label('RetopoFlow is running!')
+            return
 
         # explicitly call to check for update in background
         # note: built-in checks ensure it runs at most once
