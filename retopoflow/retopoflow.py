@@ -19,9 +19,12 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
+
 import bpy
 import bmesh
 
+from ..addon_common.common import drawing
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
 
@@ -56,26 +59,45 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.region_darken()
         self.header_text_set('RetopoFlow')
         self.target.hide_viewport = True
+
+        path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
+        try:
+            self.stylesheet = ui.UI_Styling.from_file(path)
+        except AssertionError as e:
+            # TODO: show proper dialog to user here!!
+            print('caught exception!')
+            print(e)
+            self.stylesheet = None
+
+        self.ui_elem = ui.UI_Button(stylesheet=self.stylesheet)
+
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
 
     def end(self):
         self.target.hide_viewport = False
 
     def update(self):
-        pass
-
-    @CookieCutter.Draw('post2d')
-    def draw_stuff(self):
-        ui.ui_draw.update()
         mx,my = self.actions.mouse if self.actions.mouse else (0,0)
         n = 'button'
         if 500 <= mx <= 500+200 and 420-300 <= my <= 420:
-            n += ':hover'
+            self.ui_elem.add_pseudoclass('hover')
             if self.actions.using('LEFTMOUSE'):
-                n += ':active'
-        style = ui.styling.get_style([n])
-        ui.ui_draw.draw(500, 420, 200, 300, style)
-        pass
+                self.ui_elem.add_pseudoclass('active')
+            else:
+                self.ui_elem.del_pseudoclass('active')
+        else:
+            self.ui_elem.clear_pseudoclass()
+
+    @CookieCutter.Draw('post2d')
+    def draw_stuff(self):
+        # will be done by ui system
+        self.ui_elem._ui_draw.update()
+        self.ui_elem.recalculate()
+        self.ui_elem.position(500, 420, 200, 200)
+        self.ui_elem.draw()
+        #self.ui_elem._ui_draw.draw(500, 420, 200, 300, style)
+        #style = ui.styling.get_style([n])
+        #ui.ui_draw.draw()
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):

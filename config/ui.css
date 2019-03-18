@@ -1,3 +1,7 @@
+/*
+    this is a default UI stylesheet
+*/
+
 * {
     margin:     4 2;
     padding:    3;
@@ -34,6 +38,7 @@ vertical.blah {
 }
 
 button {
+    margin: 50;
     background-color: rgba(192, 192, 192, 0.75);
     border-width: 8;
     border-radius: 16;
@@ -41,11 +46,13 @@ button {
     border-right-color: rgba(128, 64, 64, 0.75);
     border-bottom-color: rgba(64, 128, 64, 0.75);
     border-left-color: rgba(64, 64, 128, 0.75);
+    cursor: pointer;
 }
 
 button:hover {
     border-color: rgba(255, 128, 64, 1.0);
-    border-width: 16;
+    border-radius: 2;
+    border-width: 0;
 }
 
 button:active {
