@@ -44,9 +44,16 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
 
     @classmethod
     def can_start(cls, context):
+        # check that the context is correct
+        if not context.region or context.region.type != 'WINDOW': return False
+        if not context.space_data or context.space_data.type != 'VIEW_3D': return False
         # check we are in mesh editmode
+        if context.mode != 'EDIT_MESH': return False
+        # make sure we are editing a mesh object
         ob = context.active_object
-        return (ob and ob.type == 'MESH' and context.mode == 'EDIT_MESH')
+        if not ob or ob.type != 'MESH': return False
+        # all seems good!
+        return True
 
     def start(self):
         self.target = bpy.context.active_object

@@ -80,3 +80,7 @@ test-models
 
 # temp folders
 tmp/
+
+
+# temporarily ignore rf279 folder
+rf279/
