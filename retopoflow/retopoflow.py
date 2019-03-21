@@ -24,7 +24,9 @@ import os
 import bpy
 import bmesh
 
+from ..addon_common.common.globals import Globals
 from ..addon_common.common import drawing
+from ..addon_common.common.drawing import ScissorStack
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
 
@@ -69,14 +71,14 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
 
         path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
         try:
-            self.stylesheet = ui.UI_Styling.from_file(path)
+            Globals.ui_draw.load_stylesheet(path)
         except AssertionError as e:
             # TODO: show proper dialog to user here!!
-            print('caught exception!')
+            print('could not load stylesheet "%s"' % path)
             print(e)
-            self.stylesheet = None
 
-        self.ui_elem = ui.UI_Button(stylesheet=self.stylesheet)
+        self.ui_elem = ui.UI_Button()
+        self.ui_y = 0
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
 
@@ -86,7 +88,7 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
     def update(self):
         mx,my = self.actions.mouse if self.actions.mouse else (0,0)
         n = 'button'
-        if 500 <= mx <= 500+200 and 420-300 <= my <= 420:
+        if self.ui_elem.get_under_mouse(mx, my):
             self.ui_elem.add_pseudoclass('hover')
             if self.actions.using('LEFTMOUSE'):
                 self.ui_elem.add_pseudoclass('active')
@@ -98,13 +100,16 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
     @CookieCutter.Draw('post2d')
     def draw_stuff(self):
         # will be done by ui system
-        self.ui_elem._ui_draw.update()
+        ScissorStack.start(self.context)
+        Globals.ui_draw.update()
         self.ui_elem.recalculate()
-        self.ui_elem.position(500, 420, 200, 200)
+        self.ui_elem.position(500, self.ui_y, 200, 200)
+        self.ui_y += 1
         self.ui_elem.draw()
         #self.ui_elem._ui_draw.draw(500, 420, 200, 300, style)
         #style = ui.styling.get_style([n])
         #ui.ui_draw.draw()
+        ScissorStack.end()
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):

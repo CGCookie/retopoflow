@@ -1,6 +1,12 @@
 /*
-    this is a default UI stylesheet
+    this is a default UI stylesheet.
+
+    right now, this is a test stylesheet.
 */
+
+body {
+    cursor: crosshair;
+}
 
 * {
     margin:     4 2;
@@ -38,7 +44,7 @@ vertical.blah {
 }
 
 button {
-    margin: 50;
+    margin: 0;
     background-color: rgba(192, 192, 192, 0.75);
     border-width: 8;
     border-radius: 16;
