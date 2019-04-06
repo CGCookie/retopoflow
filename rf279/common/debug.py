@@ -33,7 +33,7 @@ import traceback
 from datetime import datetime
 from hashlib import md5
 
-from .globals import set_global, get_global
+from .globals import Globals
 from .blender import show_blender_popup
 from .hasher import Hasher
 
@@ -120,7 +120,7 @@ class Debugger:
         message += ['  - %s' % s for s in errormsg.splitlines()]
         message = '\n'.join(message)
         print('%s\n%s\n%s' % ('_' * 100, message, '^' * 100))
-        logger = get_global('logger')
+        logger = Globals.logger
         if logger: logger.add(message)   # write error to log text object
         # if Debugger._exception_count < 10:
         #     show_blender_popup(
@@ -156,7 +156,8 @@ class Debugger:
 
 debugger = Debugger()
 dprint = debugger.dprint
-set_global(debugger)
+Globals.set(debugger)
+Globals.set(dprint, objtype='dprint')
 
 
 

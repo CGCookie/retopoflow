@@ -92,17 +92,17 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             self.ui_elem.add_pseudoclass('hover')
             if self.actions.using('LEFTMOUSE'):
                 self.ui_elem.add_pseudoclass('active')
-            else:
-                self.ui_elem.del_pseudoclass('active')
         else:
-            self.ui_elem.clear_pseudoclass()
+            self.ui_elem.del_pseudoclass('hover')
+        if not self.actions.using('LEFTMOUSE'): self.ui_elem.del_pseudoclass('active')
 
     @CookieCutter.Draw('post2d')
     def draw_stuff(self):
         # will be done by ui system
         ScissorStack.start(self.context)
         Globals.ui_draw.update()
-        self.ui_elem.recalculate()
+        self.ui_elem.compute_style()
+        self.ui_elem.layout()
         self.ui_elem.position(500, self.ui_y, 200, 200)
         self.ui_y += 1
         self.ui_elem.draw()

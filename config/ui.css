@@ -24,6 +24,8 @@ body {
     border-width:   1;
     border-color:   rgba(0, 0, 0, 0.75);
     border-radius:  5;
+
+    overflow: hidden;
 }
 
 pad {
@@ -64,4 +66,8 @@ button:hover {
 button:active {
     border-width: 4;
     background: transparent;
+}
+
+button:hover:active {
+    background: rgba(0,0,0, 0.5);
 }

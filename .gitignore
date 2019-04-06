@@ -82,5 +82,3 @@ test-models
 tmp/
 
 
-# temporarily ignore rf279 folder
-rf279/

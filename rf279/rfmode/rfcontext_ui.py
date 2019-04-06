@@ -62,6 +62,7 @@ from ..options import (
     platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor,
     gpu_vendor,gpu_renderer,gpu_version,gpu_shading
     )
+from ..error.error import get_environment_details, get_trace_details
 
 from ..help import help_general, help_firsttime, help_all, help_all_updated
 
@@ -347,23 +348,10 @@ class RFContext_UI:
                 'If this happens again, please report as bug so we can fix it.',
                 ])
 
-            msg_report = ['Environment:\n']
-            msg_report += ['- RetopoFlow: %s' % (retopoflow_version,)]
-            if retopoflow_version_git:
-                msg_report += ['- RF git: %s' % (retopoflow_version_git,)]
-            msg_report += ['- Blender: %s %s %s' % (blender_version, blender_branch, blender_date)]
-            msg_report += ['- Platform: %s' % (', '.join([platform_system,platform_release,platform_version,platform_machine,platform_processor]), )]
-            msg_report += ['- GPU: %s' % (', '.join([gpu_vendor, gpu_renderer, gpu_version, gpu_shading]), )]
-            msg_report += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
-            msg_report += ['- Undo: %s' % (', '.join(self.undo_stack_actions()[:10]),)]
-            if msghash:
-                msg_report += ['']
-                msg_report += ['Error Hash: %s' % (str(msghash),)]
-            if message_orig:
-                msg_report += ['']
-                msg_report += ['Trace:\n']
-                msg_report += [message_orig]
-            msg_report = '\n'.join(msg_report)
+            msg_report = '\n'.join([
+                get_environment_details(),
+                get_trace_details(self.undo_stack_actions(), msghash=msghash, message=message_orig),
+            ])
 
             def clipboard():
                 try: bpy.context.window_manager.clipboard = msg_report
