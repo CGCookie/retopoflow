@@ -18,3 +18,13 @@ A valid purchase is required for product support.
 
 # Contributing
 Pull requests are welcome! If you'd like to contribute to the project then simply Fork the repo, work on your changes, and then submit a pull request. We are quite strict on what we allow in, but all suggestions are welcome. If you're unsure what to contribute, then look at the [open issues](https://github.com/CGCookie/retopoflow/issues) for the current to-dos.
+
+```
+$ git clone git@github.com:CGCookie/retopoflow.git retopoflow
+$ cd retopoflow
+$ git checkout b280
+$ git submodule update --init --recursive
+
+# to update addon_common
+$ git submodule foreach git pull origin master
+```
