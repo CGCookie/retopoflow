@@ -78,7 +78,7 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             print(e)
 
         self.ui_elem = ui.UI_Button()
-        self.ui_y = 0
+        self.ui_y = 300
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
 
@@ -104,7 +104,6 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.ui_elem.compute_style()
         self.ui_elem.layout()
         self.ui_elem.position(500, self.ui_y, 200, 200)
-        self.ui_y += 1
         self.ui_elem.draw()
         #self.ui_elem._ui_draw.draw(500, 420, 200, 300, style)
         #style = ui.styling.get_style([n])

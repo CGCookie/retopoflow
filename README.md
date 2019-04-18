@@ -26,5 +26,7 @@ $ git checkout b280
 $ git submodule update --init --recursive
 
 # to update addon_common
+$ cd retopoflow
+$ git pull
 $ git submodule foreach git pull origin master
 ```
