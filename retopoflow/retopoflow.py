@@ -101,8 +101,8 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         # will be done by ui system
         ScissorStack.start(self.context)
         Globals.ui_draw.update()
-        self.ui_elem.compute_style()
-        self.ui_elem.layout()
+        self.ui_elem.clean()
+        #self.ui_elem.layout()
         self.ui_elem.position(500, self.ui_y, 200, 200)
         self.ui_elem.draw()
         #self.ui_elem._ui_draw.draw(500, 420, 200, 300, style)
