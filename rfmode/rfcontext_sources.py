@@ -162,7 +162,12 @@ class RFContext_Sources:
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size[0]: return False
         if p2D.y < 0 or p2D.y > self.actions.size[1]: return False
-        max_dist_offset = self.sources_bbox.get_min_dimension()*0.0001 + 0.0001
+        # reduce the maximum distance we allow ray to cast in case of numerical precision with point on (or just below) the surface of the source
+        # right now, the following two branches do the same thing, but it can be used to handle ortho and persp differently
+        if self.actions.r3d.view_perspective == 'ORTHO':
+            max_dist_offset = self.sources_bbox.get_min_dimension()*0.0001 + 0.0001
+        else:
+            max_dist_offset = self.sources_bbox.get_min_dimension()*0.0001 + 0.0001
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
