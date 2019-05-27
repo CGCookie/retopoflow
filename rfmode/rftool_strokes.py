@@ -624,13 +624,17 @@ class RFTool_Strokes(RFTool):
         # check all strips for best "scoring"
         best = None
         best_score = None
+        best_rev = False
         for edge_strip in find_edge_strips(edges):
             verts = get_strip_verts(edge_strip)
             p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
             pd = p1 - p0
             dot = pd.x * sd.x + pd.y * sd.y
             if dot < 0:
-                edge_strip.reverse()
+                if len(edge_strip) == 1:
+                    best_rev = True
+                else:
+                    edge_strip.reverse()
                 p0, p1, pd, dot = p1, p0, -pd, -dot
             score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
             if not best or score < best_score:
@@ -646,6 +650,7 @@ class RFTool_Strokes(RFTool):
         # tessellate stroke to match edge
         edges = best
         verts = get_strip_verts(edges)
+        if best_rev: verts.reverse()
         edge_lens = [
             (Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length
             for e in edges
