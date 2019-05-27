@@ -62,7 +62,7 @@ from ..keymaps import default_rf_keymaps
 class RFContext_Drawing:
     def get_view_version(self):
         m = self.actions.r3d.view_matrix
-        return [v for r in m for v in r] + [self.actions.space.lens]
+        return [v for r in m for v in r] + [self.actions.space.lens, self.actions.r3d.view_distance]
 
     @profiler.profile
     def draw_postpixel(self):
