@@ -53,7 +53,7 @@ def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs, touched=None):
     elif bme0_2 == bmf1_edges[2]: bme1_2,bme1_3,bme1_0,bme1_1 = bmf1_edges
     elif bme0_2 == bmf1_edges[3]: bme1_1,bme1_2,bme1_3,bme1_0 = bmf1_edges
     else: assert False, 'Something very unexpected happened!'
-    
+
     if bmf1 not in only_bmfs: return [bmf0]
     if bmf1 in stop_bmfs: return [bmf0, bmf1]
     if touched and bmf1 in touched: return None
@@ -144,12 +144,12 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
     # - intersection with self
     # - intersection with edges (ignoring from_edge)
     # - "strong" corners
-    
+
     cstroke = []
     to_edge = None
     curve_distance, curve_threshold = 25.0, math.cos(60.0 * math.pi/180.0)
     discontinuity_distance = 10.0
-    
+
     def compute_cosangle_at_index(idx):
         nonlocal stroke
         if idx >= len(stroke): return 1.0
@@ -170,16 +170,16 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
         dnext = (pnext - p0).normalized()
         cosangle = dprev.dot(dnext)
         return cosangle
-    
+
     for i0 in range(1, len(stroke)-1):
         i1 = i0 + 1
         p0,p1 = stroke[i0],stroke[i1]
-        
+
         # check for discontinuity
         if (p0-p1).length > discontinuity_distance:
             dprint('frag: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
             return (from_edge, stroke[:i1], None, False, stroke[i1:])
-        
+
         # check for self-intersection
         for j0 in range(i0+3, len(stroke)-1):
             q0,q1 = stroke[j0],stroke[j0+1]
@@ -187,7 +187,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
             if not p: continue
             dprint('self: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
             return (from_edge, stroke[:i1], None, False, stroke[i1:])
-        
+
         # check for intersections with edges
         for bme,(q0,q1) in edges2D:
             if bme is from_edge: continue
@@ -195,7 +195,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
             if not p: continue
             dprint('edge: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
             return (from_edge, stroke[:i1], bme, True, stroke[i1:])
-        
+
         # check for strong angles
         cosangle = compute_cosangle_at_index(i0)
         if cosangle > curve_threshold: continue
@@ -209,7 +209,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
         if minangle < cosangle: continue
         dprint('bend: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
         return (from_edge, stroke[:i1], None, False, stroke[i1:])
-    
+
     dprint('full: %d %d' % (len(stroke), len(stroke)))
     return (from_edge, stroke, None, False, [])
 
@@ -222,7 +222,7 @@ def process_stroke_get_marks(stroke, at_dists):
     np = stroke[1]
     dist_to_np = (np-cp).length
     dir_to_np = (np-cp).normalized()
-    
+
     while len(marks) < len(at_dists):
         # can we go to np without passing next mark?
         dratio = (at_dists[i_at_dists] - tot_dist) / dist_to_np
@@ -240,10 +240,10 @@ def process_stroke_get_marks(stroke, at_dists):
         dist_to_np -= dist_traveled
         tot_dist += dist_traveled
         i_at_dists += 1
-    
+
     while len(marks) < len(at_dists):
         marks.append(stroke[-1])
-    
+
     return marks
 
 def mark_info(marks, imark):
@@ -256,24 +256,25 @@ def mark_info(marks, imark):
 
 
 class RFTool_PolyStrips_Strip:
-    def __init__(self, bmf_strip):
+    def __init__(self, bmf_strip, rfcontext):
         self.bmf_strip = bmf_strip
+        self.rfcontext = rfcontext
         self.recompute_curve()
         self.capture_edges()
-    
+
     def __len__(self): return len(self.bmf_strip)
-    
+
     def __iter__(self): return iter(self.bmf_strip)
-    
+
     def __getitem__(self, key): return self.bmf_strip[key]
-    
+
     def end_faces(self): return (self.bmf_strip[0], self.bmf_strip[-1])
-    
+
     def recompute_curve(self):
         pts,r = strip_details(self.bmf_strip)
         self.curve = CubicBezier.create_from_points(pts)
         self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
-    
+
     def capture_edges(self):
         self.bmes = []
         bmes = [(bmf0.shared_edge(bmf1), Normal(bmf0.normal+bmf1.normal)) for bmf0,bmf1 in iter_pairs(self.bmf_strip, False)]
@@ -289,22 +290,35 @@ class RFTool_PolyStrips_Strip:
             halfdiff = (bmvs[1].co - bmvs[0].co) / 2.0
             diffdir = halfdiff.normalized()
             center = bmvs[0].co + halfdiff
-            
+
             t = self.curve.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
             pos,der = self.curve.eval(t),self.curve.eval_derivative(t).normalized()
-            
+
             rad = halfdiff.length
             cross = der.cross(norm).normalized()
             off = center - pos
             off_cross,off_der,off_norm = cross.dot(off),der.dot(off),norm.dot(off)
             rot = math.acos(clamp(diffdir.dot(cross), -0.9999999, 0.9999999))
             if diffdir.dot(der) < 0: rot = -rot
-            self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
-    
-    def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
+            self.bmes += [(bme, bmvs, t, rad, rot, off_cross, off_der, off_norm)]
+
+
+    def update(self):
+        # self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal
+        raycast_sources_Point = self.rfcontext.raycast_sources_Point
+        nearest_sources_Point = self.rfcontext.nearest_sources_Point
+        update_face_normal = self.rfcontext.update_face_normal
+        def fix_point(p):
+            return raycast_sources_Point(p)[0] or nearest_sources_Point(p)[0]
+        if False:
+            print('-'*100)
+            for (bme,bmvs,t,rad,rot,off_cross,off_der,off_norm) in self.bmes:
+                print({'bmvs':(bmvs[0].co, bmvs[1].co), 't':t, 'rad':rad, 'rot':rot, 'off_cross':off_cross, 'off_der':off_der, 'off_norm':off_norm})
+            print()
         self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
         length = self.curve.approximate_totlength_tessellation()
-        for bme,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
+
+        for bme,bmvs,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
             pos,norm,_,_ = raycast_sources_Point(self.curve.eval(t))
             if not norm: continue
             der = self.curve.eval_derivative(t).normalized()
@@ -313,12 +327,7 @@ class RFTool_PolyStrips_Strip:
             rotcross = (Matrix.Rotation(rot, 3, norm) * cross).normalized()
             p0 = center - rotcross * rad
             p1 = center + rotcross * rad
-            bmv0,bmv1 = bme.verts
-            v0,_,_,_ = raycast_sources_Point(p0)
-            v1,_,_,_ = raycast_sources_Point(p1)
-            if not v0: v0,_,_,_ = nearest_sources_Point(p0)
-            if not v1: v1,_,_,_ = nearest_sources_Point(p1)
-            bmv0.co = v0
-            bmv1.co = v1
+            bmvs[0].co = fix_point(p0)
+            bmvs[1].co = fix_point(p1)
         for bmf in self.bmf_strip:
             update_face_normal(bmf)

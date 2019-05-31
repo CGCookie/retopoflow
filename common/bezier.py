@@ -293,13 +293,16 @@ class CubicBezier:
         Estimating measure of linearity as ratio of distances
         of curve mid-point and mid-point of end control points
         over half the distance between end control points
-          p1 _
-            / \
-           |   \
-        p0 *    \   * p3
-                 \_/
-                 p2
         '''
+        #   p1 *
+        #      _
+        #     / \
+        #    |   \
+        # p0 *    \   * p3
+        #          \_/
+        #
+        #        p2 *
+
         p0, p1, p2, p3 = Vector(self.p0), Vector(
             self.p1), Vector(self.p2), Vector(self.p3)
         q0, q1, q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
@@ -363,8 +366,8 @@ class CubicBezier:
         split = split or self.split_default
         ts = [i/(split-1) for i in range(split)]
         ps = [self.eval(t) for t in ts]
-        ds = [0] + [fn_dist(p, q) for p, q in zip(ps[:-1], ps[1:])]
-        return [(t, p, d) for t, p, d in zip(ts, ps, ds)]
+        ds = [0] + [fn_dist(p, q) for (p, q) in zip(ps[:-1], ps[1:])]
+        return list(zip(ts, ps, ds))
 
     def tessellate_uniform_points(self, segments=None):
         segments = segments or self.segments_default
@@ -395,7 +398,7 @@ class CubicBezier:
         return sum(self.approximate_lengths_tessellation())
 
     def approximate_lengths_tessellation(self):
-        return [d for _, _, d in self.tessellation]
+        return [d for (_,_,d) in self.tessellation]
 
 
 class CubicBezierSpline:

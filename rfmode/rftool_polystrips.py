@@ -167,7 +167,7 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
                 if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
                     touched.add(hash_face_pair(bmf0,bmf1))
                     touched.add(hash_face_pair(bmf1,bmf0))
-                    self.strips.append(RFTool_PolyStrips_Strip(strip))
+                    self.strips.append(RFTool_PolyStrips_Strip(strip, self.rfcontext))
 
             if not edge0: add_strip(bme0)
             if not edge1: add_strip(bme1)
@@ -405,16 +405,19 @@ class RFTool_PolyStrips(RFTool, RFTool_PolyStrips_Ops):
         for cbpt,inner,oco,oco2D in self.sel_cbpts:
             nco2D = oco2D + delta
             if not inner:
+                # editing an outer control point, which must be projected back to surface.
                 xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(nco2D)
                 if xyz: cbpt.xyz = xyz
             else:
-                ov = self.rfcontext.Point2D_to_Vec(oco2D)
-                nr = self.rfcontext.Point2D_to_Ray(nco2D)
-                od = self.rfcontext.Point_to_depth(oco)
-                cbpt.xyz = nr.eval(od / ov.dot(nr.d))
+                # editing an inner control point, which is allowed to go off surface.
+                # need to move point in plane that is perpendicular to the view direction
+                # and at distance away from viewer equal to distance of viewer to point's
+                # original 3D position.
+                oray = self.rfcontext.Point_to_Ray(oco)
+                cbpt.xyz = self.rfcontext.Point2D_to_Point(nco2D, oray.max)
 
         for strip in self.hovering_strips:
-            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
+            strip.update()
 
         self.update_strip_viz()
 

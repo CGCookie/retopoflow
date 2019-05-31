@@ -115,8 +115,7 @@ class RFContext_Sources:
 
     def raycast_sources_Point(self, xyz:Point):
         if xyz is None: return None,None,None,None
-        xy = self.Point_to_Point2D(xyz)
-        return self.raycast_sources_Point2D(xy)
+        return self.raycast_sources_Ray(self.Ray_through_Point(xyz))
 
 
     ###################################################
