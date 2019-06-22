@@ -8,7 +8,7 @@ body {
     cursor: crosshair;
 }
 
-* {
+/** {
     margin:     4 2;
     padding:    3;
 
@@ -26,7 +26,8 @@ body {
     border-radius:  5;
 
     overflow: hidden;
-}
+    font: normal normal 12 serif;
+}*/
 
 pad {
     margin: 5;
@@ -45,6 +46,8 @@ vertical.blah {
     margin: 0;;
 }
 
+
+/*
 button {
     margin: 0;
     background-color: rgba(192, 192, 192, 0.75);
@@ -60,7 +63,7 @@ button {
 button:hover {
     border-color: rgba(255, 128, 64, 1.0);
     border-radius: 2;
-    border-width: 0;
+    border-width: 1;
 }
 
 button:active {
@@ -71,3 +74,4 @@ button:active {
 button:hover:active {
     background: rgba(0,0,0, 0.5);
 }
+*/

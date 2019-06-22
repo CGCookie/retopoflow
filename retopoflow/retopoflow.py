@@ -23,6 +23,7 @@ import os
 
 import bpy
 import bmesh
+from bpy.types import WorkSpaceTool
 
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import drawing
@@ -77,7 +78,10 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             print('could not load stylesheet "%s"' % path)
             print(e)
 
-        self.ui_elem = ui.UI_Button()
+        self.ui_elem = ui.button(label="Push Me!")
+        def clicked(e):
+            print('clicked!')
+        self.ui_elem.add_eventListener('mouseclick', clicked)
         self.ui_y = 300
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
@@ -92,9 +96,11 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             self.ui_elem.add_pseudoclass('hover')
             if self.actions.using('LEFTMOUSE'):
                 self.ui_elem.add_pseudoclass('active')
-        else:
+        elif self.ui_elem.is_hovered:
             self.ui_elem.del_pseudoclass('hover')
-        if not self.actions.using('LEFTMOUSE'): self.ui_elem.del_pseudoclass('active')
+        if not self.actions.using('LEFTMOUSE') and self.ui_elem.is_active:
+            if self.ui_elem.is_hovered: self.ui_elem.dispatch_event('mouseclick')
+            self.ui_elem.del_pseudoclass('active')
 
     @CookieCutter.Draw('post2d')
     def draw_stuff(self):
@@ -122,5 +128,65 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             self.done(cancel=True)
             return
 
+
+
+
+
+class VIEW3D_OT_RetopoFlow_Tool(WorkSpaceTool):
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'OBJECT'
+
+    # The prefix of the idname should be your add-on name.
+    bl_idname = "cgcookie.retopoflow"
+    bl_label = "RetopoFlow"
+    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
+    bl_icon = "ops.mesh.polybuild_hover"
+    bl_widget = None
+    bl_keymap = (
+        ("view3d.select_circle", {"type": 'LEFTMOUSE', "value": 'PRESS'},
+         {"properties": [("wait_for_input", False)]}),
+        ("view3d.select_circle", {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
+         {"properties": [("mode", 'SUB'), ("wait_for_input", False)]}),
+    )
+
+    def draw_settings(context, layout, tool):
+        props = tool.operator_properties("view3d.select_circle")
+        layout.prop(props, "mode")
+        layout.prop(props, "radius")
+
+
+# class MyOtherTool(WorkSpaceTool):
+#     bl_space_type='VIEW_3D'
+#     bl_context_mode='OBJECT'
+
+#     bl_idname = "my_template.my_other_select"
+#     bl_label = "My Lasso Tool Select"
+#     bl_description = (
+#         "This is a tooltip\n"
+#         "with multiple lines"
+#     )
+#     bl_icon = "ops.generic.select_lasso"
+#     bl_widget = None
+#     bl_keymap = (
+#         ("view3d.select_lasso", {"type": 'LEFTMOUSE', "value": 'PRESS'}, None),
+#         ("view3d.select_lasso", {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
+#          {"properties": [("mode", 'SUB')]}),
+#     )
+
+#     def draw_settings(context, layout, tool):
+#         props = tool.operator_properties("view3d.select_lasso")
+#         layout.prop(props, "mode")
+
+
+# def register():
+#     bpy.utils.register_tool(MyTool, after={"builtin.scale_cage"}, separator=True, group=True)
+#     bpy.utils.register_tool(MyOtherTool, after={MyTool.bl_idname})
+
+# def unregister():
+#     bpy.utils.unregister_tool(MyTool)
+#     bpy.utils.unregister_tool(MyOtherTool)
+
+# if __name__ == "__main__":
+#     register()
 
 
