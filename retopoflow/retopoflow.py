@@ -79,10 +79,19 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             print(e)
 
         self.ui_elem = ui.button(label="Push Me!")
-        def clicked(e):
-            print('clicked!')
-        self.ui_elem.add_eventListener('mouseclick', clicked)
-        self.ui_y = 300
+        c = 0
+        def mouseclick(e):
+            nonlocal c
+            c += 1
+            self.ui_elem.innerText = "You've clicked me %d times.\nNew lines act like spaces here, but there is text wrapping!" % c
+        def mousedown(e):
+            self.ui_elem.innerText = "mouse is down!"
+        def mouseup(e):
+            self.ui_elem.innerText = "mouse is up!"
+        self.ui_elem.add_eventListener('mouseclick', mouseclick)
+        self.ui_elem.add_eventListener('mousedown', mousedown)
+        self.ui_elem.add_eventListener('mouseup', mouseup)
+        self.document.body.append_child(self.ui_elem)
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
 
@@ -90,31 +99,30 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.target.hide_viewport = False
 
     def update(self):
-        mx,my = self.actions.mouse if self.actions.mouse else (0,0)
-        n = 'button'
-        if self.ui_elem.get_under_mouse(mx, my):
-            self.ui_elem.add_pseudoclass('hover')
-            if self.actions.using('LEFTMOUSE'):
-                self.ui_elem.add_pseudoclass('active')
-        elif self.ui_elem.is_hovered:
-            self.ui_elem.del_pseudoclass('hover')
-        if not self.actions.using('LEFTMOUSE') and self.ui_elem.is_active:
-            if self.ui_elem.is_hovered: self.ui_elem.dispatch_event('mouseclick')
-            self.ui_elem.del_pseudoclass('active')
+        # mx,my = self.actions.mouse if self.actions.mouse else (0,0)
+        # if self.ui_elem.get_under_mouse(mx, my):
+        #     self.ui_elem.add_pseudoclass('hover')
+        #     if not self.ui_elem.is_active and self.actions.using('LEFTMOUSE'):
+        #         self.ui_elem.add_pseudoclass('active')
+        #         self.ui_elem.dispatch_event('mousedown')
+        # elif self.ui_elem.is_hovered:
+        #     self.ui_elem.del_pseudoclass('hover')
+        # if not self.actions.using('LEFTMOUSE') and self.ui_elem.is_active:
+        #     self.ui_elem.dispatch_event('mouseup')
+        #     self.ui_elem.del_pseudoclass('active')
+        #     if self.ui_elem.is_hovered: self.ui_elem.dispatch_event('mouseclick')
+        pass
 
     @CookieCutter.Draw('post2d')
     def draw_stuff(self):
         # will be done by ui system
-        ScissorStack.start(self.context)
-        Globals.ui_draw.update()
-        self.ui_elem.clean()
-        #self.ui_elem.layout()
-        self.ui_elem.position(500, self.ui_y, 200, 200)
-        self.ui_elem.draw()
-        #self.ui_elem._ui_draw.draw(500, 420, 200, 300, style)
-        #style = ui.styling.get_style([n])
-        #ui.ui_draw.draw()
-        ScissorStack.end()
+        # ScissorStack.start(self.context)
+        # Globals.ui_draw.update()
+        # self.ui_elem.clean()
+        # self.ui_elem.position(500, self.ui_y, 200, 200)
+        # self.ui_elem.draw()
+        # ScissorStack.end()
+        pass
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
