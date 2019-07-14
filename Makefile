@@ -12,9 +12,9 @@
 # /./././././././././././././././././././././././././././././././
 
 NAME            = RetopoFlow
-VERSION         = v3.0.0
-GIT_TAG         = v3.0.0
-GIT_TAG_MESSAGE = "Version 3.0.0"
+VERSION         = v2.80.0
+GIT_TAG         = v2.80.0
+GIT_TAG_MESSAGE = "Version 2.80.0"
 
 BUILD_DIR       = ../retopoflow_release
 ZIP_FILE        = $(NAME)_$(VERSION).zip
