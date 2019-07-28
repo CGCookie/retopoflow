@@ -92,6 +92,11 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.ui_elem.add_eventListener('mousedown', mousedown)
         self.ui_elem.add_eventListener('mouseup', mouseup)
         self.document.body.append_child(self.ui_elem)
+        self.document.body.append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
+        self.document.body.append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ0"))
+        self.document.body.append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ1"))
+        self.document.body.append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ2"))
+        self.document.body.append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ3"))
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
 
