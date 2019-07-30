@@ -96,6 +96,8 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         def reload_stylings(e):
             load_defaultstylings()
             self.document.body.dirty_styling()
+        self.ui_main['inside'].append_child(ui.img(src='contours_32.png'))
+        self.ui_main['inside'].append_child(ui.img(src='polystrips_32.png', style='width:26px; height:26px'))
         self.ui_main['inside'].append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
         self.ui_main['inside'].append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
         self.ui_main['inside'].append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ0"))
