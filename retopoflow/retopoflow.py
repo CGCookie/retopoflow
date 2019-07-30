@@ -30,6 +30,7 @@ from ..addon_common.common import drawing
 from ..addon_common.common.drawing import ScissorStack
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
+from ..addon_common.common.ui_styling import load_defaultstylings
 
 class VIEW3D_OT_RetopoFlow(CookieCutter):
     """Tooltip"""
@@ -92,16 +93,20 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             e.target.innerText = "mouse is down!"
         def mouseup(e):
             e.target.innerText = "mouse is up!"
+        def reload_stylings(e):
+            load_defaultstylings()
+            self.document.body.dirty_styling()
         self.ui_main['inside'].append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
         self.ui_main['inside'].append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
         self.ui_main['inside'].append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ0"))
         self.ui_main['inside'].append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ1"))
         self.ui_main['inside'].append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ2"))
         self.ui_main['inside'].append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ3"))
-        self.ui_main['inside'].append_child(ui.p(innerText="Foo Bar Baz"))
+        self.ui_main['inside'].append_child(ui.button(label="Reload", on_mouseclick=reload_stylings))
+        # self.ui_main['inside'].append_child(ui.p(innerText="Foo Bar Baz"))
         self.ui_main['inside'].append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
         self.ui_main['inside'].append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-        self.ui_main['inside'].append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
+        # self.ui_main['inside'].append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
 
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
