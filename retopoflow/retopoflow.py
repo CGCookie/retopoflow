@@ -79,50 +79,55 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             print('could not load stylesheet "%s"' % path)
             print(e)
 
-        self.ui_main = ui.framed_dialog(label='RetopoFlow')
-        self.document.body.append_child(self.ui_main)
-        c = 0
-        def mouseclick(e):
-            nonlocal c
-            c += 1
-            e.target.innerText = "You've clicked me %d times.\nNew lines act like spaces here, but there is text wrapping!" % c
-        def mousedblclick(e):
-            e.target.innerText = "NO!!!!  You've double clicked me!!!!"
-            e.target.add_pseudoclass('disabled')
-        def mousedown(e):
-            e.target.innerText = "mouse is down!"
-        def mouseup(e):
-            e.target.innerText = "mouse is up!"
-        def reload_stylings(e):
-            load_defaultstylings()
-            self.document.body.dirty_styling()
-        def width_increase(e):
-            self.ui_main.width = self.ui_main.width_pixels + 50
-        def width_decrease(e):
-            self.ui_main.width = self.ui_main.width_pixels - 50
-        self.ui_main.append_child(ui.img(src='contours_32.png'))
-        self.ui_main.append_child(ui.img(src='polystrips_32.png', style='width:26px; height:26px'))
-        self.ui_main.append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
-        self.ui_main.append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
-        self.ui_main.append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 0"))
-        self.ui_main.append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 1"))
-        self.ui_main.append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 2"))
-        self.ui_main.append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 3"))
-        self.ui_main.append_child(ui.br())
-        self.ui_main.append_child(ui.button(label="Reload Styles Now", on_mouseclick=reload_stylings))
-        self.ui_main.append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-        self.ui_main.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
+        def setup_ui():
+            self.ui_main = ui.framed_dialog(label='RetopoFlow')
+            self.document.body.append_child(self.ui_main)
+            c = 0
+            def mouseclick(e):
+                nonlocal c
+                c += 1
+                e.target.innerText = "You've clicked me %d times.\nNew lines act like spaces here, but there is text wrapping!" % c
+            def mousedblclick(e):
+                e.target.innerText = "NO!!!!  You've double clicked me!!!!"
+                e.target.add_pseudoclass('disabled')
+            def mousedown(e):
+                e.target.innerText = "mouse is down!"
+            def mouseup(e):
+                e.target.innerText = "mouse is up!"
+            def reload_stylings(e):
+                load_defaultstylings()
+                self.document.body.dirty_styling()
+            def width_increase(e):
+                self.ui_main.width = self.ui_main.width_pixels + 50
+            def width_decrease(e):
+                self.ui_main.width = self.ui_main.width_pixels - 50
+            self.ui_main.append_child(ui.img(src='contours_32.png'))
+            self.ui_main.append_child(ui.img(src='polystrips_32.png', style='width:26px; height:26px'))
+            self.ui_main.append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
+            self.ui_main.append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
+            self.ui_main.append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 0"))
+            self.ui_main.append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 1"))
+            self.ui_main.append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 2"))
+            self.ui_main.append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 3"))
+            self.ui_main.append_child(ui.br())
+            self.ui_main.append_child(ui.button(label="Reload Styles Now", on_mouseclick=reload_stylings))
+            self.ui_main.append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
+            self.ui_main.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
 
-        self.ui_tools = ui.framed_dialog(label='Tools')
-        self.document.body.append_child(self.ui_tools)
-        self.ui_tools.append_child(ui.p(innerText="Foo Bar Baz"))
-        self.ui_tools.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-        div_width = self.ui_tools.append_child(ui.div())
-        div_width.append_child(ui.span(innerText='width:'))
-        div_width.append_child(ui.button(label='+', on_mouseclick=width_increase))
-        div_width.append_child(ui.button(label='-', on_mouseclick=width_decrease))
-        self.ui_tools.right = 0
-        self.ui_tools.top = 0
+            self.ui_tools = ui.framed_dialog(label='Tools')
+            self.document.body.append_child(self.ui_tools)
+            state_p = self.ui_tools.append_child(ui.p())
+            state_p.append_child(ui.span(innerText='State:'))
+            self.state = state_p.append_child(ui.span(innerText='???'))
+            self.ui_tools.append_child(ui.p(innerText="Foo Bar Baz"))
+            self.ui_tools.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
+            div_width = self.ui_tools.append_child(ui.div())
+            div_width.append_child(ui.span(innerText='width:'))
+            div_width.append_child(ui.button(label='+', on_mouseclick=width_increase))
+            div_width.append_child(ui.button(label='-', on_mouseclick=width_decrease))
+            self.ui_tools.right = 0
+            self.ui_tools.top = 0
+        setup_ui()
 
 
         #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
@@ -131,30 +136,15 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.target.hide_viewport = False
 
     def update(self):
-        # mx,my = self.actions.mouse if self.actions.mouse else (0,0)
-        # if self.ui_elem.get_under_mouse(mx, my):
-        #     self.ui_elem.add_pseudoclass('hover')
-        #     if not self.ui_elem.is_active and self.actions.using('LEFTMOUSE'):
-        #         self.ui_elem.add_pseudoclass('active')
-        #         self.ui_elem.dispatch_event('mousedown')
-        # elif self.ui_elem.is_hovered:
-        #     self.ui_elem.del_pseudoclass('hover')
-        # if not self.actions.using('LEFTMOUSE') and self.ui_elem.is_active:
-        #     self.ui_elem.dispatch_event('mouseup')
-        #     self.ui_elem.del_pseudoclass('active')
-        #     if self.ui_elem.is_hovered: self.ui_elem.dispatch_event('mouseclick')
         pass
 
     @CookieCutter.Draw('post2d')
-    def draw_stuff(self):
-        # will be done by ui system
-        # ScissorStack.start(self.context)
-        # Globals.ui_draw.update()
-        # self.ui_elem.clean()
-        # self.ui_elem.position(500, self.ui_y, 200, 200)
-        # self.ui_elem.draw()
-        # ScissorStack.end()
+    def draw_stuff_foobar(self):
         pass
+
+    @CookieCutter.FSM_State('main', 'enter')
+    def modal_main_enter(self):
+        self.state.innerText = 'main'
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
@@ -168,6 +158,23 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             self.done(cancel=True)
             return
 
+        if self.actions.pressed('F'):
+            return 'foobar'
+
+    @CookieCutter.FSM_State('foobar', 'enter')
+    def modal_foobar_enter(self):
+        self.state.innerText = 'foobar'
+
+    @CookieCutter.FSM_State('foobar')
+    def modal_foobar(self):
+        if self.actions.shift:
+            print('SHIFTING!!')
+        if self.actions.pressed('commit'):
+            print('committing!')
+            return 'main'
+        if self.actions.pressed('cancel'):
+            print('canceling!')
+            return 'main'
 
 
 
