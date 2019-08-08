@@ -121,8 +121,8 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             state_p.append_child(ui.span(innerText='State:'))
             self.state = state_p.append_child(ui.span(innerText='???'))
             self.ui_tools.append_child(ui.p(innerText="Foo Bar Baz"))
-            ui_input = self.ui_tools.append_child(ui.input_text(id="inputtext", value="test2", innerText="test2"))
-            ui_input.value = 'test'
+            ui_input = self.ui_tools.append_child(ui.input_text(id="inputtext"))
+            ui_input.value = 'Lorem   ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
             div_width = self.ui_tools.append_child(ui.div())
             div_width.append_child(ui.span(innerText='width:'))
             div_width.append_child(ui.button(label='+', on_mouseclick=width_increase))
