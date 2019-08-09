@@ -112,6 +112,11 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
             self.ui_main.append_child(ui.br())
             self.ui_main.append_child(ui.button(label="Reload Styles Now", on_mouseclick=reload_stylings))
             self.ui_main.append_child(ui.input_checkbox(label="test"))
+            self.ui_main.append_child(ui.br())
+            self.ui_main.append_child(ui.span(innerText="Options:"))
+            self.ui_main.append_child(ui.input_radio(label="A", value="A", name="option"))
+            self.ui_main.append_child(ui.input_radio(label="B", value="B", name="option"))
+            self.ui_main.append_child(ui.input_radio(label="C", value="C", name="option"))
             # self.ui_main.append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
             # self.ui_main.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
 
