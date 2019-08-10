@@ -25,6 +25,8 @@ import bpy
 import bmesh
 from bpy.types import WorkSpaceTool
 
+from .retopoflow_ui import RetopoFlow_UI
+
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import drawing
 from ..addon_common.common.drawing import ScissorStack
@@ -32,7 +34,7 @@ from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
 from ..addon_common.common.ui_styling import load_defaultstylings
 
-class VIEW3D_OT_RetopoFlow(CookieCutter):
+class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_UI):
     """Tooltip"""
     bl_idname = "cgcookie.retopoflow"
     bl_label = "RetopoFlow"
@@ -64,97 +66,14 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         self.sources = [o for o in bpy.data.objects if o != self.target and o.type == "MESH" and o.visible_get()]
         print('sources: %s' % ', '.join(o.name for o in self.sources))
         print('target: %s' % self.target.name)
-        self.manipulator_hide()
-        self.panels_hide()
-        self.overlays_hide()
-        self.region_darken()
-        self.header_text_set('RetopoFlow')
-        self.target.hide_viewport = True
 
-        path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
-        try:
-            Globals.ui_draw.load_stylesheet(path)
-        except AssertionError as e:
-            # TODO: show proper dialog to user here!!
-            print('could not load stylesheet "%s"' % path)
-            print(e)
-
-        def setup_ui():
-            self.ui_main = ui.framed_dialog(label='RetopoFlow')
-            self.document.body.append_child(self.ui_main)
-            c = 0
-            def mouseclick(e):
-                nonlocal c
-                c += 1
-                e.target.innerText = "You've clicked me %d times.\nNew lines act like spaces here, but there is text wrapping!" % c
-            def mousedblclick(e):
-                e.target.innerText = "NO!!!!  You've double clicked me!!!!"
-                e.target.add_pseudoclass('disabled')
-            def mousedown(e):
-                e.target.innerText = "mouse is down!"
-            def mouseup(e):
-                e.target.innerText = "mouse is up!"
-            def reload_stylings(e):
-                load_defaultstylings()
-                self.document.body.dirty_styling()
-            def width_increase(e):
-                self.ui_main.width = self.ui_main.width_pixels + 50
-            def width_decrease(e):
-                self.ui_main.width = self.ui_main.width_pixels - 50
-            self.ui_main.append_child(ui.img(src='contours_32.png'))
-            # self.ui_main.append_child(ui.img(src='polystrips_32.png', style='width:26px; height:26px'))
-            # self.ui_main.append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
-            # self.ui_main.append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
-            # self.ui_main.append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 0"))
-            # self.ui_main.append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 1"))
-            # self.ui_main.append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 2"))
-            # self.ui_main.append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 3"))
-            self.ui_main.append_child(ui.br())
-            self.ui_main.append_child(ui.button(label="Reload Styles Now", on_mouseclick=reload_stylings))
-            self.ui_main.append_child(ui.input_checkbox(label="test"))
-            self.ui_main.append_child(ui.br())
-            self.ui_main.append_child(ui.span(innerText="Options:"))
-            self.ui_main.append_child(ui.input_radio(label="A", value="A", name="option"))
-            self.ui_main.append_child(ui.input_radio(label="B", value="B", name="option"))
-            self.ui_main.append_child(ui.input_radio(label="C", value="C", name="option"))
-            # self.ui_main.append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-            # self.ui_main.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-
-            # self.ui_tools = ui.framed_dialog(id='toolsframe', label='Tools')
-            # self.document.body.append_child(self.ui_tools)
-            self.ui_tools = self.ui_main
-            state_p = self.ui_tools.append_child(ui.p())
-            state_p.append_child(ui.span(innerText='State:'))
-            self.state = state_p.append_child(ui.span(innerText='???'))
-            self.ui_tools.append_child(ui.p(innerText="Foo Bar Baz"))
-            ui_input = self.ui_tools.append_child(ui.input_text(id="inputtext"))
-            ui_input.value = 'Lorem   ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
-            div_width = self.ui_tools.append_child(ui.div())
-            div_width.append_child(ui.span(innerText='width:'))
-            div_width.append_child(ui.button(label='+', on_mouseclick=width_increase))
-            div_width.append_child(ui.button(label='-', on_mouseclick=width_decrease))
-            div_width.append_child(ui.button(label='=')).add_pseudoclass('disabled')
-            self.ui_tools.right = 0
-            self.ui_tools.top = 0
-            print(self.document.body.structure())
-        setup_ui()
-
-
-        #win_tools = self.wm.create_window('RetopoFlow', {'pos':7, 'movable':True, 'bgcolor':(0.5,0.5,0.5,0.9)})
+        self.setup_ui()
 
     def end(self):
         self.target.hide_viewport = False
 
     def update(self):
         pass
-
-    @CookieCutter.Draw('post2d')
-    def draw_stuff_foobar(self):
-        pass
-
-    @CookieCutter.FSM_State('main', 'enter')
-    def modal_main_enter(self):
-        self.state.innerText = 'main'
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
@@ -167,24 +86,6 @@ class VIEW3D_OT_RetopoFlow(CookieCutter):
         if self.actions.pressed('cancel'):
             self.done(cancel=True)
             return
-
-        if self.actions.pressed('F'):
-            return 'foobar'
-
-    @CookieCutter.FSM_State('foobar', 'enter')
-    def modal_foobar_enter(self):
-        self.state.innerText = 'foobar'
-
-    @CookieCutter.FSM_State('foobar')
-    def modal_foobar(self):
-        if self.actions.shift:
-            print('SHIFTING!!')
-        if self.actions.pressed('commit'):
-            print('committing!')
-            return 'main'
-        if self.actions.pressed('cancel'):
-            print('canceling!')
-            return 'main'
 
 
 

@@ -4,5 +4,62 @@
     right now, this is a test stylesheet.
 */
 
-body {
+* {
+    color: white;
 }
+
+button {
+    display: block;
+    width: 100%;
+    margin: 0px 2px;
+}
+
+dialog#maindialog {
+    width: 150px;
+    min-width: 50px;
+    max-width: 500px;
+}
+
+dialog.framed > div.inside {
+    margin: 0px;
+    padding: 0px 0px 2px 0px;
+}
+
+dialog#maindialog > div#tools {
+    margin: 2px;
+}
+
+
+input.tool[type="radio"] {
+    margin: 0px;
+    width: 100%;
+    display: block;
+    padding: 5px;
+}
+input.tool[type="radio"] > img {
+    display: none;
+}
+input.tool[type="radio"]:hover {
+    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+input.tool[type="radio"][checked] {
+    background: hsla(200, 100%, 62.5%, 1.0);
+}
+input.tool[type="radio"]:active {
+    background: hsla(200, 100%, 75%, 1.0);
+}
+input.tool[type="radio"] label {
+    border: 0px;
+    color: white;
+    padding: 0px;
+    margin: 0px;
+}
+input.tool[type="radio"][checked] label {
+    color: black;
+}
+input.tool[type="radio"]:active label {
+    color: black;
+}
+
+
+
