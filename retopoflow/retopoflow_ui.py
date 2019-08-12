@@ -106,17 +106,22 @@ class RetopoFlow_UI:
             ui.button(label="All", parent=ui_target_snapverts)
             ui.button(label="Selected", parent=ui_target_snapverts)
             ui_target_removedbls = ui.collapsible(label='Remove Doubles', id='removedoubles', parent=ui_target_cleaning)
-            ui.input_text(value='Distance = 0.001', parent=ui_target_removedbls)
+            ui.labeled_input_text(label='Distance', value='0.001', parent=ui_target_removedbls)
             ui.button(label="All", parent=ui_target_removedbls)
             ui.button(label="Selected", parent=ui_target_removedbls)
 
             ui_target_rendering = ui.collapsible(label="Target Rendering", parent=ui_general)
-            ui.input_text(value='Above = 100', parent=ui_target_rendering)
-            ui.input_text(value='Below = 10', parent=ui_target_rendering)
-            ui.input_text(value='Backface = 20', parent=ui_target_rendering)
+            ui.labeled_input_text(label='Above', value='100', parent=ui_target_rendering)
+            ui.labeled_input_text(label='Below', value='10', parent=ui_target_rendering)
+            ui.labeled_input_text(label='Backface', value='20', parent=ui_target_rendering)
             ui.input_checkbox(label='Cull Backfaces', parent=ui_target_rendering)
 
             ui_symmetry = ui.collapsible(label='Symmetry', id='symmetryoptions', parent=self.ui_options)
+
+            #test
+            ui.labeled_input_text(label='Above', value='100', parent=self.ui_options)
+            ui.labeled_input_text(label='Below', value='10', parent=self.ui_options)
+            ui.labeled_input_text(label='Backface', value='20', parent=self.ui_options)
 
         '''
             # c = 0
