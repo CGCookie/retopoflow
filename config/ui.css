@@ -68,12 +68,12 @@ button:disabled {
 
 
 button.dialog-close {
-    margin: 0px 4px 0px 0px;
+    margin: 2px 4px 2px 0px;
     padding: 2px;
-    border: 0px;
+    border: 1px rgba(0,0,0,0.4);
     display: inline;
     width: 20px;
-    height: 16px;
+    height: 20px;
     background: rgba(0,0,0,0.25) url('close.png');
 }
 button.dialog-close:hover {
