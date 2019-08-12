@@ -67,6 +67,18 @@ button:disabled {
 
 
 
+button.dialog-close {
+    margin: 0px 4px 0px 0px;
+    padding: 2px;
+    border: 0px;
+    display: inline;
+    width: 20px;
+    height: 16px;
+    background: rgba(0,0,0,0.25) url('close.png');
+}
+button.dialog-close:hover {
+    background-color: rgba(255,255,255,0.25);
+}
 
 dialog.framed > div.inside {
     margin: 0px;
@@ -158,11 +170,11 @@ div.collapsible > input.header:hover {
     background: rgba(32, 32, 32, 1.00);
 }
 div.collapsible > input.header > img {
-    margin: 0px;
+    margin: 2px 2px 0px 0px;
     padding: 0px;
     border: 0px;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
 }
 div.collapsible > div.inside {
     border: 1px rgba(64,64,64,0.5);
