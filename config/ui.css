@@ -4,6 +4,33 @@
     right now, this is a test stylesheet.
 */
 
+
+dialog#maindialog {
+    width: 150px;
+    min-width: 50px;
+    max-width: 500px;
+    padding: 0px;
+}
+dialog#maindialog * {
+    overflow-x: hidden;
+}
+
+dialog#optionsdialog {
+    width: 250px;
+    min-width: 150px;
+    max-width: 500px;
+}
+
+dialog#welcomedialog {
+    left: 100px;
+    min-width: 500px;
+    width: 600px;
+    max-width: 1000px;
+    background: rgba(64,64,64,0.9);
+}
+
+
+
 * {
     color: white;
 }
@@ -12,54 +39,133 @@ button {
     display: block;
     width: 100%;
     margin: 0px 2px;
+    background: rgba(64, 64, 64, 0.25);
+    border: 1px rgba(0,0,0,0.25);
+}
+button:focus {
+    background: rgba(64, 64, 64, 1.00);
+}
+button:active {
+    color: black;
+    /*background: rgb(192,128,128);*/
+    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
+}
+button:hover {
+    background: rgba(64, 64, 64, 1.00); /* hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+}
+button:active:hover {
+    color: black;
+    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
+}
+button:disabled {
+    background-color: rgb(128,128,128);
+    color: rgb(192,192,192);
+    /*border-width: 1px;*/
+    border-color: rgb(96,96,96);
+    cursor: default;
 }
 
-dialog#maindialog {
-    width: 150px;
-    min-width: 50px;
-    max-width: 500px;
-}
+
+
 
 dialog.framed > div.inside {
     margin: 0px;
     padding: 0px 0px 2px 0px;
 }
 
-dialog#maindialog > div#tools {
-    margin: 2px;
+div#tools {
+    border: 1px black;
+    margin: 1px 1px 4px 1px;
 }
 
-
-input.tool[type="radio"] {
+input.tool {
     margin: 0px;
     width: 100%;
     display: block;
-    padding: 5px;
+    padding: 0px;
 }
-input.tool[type="radio"] > img {
+input.tool > img {
     display: none;
 }
-input.tool[type="radio"]:hover {
+input.tool:hover {
     background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
-input.tool[type="radio"][checked] {
+input.tool[checked] {
     background: hsla(200, 100%, 62.5%, 1.0);
 }
-input.tool[type="radio"]:active {
-    background: hsla(200, 100%, 75%, 1.0);
+input.tool:active {
+    background: hsla(200, 100%, 62.5%, 0.5);
 }
-input.tool[type="radio"] label {
-    border: 0px;
+input.tool:active:hover {
+    background: hsla(200, 100%, 62.5%, 0.75);
+}
+input.tool > label {
+    border: 0px white;
     color: white;
     padding: 0px;
     margin: 0px;
+    /*height:20px;*/
+    width: 100%;
+    padding: 1px;
 }
-input.tool[type="radio"][checked] label {
+input.tool[checked] label {
     color: black;
 }
-input.tool[type="radio"]:active label {
+input.tool:active label {
     color: black;
+}
+input.tool > label > img {
+    display: inline;
+    border-radius: 0px;
+    border:0px white;
+    padding:0px;
+    margin:0px;
+    width:20px;
+    height:20px;
+}
+input.tool > label > label {
+    border: 0px;
+    padding:2px 0px; margin:0px; margin-left: 4px;
 }
 
 
 
+input[type="text"]:hover {
+    color: black;
+}
+input[type="text"]:focus {
+    color: black;
+}
+input[type="text"] span.inputtextcursor {
+    color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
+}
+
+
+
+div.collapsible {
+    margin: 0px;
+    border: 1px rgba(64,64,64,0.125);
+    padding: 1px;
+}
+div.collapsible > input.header {
+    display: block;
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    border: 0px;
+}
+div.collapsible > input.header:hover {
+    background: rgba(32, 32, 32, 1.00);
+}
+div.collapsible > input.header > img {
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    width: 16px;
+    height: 16px;
+}
+div.collapsible > div.inside {
+    border: 1px rgba(64,64,64,0.5);
+    padding: 2px 2px 2px 8px;
+    margin: 0px;
+}

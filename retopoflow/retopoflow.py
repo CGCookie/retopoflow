@@ -32,6 +32,7 @@ from ..addon_common.common import drawing
 from ..addon_common.common.drawing import ScissorStack
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
+from ..addon_common.common.profiler import profiler
 from ..addon_common.common.ui_styling import load_defaultstylings
 
 class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_UI):
@@ -73,6 +74,7 @@ class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_UI):
         self.target.hide_viewport = False
 
     def update(self):
+        profiler.printfile()
         pass
 
     @CookieCutter.FSM_State('main')

@@ -24,11 +24,32 @@ import os
 import bpy
 import bmesh
 
+from .help import help_welcome
+
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import ui
 from ..addon_common.common.ui_styling import load_defaultstylings
+from ..addon_common.common.profiler import profiler
+
+def reload_stylings():
+    load_defaultstylings()
+    path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
+    try:
+        Globals.ui_draw.load_stylesheet(path)
+    except AssertionError as e:
+        # TODO: show proper dialog to user here!!
+        print('could not load stylesheet "%s"' % path)
+        print(e)
+    Globals.ui_document.body.dirty_styling()
 
 class RetopoFlow_UI:
+    def open_welcome(self):
+        def close():
+            self.document.body.delete_child(ui_welcome)
+        ui_welcome = ui.framed_dialog(label='Welcome!!', id='welcomedialog', parent=self.document.body)
+        ui.markdown(mdown=help_welcome, parent=ui_welcome)
+        ui.button(label='Close', parent=ui_welcome, on_mouseclick=close)
+
     def setup_ui(self):
         self.manipulator_hide()
         self.panels_hide()
@@ -38,13 +59,7 @@ class RetopoFlow_UI:
         self.target.hide_viewport = True
 
         # load ui.css
-        path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
-        try:
-            Globals.ui_draw.load_stylesheet(path)
-        except AssertionError as e:
-            # TODO: show proper dialog to user here!!
-            print('could not load stylesheet "%s"' % path)
-            print(e)
+        reload_stylings()
 
         def setup_main_ui():
             self.ui_main = ui.framed_dialog(label='RetopoFlow 2.1.0α', id="maindialog", parent=self.document.body)
@@ -56,8 +71,8 @@ class RetopoFlow_UI:
                 nonlocal count
                 count += 1
                 radio = ui.input_radio(value=lbl.lower(), name="tool", classes="tool", checked=(count==1), parent=ui_tools)
-                ui.img(src=img, parent=radio, style="width:20px; height:20px; border:0px; padding:0px; margin:0px")
-                ui.label(innerText=lbl, parent=radio, style="padding:2px 0px; margin:0px; margin-left: 4px")
+                ui.img(src=img, parent=radio)
+                ui.label(innerText=lbl, parent=radio)
             add_tool("Contours",   "contours_32.png")
             add_tool("PolyStrips", "polystrips_32.png")
             add_tool("PolyPen", "polypen_32.png")
@@ -67,12 +82,15 @@ class RetopoFlow_UI:
             add_tool("Relax", "relax_32.png")
             add_tool("Tweak", "tweak_32.png")
 
-            ui.button(label='Welcome!', parent=self.ui_main)
+            ui.button(label='Welcome!', parent=self.ui_main, on_mouseclick=self.open_welcome)
             ui.button(label='All Help', parent=self.ui_main)
             ui.button(label='General Help', parent=self.ui_main)
             ui.button(label='Tool Help', parent=self.ui_main)
             ui.button(label='Report Issue', parent=self.ui_main)
-            ui.button(label='Exit', parent=self.ui_main)
+            ui.button(label='Exit', parent=self.ui_main, on_mouseclick=self.done)
+            ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
+            ui.button(label='Profiler', parent=self.ui_main, on_mouseclick=profiler.printout)
+            ui.button(label='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
 
 
         def setup_options():
