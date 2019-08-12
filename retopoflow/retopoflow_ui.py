@@ -40,7 +40,9 @@ def reload_stylings():
         # TODO: show proper dialog to user here!!
         print('could not load stylesheet "%s"' % path)
         print(e)
+    Globals.ui_document.body.dirty('Reloaded stylings', children=True)
     Globals.ui_document.body.dirty_styling()
+    Globals.ui_document.body.dirty_flow()
 
 class RetopoFlow_UI:
     def open_welcome(self):
