@@ -24,6 +24,7 @@ import os
 import bpy
 import bmesh
 from bpy.types import WorkSpaceTool
+import random
 
 from .retopoflow_ui import RetopoFlow_UI
 from .retopoflow_tools import RetopoFlow_Tools
@@ -72,12 +73,13 @@ class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_Tools, RetopoFlow_UI):
         self.setup_tools()
         self.setup_ui()
 
+        self.ui_tools = self.document.body.getElementsByName('tool')
+
     def end(self):
         self.target.hide_viewport = False
 
     def update(self):
-        profiler.printfile()
-        pass
+        self.selected_tool.update()
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):

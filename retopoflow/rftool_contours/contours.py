@@ -30,6 +30,7 @@ class RFTool_Contours(RFTool):
 
 class Contours(RFTool_Contours, Contours_Ops):
     def update(self):
+        return
         sel_edges = self.rfcontext.get_selected_edges()
         #sel_faces = self.rfcontext.get_selected_faces()
 

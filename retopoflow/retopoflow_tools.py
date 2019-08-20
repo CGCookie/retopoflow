@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+# the order of these tools dictates the order tools show in UI
 from .rftool_contours.contours     import Contours
 from .rftool_polystrips.polystrips import PolyStrips
 from .rftool_polypen.polypen       import PolyPen

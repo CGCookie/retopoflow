@@ -67,23 +67,19 @@ class RetopoFlow_UI:
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
-            count = 0
-            def add_tool(lbl, img):
-                nonlocal count
-                count += 1
-                radio = ui.input_radio(value=lbl.lower(), name="tool", classes="tool", checked=(count==1), parent=ui_tools)
+            # def select(lbl):
+            #     self.selected_tool = lbl
+            def add_tool(rftool):
+                # must be a fn so that local vars are unique and correctly captured
+                lbl, img = rftool.name, rftool.icon
+                checked = not hasattr(add_tool, 'notfirst')
+                if checked: self.selected_tool = rftool
+                radio = ui.input_radio(value=lbl.lower(), name="tool", classes="tool", checked=checked, parent=ui_tools)
+                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.selected_tool=rftool'''))
                 ui.img(src=img, parent=radio)
                 ui.label(innerText=lbl, parent=radio)
-            # add_tool("Contours",   "contours_32.png")
-            # add_tool("PolyStrips", "polystrips_32.png")
-            # add_tool("PolyPen", "polypen_32.png")
-            # add_tool("Strokes", "strokes_32.png")
-            # add_tool("Patches", "patches_32.png")
-            # add_tool("Loops", "loops_32.png")
-            # add_tool("Relax", "relax_32.png")
-            # add_tool("Tweak", "tweak_32.png")
-            for rftool in self.rftools:
-                add_tool(rftool.name, rftool.icon)
+                add_tool.notfirst = True
+            for rftool in self.rftools: add_tool(rftool)
 
             ui.button(label='Welcome!', parent=self.ui_main, on_mouseclick=self.open_welcome)
             ui.button(label='All Help', parent=self.ui_main)

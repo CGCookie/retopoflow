@@ -29,11 +29,15 @@ class RFTool:
     registry = []
 
     def __init_subclass__(cls, *args, **kwargs):
-        if hasattr(cls, '_rftool'): return
-        RFTool.registry.append(cls)
-        cls._rftool = True
-        cls._fsm = FSM()
-        cls.FSM_State = cls._fsm.wrapper
+        if hasattr(cls, '_rftool'):
+            # update registry, but do not add new FSM
+            RFTool.registry[cls._rftool] = cls
+        else:
+            # add to registry and add FSM
+            cls._rftool = len(RFTool.registry)
+            RFTool.registry.append(cls)
+            cls._fsm = FSM()
+            cls.FSM_State = cls._fsm.wrapper
         super().__init_subclass__(*args, **kwargs)
 
     def __init__(self, rfcontext):
