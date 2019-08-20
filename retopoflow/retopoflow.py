@@ -26,6 +26,7 @@ import bmesh
 from bpy.types import WorkSpaceTool
 
 from .retopoflow_ui import RetopoFlow_UI
+from .retopoflow_tools import RetopoFlow_Tools
 
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import drawing
@@ -35,7 +36,7 @@ from ..addon_common.common import ui
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.ui_styling import load_defaultstylings
 
-class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_UI):
+class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_Tools, RetopoFlow_UI):
     """Tooltip"""
     bl_idname = "cgcookie.retopoflow"
     bl_label = "RetopoFlow"
@@ -68,6 +69,7 @@ class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_UI):
         print('sources: %s' % ', '.join(o.name for o in self.sources))
         print('target: %s' % self.target.name)
 
+        self.setup_tools()
         self.setup_ui()
 
     def end(self):
