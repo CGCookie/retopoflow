@@ -36,7 +36,6 @@ from copy import deepcopy
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 
-import bgl
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
@@ -112,6 +111,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         if o.select_get() and o == bpy.context.active_object: return False
+        if not o.visible_get(): return False
         if not o.data.polygons: return False
         return True
 
@@ -133,6 +133,7 @@ class RFContext(RFContext_Drawing, RFContext_UI, RFContext_Spaces, RFContext_Tar
         if type(o.data) is not bpy.types.Mesh: return False
         if not o.select_get(): return False
         if o != bpy.context.active_object: return False
+        if not o.visible_get(): return False
         return True
 
     @staticmethod

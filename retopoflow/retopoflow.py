@@ -28,16 +28,16 @@ import random
 
 from .retopoflow_ui import RetopoFlow_UI
 from .retopoflow_tools import RetopoFlow_Tools
+from .retopoflow_states import RetopoFlow_States
 
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import drawing
 from ..addon_common.common.drawing import ScissorStack
-from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..addon_common.common import ui
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.ui_styling import load_defaultstylings
 
-class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_Tools, RetopoFlow_UI):
+class VIEW3D_OT_RetopoFlow(RetopoFlow_Tools, RetopoFlow_UI, RetopoFlow_States):
     """Tooltip"""
     bl_idname = "cgcookie.retopoflow"
     bl_label = "RetopoFlow"
@@ -47,8 +47,11 @@ class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_Tools, RetopoFlow_UI):
     bl_options = {'REGISTER', 'UNDO'}
 
     default_keymap = {
+        'undo': {'CTRL+Z'},
+        'redo': {'CTRL+SHIFT+Z'},
         'commit': {'TAB',},
         'cancel': {'ESC',},
+        'help': {'F1'},
     }
 
     @classmethod
@@ -70,28 +73,13 @@ class VIEW3D_OT_RetopoFlow(CookieCutter, RetopoFlow_Tools, RetopoFlow_UI):
         print('sources: %s' % ', '.join(o.name for o in self.sources))
         print('target: %s' % self.target.name)
 
-        self.setup_tools()
+        self.setup_rftools()
         self.setup_ui()
 
         self.ui_tools = self.document.body.getElementsByName('tool')
 
     def end(self):
         self.target.hide_viewport = False
-
-    def update(self):
-        self.selected_tool.update()
-
-    @CookieCutter.FSM_State('main')
-    def modal_main(self):
-        # self.cursor_modal_set('CROSSHAIR')
-
-        if self.actions.pressed('commit'):
-            self.done()
-            return
-
-        if self.actions.pressed('cancel'):
-            self.done(cancel=True)
-            return
 
 
 
@@ -121,6 +109,8 @@ class VIEW3D_OT_RetopoFlow_Tool(WorkSpaceTool):
         props = tool.operator_properties("view3d.select_circle")
         layout.prop(props, "mode")
         layout.prop(props, "radius")
+
+
 
 
 # class MyOtherTool(WorkSpaceTool):

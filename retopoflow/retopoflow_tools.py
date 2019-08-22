@@ -32,6 +32,10 @@ from .rftool_tweak.tweak           import Tweak
 from .rftool import RFTool
 
 class RetopoFlow_Tools:
-    def setup_tools(self):
+    def setup_rftools(self):
         self.rftools = [rftool(None) for rftool in RFTool.registry]
 
+    def rftool_select(self, rftool):
+        assert rftool in self.rftools
+        self.rftool = rftool
+        self.document.body.getElementById('tool-%s'%rftool.name.lower()).checked = True

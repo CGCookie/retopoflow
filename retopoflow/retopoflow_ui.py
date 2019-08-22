@@ -68,14 +68,14 @@ class RetopoFlow_UI:
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
             # def select(lbl):
-            #     self.selected_tool = lbl
+            #     self.rftool = lbl
             def add_tool(rftool):
                 # must be a fn so that local vars are unique and correctly captured
                 lbl, img = rftool.name, rftool.icon
                 checked = not hasattr(add_tool, 'notfirst')
-                if checked: self.selected_tool = rftool
-                radio = ui.input_radio(value=lbl.lower(), name="tool", classes="tool", checked=checked, parent=ui_tools)
-                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.selected_tool=rftool'''))
+                if checked: self.rftool = rftool
+                radio = ui.input_radio(id='tool-%s'%lbl.lower(), value=lbl.lower(), name="tool", classes="tool", checked=checked, parent=ui_tools)
+                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.rftool=rftool'''))
                 ui.img(src=img, parent=radio)
                 ui.label(innerText=lbl, parent=radio)
                 add_tool.notfirst = True
