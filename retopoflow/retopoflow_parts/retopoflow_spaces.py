@@ -31,6 +31,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Vec, Direction, Normal
 from ...addon_common.common.maths import Ray, XForm, Plane
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
+from ...addon_common.common.decorators import blender_version_wrapper
 
 
 class RetopoFlow_Spaces:
@@ -130,14 +131,29 @@ class RetopoFlow_Spaces:
     #############################################
     # return camera up and right vectors
 
+    @blender_version_wrapper('<', '2.80')
     def Vec_up(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,1,0))
+    @blender_version_wrapper('>=', '2.80')
+    def Vec_up(self):
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((0,1,0))
 
+    @blender_version_wrapper('<', '2.80')
     def Vec_right(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((1,0,0))
+    @blender_version_wrapper('>=', '2.80')
+    def Vec_right(self):
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((1,0,0))
 
+    @blender_version_wrapper('<', '2.80')
     def Vec_forward(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,0,-1))
+    @blender_version_wrapper('>=', '2.80')
+    def Vec_forward(self):
+        # TODO: remove invert!
+        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((0,0,-1))

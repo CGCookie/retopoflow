@@ -1357,7 +1357,8 @@ class RFTarget(RFMesh):
         super().clean()
         if self.editmesh_version == self.get_version(): return
         self.editmesh_version = self.get_version()
-        self.bme.to_mesh(self.obj.data)
+        #self.bme.to_mesh(self.obj.data)
+        bmesh.update_edit_mesh(self.obj.data)
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
         for bme,eme in zip(self.bme.edges, self.obj.data.edges):

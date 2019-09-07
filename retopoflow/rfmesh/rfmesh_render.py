@@ -297,8 +297,9 @@ class RFMeshRender():
     @profiler.profile
     def _draw_buffered(self, alpha_above, alpha_below, cull_backfaces, alpha_backface):
         opts = dict(self.opts)
-        for xyz in self.rfmesh.symmetry:
-            opts['mirror %s' % xyz] = True
+        if self.rfmesh.mirror_mod:
+            for xyz in self.rfmesh.mirror_mod.symmetry:
+                opts['mirror %s' % xyz] = True
 
         opts['cull backfaces'] = cull_backfaces
         opts['alpha backface'] = alpha_backface

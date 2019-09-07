@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bpy
 
 from .retopoflow_parts.retopoflow_blender    import RetopoFlow_Blender
+from .retopoflow_parts.retopoflow_drawing    import RetopoFlow_Drawing
 from .retopoflow_parts.retopoflow_grease     import RetopoFlow_Grease
 from .retopoflow_parts.retopoflow_instrument import RetopoFlow_Instrumentation
 from .retopoflow_parts.retopoflow_sources    import RetopoFlow_Sources
@@ -37,6 +38,7 @@ from .retopoflow_parts.retopoflow_undo       import RetopoFlow_Undo
 
 class RetopoFlow(
     RetopoFlow_Blender,
+    RetopoFlow_Drawing,
     RetopoFlow_Grease,
     RetopoFlow_Instrumentation,
     RetopoFlow_Sources,
