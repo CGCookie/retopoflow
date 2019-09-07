@@ -20,12 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 
-##########################################################
-##########################################################
-#from .options import retopoflow_version
-retopoflow_version = '2.1.0'
-##########################################################
-##########################################################
+from ..config.options import retopoflow_version
 
 
 
@@ -47,6 +42,14 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 
 Below is a summary of the changes made.
 A full summary is available on [Blender Market](https://blendermarket.com/products/retopoflow).
+
+### Major Changes from Version 2.x
+
+- RetopoFlow 3.0 works in Blender 2.80!
+- RF uses CG Cookie's CookieCutter framework
+  - All new state handling
+  - All new UI drawing
+
 
 ### Changes in 2.0.3
 

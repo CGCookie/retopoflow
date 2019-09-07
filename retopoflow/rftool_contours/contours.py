@@ -20,7 +20,16 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 from .contours_ops import Contours_Ops
+from .contours_utils import (
+    find_loops,
+    find_strings,
+    loop_plane,
+    Contours_Loop,
+)
+
 from ..rftool import RFTool
+
+from ...addon_common.common.utils import iter_pairs
 
 class RFTool_Contours(RFTool):
     name        = 'Contours'
@@ -30,7 +39,6 @@ class RFTool_Contours(RFTool):
 
 class Contours(RFTool_Contours, Contours_Ops):
     def update(self):
-        return
         sel_edges = self.rfcontext.get_selected_edges()
         #sel_faces = self.rfcontext.get_selected_faces()
 
@@ -48,23 +56,23 @@ class Contours(RFTool_Contours, Contours_Ops):
         bmes = {bmv0.shared_edge(bmv1) for string in sel_strings for bmv0,bmv1 in iter_pairs(string,False)}
         sel_loops = [loop for loop in sel_loops if not any(bmv0.shared_edge(bmv1) in bmes for bmv0,bmv1 in iter_pairs(loop,True))]
 
-        symmetry = self.rfcontext.rftarget.symmetry
-        symmetry_threshold = 0.01
+        mirror_mod = self.rfcontext.rftarget.mirror_mod
+        symmetry_threshold = mirror_mod.symmetry_threshold
         def get_string_length(string):
-            nonlocal symmetry, symmetry_threshold
+            nonlocal mirror_mod, symmetry_threshold
             c = len(string)
             if c == 0: return 0
             touches_mirror = False
             (x0,y0,z0),(x1,y1,z1) = string[0].co,string[-1].co
-            if 'x' in symmetry:
+            if mirror_mod.x:
                 if abs(x0) < symmetry_threshold or abs(x1) < symmetry_threshold:
                     c = (c - 1) * 2
                     touches_mirror = True
-            if 'y' in symmetry:
+            if mirror_mod.y:
                 if abs(y0) < symmetry_threshold or abs(y1) < symmetry_threshold:
                     c = (c - 1) * 2
                     touches_mirror = True
-            if 'z' in symmetry:
+            if mirror_mod.z:
                 if abs(z0) < symmetry_threshold or abs(z1) < symmetry_threshold:
                     c = (c - 1) * 2
                     touches_mirror = True

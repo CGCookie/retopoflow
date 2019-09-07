@@ -30,10 +30,10 @@ from bmesh.utils import (
 from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils import Vector
 
-from ..common.utils import iter_pairs
-from ..common.debug import dprint
-from ..common.profiler import profiler
-from ..common.maths import (
+from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.maths import (
     triangle2D_det, triangle2D_area,
     segment2D_intersection,
     Vec2D, Point, Point2D, Vec, Direction, Normal,

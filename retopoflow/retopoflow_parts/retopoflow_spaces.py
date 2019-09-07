@@ -24,15 +24,16 @@ import bpy
 from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
-from ..common.debug import dprint
-from ..common.profiler import profiler
-from ..common.maths import Point, Vec, Direction, Normal
-from ..common.maths import Ray, XForm, Plane
-from ..common.maths import Point2D, Vec2D, Direction2D
-from ..options import options
+
+from ...config.options import options
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.maths import Point, Vec, Direction, Normal
+from ...addon_common.common.maths import Ray, XForm, Plane
+from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
 
 
-class RFContext_Spaces:
+class RetopoFlow_Spaces:
     '''
     converts entities between screen space and world space
 

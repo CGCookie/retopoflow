@@ -24,27 +24,32 @@ from ..addon_common.common.fsm import FSM
 
 class RFTool:
     '''
-    Assumes that subclass will have singleton instance (shared FSM among all instances)
+    Assumes that direct subclass will have singleton instance (shared FSM among all instances of that subclass and any subclasses)
     '''
     registry = []
 
     def __init_subclass__(cls, *args, **kwargs):
-        if hasattr(cls, '_rftool'):
-            # update registry, but do not add new FSM
-            RFTool.registry[cls._rftool] = cls
-        else:
-            # add to registry and add FSM
-            cls._rftool = len(RFTool.registry)
+        if not hasattr(cls, '_rftool_index'):
+            # add cls to registry (might get updated later) and add FSM
+            cls._rftool_index = len(RFTool.registry)
             RFTool.registry.append(cls)
             cls._fsm = FSM()
             cls.FSM_State = cls._fsm.wrapper
+        else:
+            # update registry, but do not add new FSM
+            RFTool.registry[cls._rftool_index] = cls
         super().__init_subclass__(*args, **kwargs)
 
     def __init__(self, rfcontext):
         self.rfcontext = rfcontext
+        self._fsm.init(self)
 
-    def undone(self): fsm.force_set_state('main')
-    def fsm_init(self): fsm.init(self, start='main')
-    def fsm_update(self): fsm.update()
+    def undone(self):
+        self._fsm.force_set_state('main')
+
+    def fsm_init(self):
+        self._fsm.init(self, start='main')
+    def fsm_update(self):
+        return self._fsm.update()
 
 

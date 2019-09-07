@@ -11,10 +11,14 @@
 # SETTINGS
 # /./././././././././././././././././././././././././././././././
 
+# TODO: get version from options
+# TODO: warn if profiling is enabled!
+# see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
+
 NAME            = RetopoFlow
-VERSION         = v2.80.0
-GIT_TAG         = v2.80.0
-GIT_TAG_MESSAGE = "Version 2.80.0"
+VERSION         = v3.00.0
+GIT_TAG         = v3.00.0
+GIT_TAG_MESSAGE = "Version 3.00.0"
 
 BUILD_DIR       = ../retopoflow_release
 ZIP_FILE        = $(NAME)_$(VERSION).zip

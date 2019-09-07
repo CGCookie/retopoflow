@@ -38,19 +38,20 @@ from mathutils.kdtree import KDTree
 
 from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
-from ..common.debug import dprint, Debugger
-from ..common.profiler import profiler
-from ..common.maths import Point, Direction, Normal, Frame
-from ..common.maths import Point2D, Vec2D, Direction2D
-from ..common.maths import Ray, XForm, BBox, Plane
-from ..common.ui import Drawing
-from ..common.utils import min_index
-from ..common.hasher import hash_object, hash_bmesh
-from ..common.decorators import stats_wrapper
-from ..common import bmesh_render as bmegl
-from ..common.bmesh_render import BGLBufferedRender, triangulateFace
+from ...addon_common.common.globals import Globals
+from ...addon_common.common.debug import dprint, Debugger
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.maths import Point, Direction, Normal, Frame
+from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
+from ...addon_common.common.maths import Ray, XForm, BBox, Plane
+from ...addon_common.common.ui import Drawing
+from ...addon_common.common.utils import min_index
+from ...addon_common.common.hasher import hash_object, hash_bmesh
+from ...addon_common.common.decorators import stats_wrapper
+from ...addon_common.common import bmesh_render as bmegl
+from ...addon_common.common.bmesh_render import BGLBufferedRender, triangulateFace
 
-from ..options import options
+from ...config.options import options
 
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
@@ -135,7 +136,7 @@ class RFMeshRender():
         self.buf_matrix_inverse = rfmesh.xform.to_bglMatrix_Inverse()
         self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
         self.buffered_renders = []
-        self.drawing = Drawing.get_instance()
+        self.drawing = Globals.drawing
 
         self.replace_rfmesh(rfmesh)
         self.replace_opts(opts)

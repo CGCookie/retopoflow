@@ -24,17 +24,17 @@ import os
 import bpy
 import bmesh
 
-from .help import help_welcome
+from ..help import retopoflow_version, help_welcome
 
-from ..addon_common.common.utils import delay_exec
-from ..addon_common.common.globals import Globals
-from ..addon_common.common import ui
-from ..addon_common.common.ui_styling import load_defaultstylings
-from ..addon_common.common.profiler import profiler
+from ...addon_common.common.utils import delay_exec
+from ...addon_common.common.globals import Globals
+from ...addon_common.common import ui
+from ...addon_common.common.ui_styling import load_defaultstylings
+from ...addon_common.common.profiler import profiler
 
 def reload_stylings():
     load_defaultstylings()
-    path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
+    path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')
     try:
         Globals.ui_draw.load_stylesheet(path)
     except AssertionError as e:
@@ -63,7 +63,7 @@ class RetopoFlow_UI:
         reload_stylings()
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(label='RetopoFlow 2.1.0α', id="maindialog", parent=self.document.body)
+            self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", parent=self.document.body)
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
@@ -183,4 +183,5 @@ class RetopoFlow_UI:
         setup_main_ui()
         setup_options()
 
+        self.ui_tools = self.document.body.getElementsByName('tool')
 

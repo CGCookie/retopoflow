@@ -19,14 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import os
-
-import bpy
-import bmesh
-from bpy.types import WorkSpaceTool
-import random
-
-from ..addon_common.cookiecutter.cookiecutter import CookieCutter
+from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
 
 class RetopoFlow_States(CookieCutter):
@@ -63,5 +56,6 @@ class RetopoFlow_States(CookieCutter):
         if self.actions.pressed('F2'):
             self.rftool_select(self.rftools[2])
 
-
-
+        ret = self.rftool.fsm_update()
+        if self.fsm.is_state(ret):
+            return ret

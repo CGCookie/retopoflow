@@ -22,29 +22,32 @@ Created by Jonathan Denning, Jonathan Williamson
 import time
 from itertools import chain
 from mathutils import Vector
-from ..common.debug import dprint
-from ..common.profiler import profiler
-from ..common.utils import iter_pairs
-from ..common.maths import Point, Vec, Direction, Normal, Ray, XForm
-from ..common.maths import Point2D, Vec2D, Direction2D, Accel2D
-from .rfmesh import RFMesh, RFVert, RFEdge, RFFace
-from .rfmesh import RFSource, RFTarget
-from .rfmesh_render import RFMeshRender
-from ..options import visualization, options
+
+from ...config.options import visualization, options
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ...addon_common.common.maths import Point2D, Vec2D, Direction2D, Accel2D
+
+from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
+from ..rfmesh.rfmesh import RFSource, RFTarget
+from ..rfmesh.rfmesh_render import RFMeshRender
 
 
-class RFContext_Target:
+class RetopoFlow_Target:
     '''
     functions to work on RFTarget
     '''
 
     @profiler.profile
-    def _init_target(self):
+    def setup_target(self):
         ''' target is the active object.  must be selected and visible '''
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
-        self.update_displace_option()
+        #self.update_displace_option()
+        print('self.update_displace_option')
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
 

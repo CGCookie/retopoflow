@@ -35,14 +35,15 @@ from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
 
-from ..common.maths import Point, Normal
-from ..common.maths import Point2D
-from ..common.maths import Ray, XForm, BBox, Plane
-from ..common.hasher import hash_object
-from ..common.utils import min_index, UniqueCounter
-from ..common.decorators import stats_wrapper, blender_version_wrapper
-from ..common.debug import dprint
-from ..common.profiler import profiler
+from ...addon_common.common.blender import ModifierWrapper_Mirror
+from ...addon_common.common.maths import Point, Normal
+from ...addon_common.common.maths import Point2D
+from ...addon_common.common.maths import Ray, XForm, BBox, Plane
+from ...addon_common.common.hasher import hash_object
+from ...addon_common.common.utils import min_index, UniqueCounter
+from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.profiler import profiler
 
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
@@ -66,6 +67,28 @@ class RFMesh():
 
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
+
+    @staticmethod
+    @blender_version_wrapper('<', '2.80')
+    @profiler.profile
+    def get_bmesh_from_object(obj, deform=False):
+        mesh = obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
+        mesh.update()
+        bme = bmesh.new()
+        bme.from_mesh(mesh)
+        del mesh
+        return bme
+
+    @staticmethod
+    @blender_version_wrapper('>=', '2.80')
+    @profiler.profile
+    def get_bmesh_from_object(obj, deform=False):
+        mesh = obj.to_mesh()
+        mesh.update()
+        bme = bmesh.new()
+        bme.from_mesh(mesh)
+        del mesh
+        return bme
 
     @stats_wrapper
     @profiler.profile
@@ -100,19 +123,7 @@ class RFMesh():
         if bme is not None:
             self.bme = bme
         else:
-            pr = profiler.start('edit mesh > bmesh')
-            self.eme = self.obj.to_mesh(
-                scene=bpy.context.scene,
-                apply_modifiers=deform,
-                settings='PREVIEW'
-            )
-            self.eme.update()
-            self.bme = bmesh.new()
-            self.bme.from_mesh(self.eme)
-            if not keepeme:
-                del self.eme
-                self.eme = None
-            pr.done()
+            self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
                 pr = profiler.start('copying selection')
@@ -206,41 +217,51 @@ class RFMesh():
     ##########################################################
 
     def store_state(self):
-        attributes = ['hide', 'hide_render']    # list of attributes to remember
-        self.prev_state = {
-            attr: self.obj.__getattribute__(attr)
-            for attr in attributes
-        }
+        attributes = ['viewport_hide', 'render_hide']    # list of attributes to remember
+        self.prev_state = { attr: self.obj_attr_get(attr) for attr in attributes }
 
     def restore_state(self):
         for attr, val in self.prev_state.items():
-            #print(self.obj.name, attr, val)
-            self.obj.__setattr__(attr, val)
+            self.obj_attr_set(attr, val)
 
     def get_obj_name(self):
         return self.obj.name
 
-    def obj_hide(self):
-        self.obj.hide = True
-
-    def obj_unhide(self):
-        self.obj.hide = False
-
-    def obj_unhide_render(self):
-        self.obj.hide_render = False
-
-    def obj_select(self):
-        self.obj_set_select(True)
-
-    def obj_unselect(self):
-        self.obj_set_select(False)
+    @blender_version_wrapper('<', '2.80')
+    def obj_viewport_hide_get(self): return self.obj.hide
+    @blender_version_wrapper('>=', '2.80')
+    def obj_viewport_hide_get(self): return self.obj.hide_viewport
+    @blender_version_wrapper('<', '2.80')
+    def obj_viewport_hide_set(self, v): self.obj.hide = v
+    @blender_version_wrapper('>=', '2.80')
+    def obj_viewport_hide_set(self, v): self.obj.hide_viewport = v
 
     @blender_version_wrapper('<','2.80')
-    def obj_set_select(self, sel):
-        self.obj.select = sel
+    def obj_select_get(self): return self.obj.select
     @blender_version_wrapper('>=','2.80')
-    def obj_set_select(o, sel):
-        self.obj.select_set('SELECT' if sel else 'DESELECT')
+    def obj_select_get(self): return self.obj.select_get()
+    @blender_version_wrapper('<','2.80')
+    def obj_select_set(self, v): self.obj.select = v
+    @blender_version_wrapper('>=','2.80')
+    def obj_select_set(self, v): self.obj.select_set(v) #'SELECT' if v else 'DESELECT'
+
+    def obj_render_hide_get(self): return self.obj.hide_render
+    def obj_render_hide_set(self, v): self.obj.hide_render = v
+
+    def obj_viewport_hide(self):   self.obj_viewport_hide_set(True)
+    def obj_viewport_unhide(self): self.obj_viewport_hide_set(False)
+
+    def obj_render_hide(self):   self.obj_render_hide(True)
+    def obj_render_unhide(self): self.obj_hide_render(False)
+
+    def obj_select(self):   self.obj_select_set(True)
+    def obj_unselect(self): self.obj_select_set(False)
+
+    def obj_attr_get(self, attr): return getattr(self, 'obj_%s_get'%attr)()
+    def obj_attr_set(self, attr, v): getattr(self, 'obj_%s_set'%attr)(v)
+
+
+    ##########################################################
 
     def ensure_lookup_tables(self):
         self.bme.verts.ensure_lookup_table()
@@ -1177,7 +1198,7 @@ class RFSource(RFMesh):
 
     def __setup__(self, obj:bpy.types.Object):
         super().__setup__(obj, deform=True, triangulate=True, selection=False, keepeme=True)
-        self.symmetry = set()
+        self.mirror_mod = None
         self.ensure_lookup_tables()
 
 
@@ -1212,32 +1233,27 @@ class RFTarget(RFMesh):
 
         super().__setup__(obj, bme=bme)
         # if Mirror modifier is attached, set up symmetry to match
-        self.symmetry = set()
-        self.symmetry_threshold = 0.001
-        self.mirror_mod = None
+        self.setup_mirror()
+        self.setup_displace()
+
+        self.editmesh_version = None
+        self.xy_symmetry_accel = xy_symmetry_accel
+        self.xz_symmetry_accel = xz_symmetry_accel
+        self.yz_symmetry_accel = yz_symmetry_accel
+        self.unit_scaling_factor = unit_scaling_factor
+
+    def setup_mirror(self):
+        self.mirror_mod = ModifierWrapper_Mirror.get_from_object(self.obj)
+        if not self.mirror_mod:
+            self.mirror_mod = ModifierWrapper_Mirror.create_new(self.obj)
+
+    def setup_displace(self):
         self.displace_mod = None
         self.displace_strength = 0.020
         for mod in self.obj.modifiers:
-            if mod.type == 'MIRROR':
-                self.mirror_mod = mod
-                if not mod.show_viewport: continue
-                if mod.use_x: self.symmetry.add('x')
-                if mod.use_y: self.symmetry.add('y')
-                if mod.use_z: self.symmetry.add('z')
-                self.symmetry_threshold = mod.merge_threshold
             if mod.type == 'DISPLACE':
                 self.displace_mod = mod
                 self.displace_strength = mod.strength
-        if not self.mirror_mod:
-            # add mirror modifier
-            bpy.ops.object.modifier_add(type='MIRROR')
-            self.mirror_mod = self.obj.modifiers[-1]
-            self.mirror_mod.show_expanded = False
-            self.mirror_mod.show_on_cage = True
-            self.mirror_mod.use_x = 'x' in self.symmetry
-            self.mirror_mod.use_y = 'y' in self.symmetry
-            self.mirror_mod.use_z = 'z' in self.symmetry
-            self.mirror_mod.merge_threshold = self.symmetry_threshold
         if not self.displace_mod:
             bpy.ops.object.modifier_add(type='DISPLACE')
             self.displace_mod = self.obj.modifiers[-1]
@@ -1245,11 +1261,6 @@ class RFTarget(RFMesh):
             self.displace_mod.strength = self.displace_strength
             self.displace_mod.show_render = False
             self.displace_mod.show_viewport = False
-        self.editmesh_version = None
-        self.xy_symmetry_accel = xy_symmetry_accel
-        self.xz_symmetry_accel = xz_symmetry_accel
-        self.yz_symmetry_accel = yz_symmetry_accel
-        self.unit_scaling_factor = unit_scaling_factor
 
     def set_symmetry_accel(self, xy_symmetry_accel, xz_symmetry_accel, yz_symmetry_accel):
         self.xy_symmetry_accel = xy_symmetry_accel
@@ -1259,11 +1270,11 @@ class RFTarget(RFMesh):
     def get_point_symmetry(self, point, from_world=True):
         if from_world: point = self.xform.w2l_point(point)
         px,py,pz = point
-        threshold = self.symmetry_threshold * self.unit_scaling_factor / 2.0
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
         symmetry = set()
-        if 'x' in self.symmetry and px <= threshold: symmetry.add('x')
-        if 'y' in self.symmetry and py <= threshold: symmetry.add('y')
-        if 'z' in self.symmetry and pz <= threshold: symmetry.add('z')
+        if self.mirror_mod.x and px <= threshold: symmetry.add('x')
+        if self.mirror_mod.y and py <= threshold: symmetry.add('y')
+        if self.mirror_mod.z and pz <= threshold: symmetry.add('z')
         return symmetry
 
     def snap_to_symmetry(self, point, symmetry, from_world=True, to_world=True):
@@ -1291,16 +1302,16 @@ class RFTarget(RFMesh):
         if from_world: point = self.xform.w2l_point(point)
         dist = lambda p: (p - point).length_squared
         px,py,pz = point
-        threshold = self.symmetry_threshold * self.unit_scaling_factor / 2.0
-        if 'x' in self.symmetry and px <= threshold:
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
+        if self.mirror_mod.x and px <= threshold:
             edges = self.yz_symmetry_accel.get_edges(Point2D((py, pz)), -px)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((0, py, pz)))
             px,py,pz = point
-        if 'y' in self.symmetry and py >= threshold:
+        if self.mirror_mod.y and py >= threshold:
             edges = self.xz_symmetry_accel.get_edges(Point2D((px, pz)), py)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((px, 0, pz)))
             px,py,pz = point
-        if 'z' in self.symmetry and pz <= threshold:
+        if self.mirror_mod.z and pz <= threshold:
             edges = self.xy_symmetry_accel.get_edges(Point2D((px, py)), -pz)
             point = min((e.closest(point) for e in edges), key=dist, default=Point((px, py, 0)))
             px,py,pz = point
@@ -1325,7 +1336,7 @@ class RFTarget(RFMesh):
             'verts': None,
             'edges': None,
             'faces': None,
-            'symmetry': list(self.symmetry)
+            'symmetry': list(self.mirror_mod.xyz)
         }
         self.bme.verts.ensure_lookup_table()
         data['verts'] = [list(bmv.co) for bmv in self.bme.verts]
@@ -1353,17 +1364,15 @@ class RFTarget(RFMesh):
             eme.select = bme.select
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             emf.select = bmf.select
-        self.mirror_mod.use_x = 'x' in self.symmetry
-        self.mirror_mod.use_y = 'y' in self.symmetry
-        self.mirror_mod.use_z = 'z' in self.symmetry
-        self.mirror_mod.use_clip = True
-        self.mirror_mod.use_mirror_merge = True
-        self.mirror_mod.merge_threshold = self.symmetry_threshold
+        self.mirror_mod.write()
+        self.clean_displace()
+
+    def clean_displace(self):
         self.displace_mod.strength = self.displace_strength
 
-    def enable_symmetry(self, axis): self.symmetry.add(axis)
-    def disable_symmetry(self, axis): self.symmetry.discard(axis)
-    def has_symmetry(self, axis): return axis in self.symmetry
+    def enable_symmetry(self, axis): self.mirror_mod.enable_axis(axis)
+    def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
+    def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
 
     def new_vert(self, co, norm):
         bmv = self.bme.verts.new((0,0,0))

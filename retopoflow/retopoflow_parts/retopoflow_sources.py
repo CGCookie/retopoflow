@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2018 CG Cookie
+Copyright (C) 2019 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,31 +19,26 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from mathutils import Vector
-from itertools import chain
-from .rfmesh import RFMesh, RFVert, RFEdge, RFFace, RFSource, RFTarget
-from .rfmesh_render import RFMeshRender
-from ..common.utils import iter_pairs
-from ..common.maths import (
-    Point, Vec, Direction, Normal,
-    Point2D, Vec2D, Direction2D,
-    Ray, XForm, Plane, BBox,
-    Accel2D,
-    mid,
-)
-from ..common.profiler import profiler
-from ..common.debug import dprint
-from ..common.decorators import stats_wrapper
-from ..options import visualization
+import bpy
+
+from ...config.options import visualization
+from ...addon_common.common.maths import BBox
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane
+from ...addon_common.common.maths import Point2D, Accel2D
+
+from ..rfmesh.rfmesh import RFSource
+from ..rfmesh.rfmesh_render import RFMeshRender
 
 
-class RFContext_Sources:
+class RetopoFlow_Sources:
     '''
     functions to work on all RFSource objects
     '''
 
     @profiler.profile
-    def _init_sources(self):
+    def setup_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = [RFSource.new(src) for src in self.get_sources()]
         self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
@@ -52,7 +47,7 @@ class RFContext_Sources:
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
 
     @profiler.profile
-    def _init_sources_symmetry(self):
+    def setup_sources_symmetry(self):
         xyplane,xzplane,yzplane = self.rftarget.get_xy_plane(),self.rftarget.get_xz_plane(),self.rftarget.get_yz_plane()
         w2l_point = self.rftarget.w2l_point
         rfsources_xyplanes = [e for rfs in self.rfsources for e in rfs.plane_intersection(xyplane)]

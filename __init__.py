@@ -19,71 +19,72 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import importlib
+
+if "bpy" in locals():
+    # reloading RF modules
+    importlib.reload(retopoflow)
+else:
+    from .retopoflow import retopoflow
+
+import bpy
+from bpy.types import Menu
+
+
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version":     (2, 80, 0),  # 2.80.0
+    "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Tool Shelf",
-    # "warning":     "beta 2",  # used for warning icon and text in addons panel
+    "warning":     "pre-alpha (pre-α)",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
 }
 
-if "bpy" in locals():
-    import importlib
-    importlib.reload(VIEW3D_OT_RetopoFlow)
-    importlib.reload(VIEW3D_OT_RetopoFlow_Tool)
-else:
-    from .retopoflow.retopoflow import (
-        VIEW3D_OT_RetopoFlow,
-        VIEW3D_OT_RetopoFlow_Tool
-    )
 
-import bpy
-from bpy.types import Menu
-from bpy.utils.toolsystem import ToolDef
-
-
-@ToolDef.from_fn
-def tool_RetopoFlow():
-    return dict(
-        idname="cgcookie.tool_retopoflow",
-        label="RetopoFlow",
-        description="Start RetopoFlow",
-        operator="cgcookie.retopoflow",
-        #icon=None,
-        #widget=None,
-        #keymap=None,
-        #draw_settings=None,
-    )
-
-
-def get_tool_list(space_type, context_mode):
-    from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
-    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
-    return cls._tools[context_mode]
+class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
+    """RetopoFlow Blender Operator"""
+    bl_idname = "cgcookie.retopoflow"
+    bl_label = "RetopoFlow"
+    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
 
 
 class VIEW3D_MT_RetopoFlow(Menu):
+    """RetopoFlow Blender Menu"""
     bl_label = "RetopoFlow"
+
     def draw(self, context):
         layout = self.layout
         layout.operator('cgcookie.retopoflow')
 
-def setupmenu():
-    d = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
-    def hijack(context, layout):
-        obj = context.active_object
-        mode_string = context.mode
-        edit_object = context.edit_object
-        gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
-        d(context, layout)
-        if not gp_edit and edit_object and mode_string == 'EDIT_MESH':
-            layout.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
-    bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijack
+    #############################################################################
+    # the following two methods add/remove RF to/from the main 3D View menu
+    # NOTE: this is a total hack: hijacked the draw function!
+    @staticmethod
+    def menu_add():
+        VIEW3D_MT_RetopoFlow.menu_remove()
+        VIEW3D_MT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+        def hijacked(context, layout):
+            obj = context.active_object
+            mode_string = context.mode
+            edit_object = context.edit_object
+            gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+            VIEW3D_MT_RetopoFlow._menu_original(context, layout)
+            if not gp_edit and edit_object and mode_string == 'EDIT_MESH':
+                layout.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
+        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
+    @staticmethod
+    def menu_remove():
+        if not hasattr(VIEW3D_MT_RetopoFlow, '_menu_original'): return
+        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_MT_RetopoFlow._menu_original
+        del VIEW3D_MT_RetopoFlow._menu_original
+
 
 # registration
 classes = (
@@ -91,40 +92,13 @@ classes = (
     VIEW3D_OT_RetopoFlow,
 )
 
-prev_tools = None
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
-    setupmenu()
-
-    if False:
-        global prev_tools
-        tools = get_tool_list('VIEW_3D', 'EDIT_MESH')
-        for index,tool in enumerate(tools, 1):
-            if isinstance(tool, ToolDef) and tool.label == 'Measure':
-                break
-        print('adding at ' + str(index))
-        prev_tools = list(tools)
-        tools[:] = [tool_RetopoFlow]
-        tools[:] = prev_tools
-        #tools[:index] += None, tool_RetopoFlow
-        del tools
+    for cls in classes: bpy.utils.register_class(cls)
+    VIEW3D_MT_RetopoFlow.menu_add()
 
 def unregister():
-    if False:
-        tools = get_tool_list('VIEW_3D', 'EDIT_MESH')
-        index = tools.index(tool_RetopoFlow) - 1
-        tools.pop(index)
-        tools.remove(tool_RetopoFlow)
-        del tools
-        del index
-
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-
-#register,unregister = bpy.utils.register_classes_factory(classes)
+    VIEW3D_MT_RetopoFlow.menu_remove()
+    for cls in reversed(classes): bpy.utils.unregister_class(cls)
 
 if __name__ == "__main__":
     register()
-    bpy.utils.register_tool(VIEW3D_OT_RetopoFlow_Tool, after={"builtin.scale_cage"}, separator=True, group=True) #, after={"builtin.scale_cage"}, separator=True, group=True)

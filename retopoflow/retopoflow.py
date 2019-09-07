@@ -19,32 +19,36 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import os
-
 import bpy
-import bmesh
-from bpy.types import WorkSpaceTool
-import random
 
-from .retopoflow_ui import RetopoFlow_UI
-from .retopoflow_tools import RetopoFlow_Tools
-from .retopoflow_states import RetopoFlow_States
+from .retopoflow_parts.retopoflow_blender    import RetopoFlow_Blender
+from .retopoflow_parts.retopoflow_grease     import RetopoFlow_Grease
+from .retopoflow_parts.retopoflow_instrument import RetopoFlow_Instrumentation
+from .retopoflow_parts.retopoflow_sources    import RetopoFlow_Sources
+from .retopoflow_parts.retopoflow_spaces     import RetopoFlow_Spaces
+from .retopoflow_parts.retopoflow_states     import RetopoFlow_States
+from .retopoflow_parts.retopoflow_target     import RetopoFlow_Target
+from .retopoflow_parts.retopoflow_tools      import RetopoFlow_Tools
+from .retopoflow_parts.retopoflow_ui         import RetopoFlow_UI
+from .retopoflow_parts.retopoflow_undo       import RetopoFlow_Undo
 
-from ..addon_common.common.globals import Globals
-from ..addon_common.common import drawing
-from ..addon_common.common.drawing import ScissorStack
-from ..addon_common.common import ui
-from ..addon_common.common.profiler import profiler
-from ..addon_common.common.ui_styling import load_defaultstylings
+# from .rfcontext.rfcontext import RFContext
 
-class VIEW3D_OT_RetopoFlow(RetopoFlow_Tools, RetopoFlow_UI, RetopoFlow_States):
-    """Tooltip"""
-    bl_idname = "cgcookie.retopoflow"
-    bl_label = "RetopoFlow"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
+
+class RetopoFlow(
+    RetopoFlow_Blender,
+    RetopoFlow_Grease,
+    RetopoFlow_Instrumentation,
+    RetopoFlow_Sources,
+    RetopoFlow_Spaces,
+    RetopoFlow_States,
+    RetopoFlow_Target,
+    RetopoFlow_Tools,
+    RetopoFlow_UI,
+    RetopoFlow_Undo,
+):
+
+    instance = None
 
     default_keymap = {
         'undo': {'CTRL+Z'},
@@ -68,83 +72,27 @@ class VIEW3D_OT_RetopoFlow(RetopoFlow_Tools, RetopoFlow_UI, RetopoFlow_States):
         return True
 
     def start(self):
-        self.target = bpy.context.active_object
-        self.sources = [o for o in bpy.data.objects if o != self.target and o.type == "MESH" and o.visible_get()]
-        print('sources: %s' % ', '.join(o.name for o in self.sources))
+        RetopoFlow.instance = self
+
+        # get scaling factor to fit all sources into unit box
+        self.unit_scaling_factor = self.get_unit_scaling_factor()
+        self.scale_to_unit_box()
+
+        self.target = self.get_target()
         print('target: %s' % self.target.name)
 
         self.setup_rftools()
         self.setup_ui()
-
-        self.ui_tools = self.document.body.getElementsByName('tool')
+        self.setup_grease()
+        self.setup_target()
+        self.setup_sources()
+        self.setup_sources_symmetry()   # must be called after self.setup_target()!!
+        self.setup_rotate_about_active()
+        self.setup_undo()
 
     def end(self):
+        self.end_rotate_about_active()
         self.target.hide_viewport = False
 
-
-
-
-class VIEW3D_OT_RetopoFlow_Tool(WorkSpaceTool):
-    bl_space_type = 'VIEW_3D'
-    bl_context_mode = 'OBJECT'
-
-    # The prefix of the idname should be your add-on name.
-    bl_idname = "cgcookie.retopoflow"
-    bl_label = "RetopoFlow"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
-    bl_icon = "ops.mesh.polybuild_hover"
-    bl_widget = None
-    bl_keymap = (
-        ("view3d.select_circle",
-            {"type": 'LEFTMOUSE', "value": 'PRESS'},
-            {"properties": [("wait_for_input", False)]}
-        ),
-        ("view3d.select_circle",
-            {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
-            {"properties": [("mode", 'SUB'), ("wait_for_input", False)]}
-        ),
-    )
-
-    def draw_settings(context, layout, tool):
-        props = tool.operator_properties("view3d.select_circle")
-        layout.prop(props, "mode")
-        layout.prop(props, "radius")
-
-
-
-
-# class MyOtherTool(WorkSpaceTool):
-#     bl_space_type='VIEW_3D'
-#     bl_context_mode='OBJECT'
-
-#     bl_idname = "my_template.my_other_select"
-#     bl_label = "My Lasso Tool Select"
-#     bl_description = (
-#         "This is a tooltip\n"
-#         "with multiple lines"
-#     )
-#     bl_icon = "ops.generic.select_lasso"
-#     bl_widget = None
-#     bl_keymap = (
-#         ("view3d.select_lasso", {"type": 'LEFTMOUSE', "value": 'PRESS'}, None),
-#         ("view3d.select_lasso", {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
-#          {"properties": [("mode", 'SUB')]}),
-#     )
-
-#     def draw_settings(context, layout, tool):
-#         props = tool.operator_properties("view3d.select_lasso")
-#         layout.prop(props, "mode")
-
-
-# def register():
-#     bpy.utils.register_tool(MyTool, after={"builtin.scale_cage"}, separator=True, group=True)
-#     bpy.utils.register_tool(MyOtherTool, after={MyTool.bl_idname})
-
-# def unregister():
-#     bpy.utils.unregister_tool(MyTool)
-#     bpy.utils.unregister_tool(MyOtherTool)
-
-# if __name__ == "__main__":
-#     register()
 
 
