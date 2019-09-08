@@ -39,7 +39,7 @@ from ...addon_common.common.blender import ModifierWrapper_Mirror
 from ...addon_common.common.maths import Point, Normal
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
-from ...addon_common.common.hasher import hash_object
+from ...addon_common.common.hasher import hash_object, Hasher
 from ...addon_common.common.utils import min_index, UniqueCounter
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
@@ -116,6 +116,8 @@ class RFMesh():
             self.obj = obj
             self.xform = XForm(self.obj.matrix_world)
             self.hash = hash_object(self.obj)
+            self._version = None
+            self._version_selection = None
 
         if bme is not None:
             self.bme = bme
@@ -161,8 +163,7 @@ class RFMesh():
 
     def dirty(self, selectionOnly=False):
         if not selectionOnly:
-            if hasattr(self, 'bvh'):
-                del self.bvh
+            if hasattr(self, 'bvh'): del self.bvh
             self._version = UniqueCounter.next()
         self._version_selection = UniqueCounter.next()
 
@@ -170,7 +171,7 @@ class RFMesh():
         pass
 
     def get_version(self, selection=True):
-        return self._version + (self._version_selection if selection else 0)
+        return Hasher(self._version, (self._version_selection if selection else 0))
 
     @profiler.function
     def get_bvh(self):
@@ -246,8 +247,8 @@ class RFMesh():
     def obj_viewport_hide(self):   self.obj_viewport_hide_set(True)
     def obj_viewport_unhide(self): self.obj_viewport_hide_set(False)
 
-    def obj_render_hide(self):   self.obj_render_hide(True)
-    def obj_render_unhide(self): self.obj_hide_render(False)
+    def obj_render_hide(self):   self.obj_render_hide_set(True)
+    def obj_render_unhide(self): self.obj_render_hide_set(False)
 
     def obj_select(self):   self.obj_select_set(True)
     def obj_unselect(self): self.obj_select_set(False)
@@ -1342,8 +1343,8 @@ class RFTarget(RFMesh):
         super().clean()
         if self.editmesh_version == self.get_version(): return
         self.editmesh_version = self.get_version()
-        #self.bme.to_mesh(self.obj.data)
-        bmesh.update_edit_mesh(self.obj.data)
+        self.bme.to_mesh(self.obj.data)
+        # bmesh.update_edit_mesh(self.obj.data)
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
         for bme,eme in zip(self.bme.edges, self.obj.data.edges):

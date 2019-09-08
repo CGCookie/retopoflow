@@ -280,7 +280,7 @@ class RFMeshRender():
 
         with profiler.code('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else '')):
             if not self.async_load:
-                profiler.profile(gather)()
+                profiler.function(gather)()
             else:
                 self._gather_submit = self.executor.submit(gather)
 
@@ -338,8 +338,8 @@ class RFMeshRender():
         try:
             # return if rfmesh hasn't changed
             self.rfmesh.clean()
-            ver = self.rfmesh.get_version()
-            if self.rfmesh_version == ver and not self.always_dirty:
+            ver = self.rfmesh.get_version() if not self.always_dirty else None
+            if self.rfmesh_version == ver:
                 profiler.add_note('--> is clean')
                 return
             # profiler.add_note(

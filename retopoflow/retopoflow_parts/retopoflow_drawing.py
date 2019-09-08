@@ -32,6 +32,7 @@ from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.hasher import Hasher
 from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
 from ...config.options import options
@@ -41,8 +42,7 @@ from ...config.options import options
 
 class RetopoFlow_Drawing:
     def get_view_version(self):
-        m = self.actions.r3d.view_matrix
-        return [v for r in m for v in r] + [self.actions.space.lens]
+        return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens)
 
     @CookieCutter.Draw('post3d')
     def draw_postview(self):

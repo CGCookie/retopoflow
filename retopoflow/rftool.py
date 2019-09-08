@@ -42,14 +42,24 @@ class RFTool:
 
     def __init__(self, rfcontext):
         self.rfcontext = rfcontext
-        self._fsm.init(self)
+        self._fsm.init(self, start='main')
+        self.init()
 
     def undone(self):
         self._fsm.force_set_state('main')
 
-    def fsm_init(self):
-        self._fsm.init(self, start='main')
     def fsm_update(self):
         return self._fsm.update()
 
+    def update_all(self):
+        self.update_timer()
+        self.update_change()
+        self.update_view()
 
+    ####################################################
+    # methods that subclasses can overwrite
+
+    def init(self):          pass
+    def update_timer(self):  pass       # called every timer interval
+    def update_change(self): pass       # called whenever rftarget has changed (selection, edited)
+    def update_view(self):   pass       # called whenever view has changed

@@ -28,7 +28,7 @@ else:
     from .retopoflow import retopoflow
 
 import bpy
-from bpy.types import Menu
+from bpy.types import Menu, Operator
 
 
 bl_info = {
@@ -55,6 +55,23 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     bl_options = {'REGISTER', 'UNDO'}
 
 
+class VIEW3D_OT_RetopoFlow_Recover(Operator):
+    bl_idname = 'cgcookie.retopoflow_recover'
+    bl_label = 'Recover Auto Save'
+    bl_description = 'Recover from RetopoFlow auto save'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    rf_icon = 'rf_recover_icon'
+
+    @classmethod
+    def poll(cls, context):
+        return retopoflow.RetopoFlow.has_backup()
+
+    def invoke(self, context, event):
+        retopoflow.RetopoFlow.backup_recover()
+        return {'FINISHED'}
+
+
 class VIEW3D_MT_RetopoFlow(Menu):
     """RetopoFlow Blender Menu"""
     bl_label = "RetopoFlow"
@@ -62,6 +79,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator('cgcookie.retopoflow')
+        layout.operator('cgcookie.retopoflow_recover')
 
     #############################################################################
     # the following two methods add/remove RF to/from the main 3D View menu
@@ -90,6 +108,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
 classes = (
     VIEW3D_MT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
+    VIEW3D_OT_RetopoFlow_Recover,
 )
 
 def register():

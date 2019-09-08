@@ -20,23 +20,35 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
+from ...config.options import options
 
 
 class RetopoFlow_States(CookieCutter):
+    def setup_states(self):
+        self.view_version = None
+
     def update(self):
-        self.rftool.update()
+        self.rftool.update_timer()
+        rftarget_version = self.rftarget.get_version()
+        if self.rftarget_version != rftarget_version:
+            self.rftarget_version = rftarget_version
+            self.rftool.update_change()
+        view_version = self.get_view_version()
+        if self.view_version != view_version:
+            self.view_version = view_version
+            self.rftool.update_view()
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
-        if self.actions.pressed('commit'):
+        if self.actions.pressed({'done'}):
             self.done()
             return
 
-        if self.actions.pressed('cancel'):
-            self.done(cancel=True)
-            return
+        # if self.actions.pressed('cancel'):
+        #     self.done(cancel=True)
+        #     return
 
-        # self.check_auto_save()
+        self.check_auto_save()
 
         # handle help actions
         if self.actions.pressed('help'):
@@ -45,7 +57,7 @@ class RetopoFlow_States(CookieCutter):
 
         # handle undo/redo
         if self.actions.pressed('undo'):
-            self.rfcontext.undo_pop()
+            self.undo_pop()
             if self.rftool: self.rftool.undone()
             return
         if self.actions.pressed('redo'):
@@ -54,8 +66,70 @@ class RetopoFlow_States(CookieCutter):
             return
 
         if self.actions.pressed('F2'):
-            self.rftool_select(self.rftools[2])
+            self.select_rftool(self.rftools[2])
 
         ret = self.rftool.fsm_update()
         if self.fsm.is_state(ret):
             return ret
+
+    def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
+        accel_nearest2D = {
+            'vert': self.accel_nearest2D_vert,
+            'edge': self.accel_nearest2D_edge,
+            'face': self.accel_nearest2D_face,
+        }[bmelem]
+
+        fn_filter_bmelem = fn_filter_bmelem or (lambda bmelem: True)
+        kwargs_filter = kwargs_filter or {}
+        kwargs_select = kwargs_select or {}
+        kwargs_deselect = kwargs_deselect or {}
+
+        def get_bmelem(use_filter=True):
+            nonlocal accel_nearest2D, fn_filter_bmelem
+            bmelem, dist = accel_nearest2D(max_dist=options['select dist'])
+            if not use_filter or not bmelem: return bmelem
+            return bmelem if fn_filter_bmelem(bmelem, **kwargs_filter) else None
+
+        if select is None:
+            # look at what's under the mouse and check if select add is used
+            bmelem = get_bmelem(use_filter=False)
+            adding = self.actions.using('select add')
+            if not bmelem: return               # nothing there; leave!
+            if not bmelem.select: select = True # bmelem is not selected, so we are selecting
+            else: select = not adding           # bmelem is selected, so we are deselecting if "select add"
+            deselect_all = not adding           # deselect all if not "select add"
+        else:
+            bmelem = None
+
+        if select:
+            kwargs.update(kwargs_select)
+        else:
+            kwargs.update(kwargs_deselect)
+
+        self.selection_painting_opts = {
+            'select': select,
+            'get': get_bmelem,
+            'kwargs': kwargs,
+        }
+
+        self.undo_push('select' if select else 'deselect')
+        if deselect_all: self.deselect_all()
+        if bmelem: self.select(bmelem, only=False, **kwargs)
+
+        return 'selection painting'
+
+    @CookieCutter.FSM_State('selection painting')
+    def selection_painting(self):
+        assert self.selection_painting_opts
+        if not self.actions.using(['select','select add']):
+            self.selection_painting_opts = None
+            return 'main'
+        bmelem = self.selection_painting_opts['get']()
+        if not bmelem or bmelem.select == self.selection_painting_opts['select']:
+            return
+        if self.selection_painting_opts['select']:
+            self.select(bmelem, only=False, **self.selection_painting_opts['kwargs'])
+        else:
+            self.deselect(bmelem, **self.selection_painting_opts['kwargs'])
+
+

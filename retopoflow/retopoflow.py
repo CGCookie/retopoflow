@@ -33,7 +33,8 @@ from .retopoflow_parts.retopoflow_tools      import RetopoFlow_Tools
 from .retopoflow_parts.retopoflow_ui         import RetopoFlow_UI
 from .retopoflow_parts.retopoflow_undo       import RetopoFlow_Undo
 
-# from .rfcontext.rfcontext import RFContext
+from ..config.keymaps import default_rf_keymaps
+
 
 
 class RetopoFlow(
@@ -52,13 +53,7 @@ class RetopoFlow(
 
     instance = None
 
-    default_keymap = {
-        'undo': {'CTRL+Z'},
-        'redo': {'CTRL+SHIFT+Z'},
-        'commit': {'TAB',},
-        'cancel': {'ESC',},
-        'help': {'F1'},
-    }
+    default_keymap = default_rf_keymaps
 
     @classmethod
     def can_start(cls, context):
@@ -75,14 +70,13 @@ class RetopoFlow(
 
     def start(self):
         RetopoFlow.instance = self
+        bpy.ops.object.mode_set(mode='OBJECT')
 
         # get scaling factor to fit all sources into unit box
         self.unit_scaling_factor = self.get_unit_scaling_factor()
         self.scale_to_unit_box()
 
-        self.target = self.get_target()
-        print('target: %s' % self.target.name)
-
+        self.setup_states()
         self.setup_rftools()
         self.setup_ui()
         self.setup_grease()
@@ -94,7 +88,8 @@ class RetopoFlow(
 
     def end(self):
         self.end_rotate_about_active()
-        self.target.hide_viewport = False
+        self.teardown_target()
+        bpy.ops.object.mode_set(mode='EDIT')
 
 
 

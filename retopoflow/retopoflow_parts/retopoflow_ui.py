@@ -57,7 +57,6 @@ class RetopoFlow_UI:
         self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
-        self.target.hide_viewport = True
 
         # load ui.css
         reload_stylings()
@@ -67,15 +66,13 @@ class RetopoFlow_UI:
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
-            # def select(lbl):
-            #     self.rftool = lbl
             def add_tool(rftool):
                 # must be a fn so that local vars are unique and correctly captured
                 lbl, img = rftool.name, rftool.icon
                 checked = not hasattr(add_tool, 'notfirst')
                 if checked: self.rftool = rftool
                 radio = ui.input_radio(id='tool-%s'%lbl.lower(), value=lbl.lower(), name="tool", classes="tool", checked=checked, parent=ui_tools)
-                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.rftool=rftool'''))
+                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
                 ui.img(src=img, parent=radio)
                 ui.label(innerText=lbl, parent=radio)
                 add_tool.notfirst = True

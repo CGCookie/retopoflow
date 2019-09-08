@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import copy
+
 from ...config.options import options
 
 class RetopoFlow_Undo:
@@ -38,7 +40,7 @@ class RetopoFlow_Undo:
     def _create_state(self, action):
         return {
             'action':       action,
-            'tool':         self.tool,
+            'tool':         self.rftool,
             'rftarget':     copy.deepcopy(self.rftarget),
             'grease_marks': copy.deepcopy(self.grease_marks),
             }
@@ -46,7 +48,8 @@ class RetopoFlow_Undo:
         self.rftarget = state['rftarget']
         self.rftarget.rewrap()
         self.rftarget.dirty()
-        self.rftarget_draw.replace_rfmesh(self.rftarget)
+        opts = visualization.get_target_settings()
+        self.rftarget_draw.replace_rfmesh(self.rftarget, opts)
         self.grease_marks = state['grease_marks']
         if set_tool:
             self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
@@ -55,7 +58,7 @@ class RetopoFlow_Undo:
         # skip pushing to undo if action is repeatable and we are repeating actions
         if repeatable and self.undo and self.undo[-1]['action'] == action: return
         self.undo.append(self._create_state(action))
-        while len(self.undo) > self.undo_depth: self.undo.pop(0)     # limit stack size
+        while len(self.undo) > options['undo depth']: self.undo.pop(0)     # limit stack size
         self.redo.clear()
         self.instrument_write(action)
 

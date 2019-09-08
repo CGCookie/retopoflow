@@ -35,8 +35,10 @@ class RetopoFlow_Tools:
     def setup_rftools(self):
         self.rftools = [rftool(self) for rftool in RFTool.registry]
 
-    def rftool_select(self, rftool):
+    def select_rftool(self, rftool):
         assert rftool in self.rftools
+        print('select_rftool', rftool)
         self.rftool = rftool
+        self.rftool.update_all()
         self.document.body.getElementById('tool-%s'%rftool.name.lower()).checked = True
 

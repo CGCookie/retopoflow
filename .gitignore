@@ -64,6 +64,9 @@ retopoflow_updater/updater_status.json
 RetopoFlow_options
 RetopoFlow_options.json
 
+# RF backup file
+RetopoFlow_backup.blend
+
 # RF screenshot
 RetopoFlow_screenshot.png
 

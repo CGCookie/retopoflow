@@ -46,10 +46,12 @@ class RetopoFlow_Target:
         self.tar_object = self.get_target()
         assert self.tar_object, 'Could not find valid target?'
         self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
-        #self.update_displace_option()
-        print('self.update_displace_option')
+        print('RetopoFlow: self.update_displace_option()')
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
+        self.rftarget_version = None
+        self.rftarget.obj_viewport_hide()
+        self.rftarget.obj_render_hide()
 
         self.accel_defer_recomputing = False
         self.accel_recompute = True
@@ -59,6 +61,10 @@ class RetopoFlow_Target:
         self.accel_vis_edges = None
         self.accel_vis_faces = None
         self.accel_vis_accel = None
+
+    def teardown_target(self):
+        self.rftarget.obj_viewport_unhide()
+        self.rftarget.obj_render_unhide()
 
     #########################################
     # acceleration structures
@@ -78,7 +84,7 @@ class RetopoFlow_Target:
         recompute |= self.accel_vis_faces is None
         recompute |= self.accel_vis_accel is None
         recompute &= not self.accel_defer_recomputing
-        recompute &= not self.nav and (time.time() - self.nav_time) > 0.25
+        recompute &= not self._nav and (time.time() - self._nav_time) > 0.25
 
         self.accel_recompute = False
 
@@ -215,7 +221,7 @@ class RetopoFlow_Target:
     def nearest_vert_point(self, point, verts=None):
         xyz = self.get_point3D(point)
         if xyz is None: return None
-        return self.target.nearest_bmvert_Point(xyz, verts=verts)
+        return self.rftarget.nearest_bmvert_Point(xyz, verts=verts)
 
     def nearest_vert_mouse(self, verts=None):
         return self.nearest_vert_point(self.actions.mouse, verts=verts)
@@ -501,38 +507,38 @@ class RetopoFlow_Target:
 
     def deselect_all(self):
         self.rftarget.deselect_all()
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def deselect(self, elems, supparts=True, subparts=True):
         self.rftarget.deselect(elems, supparts=supparts, subparts=subparts)
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def select(self, elems, supparts=True, subparts=True, only=True):
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def reselect(self):
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def select_toggle(self):
         self.rftarget.select_toggle()
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True, **kwargs):
         eloop,connected = self.get_edge_loop(edge)
         self.rftarget.select(eloop, only=only, **kwargs)
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
-        if self.tool: self.tool.update()
+        # if self.tool: self.tool.update()
         self.update_rot_object()
 
     def update_rot_object(self):
@@ -547,7 +553,7 @@ class RetopoFlow_Target:
             self.dissolve_option(opt[1])
         elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
             self.delete_option(opt[1])
-        self.tool.update()
+        # self.tool.update()
 
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
