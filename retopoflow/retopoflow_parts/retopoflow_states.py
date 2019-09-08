@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
 
@@ -33,6 +34,7 @@ class RetopoFlow_States(CookieCutter):
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
             self.rftool.update_change()
+            tag_redraw_all()
         view_version = self.get_view_version()
         if self.view_version != view_version:
             self.view_version = view_version

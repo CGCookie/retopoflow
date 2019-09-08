@@ -49,7 +49,7 @@ class Contours(RFTool_Contours, Contours_Ops):
         self.connected = False
         self.cuts = []
 
-    def update_change(self):
+    def update_target(self):
         sel_edges = self.rfcontext.get_selected_edges()
         #sel_faces = self.rfcontext.get_selected_faces()
 
@@ -107,20 +107,13 @@ class Contours(RFTool_Contours, Contours_Ops):
 
     @RFTool_Contours.FSM_State('main')
     def main(self) :
-        if self.rfcontext.actions.pressed({'select', 'select add'}):
+        if self.actions.pressed({'select', 'select add'}):
             return self.rfcontext.setup_selection_painting(
                 'edge',
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
-        if self.rfcontext.actions.pressed('N'):
-            print('N')
-            self.rfcontext.rftarget.new_vert(
-                Point((random.random(), random.random(), random.random())),
-                Normal((1, 0, 0))
-            )
-            self.rfcontext.dirty()
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -140,7 +133,7 @@ class Contours(RFTool_Contours, Contours_Ops):
                 return self.rfcontext.none_selected()
         # if mouse is at least a ratio of the distance toward unselected vert, return True
         if s1: bmv0, bmv1 = bmv1, bmv0
-        p = self.rfcontext.actions.mouse
+        p = self.actions.mouse
         p0 = self.rfcontext.Point_to_Point2D(bmv0.co)
         p1 = self.rfcontext.Point_to_Point2D(bmv1.co)
         v01 = p1 - p0
