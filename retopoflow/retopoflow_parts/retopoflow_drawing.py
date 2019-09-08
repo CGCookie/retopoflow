@@ -65,31 +65,29 @@ class RetopoFlow_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.symmetry:
             # get frame of target, used for symmetry decorations on sources
             ft = self.rftarget.get_frame()
-            pr = profiler.start('render sources')
-            for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(
-                    view_forward,
-                    buf_matrix_target, buf_matrix_target_inv,
-                    buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                    1.00, 0.05, False, 0.5,
-                    symmetry=self.rftarget.mirror_mod.symmetry,
-                    symmetry_view=options['symmetry view'],
-                    symmetry_effect=options['symmetry effect'],
-                    symmetry_frame=ft,
-                )
-            pr.done()
+            with profiler.code('render sources'):
+                for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+                    rfs.draw(
+                        view_forward,
+                        buf_matrix_target, buf_matrix_target_inv,
+                        buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                        1.00, 0.05, False, 0.5,
+                        symmetry=self.rftarget.mirror_mod.symmetry,
+                        symmetry_view=options['symmetry view'],
+                        symmetry_effect=options['symmetry effect'],
+                        symmetry_frame=ft,
+                    )
 
-        pr = profiler.start('render target')
-        alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
-        cull_backfaces = options['target cull backfaces']
-        alpha_backface = options['target alpha backface']
-        self.rftarget_draw.draw(
-            view_forward,
-            buf_matrix_target, buf_matrix_target_inv,
-            buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-            alpha_above, alpha_below, cull_backfaces, alpha_backface
-        )
-        pr.done()
+        with profiler.code('render target'):
+            alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
+            cull_backfaces = options['target cull backfaces']
+            alpha_backface = options['target alpha backface']
+            self.rftarget_draw.draw(
+                view_forward,
+                buf_matrix_target, buf_matrix_target_inv,
+                buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                alpha_above, alpha_below, cull_backfaces, alpha_backface
+            )
 
         # pr = profiler.start('grease marks')
         # bgl.glBegin(bgl.GL_QUADS)
@@ -118,7 +116,7 @@ class RetopoFlow_Drawing:
 
         #time.sleep(0.5)
 
-    @profiler.profile
+    @profiler.function
     def draw_postpixel2(self):
         if not self.actions.r3d: return
 
@@ -155,63 +153,58 @@ class RetopoFlow_Drawing:
                 self.drawing.text_draw2D(count_str, Point2D((sw-tw-10,th+10)), (1,1,1,0.25), dropshadow=(0,0,0,0.5), fontsize=12)
 
             if options['visualize fps'] and self.actions.region:
-                bgl.glEnable(bgl.GL_BLEND)
-                pr = profiler.start('fps postpixel')
+                with profiler.code('fps postpixel'):
+                    bgl.glEnable(bgl.GL_BLEND)
+                    lw,lh = len(self.fps_list),60
+                    def p(x, y): return (sw - 10 + (-lw + x) * m, 30 + y * m)
+                    def v(x, y): bgl.glVertex2f(*p(x,y))
 
-                lw,lh = len(self.fps_list),60
-                def p(x, y): return (sw - 10 + (-lw + x) * m, 30 + y * m)
-                def v(x, y): bgl.glVertex2f(*p(x,y))
-
-                bgl.glBegin(bgl.GL_QUADS)
-                bgl.glColor4f(0,0,0,0.2)
-                v(0, 0); v(lw, 0); v(lw, lh); v(0, lh)
-                bgl.glEnd()
-
-                bgl.glBegin(bgl.GL_LINES)
-                bgl.glColor4f(0.2,0.2,0.2,0.3)
-                for i in [10,20,30,40,50]:
-                    v(0, i); v(lw, i)
-                bgl.glEnd()
-
-                if options['low fps warn']:
-                    fw = options['low fps time']
-                    fh = options['low fps threshold']
                     bgl.glBegin(bgl.GL_QUADS)
-                    bgl.glColor4f(0.5,0.1,0.1,0.3)
-                    v(lw - fw, 0); v(lw, 0); v(lw, fh); v(lw - fw, fh)
+                    bgl.glColor4f(0,0,0,0.2)
+                    v(0, 0); v(lw, 0); v(lw, lh); v(0, lh)
                     bgl.glEnd()
 
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glColor4f(0.1,0.8,1.0,0.3)
-                for i in range(lw):
-                    v(i, min(lh, self.fps_list[i]))
-                bgl.glEnd()
+                    bgl.glBegin(bgl.GL_LINES)
+                    bgl.glColor4f(0.2,0.2,0.2,0.3)
+                    for i in [10,20,30,40,50]:
+                        v(0, i); v(lw, i)
+                    bgl.glEnd()
 
-                bgl.glBegin(bgl.GL_LINE_STRIP)
-                bgl.glColor4f(0,0,0,0.5)
-                v(0, 0); v(lw, 0); v(lw, lh); v(0, lh); v(0, 0)
-                bgl.glEnd()
+                    if options['low fps warn']:
+                        fw = options['low fps time']
+                        fh = options['low fps threshold']
+                        bgl.glBegin(bgl.GL_QUADS)
+                        bgl.glColor4f(0.5,0.1,0.1,0.3)
+                        v(lw - fw, 0); v(lw, 0); v(lw, fh); v(lw - fw, fh)
+                        bgl.glEnd()
 
-                self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
-                pr.done()
+                    bgl.glBegin(bgl.GL_LINE_STRIP)
+                    bgl.glColor4f(0.1,0.8,1.0,0.3)
+                    for i in range(lw):
+                        v(i, min(lh, self.fps_list[i]))
+                    bgl.glEnd()
+
+                    bgl.glBegin(bgl.GL_LINE_STRIP)
+                    bgl.glColor4f(0,0,0,0.5)
+                    v(0, 0); v(lw, 0); v(lw, lh); v(0, lh); v(0, 0)
+                    bgl.glEnd()
+
+                    self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
 
             if not self.draw_ui:
                 k = next(iter(default_rf_keymaps['toggle ui']))
                 self.drawing.text_draw2D('Press %s to show UI' % k, Point2D((10, sh-10)), (1,1,1,0.25), fontsize=12)
 
-            pr = profiler.start('tool draw postpixel')
-            self.tool.draw_postpixel()
-            pr.done()
+            with profiler.code('tool draw postpixel'):
+                self.tool.draw_postpixel()
 
-            pr = profiler.start('widget draw postpixel')
-            self.rfwidget.draw_postpixel()
-            pr.done()
+            with profiler.code('widget draw postpixel'):
+                self.rfwidget.draw_postpixel()
 
-            pr = profiler.start('window manager draw postpixel')
-            self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
-            self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
-            self.window_manager.draw_postpixel(self.actions.context)
-            pr.done()
+            with profiler.code('window manager draw postpixel'):
+                self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
+                self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
+                self.window_manager.draw_postpixel(self.actions.context)
 
         except AssertionError as e:
             message,h = Globals.debugger.get_exception_info_and_hash()
@@ -225,7 +218,7 @@ class RetopoFlow_Drawing:
             self.alert_user(message=message, level='exception', msghash=h)
             #raise e
 
-    @profiler.profile
+    @profiler.function
     def draw_preview2(self):
         if not self.actions.r3d: return
 
@@ -261,7 +254,7 @@ class RetopoFlow_Drawing:
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
         bgl.glPopMatrix()
 
-    @profiler.profile
+    @profiler.function
     def draw_postview2(self):
         if not self.actions.r3d: return
         if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
@@ -283,53 +276,50 @@ class RetopoFlow_Drawing:
         ft = self.rftarget.get_frame()
 
         if options['symmetry view'] != 'None' and self.rftarget.symmetry:
-            pr = profiler.start('render sources')
-            for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(
-                    view_forward,
-                    buf_matrix_target, buf_matrix_target_inv,
-                    buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                    1.00, 0.05, False, 0.5,
-                    symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
-                    symmetry_effect=options['symmetry effect'], symmetry_frame=ft
-                )
-            pr.done()
+            with profiler.code('render sources'):
+                for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+                    rfs.draw(
+                        view_forward,
+                        buf_matrix_target, buf_matrix_target_inv,
+                        buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                        1.00, 0.05, False, 0.5,
+                        symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
+                        symmetry_effect=options['symmetry effect'], symmetry_frame=ft
+                    )
 
-        pr = profiler.start('render target')
-        alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
-        cull_backfaces = options['target cull backfaces']
-        alpha_backface = options['target alpha backface']
-        self.rftarget_draw.draw(
-            view_forward,
-            buf_matrix_target, buf_matrix_target_inv,
-            buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-            alpha_above, alpha_below, cull_backfaces, alpha_backface
-        )
-        pr.done()
+        with profiler.code('render target'):
+            alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
+            cull_backfaces = options['target cull backfaces']
+            alpha_backface = options['target alpha backface']
+            self.rftarget_draw.draw(
+                view_forward,
+                buf_matrix_target, buf_matrix_target_inv,
+                buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                alpha_above, alpha_below, cull_backfaces, alpha_backface
+            )
 
-        pr = profiler.start('grease marks')
-        bgl.glBegin(bgl.GL_QUADS)
-        for stroke_data in self.grease_marks:
-            bgl.glColor4f(*stroke_data['color'])
-            t = stroke_data['thickness']
-            s0,p0,n0,d0,d1 = None,None,None,None,None
-            for s1 in stroke_data['marks']:
-                p1,n1 = s1
-                if p0 and p1:
-                    v01 = p1 - p0
-                    if d0 is None: d0 = Direction(v01.cross(n0))
-                    d1 = Direction(v01.cross(n1))
-                    bgl.glVertex3f(*(p0-d0*t+n0*0.001))
-                    bgl.glVertex3f(*(p0+d0*t+n0*0.001))
-                    bgl.glVertex3f(*(p1+d1*t+n1*0.001))
-                    bgl.glVertex3f(*(p1-d1*t+n1*0.001))
-                s0,p0,n0,d0 = s1,p1,n1,d1
-        bgl.glEnd()
-        pr.done()
+        with profiler.code('grease marks'):
+            bgl.glBegin(bgl.GL_QUADS)
+            for stroke_data in self.grease_marks:
+                bgl.glColor4f(*stroke_data['color'])
+                t = stroke_data['thickness']
+                s0,p0,n0,d0,d1 = None,None,None,None,None
+                for s1 in stroke_data['marks']:
+                    p1,n1 = s1
+                    if p0 and p1:
+                        v01 = p1 - p0
+                        if d0 is None: d0 = Direction(v01.cross(n0))
+                        d1 = Direction(v01.cross(n1))
+                        bgl.glVertex3f(*(p0-d0*t+n0*0.001))
+                        bgl.glVertex3f(*(p0+d0*t+n0*0.001))
+                        bgl.glVertex3f(*(p1+d1*t+n1*0.001))
+                        bgl.glVertex3f(*(p1-d1*t+n1*0.001))
+                    s0,p0,n0,d0 = s1,p1,n1,d1
+            bgl.glEnd()
 
-        pr = profiler.start('render other')
-        self.tool.draw_postview()
-        self.rfwidget.draw_postview()
-        pr.done()
+        with profiler.code('render other'):
+            self.tool.draw_postview()
+            self.rfwidget.draw_postview()
 
+        # artificially slow down rendering (for testing purposes only)
         #time.sleep(0.5)

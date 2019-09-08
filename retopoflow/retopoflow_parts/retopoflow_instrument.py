@@ -33,7 +33,7 @@ class RetopoFlow_Instrumentation:
     def instrument_write(self, action):
         if not options['instrument']: return
 
-        tb_name = options['instrument_filename']
+        tb_name = options.get_path('instrument_filename')
         if tb_name not in bpy.data.texts: bpy.data.texts.new(tb_name)
         tb = bpy.data.texts[tb_name]
 

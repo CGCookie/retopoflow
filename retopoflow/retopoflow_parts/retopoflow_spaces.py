@@ -105,7 +105,7 @@ class RetopoFlow_Spaces:
             # print(oxyz, (xyz-oxyz).length)
             return (xyz - oxyz).length
 
-    @profiler.profile
+    @profiler.function
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         if not xy: return None

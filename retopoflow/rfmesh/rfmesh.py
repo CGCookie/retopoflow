@@ -70,7 +70,7 @@ class RFMesh():
 
     @staticmethod
     @blender_version_wrapper('<', '2.80')
-    @profiler.profile
+    @profiler.function
     def get_bmesh_from_object(obj, deform=False):
         mesh = obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
         mesh.update()
@@ -81,7 +81,7 @@ class RFMesh():
 
     @staticmethod
     @blender_version_wrapper('>=', '2.80')
-    @profiler.profile
+    @profiler.function
     def get_bmesh_from_object(obj, deform=False):
         mesh = obj.to_mesh()
         mesh.update()
@@ -91,34 +91,31 @@ class RFMesh():
         return bme
 
     @stats_wrapper
-    @profiler.profile
+    @profiler.function
     def __setup__(
         self, obj,
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
-        pr = profiler.start('checking for NaNs')
-        hasnan = any(
-            math.isnan(v)
-            for emv in obj.data.vertices
-            for v in emv.co
-        )
-        pr2 = profiler.start('validating mesh data')
-        if hasnan:
-            dprint('Mesh data contains NaN in vertex coordinate!')
-            dprint('Cleaning mesh')
-            obj.data.validate(verbose=True, clean_customdata=False)
-        else:
-            # cleaning mesh quietly
-            obj.data.validate(verbose=False, clean_customdata=False)
-        pr2.done()
-        pr.done()
+        with profiler.code('checking for NaNs'):
+            hasnan = any(
+                math.isnan(v)
+                for emv in obj.data.vertices
+                for v in emv.co
+            )
+            with profiler.code('validating mesh data'):
+                if hasnan:
+                    dprint('Mesh data contains NaN in vertex coordinate!')
+                    dprint('Cleaning mesh')
+                    obj.data.validate(verbose=True, clean_customdata=False)
+                else:
+                    # cleaning mesh quietly
+                    obj.data.validate(verbose=False, clean_customdata=False)
 
-        pr = profiler.start('setup init')
-        self.obj = obj
-        self.xform = XForm(self.obj.matrix_world)
-        self.hash = hash_object(self.obj)
-        pr.done()
+        with profiler.code('setup init'):
+            self.obj = obj
+            self.xform = XForm(self.obj.matrix_world)
+            self.hash = hash_object(self.obj)
 
         if bme is not None:
             self.bme = bme
@@ -126,27 +123,25 @@ class RFMesh():
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
-                pr = profiler.start('copying selection')
-                self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
-                # copy selection from editmesh
-                for bmf, emf in zip(self.bme.faces, self.obj.data.polygons):
-                    bmf.select = emf.select
-                for bme, eme in zip(self.bme.edges, self.obj.data.edges):
-                    bme.select = eme.select
-                for bmv, emv in zip(self.bme.verts, self.obj.data.vertices):
-                    bmv.select = emv.select
-                pr.done()
+                with profiler.code('copying selection'):
+                    self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
+                    # copy selection from editmesh
+                    for bmf, emf in zip(self.bme.faces, self.obj.data.polygons):
+                        bmf.select = emf.select
+                    for bme, eme in zip(self.bme.edges, self.obj.data.edges):
+                        bme.select = eme.select
+                    for bmv, emv in zip(self.bme.verts, self.obj.data.vertices):
+                        bmv.select = emv.select
             else:
                 self.deselect_all()
 
         if triangulate:
             self.triangulate()
 
-        pr = profiler.start('setup finishing')
-        self.selection_center = Point((0, 0, 0))
-        self.store_state()
-        self.dirty()
-        pr.done()
+        with profiler.code('setup finishing'):
+            self.selection_center = Point((0, 0, 0))
+            self.store_state()
+            self.dirty()
 
     ##########################################################
 
@@ -177,7 +172,7 @@ class RFMesh():
     def get_version(self, selection=True):
         return self._version + (self._version_selection if selection else 0)
 
-    @profiler.profile
+    @profiler.function
     def get_bvh(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bvh') or self.bvh_version != ver:
@@ -185,7 +180,7 @@ class RFMesh():
             self.bvh_version = ver
         return self.bvh
 
-    @profiler.profile
+    @profiler.function
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
@@ -193,7 +188,7 @@ class RFMesh():
             self.bbox_version = ver
         return self.bbox
 
-    @profiler.profile
+    @profiler.function
     def get_kdtree(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'kdt') or self.kdt_version != ver:
@@ -278,13 +273,13 @@ class RFMesh():
 
     ##########################################################
 
-    @profiler.profile
+    @profiler.function
     def triangulate(self):
         faces = [face for face in self.bme.faces if len(face.verts) != 3]
         dprint('%d non-triangles' % len(faces))
         bmesh.ops.triangulate(self.bme, faces=faces)
 
-    @profiler.profile
+    @profiler.function
     def plane_split(self, plane: Plane):
         plane_local = self.xform.w2l_plane(plane)
         dist = 0.00000001
@@ -301,7 +296,7 @@ class RFMesh():
             clear_outer=False, clear_inner=False
         )
 
-    @profiler.profile
+    @profiler.function
     def plane_intersection(self, plane: Plane):
         # TODO: do not duplicate vertices!
         l2w_point = self.xform.l2w_point
@@ -309,35 +304,31 @@ class RFMesh():
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
 
-        pr = profiler.start('vert sides')
-        vert_side = {
-            bmv: side(bmv.co)
-            for bmv in self.bme.verts
-        }
-        pr.done()
-        pr = profiler.start('split edges')
-        edges = {
-            bme
-            for bme in self.bme.edges
-            if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
-        }
-        pr.done()
-        pr = profiler.start('split faces')
-        faces = {
-            bmf
-            for bme in edges
-            for bmf in bme.link_faces
-        }
-        pr.done()
-        pr = profiler.start('intersections')
-        intersection = [
-            (l2w_point(p0), l2w_point(p1))
-            for bmf in faces
-            for (p0, p1) in triangle_intersection([
-                bmv.co for bmv in bmf.verts
-            ])
-        ]
-        pr.done()
+        with profiler.code('vert sides'):
+            vert_side = {
+                bmv: side(bmv.co)
+                for bmv in self.bme.verts
+            }
+        with profiler.code('split edges'):
+            edges = {
+                bme
+                for bme in self.bme.edges
+                if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
+            }
+        with profiler.code('split faces'):
+            faces = {
+                bmf
+                for bme in edges
+                for bmf in bme.link_faces
+            }
+        with profiler.code('intersections'):
+            intersection = [
+                (l2w_point(p0), l2w_point(p1))
+                for bmf in faces
+                for (p0, p1) in triangle_intersection([
+                    bmv.co for bmv in bmf.verts
+                ])
+            ]
         return intersection
 
     def get_xy_plane(self):
@@ -355,7 +346,7 @@ class RFMesh():
         n = self.xform.l2w_normal(Normal((1, 0, 0)))
         return Plane(o, n)
 
-    @profiler.profile
+    @profiler.function
     def _crawl(self, bmf_start, plane):
         '''
         crawl about RFMesh along plane starting with bmf
@@ -443,7 +434,7 @@ class RFMesh():
 
         return ret
 
-    @profiler.profile
+    @profiler.function
     def plane_intersection_crawl(self, ray:Ray, plane:Plane):
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
         _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
@@ -453,7 +444,7 @@ class RFMesh():
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
         return ret
 
-    @profiler.profile
+    @profiler.function
     def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
         '''
         intersect object with ray, walk to plane, then crawl about
@@ -498,63 +489,57 @@ class RFMesh():
         ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
         return ret
 
-    @profiler.profile
+    @profiler.function
     def plane_intersections_crawl(self, plane:Plane):
         plane = self.xform.w2l_plane(plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        pr = profiler.start('finding all edges crossing plane')
-        dot = plane.n.dot
-        o = dot(plane.o)
-        edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
-        pr.done()
+        with profiler.code('finding all edges crossing plane'):
+            dot = plane.n.dot
+            o = dot(plane.o)
+            edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
 
-        pr = profiler.start('finding faces crossing plane')
-        faces = set(bmf for bme in edges for bmf in bme.link_faces)
-        pr.done()
+        with profiler.code('finding faces crossing plane'):
+            faces = set(bmf for bme in edges for bmf in bme.link_faces)
 
-        pr = profiler.start('crawling faces along plane')
-        rets = []
-        touched = set()
-        for bmf in faces:
-            if bmf in touched: continue
-            ret = self._crawl(bmf, plane)
-            touched |= set(f0 for f0,_,_,_ in ret if f0)
-            touched |= set(f1 for _,_,f1,_ in ret if f1)
-            ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-            rets += [ret]
-        pr.done()
+        with profiler.code('crawling faces along plane'):
+            rets = []
+            touched = set()
+            for bmf in faces:
+                if bmf in touched: continue
+                ret = self._crawl(bmf, plane)
+                touched |= set(f0 for f0,_,_,_ in ret if f0)
+                touched |= set(f1 for _,_,f1,_ in ret if f1)
+                ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+                rets += [ret]
 
         return rets
 
-    @profiler.profile
+    @profiler.function
     def plane_intersections_crawl(self, plane:Plane):
         plane = self.xform.w2l_plane(plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        pr = profiler.start('finding all edges crossing plane')
-        dot = plane.n.dot
-        o = dot(plane.o)
-        edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
-        pr.done()
+        with profiler.code('finding all edges crossing plane'):
+            dot = plane.n.dot
+            o = dot(plane.o)
+            edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
 
-        pr = profiler.start('finding faces crossing plane')
-        faces = set(bmf for bme in edges for bmf in bme.link_faces)
-        pr.done()
+        with profiler.code('finding faces crossing plane'):
+            faces = set(bmf for bme in edges for bmf in bme.link_faces)
 
-        pr = profiler.start('crawling faces along plane')
-        rets = []
-        touched = set()
-        for bmf in faces:
-            if bmf in touched: continue
-            ret = self._crawl(bmf, plane)
-            touched |= set(f0 for f0,_,_,_ in ret if f0)
-            touched |= set(f1 for _,_,f1,_ in ret if f1)
-            ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-            rets += [ret]
-        pr.done()
+        with profiler.code('crawling faces along plane'):
+            rets = []
+            touched = set()
+            for bmf in faces:
+                if bmf in touched: continue
+                ret = self._crawl(bmf, plane)
+                touched |= set(f0 for f0,_,_,_ in ret if f0)
+                touched |= set(f1 for _,_,f1,_ in ret if f1)
+                ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+                rets += [ret]
 
         return rets
 
@@ -604,7 +589,7 @@ class RFMesh():
             maxdist -= d
         return hits
 
-    @profiler.profile
+    @profiler.function
     def raycast_hit(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
@@ -1167,7 +1152,7 @@ class RFSource(RFMesh):
     __cache = {}
 
     @staticmethod
-    @profiler.profile
+    @profiler.function
     def new(obj:bpy.types.Object):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 
@@ -1210,7 +1195,7 @@ class RFTarget(RFMesh):
     '''
 
     @staticmethod
-    @profiler.profile
+    @profiler.function
     def new(obj:bpy.types.Object, unit_scaling_factor):
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 

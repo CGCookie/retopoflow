@@ -285,7 +285,7 @@ class Contours_Loop:
     def __repr__(self):
         return '<Contours_Loop: %d,%s,%s>' % (len(self.verts), str(self.connected), str(self.verts))
 
-    @profiler.profile
+    @profiler.function
     def set_vert_loop(self, vert_loop, offset):
         self.verts = vert_loop
         self.offset = offset

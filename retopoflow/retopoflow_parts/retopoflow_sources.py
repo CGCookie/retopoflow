@@ -37,7 +37,7 @@ class RetopoFlow_Sources:
     functions to work on all RFSource objects
     '''
 
-    @profiler.profile
+    @profiler.function
     def setup_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         self.rfsources = [RFSource.new(src) for src in self.get_sources()]
@@ -46,7 +46,7 @@ class RetopoFlow_Sources:
         opts = visualization.get_source_settings()
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
 
-    @profiler.profile
+    @profiler.function
     def setup_sources_symmetry(self):
         xyplane,xzplane,yzplane = self.rftarget.get_xy_plane(),self.rftarget.get_xz_plane(),self.rftarget.get_yz_plane()
         w2l_point = self.rftarget.w2l_point
@@ -151,7 +151,7 @@ class RetopoFlow_Sources:
     ###################################################
     # visibility testing
 
-    @profiler.profile
+    @profiler.function
     def is_visible(self, point:Point, normal:Normal):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False

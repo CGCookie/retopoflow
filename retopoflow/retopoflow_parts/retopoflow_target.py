@@ -40,7 +40,7 @@ class RetopoFlow_Target:
     functions to work on RFTarget
     '''
 
-    @profiler.profile
+    @profiler.function
     def setup_target(self):
         ''' target is the active object.  must be selected and visible '''
         self.tar_object = self.get_target()
@@ -65,7 +65,7 @@ class RetopoFlow_Target:
 
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
 
-    @profiler.profile
+    @profiler.function
     def get_vis_accel(self, force=False):
         target_version = self.get_target_version(selection=False)
         view_version = self.get_view_version()
@@ -96,7 +96,7 @@ class RetopoFlow_Target:
 
         return self.accel_vis_accel
 
-    @profiler.profile
+    @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
@@ -110,7 +110,7 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
-    @profiler.profile
+    @profiler.function
     def accel_nearest2D_edge(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
@@ -124,7 +124,7 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
-    @profiler.profile
+    @profiler.function
     def accel_nearest2D_face(self, point=None, max_dist=None):
         xy = self.get_point2D(point or self.actions.mouse)
         vis_accel = self.get_vis_accel()
@@ -146,39 +146,39 @@ class RetopoFlow_Target:
         if point.is_2D(): return point
         return self.Point_to_Point2D(point)
 
-    @profiler.profile
+    @profiler.function
     def nearest2D_vert(self, point=None, max_dist=None, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
-    @profiler.profile
+    @profiler.function
     def nearest2D_verts(self, point=None, max_dist:float=10, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
         max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.Point_to_Point2D, verts=verts)
 
-    @profiler.profile
+    @profiler.function
     def nearest2D_edge(self, point=None, max_dist=None, edges=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
-    @profiler.profile
+    @profiler.function
     def nearest2D_edges(self, point=None, max_dist:float=10, edges=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.Point_to_Point2D, edges=edges)
 
     # TODO: implement max_dist
-    @profiler.profile
+    @profiler.function
     def nearest2D_face(self, point=None, max_dist=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
         return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
 
     # TODO: fix this function! Izzza broken
-    @profiler.profile
+    @profiler.function
     def nearest2D_faces(self, point=None, max_dist:float=10, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
@@ -239,15 +239,15 @@ class RetopoFlow_Target:
     #######################################
     # get visible geometry
 
-    @profiler.profile
+    @profiler.function
     def visible_verts(self):
         return self.rftarget.visible_verts(self.is_visible)
 
-    @profiler.profile
+    @profiler.function
     def visible_edges(self, verts=None):
         return self.rftarget.visible_edges(self.is_visible, verts=verts)
 
-    @profiler.profile
+    @profiler.function
     def visible_faces(self, verts=None):
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
@@ -255,7 +255,7 @@ class RetopoFlow_Target:
     ########################################
     # symmetry utils
 
-    @profiler.profile
+    @profiler.function
     def clip_pointloop(self, pointloop, connected):
         # assuming loop will cross symmetry line exactly zero or two times
         l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point

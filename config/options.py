@@ -76,6 +76,7 @@ print('RetopoFlow git: %s' % str(retopoflow_git_version))
 
 
 class Options:
+    path_root = None
     options_filename = 'RetopoFlow_options.json'    # the filename of the Shelve object
                                                     # will be located at root of RF plug-in
 
@@ -151,6 +152,7 @@ class Options:
         'target alpha backface':    0.2,
         'target cull backfaces':    False,
 
+        # 'options filename':     'RetopoFlow_options.json',  # must get handled specially?
         'screenshot filename':  'RetopoFlow_screenshot.png',
         'instrument_filename':  'RetopoFlow_instrument',
         'log_filename':         'RetopoFlow_log',
@@ -199,7 +201,9 @@ class Options:
     def __init__(self):
         if not Options.fndb:
             path = os.path.split(os.path.abspath(__file__))[0]
-            Options.fndb = os.path.abspath(os.path.join(path, '..', Options.options_filename))
+            Options.path_root = os.path.abspath(os.path.join(path, '..'))
+            Options.fndb = os.path.join(Options.path_root, Options.options_filename)
+            # Options.fndb = self.get_path('options filename')
             print('RetopoFlow options path: %s' % Options.fndb)
             self.read()
             if self['rf version'] != retopoflow_version:
@@ -217,11 +221,23 @@ class Options:
         self.dirty()
         self.clean()
 
+    def get_path(self, key):
+        return os.path.join(Options.path_root, self[key])
+
+    def get_path_incremented(self, key):
+        p = self.get_path(key)
+        if os.path.exists(p):
+            i = 0
+            p0,p1 = os.path.splitext(p)
+            while os.path.exists('%s.%03d.%s' % (p0, i, p1)): i += 1
+            p = '%s.%03d.%s' % (p0, i, p1)
+        return p
+
     def update_external_vars(self):
         Debugger.set_error_level(self['debug level'])
-        Logger.set_log_filename(self['log_filename'])
+        Logger.set_log_filename(self.get_path('log_filename'))
         Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
-        Profiler.set_profiler_filename(self['profiler_filename'])
+        Profiler.set_profiler_filename(self.get_path('profiler_filename'))
 
     def dirty(self):
         Options.is_dirty = True
