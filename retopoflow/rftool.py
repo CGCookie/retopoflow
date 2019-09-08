@@ -57,6 +57,14 @@ class RFTool:
         self.update_target()
         self.update_view()
 
+    @staticmethod
+    def dirty_when_done(fn):
+        def wrapper(*args, **kwargs):
+            ret = fn(*args, **kwargs)
+            RFTool.rfcontext.dirty()
+            return ret
+        return wrapper
+
     ####################################################
     # methods that subclasses can overwrite
 

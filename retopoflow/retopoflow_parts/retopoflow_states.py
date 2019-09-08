@@ -33,7 +33,7 @@ class RetopoFlow_States(CookieCutter):
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
-            self.rftool.update_change()
+            self.rftool.update_target()
             tag_redraw_all()
         view_version = self.get_view_version()
         if self.view_version != view_version:

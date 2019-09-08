@@ -23,6 +23,7 @@ import copy
 
 from ...config.options import options
 
+
 class RetopoFlow_Undo:
     def setup_undo(self):
         self.undo = []
@@ -48,11 +49,10 @@ class RetopoFlow_Undo:
         self.rftarget = state['rftarget']
         self.rftarget.rewrap()
         self.rftarget.dirty()
-        opts = visualization.get_target_settings()
-        self.rftarget_draw.replace_rfmesh(self.rftarget, opts)
+        self.rftarget_draw.replace_rfmesh(self.rftarget)
         self.grease_marks = state['grease_marks']
         if set_tool:
-            self.set_tool(state['tool'], forceUpdate=True, changeTool=options['undo change tool'])
+            self.select_rftool(state['tool']) #, forceUpdate=True, changeTool=options['undo change tool'])
 
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
