@@ -28,9 +28,6 @@ class RFTool_PolyStrips(RFTool):
 
 
 class PolyStrips(RFTool_PolyStrips):
-    def update(self):
-        pass
-
     @RFTool_PolyStrips.FSM_State('main')
     def main(self) :
         pass

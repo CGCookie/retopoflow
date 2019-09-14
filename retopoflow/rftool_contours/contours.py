@@ -26,12 +26,14 @@ from .contours_utils import Contours_Utils
 from .contours_utils import (
     find_loops,
     find_strings,
-    loop_plane,
+    loop_plane, loop_radius,
     Contours_Loop,
 )
 
 from ..rftool import RFTool
+from ..rfwidgets.rfwidget_line import RFWidget_Line
 
+from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal
 from ...addon_common.common.utils import iter_pairs
 
@@ -42,7 +44,17 @@ class RFTool_Contours(RFTool):
 
 
 class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
+    @RFTool_Contours.on_init
     def init(self):
+        self.rfwidget = RFWidget_Line(self)
+
+    @RFWidget_Line.on_action
+    def new_line(self):
+        print("NEW LINE!!!", self)
+        pass
+
+    @RFTool_Contours.on_reset
+    def reset(self):
         self.show_cut = False
         self.show_arrows = False
         self.pts = []
@@ -50,6 +62,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
         self.connected = False
         self.cuts = []
 
+    @RFTool_Contours.on_target_change
     def update_target(self):
         sel_edges = self.rfcontext.get_selected_edges()
         #sel_faces = self.rfcontext.get_selected_faces()
@@ -106,9 +119,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
 
-
     @RFTool_Contours.FSM_State('main')
-    def main(self) :
+    def main(self):
+        Cursors.set('CROSSHAIR')
+
         if self.actions.pressed({'select', 'select add'}):
             return self.rfcontext.setup_selection_painting(
                 'edge',
@@ -117,3 +131,110 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
                 kwargs_deselect={'subparts': False},
             )
 
+    @RFTool_Contours.Draw('post2d')
+    def draw_postpixel(self):
+        point_to_point2d = self.rfcontext.Point_to_Point2D
+        up = self.rfcontext.Vec_up()
+        size_to_size2D = self.rfcontext.size_to_size2D
+        text_draw2D = self.rfcontext.drawing.text_draw2D
+        self.rfcontext.drawing.set_font_size(12)
+
+        bmv_count = {}
+
+        for loop_data in self.loops_data:
+            loop = loop_data['loop']
+            radius = loop_data['radius']
+            count = loop_data['count']
+            plane = loop_data['plane']
+            cl = loop_data['cl']
+
+            # draw segment count label
+            cos = [point_to_point2d(vert.co) for vert in loop]
+            if any(cos):
+                loop = [(bmv,co) for bmv,co in zip(loop,cos) if co]
+                bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
+                if bmv not in bmv_count: bmv_count[bmv] = []
+                bmv_count[bmv].append( (count, True) )
+
+            # draw arrows
+            if self.show_arrows:
+                self.drawing.line_width(2.0)
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.02)
+                if p0 and p1:
+                    bgl.glColor4f(1,1,0,0.5)
+                    draw2D_arrow(p0, p1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
+                if p0 and p1:
+                    bgl.glColor4f(1,0,1,0.5)
+                    draw2D_arrow(p0, p1)
+
+        for string_data in self.strings_data:
+            string = string_data['string']
+            count = string_data['count']
+            plane = string_data['plane']
+
+            # draw segment count label
+            cos = [point_to_point2d(vert.co) for vert in string]
+            if any(cos):
+                string = [(bmv,co) for bmv,co in zip(string,cos) if co]
+                bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
+                if bmv not in bmv_count: bmv_count[bmv] = []
+                bmv_count[bmv].append( (count, False) )
+
+            # draw arrows
+            if self.show_arrows:
+                p0 = point_to_point2d(plane.o)
+                p1 = point_to_point2d(plane.o+plane.n*0.02)
+                if p0 and p1:
+                    bgl.glColor4f(1,1,0,0.5)
+                    draw2D_arrow(p0, p1)
+                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
+                if p0 and p1:
+                    bgl.glColor4f(1,0,1,0.5)
+                    draw2D_arrow(p0, p1)
+
+        for bmv in bmv_count.keys():
+            counts = bmv_count[bmv]
+            counts = sorted([c for c,_ in counts])
+            s = ','.join(map(str, counts))
+            xy = point_to_point2d(bmv.co)
+            xy.y += 10
+            text_draw2D(s, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+
+        # # draw new cut info
+        # if self.show_cut:
+        #     for cl in self.cuts:
+        #         plane = cl.plane
+        #         self.drawing.line_width(2.0)
+        #         p0 = point_to_point2d(plane.o)
+        #         p1 = point_to_point2d(plane.o+plane.n*0.02)
+        #         if p0 and p1:
+        #             bgl.glColor4f(1,1,0,0.5)
+        #             draw2D_arrow(p0, p1)
+        #         p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
+        #         if p0 and p1:
+        #             bgl.glColor4f(1,0,1,0.5)
+        #             draw2D_arrow(p0, p1)
+
+        # if self.mode == 'rotate' and self.rotate_about:
+        #     bgl.glEnable(bgl.GL_BLEND)
+        #     bgl.glColor4f(1,1,0.1,1)
+        #     self.drawing.enable_stipple()
+        #     self.drawing.line_width(2.0)
+        #     bgl.glBegin(bgl.GL_LINES)
+        #     bgl.glVertex2f(*self.rotate_about)
+        #     bgl.glVertex2f(*self.rfcontext.actions.mouse)
+        #     bgl.glEnd()
+        #     self.drawing.disable_stipple()
+
+        # if self.mode == 'shift' and self.shift_about:
+        #     bgl.glEnable(bgl.GL_BLEND)
+        #     bgl.glColor4f(1,1,0.1,1)
+        #     self.drawing.enable_stipple()
+        #     self.drawing.line_width(2.0)
+        #     bgl.glBegin(bgl.GL_LINES)
+        #     bgl.glVertex2f(*(self.shift_about + self.rot_axis2D * 1000))
+        #     bgl.glVertex2f(*(self.shift_about - self.rot_axis2D * 1000))
+        #     bgl.glEnd()
+        #     self.drawing.disable_stipple()

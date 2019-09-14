@@ -29,16 +29,24 @@ class RetopoFlow_States(CookieCutter):
         self.view_version = None
 
     def update(self):
-        self.rftool.update_timer()
+        self.rftool._callback('timer')
+        if self.rftool.rfwidget:
+            self.rftool.rfwidget._callback('timer')
+
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
-            self.rftool.update_target()
+            self.rftool._callback('target change')
+            if self.rftool.rfwidget:
+                self.rftool.rfwidget._callback('target change')
             tag_redraw_all()
+
         view_version = self.get_view_version()
         if self.view_version != view_version:
             self.view_version = view_version
-            self.rftool.update_view()
+            self.rftool._callback('view change')
+            if self.rftool.rfwidget:
+                self.rftool.rfwidget._callback('view change')
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
@@ -60,17 +68,22 @@ class RetopoFlow_States(CookieCutter):
         # handle undo/redo
         if self.actions.pressed('undo'):
             self.undo_pop()
-            if self.rftool: self.rftool.undone()
+            if self.rftool: self.rftool._reset()
             return
         if self.actions.pressed('redo'):
             self.redo_pop()
-            if self.rftool: self.rftool.undone()
+            if self.rftool: self.rftool._reset()
             return
 
         if self.actions.pressed('F2'):
             self.select_rftool(self.rftools[2])
 
-        ret = self.rftool.fsm_update()
+        if self.rftool.rfwidget:
+            ret = self.rftool.rfwidget._fsm_update()
+            if self.fsm.is_state(ret):
+                return ret
+
+        ret = self.rftool._fsm_update()
         if self.fsm.is_state(ret):
             return ret
 

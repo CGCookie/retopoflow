@@ -28,9 +28,6 @@ class RFTool_Loops(RFTool):
 
 
 class Loops(RFTool_Loops):
-    def update(self):
-        pass
-
     @RFTool_Loops.FSM_State('main')
     def main(self) :
         pass

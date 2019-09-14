@@ -26,6 +26,7 @@ from bpy_extras.object_utils import object_data_add
 
 from ...config.options import options
 
+from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import matrix_vector_mult, get_preferences
 from ...addon_common.common.maths import BBox
@@ -308,7 +309,7 @@ class RetopoFlow_Blender:
                 pass
                 #self.ui_toggle_maximize_area(use_hide_panels=False)
 
-        Drawing.set_cursor('DEFAULT')
+        Globals.cursors.set('DEFAULT')
 
         for o in bpy.data.objects:
             if hasattr(o, 'hide'):

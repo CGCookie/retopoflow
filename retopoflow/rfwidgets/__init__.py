@@ -19,15 +19,4 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..rftool import RFTool
-
-class RFTool_PolyPen(RFTool):
-    name        = 'PolyPen'
-    description = 'Create complex topology on vertex-by-vertex basis'
-    icon        = 'polypen_32.png'
-
-
-class PolyPen(RFTool_PolyPen):
-    @RFTool_PolyPen.FSM_State('main')
-    def main(self) :
-        pass
+__all__ = []

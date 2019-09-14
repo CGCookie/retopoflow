@@ -28,9 +28,6 @@ class RFTool_Patches(RFTool):
 
 
 class Patches(RFTool_Patches):
-    def update(self):
-        pass
-
     @RFTool_Patches.FSM_State('main')
     def main(self) :
         pass

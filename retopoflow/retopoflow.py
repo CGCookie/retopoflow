@@ -21,17 +21,17 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import bpy
 
-from .retopoflow_parts.retopoflow_blender    import RetopoFlow_Blender
-from .retopoflow_parts.retopoflow_drawing    import RetopoFlow_Drawing
-from .retopoflow_parts.retopoflow_grease     import RetopoFlow_Grease
-from .retopoflow_parts.retopoflow_instrument import RetopoFlow_Instrumentation
-from .retopoflow_parts.retopoflow_sources    import RetopoFlow_Sources
-from .retopoflow_parts.retopoflow_spaces     import RetopoFlow_Spaces
-from .retopoflow_parts.retopoflow_states     import RetopoFlow_States
-from .retopoflow_parts.retopoflow_target     import RetopoFlow_Target
-from .retopoflow_parts.retopoflow_tools      import RetopoFlow_Tools
-from .retopoflow_parts.retopoflow_ui         import RetopoFlow_UI
-from .retopoflow_parts.retopoflow_undo       import RetopoFlow_Undo
+from .rf.rf_blender    import RetopoFlow_Blender
+from .rf.rf_drawing    import RetopoFlow_Drawing
+from .rf.rf_grease     import RetopoFlow_Grease
+from .rf.rf_instrument import RetopoFlow_Instrumentation
+from .rf.rf_sources    import RetopoFlow_Sources
+from .rf.rf_spaces     import RetopoFlow_Spaces
+from .rf.rf_states     import RetopoFlow_States
+from .rf.rf_target     import RetopoFlow_Target
+from .rf.rf_tools      import RetopoFlow_Tools
+from .rf.rf_ui         import RetopoFlow_UI
+from .rf.rf_undo       import RetopoFlow_Undo
 
 from ..config.keymaps import default_rf_keymaps
 
@@ -76,15 +76,16 @@ class RetopoFlow(
         self.unit_scaling_factor = self.get_unit_scaling_factor()
         self.scale_to_unit_box()
 
-        self.setup_states()
-        self.setup_rftools()
-        self.setup_ui()
-        self.setup_grease()
         self.setup_target()
         self.setup_sources()
         self.setup_sources_symmetry()   # must be called after self.setup_target()!!
         self.setup_rotate_about_active()
         self.setup_undo()
+
+        self.setup_states()
+        self.setup_rftools()
+        self.setup_grease()
+        self.setup_ui()                 # must be called after self.setup_target()!!
 
     def end(self):
         self.end_rotate_about_active()
