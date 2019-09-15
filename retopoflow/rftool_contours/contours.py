@@ -48,11 +48,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
     def init(self):
         self.rfwidget = RFWidget_Line(self)
 
-    @RFWidget_Line.on_action
-    def new_line(self):
-        print("NEW LINE!!!", self)
-        pass
-
     @RFTool_Contours.on_reset
     def reset(self):
         self.show_cut = False
@@ -61,6 +56,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
         self.cut_pts = []
         self.connected = False
         self.cuts = []
+
+    def get_count(self):
+        print('RFTool_Contours.get_count()!')
+        return 24
 
     @RFTool_Contours.on_target_change
     def update_target(self):
@@ -130,6 +129,16 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+
+    @RFWidget_Line.on_action
+    def new_line(self):
+        xy0,xy1 = self.rfwidget.line2D
+        if (xy1-xy0).length < 0.001: return
+        xy01 = xy0 + (xy1-xy0) / 2
+        plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
+        ray = self.rfcontext.Point2D_to_Ray(xy01)
+        self.new_cut(ray, plane, walk=False, check_hit=xy01)
+
 
     @RFTool_Contours.Draw('post2d')
     def draw_postpixel(self):

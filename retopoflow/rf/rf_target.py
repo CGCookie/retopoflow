@@ -266,7 +266,7 @@ class RetopoFlow_Target:
         # assuming loop will cross symmetry line exactly zero or two times
         l2w_point,w2l_point = self.rftarget.xform.l2w_point,self.rftarget.xform.w2l_point
         pointloop = [w2l_point(pt) for pt in pointloop]
-        if 'x' in self.rftarget.symmetry and any(p.x < 0 for p in pointloop):
+        if self.rftarget.mirror_mod.x and any(p.x < 0 for p in pointloop):
             if connected:
                 rot_idx = next(i for i,p in enumerate(pointloop) if p.x < 0)
                 pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
@@ -282,7 +282,7 @@ class RetopoFlow_Target:
                 npl[0].x = 0
                 npl[-1].x = 0
             pointloop = npl
-        if 'y' in self.rftarget.symmetry and any(p.y > 0 for p in pointloop):
+        if self.rftarget.mirror_mod.y and any(p.y > 0 for p in pointloop):
             if connected:
                 rot_idx = next(i for i,p in enumerate(pointloop) if p.y > 0)
                 pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
@@ -298,7 +298,7 @@ class RetopoFlow_Target:
                 npl[0].y = 0
                 npl[-1].y = 0
             pointloop = npl
-        if 'z' in self.rftarget.symmetry and any(p.z < 0 for p in pointloop):
+        if self.rftarget.mirror_mod.z and any(p.z < 0 for p in pointloop):
             if connected:
                 rot_idx = next(i for i,p in enumerate(pointloop) if p.z < 0)
                 pointloop = pointloop[rot_idx:] + pointloop[:rot_idx]
@@ -322,16 +322,16 @@ class RetopoFlow_Target:
 
     def is_point_on_mirrored_side(self, point):
         p = self.rftarget.xform.w2l_point(point)
-        if 'x' in self.rftarget.symmetry and p.x < 0: return True
-        if 'y' in self.rftarget.symmetry and p.y > 0: return True
-        if 'z' in self.rftarget.symmetry and p.z < 0: return True
+        if self.rftarget.mirro_mod.x and p.x < 0: return True
+        if self.rftarget.mirro_mod.y and p.y > 0: return True
+        if self.rftarget.mirro_mod.z and p.z < 0: return True
         return False
 
     def mirror_point(self, point):
         p = self.rftarget.xform.w2l_point(point)
-        if 'x' in self.rftarget.symmetry: p.x = abs(p.x)
-        if 'y' in self.rftarget.symmetry: p.y = abs(p.y)
-        if 'z' in self.rftarget.symmetry: p.z = abs(p.z)
+        if self.rftarget.mirro_mod.x: p.x = abs(p.x)
+        if self.rftarget.mirro_mod.y: p.y = abs(p.y)
+        if self.rftarget.mirro_mod.z: p.z = abs(p.z)
         return self.rftarget.xform.l2w_point(p)
 
     def get_point_symmetry(self, point):

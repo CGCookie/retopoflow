@@ -58,6 +58,7 @@ import bpy
 import bgl
 
 from ..rfmesh.rfmesh import RFVert
+from ...addon_common.common.blender import quat_vector_mult
 from ...addon_common.common.utils import iter_pairs, max_index
 from ...addon_common.common.hasher import hash_cycle
 from ...addon_common.common.maths import (
@@ -356,7 +357,7 @@ class Contours_Loop:
         q = Quaternion(n0.cross(n1), angle)
 
         # rotate to align "topmost" vertex
-        rel_pos = [Vec(q * (to_point(p) - self.frame.o)) for p in vert_loop]
+        rel_pos = [Vec(quat_vector_mult(q, (to_point(p) - self.frame.o))) for p in vert_loop]
         rot_by,offset = other.get_index_of_top(rel_pos)
         vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         offset = (offset * self.circumference / other.circumference)
