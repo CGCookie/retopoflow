@@ -200,7 +200,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
             s = ','.join(map(str, counts))
             xy = point_to_point2d(bmv.co)
             xy.y += 10
-            text_draw2D(s, xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            text_draw2D(s, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
 
         # # draw new cut info
         # if self.show_cut:

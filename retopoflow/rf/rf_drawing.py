@@ -138,18 +138,18 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.Draw('pre3d')
     def draw_widget_pre3d(self):
-        if self.rftool.rfwidget:
-            self.rftool.rfwidget._draw_pre3d()
+        if not self.rftool.rfwidget: return
+        self.rftool.rfwidget._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_widget_post3d(self):
-        if self.rftool.rfwidget:
-            self.rftool.rfwidget._draw_post3d()
+        if not self.rftool.rfwidget: return
+        self.rftool.rfwidget._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_widget_post2d(self):
-        if self.rftool.rfwidget:
-            self.rftool.rfwidget._draw_post2d()
+        if not self.rftool.rfwidget: return
+        self.rftool.rfwidget._draw_post2d()
 
 
     @profiler.function

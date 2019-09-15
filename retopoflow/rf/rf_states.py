@@ -78,14 +78,22 @@ class RetopoFlow_States(CookieCutter):
         if self.actions.pressed('F2'):
             self.select_rftool(self.rftools[2])
 
+        self.ignore_ui_events = False
+
         if self.rftool.rfwidget:
             ret = self.rftool.rfwidget._fsm_update()
             if self.fsm.is_state(ret):
                 return ret
+            if self.rftool.rfwidget._fsm.state != 'main':
+                self.ignore_ui_events = True
+                return
 
         ret = self.rftool._fsm_update()
         if self.fsm.is_state(ret):
+            self.ignore_ui_events = True
             return ret
+        if self.fsm.state != 'main':
+            self.ignore_ui_events = True
 
     def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         accel_nearest2D = {

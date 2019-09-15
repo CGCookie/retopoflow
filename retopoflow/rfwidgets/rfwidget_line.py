@@ -21,17 +21,20 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import math
 import bgl
+import random
 from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
+from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common.maths import Vec, Point, Point2D, Direction
+from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
 from ...config.options import themes
 
 class RFW_Line(RFWidget):
     rfw_name = 'Line'
     rfw_cursor = 'CROSSHAIR'
+    line_color = Color.white
 
 class RFWidget_Line(RFW_Line):
     @RFW_Line.on_init
@@ -44,7 +47,7 @@ class RFWidget_Line(RFW_Line):
             return 'line'
 
     @RFW_Line.FSM_State('line', 'enter')
-    def model_line_enter(self):
+    def modal_line_enter(self):
         self.line2D = [self.actions.mouse, None]
         tag_redraw_all()
 
@@ -62,14 +65,20 @@ class RFWidget_Line(RFW_Line):
             self.line2D[1] = self.actions.mouse
             tag_redraw_all()
 
+    @RFW_Line.FSM_State('line', 'exit')
+    def modal_line_exit(self):
+        tag_redraw_all()
+
     @RFW_Line.Draw('post2d')
     @RFW_Line.FSM_OnlyInState('line')
     def draw_line(self):
-        # cr,cg,cb = self.color
-        # p0,p1 = self.line2D
-        # ctr = p0 + (p1-p0)/2
+        #cr,cg,cb,ca = self.line_color
+        p0,p1 = self.line2D
+        ctr = p0 + (p1-p0)/2
 
-        # bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[5, 5]) # self.line_color)
         # self.drawing.line_width(2.0)
 
         # self.drawing.enable_stipple()
@@ -88,4 +97,3 @@ class RFWidget_Line(RFW_Line):
         #     y = ctr.y + py * 10
         #     bgl.glVertex2f(x, y)
         # bgl.glEnd()
-        pass
