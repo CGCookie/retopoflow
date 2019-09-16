@@ -1,43 +1,41 @@
-Please prefix your issue with one of the following: **[BUG]** **[PROPOSAL]** **[QUESTION]**.
+**PLEASE READ THE FOLLOWING AND USE THE TEMPLATE TO POST YOUR ISSUE**
 
-**Is your issue in regard to RetopoFlow on Blender 2.8?:**
+*Questions not directly related to the RetopoFlow project are considered general and should be posted elsewhere (e.g. git, blender, python, etc).*
 
-If so, please refrain from posting. We understand you are excited for the 2.8 version of Retopoflow but the time spent replying to these issues could be better spent towards 2.8 development. Check the [closed issues](https://github.com/CGCookie/retopoflow/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed) for existing 2.8 related questions instead.
+**Before raising the issue, please check the following first:**
 
-**Questions not directly related to the RetopoFlow project are considered general and should be asked elsewhere (e.g. git, blender, python, etc).**
+- [ ] Read through the README.md file in the branch used to assure the process taken is correct
+- [ ] Check the existing [issues](https://github.com/CGCookie/retopoflow/issues) and [pull requests](https://github.com/CGCookie/retopoflow/pulls) to make sure the issue has not already been reported and/or fixed.
+- [ ] You can replicate the bug on multiple settings, and can provide the steps in order to reproduce.
 
-**In raising this issue, I confirm the following (please check boxes):**
+&nbsp;
 
-- [ ] I have read through the README to assure the process taken is correct
-- [ ] I have checked and can confirm this issue has not already been reported in some variantion in the existing [issues](https://github.com/CGCookie/retopoflow/issues).
-- [ ] I have checked that the bug I am reporting can be replicated, and have provided what is required to allow another party to replicate.
-- [ ] I have provided as much information as possible about the issue for the developer to replicate this issue; blend files, screenshots, logfiles, info about the expected result and actual result.
-- [ ] I have checked the pull requests tab for existing solutions/implementations to my issue/suggestion.
+Issue Template
+-----------------------------------
 
-**My familiarity with the project is as follows (check one):**
+---
+Please prefix your issue name with one of the following: **[BUG]** **[PROPOSAL]** **[QUESTION]**
 
-- [ ] I just started using this project.
-- [ ] I have used the project briefly.
-- [ ] I have used the project extensively, but have not contributed previously.
+Retopoflow Version: {*add here*}
 
-----
+Blender Version/Hash: {*add here*}
 
+Platform Version/Distribution: {*add here*}
 
-**Retopoflow Version:** {retopoflow version here}
-
-**Blender Version (Hash):** {blender version hash here}
-
-**Platform:** {platform here}
+&nbsp;
 
 **Issue:**
 
-{issue content here}
+{*enter your issue here*}
 
-{screenshot of issue}
+{*add any screenshots of the issue here*}
 
-**Replication Resources:**
 
-**Replication Steps:**
 
-1. {step 1}
+&nbsp;
 
+**How to Reproduce:**
+
+- {*add your list replication steps*}
+
+{*attach any files needed to replicate the issue.*}
