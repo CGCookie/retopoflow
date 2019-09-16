@@ -6,7 +6,7 @@
 
 - [ ] Read through the README.md file in the branch used to assure the process taken is correct
 - [ ] Check the existing [issues](https://github.com/CGCookie/retopoflow/issues) and [pull requests](https://github.com/CGCookie/retopoflow/pulls) to make sure the issue has not already been reported and/or fixed.
-- [ ] You can replicate the bug on multiple settings, and can provide the steps in order to reproduce.
+- [ ] You can replicate the bug and will provide as much info as possible with blend files, screenshots, logfiles, as well as show the expected result and actual result.
 
 &nbsp;
 
@@ -38,4 +38,4 @@ Platform Version/Distribution: {*add here*}
 
 - {*add your list replication steps*}
 
-{*attach any files needed to replicate the issue.*}
+{*attach any files needed to replicate the issue*}
