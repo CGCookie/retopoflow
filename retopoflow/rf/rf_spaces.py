@@ -26,6 +26,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vecto
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
 from ...config.options import options
+from ...addon_common.common.blender import quat_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Vec, Direction, Normal
@@ -94,7 +95,7 @@ class RetopoFlow_Spaces:
             view_loc = self.actions.r3d.view_location
             view_dist = self.actions.r3d.view_distance
             view_rot = self.actions.r3d.view_rotation
-            view_cam = Point(view_loc + view_rot * Vector((0,0,view_dist)))
+            view_cam = Point(view_loc + quat_vector_mult(view_rot, Vector((0,0,view_dist))))
             # print(view_cam, (view_cam-xyz).length)
             return (view_cam - xyz).length
         else:

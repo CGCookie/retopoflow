@@ -106,6 +106,9 @@ class RFTool:
             return ret
         return wrapper
 
+    def dirty(self):
+        RFTool.rfcontext.dirty()
+
     def _draw_pre3d(self):  self._draw.pre3d()
     def _draw_post3d(self): self._draw.post3d()
     def _draw_post2d(self): self._draw.post2d()

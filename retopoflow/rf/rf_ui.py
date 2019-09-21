@@ -51,6 +51,9 @@ class RetopoFlow_UI:
         ui.markdown(mdown=help_welcome, parent=ui_welcome)
         ui.button(label='Close', parent=ui_welcome, on_mouseclick=delay_exec("self.document.body.delete_child(ui_welcome)"))
 
+    def alert_user(self, title=None, message=None, level=None, msghash=None):
+        print(title, message, level, msghash)
+
     def setup_ui(self):
         self.manipulator_hide()
         self.panels_hide()

@@ -296,3 +296,42 @@ class Contours_Ops:
         self.rfcontext.select(edges)
         # self.update()
 
+    # @RFTool.dirty_when_done
+    def fill(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+
+        if len(sel_loops) != 2:
+            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            return
+        loop0, loop1 = sel_loops
+        if len(loop0) != len(loop1):
+            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            return
+        if any(v0.share_edge(v1) for v0 in loop0 for v1 in loop1):
+            self.rfcontext.alert_user('Contours', 'The 2 selected loops cannot share an edge')
+            return
+
+        self.rfcontext.undo_push('fill')
+        cl_pos = Contours_Loop(loop0, True)
+        cl_neg = Contours_Loop(loop1, True)
+        cl_neg.align_to(cl_pos)
+        faces = self.rfcontext.bridge_vertloop(cl_neg.verts, cl_pos.verts, True)
+        self.dirty()
+        #self.rfcontext.select(faces)
+
+    def change_count(self, delta):
+        sel_edges = self.rfcontext.get_selected_edges()
+        loops = find_loops(sel_edges)
+        if len(loops) != 1: return
+        loop = loops[0]
+        count = len(loop)
+        count_new = max(3, count+delta)
+        if count == count_new: return
+        if any(len(v.link_edges) != 2 for v in loop): return
+        cl = Contours_Loop(loop, True)
+        avg = Point.average(v.co for v in loop)
+        plane = cl.plane
+        ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
+        self.rfcontext.delete_edges(e for v in loop for e in v.link_edges)
+        self.new_cut(ray, plane, walk=True, count=count_new)

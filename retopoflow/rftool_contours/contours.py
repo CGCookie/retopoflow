@@ -19,7 +19,10 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import random
+
+from mathutils import Matrix
 
 from .contours_ops import Contours_Ops
 from .contours_utils import Contours_Utils
@@ -33,8 +36,10 @@ from .contours_utils import (
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_line import RFWidget_Line
 
+from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.maths import Point, Normal
+from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
+from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
 class RFTool_Contours(RFTool):
@@ -129,6 +134,361 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+
+        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
+
+            self.rfcontext.undo_push('select smart')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                if sel_only: self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select_edge_loop(edge, only=sel_only, supparts=False)
+            return
+
+        if self.rfcontext.actions.pressed({'grab', 'action'}, unpress=False):
+            ''' grab for translations '''
+            return 'move'
+
+        if self.rfcontext.actions.pressed('shift'):
+            ''' rotation of loops about plane normal '''
+            return 'shift'
+
+        if self.rfcontext.actions.pressed('rotate'):
+            ''' screen-space rotation of loops about plane origin '''
+            return 'rotate'
+
+        if self.rfcontext.actions.pressed('fill'):
+            self.fill()
+            return
+
+        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(1 if self.rfcontext.actions.using('increase count') else -1)
+            return
+
+
+    @RFTool_Contours.FSM_State('shift', 'can enter')
+    def shift_can_enter(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        if not sel_loops: return False
+
+        self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+
+        self.move_cuts = []
+        for cloop in self.move_cloops:
+            xy = self.rfcontext.Point_to_Point2D(cloop.plane.o)
+            ray = self.rfcontext.Point2D_to_Ray(xy)
+            crawl = self.rfcontext.plane_intersection_crawl(ray, cloop.plane, walk=True)
+            if not crawl:
+                dprint('could not crawl around sources for loop')
+                self.move_cuts += [None]
+                continue
+            crawl_pts = [c for _,_,_,c in crawl]
+            connected = cloop.connected         # XXX why was `crawl[0][0] is not None` here?
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts or connected != cloop.connected:
+                dprint('could not clip loop to symmetry')
+                self.move_cuts += [None]
+                continue
+            cl_cut = Contours_Loop(crawl_pts, connected)
+            cl_cut.align_to(cloop)
+            self.move_cuts += [cl_cut]
+        if not any(self.move_cuts):
+            dprint('Found no loops to shift')
+            return False
+
+    @RFTool_Contours.FSM_State('shift', 'enter')
+    def shift_enter(self):
+        self.rot_axis = Vec((0,0,0))
+        self.rot_origin = Point.average(cut.get_origin() for cut in self.move_cuts if cut)
+        self.shift_about = self.rfcontext.Point_to_Point2D(self.rot_origin)
+        for cut in self.move_cuts:
+            if not cut: continue
+            a = cut.get_normal()
+            o = cut.get_origin()
+            if self.rot_axis.dot(a) < 0: a = -a
+            self.rot_axis += a
+        self.rot_axis.normalize()
+        p0 = next(iter(cut.get_origin() for cut in self.move_cuts if cut))
+        p1 = p0 + self.rot_axis * 0.001
+        self.rot_axis2D = (self.rfcontext.Point_to_Point2D(p1) - self.rfcontext.Point_to_Point2D(p0))
+        self.rot_axis2D.normalize()
+        self.rot_perp2D = Vec2D((self.rot_axis2D.y, -self.rot_axis2D.x))
+        print(self.rot_axis, self.rot_axis2D, self.rot_perp2D)
+
+        self.rfcontext.undo_push('shift contours')
+
+        self.mousedown = self.rfcontext.actions.mouse
+        self.move_prevmouse = None
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+
+
+    @RFTool_Contours.FSM_State('shift')
+    @RFTool_Contours.dirty_when_done
+    @profiler.function
+    def modal_shift(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        # only update cut on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.move_prevmouse == self.rfcontext.actions.mouse: return
+        self.move_prevmouse = self.rfcontext.actions.mouse
+
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        shift_offset = self.rfcontext.drawing.unscale(self.rot_perp2D.dot(delta)) / 1000
+        up_dir = self.rfcontext.Vec_up()
+
+        raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
+        for i_cloop in range(len(self.move_cloops)):
+            cloop  = self.move_cloops[i_cloop]
+            cl_cut = self.move_cuts[i_cloop]
+            if not cl_cut: continue
+            shift_dir = 1 if cl_cut.get_normal().dot(self.rot_axis) > 0 else -1
+
+            verts  = self.move_verts[i_cloop]
+            dists  = self.move_dists[i_cloop]
+            proj_dists = self.move_proj_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
+
+            lc = cl_cut.circumference
+            shft = (cl_cut.offset + shift_offset * shift_dir * lc) % lc
+            ndists = [shft] + [0.999 * lc * (d/circumference) for d in dists]
+            i,dist = 0,ndists[0]
+            l = len(ndists)-1 if cloop.connected else len(ndists)
+            for c0,c1 in cl_cut.iter_pts(repeat=True):
+                d = (c1-c0).length
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
+                    p,n,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    verts[i].co = p
+                    verts[i].normal = n
+                    i += 1
+                    if i == l: break
+                    dist += ndists[i]
+                dist -= d
+                if i == l: break
+
+            self.rfcontext.update_verts_faces(verts)
+
+
+    @RFTool_Contours.FSM_State('move', 'can enter')
+    def move_can_enter(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        return sel_loops or sel_strings
+
+    @RFTool_Contours.FSM_State('move', 'enter')
+    def move_enter(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        after_action = self.rfcontext.actions.pressed('action')
+
+        # prefer to move loops over strings
+        if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+
+        self.rfcontext.undo_push('move contours')
+
+        self.mousedown = self.rfcontext.actions.mouse
+        self.move_prevmouse = None
+        if after_action:
+            self.move_done_pressed = None
+            self.move_done_released = 'action'
+        else:
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+        self.move_cancelled = 'cancel'
+
+    @RFTool_Contours.FSM_State('move')
+    @RFTool_Contours.dirty_when_done
+    @profiler.function
+    def move(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        # only update cut on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.move_prevmouse == self.rfcontext.actions.mouse: return
+        self.move_prevmouse = self.rfcontext.actions.mouse
+
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+
+        raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
+        for i_cloop in range(len(self.move_cloops)):
+            cloop  = self.move_cloops[i_cloop]
+            verts  = self.move_verts[i_cloop]
+            pts    = self.move_pts[i_cloop]
+            dists  = self.move_dists[i_cloop]
+            origin = self.move_origins[i_cloop]
+            proj_dists = self.move_proj_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
+
+            depth = self.rfcontext.Point_to_depth(origin)
+            origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
+            origin_new = self.rfcontext.Point2D_to_Point(origin2D_new, depth)
+            plane_new = Plane(origin_new, cloop.plane.n)
+            ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
+            crawl = self.rfcontext.plane_intersection_crawl(ray_new, plane_new, walk=True)
+            if not crawl: continue
+            crawl_pts = [c for _,_,_,c in crawl]
+            connected = crawl[0][0] is not None
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts or connected != cloop.connected: continue
+            cl_cut = Contours_Loop(crawl_pts, connected)
+
+            cl_cut.align_to(cloop)
+            lc = cl_cut.circumference
+            ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
+            i,dist = 0,ndists[0]
+            l = len(ndists)-1 if cloop.connected else len(ndists)
+            for c0,c1 in cl_cut.iter_pts(repeat=True):
+                d = max(0.000001, (c1-c0).length)
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
+                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    verts[i].co = p
+                    i += 1
+                    if i == l: break
+                    dist += ndists[i]
+                dist -= d
+                if i == l: break
+
+            self.rfcontext.update_verts_faces(verts)
+
+
+    @RFTool_Contours.FSM_State('rotate', 'can enter')
+    def rotate_can_enter(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        return sel_loops or sel_strings
+
+    @RFTool_Contours.FSM_State('rotate', 'enter')
+    def rotate_enter(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+
+        # prefer to move loops over strings
+        if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+
+        self.rfcontext.undo_push('rotate contours')
+
+        self.mousedown = self.rfcontext.actions.mouse
+
+        self.rotate_about = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
+        self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
+
+        self.move_prevmouse = None
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+
+    @RFTool_Contours.FSM_State('rotate')
+    @RFTool_Contours.dirty_when_done
+    @profiler.function
+    def modal_rotate(self):
+        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        # only update cut on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.move_prevmouse == self.rfcontext.actions.mouse: return
+        self.move_prevmouse = self.rfcontext.actions.mouse
+
+        delta = Vec2D(self.rfcontext.actions.mouse - self.rotate_about)
+        rotate = (math.atan2(delta.y, delta.x) - self.rotate_start + math.pi) % (math.pi * 2)
+
+        raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
+        for i_cloop in range(len(self.move_cloops)):
+            cloop  = self.move_cloops[i_cloop]
+            verts  = self.move_verts[i_cloop]
+            pts    = self.move_pts[i_cloop]
+            dists  = self.move_dists[i_cloop]
+            origin = self.move_origins[i_cloop]
+            proj_dists = self.move_proj_dists[i_cloop]
+            circumference = self.move_circumferences[i_cloop]
+
+            origin2D = self.rfcontext.Point_to_Point2D(origin)
+            ray = self.rfcontext.Point_to_Ray(origin)
+            rmat = Matrix.Rotation(rotate, 4, -ray.d)
+            normal = matrix_vector_mult(rmat, cloop.plane.n)
+            plane = Plane(cloop.plane.o, normal)
+            ray = self.rfcontext.Point2D_to_Ray(origin2D)
+            crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk=True)
+            if not crawl: continue
+            crawl_pts = [c for _,_,_,c in crawl]
+            connected = crawl[0][0] is not None
+            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            if not crawl_pts or connected != cloop.connected: continue
+            cl_cut = Contours_Loop(crawl_pts, connected)
+
+            cl_cut.align_to(cloop)
+            lc = cl_cut.circumference
+            ndists = [cl_cut.offset] + [0.999 * lc * (d/circumference) for d in dists]
+            i,dist = 0,ndists[0]
+            l = len(ndists)-1 if cloop.connected else len(ndists)
+            for c0,c1 in cl_cut.iter_pts(repeat=True):
+                d = (c1-c0).length
+                d = max(0.00000001, d)
+                while dist - d <= 0:
+                    # create new vert between c0 and c1
+                    p = c0 + (c1 - c0) * (dist / d) + (cloop.plane.n * proj_dists[i])
+                    p,_,_,_ = self.rfcontext.nearest_sources_Point(p)
+                    verts[i].co = p
+                    i += 1
+                    if i == l: break
+                    dist += ndists[i]
+                dist -= d
+                if i == l: break
+
+            self.rfcontext.update_verts_faces(verts)
+
+
 
     @RFWidget_Line.on_action
     def new_line(self):
