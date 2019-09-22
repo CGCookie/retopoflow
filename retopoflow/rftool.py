@@ -104,6 +104,7 @@ class RFTool:
             ret = fn(*args, **kwargs)
             RFTool.rfcontext.dirty()
             return ret
+        wrapper.__name__ = fn.__name__
         return wrapper
 
     def dirty(self):

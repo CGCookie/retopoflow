@@ -78,7 +78,7 @@ class RFWidget_Line(RFW_Line):
 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_MULTISAMPLE)
-        Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[5, 5]) # self.line_color)
+        Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[2, 2]) # self.line_color)
         # self.drawing.line_width(2.0)
 
         # self.drawing.enable_stipple()
