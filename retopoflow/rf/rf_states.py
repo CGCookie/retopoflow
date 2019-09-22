@@ -50,33 +50,33 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
-        if self.actions.pressed({'done'}):
-            self.done()
-            return
+        if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
+            if self.actions.pressed({'done'}):
+                self.done()
+                return
 
-        # if self.actions.pressed('cancel'):
-        #     self.done(cancel=True)
-        #     return
+            # handle help actions
+            if self.actions.pressed('help'):
+                # show help
+                return
+
+            # handle undo/redo
+            if self.actions.pressed('undo'):
+                self.undo_pop()
+                if self.rftool: self.rftool._reset()
+                return
+            if self.actions.pressed('redo'):
+                self.redo_pop()
+                if self.rftool: self.rftool._reset()
+                return
+
+            # handle selection
+            if self.actions.pressed('select all'):
+                self.undo_push('select all')
+                self.select_toggle()
+                return
 
         self.check_auto_save()
-
-        # handle help actions
-        if self.actions.pressed('help'):
-            # show help
-            return
-
-        # handle undo/redo
-        if self.actions.pressed('undo'):
-            self.undo_pop()
-            if self.rftool: self.rftool._reset()
-            return
-        if self.actions.pressed('redo'):
-            self.redo_pop()
-            if self.rftool: self.rftool._reset()
-            return
-
-        if self.actions.pressed('F2'):
-            self.select_rftool(self.rftools[2])
 
         self.ignore_ui_events = False
 

@@ -80,12 +80,12 @@ class RetopoFlow(
         self.setup_sources()
         self.setup_sources_symmetry()   # must be called after self.setup_target()!!
         self.setup_rotate_about_active()
-        self.setup_undo()
 
         self.setup_states()
         self.setup_rftools()
         self.setup_grease()
         self.setup_ui()                 # must be called after self.setup_target()!!
+        self.setup_undo()               # must be called after self.setup_ui()!!
 
     def end(self):
         self.end_rotate_about_active()
