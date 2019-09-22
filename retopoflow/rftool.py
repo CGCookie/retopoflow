@@ -49,6 +49,9 @@ class RFTool:
             RFTool.registry[cls._rftool_index] = cls
         super().__init_subclass__(*args, **kwargs)
 
+    #####################################################
+    # function decorators for different events
+
     @classmethod
     def callback_decorator(cls, event):
         def wrapper(fn):
@@ -56,18 +59,23 @@ class RFTool:
             cls._callbacks[event] += [fn]
             return fn
         return wrapper
+
     @classmethod
     def on_init(cls, fn):
         return cls.callback_decorator('init')(fn)
+
     @classmethod
     def on_reset(cls, fn):
         return cls.callback_decorator('reset')(fn)
+
     @classmethod
     def on_timer(cls, fn):
         return cls.callback_decorator('timer')(fn)
+
     @classmethod
     def on_target_change(cls, fn):
         return cls.callback_decorator('target change')(fn)
+
     @classmethod
     def on_view_change(cls, fn):
         return cls.callback_decorator('view change')(fn)
@@ -75,6 +83,8 @@ class RFTool:
     def _callback(self, event, *args, **kwargs):
         for fn in self._callbacks.get(event, []):
             fn(self, *args, **kwargs)
+
+
 
     def __init__(self, rfcontext):
         RFTool.rfcontext = rfcontext

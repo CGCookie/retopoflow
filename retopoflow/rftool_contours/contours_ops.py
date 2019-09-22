@@ -27,6 +27,8 @@ import bpy
 import bgl
 from mathutils import Matrix
 
+from ..rftool import RFTool
+
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import max_index, iter_pairs
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Plane
@@ -36,7 +38,7 @@ from ...config.options import options
 from .contours_utils import Contours_Loop, find_loops, find_strings, find_parallel_loops, loop_plane, loop_length, string_length
 
 class Contours_Ops:
-    # @RFTool.dirty_when_done
+    @RFTool.dirty_when_done
     def new_cut(self, ray, plane, count=None, walk=True, check_hit=None):
         self.pts = []
         self.cut_pts = []
@@ -294,9 +296,8 @@ class Contours_Ops:
         if cl_neg: self.rfcontext.bridge_vertloop(verts, cl_neg.verts, connected)
 
         self.rfcontext.select(edges)
-        # self.update()
 
-    # @RFTool.dirty_when_done
+    @RFTool.dirty_when_done
     def fill(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -317,9 +318,10 @@ class Contours_Ops:
         cl_neg = Contours_Loop(loop1, True)
         cl_neg.align_to(cl_pos)
         faces = self.rfcontext.bridge_vertloop(cl_neg.verts, cl_pos.verts, True)
-        self.dirty()
+        #self.dirty()
         #self.rfcontext.select(faces)
 
+    @RFTool.dirty_when_done
     def change_count(self, delta):
         sel_edges = self.rfcontext.get_selected_edges()
         loops = find_loops(sel_edges)

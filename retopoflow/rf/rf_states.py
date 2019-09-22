@@ -28,10 +28,11 @@ class RetopoFlow_States(CookieCutter):
     def setup_states(self):
         self.view_version = None
 
-    def update(self):
-        self.rftool._callback('timer')
-        if self.rftool.rfwidget:
-            self.rftool.rfwidget._callback('timer')
+    def update(self, timer=True):
+        if timer:
+            self.rftool._callback('timer')
+            if self.rftool.rfwidget:
+                self.rftool.rfwidget._callback('timer')
 
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:
