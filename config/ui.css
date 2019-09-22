@@ -149,7 +149,7 @@ input[type="text"]:hover {
 input[type="text"]:focus {
     color: black;
 }
-input[type="text"] span.inputtextcursor {
+*.inputtext-cursor {
     color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
 }
 

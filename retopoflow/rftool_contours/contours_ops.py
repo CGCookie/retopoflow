@@ -153,7 +153,7 @@ class Contours_Ops:
                         sel_string_pos = None
 
         if not count:
-            count = self.get_count()
+            count = self.init_count.value
             if connected != connected_preclip:
                 count = int(math.ceil(count / 2)) + 1
         #count = count or self.get_count()

@@ -84,7 +84,7 @@ class RetopoFlow(
         self.setup_states()
         self.setup_rftools()
         self.setup_grease()
-        self.setup_ui()                 # must be called after self.setup_target()!!
+        self.setup_ui()                 # must be called after self.setup_target() and self.setup_rftools()!!
         self.setup_undo()               # must be called after self.setup_ui()!!
 
     def end(self):

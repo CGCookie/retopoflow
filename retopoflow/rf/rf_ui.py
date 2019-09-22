@@ -118,6 +118,10 @@ class RetopoFlow_UI:
 
             ui_symmetry = ui.collapsible(label='Symmetry', id='symmetryoptions', parent=self.ui_options)
 
+            for rftool in self.rftools:
+                for ui_elem in rftool._callback('ui setup'):
+                    self.ui_options.append_child(ui_elem)
+
             #test
             ui.labeled_input_text(label='Above', value='100', parent=self.ui_options)
             ui.labeled_input_text(label='Below', value='10', parent=self.ui_options)

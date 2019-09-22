@@ -24,15 +24,6 @@ import random
 
 from mathutils import Matrix
 
-from .contours_ops import Contours_Ops
-from .contours_utils import Contours_Utils
-from .contours_utils import (
-    find_loops,
-    find_strings,
-    loop_plane, loop_radius,
-    Contours_Loop,
-)
-
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_line import RFWidget_Line
 
@@ -48,7 +39,21 @@ class RFTool_Contours(RFTool):
     icon        = 'contours_32.png'
 
 
-class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
+################################################################################################
+# following imports must happen *after* the above class, because each subclass depends on
+# above class to be defined
+
+from .contours_ops import Contours_Ops
+from .contours_ui import Contours_UI
+from .contours_utils import Contours_Utils
+from .contours_utils import (
+    find_loops,
+    find_strings,
+    loop_plane, loop_radius,
+    Contours_Loop,
+)
+
+class Contours(RFTool_Contours, Contours_Ops, Contours_Utils, Contours_UI):
     @RFTool_Contours.on_init
     def init(self):
         self.rfwidget = RFWidget_Line(self)
@@ -61,10 +66,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils):
         self.cut_pts = []
         self.connected = False
         self.cuts = []
-
-    def get_count(self):
-        print('RFTool_Contours.get_count()!')
-        return 24
 
     @RFTool_Contours.on_target_change
     def update_target(self):

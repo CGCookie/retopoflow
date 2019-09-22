@@ -22,6 +22,9 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
 
+
+rftools = {}
+
 class RFTool:
     '''
     Assumes that direct subclass will have singleton instance (shared FSM among all instances of that subclass and any subclasses)
@@ -29,6 +32,9 @@ class RFTool:
     registry = []
 
     def __init_subclass__(cls, *args, **kwargs):
+        global rftools
+
+        rftools[cls.__name__] = cls
         if not hasattr(cls, '_rftool_index'):
             # add cls to registry (might get updated later) and add FSM
             cls._rftool_index = len(RFTool.registry)
@@ -39,6 +45,7 @@ class RFTool:
             cls.Draw = cls._draw.wrapper
             cls._callbacks = {
                 'init':          [],    # called when RF starts up
+                'ui setup':      [],    # called when RF is setting up UI
                 'reset':         [],    # called when RF switches into tool or undo/redo
                 'timer':         [],    # called every timer interval
                 'target change': [],    # called whenever rftarget has changed (selection or edited)
@@ -65,6 +72,10 @@ class RFTool:
         return cls.callback_decorator('init')(fn)
 
     @classmethod
+    def on_ui_setup(cls, fn):
+        return cls.callback_decorator('ui setup')(fn)
+
+    @classmethod
     def on_reset(cls, fn):
         return cls.callback_decorator('reset')(fn)
 
@@ -81,8 +92,10 @@ class RFTool:
         return cls.callback_decorator('view change')(fn)
 
     def _callback(self, event, *args, **kwargs):
+        ret = []
         for fn in self._callbacks.get(event, []):
-            fn(self, *args, **kwargs)
+            ret.append(fn(self, *args, **kwargs))
+        return ret
 
 
 
