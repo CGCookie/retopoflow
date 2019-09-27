@@ -39,6 +39,7 @@ button {
     display: block;
     width: 100%;
     margin: 0px 1px;
+    /*padding: 0px;*/
     background: rgba(64, 64, 64, 0.25);
     border: 1px rgba(0,0,0,0.1);
 }

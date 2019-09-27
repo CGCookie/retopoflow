@@ -49,6 +49,8 @@ class RetopoFlow_States(CookieCutter):
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback('view change')
 
+        #tag_redraw_all()
+
     @CookieCutter.FSM_State('main')
     def modal_main(self):
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
