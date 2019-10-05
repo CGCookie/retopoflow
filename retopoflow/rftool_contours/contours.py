@@ -22,11 +22,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import math
 import random
 
+import bgl
 from mathutils import Matrix
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_line import RFWidget_Line
 
+from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
@@ -61,7 +63,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.on_init
     def init(self):
         self.rfwidget = RFWidget_Line(self)
-
 
     @RFTool_Contours.on_reset
     def reset(self):
@@ -504,7 +505,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
 
 
-
     @RFWidget_Line.on_action
     def new_line(self):
         xy0,xy1 = self.rfwidget.line2D
@@ -514,6 +514,29 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         ray = self.rfcontext.Point2D_to_Ray(xy01)
         self.new_cut(ray, plane, walk=False, check_hit=xy01)
 
+    @RFTool_Contours.Draw('post2d')
+    @RFTool_Contours.FSM_OnlyInState('rotate')
+    def draw_post2d_rotate(self):
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        Globals.drawing.draw2D_line(
+            self.rotate_about,
+            self.rfcontext.actions.mouse,
+            (1.0, 1.0, 0.1, 1.0), color1=(1.0, 1.0, 0.1, 0.0),
+            width=2, stipple=[2, 2]
+        )
+
+    @RFTool_Contours.Draw('post2d')
+    @RFTool_Contours.FSM_OnlyInState('shift')
+    def draw_post2d_shift(self):
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        Globals.drawing.draw2D_line(
+            self.shift_about + self.rot_axis2D * 1000,
+            self.shift_about - self.rot_axis2D * 1000,
+            (0.1, 1.0, 1.0, 1.0), color1=(0.1, 1.0, 1.0, 0.0),
+            width=2, stipple=[2,2],
+        )
 
     @RFTool_Contours.Draw('post2d')
     def draw_postpixel(self):
@@ -600,25 +623,3 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         #         if p0 and p1:
         #             bgl.glColor4f(1,0,1,0.5)
         #             draw2D_arrow(p0, p1)
-
-        # if self.mode == 'rotate' and self.rotate_about:
-        #     bgl.glEnable(bgl.GL_BLEND)
-        #     bgl.glColor4f(1,1,0.1,1)
-        #     self.drawing.enable_stipple()
-        #     self.drawing.line_width(2.0)
-        #     bgl.glBegin(bgl.GL_LINES)
-        #     bgl.glVertex2f(*self.rotate_about)
-        #     bgl.glVertex2f(*self.rfcontext.actions.mouse)
-        #     bgl.glEnd()
-        #     self.drawing.disable_stipple()
-
-        # if self.mode == 'shift' and self.shift_about:
-        #     bgl.glEnable(bgl.GL_BLEND)
-        #     bgl.glColor4f(1,1,0.1,1)
-        #     self.drawing.enable_stipple()
-        #     self.drawing.line_width(2.0)
-        #     bgl.glBegin(bgl.GL_LINES)
-        #     bgl.glVertex2f(*(self.shift_about + self.rot_axis2D * 1000))
-        #     bgl.glVertex2f(*(self.shift_about - self.rot_axis2D * 1000))
-        #     bgl.glEnd()
-        #     self.drawing.disable_stipple()

@@ -78,22 +78,5 @@ class RFWidget_Line(RFW_Line):
 
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_MULTISAMPLE)
-        Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[2, 2]) # self.line_color)
-        # self.drawing.line_width(2.0)
-
-        # self.drawing.enable_stipple()
-        # bgl.glColor4f(*themes['stroke'])
-        # bgl.glBegin(bgl.GL_LINE_STRIP)
-        # bgl.glVertex2f(*p0)
-        # bgl.glVertex2f(*p1)
-        # bgl.glEnd()
-        # self.drawing.disable_stipple()
-
-        # # self.drawing.line_width(1.0)
-        # bgl.glColor4f(cr, cg, cb, 0.25)
-        # bgl.glBegin(bgl.GL_LINE_STRIP)
-        # for px,py in self.points:
-        #     x = ctr.x + px * 10
-        #     y = ctr.y + py * 10
-        #     bgl.glVertex2f(x, y)
-        # bgl.glEnd()
+        Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[2, 2])  # self.line_color)
+        Globals.drawing.draw2D_circle(ctr, 10, (1,1,1,0.25), width=1)

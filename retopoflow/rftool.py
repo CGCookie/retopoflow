@@ -41,6 +41,7 @@ class RFTool:
             RFTool.registry.append(cls)
             cls._fsm = FSM()
             cls.FSM_State = cls._fsm.wrapper
+            cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
             cls._draw = DrawCallbacks()
             cls.Draw = cls._draw.wrapper
             cls._callbacks = {
