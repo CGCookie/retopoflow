@@ -154,6 +154,14 @@ input[type="text"]:focus {
     color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
 }
 
+input[type="text"]:disabled {
+    border-color: rgb(64,64,64);
+    background-color: rgb(64, 64, 64);
+    color: rgb(32,32,32);
+    cursor: default;
+}
+
+
 
 
 div.collapsible {

@@ -32,6 +32,9 @@ from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.boundvar import BoundVar, BoundInt
+
+from ...config.options import options
 
 class RFTool_Contours(RFTool):
     name        = 'Contours'
@@ -57,6 +60,26 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils, Contours_UI):
     @RFTool_Contours.on_init
     def init(self):
         self.rfwidget = RFWidget_Line(self)
+
+        self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
+        self._var_cut_count_value = options['contours count']
+        self._var_cut_count = BoundInt('''self.var_cut_count''', min_value=3, max_value=500)
+
+    @property
+    def var_cut_count(self):
+        return self._var_cut_count_value
+    @var_cut_count.setter
+    def var_cut_count(self, v):
+        print('wanting to set to %d' % v)
+        if self._var_cut_count_value == v: return
+        print('setting to %d' % v)
+        self._var_cut_count_value = v
+        if self._var_cut_count.disabled: return
+        print('cutting to %d' % v)
+        self.rfcontext.undo_push('change segment count', repeatable=True)
+        self.change_count(count=v)
+
+
 
     @RFTool_Contours.on_reset
     def reset(self):
@@ -124,6 +147,15 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils, Contours_UI):
             } for string in sel_strings]
         self.sel_loops = [Contours_Loop(loop, True) for loop in sel_loops]
 
+        self._var_cut_count.disabled = True
+        if len(self.loops_data) == 1 and len(self.strings_data) == 0:
+            self._var_cut_count_value = self.loops_data[0]['count']
+            self._var_cut_count.disabled = False
+        if len(self.strings_data) == 1 and len(self.loops_data) == 0:
+            self._var_cut_count_value = self.strings_data[0]['count']
+            self._var_cut_count.disabled = False
+
+
     @RFTool_Contours.FSM_State('main')
     def main(self):
         Cursors.set('CROSSHAIR')
@@ -166,7 +198,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Utils, Contours_UI):
 
         if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
             self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(1 if self.rfcontext.actions.using('increase count') else -1)
+            self.change_count(delta=1 if self.rfcontext.actions.using('increase count') else -1)
             return
 
 

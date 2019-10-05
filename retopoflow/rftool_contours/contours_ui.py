@@ -31,7 +31,6 @@ from mathutils import Matrix
 from ..rftool import rftools
 
 from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundVar, BoundInt
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options
 
@@ -41,13 +40,15 @@ RFTool_Contours = rftools['RFTool_Contours']
 class Contours_UI:
     @RFTool_Contours.on_ui_setup
     def ui(self):
-        self.init_count = BoundInt('''options['contours count']''', min_value=3)
-
         container = ui.collapsible('Contours')
         self.ui_count = ui.labeled_input_text(
             'Initial Count',
-            value=self.init_count,
+            value=self._var_init_count,
             parent=container,
         )
-        ui.labeled_input_text('test', id='foo', value='foo', parent=container)
+        self.ui_count = ui.labeled_input_text(
+            'Cut Count',
+            value=self._var_cut_count,
+            parent=container,
+        )
         return container

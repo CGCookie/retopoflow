@@ -153,7 +153,7 @@ class Contours_Ops:
                         sel_string_pos = None
 
         if not count:
-            count = self.init_count.value
+            count = self._var_init_count.value
             if connected != connected_preclip:
                 count = int(math.ceil(count / 2)) + 1
         #count = count or self.get_count()
@@ -322,14 +322,17 @@ class Contours_Ops:
         #self.rfcontext.select(faces)
 
     @RFTool.dirty_when_done
-    def change_count(self, delta):
+    def change_count(self, *, count=None, delta=None):
+        assert count is not None or delta is not None, 'Must specify either count or delta!'
         sel_edges = self.rfcontext.get_selected_edges()
         loops = find_loops(sel_edges)
         if len(loops) != 1: return
         loop = loops[0]
-        count = len(loop)
-        count_new = max(3, count+delta)
-        if count == count_new: return
+        count_cur = len(loop)
+        if count is not None: count_new = count
+        else: count_new = count_cur + delta
+        count_new = max(3, count_new)
+        if count_cur == count_new: return
         if any(len(v.link_edges) != 2 for v in loop): return
         cl = Contours_Loop(loop, True)
         avg = Point.average(v.co for v in loop)
