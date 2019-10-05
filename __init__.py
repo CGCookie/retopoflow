@@ -54,6 +54,15 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
 
+class VIEW3D_OT_RetopoFlow_NoLabel(retopoflow.RetopoFlow):
+    """RetopoFlow Blender Operator"""
+    bl_idname = "cgcookie.retopoflow_nolabel"
+    bl_label = ""
+    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
+
 
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
     bl_idname = 'cgcookie.retopoflow_recover'
@@ -78,6 +87,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
 
     def draw(self, context):
         layout = self.layout
+
         layout.operator('cgcookie.retopoflow')
         layout.operator('cgcookie.retopoflow_recover')
 
@@ -95,7 +105,9 @@ class VIEW3D_MT_RetopoFlow(Menu):
             gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
             VIEW3D_MT_RetopoFlow._menu_original(context, layout)
             if not gp_edit and edit_object and mode_string == 'EDIT_MESH':
-                layout.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
+                row = layout.row(align=True)
+                row.operator('cgcookie.retopoflow_nolabel')
+                row.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod
     def menu_remove():
@@ -108,6 +120,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
 classes = (
     VIEW3D_MT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
+    VIEW3D_OT_RetopoFlow_NoLabel,
     VIEW3D_OT_RetopoFlow_Recover,
 )
 
