@@ -27,18 +27,19 @@ import bpy
 import bgl
 from mathutils import Matrix
 
-from ..rftool import RFTool
+from ..rftool import RFTool, rftools
 
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import max_index, iter_pairs
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ...config.options import options
 
-
 from .contours_utils import Contours_Loop, find_loops, find_strings, find_parallel_loops, loop_plane, loop_length, string_length
 
+RFTool_Contours = rftools['RFTool_Contours']
+
 class Contours_Ops:
-    @RFTool.dirty_when_done
+    @RFTool_Contours.dirty_when_done
     def new_cut(self, ray, plane, count=None, walk=True, check_hit=None):
         self.pts = []
         self.cut_pts = []
@@ -66,7 +67,7 @@ class Contours_Ops:
         if check_hit:
             # if ray hits target, include the loops, too!
             visible_faces = self.rfcontext.visible_faces()
-            hit_face = self.rfcontext.nearest2D_face(point=check_hit, faces=visible_faces)
+            hit_face,_ = self.rfcontext.nearest2D_face(point=check_hit, faces=visible_faces)
             if hit_face and hit_face.is_quad():
                 # considering loops only at the moment
                 edges = hit_face.edges
@@ -297,7 +298,7 @@ class Contours_Ops:
 
         self.rfcontext.select(edges)
 
-    @RFTool.dirty_when_done
+    @RFTool_Contours.dirty_when_done
     def fill(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -321,7 +322,7 @@ class Contours_Ops:
         #self.dirty()
         #self.rfcontext.select(faces)
 
-    @RFTool.dirty_when_done
+    @RFTool_Contours.dirty_when_done
     def change_count(self, *, count=None, delta=None):
         assert count is not None or delta is not None, 'Must specify either count or delta!'
         sel_edges = self.rfcontext.get_selected_edges()

@@ -41,6 +41,7 @@ class RFWidget_BrushStroke(RFW_BrushStroke):
     def init(self):
         self.stroke2D = []
         self.tightness = 0.95
+        self.size = 20.0
 
     @RFW_BrushStroke.FSM_State('main')
     def modal_main(self):

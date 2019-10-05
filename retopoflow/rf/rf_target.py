@@ -194,20 +194,20 @@ class RetopoFlow_Target:
     # REWRITE BELOW!!! #
     ####################
 
-    def nearest2D_face_Point2D(self, point:Point2D, faces=None):
-        return self.rftarget.nearest2D_bmface_Point2D(point, self.Point_to_Point2D, faces=faces)
+    # def nearest2D_face_Point2D(self, point:Point2D, faces=None):
+    #     return self.rftarget.nearest2D_bmface_Point2D(point, self.Point_to_Point2D, faces=faces)
 
-    def nearest2D_face_point(self, point):
-        xy = self.get_point2D(point)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+    # def nearest2D_face_point(self, point):
+    #     xy = self.get_point2D(point)
+    #     return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
 
-    def nearest2D_face_mouse(self):
-        return self.nearest2D_face_point(self.actions.mouse)
+    # def nearest2D_face_mouse(self):
+    #     return self.nearest2D_face_point(self.actions.mouse)
 
-    def nearest2D_face_point(self, point):
-        # if max_dist: max_dist = self.drawing.scale(max_dist)
-        xy = self.get_point2D(point)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
+    # def nearest2D_face_point(self, point):
+    #     # if max_dist: max_dist = self.drawing.scale(max_dist)
+    #     xy = self.get_point2D(point)
+    #     return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D)
 
 
     ########################################
@@ -322,16 +322,16 @@ class RetopoFlow_Target:
 
     def is_point_on_mirrored_side(self, point):
         p = self.rftarget.xform.w2l_point(point)
-        if self.rftarget.mirro_mod.x and p.x < 0: return True
-        if self.rftarget.mirro_mod.y and p.y > 0: return True
-        if self.rftarget.mirro_mod.z and p.z < 0: return True
+        if self.rftarget.mirror_mod.x and p.x < 0: return True
+        if self.rftarget.mirror_mod.y and p.y > 0: return True
+        if self.rftarget.mirror_mod.z and p.z < 0: return True
         return False
 
     def mirror_point(self, point):
         p = self.rftarget.xform.w2l_point(point)
-        if self.rftarget.mirro_mod.x: p.x = abs(p.x)
-        if self.rftarget.mirro_mod.y: p.y = abs(p.y)
-        if self.rftarget.mirro_mod.z: p.z = abs(p.z)
+        if self.rftarget.mirror_mod.x: p.x = abs(p.x)
+        if self.rftarget.mirror_mod.y: p.y = abs(p.y)
+        if self.rftarget.mirror_mod.z: p.z = abs(p.z)
         return self.rftarget.xform.l2w_point(p)
 
     def get_point_symmetry(self, point):

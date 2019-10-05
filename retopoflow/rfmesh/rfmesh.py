@@ -786,14 +786,14 @@ class RFMesh():
             pt0 = pts[0]
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
                 if intersect_point_tri(xy, pt0, pt1, pt2):
-                    return self._wrap_bmface(bmf)
+                    return (self._wrap_bmface(bmf), 0)  # either hits face (no distance) or misses
             #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
             #d2d = (xy - p2d).length
             #if p2d is None: continue
             #if bv is None or d2d < bd: bv,bd = bmv,d2d
         #if bv is None: return (None,None)
         #return (self._wrap_bmvert(bv),bd)
-        return None
+        return None,None
 
 
     ##########################################################
