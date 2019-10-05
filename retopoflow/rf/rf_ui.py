@@ -128,6 +128,28 @@ class RetopoFlow_UI:
             ui.labeled_input_text(label='Backface', value='20', parent=self.ui_options)
             ui.input_text(value='foo bar', parent=self.ui_options)
 
+        def setup_delete_ui():
+            self.ui_delete = ui.framed_dialog(label='Delete/Dissolve', id='deletedialog', parent=self.document.body, resizable_x=False, hide_on_close=True)
+            self.ui_delete.width = 200
+            self.ui_delete.is_visible = False
+
+            def act(opt):
+                self.delete_dissolve_option(opt)
+                self.ui_delete.is_visible = False
+
+            ui_delete = ui.collection('Delete', parent=self.ui_delete)
+            ui.button(label='Vertices', on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
+            ui.button(label='Edges', on_mouseclick=delay_exec('''act(('Delete','Edges'))'''), parent=ui_delete)
+            ui.button(label='Faces', on_mouseclick=delay_exec('''act(('Delete','Faces'))'''), parent=ui_delete)
+            ui.button(label='Only Edges & Faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))'''), parent=ui_delete)
+            ui.button(label='Only Faces', on_mouseclick=delay_exec('''act(('Delete','Only Faces'))'''), parent=ui_delete)
+
+            ui_dissolve = ui.collection('Dissolve', parent=self.ui_delete)
+            ui.button(label='Vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))'''), parent=ui_dissolve)
+            ui.button(label='Edges', on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
+            ui.button(label='Faces', on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
+            ui.button(label='Loops', on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
+
         def test():
             c = 0
             def mouseclick(e):
@@ -186,6 +208,7 @@ class RetopoFlow_UI:
 
         setup_main_ui()
         setup_options()
+        setup_delete_ui()
 
         self.ui_tools = self.document.body.getElementsByName('tool')
 
