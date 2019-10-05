@@ -323,7 +323,7 @@ class RetopoFlow_Blender:
         bpy.ops.object.mode_set(mode=data['mode translated'])
 
     def overwrite_window_state(self):
-        print('RetopoFlow: update implementation for overwrite_window_state')
+        print('RetopoFlow TODO: update implementation for overwrite_window_state')
         return
 
         if bpy.context.mode != 'OBJECT':
