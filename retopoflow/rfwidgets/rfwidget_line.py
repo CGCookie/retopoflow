@@ -79,4 +79,5 @@ class RFWidget_Line(RFW_Line):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[2, 2])  # self.line_color)
-        Globals.drawing.draw2D_circle(ctr, 10, (1,1,1,0.25), width=1)
+        Globals.drawing.draw2D_circle(ctr, 10, (0,0,0,0.5), width=3)
+        Globals.drawing.draw2D_circle(ctr, 10, (1,1,1,0.5), width=1)
