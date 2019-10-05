@@ -37,7 +37,6 @@ class RetopoFlow_Tools:
 
     def select_rftool(self, rftool):
         assert rftool in self.rftools
-        print('select_rftool', rftool)
         self.rftool = rftool
         self.rftool._reset()
         e = self.document.body.getElementById('tool-%s'%rftool.name.lower())

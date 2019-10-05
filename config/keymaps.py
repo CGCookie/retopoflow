@@ -24,10 +24,10 @@ Created by Jonathan Denning, Jonathan Williamson
 
 ESC  F1 F2 F3 F4  F5 F6 F7 F8  F9 F10 F11 F12
  `  1 2 3 4 5 6 7 8 9 0 - = BKSP  INS HOME PGUP  NUM / * -
-TAB  Q W E R T Y U I O P [ ] \    DEL END  PGDN    7 8 9 +
+TAB  Q W E R T Y U I O P [ ] \\   DEL END  PGDN    7 8 9 +
 CAPS  A S D F G H J K L ; ' ENTR                   4 5 6
-SHFT   Z X C V B N M , . /  SHFT      UP           1 2 3 ENTR
-CTRL OSK ALT   SPACE    ALT CTRL  LFT DWN RHT      0   .
+SHFT   Z X C V B N M , . /  SHFT       UP          1 2 3 ENTR
+CTRL OSK ALT   SPACE    ALT CTRL   LFT DWN RHT     0   .
 
 '''
 

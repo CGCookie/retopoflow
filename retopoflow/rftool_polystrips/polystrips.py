@@ -21,6 +21,10 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 from ..rftool import RFTool
 
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ...addon_common.common.drawing import Drawing, Cursors
+
+
 class RFTool_PolyStrips(RFTool):
     name        = 'PolyStrips'
     description = 'Create and edit strips of quads'
@@ -28,6 +32,10 @@ class RFTool_PolyStrips(RFTool):
 
 
 class PolyStrips(RFTool_PolyStrips):
+    @RFTool_PolyStrips.on_init
+    def init(self):
+        self.rfwidget = RFWidget_BrushStroke(self)
+
     @RFTool_PolyStrips.FSM_State('main')
     def main(self) :
-        pass
+        Cursors.set('CROSSHAIR')
