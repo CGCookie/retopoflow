@@ -54,6 +54,20 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
 
+def RF_Factory(starting_tool):
+    class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
+        """RetopoFlow Blender Operator"""
+        bl_idname = "cgcookie.retopoflow_%s" % starting_tool.lower()
+        bl_label = "RF: %s" % starting_tool
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+        rf_starting_tool = starting_tool
+    return VIEW3D_OT_RetopoFlow_Tool
+customs = [ RF_Factory(n) for n in ['Contours', 'PolyStrips'] ]
+
+
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
     bl_idname = 'cgcookie.retopoflow_recover'
     bl_label = 'Recover Auto Save'
@@ -78,6 +92,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator('cgcookie.retopoflow')
+        for c in customs: layout.operator(c.bl_idname)
         layout.operator('cgcookie.retopoflow_recover')
 
     #############################################################################
@@ -106,11 +121,11 @@ class VIEW3D_MT_RetopoFlow(Menu):
 
 
 # registration
-classes = (
+classes = [
     VIEW3D_MT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
     VIEW3D_OT_RetopoFlow_Recover,
-)
+] + customs
 
 def register():
     for cls in classes: bpy.utils.register_class(cls)
