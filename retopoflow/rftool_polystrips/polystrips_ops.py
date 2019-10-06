@@ -20,11 +20,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import math
+from mathutils import Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool, rftools
 
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.profiler import profiler
@@ -245,4 +247,120 @@ class PolyStrips_Ops:
 
         self.rfcontext.select(new_geom, supparts=False)
 
+
+    @RFTool_PolyStrips.dirty_when_done
+    def change_count(self, *, count=None, delta=None):
+        '''
+        find parallel strips of boundary edges, fit curve to verts of strips, then
+        recompute faces based on curves.
+
+        note: this op will only change counts along boundaries.  otherwise, use loop cut
+        '''
+
+        nfaces = []
+
+        def process(bmfs, bmes):
+            nonlocal nfaces
+
+            # find edge strips
+            strip0,strip1 = [bmes[0].verts[0]], [bmes[0].verts[1]]
+            edges0,edges1 = [],[]
+            for bmf,bme0 in zip(bmfs,bmes):
+                bme1,bme2 = bmf.neighbor_edges(bme0)
+                if strip0[-1] in bme2.verts: bme1,bme2 = bme2,bme1
+                strip0.append(bme1.other_vert(strip0[-1]))
+                strip1.append(bme2.other_vert(strip1[-1]))
+                edges0.append(bme1)
+                edges1.append(bme2)
+            pts0,pts1 = [v.co for v in strip0],[v.co for v in strip1]
+            lengths0 = [(p0-p1).length for p0,p1 in iter_pairs(pts0, False)]
+            lengths1 = [(p0-p1).length for p0,p1 in iter_pairs(pts1, False)]
+            length0,length1 = sum(lengths0),sum(lengths1)
+
+            max_error = min(min(lengths0),min(lengths1)) / 100.0   # arbitrary!
+            spline0 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts0]], max_error)
+            spline1 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts1]], max_error)
+            len0,len1 = len(spline0), len(spline1)
+
+            ccount = len(bmfs)
+            if count is not None: ncount = count
+            else: ncount = ccount + delta
+            ncount = max(1, ncount)
+
+            # approximate ts along each strip
+            def approx_ts(spline_len, lengths):
+                nonlocal ncount,ccount
+                accum_ts_old = [0]
+                for l in lengths: accum_ts_old.append(accum_ts_old[-1] + l)
+                total_ts_old = sum(lengths)
+                ts_old = [Vector((i, t / total_ts_old, 0)) for i,t in enumerate(accum_ts_old)]
+                spline_ts_old = CubicBezierSpline.create_from_points([ts_old], 0.01)
+                spline_ts_old_len = len(spline_ts_old)
+                ts = [spline_len * spline_ts_old.eval(spline_ts_old_len * i / ncount).y for i in range(ncount+1)]
+                return ts
+            ts0 = approx_ts(len0, lengths0)
+            ts1 = approx_ts(len1, lengths1)
+
+            self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
+
+            new_vert = self.rfcontext.new_vert_point
+            verts0 = strip0[:1] + [new_vert(spline0.eval(t)) for t in ts0[1:-1]] + strip0[-1:]
+            verts1 = strip1[:1] + [new_vert(spline1.eval(t)) for t in ts1[1:-1]] + strip1[-1:]
+
+            for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
+                nfaces.append(self.rfcontext.new_face([v00,v01,v11,v10]))
+
+
+
+        # find selected faces that are not part of strips
+        #  [ | | | | | | | ]
+        #      |O|     |O|    <- with either of these selected, split into two
+        #  [ | | | ]
+
+        bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
+        bmquads = [bmq for bmq in bmquads if not any(bmq in strip for strip in self.strips)]
+        for bmf in bmquads:
+            bmes = list(bmf.edges)
+            boundaries = [len(bme.link_faces) == 2 for bme in bmf.edges]
+            if (boundaries[0] or boundaries[2]) and not boundaries[1] and not boundaries[3]:
+                process([bmf], [bmes[0],bmes[2]])
+                continue
+            if (boundaries[1] or boundaries[3]) and not boundaries[0] and not boundaries[2]:
+                process([bmf], [bmes[1],bmes[3]])
+                continue
+
+        # find boundary portions of each strip
+        # TODO: what if there are multiple boundary portions??
+        #  [ | |O| | ]
+        #      |O|      <-
+        #      |O|      <- only working on this part of strip
+        #      |O|      <-
+        #      |O| | ]
+        #  [ | |O| | ]
+
+        for strip in self.strips:
+            bmfs,bmes = [],[]
+            bme0 = strip.bme0
+            for bmf in strip:
+                bme2 = bmf.opposite_edge(bme0)
+                bme1,bme3 = bmf.neighbor_edges(bme0)
+                if len(bme1.link_faces) == 1 and len(bme3.link_faces) == 1:
+                    bmes.append(bme0)
+                    bmfs.append(bmf)
+                else:
+                    # if we've already seen a portion of the strip that can be modified, break!
+                    if bmfs:
+                        bmes.append(bme0)
+                        break
+                bme0 = bme2
+            else:
+                bmes.append(bme0)
+            if not bmfs: continue
+            process(bmfs, bmes)
+
+        if nfaces:
+            self.rfcontext.select(nfaces, supparts=False, only=False)
+        else:
+            #self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
+            pass
 

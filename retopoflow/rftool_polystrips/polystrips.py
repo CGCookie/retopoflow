@@ -23,7 +23,7 @@ import bgl
 import bpy
 import math
 import random
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
@@ -62,10 +62,12 @@ class RFTool_PolyStrips(RFTool):
 # following imports must happen *after* the above class, because each subclass depends on
 # above class to be defined
 
-from .polystrips_ops import PolyStrips_Ops
+from .polystrips_ops   import PolyStrips_Ops
+from .polystrips_props import PolyStrips_Props
+from .polystrips_ui    import PolyStrips_UI
 
 
-class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
+class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_UI):
     @RFTool_PolyStrips.on_init
     def init(self):
         self.rfwidgets = {
@@ -89,6 +91,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
         if self._fsm.state in {'move handle', 'rotate'}: return
 
         self.strips = []
+        self._var_cut_count.disabled = True
 
         # get selected quads
         bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
@@ -139,6 +142,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
                 break
 
         self.update_strip_viz()
+        if len(self.strips) == 1:
+            self._var_cut_count.set(len(self.strips[0]))
+            self._var_cut_count.disabled = False
 
     @profiler.function
     def update_strip_viz(self):
@@ -193,6 +199,16 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
             )
             print('selecting', ret)
             return ret
+
+        if self.rfcontext.actions.pressed('increase count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(delta=1)
+            return
+
+        if self.rfcontext.actions.pressed('decrease count'):
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(delta=-1)
+            return
 
 
     @RFTool_PolyStrips.FSM_State('move handle', 'can enter')
@@ -327,6 +343,100 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()
+
+
+
+    @RFTool_PolyStrips.FSM_State('scale', 'can enter')
+    @profiler.function
+    def scale_canenter(self):
+        if not self.hovering_handles: return False
+
+        self.mod_strips = set()
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        innerP,outerP,outerF = None,None,None
+        for strip in self.strips:
+            bmf0,bmf1 = strip.end_faces()
+            p0,p1,p2,p3 = strip.curve.points()
+            if p1 in self.hovering_handles: innerP,outerP,outerF = p1,p0,bmf0
+            if p2 in self.hovering_handles: innerP,outerP,outerF = p2,p3,bmf1
+        if not innerP or not outerP or not outerF: return False
+
+        self.scale_strips = []
+        for strip in self.strips:
+            bmf0,bmf1 = strip.end_faces()
+            if bmf0 == outerF:
+                self.scale_strips.append((strip, 1))
+                self.mod_strips.add(strip)
+            if bmf1 == outerF:
+                self.scale_strips.append((strip, 2))
+                self.mod_strips.add(strip)
+
+        for strip in self.mod_strips: strip.capture_edges()
+
+        if not self.scale_strips: return False
+
+        self.scale_from = Point_to_Point2D(outerP)
+
+    def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
+
+
+    @RFTool_PolyStrips.FSM_State('scale', 'enter')
+    def scale_enter(self):
+        self.mousedown = self.rfcontext.actions.mouse
+        self.rfwidget = None #self.rfwidgets['default']
+        self.rfcontext.undo_push('scale')
+        self.move_done_pressed = None
+        self.move_done_released = {'insert', 'insert alt0', 'insert alt1'}
+        self.move_cancelled = 'cancel'
+
+        falloff = self.get_scale_falloff_actual()
+
+        self.scale_bmf = {}
+        self.scale_bmv = {}
+        for strip,iinner in self.scale_strips:
+            iend = 0 if iinner == 1 else 3
+            s0,s1 = (1,0) if iend == 0 else (0,1)
+            l = len(strip.bmf_strip)
+            for ibmf,bmf in enumerate(strip.bmf_strip):
+                if bmf in self.scale_bmf: continue
+                p = ibmf/(l-1)
+                s = (s0 + (s1-s0) * p) ** falloff
+                self.scale_bmf[bmf] = s
+        for bmf in self.scale_bmf.keys():
+            c = bmf.center()
+            s = self.scale_bmf[bmf]
+            for bmv in bmf.verts:
+                if bmv not in self.scale_bmv:
+                    self.scale_bmv[bmv] = []
+                self.scale_bmv[bmv] += [(c, bmv.co-c, s)]
+        return 'scale'
+
+    @RFTool_PolyStrips.FSM_State('scale')
+    @RFTool.dirty_when_done
+    @profiler.function
+    def scale(self):
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.rfcontext.actions.pressed(self.move_cancelled):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        vec0 = self.mousedown - self.scale_from
+        vec1 = self.rfcontext.actions.mouse - self.scale_from
+        scale = vec1.length / vec0.length
+
+        snap2D_vert = self.rfcontext.snap2D_vert
+        snap_vert = self.rfcontext.snap_vert
+        for bmv in self.scale_bmv.keys():
+            l = self.scale_bmv[bmv]
+            n = Vector()
+            for c,v,sc in l:
+                n += c + v * max(0, 1 + (scale-1) * sc)
+            bmv.co = n / len(l)
+            snap_vert(bmv)
 
 
 
