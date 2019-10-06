@@ -22,20 +22,21 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 import bpy
 import math
+import random
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
 
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ..rfwidgets.rfwidget_move import RFWidget_Move
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.maths import Vec2D
+from ...addon_common.common.maths import Vec2D, Point
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
 from ...config.options import options
-
 
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -65,7 +66,11 @@ from .polystrips_ops import PolyStrips_Ops
 class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
     @RFTool_PolyStrips.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushStroke(self)
+        self.rfwidgets = {
+            'brushstroke': RFWidget_BrushStroke(self),
+            'move': RFWidget_Move(self),
+        }
+        self.rfwidget = self.rfwidgets['brushstroke']
 
     @RFTool_PolyStrips.on_reset
     def reset(self):
@@ -79,6 +84,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
     @RFTool_PolyStrips.on_target_change
     @profiler.function
     def update_target(self):
+        if self._fsm.state in {'move handle'}: return
+
         self.strips = []
 
         # get selected quads
@@ -138,215 +145,119 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
 
     @RFTool_PolyStrips.FSM_State('main')
     def main(self) :
-        Cursors.set('CROSSHAIR')
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        mouse = self.rfcontext.actions.mouse
+
+        self.vis_accel = self.rfcontext.get_vis_accel()
+
+        self.hovering_handles.clear()
+        self.hovering_strips.clear()
+        for strip in self.strips:
+            for i,cbpt in enumerate(strip.curve):
+                v = Point_to_Point2D(cbpt)
+                if v is None: continue
+                if (mouse - v).length > self.drawing.scale(options['select dist']): continue
+                # do not filter out non-visible handles, because otherwise
+                # they might not be movable if they are inside the model
+                self.hovering_handles.append(cbpt)
+                self.hovering_strips.add(strip)
+
+        if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
+            self.rfwidget = self.rfwidgets['brushstroke']
+            Cursors.set('CROSSHAIR')
+        elif self.hovering_handles:
+            self.rfwidget = self.rfwidgets['move']
+            Cursors.set('HAND')
+        else:
+            self.rfwidget = self.rfwidgets['brushstroke']
+            Cursors.set('CROSSHAIR')
+
+        # handle edits
+        if self.hovering_handles:
+            if self.rfcontext.actions.pressed('action'):
+                return 'move handle'
+            if self.rfcontext.actions.pressed('action alt0'):
+                return 'rotate'
+            if self.rfcontext.actions.pressed('action alt1'):
+                return 'scale'
+
 
         if self.actions.pressed({'select', 'select add'}):
-            return self.rfcontext.setup_selection_painting(
+            ret = self.rfcontext.setup_selection_painting(
                 'face',
                 #fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            print('selecting', ret)
+            return ret
 
+    @RFTool_PolyStrips.FSM_State('move handle', 'can enter')
+    def movehandle_canenter(self):
+        return len(self.hovering_handles) > 0
 
-    @RFWidget_BrushStroke.on_action
-    def new_brushstroke(self):
-        # called when artist finishes a stroke
-        radius = self.rfwidget.size
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
-        nearest_sources_Point = self.rfcontext.nearest_sources_Point
-        raycast = self.rfcontext.raycast_sources_Point2D
-        vis_verts = self.rfcontext.visible_verts()
-        vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
-        vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
-        vis_edges2D,vis_faces2D = [],[]
-        new_geom = []
+    @RFTool_PolyStrips.FSM_State('move handle', 'enter')
+    def movehandle_enter(self):
+        self.sel_cbpts = []
+        self.mod_strips = set()
 
-        def add_edge(bme): vis_edges2D.append((bme, [Point_to_Point2D(bmv.co) for bmv in bme.verts]))
-        def add_face(bmf): vis_faces2D.append((bmf, [Point_to_Point2D(bmv.co) for bmv in bmf.verts]))
+        cbpts = list(self.hovering_handles)
+        self.mod_strips |= self.hovering_strips
+        for strip in self.strips:
+            p0,p1,p2,p3 = strip.curve.points()
+            if p0 in cbpts and p1 not in cbpts:
+                cbpts.append(p1)
+                self.mod_strips.add(strip)
+            if p3 in cbpts and p2 not in cbpts:
+                cbpts.append(p2)
+                self.mod_strips.add(strip)
 
-        def intersect_face(pt):
-            # todo: rewrite! inefficient!
-            nonlocal vis_faces2D
-            for f,vs in vis_faces2D:
-                v0 = vs[0]
-                for v1,v2 in iter_pairs(vs[1:], False):
-                    if intersect_point_tri_2d(pt, v0, v1, v2): return f
-            return None
+        for strip in self.mod_strips: strip.capture_edges()
+        inners = [ p for strip in self.strips for p in strip.curve.points()[1:3] ]
 
-        def snap_point(p2D_init, dist):
-            p = raycast(p2D_init)[0]
-            if p is None:
-                # did not hit source, so find nearest point on source to where the point would have been
-                r = Point2D_to_Ray(p2D_init)
-                p = nearest_sources_Point(r.eval(dist))[0]
-            return p
+        self.sel_cbpts = [(cbpt, cbpt in inners, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
+        self.mousedown = self.rfcontext.actions.mouse
+        self.mouselast = self.rfcontext.actions.mouse
+        self.rfwidget = self.rfwidgets['move']
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = 'action'
+        self.move_cancelled = 'cancel'
+        self.rfcontext.undo_push('manipulate bezier')
 
-        def create_edge(center, tangent, mult, perpendicular):
-            nonlocal new_geom
+    @RFTool_PolyStrips.FSM_State('move handle')
+    @RFTool_PolyStrips.dirty_when_done
+    def modal_handle(self):
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.rfcontext.actions.pressed(self.move_cancelled):
+            self.rfcontext.undo_cancel()
+            return 'main'
 
-            # find direction of projecting tangent
-            # p0,n0,_,d0 = raycast(center)
-            # p1 = raycast(center+tangent*0.01)[0] # snap_point(center+tangent*0.0001, d0)
-            # d01 = (p1 - p0).normalize()
-            # t = n0.cross(d01).normalize()
-            # r = Point2D_to_Ray(center)
-            # print(tangent,p0,p1,d01,n0,t,r.d,t.dot(r.d), mult)
-            # rad = radius * abs(t.dot(r.d))
-            rad = radius
+        if (self.rfcontext.actions.mouse - self.mouselast).length == 0: return
+        self.mouselast = self.rfcontext.actions.mouse
 
-            hd,mmult = None,mult
-            while not hd:
-                p = center + tangent * mmult
-                hp,hn,hi,hd = raycast(p)
-                mmult -= 0.1
-            p0 = snap_point(center + tangent * mult + perpendicular * rad, hd)
-            p1 = snap_point(center + tangent * mult - perpendicular * rad, hd)
-            bmv0 = self.rfcontext.new_vert_point(p0)
-            bmv1 = self.rfcontext.new_vert_point(p1)
-            bme = self.rfcontext.new_edge([bmv0,bmv1])
-            add_edge(bme)
-            new_geom += [bme]
-            return bme
-
-        def create_face_in_l(bme0, bme1):
-            '''
-            creates a face strip between edges that share a vertex (L-shaped)
-            '''
-            # find shared vert
-            nonlocal new_geom
-            bmv1 = bme0.shared_vert(bme1)
-            bmv0,bmv2 = bme0.other_vert(bmv1),bme1.other_vert(bmv1)
-            c0,c1,c2 = bmv0.co,bmv1.co,bmv2.co
-            c3 = nearest_sources_Point(c1 + (c0-c1) + (c2-c1))[0]
-            bmv3 = self.rfcontext.new_vert_point(c3)
-            bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
-            bme2,bme3 = bmv2.shared_edge(bmv3),bmv3.shared_edge(bmv0)
-            add_face(bmf)
-            add_edge(bme2)
-            add_edge(bme3)
-            new_geom += [bme2,bme3,bmf]
-            return bmf
-
-        def create_face(bme01, bme23):
-            #  0  3      0--3
-            #  |  |  ->  |  |
-            #  1  2      1--2
-            nonlocal new_geom
-            if bme01.share_vert(bme23): return create_face_in_l(bme01, bme23)
-            bmv0,bmv1 = bme01.verts
-            bmv2,bmv3 = bme23.verts
-            if bme01.vector().dot(bme23.vector()) > 0: bmv2,bmv3 = bmv3,bmv2
-            bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
-            bme12 = bmv1.shared_edge(bmv2)
-            bme30 = bmv3.shared_edge(bmv0)
-            add_edge(bme12)
-            add_edge(bme30)
-            add_face(bmf)
-            new_geom += [bme12, bme30, bmf]
-            return bmf
-
-
-        for bme in vis_edges: add_edge(bme)
-        for bmf in vis_faces: add_face(bmf)
-
-        self.rfcontext.undo_push('stroke')
-
-        stroke = list(self.rfwidget.stroke2D)
-        # filter stroke down where each pt is at least 1px away to eliminate local wiggling
-        stroke = process_stroke_filter(stroke)
-        stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
-
-        from_edge = None
-        while len(stroke) > 2:
-            # get stroke segment to work on
-            from_edge,cstroke,to_edge,cont,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
-
-            # filter cstroke to contain unique points
-            while True:
-                ncstroke = [cstroke[0]]
-                for cp,np in iter_pairs(cstroke,False):
-                    if (cp-np).length > 0: ncstroke += [np]
-                if len(cstroke) == len(ncstroke): break
-                cstroke = ncstroke
-
-            # discard stroke segment if it lies in a face
-            if intersect_face(cstroke[1]):
-                dprint('stroke is on face (1)')
-                from_edge = to_edge
-                continue
-            if intersect_face(cstroke[-2]):
-                dprint('stroke is on face (-2)')
-                from_edge = to_edge
-                continue
-
-            # estimate length of stroke (used with radius to determine num of quads)
-            stroke_len = sum((p0-p1).length for (p0,p1) in iter_pairs(cstroke,False))
-
-            # marks start and end at center of quad, and alternate with
-            # edge and face, each approx radius distance apart
-            # +---+---+---+---+---+
-            # |   |   |   |   |   |
-            # +---+---+---+---+---+
-            #   ^ ^ ^ ^ ^ ^ ^ ^ ^  <-----marks (nmarks: 9, nquads: 5)
-            #     ^ ^ ^ ^ ^ ^ ^ ^  <- if from_edge not None
-            #   ^ ^ ^ ^ ^ ^ ^ ^    <- if to_edge not None
-            #     ^ ^ ^ ^ ^ ^ ^    <- if from_edge and to_edge are not None
-            # mark counts:
-            #     min marks = 3   [ | ]    (2 quads)
-            #     marks = 5      [ | | ]   (3 quads)
-            #     marks = 7     [ | | | ]  (4 quads)
-            #     marks must be odd
-            # if from_edge is not None, then stroke starts at edge
-            # if to_edge is not None, then stroke ends at edge
-            markoff0 = 0 if from_edge is None else 1
-            markoff1 = 0 if to_edge   is None else 1
-            nmarks = int(math.ceil(stroke_len / radius))        # approx num of marks
-            nmarks = nmarks + (1 - ((nmarks+markoff0+markoff1) % 2))  # make sure odd count
-            nmarks = max(nmarks, 3-markoff0-markoff1)           # min marks = 3
-            nmarks = max(nmarks, 2)                             # fix div by 0 :(
-            # marks are found at dists along stroke
-            at_dists = [stroke_len*i/(nmarks-1) for i in range(nmarks)]
-            # compute marks
-            marks = process_stroke_get_marks(cstroke, at_dists)
-
-            # compute number of quads
-            nquads = int(((nmarks-markoff0-markoff1) + 1) / 2)
-            dprint('nmarks = %d, markoff0 = %d, markoff1 = %d, nquads = %d' % (nmarks, markoff0, markoff1, nquads))
-
-            if from_edge and to_edge and nquads == 1:
-                if from_edge.share_vert(to_edge):
-                    create_face_in_l(from_edge, to_edge)
-                    continue
-
-            # add edges
-            if from_edge is None:
-                # create from_edge
-                dprint('creating from_edge')
-                pt,tn,pe = mark_info(marks, 0)
-                from_edge = create_edge(pt, -tn, radius, pe)
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        up,rt,fw = self.rfcontext.Vec_up(),self.rfcontext.Vec_right(),self.rfcontext.Vec_forward()
+        for cbpt,inner,oco,oco2D in self.sel_cbpts:
+            nco2D = oco2D + delta
+            if not inner:
+                xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(nco2D)
+                if xyz: cbpt.xyz = xyz
             else:
-                new_geom += list(from_edge.link_faces)
+                ov = self.rfcontext.Point2D_to_Vec(oco2D)
+                nr = self.rfcontext.Point2D_to_Ray(nco2D)
+                od = self.rfcontext.Point_to_depth(oco)
+                cbpt.xyz = nr.eval(od / ov.dot(nr.d))
 
-            if to_edge is None:
-                dprint('creating to_edge')
-                pt,tn,pe = mark_info(marks, nmarks-1)
-                to_edge = create_edge(pt, tn, radius, pe)
-            else:
-                new_geom += list(to_edge.link_faces)
+        for strip in self.hovering_strips:
+            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
-            for iquad in range(1, nquads):
-                #print('creating edge')
-                pt,tn,pe = mark_info(marks, iquad*2+markoff0-1)
-                bme = create_edge(pt, tn, 0.0, pe)
-                bmf = create_face(from_edge, bme)
-                from_edge = bme
-            bmf = create_face(from_edge, to_edge)
+        self.update_strip_viz()
 
-            from_edge = to_edge if cont else None
 
-        self.rfcontext.select(new_geom, supparts=False)
 
     @RFTool_PolyStrips.Draw('post3d')
     def draw_post3d_spline(self):

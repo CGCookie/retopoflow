@@ -102,6 +102,7 @@ class RFTool:
 
     def __init__(self, rfcontext):
         RFTool.rfcontext = rfcontext
+        RFTool.drawing = rfcontext.drawing
         RFTool.actions = rfcontext.actions
         self.rfwidget = None
         self._fsm.init(self, start='main')
