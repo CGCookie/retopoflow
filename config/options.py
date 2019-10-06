@@ -170,7 +170,7 @@ class Options:
         'polystrips arrows':            False,
         'polystrips handle inner size': 15,
         'polystrips handle outer size': 20,
-        'polystrips handle border':     2,
+        'polystrips handle border':     3,
 
         'polypen merge dist':       10,         # pixels away to merge
         'polypen automerge':        True,

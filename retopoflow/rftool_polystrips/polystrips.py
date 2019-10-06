@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import bgl
 import bpy
 import math
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
@@ -26,9 +27,15 @@ from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 from ..rftool import RFTool
 
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
-from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.debug import dprint
+from ...addon_common.common.drawing import Drawing, Cursors
+from ...addon_common.common.maths import Vec2D
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.utils import iter_pairs
+
+from ...config.options import options
+
 
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -59,6 +66,75 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
     @RFTool_PolyStrips.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushStroke(self)
+
+    @RFTool_PolyStrips.on_reset
+    def reset(self):
+        self.strips = []
+        self.strip_pts = []
+        self.hovering_strips = set()
+        self.hovering_handles = []
+        self.sel_cbpts = []
+        self.stroke_cbs = CubicBezierSpline()
+
+    @RFTool_PolyStrips.on_target_change
+    @profiler.function
+    def update_target(self):
+        self.strips = []
+
+        # get selected quads
+        bmquads = set(bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4)
+        if not bmquads: return
+
+        # find junctions at corners
+        junctions = set()
+        for bmf in bmquads:
+            # skip if in middle of a selection
+            if not any(is_boundaryvert(bmv, bmquads) for bmv in bmf.verts): continue
+            # skip if in middle of possible strip
+            edge0,edge1,edge2,edge3 = [is_boundaryedge(bme, bmquads) for bme in bmf.edges]
+            if (edge0 or edge2) and not (edge1 or edge3): continue
+            if (edge1 or edge3) and not (edge0 or edge2): continue
+            junctions.add(bmf)
+
+        # find junctions that might be in middle of strip but are ends to other strips
+        boundaries = set((bme,bmf) for bmf in bmquads for bme in bmf.edges if is_boundaryedge(bme, bmquads))
+        while boundaries:
+            bme,bmf = boundaries.pop()
+            for bme_ in bmf.neighbor_edges(bme):
+                strip = crawl_strip(bmf, bme_, bmquads, junctions)
+                if strip is None: continue
+                junctions.add(strip[-1])
+
+        # find strips between junctions
+        touched = set()
+        for bmf0 in junctions:
+            bme0,bme1,bme2,bme3 = bmf0.edges
+            edge0,edge1,edge2,edge3 = [is_boundaryedge(bme, bmquads) for bme in bmf0.edges]
+
+            def add_strip(bme):
+                strip = crawl_strip(bmf0, bme, bmquads, junctions)
+                if not strip:
+                    return
+                bmf1 = strip[-1]
+                if len(strip) > 1 and hash_face_pair(bmf0, bmf1) not in touched:
+                    touched.add(hash_face_pair(bmf0,bmf1))
+                    touched.add(hash_face_pair(bmf1,bmf0))
+                    self.strips.append(RFTool_PolyStrips_Strip(strip))
+
+            if not edge0: add_strip(bme0)
+            if not edge1: add_strip(bme1)
+            if not edge2: add_strip(bme2)
+            if not edge3: add_strip(bme3)
+            if options['polystrips max strips'] and len(self.strips) > options['polystrips max strips']:
+                self.strips = []
+                break
+
+        self.update_strip_viz()
+
+    @profiler.function
+    def update_strip_viz(self):
+        self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
+
 
     @RFTool_PolyStrips.FSM_State('main')
     def main(self) :
@@ -272,3 +348,96 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
 
         self.rfcontext.select(new_geom, supparts=False)
 
+    @RFTool_PolyStrips.Draw('post3d')
+    def draw_post3d_spline(self):
+        if not self.strips: return
+
+        strips = self.strips
+        hov_strips = self.hovering_strips
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
+        def is_visible(v):
+            return True   # self.rfcontext.is_visible(v, None)
+
+        def draw(alphamult, hov_alphamult, hover):
+            nonlocal strips
+
+            if not hover: hov_alphamult = alphamult
+
+            size_outer = options['polystrips handle outer size']
+            size_inner = options['polystrips handle inner size']
+            border_outer = options['polystrips handle border']
+            border_inner = options['polystrips handle border']
+
+            bgl.glEnable(bgl.GL_BLEND)
+
+            # draw outer-inner lines
+            pts = [Point_to_Point2D(p) for strip in strips for p in strip.curve.points()]
+            self.rfcontext.drawing.draw2D_lines(pts, (1,1,1,0.45), width=2)
+
+            # draw junction handles (outer control points of curve)
+            faces_drawn = set() # keep track of faces, so don't draw same handles 2+ times
+            pts_outer,pts_inner = [],[]
+            for strip in strips:
+                bmf0,bmf1 = strip.end_faces()
+                p0,p1,p2,p3 = strip.curve.points()
+                if bmf0 not in faces_drawn:
+                    if is_visible(p0): pts_outer += [Point_to_Point2D(p0)]
+                    faces_drawn.add(bmf0)
+                if bmf1 not in faces_drawn:
+                    if is_visible(p3): pts_outer += [Point_to_Point2D(p3)]
+                    faces_drawn.add(bmf1)
+                if is_visible(p1): pts_inner += [Point_to_Point2D(p1)]
+                if is_visible(p2): pts_inner += [Point_to_Point2D(p2)]
+            self.rfcontext.drawing.draw2D_points(pts_outer, (1.00,1.00,1.00,1.0), radius=size_outer, border=border_outer, borderColor=(0.00,0.00,0.00,0.5))
+            self.rfcontext.drawing.draw2D_points(pts_inner, (0.25,0.25,0.25,0.8), radius=size_inner, border=border_inner, borderColor=(0.75,0.75,0.75,0.4))
+
+        if True:
+            # always draw on top!
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glDisable(bgl.GL_DEPTH_TEST)
+            bgl.glDepthMask(bgl.GL_FALSE)
+            draw(1.0, 1.0, False)
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
+            bgl.glDepthMask(bgl.GL_TRUE)
+        else:
+            # allow handles to go under surface
+            bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
+
+            # draw in front of geometry
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            draw(
+                options['target alpha'],
+                options['target alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
+
+            # draw behind geometry
+            bgl.glDepthFunc(bgl.GL_GREATER)
+            draw(
+                options['target hidden alpha'],
+                options['target hidden alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
+
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            bgl.glDepthRange(0.0, 1.0)
+            bgl.glDepthMask(bgl.GL_TRUE)
+
+    @RFTool_PolyStrips.Draw('post2d')
+    def draw_post2d(self):
+        self.rfcontext.drawing.set_font_size(12)
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        text_draw2D = self.rfcontext.drawing.text_draw2D
+
+        for strip in self.strips:
+            c = len(strip)
+            vs = [Point_to_Point2D(f.center()) for f in strip]
+            vs = [Vec2D(v) for v in vs if v]
+            if not vs: continue
+            ctr = sum(vs, Vec2D((0,0))) / len(vs)
+            text_draw2D('%d' % c, ctr+Vec2D((2,14)), color=(1,1,0,1), dropshadow=(0,0,0,0.5))

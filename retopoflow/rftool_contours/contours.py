@@ -539,7 +539,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         )
 
     @RFTool_Contours.Draw('post2d')
-    def draw_postpixel(self):
+    def draw_post2d(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
@@ -564,17 +564,17 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 bmv_count[bmv].append( (count, True) )
 
             # draw arrows
-            if self.show_arrows:
-                self.drawing.line_width(2.0)
-                p0 = point_to_point2d(plane.o)
-                p1 = point_to_point2d(plane.o+plane.n*0.02)
-                if p0 and p1:
-                    bgl.glColor4f(1,1,0,0.5)
-                    draw2D_arrow(p0, p1)
-                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
-                if p0 and p1:
-                    bgl.glColor4f(1,0,1,0.5)
-                    draw2D_arrow(p0, p1)
+            # if self.show_arrows:
+            #     self.drawing.line_width(2.0)
+            #     p0 = point_to_point2d(plane.o)
+            #     p1 = point_to_point2d(plane.o+plane.n*0.02)
+            #     if p0 and p1:
+            #         bgl.glColor4f(1,1,0,0.5)
+            #         draw2D_arrow(p0, p1)
+            #     p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
+            #     if p0 and p1:
+            #         bgl.glColor4f(1,0,1,0.5)
+            #         draw2D_arrow(p0, p1)
 
         for string_data in self.strings_data:
             string = string_data['string']
@@ -590,16 +590,16 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 bmv_count[bmv].append( (count, False) )
 
             # draw arrows
-            if self.show_arrows:
-                p0 = point_to_point2d(plane.o)
-                p1 = point_to_point2d(plane.o+plane.n*0.02)
-                if p0 and p1:
-                    bgl.glColor4f(1,1,0,0.5)
-                    draw2D_arrow(p0, p1)
-                p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
-                if p0 and p1:
-                    bgl.glColor4f(1,0,1,0.5)
-                    draw2D_arrow(p0, p1)
+            # if self.show_arrows:
+            #     p0 = point_to_point2d(plane.o)
+            #     p1 = point_to_point2d(plane.o+plane.n*0.02)
+            #     if p0 and p1:
+            #         bgl.glColor4f(1,1,0,0.5)
+            #         draw2D_arrow(p0, p1)
+            #     p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
+            #     if p0 and p1:
+            #         bgl.glColor4f(1,0,1,0.5)
+            #         draw2D_arrow(p0, p1)
 
         for bmv in bmv_count.keys():
             counts = bmv_count[bmv]
