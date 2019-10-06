@@ -23,6 +23,7 @@ import bgl
 import bpy
 import math
 import random
+from mathutils import Matrix
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
@@ -30,9 +31,10 @@ from ..rftool import RFTool
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
 from ..rfwidgets.rfwidget_move import RFWidget_Move
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
+from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.maths import Vec2D, Point
+from ...addon_common.common.maths import Vec2D, Point, rotate2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
@@ -84,7 +86,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
     @RFTool_PolyStrips.on_target_change
     @profiler.function
     def update_target(self):
-        if self._fsm.state in {'move handle'}: return
+        if self._fsm.state in {'move handle', 'rotate'}: return
 
         self.strips = []
 
@@ -144,8 +146,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
 
 
     @RFTool_PolyStrips.FSM_State('main')
-    def main(self) :
-
+    def main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.rfcontext.actions.mouse
 
@@ -193,6 +194,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
             print('selecting', ret)
             return ret
 
+
     @RFTool_PolyStrips.FSM_State('move handle', 'can enter')
     def movehandle_canenter(self):
         return len(self.hovering_handles) > 0
@@ -227,7 +229,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
 
     @RFTool_PolyStrips.FSM_State('move handle')
     @RFTool_PolyStrips.dirty_when_done
-    def modal_handle(self):
+    def movehandle(self):
         if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.rfcontext.actions.released(self.move_done_released):
@@ -253,6 +255,75 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Ops):
                 cbpt.xyz = nr.eval(od / ov.dot(nr.d))
 
         for strip in self.hovering_strips:
+            strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
+
+        self.update_strip_viz()
+
+
+    @RFTool_PolyStrips.FSM_State('rotate', 'can enter')
+    def rotate_canenter(self):
+        if not self.hovering_handles: return False
+
+        self.sel_cbpts = []
+        self.mod_strips = set()
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
+        # find hovered inner point, the corresponding outer point and its face
+        innerP,outerP,outerF = None,None,None
+        for strip in self.strips:
+            bmf0,bmf1 = strip.end_faces()
+            p0,p1,p2,p3 = strip.curve.points()
+            if p1 in self.hovering_handles: innerP,outerP,outerF = p1,p0,bmf0
+            if p2 in self.hovering_handles: innerP,outerP,outerF = p2,p3,bmf1
+        if not innerP or not outerP or not outerF: return False
+
+        # scan through all selected strips and collect all inner points next to outerP
+        for strip in self.strips:
+            bmf0,bmf3 = strip.end_faces()
+            if outerF != bmf0 and outerF != bmf3: continue
+            p0,p1,p2,p3 = strip.curve.points()
+            if outerF == bmf0: self.sel_cbpts.append( (p1, Point(p1), Point_to_Point2D(p1)) )
+            else:              self.sel_cbpts.append( (p2, Point(p2), Point_to_Point2D(p2)) )
+            self.mod_strips.add(strip)
+        self.rotate_about = Point_to_Point2D(outerP)
+        if not self.rotate_about: return False
+
+    @RFTool_PolyStrips.FSM_State('rotate', 'enter')
+    def rotate_enter(self):
+        for strip in self.mod_strips: strip.capture_edges()
+
+        self.mousedown = self.rfcontext.actions.mouse
+        self.rfwidget = self.rfwidgets['move']
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = 'action alt0'
+        self.move_cancelled = 'cancel'
+        self.rfcontext.undo_push('rotate')
+
+    @RFTool_PolyStrips.FSM_State('rotate')
+    @RFTool_PolyStrips.dirty_when_done
+    @profiler.function
+    def modal_rotate(self):
+        if not self.rotate_about: return 'main'
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.rfcontext.actions.pressed(self.move_cancelled):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        prev_diff = self.mousedown - self.rotate_about
+        prev_rot = math.atan2(prev_diff.x, prev_diff.y)
+        cur_diff = self.rfcontext.actions.mouse - self.rotate_about
+        cur_rot = math.atan2(cur_diff.x, cur_diff.y)
+        angle = prev_rot - cur_rot
+
+        for cbpt,oco,oco2D in self.sel_cbpts:
+            xy = rotate2D(oco2D, angle, origin=self.rotate_about)
+            xyz,_,_,_ = self.rfcontext.raycast_sources_Point2D(xy)
+            if xyz: cbpt.xyz = xyz
+
+        for strip in self.mod_strips:
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()

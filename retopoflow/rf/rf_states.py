@@ -86,8 +86,6 @@ class RetopoFlow_States(CookieCutter):
                 self.ui_delete.is_visible = True
                 return
 
-        self.check_auto_save()
-
         self.ignore_ui_events = False
 
         if self.rftool.rfwidget:
@@ -104,6 +102,9 @@ class RetopoFlow_States(CookieCutter):
             return ret
         if self.fsm.state != 'main':
             self.ignore_ui_events = True
+
+        if not self.ignore_ui_events:
+            self.check_auto_save()
 
     def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         accel_nearest2D = {

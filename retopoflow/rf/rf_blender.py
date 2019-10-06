@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import bpy
+import time
 from mathutils import Matrix, Vector
 from bpy_extras.object_utils import object_data_add
 
@@ -362,16 +363,11 @@ class RetopoFlow_Blender:
     def check_auto_save(self):
         use_auto_save_temporary_files = get_preferences(self.actions.context).filepaths.use_auto_save_temporary_files
         if not use_auto_save_temporary_files: return
-
+        if hasattr(self, 'time_to_save'):
+            if time.time() < self.time_to_save: return
+            self.save_backup()
         auto_save_time = get_preferences(self.actions.context).filepaths.auto_save_time * 60
-        if not hasattr(self, 'time_to_save'):
-            self.time_to_save = auto_save_time
-            return
-
-        self.time_to_save -= self.actions.time_delta
-        if self.time_to_save > 0: return
-        self.save_backup()
-        self.time_to_save = auto_save_time
+        self.time_to_save = time.time() + auto_save_time
 
     @staticmethod
     def has_backup():
