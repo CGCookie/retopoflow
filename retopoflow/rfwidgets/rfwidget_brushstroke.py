@@ -41,7 +41,8 @@ class RFWidget_BrushStroke(RFW_BrushStroke):
     def init(self):
         self.stroke2D = []
         self.tightness = 0.95
-        self.size = 20.0
+        self.size = 40.0
+        self.redraw_on_mouse = True
 
     @RFW_BrushStroke.FSM_State('main')
     def modal_main(self):
@@ -73,6 +74,19 @@ class RFWidget_BrushStroke(RFW_BrushStroke):
     @RFW_BrushStroke.FSM_State('stroking', 'exit')
     def modal_line_exit(self):
         tag_redraw_all()
+
+    @RFW_BrushStroke.Draw('post3d')
+    @RFW_BrushStroke.FSM_OnlyInState({'main','stroking'})
+    def draw_brush(self):
+        xy = self.rfcontext.actions.mouse
+        p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+        if not p: return
+        depth = self.rfcontext.Point_to_depth(p)
+        if not depth: return
+        self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+
+        Globals.drawing.draw3D_circle(p, self.size*self.scale*1.0, (1,1,1,1.0), n=n, width=2*self.scale)
+        Globals.drawing.draw3D_circle(p, self.size*self.scale*0.5, (1,1,1,0.5), n=n, width=2*self.scale)
 
     @RFW_BrushStroke.Draw('post2d')
     @RFW_BrushStroke.FSM_OnlyInState('stroking')

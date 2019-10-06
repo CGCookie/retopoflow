@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import random
+
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
@@ -89,6 +91,9 @@ class RetopoFlow_States(CookieCutter):
         self.ignore_ui_events = False
 
         if self.rftool.rfwidget:
+            if self.rftool.rfwidget.redraw_on_mouse:
+                if self.actions.mousemove:
+                    tag_redraw_all()
             ret = self.rftool.rfwidget._fsm_update()
             if self.fsm.is_state(ret):
                 return ret

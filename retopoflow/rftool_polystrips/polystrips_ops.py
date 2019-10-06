@@ -51,7 +51,7 @@ class PolyStrips_Ops:
     @RFTool_PolyStrips.dirty_when_done
     def new_brushstroke(self):
         # called when artist finishes a stroke
-        radius = self.rfwidget.size
+        radius = self.rfwidgets['brushstroke'].size
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
         nearest_sources_Point = self.rfcontext.nearest_sources_Point
@@ -152,7 +152,7 @@ class PolyStrips_Ops:
 
         self.rfcontext.undo_push('stroke')
 
-        stroke = list(self.rfwidget.stroke2D)
+        stroke = list(self.rfwidgets['brushstroke'].stroke2D)
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)

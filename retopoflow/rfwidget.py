@@ -89,6 +89,7 @@ class RFWidget:
         self.rftool = rftool
         self.rfcontext = rftool.rfcontext
         self.actions = rftool.rfcontext.actions
+        self.redraw_on_mouse = False
         self._fsm.init(self, start='main')
         self._draw.init(self)
         self._callback('init')
