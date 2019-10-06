@@ -88,7 +88,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     @RFTool_PolyStrips.on_target_change
     @profiler.function
     def update_target(self):
-        if self._fsm.state in {'move handle', 'rotate'}: return
+        if self._fsm.state in {'move handle', 'rotate', 'scale'}: return
 
         self.strips = []
         self._var_cut_count.disabled = True
@@ -188,6 +188,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 return 'rotate'
             if self.rfcontext.actions.pressed('action alt1'):
                 return 'scale'
+
+        if self.rfcontext.actions.pressed({'grab','action'}, unpress=False):
+            return 'move all'
 
 
         if self.actions.pressed({'select', 'select add'}):
@@ -378,9 +381,6 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
         self.scale_from = Point_to_Point2D(outerP)
 
-    def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
-
-
     @RFTool_PolyStrips.FSM_State('scale', 'enter')
     def scale_enter(self):
         self.mousedown = self.rfcontext.actions.mouse
@@ -437,6 +437,47 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 n += c + v * max(0, 1 + (scale-1) * sc)
             bmv.co = n / len(l)
             snap_vert(bmv)
+
+
+    @RFTool_PolyStrips.FSM_State('move all', 'can enter')
+    @profiler.function
+    def moveall_canenter(self):
+        bmfaces = self.rfcontext.get_selected_faces()
+        if not bmfaces: return False
+        bmverts = set(bmv for bmf in bmfaces for bmv in bmf.verts)
+        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+
+    @RFTool_PolyStrips.FSM_State('move all', 'enter')
+    def moveall_enter(self):
+        lmb_drag = self.rfcontext.actions.using('action')
+        self.rfcontext.actions.unpress()
+        self.mousedown = self.rfcontext.actions.mouse
+        self.rfwidget = None  # self.rfwidgets['default']
+        self.rfcontext.undo_push('move grabbed')
+        self.move_done_pressed = None if lmb_drag else 'confirm'
+        self.move_done_released = 'action' if lmb_drag else None
+        self.move_cancelled = 'cancel'
+
+    @RFTool_PolyStrips.FSM_State('move all')
+    @RFTool_PolyStrips.dirty_when_done
+    @profiler.function
+    def modal_move(self):
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
+            return 'main'
+        if self.rfcontext.actions.released(self.move_done_released):
+            return 'main'
+        if self.rfcontext.actions.pressed(self.move_cancelled):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        for bmv,xy in self.bmverts:
+            if not bmv.is_valid: continue
+            set2D_vert(bmv, xy + delta)
+        self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        #self.update()
+
 
 
 

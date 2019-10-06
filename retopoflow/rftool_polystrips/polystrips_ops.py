@@ -285,7 +285,7 @@ class PolyStrips_Ops:
             ccount = len(bmfs)
             if count is not None: ncount = count
             else: ncount = ccount + delta
-            ncount = max(1, ncount)
+            ncount = max(2, ncount)
 
             # approximate ts along each strip
             def approx_ts(spline_len, lengths):

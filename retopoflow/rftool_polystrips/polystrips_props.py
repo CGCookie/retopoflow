@@ -54,3 +54,4 @@ class PolyStrips_Props:
         self.rfcontext.undo_push('change segment count', repeatable=True)
         self.change_count(count=v)
 
+    def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)
