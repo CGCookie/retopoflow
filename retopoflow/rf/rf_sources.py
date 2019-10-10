@@ -155,8 +155,8 @@ class RetopoFlow_Sources:
     def is_visible(self, point:Point, normal:Normal):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
-        if p2D.x < 0 or p2D.x > self.actions.size[0]: return False
-        if p2D.y < 0 or p2D.y > self.actions.size[1]: return False
+        if p2D.x < 0 or p2D.x > self.actions.size.x: return False
+        if p2D.y < 0 or p2D.y > self.actions.size.y: return False
         max_dist_offset = self.sources_bbox.get_min_dimension()*0.01 + 0.0008
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False

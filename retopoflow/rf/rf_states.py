@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import random
 
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.drawing import Cursors
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
 
@@ -91,6 +92,7 @@ class RetopoFlow_States(CookieCutter):
         self.ignore_ui_events = False
 
         if self.rftool.rfwidget:
+            Cursors.set(self.rftool.rfwidget.rfw_cursor)
             if self.rftool.rfwidget.redraw_on_mouse:
                 if self.actions.mousemove:
                     tag_redraw_all()
