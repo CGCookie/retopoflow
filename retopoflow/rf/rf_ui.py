@@ -65,7 +65,7 @@ class RetopoFlow_UI:
         reload_stylings()
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", parent=self.document.body)
+            self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", closeable=False, parent=self.document.body)
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
@@ -99,7 +99,7 @@ class RetopoFlow_UI:
 
 
         def setup_options():
-            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, parent=self.document.body)
+            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=False, parent=self.document.body)
 
             ui_general = ui.collapsible(label='General', id='generaloptions', parent=self.ui_options)
             ui.button(label='Maximize Area', parent=ui_general)
@@ -144,17 +144,17 @@ class RetopoFlow_UI:
                 self.ui_delete.is_visible = False
 
             ui_delete = ui.collection('Delete', parent=self.ui_delete)
-            ui.button(label='Vertices', on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
-            ui.button(label='Edges', on_mouseclick=delay_exec('''act(('Delete','Edges'))'''), parent=ui_delete)
-            ui.button(label='Faces', on_mouseclick=delay_exec('''act(('Delete','Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Edges & Faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Faces', on_mouseclick=delay_exec('''act(('Delete','Only Faces'))'''), parent=ui_delete)
+            ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
+            ui.button(label='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))'''), parent=ui_delete)
+            ui.button(label='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))'''), parent=ui_delete)
+            ui.button(label='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))'''), parent=ui_delete)
+            ui.button(label='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))'''), parent=ui_delete)
 
             ui_dissolve = ui.collection('Dissolve', parent=self.ui_delete)
-            ui.button(label='Vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))'''), parent=ui_dissolve)
-            ui.button(label='Edges', on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
-            ui.button(label='Faces', on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
-            ui.button(label='Loops', on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
+            ui.button(label='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))'''), parent=ui_dissolve)
+            ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
+            ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
+            ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
 
         def test():
             c = 0
