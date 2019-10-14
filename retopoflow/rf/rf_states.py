@@ -84,9 +84,12 @@ class RetopoFlow_States(CookieCutter):
 
             if self.actions.pressed('delete'):
                 w,h = self.actions.region.width,self.actions.region.height
-                self.ui_delete.left = self.actions.mouse.x - 100
-                self.ui_delete.top = self.actions.mouse.y - h + 20
+                self.ui_delete.reposition(
+                    left = self.actions.mouse.x - 100,
+                    top = self.actions.mouse.y - h + 20,
+                )
                 self.ui_delete.is_visible = True
+                self.document.focus(self.ui_delete)
                 return
 
         self.ignore_ui_events = False

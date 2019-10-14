@@ -310,7 +310,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
-        return sel_loops or sel_strings
+        return bool(sel_loops or sel_strings)
 
     @RFTool_Contours.FSM_State('move', 'enter')
     def move_enter(self):

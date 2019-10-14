@@ -135,6 +135,9 @@ class RetopoFlow_UI:
             self.ui_delete = ui.framed_dialog(label='Delete/Dissolve', id='deletedialog', parent=self.document.body, resizable_x=False, hide_on_close=True)
             self.ui_delete.width = 200
             self.ui_delete.is_visible = False
+            def hide_ui_delete():
+                self.ui_delete.is_visible = False
+            self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
 
             def act(opt):
                 self.delete_dissolve_option(opt)
