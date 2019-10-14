@@ -77,14 +77,14 @@ class RetopoFlow_UI:
                 else:
                     checked = not hasattr(add_tool, 'notfirst')
                 if checked: self.select_rftool(rftool)
-                radio = ui.input_radio(id='tool-%s'%lbl.lower(), value=lbl.lower(), name="tool", classes="tool", checked=checked, parent=ui_tools)
+                radio = ui.input_radio(id='tool-%s'%lbl.lower(), value=lbl.lower(), title=rftool.description, name="tool", classes="tool", checked=checked, parent=ui_tools)
                 radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
-                ui.img(src=img, parent=radio)
-                ui.label(innerText=lbl, parent=radio)
+                ui.img(src=img, parent=radio, title=rftool.description)
+                ui.label(innerText=lbl, parent=radio, title=rftool.description)
                 add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
-            ui.button(label='Welcome!', parent=self.ui_main, on_mouseclick=self.open_welcome)
+            ui.button(label='Welcome!', title='Show "Welcome!" message', parent=self.ui_main, on_mouseclick=self.open_welcome)
             ui.button(label='All Help', parent=self.ui_main)
             ui.button(label='General Help', parent=self.ui_main)
             ui.button(label='Tool Help', parent=self.ui_main)
