@@ -91,6 +91,7 @@ div#tools {
     margin: 1px 1px 2px 1px;
 }
 
+
 input.tool {
     margin: 0px;
     border-width: 0px;
@@ -140,6 +141,46 @@ input.tool > label > img {
 input.tool > label > label {
     border: 0px;
     padding:2px 0px; margin:0px; margin-left: 4px;
+}
+
+
+input.symmetry-viz {
+    margin: 0px;
+    border: 0px black;
+    width: 33.333%;
+    /*width: 100%;*/
+    /*display: block;*/
+    padding: 2px 0px 2px 6px;
+}
+input.symmetry-viz > img {
+    display: none;
+}
+input.symmetry-viz:hover {
+    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+input.symmetry-viz[checked] {
+    background: hsla(200, 100%, 62.5%, 1.0);
+}
+input.symmetry-viz:active {
+    background: hsla(200, 100%, 62.5%, 0.5);
+}
+input.symmetry-viz:active:hover {
+    background: hsla(200, 100%, 62.5%, 0.75);
+}
+input.symmetry-viz > label {
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding: 0px;
+    width: 100%;
+    /*height:20px;*/
+    color: white;
+}
+input.symmetry-viz[checked] label {
+    color: black;
+}
+input.symmetry-viz:active label {
+    color: black;
 }
 
 

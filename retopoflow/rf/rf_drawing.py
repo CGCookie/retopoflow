@@ -62,7 +62,7 @@ class RetopoFlow_Drawing:
         bgl.glEnable(bgl.GL_BLEND)
         # bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
-        if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.symmetry:
+        if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
             # get frame of target, used for symmetry decorations on sources
             ft = self.rftarget.get_frame()
             with profiler.code('render sources'):
@@ -72,7 +72,7 @@ class RetopoFlow_Drawing:
                         buf_matrix_target, buf_matrix_target_inv,
                         buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                         1.00, 0.05, False, 0.5,
-                        symmetry=self.rftarget.mirror_mod.symmetry,
+                        symmetry=self.rftarget.mirror_mod.xyz,
                         symmetry_view=options['symmetry view'],
                         symmetry_effect=options['symmetry effect'],
                         symmetry_frame=ft,
@@ -142,18 +142,21 @@ class RetopoFlow_Drawing:
     @CookieCutter.Draw('pre3d')
     def draw_widget_pre3d(self):
         if not self.rftool.rfwidget: return
+        if self._nav: return
         self.update(timer=False)
         self.rftool.rfwidget._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_widget_post3d(self):
         if not self.rftool.rfwidget: return
+        if self._nav: return
         self.update(timer=False)
         self.rftool.rfwidget._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_widget_post2d(self):
         if not self.rftool.rfwidget: return
+        if self._nav: return
         self.update(timer=False)
         self.rftool.rfwidget._draw_post2d()
 

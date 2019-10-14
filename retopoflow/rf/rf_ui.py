@@ -26,11 +26,14 @@ import bmesh
 
 from ..help import retopoflow_version, help_welcome
 
+from ...addon_common.common.boundvar import BoundVar, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
 from ...addon_common.common import ui
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
+
+from ...config.options import options
 
 def reload_stylings():
     load_defaultstylings()
@@ -101,35 +104,53 @@ class RetopoFlow_UI:
         def setup_options():
             self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=False, parent=self.document.body)
 
-            ui_general = ui.collapsible(label='General', id='generaloptions', parent=self.ui_options)
-            ui.button(label='Maximize Area', parent=ui_general)
+            self.ui_options.append_child(
+                ui.collapsible(label='General', id='generaloptions', children=[
+                    ui.button(label='Maximize Area'),
+                    ui.collapsible(label='Target Cleaning', id='targetcleaning', children=[
+                        ui.collapsible(label='Snap Verts', id='snapverts', children=[
+                            ui.button(label="All"),
+                            ui.button(label="Selected"),
+                        ]),
+                        ui.collapsible(label='Remove Doubles', id='removedoubles', children=[
+                            ui.labeled_input_text(label='Distance', value='0.001'),
+                            ui.button(label='All'),
+                            ui.button(label='Selected')
+                        ]),
+                    ]),
+                    ui.collapsible(label='Target Rendering', children=[
+                        ui.labeled_input_text(label='Above', value='100'),
+                        ui.labeled_input_text(label='Below', value='10'),
+                        ui.labeled_input_text(label='Backface', value='20'),
+                        ui.input_checkbox(label='Cull Backfaces'),
+                    ]),
+                ]),
+            )
 
-            ui_target_cleaning = ui.collapsible(label='Target Cleaning', id='targetcleaning', parent=ui_general)
-            ui_target_snapverts = ui.collapsible(label='Snap Verts', id='snapverts', parent=ui_target_cleaning)
-            ui.button(label="All", parent=ui_target_snapverts)
-            ui.button(label="Selected", parent=ui_target_snapverts)
-            ui_target_removedbls = ui.collapsible(label='Remove Doubles', id='removedoubles', parent=ui_target_cleaning)
-            ui.labeled_input_text(label='Distance', value='0.001', parent=ui_target_removedbls)
-            ui.button(label="All", parent=ui_target_removedbls)
-            ui.button(label="Selected", parent=ui_target_removedbls)
+            # options['symmetry view'] = 'None', 'Edge', 'Face'
+            # self.rftarget.mirror_mod.symmetry
+            # options['symmetry effect']
+            #self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
 
-            ui_target_rendering = ui.collapsible(label="Target Rendering", parent=ui_general)
-            ui.labeled_input_text(label='Above', value='100', parent=ui_target_rendering)
-            ui.labeled_input_text(label='Below', value='10', parent=ui_target_rendering)
-            ui.labeled_input_text(label='Backface', value='20', parent=ui_target_rendering)
-            ui.input_checkbox(label='Cull Backfaces', parent=ui_target_rendering)
-
-            ui_symmetry = ui.collapsible(label='Symmetry', id='symmetryoptions', parent=self.ui_options)
+            def symmetry_viz_change(e):
+                if not e.target.checked: return
+                options['symmetry view'] = e.target.value
+            self.ui_options.append_child(
+                ui.collapsible(label='Symmetry', id='symmetryoptions', children=[
+                    ui.input_checkbox(label='x', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
+                    ui.input_checkbox(label='y', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
+                    ui.input_checkbox(label='z', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                    ui.labeled_input_text(label='Threshold', value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0)),
+                    ui.input_radio(id='symmetry-viz-none', value='None', checked=(options['symmetry view']=='None'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='None')], on_input=symmetry_viz_change),
+                    ui.input_radio(id='symmetry-viz-edge', value='Edge', checked=(options['symmetry view']=='Edge'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Edge')], on_input=symmetry_viz_change),
+                    ui.input_radio(id='symmetry-viz-face', value='Face', checked=(options['symmetry view']=='Face'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Face')], on_input=symmetry_viz_change),
+                ])
+            )
 
             for rftool in self.rftools:
                 for ui_elem in rftool._callback('ui setup'):
                     self.ui_options.append_child(ui_elem)
 
-            #test
-            ui.labeled_input_text(label='Above', value='100', parent=self.ui_options)
-            ui.labeled_input_text(label='Below', value='10', parent=self.ui_options)
-            ui.labeled_input_text(label='Backface', value='20', parent=self.ui_options)
-            ui.input_text(value='foo bar', parent=self.ui_options)
 
         def setup_delete_ui():
             self.ui_delete = ui.framed_dialog(label='Delete/Dissolve', id='deletedialog', parent=self.document.body, resizable_x=False, hide_on_close=True)
