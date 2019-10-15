@@ -52,6 +52,8 @@ class RetopoFlow_States(CookieCutter):
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback('view change')
 
+        self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
+
         #tag_redraw_all()
 
     @CookieCutter.FSM_State('main')

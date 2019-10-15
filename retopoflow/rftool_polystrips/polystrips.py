@@ -194,14 +194,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
 
         if self.actions.pressed({'select', 'select add'}):
-            ret = self.rfcontext.setup_selection_painting(
+            return self.rfcontext.setup_selection_painting(
                 'face',
                 #fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
-            print('selecting', ret)
-            return ret
 
         if self.rfcontext.actions.pressed('increase count'):
             self.rfcontext.undo_push('change segment count', repeatable=True)
