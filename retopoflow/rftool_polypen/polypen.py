@@ -23,7 +23,12 @@ import bgl
 
 from ..rftool import RFTool
 
-from ...addon_common.common.drawing import CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN, CC_2D_LINES, CC_2D_LINE_LOOP, CC_2D_POINTS
+from ...addon_common.common.drawing import (
+    CC_DRAW,
+    CC_2D_POINTS,
+    CC_2D_LINES, CC_2D_LINE_LOOP,
+    CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
+)
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec
 from ...addon_common.common.globals import Globals
@@ -509,7 +514,6 @@ class PolyPen(RFTool_PolyPen):
 
         if l == 1:
             with Globals.drawing.draw(CC_2D_POINTS) as draw:
-                draw.point_size(8)
                 draw.color(line_color)
                 for c in coords:
                     draw.vertex(c)
@@ -545,6 +549,9 @@ class PolyPen(RFTool_PolyPen):
         self.set_next_state()
 
         bgl.glEnable(bgl.GL_BLEND)
+        CC_DRAW.stipple(pattern=[4,4])
+        CC_DRAW.point_size(8)
+        CC_DRAW.line_width(2)
         # self.drawing.enable_stipple()
         # self.drawing.line_width(2.0)
         # self.drawing.point_size(4.0)
