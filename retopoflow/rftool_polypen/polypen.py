@@ -19,13 +19,20 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import bgl
+
 from ..rftool import RFTool
 
+from ...addon_common.common.drawing import CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN, CC_2D_LINES, CC_2D_LINE_LOOP, CC_2D_POINTS
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec
+from ...addon_common.common.globals import Globals
 from ..rfwidgets.rfwidget_default import RFWidget_Default
+from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.blender import tag_redraw_all
 
-from ...config.options import options
+from ...config.options import options, themes
+
 
 class RFTool_PolyPen(RFTool):
     name        = 'PolyPen'
@@ -41,6 +48,7 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
     @RFTool_PolyPen.on_view_change
+    @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
     def set_next_state(self):
         if not self.rfcontext.actions.mouse: return
@@ -92,7 +100,9 @@ class PolyPen(RFTool_PolyPen):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if self.rfcontext.actions.mousemove: self.set_next_state()
+        if self.rfcontext.actions.mousemove:
+            self.set_next_state()
+            tag_redraw_all()
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'
@@ -457,3 +467,203 @@ class PolyPen(RFTool_PolyPen):
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
 
+    def draw_lines_old(self, coords, poly_alpha=0.2):
+        line_color = themes['new']
+        poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
+        l = len(coords)
+        coords = [self.rfcontext.Point_to_Point2D(co) for co in coords]
+        if not all(coords): return
+
+        if l == 1:
+            bgl.glColor4f(*line_color)
+            bgl.glBegin(bgl.GL_POINTS)
+            bgl.glVertex2f(*coords[0])
+            bgl.glEnd()
+        elif l == 2:
+            bgl.glColor4f(*line_color)
+            bgl.glBegin(bgl.GL_LINES)
+            bgl.glVertex2f(*coords[0])
+            bgl.glVertex2f(*coords[1])
+            bgl.glEnd()
+        else:
+            bgl.glColor4f(*line_color)
+            bgl.glBegin(bgl.GL_LINE_LOOP)
+            for co in coords: bgl.glVertex2f(*co)
+            bgl.glEnd()
+
+            bgl.glColor4f(*poly_color)
+            co0 = coords[0]
+            bgl.glBegin(bgl.GL_TRIANGLES)
+            for co1,co2 in iter_pairs(coords[1:],False):
+                bgl.glVertex2f(*co0)
+                bgl.glVertex2f(*co1)
+                bgl.glVertex2f(*co2)
+            bgl.glEnd()
+
+    def draw_lines(self, coords, poly_alpha=0.2):
+        line_color = themes['new']
+        poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
+        l = len(coords)
+        coords = [self.rfcontext.Point_to_Point2D(co) for co in coords]
+        if not all(coords): return
+
+        if l == 1:
+            with Globals.drawing.draw(CC_2D_POINTS) as draw:
+                draw.point_size(8)
+                draw.color(line_color)
+                for c in coords:
+                    draw.vertex(c)
+
+        elif l == 2:
+            with Globals.drawing.draw(CC_2D_LINES) as draw:
+                draw.color(line_color)
+                draw.vertex(coords[0])
+                draw.vertex(coords[1])
+
+        else:
+            with Globals.drawing.draw(CC_2D_LINE_LOOP) as draw:
+                draw.color(line_color)
+                for co in coords: draw.vertex(co)
+
+            with Globals.drawing.draw(CC_2D_TRIANGLE_FAN) as draw:
+                draw.color(poly_color)
+                draw.vertex(coords[0])
+                for co1,co2 in iter_pairs(coords[1:], False):
+                    draw.vertex(co1)
+                    draw.vertex(co2)
+
+    @RFTool_PolyPen.Draw('post2d')
+    @RFTool_PolyPen.FSM_OnlyInState('main')
+    def draw_postpixel(self):
+        # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
+
+        #if self.rfcontext.nav or self.mode != 'main': return
+        if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
+        hit_pos = self.rfcontext.actions.hit_pos
+        if not hit_pos: return
+
+        self.set_next_state()
+
+        bgl.glEnable(bgl.GL_BLEND)
+        # self.drawing.enable_stipple()
+        # self.drawing.line_width(2.0)
+        # self.drawing.point_size(4.0)
+
+        if self.next_state == 'new vertex':
+            p0 = hit_pos
+            e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+            if e1:
+                bmv1,bmv2 = e1.verts
+                if d is not None and d < self.rfcontext.drawing.scale(15):
+                    f = next(iter(e1.link_faces), None)
+                    if f:
+                        lco = []
+                        for v0,v1 in iter_pairs(f.verts, True):
+                            lco.append(v0.co)
+                            if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                lco.append(p0)
+                        self.draw_lines(lco)
+                    else:
+                        self.draw_lines([bmv1.co, hit_pos])
+                        self.draw_lines([bmv2.co, hit_pos])
+                else:
+                    self.draw_lines([hit_pos])
+            else:
+                self.draw_lines([hit_pos])
+
+        elif self.next_state == 'vert-edge':
+            sel_verts = self.sel_verts
+            bmv0 = next(iter(sel_verts))
+            if self.nearest_vert:
+                p0 = self.nearest_vert.co
+            else:
+                p0 = hit_pos
+                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                if e1:
+                    bmv1,bmv2 = e1.verts
+                    if d is not None and d < self.rfcontext.drawing.scale(15):
+                        f = next(iter(e1.link_faces), None)
+                        if f:
+                            lco = []
+                            for v0,v1 in iter_pairs(f.verts, True):
+                                lco.append(v0.co)
+                                if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                    lco.append(p0)
+                            self.draw_lines(lco)
+                        else:
+                            self.draw_lines([bmv1.co, p0])
+                            self.draw_lines([bmv2.co, p0])
+            self.draw_lines([bmv0.co, p0])
+
+        elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+            if self.next_state in ['edge-face', 'edge-quad', 'tri-quad']:
+                nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
+                if nearest_vert:
+                    self.draw_lines([nearest_vert.co, hit_pos])
+
+        elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+            if self.next_state == 'edge-face':
+                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
+                if not e0: return
+                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
+                if e1 and d < self.rfcontext.drawing.scale(15) and e0 == e1:
+                    bmv1,bmv2 = e1.verts
+                    p0 = hit_pos
+                    f = next(iter(e1.link_faces), None)
+                    if f:
+                        lco = []
+                        for v0,v1 in iter_pairs(f.verts, True):
+                            lco.append(v0.co)
+                            if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                lco.append(p0)
+                        self.draw_lines(lco)
+                    else:
+                        self.draw_lines([bmv1.co, hit_pos])
+                        self.draw_lines([bmv2.co, hit_pos])
+                else:
+                    # self.draw_lines([hit_pos])
+                    bmv1,bmv2 = e0.verts
+                    if self.nearest_vert and not self.nearest_vert.select:
+                        p0 = self.nearest_vert.co
+                    else:
+                        p0 = hit_pos
+                    self.draw_lines([p0, bmv1.co, bmv2.co])
+
+            elif self.next_state == 'edge-quad':
+                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                e1 = self.nearest_edge
+                if not e0 or not e1: return
+                bmv0,bmv1 = e0.verts
+                bmv2,bmv3 = e1.verts
+                if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+                    bmv2,bmv3 = bmv3,bmv2
+                self.draw_lines([bmv0.co, bmv1.co, bmv2.co, bmv3.co])
+
+            elif self.next_state == 'tri-quad':
+                if self.nearest_vert and not self.nearest_vert.select:
+                    p0 = self.nearest_vert.co
+                else:
+                    p0 = hit_pos
+                e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                if not e1: return
+                bmv1,bmv2 = e1.verts
+                f = next(iter(e1.link_faces), None)
+                if not f: return
+                lco = []
+                for v0,v1 in iter_pairs(f.verts, True):
+                    lco.append(v0.co)
+                    if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                        lco.append(p0)
+                self.draw_lines(lco)
+                #self.draw_lines([p0, bmv1.co, bmv2.co])
+
+            # elif self.next_state == 'edges-face':
+            #     if self.nearest_vert and not self.nearest_vert.select:
+            #         p0 = self.nearest_vert.co
+            #     else:
+            #         p0 = hit_pos
+            #     e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+            #     bmv1,bmv2 = e1.verts
+            #     self.draw_lines([p0, bmv1.co, bmv2.co])
+
+        # self.drawing.disable_stipple()
