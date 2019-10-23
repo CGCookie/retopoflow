@@ -184,14 +184,18 @@ class PolyPen(RFTool_PolyPen):
             self.rfcontext.undo_push('select add')
             return 'select'
 
-
-
-
     @RFTool_PolyPen.FSM_State('insert')
-    @RFTool_PolyPen.dirty_when_done
-    def modal_insert(self):
+    def insert(self):
         self.rfcontext.undo_push('insert')
+        return self._insert()
 
+    @RFTool_PolyPen.FSM_State('insert alt0')
+    def insert_alt(self):
+        self.rfcontext.undo_push('insert alt')
+        return self._insert()
+
+    @RFTool_PolyPen.dirty_when_done
+    def _insert(self):
         self.move_done_pressed = None
         self.move_done_released = ['insert', 'insert alt0']
         self.move_cancelled = 'cancel'
@@ -476,39 +480,6 @@ class PolyPen(RFTool_PolyPen):
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
-
-    def draw_lines_old(self, coords, poly_alpha=0.2):
-        line_color = themes['new']
-        poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
-        l = len(coords)
-        coords = [self.rfcontext.Point_to_Point2D(co) for co in coords]
-        if not all(coords): return
-
-        if l == 1:
-            bgl.glColor4f(*line_color)
-            bgl.glBegin(bgl.GL_POINTS)
-            bgl.glVertex2f(*coords[0])
-            bgl.glEnd()
-        elif l == 2:
-            bgl.glColor4f(*line_color)
-            bgl.glBegin(bgl.GL_LINES)
-            bgl.glVertex2f(*coords[0])
-            bgl.glVertex2f(*coords[1])
-            bgl.glEnd()
-        else:
-            bgl.glColor4f(*line_color)
-            bgl.glBegin(bgl.GL_LINE_LOOP)
-            for co in coords: bgl.glVertex2f(*co)
-            bgl.glEnd()
-
-            bgl.glColor4f(*poly_color)
-            co0 = coords[0]
-            bgl.glBegin(bgl.GL_TRIANGLES)
-            for co1,co2 in iter_pairs(coords[1:],False):
-                bgl.glVertex2f(*co0)
-                bgl.glVertex2f(*co1)
-                bgl.glVertex2f(*co2)
-            bgl.glEnd()
 
     def draw_lines(self, coords, poly_alpha=0.2):
         line_color = themes['new']
