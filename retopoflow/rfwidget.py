@@ -85,14 +85,14 @@ class RFWidget:
             fn(self, *args, **kwargs)
 
 
-    def __init__(self, rftool):
+    def __init__(self, rftool, **kwargs):
         self.rftool = rftool
         self.rfcontext = rftool.rfcontext
         self.actions = rftool.rfcontext.actions
         self.redraw_on_mouse = False
         self._fsm.init(self, start='main')
         self._draw.init(self)
-        self._callback('init')
+        self._callback('init', **kwargs)
         self._init_action_callback()
         self._reset()
 

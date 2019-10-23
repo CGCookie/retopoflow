@@ -34,14 +34,15 @@ from ...config.options import themes
 class RFW_BrushFalloff(RFWidget):
     rfw_name = 'Brush Falloff'
     rfw_cursor = 'CROSSHAIR'
-    color_outer = Color((1.0, 1.0, 1.0, 1.0))
-    color_inner = Color((1.0, 1.0, 1.0, 0.5))
-    color = Color((1, 0.5, 0.1, 1.0))
 
 class RFWidget_BrushFalloff(RFW_BrushFalloff):
     @RFW_BrushFalloff.on_init
-    def init(self):
+    def init(self, *, color=None):
+        self.color_outer = Color((1.0, 1.0, 1.0, 1.0))
+        self.color_inner = Color((1.0, 1.0, 1.0, 0.5))
+        self.color = color or Color((1, 1, 1, 1))
         self.last_mouse = None
+        self.scale = 1.0
         self.radius = 50.0
         self.falloff = 1.5
         self.strength = 0.5
@@ -207,8 +208,10 @@ class RFWidget_BrushFalloff(RFW_BrushFalloff):
         ci = self.color_inner
         cc = self.color * Color((1,1,1,self.strength))
         ff = math.pow(0.5, 1.0 / self.falloff)
+        fs = (1-ff) * self.radius * self.scale
+        bgl.glDepthRange(0.0, 0.99998)
+        Globals.drawing.draw3D_circle(p, self.radius*self.scale - fs, cc, n=n, width=fs)
         bgl.glDepthRange(0.0, 0.99995)
-        Globals.drawing.draw3D_circle(p, self.radius*self.scale, cc, n=n, width=8*self.scale)
         Globals.drawing.draw3D_circle(p, self.radius*self.scale, co, n=n, width=2*self.scale)
         Globals.drawing.draw3D_circle(p, self.radius*self.scale*ff, ci, n=n, width=2*self.scale)
         bgl.glDepthRange(0.0, 1.0)
@@ -222,7 +225,8 @@ class RFWidget_BrushFalloff(RFW_BrushFalloff):
         ci = self.color_inner
         cc = self.color * Color((1,1,1,self.strength))
         ff = math.pow(0.5, 1.0 / self.falloff)
-        Globals.drawing.draw2D_circle(self._change_center, r+4, cc, width=8)
+        fs = (1-ff) * self.radius
+        Globals.drawing.draw2D_circle(self._change_center, r-fs/2, cc, width=fs)
         Globals.drawing.draw2D_circle(self._change_center, r, co, width=1)
         Globals.drawing.draw2D_circle(self._change_center, r*ff, ci, width=1)
 
