@@ -65,7 +65,7 @@ def RF_Factory(starting_tool):
         bl_options = {'REGISTER', 'UNDO'}
         rf_starting_tool = starting_tool
     return VIEW3D_OT_RetopoFlow_Tool
-customs = [ RF_Factory(n) for n in ['Contours', 'PolyStrips', 'PolyPen'] ]
+customs = [ RF_Factory(n) for n in ['Contours', 'PolyStrips', 'PolyPen', 'Tweak'] ]
 
 
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
