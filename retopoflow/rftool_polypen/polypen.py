@@ -49,15 +49,14 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.on_init
     def init(self):
         self.rfwidget = RFWidget_Default(self)
+        self.update_state_info()
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
     @RFTool_PolyPen.on_view_change
     @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
-    def set_next_state(self):
-        if not self.rfcontext.actions.mouse: return
-
+    def update_state_info(self):
         with profiler.code('getting selected geometry'):
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
             self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
@@ -68,6 +67,12 @@ class PolyPen(RFTool_PolyPen):
             self.vis_verts = self.rfcontext.accel_vis_verts
             self.vis_edges = self.rfcontext.accel_vis_edges
             self.vis_faces = self.rfcontext.accel_vis_faces
+
+        self.set_next_state()
+
+    @profiler.function
+    def set_next_state(self):
+        if not self.rfcontext.actions.mouse: return
 
         with profiler.code('getting nearest geometry'):
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
@@ -101,7 +106,7 @@ class PolyPen(RFTool_PolyPen):
 
     @RFTool_PolyPen.FSM_State('main', 'enter')
     def main_enter(self):
-        self.set_next_state()
+        self.update_state_info()
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
