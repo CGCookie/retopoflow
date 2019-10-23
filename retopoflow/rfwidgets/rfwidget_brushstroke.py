@@ -114,8 +114,10 @@ class RFWidget_BrushStroke(RFW_BrushStroke):
         if not depth: return
         self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
+        bgl.glDepthRange(0.0, 0.99995)
         Globals.drawing.draw3D_circle(p, self.size*self.scale*1.0, self.color_outer, n=n, width=2*self.scale)
         Globals.drawing.draw3D_circle(p, self.size*self.scale*0.5, self.color_inner, n=n, width=2*self.scale)
+        bgl.glDepthRange(0.0, 1.0)
 
     @RFW_BrushStroke.Draw('post2d')
     @RFW_BrushStroke.FSM_OnlyInState('stroking')
@@ -129,6 +131,8 @@ class RFWidget_BrushStroke(RFW_BrushStroke):
     @RFW_BrushStroke.Draw('post2d')
     @RFW_BrushStroke.FSM_OnlyInState('brush sizing')
     def draw_brush_sizing(self):
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
         r = (self.sizing_pos - self.actions.mouse).length
         Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.color_outer, width=1)
         Globals.drawing.draw2D_circle(self.sizing_pos, r*0.5, self.color_inner, width=1)
