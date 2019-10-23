@@ -31,7 +31,7 @@ from ...addon_common.common.drawing import (
 )
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec
+from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
 from ...addon_common.common.globals import Globals
 from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
@@ -53,7 +53,9 @@ class Tweak(RFTool_Tweak):
 
     @RFTool_Tweak.on_reset
     def reset(self):
+        print('Tweak reset')
         self.sel_only = False
+        self.rfwidget.color = Color((1.0, 0.5, 0.1, 1.0))
 
     @RFTool_Tweak.FSM_State('main')
     def main(self):
@@ -63,7 +65,7 @@ class Tweak(RFTool_Tweak):
             return 'select'
 
         if self.rfcontext.actions.pressed('select add'):
-            face = self.rfcontext.accel_nearest2D_face(max_dist=10)
+            face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
             if not face: return
             if face.select:
                 self.mousedown = self.rfcontext.actions.mouse
@@ -99,7 +101,7 @@ class Tweak(RFTool_Tweak):
     def modal_selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select','select add']):
             self.rfcontext.undo_push('deselect')
-            face = self.rfcontext.accel_nearest2D_face()
+            face,_ = self.rfcontext.accel_nearest2D_face()
             if face and face.select: self.rfcontext.deselect(face)
             return 'main'
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
@@ -112,7 +114,7 @@ class Tweak(RFTool_Tweak):
     def modal_select(self):
         if not self.rfcontext.actions.using(['select','select add']):
             return 'main'
-        bmf = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return
         self.rfcontext.select(bmf, supparts=False, only=False)
 
