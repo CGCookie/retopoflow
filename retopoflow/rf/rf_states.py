@@ -167,6 +167,8 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('selection painting')
     def selection_painting(self):
         assert self.selection_painting_opts
+        if self.actions.mousemove:
+            tag_redraw_all()
         if not self.actions.using(['select','select add']):
             self.selection_painting_opts = None
             return 'main'

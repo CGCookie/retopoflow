@@ -197,6 +197,7 @@ class RFWidget_BrushFalloff(RFW_BrushFalloff):
     @RFW_BrushFalloff.Draw('post3d')
     @RFW_BrushFalloff.FSM_OnlyInState('main')
     def draw_brush(self):
+        print(self)
         xy = self.rfcontext.actions.mouse
         p,n,_,_ = self.rfcontext.raycast_sources_mouse()
         if not p: return

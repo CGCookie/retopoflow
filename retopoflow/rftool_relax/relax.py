@@ -44,11 +44,10 @@ class Relax(RFTool_Relax):
     @RFTool_Relax.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushFalloff(self)
-        self.rfwidget = RFWidget_BrushFalloff(self)
 
     @RFTool_Relax.on_reset
     def reset(self):
-        print('Relax reset')
+        print('Relax reset', self.rfwidget)
         self.sel_only = False
         self.rfwidget.color = Color((0.5, 1.0, 0.5, 1.0))
 

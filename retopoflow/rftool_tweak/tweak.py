@@ -53,7 +53,7 @@ class Tweak(RFTool_Tweak):
 
     @RFTool_Tweak.on_reset
     def reset(self):
-        print('Tweak reset')
+        print('Tweak reset', self.rfwidget)
         self.sel_only = False
         self.rfwidget.color = Color((1.0, 0.5, 0.1, 1.0))
 
