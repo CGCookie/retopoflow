@@ -149,7 +149,7 @@ class RFWidget_BrushFalloff(RFW_BrushFalloff):
     @RFW_BrushFalloff.FSM_State('main')
     def main(self):
         self.update_mouse()
-            
+
         if self.rfcontext.actions.pressed('brush radius'):
             self._dist_to_var_fn = self.dist_to_radius
             self._var_to_dist_fn = self.radius_to_dist
@@ -192,12 +192,9 @@ class RFWidget_BrushFalloff(RFW_BrushFalloff):
         tag_redraw_all()
 
 
-
-
     @RFW_BrushFalloff.Draw('post3d')
     @RFW_BrushFalloff.FSM_OnlyInState('main')
     def draw_brush(self):
-        print(self)
         xy = self.rfcontext.actions.mouse
         p,n,_,_ = self.rfcontext.raycast_sources_mouse()
         if not p: return
