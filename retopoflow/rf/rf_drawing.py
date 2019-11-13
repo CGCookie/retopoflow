@@ -44,6 +44,10 @@ class RetopoFlow_Drawing:
     def get_view_version(self):
         return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens)
 
+    @CookieCutter.PreDraw
+    def predraw(self):
+        self.update(timer=False)
+
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
         if not self.actions.r3d: return
@@ -122,17 +126,14 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.Draw('pre3d')
     def draw_tool_pre3d(self):
-        self.update(timer=False)
         self.rftool._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_tool_post3d(self):
-        self.update(timer=False)
         self.rftool._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_tool_post2d(self):
-        self.update(timer=False)
         self.rftool._draw_post2d()
 
 
@@ -143,21 +144,18 @@ class RetopoFlow_Drawing:
     def draw_widget_pre3d(self):
         if not self.rftool.rfwidget: return
         if self._nav: return
-        self.update(timer=False)
         self.rftool.rfwidget._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_widget_post3d(self):
         if not self.rftool.rfwidget: return
         if self._nav: return
-        self.update(timer=False)
         self.rftool.rfwidget._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_widget_post2d(self):
         if not self.rftool.rfwidget: return
         if self._nav: return
-        self.update(timer=False)
         self.rftool.rfwidget._draw_post2d()
 
 
