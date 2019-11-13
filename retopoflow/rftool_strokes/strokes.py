@@ -63,10 +63,10 @@ class RFTool_Strokes(RFTool):
 
 
 class Strokes(RFTool_Strokes):
-    pass
     @RFTool_Strokes.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushStroke(self)
+        # self.rfwidget.register_action_callback(self.stroke)
 
     @RFTool_Strokes.on_reset
     def reset(self):

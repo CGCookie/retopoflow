@@ -74,6 +74,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             'brushstroke': RFWidget_BrushStroke(self),
             'move': RFWidget_Move(self),
         }
+        # self.rfwidgets['brushstroke'].register_action_callback(self.new_brushstroke)
         self.rfwidget = self.rfwidgets['brushstroke']
 
     @RFTool_PolyStrips.on_reset

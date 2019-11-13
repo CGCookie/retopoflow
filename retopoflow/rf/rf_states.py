@@ -35,14 +35,14 @@ class RetopoFlow_States(CookieCutter):
         if timer:
             self.rftool._callback('timer')
             if self.rftool.rfwidget:
-                self.rftool.rfwidget._callback('timer')
+                self.rftool.rfwidget._callback_widget('timer')
 
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
             self.rftool._callback('target change')
             if self.rftool.rfwidget:
-                self.rftool.rfwidget._callback('target change')
+                self.rftool.rfwidget._callback_widget('target change')
             tag_redraw_all()
 
         view_version = self.get_view_version()
@@ -50,7 +50,7 @@ class RetopoFlow_States(CookieCutter):
             self.view_version = view_version
             self.rftool._callback('view change')
             if self.rftool.rfwidget:
-                self.rftool.rfwidget._callback('view change')
+                self.rftool.rfwidget._callback_widget('view change')
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
 

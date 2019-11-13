@@ -63,6 +63,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.on_init
     def init(self):
         self.rfwidget = RFWidget_Line(self)
+        # self.rfwidget.register_action_callback(self.new_line)
 
     @RFTool_Contours.on_reset
     def reset(self):

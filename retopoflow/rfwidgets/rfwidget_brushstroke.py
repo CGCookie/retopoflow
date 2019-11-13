@@ -40,6 +40,9 @@ class RFW_BrushStroke(RFWidget):
 class RFWidget_BrushStroke(RFW_BrushStroke):
     @RFW_BrushStroke.on_init
     def init(self):
+        print('*'*50)
+        print('BRUSHSTROKE INIT!')
+        print('*'*50)
         self.stroke2D = []
         self.tightness = 0.95
         self.size = 40.0
