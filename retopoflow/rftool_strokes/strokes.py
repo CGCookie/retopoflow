@@ -46,7 +46,7 @@ from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index
 #     )
 from ...config.options import options, themes
 
-from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Strokes
 
 from .strokes_utils import (
     process_stroke_filter, process_stroke_source,
@@ -65,7 +65,7 @@ class RFTool_Strokes(RFTool):
 class Strokes(RFTool_Strokes):
     @RFTool_Strokes.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushStroke(self)
+        self.rfwidget = RFWidget_BrushStroke_Strokes(self)
         # self.rfwidget.register_action_callback(self.stroke)
 
     @RFTool_Strokes.on_reset
@@ -162,7 +162,7 @@ class Strokes(RFTool_Strokes):
                 self.strip_loops -= 1
                 self.replay()
 
-    @RFWidget_BrushStroke.on_action
+    @RFWidget_BrushStroke_Strokes.on_action
     def stroke(self):
         # called when artist finishes a stroke
 

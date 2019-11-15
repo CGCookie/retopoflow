@@ -30,8 +30,9 @@ class RFWidget:
     '''
     registry = []
 
+    @classmethod
     def __init_subclass__(cls, *args, **kwargs):
-        print('rfwidget subclass', cls, super(cls))
+        # print('rfwidget subclass', cls, super(cls))
         if not hasattr(cls, '_rfwidget_index'):
             # add cls to registry (might get updated later) and add FSM,Draw
             cls._rfwidget_index = len(RFWidget.registry)
@@ -75,7 +76,6 @@ class RFWidget:
 
 
     def __init__(self, rftool, **kwargs):
-        print('initializing', self, rftool)
         self.rftool = rftool
         self.rfcontext = rftool.rfcontext
         self.actions = rftool.rfcontext.actions
@@ -89,14 +89,16 @@ class RFWidget:
 
     def _callback_widget(self, event, *args, **kwargs):
         if event != 'timer':
-            print('callback', self, event, self._widget_callbacks.get(event, []))
+            #print('callback', self, event, self._widget_callbacks.get(event, []))
+            pass
         if event not in self._widget_callbacks: return
         for fn in self._widget_callbacks[event]:
             fn(self, *args, **kwargs)
 
     def _callback_tool(self, event, *args, **kwargs):
         if event != 'timer':
-            print('callback', self, event, self._tool_callbacks.get(event, []))
+            #print('callback', self, event, self._tool_callbacks.get(event, []))
+            pass
         if event not in self._tool_callbacks: return
         for fn in self._tool_callbacks[event]:
             fn(self.rftool, *args, **kwargs)
@@ -116,10 +118,8 @@ class RFWidget:
         self._tool_callbacks = {
             'action':        ft('action'),           # called when user performs widget action, per instance!
         }
-        print('Widget callbacks', self, self._widget_callbacks, self._tool_callbacks)
 
     def callback_actions(self, *args, **kwargs):
-        print('action', self, self._tool_callbacks['action'])
         self._callback_tool('action', *args, **kwargs)
 
     def _reset(self):

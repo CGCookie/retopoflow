@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import math
 from ..rftool import RFTool
-from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff
+from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Relax
 
 from ...addon_common.common.maths import (
     Vec, Vec2D,
@@ -43,7 +43,7 @@ class RFTool_Relax(RFTool):
 class Relax(RFTool_Relax):
     @RFTool_Relax.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushFalloff(self)
+        self.rfwidget = RFWidget_BrushFalloff_Relax(self)
 
     @RFTool_Relax.on_reset
     def reset(self):

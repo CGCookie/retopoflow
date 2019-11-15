@@ -29,7 +29,7 @@ from ...addon_common.common.drawing import (
     CC_2D_LINES, CC_2D_LINE_LOOP,
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
-from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff
+from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Tweak
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
 from ...addon_common.common.globals import Globals
@@ -49,7 +49,7 @@ class RFTool_Tweak(RFTool):
 class Tweak(RFTool_Tweak):
     @RFTool_Tweak.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushFalloff(self)
+        self.rfwidget = RFWidget_BrushFalloff_Tweak(self)
 
     @RFTool_Tweak.on_reset
     def reset(self):

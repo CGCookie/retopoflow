@@ -28,7 +28,7 @@ from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
 
-from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_PolyStrips
 from ..rfwidgets.rfwidget_move import RFWidget_Move
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.blender import matrix_vector_mult
@@ -67,11 +67,12 @@ from .polystrips_props import PolyStrips_Props
 from .polystrips_ui    import PolyStrips_UI
 
 
+
 class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_UI):
     @RFTool_PolyStrips.on_init
     def init(self):
         self.rfwidgets = {
-            'brushstroke': RFWidget_BrushStroke(self),
+            'brushstroke': RFWidget_BrushStroke_PolyStrips(self),
             'move': RFWidget_Move(self),
         }
         # self.rfwidgets['brushstroke'].register_action_callback(self.new_brushstroke)

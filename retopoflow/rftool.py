@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from functools import wraps
+
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
 
@@ -134,11 +136,11 @@ class RFTool:
 
     @staticmethod
     def dirty_when_done(fn):
+        @wraps(fn)
         def wrapper(*args, **kwargs):
             ret = fn(*args, **kwargs)
             RFTool.rfcontext.dirty()
             return ret
-        wrapper.__name__ = fn.__name__
         return wrapper
 
     def dirty(self):

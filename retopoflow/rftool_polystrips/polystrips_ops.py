@@ -25,7 +25,7 @@ from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool, rftools
 
-from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_PolyStrips
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors
@@ -47,7 +47,7 @@ from .polystrips_utils import (
 RFTool_PolyStrips = rftools['RFTool_PolyStrips']
 
 class PolyStrips_Ops:
-    @RFWidget_BrushStroke.on_action
+    @RFWidget_BrushStroke_PolyStrips.on_action
     @RFTool_PolyStrips.dirty_when_done
     def new_brushstroke(self):
         # called when artist finishes a stroke
