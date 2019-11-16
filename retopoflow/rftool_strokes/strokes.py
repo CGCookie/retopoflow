@@ -29,7 +29,6 @@ from ..rftool import RFTool
 
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.logger import Logger
 from ...addon_common.common.maths import (
     Point, Vec, Direction,
     Point2D, Vec2D,
