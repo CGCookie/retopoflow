@@ -50,12 +50,210 @@ def reload_stylings():
 
 class RetopoFlow_UI:
     def open_welcome(self):
-        ui_welcome = ui.framed_dialog(label='Welcome!!', id='welcomedialog', parent=self.document.body)
+        ui_welcome = ui.framed_dialog(label='Welcome!!', id='welcomedialog')
         ui.markdown(mdown=help_welcome, parent=ui_welcome)
         ui.button(label='Close', parent=ui_welcome, on_mouseclick=delay_exec("self.document.body.delete_child(ui_welcome)"))
+        self.document.body.append_child(ui_welcome)
+
+    # def alert_user(self, title=None, message=None, level=None, msghash=None):
+    #     ui_alert = ui.framed_dialog(label='')
+    #     print(title, message, level, msghash)
+
+
 
     def alert_user(self, title=None, message=None, level=None, msghash=None):
-        print(title, message, level, msghash)
+        show_quit = False
+        level = level.lower() if level else 'note'
+        blender_version = '%d.%02d.%d' % bpy.app.version
+        blender_branch = bpy.app.build_branch.decode('utf-8')
+        blender_date = bpy.app.build_commit_date.decode('utf-8')
+        darken = False
+
+        ui_checker = None
+        ui_details = None
+        ui_show = None
+        message_orig = message
+        report_details = ''
+
+        def screenshot():
+            ss_filename = options['screenshot filename']
+            if bpy.data.filepath == '':
+                # startup file
+                filepath = os.path.abspath(ss_filename)
+            else:
+                # loaded .blend file
+                filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
+                filepath = os.path.join(filepath, ss_filename)
+            bpy.ops.screen.screenshot(filepath=filepath)
+            self.alert_user(message='Saved screenshot to "%s"' % filepath)
+        def open_issues():
+            bpy.ops.wm.url_open(url=retopoflow_issues_url)
+        def search():
+            url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
+            bpy.ops.wm.url_open(url=url)
+        def report():
+            nonlocal msg_report
+            nonlocal report_details
+            data = {
+                'title': '%s: %s' % (self.tool.name(), title),
+                'body': '\n'.join([
+                    #'<!----------------------------------------------------',
+                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
+                    'Below are a few notes that will help us in fixing this problem.',
+                    '',
+                    '- Provide as much information as you can so that we can reproduce the problem and fix it.',
+                    '- Screenshots and .blend files are very helpful.',
+                    '- Change the title of this bug report to something descriptive and helpful.',
+                    '',
+                    'Thank you!',
+                    #'----------------------------------------------------->',
+                    '',
+                    '',
+                    '```',msg_report,'```'
+                ])
+            }
+            url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
+            bpy.ops.wm.url_open(url=url)
+
+        if msghash:
+            ui_checker = ui.div()
+            ui.p(innerText="RetopoFlow Issue Tracker", parent=ui_checker)
+            ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
+            ui_buttons = ui.div(parent=ui_checker)
+
+            def check_github():
+                try:
+                    # attempt to see if this issue already exists!
+                    # note: limited to 60 requests/hour!  see
+                    #     https://developer.github.com/v3/#rate-limiting
+                    #     https://developer.github.com/v3/search/#rate-limit
+                    url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
+                    response = urllib.request.urlopen(url)
+                    text = response.read().decode('utf-8')
+                    issues = json.loads(text)
+                    exists,solved,issueurl = False,False,None
+                    for issue in issues:
+                        if msghash not in issue['body']: continue
+                        issueurl = issue['html_url']
+                        exists = True
+                        if issue['state'] == 'closed': solved = True
+                    if not exists:
+                        #ui_label.set_markdown('This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
+                        pass
+                    else:
+                        if not solved:
+                            #ui_label.set_markdown('This issue appears to have been reported already.\n\nClick Open button to see the current status.')
+                            pass
+                        else:
+                            #ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
+                            pass
+                        def go():
+                            bpy.ops.wm.url_open(url=issueurl)
+                        ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                except Exception as e:
+                    #ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
+                    pass
+                    print('Caught exception while trying to pull issues from GitHub')
+                    print('URL: "%s"' % url)
+                    print(e)
+                    # ignore for now
+                    pass
+                ui.button(label='Screenshot', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                ui.button(label='Similar', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                ui.button(label='All Issues', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                ui.button(label='Report', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+
+            executor = ThreadPoolExecutor()
+            executor.submit(check_github)
+
+        if level in {'note'}:
+            bgcolor = (0.20, 0.20, 0.30, 0.95)
+            title = 'Note' + (': %s' % title if title else '')
+            message = message or 'a note'
+        elif level in {'warning'}:
+            bgcolor = (0.35, 0.25, 0.15, 0.95)
+            title = 'Warning' + (': %s' % title if title else '')
+            darken = True
+        elif level in {'error'}:
+            bgcolor = (0.30, 0.15, 0.15, 0.95)
+            title = 'Error' + (': %s' % title if title else '!')
+            show_quit = True
+            darken = True
+        elif level in {'assert', 'exception'}:
+            if level == 'assert':
+                bgcolor = (0.30, 0.15, 0.15, 0.95)
+                title = 'Assert Error' + (': %s' % title if title else '!')
+                desc = 'An internal assertion has failed.'
+            else:
+                bgcolor = (0.15, 0.07, 0.07, 0.95)
+                title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
+                desc = 'An unhandled exception was thrown.'
+
+            message = '\n'.join([
+                desc,
+                'This was unexpected.',
+                '',
+                'If this happens again, please report as bug so we can fix it.',
+                ])
+
+            msg_report = '\n'.join([
+                get_environment_details(),
+                get_trace_details(self.undo_stack_actions(), msghash=msghash, message=message_orig),
+            ])
+
+            def clipboard():
+                try: bpy.context.window_manager.clipboard = msg_report
+                except: pass
+
+            # fontid = load_font_ttf('DejaVuSansMono.ttf')
+            ui_details = ui.div() # background=(0,0,0,0.4)
+            ui_details.build([
+                ui.label('Crash Details'),  # align=0
+                ui.markdown(msg_report),    # fontid=fontid
+                ui.button(label='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'), # bgcolor=(0.5,0.5,0.5,0.4),margin=1
+            ])
+            ui_details.is_visible = False
+
+            show_quit = True
+            darken = True
+        else:
+            bgcolor = (0.40, 0.20, 0.30, 0.95)
+            title = '%s' % (level.upper()) + (': %s' % title if title else '')
+            message = message or 'a note'
+
+        def toggle_details():
+            nonlocal ui_details, ui_show
+            ui_details.is_visible = not ui_details.is_visible
+            # if ui_details.is_visible:
+            #     ui_show.set_label('Hide Details')
+            # else:
+            #     ui_show.set_label('Show Details')
+        def close():
+            nonlocal win
+            self.document.body.delete_child(win)
+            self.alert_windows -= 1
+        def quit():
+            self.exit = True
+
+        if self.alert_windows >= 5:
+            return
+            #self.exit = True
+
+        win = ui.framed_dialog(label=title, classes='alertdialog')
+        ui.markdown(mdown=message, parent=win)
+        container = ui.div(parent=win)
+        if ui_details:
+            ui_show = ui.button(label='Show details', on_mouseclick=toggle_details, title='Show/hide crash details', parent=container) # bgcolor=(0.5,0.5,0.5,0.4), margin=1
+        ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)   # bgcolor=(0.5,0.5,0.5,0.4), margin=1
+        # if show_quit:
+        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+
+        #self.window_manager.set_focus(win, darken=darken)
+        self.document.body.append_child(win)
+        win.clean()
+        self.alert_windows += 1
+
+
 
     def setup_ui(self):
         self.manipulator_hide()
@@ -66,6 +264,8 @@ class RetopoFlow_UI:
 
         # load ui.css
         reload_stylings()
+
+        self.alert_windows = 0
 
         def setup_main_ui():
             self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", closeable=False, parent=self.document.body)

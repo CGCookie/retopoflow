@@ -68,6 +68,11 @@ class RetopoFlow_States(CookieCutter):
                 # show help
                 return
 
+            if self.actions.pressed('F7'):
+                assert False, 'test exception throwing'
+                # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
+                return
+
             # handle undo/redo
             if self.actions.pressed('undo'):
                 self.undo_pop()
