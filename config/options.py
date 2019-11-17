@@ -55,7 +55,27 @@ retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
 # TODO: make Makefile check this value!
-retopoflow_profiler = True
+retopoflow_profiler = False
+
+retopoflow_version_git = None
+def get_git_info():
+    global retopoflow_version_git
+    try:
+        git_head_path = os.path.join('.git', 'HEAD')
+        if not os.path.exists(git_head_path): return
+        git_ref_path = open(git_head_path).read().split()[1]
+        assert git_ref_path.startswith('refs/heads/')
+        git_ref_path = git_ref_path[len('refs/heads/'):]
+        git_ref_fullpath = os.path.join('.git', 'logs', 'refs', 'heads', git_ref_path)
+        if not os.path.exists(git_ref_fullpath): return
+        log = open(git_ref_fullpath).read().splitlines()
+        commit = log[-1].split()[1]
+        print('git: %s %s' % (git_ref_path,commit))
+        retopoflow_version_git = '%s %s' % (git_ref_path, commit)
+    except Exception as e:
+        print('An exception occurred while checking git info')
+        print(e)
+get_git_info()
 
 
 ###########################################

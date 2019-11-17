@@ -20,12 +20,18 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import os
+import json
+from datetime import datetime
+
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import bmesh
 
 from ..help import retopoflow_version, help_welcome
 
+from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.boundvar import BoundVar, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
@@ -48,6 +54,64 @@ def reload_stylings():
     Globals.ui_document.body.dirty_styling()
     Globals.ui_document.body.dirty_flow()
 
+
+from ...config.options import (
+    retopoflow_version, retopoflow_version_git,
+    build_platform,
+    platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
+    gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
+)
+
+
+def get_environment_details():
+    blender_version = '%d.%02d.%d' % bpy.app.version
+    blender_branch = bpy.app.build_branch.decode('utf-8')
+    blender_date = bpy.app.build_commit_date.decode('utf-8')
+
+    env_details = []
+    env_details += ['Environment:\n']
+    env_details += ['- RetopoFlow: %s' % (retopoflow_version, )]
+    if retopoflow_version_git:
+        env_details += ['- RF git: %s' % (retopoflow_version_git, )]
+    env_details += ['- Blender: %s' % (' '.join([
+        blender_version,
+        blender_branch,
+        blender_date
+    ]), )]
+    env_details += ['- Platform: %s' % (', '.join([
+        platform_system,
+        platform_release,
+        platform_version,
+        platform_machine,
+        platform_processor
+    ]), )]
+    env_details += ['- GPU: %s' % (', '.join([
+        gpu_vendor,
+        gpu_renderer,
+        gpu_version,
+        gpu_shading
+    ]), )]
+    env_details += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+
+    return '\n'.join(env_details)
+
+
+def get_trace_details(undo_stack, msghash=None, message=None):
+    trace_details = []
+    trace_details += ['- Undo: %s' % (', '.join(undo_stack[:10]),)]
+    if msghash:
+        trace_details += ['']
+        trace_details += ['Error Hash: %s' % (str(msghash),)]
+    if message:
+        trace_details += ['']
+        trace_details += ['Trace:\n']
+        trace_details += [message]
+    return '\n'.join(trace_details)
+
+
+
+
+
 class RetopoFlow_UI:
     def open_welcome(self):
         ui_welcome = ui.framed_dialog(label='Welcome!!', id='welcomedialog')
@@ -59,7 +123,13 @@ class RetopoFlow_UI:
     #     ui_alert = ui.framed_dialog(label='')
     #     print(title, message, level, msghash)
 
-
+    @CookieCutter.Exception_Callback
+    def handle_exception(self, e):
+        message,h = Globals.debugger.get_exception_info_and_hash()
+        print(e)
+        print(message)
+        message = '\n'.join('- %s'%l for l in message.splitlines())
+        self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
 
     def alert_user(self, title=None, message=None, level=None, msghash=None):
         show_quit = False
@@ -127,6 +197,13 @@ class RetopoFlow_UI:
                     # note: limited to 60 requests/hour!  see
                     #     https://developer.github.com/v3/#rate-limiting
                     #     https://developer.github.com/v3/search/#rate-limit
+
+                    # make it unsecure to work around SSL issue
+                    # https://medium.com/@moreless/how-to-fix-python-ssl-certificate-verify-failed-97772d9dd14c
+                    import ssl
+                    if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+                        ssl._create_default_https_context = ssl._create_unverified_context
+
                     url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
                     response = urllib.request.urlopen(url)
                     text = response.read().decode('utf-8')
@@ -207,9 +284,9 @@ class RetopoFlow_UI:
 
             # fontid = load_font_ttf('DejaVuSansMono.ttf')
             ui_details = ui.div() # background=(0,0,0,0.4)
-            ui_details.build([
-                ui.label('Crash Details'),  # align=0
-                ui.markdown(msg_report),    # fontid=fontid
+            ui_details.builder([
+                ui.label(innerText='Crash Details'),  # align=0
+                ui.markdown(mdown=msg_report),    # fontid=fontid
                 ui.button(label='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'), # bgcolor=(0.5,0.5,0.5,0.4),margin=1
             ])
             ui_details.is_visible = False
@@ -224,10 +301,10 @@ class RetopoFlow_UI:
         def toggle_details():
             nonlocal ui_details, ui_show
             ui_details.is_visible = not ui_details.is_visible
-            # if ui_details.is_visible:
-            #     ui_show.set_label('Hide Details')
-            # else:
-            #     ui_show.set_label('Show Details')
+            if ui_details.is_visible:
+                ui_show.innerText = 'Hide details'
+            else:
+                ui_show.innerText = 'Show Details'
         def close():
             nonlocal win
             self.document.body.delete_child(win)
@@ -243,6 +320,7 @@ class RetopoFlow_UI:
         ui.markdown(mdown=message, parent=win)
         container = ui.div(parent=win)
         if ui_details:
+            container.append_child(ui_details)
             ui_show = ui.button(label='Show details', on_mouseclick=toggle_details, title='Show/hide crash details', parent=container) # bgcolor=(0.5,0.5,0.5,0.4), margin=1
         ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)   # bgcolor=(0.5,0.5,0.5,0.4), margin=1
         # if show_quit:
