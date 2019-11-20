@@ -39,7 +39,7 @@ from ...addon_common.common import ui
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
 
-from ...config.options import options
+from ...config.options import options, retopoflow_issues_url, retopoflow_tip_url
 
 def reload_stylings():
     load_defaultstylings()
@@ -126,10 +126,9 @@ class RetopoFlow_UI:
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
         message,h = Globals.debugger.get_exception_info_and_hash()
-        print(e)
-        print(message)
         message = '\n'.join('- %s'%l for l in message.splitlines())
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
+        self.rftool._reset()
 
     def alert_user(self, title=None, message=None, level=None, msghash=None):
         show_quit = False
@@ -165,7 +164,7 @@ class RetopoFlow_UI:
             nonlocal msg_report
             nonlocal report_details
             data = {
-                'title': '%s: %s' % (self.tool.name(), title),
+                'title': '%s: %s' % (self.rftool.name, title),
                 'body': '\n'.join([
                     #'<!----------------------------------------------------',
                     'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
@@ -192,6 +191,7 @@ class RetopoFlow_UI:
             ui_buttons = ui.div(parent=ui_checker)
 
             def check_github():
+                nonlocal win, ui_buttons
                 try:
                     # attempt to see if this issue already exists!
                     # note: limited to 60 requests/hour!  see
@@ -215,20 +215,20 @@ class RetopoFlow_UI:
                         exists = True
                         if issue['state'] == 'closed': solved = True
                     if not exists:
-                        #ui_label.set_markdown('This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
-                        pass
+                        print('GitHub: Not reported, yet')
+                        ui.set_markdown(ui_label, 'This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
                     else:
                         if not solved:
-                            #ui_label.set_markdown('This issue appears to have been reported already.\n\nClick Open button to see the current status.')
-                            pass
+                            print('GitHub: Already reported!')
+                            ui.set_markdown(ui_label, 'This issue appears to have been reported already.\n\nClick Open button to see the current status.')
                         else:
-                            #ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
-                            pass
+                            print('GitHub: Already solved!')
+                            ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                         def go():
                             bpy.ops.wm.url_open(url=issueurl)
                         ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
                 except Exception as e:
-                    #ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
+                    ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
                     print('Caught exception while trying to pull issues from GitHub')
                     print('URL: "%s"' % url)
@@ -322,13 +322,14 @@ class RetopoFlow_UI:
         if ui_details:
             container.append_child(ui_details)
             ui_show = ui.button(label='Show details', on_mouseclick=toggle_details, title='Show/hide crash details', parent=container) # bgcolor=(0.5,0.5,0.5,0.4), margin=1
+        if ui_checker:
+            container.append_child(ui_checker)
         ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)   # bgcolor=(0.5,0.5,0.5,0.4), margin=1
         # if show_quit:
         #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
 
         #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)
-        win.clean()
         self.alert_windows += 1
 
 
