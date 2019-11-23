@@ -46,9 +46,7 @@ A full summary is available on [Blender Market](https://blendermarket.com/produc
 ### Major Changes from Version 2.x
 
 - RetopoFlow 3.0 works in Blender 2.80!
-- RF uses CG Cookie's CookieCutter framework
-  - All new state handling
-  - All new UI drawing
+- RF uses CG Cookie's CookieCutter framework, including new state handling and new UI drawing
 
 
 ### Changes in 2.0.3
@@ -109,10 +107,10 @@ Please consider doing the following:
 We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
 However, if you find a bug or a missing feature, please let us know so that we can fix them!
-Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [https://github.com/CGCookie/retopoflow/issues](https://github.com/CGCookie/retopoflow/issues).
+Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
 We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
-![](help_exception.png)
+![Global exception handling.](help_exception.png)
 
 
 ## Known Issues / Future Work
