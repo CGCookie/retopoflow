@@ -43,6 +43,7 @@ class RFTool_PolyPen(RFTool):
     name        = 'PolyPen'
     description = 'Create complex topology on vertex-by-vertex basis'
     icon        = 'polypen_32.png'
+    help        = 'polypen.md'
 
 
 class PolyPen(RFTool_PolyPen):

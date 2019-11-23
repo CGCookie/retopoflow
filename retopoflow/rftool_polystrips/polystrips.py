@@ -56,6 +56,7 @@ class RFTool_PolyStrips(RFTool):
     name        = 'PolyStrips'
     description = 'Create and edit strips of quads'
     icon        = 'polystrips_32.png'
+    help        = 'polystrips.md'
 
 
 ################################################################################################

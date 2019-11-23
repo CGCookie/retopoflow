@@ -59,6 +59,7 @@ class RFTool_Strokes(RFTool):
     name        = 'Strokes'
     description = 'Insert edge strips and extrude edges into a patch'
     icon        = 'strokes_32.png'
+    help        = 'strokes.md'
 
 
 class Strokes(RFTool_Strokes):

@@ -42,6 +42,7 @@ class RFTool_Contours(RFTool):
     name        = 'Contours'
     description = 'Retopologize cylindrical forms, like arms and legs'
     icon        = 'contours_32.png'
+    help        = 'contours.md'
 
 
 ################################################################################################

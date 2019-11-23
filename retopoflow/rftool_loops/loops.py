@@ -40,6 +40,7 @@ class RFTool_Loops(RFTool):
     name        = 'Loops'
     description = 'Edge loops creation, shifting, and deletion'
     icon        = 'loops_32.png'
+    help        = 'loops.md'
 
 
 class Loops(RFTool_Loops):

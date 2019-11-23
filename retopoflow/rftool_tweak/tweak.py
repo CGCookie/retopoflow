@@ -44,6 +44,7 @@ class RFTool_Tweak(RFTool):
     name        = 'Tweak'
     description = 'Adjust vertex positions with a smooth brush'
     icon        = 'tweak_32.png'
+    help        = 'tweak.md'
 
 
 class Tweak(RFTool_Tweak):

@@ -38,6 +38,7 @@ class RFTool_Relax(RFTool):
     name        = 'Relax'
     description = 'Relax the vertex positions to smooth out topology'
     icon        = 'relax_32.png'
+    help        = 'relax.md'
 
 
 class Relax(RFTool_Relax):

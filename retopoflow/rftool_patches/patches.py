@@ -50,6 +50,7 @@ class RFTool_Patches(RFTool):
     name        = 'Patches'
     description = 'Fill holes in your topology'
     icon        = 'patches_32.png'
+    help        = 'patches.md'
 
 
 class Patches(RFTool_Patches):

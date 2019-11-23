@@ -29,8 +29,6 @@ from concurrent.futures import ThreadPoolExecutor
 import bpy
 import bmesh
 
-from ..help import retopoflow_version, help_welcome
-
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.boundvar import BoundVar, BoundFloat
 from ...addon_common.common.utils import delay_exec
@@ -113,15 +111,14 @@ def get_trace_details(undo_stack, msghash=None, message=None):
 
 
 class RetopoFlow_UI:
-    def open_welcome(self):
-        ui_welcome = ui.framed_dialog(label='Welcome!!', id='welcomedialog')
-        ui.markdown(mdown=help_welcome, parent=ui_welcome)
-        ui.button(label='Close', parent=ui_welcome, on_mouseclick=delay_exec("self.document.body.delete_child(ui_welcome)"))
-        self.document.body.append_child(ui_welcome)
-
-    # def alert_user(self, title=None, message=None, level=None, msghash=None):
-    #     ui_alert = ui.framed_dialog(label='')
-    #     print(title, message, level, msghash)
+    def helpsystem_open(self, mdown_path):
+        ui_markdown = self.document.body.getElementById('helpsystem-mdown')
+        if not ui_markdown:
+            ui_help = ui.framed_dialog(label='RetopoFlow Help System', id='helpsystem', parent=self.document.body)
+            ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
+            ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
+            ui.button(label='Close', on_mouseclick=delay_exec("self.document.body.delete_child(ui_help)"), parent=ui_help)
+        ui.set_markdown(ui_markdown, mdown_path=mdown_path)
 
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
@@ -366,18 +363,20 @@ class RetopoFlow_UI:
                 add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
-            ui.button(label='Welcome!', title='Show "Welcome!" message', parent=self.ui_main, on_mouseclick=self.open_welcome)
-            ui.button(label='All Help', parent=self.ui_main)
-            ui.button(label='General Help', parent=self.ui_main)
-            ui.button(label='Tool Help', parent=self.ui_main)
-            ui.button(label='Report Issue', parent=self.ui_main)
+            ui.button(label='Welcome!', title='Show "Welcome!" message', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')"))
+            ui.button(label='All Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"))
+            ui.button(label='General Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('general.md')"))
+            ui.button(label='Tool Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)"))
+            ui.button(label='Report Issue', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', parent=self.ui_main, on_mouseclick=self.done)
-            ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
-            def printout_profiler():
-                profiler.printout()
-                print("Children: %d" % self.document.body.count_children())
-            ui.button(label='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
-            ui.button(label='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
+            if False:
+                ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
+            if False:
+                def printout_profiler():
+                    profiler.printout()
+                    print("Children: %d" % self.document.body.count_children())
+                ui.button(label='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
+                ui.button(label='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
 
 
         def setup_options():
