@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import json
+import inspect
 from datetime import datetime
 
 import urllib.request
@@ -117,11 +118,14 @@ class RetopoFlow_UI:
             ui_help = ui.framed_dialog(label='RetopoFlow Help System', id='helpsystem', parent=self.document.body)
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
             ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
-            ui.button(label='Close', on_mouseclick=delay_exec("self.document.body.delete_child(ui_help)"), parent=ui_help)
+            ui.button(label='Close', on_mouseclick=delay_exec("self.document.body.delete_child(self.document.body.getElementById('helpsystem'))"), parent=ui_help)
         ui.set_markdown(ui_markdown, mdown_path=mdown_path)
 
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
+        if False:
+            print('RF_UI.handle_exception', e)
+            for entry in inspect.stack(): print('  %s' % str(entry))
         message,h = Globals.debugger.get_exception_info_and_hash()
         message = '\n'.join('- %s'%l for l in message.splitlines())
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
@@ -182,8 +186,7 @@ class RetopoFlow_UI:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.div()
-            ui.p(innerText="RetopoFlow Issue Tracker", parent=ui_checker)
+            ui_checker = ui.collapsible(label='RetopoFlow Issue Reporting', classes='issue-checker')
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
             ui_buttons = ui.div(parent=ui_checker)
 
@@ -223,7 +226,7 @@ class RetopoFlow_UI:
                             ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                         def go():
                             bpy.ops.wm.url_open(url=issueurl)
-                        ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                        ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
                 except Exception as e:
                     ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
@@ -232,34 +235,29 @@ class RetopoFlow_UI:
                     print(e)
                     # ignore for now
                     pass
-                ui.button(label='Screenshot', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
-                ui.button(label='Similar', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
-                ui.button(label='All Issues', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
-                ui.button(label='Report', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons) #, bgcolor=(1,1,1,0.3), margin=1)
+                ui.button(label='Screenshot', classes='action', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
+                ui.button(label='Similar', classes='action', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
+                ui.button(label='All Issues', classes='action', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
+                ui.button(label='Report', classes='action', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
 
         if level in {'note'}:
-            bgcolor = (0.20, 0.20, 0.30, 0.95)
             title = 'Note' + (': %s' % title if title else '')
             message = message or 'a note'
         elif level in {'warning'}:
-            bgcolor = (0.35, 0.25, 0.15, 0.95)
             title = 'Warning' + (': %s' % title if title else '')
             darken = True
         elif level in {'error'}:
-            bgcolor = (0.30, 0.15, 0.15, 0.95)
             title = 'Error' + (': %s' % title if title else '!')
             show_quit = True
             darken = True
         elif level in {'assert', 'exception'}:
             if level == 'assert':
-                bgcolor = (0.30, 0.15, 0.15, 0.95)
                 title = 'Assert Error' + (': %s' % title if title else '!')
                 desc = 'An internal assertion has failed.'
             else:
-                bgcolor = (0.15, 0.07, 0.07, 0.95)
                 title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
                 desc = 'An unhandled exception was thrown.'
 
@@ -279,29 +277,19 @@ class RetopoFlow_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
-            # fontid = load_font_ttf('DejaVuSansMono.ttf')
-            ui_details = ui.div() # background=(0,0,0,0.4)
+            ui_details = ui.collapsible(label='Crash details')
             ui_details.builder([
-                ui.label(innerText='Crash Details'),  # align=0
-                ui.markdown(mdown=msg_report),    # fontid=fontid
+                ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),  # align=0
+                ui.pre(innerText=msg_report),    # fontid=fontid
                 ui.button(label='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'), # bgcolor=(0.5,0.5,0.5,0.4),margin=1
             ])
-            ui_details.is_visible = False
 
             show_quit = True
             darken = True
         else:
-            bgcolor = (0.40, 0.20, 0.30, 0.95)
             title = '%s' % (level.upper()) + (': %s' % title if title else '')
             message = message or 'a note'
 
-        def toggle_details():
-            nonlocal ui_details, ui_show
-            ui_details.is_visible = not ui_details.is_visible
-            if ui_details.is_visible:
-                ui_show.innerText = 'Hide details'
-            else:
-                ui_show.innerText = 'Show Details'
         def close():
             nonlocal win
             self.document.body.delete_child(win)
@@ -313,17 +301,16 @@ class RetopoFlow_UI:
             return
             #self.exit = True
 
-        win = ui.framed_dialog(label=title, classes='alertdialog')
+        win = ui.framed_dialog(label=title, classes='alertdialog %s'%str(level))
         ui.markdown(mdown=message, parent=win)
         container = ui.div(parent=win)
         if ui_details:
             container.append_child(ui_details)
-            ui_show = ui.button(label='Show details', on_mouseclick=toggle_details, title='Show/hide crash details', parent=container) # bgcolor=(0.5,0.5,0.5,0.4), margin=1
         if ui_checker:
             container.append_child(ui_checker)
-        ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)   # bgcolor=(0.5,0.5,0.5,0.4), margin=1
-        # if show_quit:
-        #     container.add(UI_Button('Exit', quit, tooltip='Exit RetopoFlow', bgcolor=(0.5,0.5,0.5,0.4), margin=1))
+        ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)
+        if show_quit:
+            ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=container)
 
         #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)
@@ -471,6 +458,7 @@ class RetopoFlow_UI:
             def reload_stylings(e):
                 load_defaultstylings()
                 self.document.body.dirty_styling()
+                #self.document.body.dirty('reloaded stylings', children=True)
             def width_increase(e):
                 self.ui_main.width = self.ui_main.width_pixels + 50
             def width_decrease(e):

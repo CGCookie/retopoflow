@@ -30,6 +30,23 @@ dialog#helpsystem {
 }
 
 
+dialog.alertdialog.note {
+    background-color: rgba(50, 50, 76, 0.95);
+}
+
+dialog.alertdialog.warning {
+    background-color: rgba(90, 64, 38, 0.95);
+}
+
+dialog.alertdialog.error {
+    background-color: rgba(76, 38, 38, 0.95);
+}
+
+dialog.alertdialog.assert, dialog.alertdialog.exception {
+    background-color: rgba(96, 0, 0, 0.95);
+}
+
+
 
 * {
     color: white;
@@ -231,4 +248,12 @@ div.collapsible > div.inside {
     border: 1px rgba(64,64,64,0.5);
     padding: 2px 2px 2px 8px;
     margin: 1px 0px 0px 0px;
+}
+
+
+
+div.issue-checker button.action {
+    display: inline;
+    width: 25%;
+    white-space: pre;
 }
