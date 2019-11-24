@@ -29,6 +29,7 @@ else:
 
 import bpy
 from bpy.types import Menu, Operator
+from bpy_extras import object_utils
 
 
 bl_info = {
@@ -53,6 +54,30 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
+
+
+class VIEW3D_OT_RetopoFlow_New(Operator):
+    """RetopoFlow Blender Operator"""
+    bl_idname = "cgcookie.retopoflow_new"
+    bl_label = "RF: Create new target"
+    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def invoke(self, context, event):
+        for o in bpy.data.objects: o.select_set(False)
+        mesh = bpy.data.meshes.new('RetopoFlow')
+        obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
+
 
 def RF_Factory(starting_tool):
     class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
@@ -99,11 +124,32 @@ class VIEW3D_MT_RetopoFlow(Menu):
     """RetopoFlow Blender Menu"""
     bl_label = "RetopoFlow"
 
+    @staticmethod
+    def is_editing_target(context):
+        obj = context.active_object
+        mode_string = context.mode
+        edit_object = context.edit_object
+        gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+        return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
+
     def draw(self, context):
         layout = self.layout
         #layout.operator('cgcookie.retopoflow')
-        for c in customs: layout.operator(c.bl_idname)
+        if VIEW3D_MT_RetopoFlow.is_editing_target(context):
+            self.draw_tools(context)
+        else:
+            self.draw_new(context)
+        layout.separator()
         layout.operator('cgcookie.retopoflow_recover')
+
+    def draw_new(self, context):
+        layout = self.layout
+        layout.operator('cgcookie.retopoflow_new')
+
+    def draw_tools(self, context):
+        layout = self.layout
+        for c in customs:
+            layout.operator(c.bl_idname)
 
     #############################################################################
     # the following two methods add/remove RF to/from the main 3D View menu
@@ -117,11 +163,13 @@ class VIEW3D_MT_RetopoFlow(Menu):
             mode_string = context.mode
             edit_object = context.edit_object
             gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+
             VIEW3D_MT_RetopoFlow._menu_original(context, layout)
-            if not gp_edit and edit_object and mode_string == 'EDIT_MESH':
-                row = layout.row(align=True)
+
+            row = layout.row(align=True)
+            if VIEW3D_MT_RetopoFlow.is_editing_target(context):
                 row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
-                row.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
+            row.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod
     def menu_remove():
@@ -134,6 +182,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
 classes = [
     VIEW3D_MT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
+    VIEW3D_OT_RetopoFlow_New,
     VIEW3D_OT_RetopoFlow_Recover,
 ] + customs
 

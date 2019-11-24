@@ -92,5 +92,3 @@ class RetopoFlow(
         self.teardown_target()
         bpy.ops.object.mode_set(mode='EDIT')
 
-
-
