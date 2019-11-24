@@ -7,60 +7,29 @@ The RetopoFlow tools automatically generate geometry by drawing on an existing s
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
-## Changelog
+## Version 3.0 Notes
 
-Below is a summary of the changes made.
-A full summary is available on [Blender Market](https://blendermarket.com/products/retopoflow).
+Welcome to the newest version of RetopoFlow!
+This version of RetopoFlow has been modified to work in Blender 2.8x.
+Note: this version will _not_ work in Blender 2.79b or earlier.
 
-### Major Changes from Version 2.x
+Due to some significant changes in the Blender 2.80 Python API, we had to rewrite a few key parts of RetopoFlow, specifically the rendering and UI.
+Rather than keeping these updates only for RetopoFlow users, we decided to build the changes into a new framework called [CookieCutter](https://github.com/CGCookie/addon_common).
+The CookieCutter framework has several brand new systems to handle states, UI drawing and interaction, debugging and exceptions, rendering, and much more.
+CookieCutter was built from the ground up to be a maintainable, extensible, and configurable framework for Blender add-ons.
 
-- RetopoFlow 3.0 works in Blender 2.80!
-- RF uses CG Cookie's CookieCutter framework, including new state handling and new UI drawing
+The new RetopoFlow sits on top of the CookieCutter framework, and we are excited to show off CookieCutter's features through RetopoFlow!
 
+But with any unveiling on new things, there are new bugs and performance issues.
+Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
+We will need your help, though.
 
-### Changes in 2.0.3
+Whenever you see a bug, please let us know so that we can fix them!
+Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
+We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
-- Hiding RF buttons in 3D View panel to improve overall performance when Region Overlap is disabled
-- Visualizing target geometry counts in bottom right corner
-- Improved target rendering by constraining normal offset
-- Only showing "small clip start" alert once per Blender run rather than once per RetopoFlow run
-- By default, the options for unselected tools are hidden (can disable Options > General > Tool Options > Auto Hide Options).
-- Overall stability improvements
+![Global exception handling.](global_exception.png)
 
-### Minor Changes from Version 2.0.0
-
-- Can navigate to all help documents through help system.
-  (Click [Table of Contents](table_of_contents.md) button below or press `Shift+F1`)
-- Fixed bug where navigation broke with internationalization settings
-- Improved many UX/UI issues.
-  For example, now the RetopoFlow panel will explicitly state whether a new target will be created and what meshes are acting as sources.
-  For another example, RetopoFlow will now gracefully handle registration failures (usually happening when Blender is installed through package manager).
-- Squashed many hard-to-find bugs in Loops, PolyPen, Patches, Strokes, Contours
-- Better error handling with shader compilation.
-- Fixed critical bug with framework.
-
-### Major Changes from Version 1.x
-
-What you see behind this message window is a complete rewrite of the code base.
-RetopoFlow 2.x now works like any other Blender mode, like Edit Mode or Sculpt Mode, but it will also feel distinct.
-We focused our 2.x development on two main items: stability and user experience.
-With an established and solid framework, we will focus more on features in future releases.
-
-- Everything runs within the RF Mode; no more separation of tools!
-  In fact, the shortcut keys `Q`, `W`, `E`, `R`, `T`, `Y`, `U`, and `I` will switch quickly between the tools.
-- Each tool has been simplified to perform its job well.
-- All tools use the current selection for their context.
-  For example, PolyStrips can edit any strip of quads by simply selecting them.
-- The selected and active mesh is the Target Mesh, and any other visible meshes are Source Meshes.
-- Many options and configurations are sticky, which means that some settings will remain even if you leave RF Mode or quit Blender.
-- All tools have similar and consistent visualization, although they each will have their own custom widget (ex: circle cursor in Tweak) and annotations (ex: edge count in Contours).
-- Mirroring (X, Y, and/or Z) is now visualized by overlaying a color on all the source meshes.
-- Every change automatically commits to the target mesh; geometry is created in real-time!
-  No more lost work from crashing.
-- Auto saves will trigger!
-- Undo and redo are universally available within RF Mode.
-  Press `Ctrl+Z` roll back any change, or `Ctrl+Shift+Z` to redo.
-- The new Strokes tool extends your target mesh with a simple selection and stroke.
 
 
 ## Feedback
@@ -68,30 +37,22 @@ With an established and solid framework, we will focus more on features in futur
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
 
-- Give us a rating with comments on the Blender Market.
-  (requires purchasing a copy through Blender Market)
+- Give us a rating with comments on the Blender Market. <br>(requires purchasing a copy through Blender Market)
 - Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
 - Consider donating to our drink funds :)
 
 We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
-However, if you find a bug or a missing feature, please let us know so that we can fix them!
-Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
-We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
-
-![Global exception handling.](global_exception.png)
 
 
 ## Known Issues / Future Work
 
-Below is a list of known issues that are currently being addressed.
+Below is a list of known issues that we are currently working on.
 
-- Source meshes with very high poly count can cause a delay and stutter at start-up time.
-- A target mesh with high poly count target mesh can cause slowness in some tools.
-- RF runs _very_ slowly (<1.0 FPS) on a few rare machines.
+- UI starts to become sluggish when there is lots of text (ex: Welcome help).
+- UI does not work properly on Retina displays or when display resolution scaling is not set to 1.0.
 - Patches supports only rudimentary fills.
-- RetopoFlow does not work with Blender 2.80 (beta).
-
+- The 3D view panel tabs (left, top, right) flicker slightly when RetopoFlow redraws.
 
 
 ## Final Words
