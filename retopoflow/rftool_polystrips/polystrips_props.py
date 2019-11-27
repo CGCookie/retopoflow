@@ -31,7 +31,7 @@ from mathutils import Matrix
 from ..rftool import rftools
 
 from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundVar, BoundInt
+from ...addon_common.common.boundvar import BoundInt, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options
 
@@ -42,6 +42,7 @@ class PolyStrips_Props:
     @RFTool_PolyStrips.on_init
     def init_props(self):
         self._var_cut_count = BoundInt('''self.var_cut_count''', min_value=2, max_value=500)
+        self._var_scale_falloff = BoundFloat('''options['polystrips scale falloff']''', min_value=0.25, max_value=4.0)
 
     @property
     def var_cut_count(self):
@@ -54,4 +55,3 @@ class PolyStrips_Props:
         self.rfcontext.undo_push('change segment count', repeatable=True)
         self.change_count(count=v)
 
-    def get_scale_falloff_actual(self): return 2 ** (options['polystrips scale falloff'] * 0.1)

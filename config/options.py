@@ -184,7 +184,7 @@ class Options:
         'contours count':   16,
         'contours uniform': True,               # should new cuts be made uniformly about circumference?
 
-        'polystrips scale falloff':     -1,
+        'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
         'polystrips arrows':            False,

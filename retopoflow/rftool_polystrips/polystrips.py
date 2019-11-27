@@ -393,7 +393,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_done_released = {'insert', 'insert alt0', 'insert alt1'}
         self.move_cancelled = 'cancel'
 
-        falloff = self.get_scale_falloff_actual()
+        falloff = options['polystrips scale falloff']
 
         self.scale_bmf = {}
         self.scale_bmv = {}

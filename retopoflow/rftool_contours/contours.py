@@ -137,7 +137,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._var_cut_count.disabled = True
         if len(self.loops_data) == 1 and len(self.strings_data) == 0:
             self._var_cut_count_value = self.loops_data[0]['count']
-            self._var_cut_count.disabled = False
+            self._var_cut_count.disabled = any(len(e.link_edges)!=2 for e in self.loops_data[0]['loop'])
         if len(self.strings_data) == 1 and len(self.loops_data) == 0:
             self._var_cut_count_value = self.strings_data[0]['count']
             self._var_cut_count.disabled = False

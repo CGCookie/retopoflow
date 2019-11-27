@@ -31,7 +31,7 @@ from mathutils import Matrix
 from ..rftool import rftools
 
 from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundVar, BoundInt
+from ...addon_common.common.boundvar import BoundBool, BoundInt
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options
 
@@ -43,6 +43,7 @@ class Contours_Props:
     def init_props(self):
         self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
         self._var_cut_count = BoundInt('''self.var_cut_count''', min_value=3, max_value=500)
+        self._var_uniform_cut = BoundBool('''options['contours uniform']''')
 
     @property
     def var_cut_count(self):
