@@ -38,6 +38,8 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.shaders import circleShader, edgeShortenShader, arrowShader
 from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index
+from ...addon_common.common import ui
+from ...addon_common.common.boundvar import BoundBool, BoundInt
 # from ...addon_common.common.ui import (
 #     UI_Image, UI_Number, UI_BoolValue,
 #     UI_Button, UI_Label,
@@ -65,13 +67,55 @@ class RFTool_Strokes(RFTool):
 
 
 class Strokes(RFTool_Strokes):
+    @property
+    def cross_count(self):
+        return self.strip_crosses or 0
+    @cross_count.setter
+    def cross_count(self, v):
+        if self.strip_crosses == v: return
+        if self.replay is None: return
+        if self.strip_crosses is None: return
+        self.strip_crosses = v
+        if self.strip_crosses is not None: self.replay()
+
+    @property
+    def loop_count(self):
+        return self.strip_loops or 0
+    @loop_count.setter
+    def loop_count(self, v):
+        if self.strip_loops == v: return
+        if self.replay is None: return
+        if self.strip_loops is None: return
+        self.strip_loops = v
+        if self.strip_loops is not None: self.replay()
+
     @RFTool_Strokes.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushStroke_Strokes(self)
-        # self.rfwidget.register_action_callback(self.stroke)
+
+        self.strip_crosses = None
+        self.strip_loops = None
+        self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
+        self._var_loop_count = BoundInt('''self.loop_count''', min_value=1, max_value=500)
+
+    @RFTool_Strokes.on_ui_setup
+    def ui(self):
+        return ui.collapsible('Strokes', children=[
+            ui.labeled_input_text(
+                label='Crosses',
+                title='Number of crosses for selected strip',
+                value=self._var_cross_count,
+            ),
+            ui.labeled_input_text(
+                label='Loops',
+                title='Number of loops for selected strip',
+                value=self._var_loop_count,
+            ),
+        ])
 
     @RFTool_Strokes.on_reset
     def reset(self):
+        print('reset')
         self.replay = None
         self.strip_crosses = None
         self.strip_loops = None
@@ -81,17 +125,24 @@ class Strokes(RFTool_Strokes):
         self.update_ui()
 
     def update_ui(self):
-        pass
-        # self.ui_cross_count.visible = self.strip_crosses is not None and not self.strip_edges
-        # self.ui_loop_count.visible = self.strip_loops is not None
+        if self.replay is None:
+            self._var_cross_count.disabled = True
+            self._var_loop_count.disabled = True
+        else:
+            self._var_cross_count.disabled = self.strip_crosses is None or self.strip_edges
+            self._var_loop_count.disabled = self.strip_loops is None
+
+    @RFTool_Strokes.on_target_change
+    def update_target(self):
+        if self.defer_recomputing: return
+        if not self.just_created: self.reset()
+        else: self.just_created = False
 
     @RFTool_Strokes.on_target_change
     @RFTool_Strokes.on_view_change
     @profiler.function
     def update(self):
         if self.defer_recomputing: return
-        if not self.just_created: self.reset()
-        else: self.just_created = False
 
         self.update_ui()
 
@@ -148,7 +199,10 @@ class Strokes(RFTool_Strokes):
             self.move_cancelled = 'cancel'
             return 'move'
 
-        if self.rfcontext.actions.pressed('increase count'):
+        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+            print('changing count!', self.strip_crosses, self.strip_loops, self.replay)
+        if self.rfcontext.actions.pressed('increase count') and self.replay:
+            print('increase count')
             if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
                 self.replay()
@@ -156,7 +210,8 @@ class Strokes(RFTool_Strokes):
                 self.strip_loops += 1
                 self.replay()
 
-        if self.rfcontext.actions.pressed('decrease count'):
+        if self.rfcontext.actions.pressed('decrease count') and self.replay:
+            print('decrease count')
             if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
                 self.replay()
@@ -221,6 +276,7 @@ class Strokes(RFTool_Strokes):
             else:
                 self.replay = self.create_strip
 
+        print(self.replay)
         if self.replay: self.replay()
 
     @RFTool_Strokes.dirty_when_done

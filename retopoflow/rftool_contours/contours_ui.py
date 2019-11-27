@@ -40,8 +40,7 @@ RFTool_Contours = rftools['RFTool_Contours']
 class Contours_UI:
     @RFTool_Contours.on_ui_setup
     def ui(self):
-        container = ui.collapsible('Contours')
-        container.builder([
+        return ui.collapsible('Contours', children=[
             ui.input_checkbox(
                 label='Uniform Cut',
                 title='If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.',
@@ -58,4 +57,3 @@ class Contours_UI:
                 value=self._var_cut_count
             ),
         ])
-        return container
