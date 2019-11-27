@@ -64,9 +64,29 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             # handle help actions
-            if self.actions.pressed('help'):
-                # show help
+            if self.actions.pressed('all help'):
+                self.helpsystem_open('table_of_contents.md')
                 return
+            if self.actions.pressed('general help'):
+                self.helpsystem_open('general.md')
+                return
+            if self.actions.pressed('tool help'):
+                self.helpsystem_open(self.rftool.help)
+                return
+
+            if self.actions.pressed('save action'):
+                self.save_normal()
+                return
+
+            if self.actions.pressed('toggle ui'):
+                self.document.body.is_visible = not self.document.body.is_visible
+                return
+
+            for rftool in self.rftools:
+                if not rftool.shortcut: continue
+                if self.actions.pressed(rftool.shortcut):
+                    self.select_rftool(rftool)
+                    return
 
             if self.actions.pressed('F7'):
                 assert False, 'test exception throwing'

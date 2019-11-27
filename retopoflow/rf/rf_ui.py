@@ -350,12 +350,12 @@ class RetopoFlow_UI:
                 add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
-            ui.button(label='Welcome!', title='Show "Welcome!" message', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')"))
-            ui.button(label='All Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"))
-            ui.button(label='General Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('general.md')"))
-            ui.button(label='Tool Help', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)"))
-            ui.button(label='Report Issue', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(label='Exit', parent=self.ui_main, on_mouseclick=self.done)
+            ui.button(label='Welcome!', title='Show the "Welcome!" message from the RetopoFlow team', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')"))
+            ui.button(label='All Help', title='Show help table of contents (Shift+F1)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"))
+            ui.button(label='General Help', title='Show general help (F1)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('general.md')"))
+            ui.button(label='Tool Help', title='Show help for currently selected tool (F2)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)"))
+            ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
+            ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
             if False:
                 ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
             if False:

@@ -13,11 +13,12 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| `Esc` <br> `Tab` | : | quit RetopoFlow |
-| `Shift+F1` | : | view all help documents |
-| `F1` | : | view general help |
-| `F2` | : | view tool help |
-| `F9` | : | toggle on/off main RF windows |
+| `Esc`      | : | quit RetopoFlow |
+| `Ctrl+S`   | : | save blend file |
+| `Shift+F1` | : | view all help documents (table of contents) |
+| `F1`       | : | view general help (this help file) |
+| `F2`       | : | view help for currently selected tool |
+| `F9`       | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
 

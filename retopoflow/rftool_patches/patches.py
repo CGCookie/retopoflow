@@ -44,6 +44,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options, themes, visualization
+from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_Patches(RFTool):
@@ -51,6 +52,7 @@ class RFTool_Patches(RFTool):
     description = 'Fill holes in your topology'
     icon        = 'patches_32.png'
     help        = 'patches.md'
+    shortcut    = default_rf_keymaps['patches tool']
 
 
 class Patches(RFTool_Patches):

@@ -35,12 +35,15 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
+from ...config.keymaps import default_rf_keymaps
+
 
 class RFTool_Loops(RFTool):
     name        = 'Loops'
     description = 'Edge loops creation, shifting, and deletion'
     icon        = 'loops_32.png'
     help        = 'loops.md'
+    shortcut    = default_rf_keymaps['loops tool']
 
 
 class Loops(RFTool_Loops):

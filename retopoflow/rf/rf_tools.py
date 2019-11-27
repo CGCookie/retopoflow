@@ -23,11 +23,11 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 from ..rftool_contours.contours     import Contours
 from ..rftool_polystrips.polystrips import PolyStrips
 from ..rftool_polypen.polypen       import PolyPen
-from ..rftool_strokes.strokes       import Strokes
-from ..rftool_patches.patches       import Patches
-from ..rftool_loops.loops           import Loops
 from ..rftool_relax.relax           import Relax
 from ..rftool_tweak.tweak           import Tweak
+from ..rftool_loops.loops           import Loops
+from ..rftool_patches.patches       import Patches
+from ..rftool_strokes.strokes       import Strokes
 
 from ..rftool import RFTool
 

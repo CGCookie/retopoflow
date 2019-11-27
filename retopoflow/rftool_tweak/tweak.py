@@ -38,6 +38,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options, themes
+from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_Tweak(RFTool):
@@ -45,6 +46,7 @@ class RFTool_Tweak(RFTool):
     description = 'Adjust vertex positions with a smooth brush'
     icon        = 'tweak_32.png'
     help        = 'tweak.md'
+    shortcut    = default_rf_keymaps['tweak tool']
 
 
 class Tweak(RFTool_Tweak):

@@ -44,6 +44,7 @@ from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index
 #     UI_Container, UI_EqualContainer
 #     )
 from ...config.options import options, themes
+from ...config.keymaps import default_rf_keymaps
 
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Strokes
 
@@ -60,6 +61,7 @@ class RFTool_Strokes(RFTool):
     description = 'Insert edge strips and extrude edges into a patch'
     icon        = 'strokes_32.png'
     help        = 'strokes.md'
+    shortcut    = default_rf_keymaps['strokes tool']
 
 
 class Strokes(RFTool_Strokes):

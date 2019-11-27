@@ -95,11 +95,11 @@ customs = [
         'Contours',
         'PolyStrips',
         'PolyPen',
-        'Strokes',
-        'Patches',
-        'Loops',
         'Relax',
         'Tweak',
+        'Loops',
+        'Patches',
+        'Strokes',
     ] ]
 
 

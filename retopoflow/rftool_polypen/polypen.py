@@ -37,6 +37,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options, themes
+from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_PolyPen(RFTool):
@@ -44,6 +45,7 @@ class RFTool_PolyPen(RFTool):
     description = 'Create complex topology on vertex-by-vertex basis'
     icon        = 'polypen_32.png'
     help        = 'polypen.md'
+    shortcut    = default_rf_keymaps['polypen tool']
 
 
 class PolyPen(RFTool_PolyPen):

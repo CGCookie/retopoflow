@@ -96,10 +96,10 @@ default_rf_keymaps = {
     'polystrips tool': {'W'},
     'polypen tool': {'E'},
     'relax tool': {'R'},
-    'move tool': {'T'},
+    'tweak tool': {'T'},
     'loops tool': {'Y'},
     'patches tool': {'U'},
     'strokes tool': {'I'},
-    'stretch tool': {'O'},
-    'grease pencil tool': {'P'},
+    'stretch tool': {'O'},          # not ported from rf279, yet
+    'grease pencil tool': {'P'},    # not ported from rf279, yet
 }
