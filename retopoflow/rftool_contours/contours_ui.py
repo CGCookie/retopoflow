@@ -45,7 +45,7 @@ class Contours_UI:
             ui.input_checkbox(
                 label='Uniform Cut',
                 title='If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.',
-                value=self._var_uniform_cut
+                checked=self._var_uniform_cut
             ),
             ui.labeled_input_text(
                 label='Initial Count',

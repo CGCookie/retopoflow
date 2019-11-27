@@ -35,6 +35,9 @@ from ...addon_common.common.globals import Globals
 from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common import ui
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+
 
 from ...config.options import options, themes
 from ...config.keymaps import default_rf_keymaps
@@ -53,6 +56,31 @@ class PolyPen(RFTool_PolyPen):
     def init(self):
         self.rfwidget = RFWidget_Default(self)
         self.update_state_info()
+        self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
+        self._var_automerge = BoundBool('''options['polypen automerge']''')
+        self._var_triangle_only = BoundBool('''options['polypen triangle only']''')
+
+    @RFTool_PolyPen.on_ui_setup
+    def ui(self):
+        return ui.collapsible('PolyPen', children=[
+            ui.labeled_input_text(
+                label='Merge Dist',
+                title='Pixel distance for merging and snapping',
+                value=self._var_merge_dist,
+            ),
+            ui.input_checkbox(
+                label='Automerge',
+                title='Automatically merge nearby vertices',
+                checked=self._var_automerge,
+                style='display:block',
+            ),
+            ui.input_checkbox(
+                label='Triangle Only',
+                title='If enabled, PolyPen prefers to insert triangles only',
+                checked=self._var_triangle_only,
+                style='display:block',
+            ),
+        ])
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
