@@ -30,6 +30,8 @@ from ...addon_common.common.maths import (
     Accel2D,
     Color,
 )
+from ...addon_common.common import ui
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
 from ...config.options import options, themes
 from ...config.keymaps import default_rf_keymaps
@@ -47,6 +49,34 @@ class Relax(RFTool_Relax):
     @RFTool_Relax.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushFalloff_Relax(self)
+        self._var_mask_boundary = BoundBool('''options['relax mask boundary']''')
+        self._var_mask_hidden   = BoundBool('''options['relax mask hidden']''')
+        self._var_mask_selected = BoundBool('''options['relax mask selected']''')
+
+    @RFTool_Relax.on_ui_setup
+    def ui(self):
+        return ui.collapsible('Relax', children=[
+            ui.collection('Masking Options', children=[
+                ui.input_checkbox(
+                    label='Boundary',
+                    title='Check to mask off vertices that are along boundary of target (includes along symmetry plane)',
+                    checked=self._var_mask_boundary,
+                    style='display:block',
+                ),
+                ui.input_checkbox(
+                    label='Hidden',
+                    title='Check to mask off vertices that are hidden behind source',
+                    checked=self._var_mask_hidden,
+                    style='display:block',
+                ),
+                ui.input_checkbox(
+                    label='Selected',
+                    title='Check to mask off vertices that are selected',
+                    checked=self._var_mask_selected,
+                    style='display:block',
+                ),
+            ]),
+        ])
 
     @RFTool_Relax.on_reset
     def reset(self):
