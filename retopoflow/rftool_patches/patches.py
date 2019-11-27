@@ -42,6 +42,8 @@ from ...addon_common.common.globals import Globals
 from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common import ui
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 from ...config.options import options, themes, visualization
 from ...config.keymaps import default_rf_keymaps
@@ -60,13 +62,45 @@ class Patches(RFTool_Patches):
     def init(self):
         self.rfwidget = RFWidget_Default(self)
         self.corners = {}
+        self.crosses = None
+        self._var_angle = BoundFloat('''options['patches angle']''', min_value=0, max_value=180)
+        self._var_crosses = BoundInt('''self.var_crosses''', min_value=1, max_value=500)
+
+    @property
+    def var_crosses(self):
+        if self.crosses is None: return 0
+        return self.crosses - 1
+    @var_crosses.setter
+    def var_crosses(self, v):
+        nv = max(1, int(v)+1)
+        if self.crosses == nv: return
+        self.crosses = nv
+        self._recompute()
+
+    @RFTool_Patches.on_ui_setup
+    def ui(self):
+        return ui.collapsible('Patches', children=[
+            ui.labeled_input_text(
+                label='Angle',
+                title='A vertex between connected edges that form an angles below this threshold is a corner',
+                value=self._var_angle,
+            ),
+            ui.labeled_input_text(
+                label='Crosses',
+                title='Number of crosses',
+                value=self._var_crosses,
+            ),
+        ])
+
+    def update_ui(self):
+        self._var_crosses.disabled = (self.crosses is None)
 
     @RFTool_Patches.on_reset
     @RFTool_Patches.on_target_change
     def update(self):
         self.crosses = None
         self._recompute()
-        # self.update_ui()
+        self.update_ui()
 
     @RFTool_Patches.FSM_State('main')
     def main(self):
@@ -697,3 +731,4 @@ class Patches(RFTool_Patches):
                 print('  %d %s-shaped %s' % (len(self.shapes[k]), k, d))
 
         tag_redraw_all()
+        self.update_ui()
