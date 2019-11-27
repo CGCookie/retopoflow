@@ -31,7 +31,7 @@ import bpy
 import bmesh
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
-from ...addon_common.common.boundvar import BoundVar, BoundFloat
+from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
 from ...addon_common.common import ui
@@ -316,7 +316,18 @@ class RetopoFlow_UI:
         self.document.body.append_child(win)
         self.alert_windows += 1
 
-
+    def update_ui(self):
+        if not hasattr(self, 'rftools_ui'): return
+        autohide = options['tools autohide']
+        changed = False
+        for rftool in self.rftools_ui.keys():
+            show = not autohide or (rftool == self.rftool)
+            for ui_elem in self.rftools_ui[rftool]:
+                if ui_elem.is_visible == show: continue
+                ui_elem.is_visible = show
+                changed = True
+        if changed:
+            self.ui_options.dirty('update', parent=True, children=True)
 
     def setup_ui(self):
         self.manipulator_hide()
@@ -327,6 +338,8 @@ class RetopoFlow_UI:
 
         # load ui.css
         reload_stylings()
+
+        self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
 
         self.alert_windows = 0
 
@@ -371,6 +384,12 @@ class RetopoFlow_UI:
 
             self.ui_options.append_child(
                 ui.collapsible(label='General', id='generaloptions', children=[
+                    ui.input_checkbox(
+                        label='Auto Hide Options',
+                        title='If enabled, options for selected tool will show while other tool options hide',
+                        checked=self._var_auto_hide_options,
+                        style='display:block',
+                    ),
                     # ui.button(label='Maximize Area'),
                     # ui.collapsible(label='Target Cleaning', id='targetcleaning', children=[
                     #     ui.collapsible(label='Snap Verts', id='snapverts', children=[
@@ -412,8 +431,11 @@ class RetopoFlow_UI:
                 ])
             )
 
+            self.rftools_ui = {}
             for rftool in self.rftools:
-                for ui_elem in rftool._callback('ui setup'):
+                ui_elems = rftool._callback('ui setup')
+                self.rftools_ui[rftool] = ui_elems
+                for ui_elem in ui_elems:
                     self.ui_options.append_child(ui_elem)
 
 
@@ -504,4 +526,5 @@ class RetopoFlow_UI:
         setup_delete_ui()
 
         self.ui_tools = self.document.body.getElementsByName('tool')
+        self.update_ui()
 

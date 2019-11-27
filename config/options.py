@@ -34,6 +34,7 @@ from ..addon_common.common.debug import Debugger, dprint
 from ..addon_common.common.logger import Logger
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
+from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 
 ###########################################
