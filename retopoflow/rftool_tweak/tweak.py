@@ -30,6 +30,9 @@ from ...addon_common.common.drawing import (
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Tweak
+
+from ...addon_common.common import ui
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
 from ...addon_common.common.globals import Globals
@@ -53,6 +56,34 @@ class Tweak(RFTool_Tweak):
     @RFTool_Tweak.on_init
     def init(self):
         self.rfwidget = RFWidget_BrushFalloff_Tweak(self)
+        self._var_mask_boundary = BoundBool('''options['tweak mask boundary']''')
+        self._var_mask_hidden   = BoundBool('''options['tweak mask hidden']''')
+        self._var_mask_selected = BoundBool('''options['tweak mask selected']''')
+
+    @RFTool_Tweak.on_ui_setup
+    def ui(self):
+        return ui.collapsible('Tweak', children=[
+            ui.collection('Masking Options', children=[
+                ui.input_checkbox(
+                    label='Boundary',
+                    title='Check to mask off vertices that are along boundary of target (includes along symmetry plane)',
+                    checked=self._var_mask_boundary,
+                    style='display:block',
+                ),
+                ui.input_checkbox(
+                    label='Hidden',
+                    title='Check to mask off vertices that are hidden behind source',
+                    checked=self._var_mask_hidden,
+                    style='display:block',
+                ),
+                ui.input_checkbox(
+                    label='Selected',
+                    title='Check to mask off vertices that are selected',
+                    checked=self._var_mask_selected,
+                    style='display:block',
+                ),
+            ]),
+        ])
 
     @RFTool_Tweak.on_reset
     def reset(self):

@@ -18,6 +18,6 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 Tweak has several options to control which vertices are or are not moved.
 
-- Boundary: allow boundary vertices to be moved.
-- Hidden: allow vertices that are behind geometry to be moved.
-- Selected: limit transformation to selection
+- Boundary: check to prevent boundary vertices from moving.
+- Hidden: check to prevent vertices hidden by source mesh(es) from moving.
+- Selected: check to prevent selected vertices from moving.
