@@ -371,24 +371,24 @@ class RetopoFlow_UI:
 
             self.ui_options.append_child(
                 ui.collapsible(label='General', id='generaloptions', children=[
-                    ui.button(label='Maximize Area'),
-                    ui.collapsible(label='Target Cleaning', id='targetcleaning', children=[
-                        ui.collapsible(label='Snap Verts', id='snapverts', children=[
-                            ui.button(label="All"),
-                            ui.button(label="Selected"),
-                        ]),
-                        ui.collapsible(label='Remove Doubles', id='removedoubles', children=[
-                            ui.labeled_input_text(label='Distance', value='0.001'),
-                            ui.button(label='All'),
-                            ui.button(label='Selected')
-                        ]),
-                    ]),
-                    ui.collapsible(label='Target Rendering', children=[
-                        ui.labeled_input_text(label='Above', value='100'),
-                        ui.labeled_input_text(label='Below', value='10'),
-                        ui.labeled_input_text(label='Backface', value='20'),
-                        ui.input_checkbox(label='Cull Backfaces'),
-                    ]),
+                    # ui.button(label='Maximize Area'),
+                    # ui.collapsible(label='Target Cleaning', id='targetcleaning', children=[
+                    #     ui.collapsible(label='Snap Verts', id='snapverts', children=[
+                    #         ui.button(label="All"),
+                    #         ui.button(label="Selected"),
+                    #     ]),
+                    #     ui.collapsible(label='Remove Doubles', id='removedoubles', children=[
+                    #         ui.labeled_input_text(label='Distance', value='0.001'),
+                    #         ui.button(label='All'),
+                    #         ui.button(label='Selected')
+                    #     ]),
+                    # ]),
+                    # ui.collapsible(label='Target Rendering', children=[
+                    #     ui.labeled_input_text(label='Above', value='100'),
+                    #     ui.labeled_input_text(label='Below', value='10'),
+                    #     ui.labeled_input_text(label='Backface', value='20'),
+                    #     ui.input_checkbox(label='Cull Backfaces'),
+                    # ]),
                 ]),
             )
 
