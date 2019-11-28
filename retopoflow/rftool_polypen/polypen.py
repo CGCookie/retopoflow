@@ -434,11 +434,14 @@ class PolyPen(RFTool_PolyPen):
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         update_verts = []
+        merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
         for bmv,xy in self.bmverts:
             xy_updated = xy + delta
             for bmv1,xy1 in self.vis_bmverts:
+                if bmv1 == bmv: continue
                 if not bmv1.is_valid: continue
-                if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
+                d = (xy_updated - xy1).length
+                if (xy_updated - xy1).length < merge_dist:
                     shared_edge = bmv.shared_edge(bmv1)
                     if shared_edge:
                         bmv1 = shared_edge.collapse()

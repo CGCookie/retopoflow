@@ -5,13 +5,14 @@ __pycache__
 /retopoflow_updater/
 /icons/working/
 tmp/
+/scripts/
+/test/
 
 .DS_Store
 .*/
 
 .gitignore
 
-*.md
 *.orig
 *.sh
 *.xcf
@@ -27,8 +28,16 @@ retopoflow.sublime*
 Makefile
 Makefile_excludes
 
+system-info.txt
+
 blender
 b278c
+b279
 b279a
 b279b
 b280
+b281
+b282
+
+.git
+.gitmodules

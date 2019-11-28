@@ -379,6 +379,7 @@ class RetopoFlow_Blender:
     def backup_recover():
         filepath = options.temp_filepath('blend')
         if not os.path.exists(filepath): return
+        print('backup recover:', filepath)
         bpy.ops.wm.open_mainfile(filepath=filepath)
         RetopoFlow_Blender.del_rotate_object()  # need to remove empty object for rotation
         #RFMode.restore_window_state()

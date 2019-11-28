@@ -25,6 +25,7 @@ import json
 import time
 import shelve
 import platform
+import tempfile
 
 import bgl
 import bpy
@@ -335,7 +336,8 @@ class Options:
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
     def temp_filepath(self, ext):
-        tempdir = get_preferences().filepaths.temporary_directory
+        #tempdir = get_preferences().filepaths.temporary_directory
+        tempdir = tempfile.gettempdir()
         return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
 
 

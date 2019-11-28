@@ -519,7 +519,6 @@ class RetopoFlow_UI:
             div_width.append_child(ui.button(label='=')).add_pseudoclass('disabled')
             self.ui_tools.right = 0
             self.ui_tools.top = 0
-            print(self.document.body.structure())
 
         setup_main_ui()
         setup_options()

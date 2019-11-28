@@ -113,6 +113,7 @@ class VIEW3D_OT_RetopoFlow_Recover(Operator):
 
     @classmethod
     def poll(cls, context):
+        return False # THIS IS BROKEN!!!
         return retopoflow.RetopoFlow.has_backup()
 
     def invoke(self, context, event):

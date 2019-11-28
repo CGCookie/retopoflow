@@ -115,7 +115,6 @@ class Strokes(RFTool_Strokes):
 
     @RFTool_Strokes.on_reset
     def reset(self):
-        print('reset')
         self.replay = None
         self.strip_crosses = None
         self.strip_loops = None
