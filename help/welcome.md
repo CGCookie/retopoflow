@@ -50,7 +50,6 @@ We focused on stability and bug handling in addition to new features, improving 
 Below is a list of known issues that we are currently working on.
 
 - UI starts to become sluggish when there is lots of text (ex: Welcome help).
-- UI does not work properly on Retina displays or when display resolution scaling is not set to 1.0.
 - Patches supports only rudimentary fills.
 - The 3D view panel tabs (left, top, right) flicker slightly when RetopoFlow redraws.
 
