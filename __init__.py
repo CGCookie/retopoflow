@@ -39,7 +39,7 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Tool Shelf",
-    "warning":     "pre-alpha (pre-α)",  # used for warning icon and text in addons panel
+    "warning":     "alpha (α)",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
