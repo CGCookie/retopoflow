@@ -90,5 +90,6 @@ class RetopoFlow(
     def end(self):
         self.end_rotate_about_active()
         self.teardown_target()
+        self.unscale_from_unit_box()
         bpy.ops.object.mode_set(mode='EDIT')
 
