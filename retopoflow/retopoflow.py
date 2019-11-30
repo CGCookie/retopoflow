@@ -71,27 +71,42 @@ class RetopoFlow(
         return True
 
     def start(self):
+        self.store_window_state()
         RetopoFlow.instance = self
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # get scaling factor to fit all sources into unit box
+        print('RetopoFlow: setting up scaling factor')
         self.unit_scaling_factor = self.get_unit_scaling_factor()
         self.scale_to_unit_box()
 
+        print('RetopoFlow: setting up target')
         self.setup_target()
+        print('RetopoFlow: setting up source(s)')
         self.setup_sources()
+        print('RetopoFlow: setting up source(s) symmetry')
         self.setup_sources_symmetry()   # must be called after self.setup_target()!!
+        print('RetopoFlow: setting up rotation target')
         self.setup_rotate_about_active()
 
+        print('RetopoFlow: setting up states')
         self.setup_states()
+        print('RetopoFlow: setting up rftools')
         self.setup_rftools()
+        print('RetopoFlow: setting up grease')
         self.setup_grease()
+        print('RetopoFlow: setting up ui')
         self.setup_ui()                 # must be called after self.setup_target() and self.setup_rftools()!!
+        print('RetopoFlow: setting up undo')
         self.setup_undo()               # must be called after self.setup_ui()!!
 
+        print('RetopoFlow: done with start')
+
     def end(self):
-        self.end_rotate_about_active()
-        self.teardown_target()
-        self.unscale_from_unit_box()
-        bpy.ops.object.mode_set(mode='EDIT')
+        self.blender_ui_reset()
+        # self.end_rotate_about_active()
+        # self.teardown_target()
+        # self.unscale_from_unit_box()
+        # bpy.ops.object.mode_set(mode='EDIT')
+        # self.restore_window_state()
 

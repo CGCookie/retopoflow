@@ -23,6 +23,8 @@ import os
 import json
 import inspect
 from datetime import datetime
+import contextlib
+
 
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -329,12 +331,30 @@ class RetopoFlow_UI:
         if changed:
             self.ui_options.dirty('update', parent=True, children=True)
 
-    def setup_ui(self):
+    def blender_ui_set(self):
         self.manipulator_hide()
         self.panels_hide()
         self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    def blender_ui_reset(self):
+        self.end_rotate_about_active()
+        self.teardown_target()
+        self.unscale_from_unit_box()
+        self.restore_window_state()
+        self._cc_blenderui_end()
+        bpy.ops.object.mode_set(mode='EDIT')
+
+    @contextlib.contextmanager
+    def blender_ui_pause(self):
+        self.blender_ui_reset()
+        yield None
+        self.blender_ui_set()
+
+    def setup_ui(self):
+        self.blender_ui_set()
 
         # load ui.css
         reload_stylings()

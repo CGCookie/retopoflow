@@ -21,15 +21,17 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import bpy
+import json
 import time
+from datetime import datetime
 from mathutils import Matrix, Vector
 from bpy_extras.object_utils import object_data_add
 
-from ...config.options import options
+from ...config.options import options, retopoflow_version
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
-from ...addon_common.common.blender import matrix_vector_mult, get_preferences
+from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
@@ -207,10 +209,9 @@ class RetopoFlow_Blender:
 
     @staticmethod
     def store_window_state():
-        print('RetopoFlow: update implementation for store_window_state')
-        return
-
         data = {}
+        data['timestamp'] = str(datetime.now())
+        data['retopoflow'] = retopoflow_version
         # 'region overlap': False,    # TODO
         # 'region toolshelf': False,  # TODO
         # 'region properties': False, # TODO
@@ -228,7 +229,7 @@ class RetopoFlow_Blender:
             'PAINT_TEXTURE': 'TEXTURE_PAINT',
             }[bpy.context.mode]                 # WHY DO YOU DO THIS, BLENDER!?!?!?
 
-        tar = RFContext.get_target()
+        tar = RetopoFlow_Blender.get_target()
         data['active object'] = tar.name if tar else ''
 
         data['screen name'] = bpy.context.screen.name
@@ -243,12 +244,11 @@ class RetopoFlow_Blender:
                     if area.type == 'VIEW_3D':
                         for space in area.spaces:
                             data_space = {}
+                            data_space['type'] = space.type
                             if space.type == 'VIEW_3D':
-                                data_space = {
-                                    'lock_cursor':      space.lock_cursor,
-                                    'show_only_render': space.show_only_render,
-                                    'show_manipulator': space.show_manipulator,
-                                }
+                                data_space['lock_cursor'] = space.lock_cursor
+                                #data_space['show_only_render'] = space.show_only_render
+                                data_space['show_gizmo'] = space.show_gizmo
                             data_area.append(data_space)
                     data_win.append(data_area)
                 data_wm.append(data_win)
@@ -265,13 +265,10 @@ class RetopoFlow_Blender:
         data['hidden objects'] = [o.name for o in bpy.data.objects if getattr(o, 'hide', False)]
 
         filepath = options.temp_filepath('state')
-        open(filepath, 'wt').write(json.dumps(data))
+        open(filepath, 'wt').write(json.dumps(data, indent=4, sort_keys=True))
 
     @staticmethod
     def update_window_state(key, val):
-        print('RetopoFlow: update implementation for update_window_state')
-        return
-
         filepath = options.temp_filepath('state')
         if not os.path.exists(filepath): return
         data = json.loads(open(filepath, 'rt').read())
@@ -279,9 +276,6 @@ class RetopoFlow_Blender:
         open(filepath, 'wt').write(json.dumps(data))
 
     def restore_window_state(self, ignore_panels=False):
-        print('RetopoFlow: update implementation for restore_window_state')
-        return
-
         filepath = options.temp_filepath('state')
         if not os.path.exists(filepath): return
         data = json.loads(open(filepath, 'rt').read())
@@ -296,19 +290,24 @@ class RetopoFlow_Blender:
                     for space,data_space in zip(area.spaces, data_area):
                         if space.type != 'VIEW_3D': continue
                         space.lock_cursor = data_space['lock_cursor']
-                        space.show_only_render = data_space['show_only_render']
-                        space.show_manipulator = data_space['show_manipulator']
+                        # space.show_only_render = data_space['show_only_render']
+                        space.show_gizmo = data_space['show_gizmo']
 
         if data['region_overlap'] and not ignore_panels:
             try:
                 # TODO: CONTEXT IS INCORRECT when maximize_area was True????
-                ctx = { 'area': self.area, 'space_data': self.space, 'window': self.window, 'screen': self.screen }
+                ctx = {
+                    'area': self.actions.area,
+                    'space_data': self.actions.space,
+                    'window': self.actions.window,
+                    'screen': self.actions.screen
+                }
                 rgn_toolshelf = bpy.context.area.regions[1]
                 rgn_properties = bpy.context.area.regions[3]
                 if data['show_toolshelf'] and rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
                 if data['show_properties'] and rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
             except Exception as e:
-                print(str(e))
+                print('restore_window_state:', str(e))
                 pass
                 #self.ui_toggle_maximize_area(use_hide_panels=False)
 
@@ -323,12 +322,9 @@ class RetopoFlow_Blender:
                 set_object_selection(o, True)
                 set_active_object(o)
 
-        bpy.ops.object.mode_set(mode=data['mode translated'])
+        # bpy.ops.object.mode_set(context=ctx, mode=data['mode translated'])
 
     def overwrite_window_state(self):
-        print('RetopoFlow TODO: update implementation for overwrite_window_state')
-        return
-
         if bpy.context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -340,8 +336,8 @@ class RetopoFlow_Blender:
                     for space in area.spaces:
                         if space.type != 'VIEW_3D': continue
                         space.lock_cursor = False
-                        space.show_only_render = True
-                        space.show_manipulator = False
+                        #space.show_only_render = True
+                        space.show_gizmo = False
 
         # hide tool shelf and properties panel if region overlap is enabled
         rgn_overlap = get_preferences().system.use_region_overlap
@@ -352,11 +348,11 @@ class RetopoFlow_Blender:
             if show_properties: bpy.ops.view3d.properties()
 
         # hide meshes so we can render internally
-        self.rfctx.rftarget.obj_hide()
-        self.rfctx.rftarget.obj_unhide_render()
-        for rfsource in self.rfctx.rfsources:
-            rfsource.obj_set_select(False)
-            rfsource.obj_unhide_render()
+        self.rftarget.obj_viewport_hide()
+        self.rftarget.obj_render_unhide()
+        for rfsource in self.rfsources:
+            rfsource.obj_select_set(False)
+            rfsource.obj_render_unhide()
 
 
     #############################################
@@ -390,14 +386,18 @@ class RetopoFlow_Blender:
         filepath = options.temp_filepath('blend')
         dprint('saving backup to %s' % filepath)
         if os.path.exists(filepath): os.remove(filepath)
-        self.restore_window_state(ignore_panels=True)
+        self.blender_ui_reset()
+        #self.restore_window_state(ignore_panels=True)
         bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
-        self.overwrite_window_state()
+        # self.overwrite_window_state()
+        self.blender_ui_set()
 
     def save_normal(self):
-        self.restore_window_state(ignore_panels=True)
+        # self.restore_window_state(ignore_panels=True)
+        self.blender_ui_reset()
         bpy.ops.wm.save_mainfile()
-        self.overwrite_window_state()
+        self.blender_ui_set()
+        # self.overwrite_window_state()
         # note: filepath might not be set until after save
         filepath = os.path.abspath(bpy.data.filepath)
         dprint('saved to %s' % filepath)
