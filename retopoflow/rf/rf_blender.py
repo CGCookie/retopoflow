@@ -181,13 +181,15 @@ class RetopoFlow_Blender:
         if 'RetopoFlow_Rotate' not in bpy.data.objects: return
         self.del_rotate_object()
         bpy.context.scene.objects.active = self.tar_object
-        del self.rot_object
+        if hasattr(self, 'rot_object'):
+            del self.rot_object
     @blender_version_wrapper('>=', '2.80')
     def end_rotate_about_active(self):
         if 'RetopoFlow_Rotate' not in bpy.data.objects: return
         self.del_rotate_object()
         bpy.context.view_layer.objects.active = self.tar_object
-        del self.rot_object
+        if hasattr(self, 'rot_object'):
+            del self.rot_object
 
     @staticmethod
     @blender_version_wrapper('<', '2.80')
