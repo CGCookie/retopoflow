@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow 3.0.0α!
+# Welcome to RetopoFlow 3.0.0β!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
 The RF tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
