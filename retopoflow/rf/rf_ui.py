@@ -349,6 +349,7 @@ class RetopoFlow_UI:
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
             def add_tool(rftool):
+                nonlocal ui_tools
                 # must be a fn so that local vars are unique and correctly captured
                 lbl, img = rftool.name, rftool.icon
                 if hasattr(self, 'rf_starting_tool'):
@@ -363,13 +364,15 @@ class RetopoFlow_UI:
                 add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
-            ui.button(label='Welcome!', title='Show the "Welcome!" message from the RetopoFlow team', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')"))
-            ui.button(label='All Help', title='Show help table of contents (Shift+F1)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"))
-            ui.button(label='General Help', title='Show general help (F1)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open('general.md')"))
-            ui.button(label='Tool Help', title='Show help for currently selected tool (F2)', parent=self.ui_main, on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)"))
+            ui.collapsible(label='Help', id='help-buttons', parent=self.ui_main, children=[
+                ui.button(label='Welcome!', title='Show the "Welcome!" message from the RetopoFlow team', on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")),
+                ui.button(label='Table of Contents', title='Show help table of contents (Shift+F1)', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")),
+                ui.button(label='General', title='Show general help (F1)', on_mouseclick=delay_exec("self.helpsystem_open('general.md')")),
+                ui.button(label='Tool', title='Show help for currently selected tool (F2)', on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")),
+            ])
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
-            if False:
+            if True:
                 ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
             if False:
                 def printout_profiler():
@@ -382,8 +385,10 @@ class RetopoFlow_UI:
         def setup_options():
             self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=False, parent=self.document.body)
 
+            options['remove doubles dist']
+
             self.ui_options.append_child(
-                ui.collapsible(label='General', id='generaloptions', children=[
+                ui.collapsible(label='General', title='General options', id='generaloptions', children=[
                     ui.input_checkbox(
                         label='Auto Hide Options',
                         title='If enabled, options for selected tool will show while other tool options hide',
@@ -391,17 +396,17 @@ class RetopoFlow_UI:
                         style='display:block',
                     ),
                     # ui.button(label='Maximize Area'),
-                    # ui.collapsible(label='Target Cleaning', id='targetcleaning', children=[
-                    #     ui.collapsible(label='Snap Verts', id='snapverts', children=[
-                    #         ui.button(label="All"),
-                    #         ui.button(label="Selected"),
-                    #     ]),
-                    #     ui.collapsible(label='Remove Doubles', id='removedoubles', children=[
-                    #         ui.labeled_input_text(label='Distance', value='0.001'),
-                    #         ui.button(label='All'),
-                    #         ui.button(label='Selected')
-                    #     ]),
-                    # ]),
+                    ui.collapsible(label='Target Cleaning', id='target-cleaning', children=[
+                        ui.collection(label='Snap Verts', id='snap-verts', children=[
+                            ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
+                            ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
+                        ]),
+                        ui.collection(label='Merge by Distance', id='merge-by-distance', children=[
+                            ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
+                            ui.button(label='All', title='Merge all vertices within given distance.', on_mouseclick=self.remove_all_doubles),
+                            ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
+                        ]),
+                    ]),
                     # ui.collapsible(label='Target Rendering', children=[
                     #     ui.labeled_input_text(label='Above', value='100'),
                     #     ui.labeled_input_text(label='Below', value='10'),
@@ -411,23 +416,18 @@ class RetopoFlow_UI:
                 ]),
             )
 
-            # options['symmetry view'] = 'None', 'Edge', 'Face'
-            # self.rftarget.mirror_mod.symmetry
-            # options['symmetry effect']
-            #self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
-
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
             self.ui_options.append_child(
-                ui.collapsible(label='Symmetry', id='symmetryoptions', children=[
-                    ui.input_checkbox(label='x', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
-                    ui.input_checkbox(label='y', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
-                    ui.input_checkbox(label='z', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
-                    ui.labeled_input_text(label='Threshold', value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0)),
-                    ui.input_radio(id='symmetry-viz-none', value='None', checked=(options['symmetry view']=='None'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='None')], on_input=symmetry_viz_change),
-                    ui.input_radio(id='symmetry-viz-edge', value='Edge', checked=(options['symmetry view']=='Edge'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Edge')], on_input=symmetry_viz_change),
-                    ui.input_radio(id='symmetry-viz-face', value='Face', checked=(options['symmetry view']=='Face'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Face')], on_input=symmetry_viz_change),
+                ui.collapsible(label='Symmetry', title='Symmetry (mirroring) options', id='symmetryoptions', children=[
+                    ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
+                    ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
+                    ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                    ui.labeled_input_text(label='Threshold', title='Distance within which mirrored vertices will be merged.', value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0)),
+                    ui.input_radio(id='symmetry-viz-none', title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).', value='None', checked=(options['symmetry view']=='None'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='None', title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).')], on_input=symmetry_viz_change),
+                    ui.input_radio(id='symmetry-viz-edge', title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).', value='Edge', checked=(options['symmetry view']=='Edge'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Edge', title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).')], on_input=symmetry_viz_change),
+                    ui.input_radio(id='symmetry-viz-face', title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).', value='Face', checked=(options['symmetry view']=='Face'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Face', title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).')], on_input=symmetry_viz_change),
                 ])
             )
 

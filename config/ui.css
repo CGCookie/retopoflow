@@ -109,6 +109,7 @@ div#tools {
 }
 
 
+
 input.tool {
     margin: 0px;
     border-width: 0px;
@@ -161,13 +162,19 @@ input.tool > label > label {
 }
 
 
+input.symmetry-enable {
+    width: 33.33%;
+    overflow-x: hidden;
+    white-space: nowrap;
+}
+
 input.symmetry-viz {
     margin: 0px;
     border: 0px black;
     width: 33.333%;
     /*width: 100%;*/
     /*display: block;*/
-    padding: 2px 0px 2px 6px;
+    padding: 4px 0px 4px 6px;
 }
 input.symmetry-viz > img {
     display: none;
@@ -221,6 +228,23 @@ input[type="text"]:disabled {
 
 
 
+div.collection {
+    margin: 1px;
+    border: 1px rgba(32,32,32,1.0);
+    padding: 0px;
+}
+
+div.collection > div.header {
+    background-color: rgba(32,32,32,1.0);
+    display: block;
+    width: 100%;
+    padding: 2px;
+    margin: 0px;
+    border: 1px rgba(32,32,32,1.0);
+    border-bottom-color: rgba(48, 48, 48, 1.0);
+    border-radius: 0px;
+}
+
 
 div.collapsible {
     margin: 0px;
@@ -257,3 +281,17 @@ div.issue-checker button.action {
     width: 25%;
     white-space: pre;
 }
+
+
+*#merge-by-distance button {
+    display: inline;
+    width: 50%;
+}
+
+*#snap-verts button {
+    display: inline;
+    width: 50%;
+}
+
+
+
