@@ -407,12 +407,6 @@ class RetopoFlow_UI:
                             ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
                         ]),
                     ]),
-                    # ui.collapsible(label='Target Rendering', children=[
-                    #     ui.labeled_input_text(label='Above', value='100'),
-                    #     ui.labeled_input_text(label='Below', value='10'),
-                    #     ui.labeled_input_text(label='Backface', value='20'),
-                    #     ui.input_checkbox(label='Cull Backfaces'),
-                    # ]),
                 ]),
             )
 
@@ -463,62 +457,6 @@ class RetopoFlow_UI:
             ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
             ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
             ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
-
-        def test():
-            c = 0
-            def mouseclick(e):
-                nonlocal c
-                c += 1
-                e.target.innerText = "You've clicked me %d times.\nNew lines act like spaces here, but there is text wrapping!" % c
-            def mousedblclick(e):
-                e.target.innerText = "NO!!!!  You've double clicked me!!!!"
-                e.target.add_pseudoclass('disabled')
-            def mousedown(e):
-                e.target.innerText = "mouse is down!"
-            def mouseup(e):
-                e.target.innerText = "mouse is up!"
-            def reload_stylings(e):
-                load_defaultstylings()
-                self.document.body.dirty_styling()
-                #self.document.body.dirty('reloaded stylings', children=True)
-            def width_increase(e):
-                self.ui_main.width = self.ui_main.width_pixels + 50
-            def width_decrease(e):
-                self.ui_main.width = self.ui_main.width_pixels - 50
-            self.ui_main.append_child(ui.img(src='contours_32.png'))
-            # self.ui_main.append_child(ui.img(src='polystrips_32.png', style='width:26px; height:26px'))
-            # self.ui_main.append_child(ui.button(label="Click on me, but do NOT double click!", on_mouseclick=mouseclick, on_mousedblclick=mousedblclick, on_mousedown=mousedown, on_mouseup=mouseup))
-            # self.ui_main.append_child(ui.button(label="FOO", style="display:block", children=[ui.button(label="BAR", style="display:block")]))
-            # self.ui_main.append_child(ui.button(id="alpha0", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 0"))
-            # self.ui_main.append_child(ui.button(id="alpha1", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 1"))
-            # self.ui_main.append_child(ui.button(id="alpha2", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 2"))
-            # self.ui_main.append_child(ui.button(id="alpha3", label="ABCDEFGHIJKLMNOPQRSTUVWXYZ 3"))
-            self.ui_main.append_child(ui.br())
-            self.ui_main.append_child(ui.button(label="Reload Styles Now", on_mouseclick=reload_stylings))
-            self.ui_main.append_child(ui.input_checkbox(label="test"))
-            self.ui_main.append_child(ui.br())
-            self.ui_main.append_child(ui.span(innerText="Options:"))
-            self.ui_main.append_child(ui.input_radio(label="A", value="A", name="option"))
-            self.ui_main.append_child(ui.input_radio(label="B", value="B", name="option"))
-            self.ui_main.append_child(ui.input_radio(label="C", value="C", name="option"))
-            # self.ui_main.append_child(ui.p(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-            # self.ui_main.append_child(ui.textarea(innerText="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
-
-            self.ui_tools = ui.framed_dialog(id='toolsframe', label='Tools', parent=self.document.body)
-            #self.ui_tools = self.ui_main
-            state_p = self.ui_tools.append_child(ui.p())
-            state_p.append_child(ui.span(innerText='State:'))
-            self.state = state_p.append_child(ui.span(innerText='???'))
-            self.ui_tools.append_child(ui.p(innerText="Foo Bar Baz"))
-            ui_input = self.ui_tools.append_child(ui.input_text(id="inputtext"))
-            ui_input.value = 'Lorem   ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
-            div_width = self.ui_tools.append_child(ui.div())
-            div_width.append_child(ui.span(innerText='width:'))
-            div_width.append_child(ui.button(label='+', on_mouseclick=width_increase))
-            div_width.append_child(ui.button(label='-', on_mouseclick=width_decrease))
-            div_width.append_child(ui.button(label='=')).add_pseudoclass('disabled')
-            self.ui_tools.right = 0
-            self.ui_tools.top = 0
 
         setup_main_ui()
         setup_options()
