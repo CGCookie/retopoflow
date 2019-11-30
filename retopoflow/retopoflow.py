@@ -65,6 +65,8 @@ class RetopoFlow(
         # make sure we are editing a mesh object
         ob = context.active_object
         if not ob or ob.type != 'MESH': return False
+        # make sure we have source meshes
+        if not cls.get_sources(): return False
         # all seems good!
         return True
 
