@@ -78,6 +78,7 @@ class RetopoFlow(
         # get scaling factor to fit all sources into unit box
         print('RetopoFlow: setting up scaling factor')
         self.unit_scaling_factor = self.get_unit_scaling_factor()
+        print('Unit scaling factor:', self.unit_scaling_factor)
         self.scale_to_unit_box()
 
         print('RetopoFlow: setting up target')
@@ -109,4 +110,6 @@ class RetopoFlow(
         # self.unscale_from_unit_box()
         # bpy.ops.object.mode_set(mode='EDIT')
         # self.restore_window_state()
+        self.tar_object = None
+        RetopoFlow.instance = None
 

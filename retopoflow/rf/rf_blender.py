@@ -32,6 +32,7 @@ from ...config.options import options, retopoflow_version
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object
+from ...addon_common.common.blender import toggle_screen_header, toggle_screen_toolbar, toggle_screen_properties, toggle_screen_lastop
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
@@ -133,7 +134,8 @@ class RetopoFlow_Blender:
         self.actions.space.clip_start *= factor
         self.actions.space.clip_end *= factor
         for src in self.get_sources(): scale_object(src)
-        scale_object(self.get_target())
+        if getattr(self, 'tar_object', None): scale_object(self.tar_object)
+        else: scale_object(self.get_target())
 
     def scale_to_unit_box(self):
         self.scale_by(1.0 / self.unit_scaling_factor)
@@ -304,8 +306,8 @@ class RetopoFlow_Blender:
                 }
                 rgn_toolshelf = bpy.context.area.regions[1]
                 rgn_properties = bpy.context.area.regions[3]
-                if data['show_toolshelf'] and rgn_toolshelf.width <= 1: bpy.ops.view3d.toolshelf(ctx)
-                if data['show_properties'] and rgn_properties.width <= 1: bpy.ops.view3d.properties(ctx)
+                if data['show_toolshelf'] and rgn_toolshelf.width <= 1: toggle_screen_toolbar(ctx) #bpy.ops.view3d.toolshelf(ctx)
+                if data['show_properties'] and rgn_properties.width <= 1: toggle_screen_properties(ctx) # bpy.ops.view3d.properties(ctx)
             except Exception as e:
                 print('restore_window_state:', str(e))
                 pass

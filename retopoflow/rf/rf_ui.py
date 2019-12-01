@@ -331,7 +331,8 @@ class RetopoFlow_UI:
         if changed:
             self.ui_options.dirty('update', parent=True, children=True)
 
-    def blender_ui_set(self):
+    def blender_ui_set(self, scale_to_unit_box=True):
+        if scale_to_unit_box: self.scale_to_unit_box()
         self.manipulator_hide()
         self.panels_hide()
         self.overlays_hide()
@@ -354,7 +355,7 @@ class RetopoFlow_UI:
         self.blender_ui_set()
 
     def setup_ui(self):
-        self.blender_ui_set()
+        self.blender_ui_set(scale_to_unit_box=False)
 
         # load ui.css
         reload_stylings()
