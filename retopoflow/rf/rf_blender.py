@@ -397,7 +397,11 @@ class RetopoFlow_Blender:
     def save_normal(self):
         # self.restore_window_state(ignore_panels=True)
         self.blender_ui_reset()
-        bpy.ops.wm.save_mainfile()
+        try:
+            bpy.ops.wm.save_mainfile()
+        except Exception as e:
+            # could not save for some reason; let the artist know!
+            self.alert_user(title='Could not save', message='Could not save blend file. Error message: %s' % (str(e)))
         self.blender_ui_set()
         # self.overwrite_window_state()
         # note: filepath might not be set until after save
