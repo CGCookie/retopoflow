@@ -428,6 +428,12 @@ class RetopoFlow_UI:
                             ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
                         ]),
                     ]),
+                    ui.collapsible(label='View Options', id='view-options', children=[
+                        ui.collection(label='Clipping', id='clipping', children=[
+                            ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
+                            ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
+                        ]),
+                    ]),
                 ]),
             )
 
