@@ -393,7 +393,7 @@ class RetopoFlow_UI:
             ])
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
-            if True:
+            if False:
                 ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
             if False:
                 def printout_profiler():
