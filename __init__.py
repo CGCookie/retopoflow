@@ -19,17 +19,25 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
+import re
 import importlib
 
 if "bpy" in locals():
+    print('RetopoFlow: RELOADING!')
     # reloading RF modules
     importlib.reload(retopoflow)
+    importlib.reload(options)
 else:
+    print('RetopoFlow: Initial load')
     from .retopoflow import retopoflow
+    from .config.options import options
 
 import bpy
 from bpy.types import Menu, Operator
 from bpy_extras import object_utils
+
+from .addon_common.common.blender import show_blender_text
 
 
 bl_info = {
@@ -79,6 +87,51 @@ class VIEW3D_OT_RetopoFlow_New(Operator):
         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
 
 
+class VIEW3D_OT_RetopoFlow_OpenQuickStart(Operator):
+    """RetopoFlow Blender Operator"""
+    bl_idname = "cgcookie.retopoflow_open_quickstart"
+    bl_label = "Quick Start Guide"
+    bl_description = "Open RetopoFlow Quick Start Guide in a new window"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        t = open('help/quick_start.md', 'rt').read()
+        t = re.sub(r'^\n*', r'', t)         # remove leading newlines
+        t = re.sub(r'\n*$', r'', t)         # remove trailing newlines
+        t = re.sub(r'\n\n+', r'\n\n', t)    # make uniform paragraph separations
+        ps = t.split('\n\n')
+        l = []
+        for p in ps:
+            if p.startswith('- '):
+                l += [p]
+                continue
+            lines = p.split('\n')
+            if len(lines) == 2 and (lines[1].startswith('---') or lines[1].startswith('===')):
+                l += ['\n' + lines[0]] + lines[1:]
+                continue
+            l += ['  '.join(lines)]
+        t = '\n\n'.join(l)
+
+        # play it safe!
+        if 'RetopoFlow Quick Start Guide' not in bpy.data.texts:
+            # create a log file for error writing
+            bpy.data.texts.new('RetopoFlow Quick Start Guide')
+        # restore data, just in case
+        txt = bpy.data.texts['RetopoFlow Quick Start Guide']
+        txt.from_string(t)
+        txt.current_line_index = 0
+
+        show_blender_text('RetopoFlow Quick Start Guide')
+        return {'FINISHED'}
+
+
+
 def RF_Factory(starting_tool):
     class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
         """RetopoFlow Blender Operator"""
@@ -106,7 +159,7 @@ customs = [
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
     bl_idname = 'cgcookie.retopoflow_recover'
     bl_label = 'Recover Auto Save'
-    bl_description = 'Recover from RetopoFlow auto save'
+    bl_description = 'Recover from RetopoFlow auto save.\nPath: %s' % options.temp_filepath('blend')
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     rf_icon = 'rf_recover_icon'
@@ -114,9 +167,16 @@ class VIEW3D_OT_RetopoFlow_Recover(Operator):
     @classmethod
     def poll(cls, context):
         return False # THIS IS BROKEN!!!
+        # filepath = '/tmp/RetopoFlow_backup.blend' # options.temp_filepath('blend')
+        # return os.path.exists(filepath)
         return retopoflow.RetopoFlow.has_backup()
 
-    def invoke(self, context, event):
+    def execute(self, context):
+        # filepath = '/tmp/RetopoFlow_backup.blend' # options.temp_filepath('blend')
+        # if not os.path.exists(filepath): return
+        # print('backup recover:', filepath)
+        # bpy.ops.wm.open_mainfile(filepath=filepath)
+        # #RetopoFlow_Blender.del_rotate_object()  # need to remove empty object for rotation
         retopoflow.RetopoFlow.backup_recover()
         return {'FINISHED'}
 
@@ -141,6 +201,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
         else:
             self.draw_new(context)
         layout.separator()
+        layout.operator('cgcookie.retopoflow_open_quickstart')
         layout.operator('cgcookie.retopoflow_recover')
 
     def draw_new(self, context):
@@ -185,6 +246,7 @@ classes = [
     VIEW3D_OT_RetopoFlow,
     VIEW3D_OT_RetopoFlow_New,
     VIEW3D_OT_RetopoFlow_Recover,
+    VIEW3D_OT_RetopoFlow_OpenQuickStart,
 ] + customs
 
 def register():
