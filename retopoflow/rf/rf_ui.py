@@ -42,6 +42,7 @@ from ...addon_common.common.profiler import profiler
 
 from ...config.options import options, retopoflow_issues_url, retopoflow_tip_url
 
+
 def reload_stylings():
     load_defaultstylings()
     path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')

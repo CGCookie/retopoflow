@@ -54,6 +54,15 @@ bl_info = {
 }
 
 
+class VIEW3D_OT_RetopoFlow_QS(retopoflow.RetopoFlow_QuickStart):
+    """RetopoFlow Blender Operator"""
+    bl_idname = "cgcookie.retopoflow_quickstart"
+    bl_label = "Quick Start Guide"
+    bl_description = "Open RetopoFlow Quick Start Guide in a new window"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
+
 class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     """RetopoFlow Blender Operator"""
     bl_idname = "cgcookie.retopoflow"
@@ -201,7 +210,8 @@ class VIEW3D_MT_RetopoFlow(Menu):
         else:
             self.draw_new(context)
         layout.separator()
-        layout.operator('cgcookie.retopoflow_open_quickstart')
+        # layout.operator('cgcookie.retopoflow_open_quickstart')
+        layout.operator('cgcookie.retopoflow_quickstart')
         layout.operator('cgcookie.retopoflow_recover')
 
     def draw_new(self, context):
@@ -247,6 +257,7 @@ classes = [
     VIEW3D_OT_RetopoFlow_New,
     VIEW3D_OT_RetopoFlow_Recover,
     VIEW3D_OT_RetopoFlow_OpenQuickStart,
+    VIEW3D_OT_RetopoFlow_QS,
 ] + customs
 
 def register():

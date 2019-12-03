@@ -6,6 +6,7 @@ More detailed online documentation coming soon!
 
 ## General
 
+- [Quick Start Guide](quick_start.md)
 - [Welcome](welcome.md)
 - [General](general.md)
 
