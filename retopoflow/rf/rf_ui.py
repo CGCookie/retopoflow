@@ -118,10 +118,25 @@ class RetopoFlow_UI:
     def helpsystem_open(self, mdown_path):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
-            ui_help = ui.framed_dialog(label='RetopoFlow Help System', id='helpsystem', parent=self.document.body)
+            def close():
+                e = self.document.body.getElementById('helpsystem')
+                if not e: return
+                self.document.body.delete_child(e)
+            ui_help = ui.framed_dialog(
+                label='RetopoFlow Help System',
+                id='helpsystem',
+                style='width:90%; left:5%;',
+                resizable=False,
+                closeable=True,
+                moveable=False,
+                parent=self.document.body
+            )
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
             ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
-            ui.button(label='Close', on_mouseclick=delay_exec("self.document.body.delete_child(self.document.body.getElementById('helpsystem'))"), parent=ui_help)
+            ui.button(label='Close', on_mouseclick=close, parent=ui_help)
+            def key(e):
+                if e.key == 'ESC': close()
+            ui_help.add_eventListener('on_keypress', key)
         ui.set_markdown(ui_markdown, mdown_path=mdown_path)
 
     @CookieCutter.Exception_Callback
@@ -500,4 +515,7 @@ class RetopoFlow_UI:
 
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()
+        if options['welcome']:
+            self.helpsystem_open('welcome.md')
+            options['welcome'] = False
 
