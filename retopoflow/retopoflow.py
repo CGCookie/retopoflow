@@ -34,9 +34,10 @@ from .rf.rf_tools      import RetopoFlow_Tools
 from .rf.rf_ui         import RetopoFlow_UI
 from .rf.rf_undo       import RetopoFlow_Undo
 
-from ..addon_common.common.globals import Globals
-from ..addon_common.common.utils import delay_exec
 from ..addon_common.common import ui
+from ..addon_common.common.globals import Globals
+from ..addon_common.common.profiler import profiler
+from ..addon_common.common.utils import delay_exec
 from ..addon_common.common.ui_styling import load_defaultstylings
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -64,10 +65,30 @@ class RetopoFlow_QuickStart(CookieCutter):
     def helpsystem_open(self, mdown_path):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
-            ui_help = ui.framed_dialog(label='RetopoFlow Help System', id='helpsystem', style='width:90%; left:5%;', resizable=False, closeable=False, moveable=False, parent=self.document.body)
+            ui_help = ui.framed_dialog(
+                label='RetopoFlow Help System',
+                id='helpsystem',
+                style='width:90%; left:5%;',
+                resizable=False,
+                closeable=False,
+                moveable=False,
+                parent=self.document.body
+            )
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
-            ui.button(label='Close (Esc)', on_mouseclick=self.done, parent=ui_help)
+            ui.div(parent=ui_help, style='margin:1px; width:100%', children=[
+                ui.button(
+                    label='Table of Contents',
+                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
+                    style='display:inline; width:49.5%',
+                    parent=ui_help,
+                ),
+                ui.button(
+                    label='Close (Esc)',
+                    on_mouseclick=self.done,
+                    style='display:inline; width:49.5%',
+                    parent=ui_help,
+                )
+            ])
             def key(e):
                 if e.key == 'ESC': self.done()
             ui_help.add_eventListener('on_keypress', key)
@@ -81,22 +102,24 @@ class RetopoFlow_QuickStart(CookieCutter):
         self.header_text_set('RetopoFlow')
 
     def start(self):
+        #profiler.set_profiler_enabled(True)
         self.reload_stylings()
         self.blender_ui_set()
+        self.helpsystem_open('quick_start.md')
+        Globals.ui_document.body.dirty('changed document size', children=True)
 
     def end(self):
         self._cc_blenderui_end()
-
-    @CookieCutter.FSM_State('main', 'enter')
-    def main_enter(self):
-        self.helpsystem_open('quick_start.md')
-        Globals.ui_document.body.dirty('changed document size', children=True)
+        #profiler.printout()
+        #print("Children: %d" % self.document.body.count_children())
+        #print("All children: %d" % self.document.body.count_all_children())
 
     @CookieCutter.FSM_State('main')
     def main(self):
         if self.actions.pressed({'ESC'}):
             self.done()
             return
+
 
 class RetopoFlow(
     RetopoFlow_Blender,
