@@ -433,7 +433,7 @@ class Visualization_Settings:
             'point color':                 (*color_frozen[:3], 1.00),
             'point color selected':        (*color_select[:3], 1.00),
             'point color highlight':       (1.0, 1.0, 0.1, 1.0),
-            'point size':                  7.5,
+            'point size':                  5.0,
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
