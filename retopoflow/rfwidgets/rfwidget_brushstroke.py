@@ -60,7 +60,7 @@ class RFWidget_BrushStroke_PolyStrips(RFW_BrushStroke_PolyStrips):
     @RFW_BrushStroke_PolyStrips.FSM_State('main', 'enter')
     def modal_main_enter(self):
         self.rfw_cursor = 'CROSSHAIR'
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_PolyStrips main_enter')
 
     @RFW_BrushStroke_PolyStrips.FSM_State('main')
     def modal_main(self):
@@ -73,7 +73,7 @@ class RFWidget_BrushStroke_PolyStrips(RFW_BrushStroke_PolyStrips):
     @RFW_BrushStroke_PolyStrips.FSM_State('stroking', 'enter')
     def modal_line_enter(self):
         self.stroke2D = [self.actions.mouse]
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_PolyStrips line_enter')
 
     @RFW_BrushStroke_PolyStrips.FSM_State('stroking')
     def modal_line(self):
@@ -90,11 +90,11 @@ class RFWidget_BrushStroke_PolyStrips(RFW_BrushStroke_PolyStrips):
         lpos, cpos = self.stroke2D[-1], self.actions.mouse
         npos = lpos + (cpos - lpos) * (1 - self.tightness)
         self.stroke2D.append(npos)
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_PolyStrips line')
 
     @RFW_BrushStroke_PolyStrips.FSM_State('stroking', 'exit')
     def modal_line_exit(self):
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_PolyStrips line_exit')
 
 
     @RFW_BrushStroke_PolyStrips.FSM_State('brush sizing', 'enter')
@@ -104,7 +104,7 @@ class RFWidget_BrushStroke_PolyStrips(RFW_BrushStroke_PolyStrips):
         else:
             self.sizing_pos = self.actions.mouse + Vec2D((self.size, 0))
         self.rfw_cursor = 'MOVE_X'
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_PolyStrips brush_sizing_enter')
 
     @RFW_BrushStroke_PolyStrips.FSM_State('brush sizing')
     def modal_brush_sizing(self):
@@ -171,7 +171,7 @@ class RFWidget_BrushStroke_Strokes(RFW_BrushStroke_Strokes):
     @RFW_BrushStroke_Strokes.FSM_State('main', 'enter')
     def modal_main_enter(self):
         self.rfw_cursor = 'CROSSHAIR'
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_Strokes main_enter')
 
     @RFW_BrushStroke_Strokes.FSM_State('main')
     def modal_main(self):
@@ -184,7 +184,7 @@ class RFWidget_BrushStroke_Strokes(RFW_BrushStroke_Strokes):
     @RFW_BrushStroke_Strokes.FSM_State('stroking', 'enter')
     def modal_line_enter(self):
         self.stroke2D = [self.actions.mouse]
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_Strokes line_enter')
 
     @RFW_BrushStroke_Strokes.FSM_State('stroking')
     def modal_line(self):
@@ -201,11 +201,11 @@ class RFWidget_BrushStroke_Strokes(RFW_BrushStroke_Strokes):
         lpos, cpos = self.stroke2D[-1], self.actions.mouse
         npos = lpos + (cpos - lpos) * (1 - self.tightness)
         self.stroke2D.append(npos)
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_Strokes line')
 
     @RFW_BrushStroke_Strokes.FSM_State('stroking', 'exit')
     def modal_line_exit(self):
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_Strokes line_exit')
 
 
     @RFW_BrushStroke_Strokes.FSM_State('brush sizing', 'enter')
@@ -215,7 +215,7 @@ class RFWidget_BrushStroke_Strokes(RFW_BrushStroke_Strokes):
         else:
             self.sizing_pos = self.actions.mouse + Vec2D((self.size, 0))
         self.rfw_cursor = 'MOVE_X'
-        tag_redraw_all()
+        tag_redraw_all('BrushStroke_Strokes brush_sizing_enter')
 
     @RFW_BrushStroke_Strokes.FSM_State('brush sizing')
     def modal_brush_sizing(self):

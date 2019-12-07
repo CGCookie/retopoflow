@@ -68,24 +68,21 @@ class RetopoFlow_QuickStart(CookieCutter):
             ui_help = ui.framed_dialog(
                 label='RetopoFlow Help System',
                 id='helpsystem',
-                style='width:90%; left:5%;',
                 resizable=False,
                 closeable=False,
                 moveable=False,
                 parent=self.document.body
             )
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.div(parent=ui_help, style='margin:1px; width:100%', children=[
+            ui.div(id='helpsystem-buttons', parent=ui_help, children=[
                 ui.button(
                     label='Table of Contents',
                     on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
-                    style='display:inline; width:49.5%',
                     parent=ui_help,
                 ),
                 ui.button(
                     label='Close (Esc)',
                     on_mouseclick=self.done,
-                    style='display:inline; width:49.5%',
                     parent=ui_help,
                 )
             ])
@@ -102,7 +99,6 @@ class RetopoFlow_QuickStart(CookieCutter):
         self.header_text_set('RetopoFlow')
 
     def start(self):
-        #profiler.set_profiler_enabled(True)
         self.reload_stylings()
         self.blender_ui_set()
         #self.helpsystem_open('simple.md')

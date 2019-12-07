@@ -22,11 +22,17 @@ dialog#optionsdialog {
 }
 
 dialog#helpsystem {
-    left: 100px;
-    min-width: 500px;
-    width: 600px;
-    max-width: 1000px;
+    width: 90%;
+    left: 5%;
     background: rgba(64,64,64,0.9);
+}
+div#helpsystem-buttons {
+    margin: 1px;
+    width: 100%;
+}
+div#helpsystem-buttons button {
+    display: inline;
+    width: 50%;
 }
 
 

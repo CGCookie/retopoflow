@@ -53,7 +53,7 @@ class Loops(RFTool_Loops):
 
     @RFTool_Loops.on_mouse_move
     def mouse_move(self):
-        tag_redraw_all()
+        tag_redraw_all('Loops mouse_move')
 
     @RFTool_Loops.on_reset
     def reset(self):

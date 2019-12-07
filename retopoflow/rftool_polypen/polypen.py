@@ -149,7 +149,7 @@ class PolyPen(RFTool_PolyPen):
     def main(self):
         if self.rfcontext.actions.mousemove:
             self.set_next_state()
-            tag_redraw_all()
+            tag_redraw_all('PolyPen mousemove')
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'

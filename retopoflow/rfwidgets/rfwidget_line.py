@@ -49,7 +49,7 @@ class RFWidget_Line(RFW_Line):
     @RFW_Line.FSM_State('line', 'enter')
     def modal_line_enter(self):
         self.line2D = [self.actions.mouse, None]
-        tag_redraw_all()
+        tag_redraw_all('Line line_enter')
 
     @RFW_Line.FSM_State('line')
     def modal_line(self):
@@ -63,11 +63,11 @@ class RFWidget_Line(RFW_Line):
 
         if self.line2D[1] != self.actions.mouse:
             self.line2D[1] = self.actions.mouse
-            tag_redraw_all()
+            tag_redraw_all('Line line')
 
     @RFW_Line.FSM_State('line', 'exit')
     def modal_line_exit(self):
-        tag_redraw_all()
+        tag_redraw_all('Line line_exit')
 
     @RFW_Line.Draw('post2d')
     @RFW_Line.FSM_OnlyInState('line')

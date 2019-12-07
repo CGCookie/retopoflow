@@ -20,7 +20,7 @@ blendersym=os.path.join(user, 'software/blender-2.82')
 print('finding latest blender 2.82')
 tmp=wget.download(url=url, out=tmp, bar=None)
 html=open(tmp, 'rt').read()
-m = re.search(r'/download/blender-2\.82-[0-9a-f]+-linux-glibc[^-]*?-x86_64\.tar\.bz2', html)
+m = re.search(r'/download/blender-2\.82-[0-9a-f]+-linux-glibc[^-]*?-x86_64\.tar\.(bz2|xz)', html)
 assert m, 'could not find match'
 
 url = '%s/%s' % (urlroot, m.group(0))

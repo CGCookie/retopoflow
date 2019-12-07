@@ -125,15 +125,26 @@ class RetopoFlow_UI:
             ui_help = ui.framed_dialog(
                 label='RetopoFlow Help System',
                 id='helpsystem',
-                style='width:90%; left:5%;',
                 resizable=False,
                 closeable=True,
                 moveable=False,
                 parent=self.document.body
             )
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
-            ui.button(label='Close', on_mouseclick=close, parent=ui_help)
+            ui.div(id='helpsystem-buttons', parent=ui_help, children=[
+                ui.button(
+                    label='Table of Contents',
+                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
+                    parent=ui_help,
+                ),
+                ui.button(
+                    label='Close (Esc)',
+                    on_mouseclick=close,
+                    parent=ui_help,
+                )
+            ])
+            # ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
+            # ui.button(label='Close', on_mouseclick=close, parent=ui_help)
             def key(e):
                 if e.key == 'ESC': close()
             ui_help.add_eventListener('on_keypress', key)

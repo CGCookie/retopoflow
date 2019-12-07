@@ -43,7 +43,7 @@ class RetopoFlow_States(CookieCutter):
             self.rftool._callback('target change')
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback_widget('target change')
-            tag_redraw_all()
+            tag_redraw_all('RF_States update')
 
         view_version = self.get_view_version()
         if self.view_version != view_version:
@@ -53,8 +53,6 @@ class RetopoFlow_States(CookieCutter):
                 self.rftool.rfwidget._callback_widget('view change')
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
-
-        #tag_redraw_all()
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
@@ -125,7 +123,7 @@ class RetopoFlow_States(CookieCutter):
             Cursors.set(self.rftool.rfwidget.rfw_cursor)
             if self.rftool.rfwidget.redraw_on_mouse:
                 if self.actions.mousemove:
-                    tag_redraw_all()
+                    tag_redraw_all('RFTool.RFWidget.redraw_on_mouse')
             ret = self.rftool.rfwidget._fsm_update()
             if self.fsm.is_state(ret):
                 return ret
@@ -193,7 +191,7 @@ class RetopoFlow_States(CookieCutter):
     def selection_painting(self):
         assert self.selection_painting_opts
         if self.actions.mousemove:
-            tag_redraw_all()
+            tag_redraw_all('RF selection_painting')
         if not self.actions.using(['select','select add']):
             self.selection_painting_opts = None
             return 'main'

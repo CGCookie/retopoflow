@@ -730,5 +730,5 @@ class Patches(RFTool_Patches):
             for d,k in [('loop','O'),('loop','eye'),('loop','tri'),('loop','rect'),('loop','ngon'),('string','I'),('string','L'),('string','C'),('string','else')]:
                 print('  %d %s-shaped %s' % (len(self.shapes[k]), k, d))
 
-        tag_redraw_all()
+        tag_redraw_all('Patches recompute')
         self.update_ui()

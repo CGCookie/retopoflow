@@ -179,7 +179,7 @@ class RFWidget_BrushFalloff_Relax(RFW_BrushFalloff_Relax):
         actions = self.rfcontext.actions
         self._change_pre = dist
         self._change_center = actions.mouse - Vec2D((dist, 0))
-        tag_redraw_all()
+        tag_redraw_all('BrushFalloff_Relax change_enter')
 
     @RFW_BrushFalloff_Relax.FSM_State('change')
     def change(self):
@@ -199,7 +199,7 @@ class RFWidget_BrushFalloff_Relax(RFW_BrushFalloff_Relax):
     def change_exit(self):
         self._dist_to_var_fn = None
         self._var_to_dist_fn = None
-        tag_redraw_all()
+        tag_redraw_all('BrushFalloff_Relax change_exit')
 
 
     @RFW_BrushFalloff_Relax.Draw('post3d')
@@ -378,7 +378,7 @@ class RFWidget_BrushFalloff_Tweak(RFW_BrushFalloff_Tweak):
         actions = self.rfcontext.actions
         self._change_pre = dist
         self._change_center = actions.mouse - Vec2D((dist, 0))
-        tag_redraw_all()
+        tag_redraw_all('BrushFalloff_Tweak change_enter')
 
     @RFW_BrushFalloff_Tweak.FSM_State('change')
     def change(self):
@@ -398,7 +398,7 @@ class RFWidget_BrushFalloff_Tweak(RFW_BrushFalloff_Tweak):
     def change_exit(self):
         self._dist_to_var_fn = None
         self._var_to_dist_fn = None
-        tag_redraw_all()
+        tag_redraw_all('BrushFalloff_Tweak change_exit')
 
 
     @RFW_BrushFalloff_Tweak.Draw('post3d')
