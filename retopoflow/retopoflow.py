@@ -25,6 +25,7 @@ import bpy
 from .rf.rf_blender    import RetopoFlow_Blender
 from .rf.rf_drawing    import RetopoFlow_Drawing
 from .rf.rf_grease     import RetopoFlow_Grease
+from .rf.rf_helpsystem import RetopoFlow_HelpSystem
 from .rf.rf_instrument import RetopoFlow_Instrumentation
 from .rf.rf_sources    import RetopoFlow_Sources
 from .rf.rf_spaces     import RetopoFlow_Spaces
@@ -44,52 +45,10 @@ from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 from ..config.keymaps import default_rf_keymaps
 
 
-class RetopoFlow_QuickStart(CookieCutter):
+class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
     @classmethod
     def can_start(cls, context):
         return True
-
-    def reload_stylings(self):
-        load_defaultstylings()
-        path = os.path.join(os.path.dirname(__file__), '..', 'config', 'ui.css')
-        try:
-            Globals.ui_draw.load_stylesheet(path)
-        except AssertionError as e:
-            # TODO: show proper dialog to user here!!
-            print('could not load stylesheet "%s"' % path)
-            print(e)
-        Globals.ui_document.body.dirty('Reloaded stylings', children=True)
-        Globals.ui_document.body.dirty_styling()
-        Globals.ui_document.body.dirty_flow()
-
-    def helpsystem_open(self, mdown_path):
-        ui_markdown = self.document.body.getElementById('helpsystem-mdown')
-        if not ui_markdown:
-            ui_help = ui.framed_dialog(
-                label='RetopoFlow Help System',
-                id='helpsystem',
-                resizable=False,
-                closeable=False,
-                moveable=False,
-                parent=self.document.body
-            )
-            ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.div(id='helpsystem-buttons', parent=ui_help, children=[
-                ui.button(
-                    label='Table of Contents',
-                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
-                    parent=ui_help,
-                ),
-                ui.button(
-                    label='Close (Esc)',
-                    on_mouseclick=self.done,
-                    parent=ui_help,
-                )
-            ])
-            def key(e):
-                if e.key == 'ESC': self.done()
-            ui_help.add_eventListener('on_keypress', key)
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path)
 
     def blender_ui_set(self):
         self.manipulator_hide()
@@ -102,7 +61,7 @@ class RetopoFlow_QuickStart(CookieCutter):
         self.reload_stylings()
         self.blender_ui_set()
         #self.helpsystem_open('simple.md')
-        self.helpsystem_open('quick_start.md')
+        self.helpsystem_open('quick_start.md', done_on_esc=True)
         Globals.ui_document.body.dirty('changed document size', children=True)
 
     def end(self):
@@ -122,6 +81,7 @@ class RetopoFlow(
     RetopoFlow_Blender,
     RetopoFlow_Drawing,
     RetopoFlow_Grease,
+    RetopoFlow_HelpSystem,
     RetopoFlow_Instrumentation,
     RetopoFlow_Sources,
     RetopoFlow_Spaces,

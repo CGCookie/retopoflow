@@ -5,54 +5,6 @@
 */
 
 
-dialog#maindialog {
-    width: 175px;
-    min-width: 50px;
-    max-width: 500px;
-    padding: 0px;
-}
-dialog#maindialog * {
-    overflow-x: hidden;
-}
-
-dialog#optionsdialog {
-    width: 250px;
-    min-width: 150px;
-    max-width: 500px;
-}
-
-dialog#helpsystem {
-    width: 90%;
-    left: 5%;
-    background: rgba(64,64,64,0.9);
-}
-div#helpsystem-buttons {
-    margin: 1px;
-    width: 100%;
-}
-div#helpsystem-buttons button {
-    display: inline;
-    width: 50%;
-}
-
-
-dialog.alertdialog.note {
-    background-color: rgba(50, 50, 76, 0.95);
-}
-
-dialog.alertdialog.warning {
-    background-color: rgba(90, 64, 38, 0.95);
-}
-
-dialog.alertdialog.error {
-    background-color: rgba(76, 38, 38, 0.95);
-}
-
-dialog.alertdialog.assert, dialog.alertdialog.exception {
-    background-color: rgba(96, 0, 0, 0.95);
-}
-
-
 
 * {
     color: white;
@@ -299,5 +251,53 @@ div.issue-checker button.action {
     width: 50%;
 }
 
+
+
+dialog#maindialog {
+    width: 175px;
+    min-width: 50px;
+    max-width: 500px;
+    padding: 0px;
+}
+dialog#maindialog * {
+    overflow-x: hidden;
+}
+
+dialog#optionsdialog {
+    width: 250px;
+    min-width: 150px;
+    max-width: 500px;
+}
+
+dialog#helpsystem {
+    width: 90%;
+    left: 5%;
+    background: rgba(64,64,64,0.9);
+}
+dialog#helpsystem div#helpsystem-buttons {
+    margin: 1px;
+    width: 100%;
+}
+dialog#helpsystem div#helpsystem-buttons button {
+    display: inline;
+    width: 50%;
+}
+
+
+dialog.alertdialog.note {
+    background-color: rgba(50, 50, 76, 0.95);
+}
+
+dialog.alertdialog.warning {
+    background-color: rgba(90, 64, 38, 0.95);
+}
+
+dialog.alertdialog.error {
+    background-color: rgba(76, 38, 38, 0.95);
+}
+
+dialog.alertdialog.assert, dialog.alertdialog.exception {
+    background-color: rgba(96, 0, 0, 0.95);
+}
 
 

@@ -40,24 +40,9 @@ from ...addon_common.common import ui
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
 
-from ...config.options import options, retopoflow_issues_url, retopoflow_tip_url
-
-
-def reload_stylings():
-    load_defaultstylings()
-    path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')
-    try:
-        Globals.ui_draw.load_stylesheet(path)
-    except AssertionError as e:
-        # TODO: show proper dialog to user here!!
-        print('could not load stylesheet "%s"' % path)
-        print(e)
-    Globals.ui_document.body.dirty('Reloaded stylings', children=True)
-    Globals.ui_document.body.dirty_styling()
-    Globals.ui_document.body.dirty_flow()
-
-
 from ...config.options import (
+    options,
+    retopoflow_issues_url, retopoflow_tip_url,
     retopoflow_version, retopoflow_version_git,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
@@ -115,41 +100,6 @@ def get_trace_details(undo_stack, msghash=None, message=None):
 
 
 class RetopoFlow_UI:
-    def helpsystem_open(self, mdown_path):
-        ui_markdown = self.document.body.getElementById('helpsystem-mdown')
-        if not ui_markdown:
-            def close():
-                e = self.document.body.getElementById('helpsystem')
-                if not e: return
-                self.document.body.delete_child(e)
-            ui_help = ui.framed_dialog(
-                label='RetopoFlow Help System',
-                id='helpsystem',
-                resizable=False,
-                closeable=True,
-                moveable=False,
-                parent=self.document.body
-            )
-            ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.div(id='helpsystem-buttons', parent=ui_help, children=[
-                ui.button(
-                    label='Table of Contents',
-                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
-                    parent=ui_help,
-                ),
-                ui.button(
-                    label='Close (Esc)',
-                    on_mouseclick=close,
-                    parent=ui_help,
-                )
-            ])
-            # ui.button(label='Table of Contents', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"), parent=ui_help)
-            # ui.button(label='Close', on_mouseclick=close, parent=ui_help)
-            def key(e):
-                if e.key == 'ESC': close()
-            ui_help.add_eventListener('on_keypress', key)
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path)
-
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
         if False:
@@ -385,7 +335,7 @@ class RetopoFlow_UI:
         self.blender_ui_set(scale_to_unit_box=False)
 
         # load ui.css
-        reload_stylings()
+        self.reload_stylings()
 
         self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
 
@@ -421,7 +371,7 @@ class RetopoFlow_UI:
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
             if False:
-                ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=reload_stylings)
+                ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
             if False:
                 def printout_profiler():
                     profiler.printout()
