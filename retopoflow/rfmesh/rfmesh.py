@@ -97,13 +97,15 @@ class RFMesh():
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
-        with profiler.code('checking for NaNs'):
+        pr = profiler.start('checking for NaNs')
+        if True:
             hasnan = any(
                 math.isnan(v)
                 for emv in obj.data.vertices
                 for v in emv.co
             )
-            with profiler.code('validating mesh data'):
+            pr2 = profiler.start('validating mesh data')
+            if True:
                 if hasnan:
                     dprint('Mesh data contains NaN in vertex coordinate!')
                     dprint('Cleaning mesh')
@@ -111,13 +113,17 @@ class RFMesh():
                 else:
                     # cleaning mesh quietly
                     obj.data.validate(verbose=False, clean_customdata=False)
+            pr2.done()
+        pr.done()
 
-        with profiler.code('setup init'):
+        pr = profiler.start('setup init')
+        if True:
             self.obj = obj
             self.xform = XForm(self.obj.matrix_world)
             self.hash = hash_object(self.obj)
             self._version = None
             self._version_selection = None
+        pr.done()
 
         if bme is not None:
             self.bme = bme
@@ -125,7 +131,8 @@ class RFMesh():
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
-                with profiler.code('copying selection'):
+                pr = profiler.start('copying selection')
+                if True:
                     self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                     # copy selection from editmesh
                     for bmf, emf in zip(self.bme.faces, self.obj.data.polygons):
@@ -134,16 +141,19 @@ class RFMesh():
                         bme.select = eme.select
                     for bmv, emv in zip(self.bme.verts, self.obj.data.vertices):
                         bmv.select = emv.select
+                pr.done()
             else:
                 self.deselect_all()
 
         if triangulate:
             self.triangulate()
 
-        with profiler.code('setup finishing'):
+        pr = profiler.start('setup finishing')
+        if True:
             self.selection_center = Point((0, 0, 0))
             self.store_state()
             self.dirty()
+        pr.done()
 
     ##########################################################
 
@@ -305,24 +315,31 @@ class RFMesh():
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
 
-        with profiler.code('vert sides'):
+        pr = profiler.start('vert sides')
+        if True:
             vert_side = {
                 bmv: side(bmv.co)
                 for bmv in self.bme.verts
             }
-        with profiler.code('split edges'):
+        pr.done()
+        pr = profiler.start('split edges')
+        if True:
             edges = {
                 bme
                 for bme in self.bme.edges
                 if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
             }
-        with profiler.code('split faces'):
+        pr.done()
+        pr = profiler.start('split faces')
+        if True:
             faces = {
                 bmf
                 for bme in edges
                 for bmf in bme.link_faces
             }
-        with profiler.code('intersections'):
+        pr.done()
+        pr = profiler.start('intersections')
+        if True:
             intersection = [
                 (l2w_point(p0), l2w_point(p1))
                 for bmf in faces
@@ -330,6 +347,7 @@ class RFMesh():
                     bmv.co for bmv in bmf.verts
                 ])
             ]
+        pr.done()
         return intersection
 
     def get_xy_plane(self):
@@ -496,15 +514,20 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        with profiler.code('finding all edges crossing plane'):
+        pr = profiler.start('finding all edges crossing plane')
+        if True:
             dot = plane.n.dot
             o = dot(plane.o)
             edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
+        pr.done()
 
-        with profiler.code('finding faces crossing plane'):
+        pr = profiler.start('finding faces crossing plane')
+        if True:
             faces = set(bmf for bme in edges for bmf in bme.link_faces)
+        pr.done()
 
-        with profiler.code('crawling faces along plane'):
+        pr = profiler.start('crawling faces along plane')
+        if True:
             rets = []
             touched = set()
             for bmf in faces:
@@ -514,6 +537,7 @@ class RFMesh():
                 touched |= set(f1 for _,_,f1,_ in ret if f1)
                 ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
                 rets += [ret]
+        pr.done()
 
         return rets
 
@@ -523,15 +547,20 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        with profiler.code('finding all edges crossing plane'):
+        pr = profiler.start('finding all edges crossing plane')
+        if True:
             dot = plane.n.dot
             o = dot(plane.o)
             edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
+        pr.done()
 
-        with profiler.code('finding faces crossing plane'):
+        pr = profiler.start('finding faces crossing plane')
+        if True:
             faces = set(bmf for bme in edges for bmf in bme.link_faces)
+        pr.done()
 
-        with profiler.code('crawling faces along plane'):
+        pr = profiler.start('crawling faces along plane')
+        if True:
             rets = []
             touched = set()
             for bmf in faces:
@@ -541,6 +570,7 @@ class RFMesh():
                 touched |= set(f1 for _,_,f1,_ in ret if f1)
                 ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
                 rets += [ret]
+        pr.done()
 
         return rets
 

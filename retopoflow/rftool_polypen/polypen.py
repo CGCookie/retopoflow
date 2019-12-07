@@ -88,16 +88,20 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
     def update_state_info(self):
-        with profiler.code('getting selected geometry'):
+        pr = profiler.start('getting selected geometry')
+        if True:
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
             self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
             self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
+        pr.done()
 
-        with profiler.code('getting visible geometry'):
+        pr = profiler.start('getting visible geometry')
+        if True:
             self.vis_accel = self.rfcontext.get_vis_accel()
             self.vis_verts = self.rfcontext.accel_vis_verts
             self.vis_edges = self.rfcontext.accel_vis_edges
             self.vis_faces = self.rfcontext.accel_vis_faces
+        pr.done()
 
         self.set_next_state()
 
@@ -105,10 +109,12 @@ class PolyPen(RFTool_PolyPen):
     def set_next_state(self):
         if not self.rfcontext.actions.mouse: return
 
-        with profiler.code('getting nearest geometry'):
+        pr = profiler.start('getting nearest geometry')
+        if True:
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
             self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
             self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
+        pr.done()
 
         # determine next state based on current selection, hovered geometry
         num_verts = len(self.sel_verts)

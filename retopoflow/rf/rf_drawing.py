@@ -69,7 +69,8 @@ class RetopoFlow_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
             # get frame of target, used for symmetry decorations on sources
             ft = self.rftarget.get_frame()
-            with profiler.code('render sources'):
+            pr = profiler.start('render sources')
+            if True:
                 for rs,rfs in zip(self.rfsources, self.rfsources_draw):
                     rfs.draw(
                         view_forward,
@@ -81,8 +82,10 @@ class RetopoFlow_Drawing:
                         symmetry_effect=options['symmetry effect'],
                         symmetry_frame=ft,
                     )
+            pr.done()
 
-        with profiler.code('render target'):
+        pr = profiler.start('render target')
+        if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
             cull_backfaces = options['target cull backfaces']
             alpha_backface = options['target alpha backface']
@@ -92,6 +95,7 @@ class RetopoFlow_Drawing:
                 buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                 alpha_above, alpha_below, cull_backfaces, alpha_backface
             )
+        pr.done()
 
         # pr = profiler.start('grease marks')
         # bgl.glBegin(bgl.GL_QUADS)
@@ -196,7 +200,8 @@ class RetopoFlow_Drawing:
                 self.drawing.text_draw2D(count_str, Point2D((sw-tw-10,th+10)), (1,1,1,0.25), dropshadow=(0,0,0,0.5), fontsize=12)
 
             if options['visualize fps'] and self.actions.region:
-                with profiler.code('fps postpixel'):
+                pr = profiler.start('fps postpixel')
+                if True:
                     bgl.glEnable(bgl.GL_BLEND)
                     lw,lh = len(self.fps_list),60
                     def p(x, y): return (sw - 10 + (-lw + x) * m, 30 + y * m)
@@ -233,21 +238,28 @@ class RetopoFlow_Drawing:
                     bgl.glEnd()
 
                     self.drawing.text_draw2D('%2.2f' % self.fps, Point2D(p(2, lh - 2)), (1,1,1,0.5), fontsize=12)
+                pr.done()
 
             if not self.draw_ui:
                 k = next(iter(default_rf_keymaps['toggle ui']))
                 self.drawing.text_draw2D('Press %s to show UI' % k, Point2D((10, sh-10)), (1,1,1,0.25), fontsize=12)
 
-            with profiler.code('tool draw postpixel'):
+            pr = profiler.start('tool draw postpixel')
+            if True:
                 self.tool.draw_postpixel()
+            pr.done()
 
-            with profiler.code('widget draw postpixel'):
+            pr = profiler.start('widget draw postpixel')
+            if True:
                 self.rfwidget.draw_postpixel()
+            pr.done()
 
-            with profiler.code('window manager draw postpixel'):
+            pr = profiler.start('window manager draw postpixel')
+            if True:
                 self.window_debug_fps.set_label('FPS: %0.2f' % self.fps)
                 self.window_debug_save.set_label('Time: %0.0f' % (self.time_to_save or float('inf')))
                 self.window_manager.draw_postpixel(self.actions.context)
+            pr.done()
 
         except AssertionError as e:
             message,h = Globals.debugger.get_exception_info_and_hash()
@@ -319,7 +331,8 @@ class RetopoFlow_Drawing:
         ft = self.rftarget.get_frame()
 
         if options['symmetry view'] != 'None' and self.rftarget.symmetry:
-            with profiler.code('render sources'):
+            pr = profiler.start('render sources')
+            if True:
                 for rs,rfs in zip(self.rfsources, self.rfsources_draw):
                     rfs.draw(
                         view_forward,
@@ -329,8 +342,10 @@ class RetopoFlow_Drawing:
                         symmetry=self.rftarget.symmetry, symmetry_view=options['symmetry view'],
                         symmetry_effect=options['symmetry effect'], symmetry_frame=ft
                     )
+            pr.done()
 
-        with profiler.code('render target'):
+        pr = profiler.start('render target')
+        if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
             cull_backfaces = options['target cull backfaces']
             alpha_backface = options['target alpha backface']
@@ -340,8 +355,10 @@ class RetopoFlow_Drawing:
                 buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                 alpha_above, alpha_below, cull_backfaces, alpha_backface
             )
+        pr.done()
 
-        with profiler.code('grease marks'):
+        pr = profiler.start('grease marks')
+        if True:
             bgl.glBegin(bgl.GL_QUADS)
             for stroke_data in self.grease_marks:
                 bgl.glColor4f(*stroke_data['color'])
@@ -359,10 +376,13 @@ class RetopoFlow_Drawing:
                         bgl.glVertex3f(*(p1-d1*t+n1*0.001))
                     s0,p0,n0,d0 = s1,p1,n1,d1
             bgl.glEnd()
+        pr.done()
 
-        with profiler.code('render other'):
+        pr = profiler.start('render other')
+        if True:
             self.tool.draw_postview()
             self.rfwidget.draw_postview()
+        pr.done()
 
         # artificially slow down rendering (for testing purposes only)
         #time.sleep(0.5)

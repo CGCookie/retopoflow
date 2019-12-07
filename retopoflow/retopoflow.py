@@ -105,6 +105,7 @@ class RetopoFlow_QuickStart(CookieCutter):
         #profiler.set_profiler_enabled(True)
         self.reload_stylings()
         self.blender_ui_set()
+        #self.helpsystem_open('simple.md')
         self.helpsystem_open('quick_start.md')
         Globals.ui_document.body.dirty('changed document size', children=True)
 
