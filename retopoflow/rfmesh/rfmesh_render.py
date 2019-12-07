@@ -105,8 +105,10 @@ class RFMeshRender():
     @staticmethod
     @profiler.function
     def new(rfmesh, opts, always_dirty=False):
-        ho = hash_object(rfmesh.obj)
-        hb = hash_bmesh(rfmesh.bme)
+        with profiler.code('hashing object'):
+            ho = hash_object(rfmesh.obj)
+        with profiler.code('hashing bmesh'):
+            hb = hash_bmesh(rfmesh.bme)
         h = (ho, hb)
         if h not in RFMeshRender.cache:
             RFMeshRender.creating = True
