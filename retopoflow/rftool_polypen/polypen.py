@@ -470,6 +470,7 @@ class PolyPen(RFTool_PolyPen):
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.set_vis_bmverts()
         self.mousedown = self.rfcontext.actions.mouse
+        self.last_delta = None
         self.defer_recomputing = defer_recomputing
 
     @RFTool_PolyPen.FSM_State('move after select')
@@ -504,6 +505,8 @@ class PolyPen(RFTool_PolyPen):
             return 'main'
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if delta == self.last_delta: return
+        self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
             xy_updated = xy + delta

@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import copy
 
 from ...config.options import options
-
+from ...addon_common.common.blender import tag_redraw_all
 
 class RetopoFlow_Undo:
     def setup_undo(self):
@@ -53,6 +53,7 @@ class RetopoFlow_Undo:
         self.grease_marks = state['grease_marks']
         if set_tool:
             self.select_rftool(state['tool']) #, forceUpdate=True, changeTool=options['undo change tool'])
+        tag_redraw_all('restoring state')
 
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
