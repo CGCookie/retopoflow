@@ -1462,7 +1462,7 @@ class RFTarget(RFMesh):
         dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
-        faces = set(f for v in verts for f in self._unwrap(v).link_faces)
+        faces = set(f for v in verts if v.is_valid for f in self._unwrap(v).link_faces)
         for bmf in faces:
             n = compute_normal(v.co for v in bmf.verts)
             vnorm = sum((v.normal for v in bmf.verts), Vector())
