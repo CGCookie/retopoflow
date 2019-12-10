@@ -103,9 +103,9 @@ class RetopoFlow_Target:
         return self.accel_vis_accel
 
     @profiler.function
-    def accel_nearest2D_vert(self, point=None, max_dist=None):
+    def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        vis_accel = self.get_vis_accel()
+        if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -117,9 +117,9 @@ class RetopoFlow_Target:
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
     @profiler.function
-    def accel_nearest2D_edge(self, point=None, max_dist=None):
+    def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        vis_accel = self.get_vis_accel()
+        if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -131,9 +131,9 @@ class RetopoFlow_Target:
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
     @profiler.function
-    def accel_nearest2D_face(self, point=None, max_dist=None):
+    def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        vis_accel = self.get_vis_accel()
+        if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None
 
         if not max_dist:

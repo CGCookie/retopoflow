@@ -187,6 +187,10 @@ class RetopoFlow_States(CookieCutter):
 
         return 'selection painting'
 
+    @CookieCutter.FSM_State('selection painting', 'enter')
+    def selection_painting_enter(self):
+        self._last_mouse = None
+
     @CookieCutter.FSM_State('selection painting')
     def selection_painting(self):
         assert self.selection_painting_opts
@@ -195,6 +199,8 @@ class RetopoFlow_States(CookieCutter):
         if not self.actions.using(['select','select add']):
             self.selection_painting_opts = None
             return 'main'
+        if self._last_mouse == self.actions.mouse: return
+        self._last_mouse = self.actions.mouse
         bmelem = self.selection_painting_opts['get']()
         if not bmelem or bmelem.select == self.selection_painting_opts['select']:
             return

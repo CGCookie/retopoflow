@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import bgl
+import random
 
 from ..rftool import RFTool
 
@@ -55,6 +56,7 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.on_init
     def init(self):
         self.rfwidget = RFWidget_Default(self)
+        self.delay_update = False
         self.update_state_info()
         self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
         self._var_automerge = BoundBool('''options['polypen automerge']''')
@@ -88,6 +90,7 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
     def update_state_info(self):
+        if self.delay_update: return
         pr = profiler.start('getting selected geometry')
         if True:
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
@@ -193,16 +196,36 @@ class PolyPen(RFTool_PolyPen):
         ]
 
 
+    @RFTool_PolyPen.FSM_State('select', 'enter')
+    def modal_select_enter(self):
+        self.last_mouse = None
+        self.delay_update = True
+        self.needs_update = False
+        self.vis_accel = self.rfcontext.get_vis_accel()
+
+    @RFTool_PolyPen.FSM_State('select', 'exit')
+    def modal_select_exit(self):
+        self.delay_update = False
+
     @RFTool_PolyPen.FSM_State('select')
     @RFTool_PolyPen.dirty_when_done
     def modal_select(self):
+        if self.actions.event_type == 'TIMER' and self.needs_update:
+            # print('updating during selection painting')
+            self.delay_update = False
+            self.update_state_info()
+            self.delay_update = True
+            self.needs_update = False
         if not self.rfcontext.actions.using(['select','select add']):
             return 'main'
-        bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
-        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
-        bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
-        sel = bmv or bme or bmf
+        if self.last_mouse == self.actions.mouse: return
+        self.last_mouse = self.actions.mouse
+        sel = None
+        sel,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'], vis_accel=self.vis_accel)
+        if not sel: sel,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'], vis_accel=self.vis_accel)
+        if not sel: sel,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'], vis_accel=self.vis_accel)
         if not sel or sel.select: return
+        self.needs_update = True
         self.rfcontext.select(sel, supparts=False, only=False)
 
     @RFTool_PolyPen.FSM_State('select add')
