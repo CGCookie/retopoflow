@@ -185,15 +185,13 @@ class RetopoFlow_Blender:
         if 'RetopoFlow_Rotate' not in bpy.data.objects: return
         self.del_rotate_object()
         bpy.context.scene.objects.active = self.tar_object
-        if hasattr(self, 'rot_object'):
-            del self.rot_object
+        if hasattr(self, 'rot_object'): del self.rot_object
     @blender_version_wrapper('>=', '2.80')
     def end_rotate_about_active(self):
         if 'RetopoFlow_Rotate' not in bpy.data.objects: return
         self.del_rotate_object()
         bpy.context.view_layer.objects.active = self.tar_object
-        if hasattr(self, 'rot_object'):
-            del self.rot_object
+        if hasattr(self, 'rot_object'): del self.rot_object
 
     @staticmethod
     @blender_version_wrapper('<', '2.80')
@@ -386,8 +384,10 @@ class RetopoFlow_Blender:
 
     def save_backup(self):
         filepath = options.temp_filepath('blend')
+        filepath1 = "%s1" % filepath
         dprint('saving backup to %s' % filepath)
-        if os.path.exists(filepath): os.remove(filepath)
+        if os.path.exists(filepath1): os.remove(filepath1)
+        if os.path.exists(filepath): os.rename(filepath, filepath1)
         self.blender_ui_reset()
         #self.restore_window_state(ignore_panels=True)
         bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
