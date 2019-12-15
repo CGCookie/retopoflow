@@ -318,6 +318,7 @@ class RetopoFlow_UI:
         self.header_text_set('RetopoFlow')
         bpy.ops.object.mode_set(mode='OBJECT')
         if add_rotate: self.setup_rotate_about_active()
+        self.hide_target()
 
     def blender_ui_reset(self):
         # print('RetopoFlow: blender_ui_reset')

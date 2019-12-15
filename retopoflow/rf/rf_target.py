@@ -50,8 +50,7 @@ class RetopoFlow_Target:
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
         self.rftarget_version = None
-        self.rftarget.obj_viewport_hide()
-        self.rftarget.obj_render_hide()
+        self.hide_target()
 
         self.accel_defer_recomputing = False
         self.accel_recompute = True
@@ -61,6 +60,10 @@ class RetopoFlow_Target:
         self.accel_vis_edges = None
         self.accel_vis_faces = None
         self.accel_vis_accel = None
+
+    def hide_target(self):
+        self.rftarget.obj_viewport_hide()
+        self.rftarget.obj_render_hide()
 
     def teardown_target(self):
         self.rftarget.obj_viewport_unhide()

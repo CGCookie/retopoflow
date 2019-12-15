@@ -22,18 +22,19 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import os
 import bpy
 
-from .rf.rf_blender    import RetopoFlow_Blender
-from .rf.rf_drawing    import RetopoFlow_Drawing
-from .rf.rf_grease     import RetopoFlow_Grease
-from .rf.rf_helpsystem import RetopoFlow_HelpSystem
-from .rf.rf_instrument import RetopoFlow_Instrumentation
-from .rf.rf_sources    import RetopoFlow_Sources
-from .rf.rf_spaces     import RetopoFlow_Spaces
-from .rf.rf_states     import RetopoFlow_States
-from .rf.rf_target     import RetopoFlow_Target
-from .rf.rf_tools      import RetopoFlow_Tools
-from .rf.rf_ui         import RetopoFlow_UI
-from .rf.rf_undo       import RetopoFlow_Undo
+from .rf.rf_blender     import RetopoFlow_Blender
+from .rf.rf_blendersave import RetopoFlow_BlenderSave
+from .rf.rf_drawing     import RetopoFlow_Drawing
+from .rf.rf_grease      import RetopoFlow_Grease
+from .rf.rf_helpsystem  import RetopoFlow_HelpSystem
+from .rf.rf_instrument  import RetopoFlow_Instrumentation
+from .rf.rf_sources     import RetopoFlow_Sources
+from .rf.rf_spaces      import RetopoFlow_Spaces
+from .rf.rf_states      import RetopoFlow_States
+from .rf.rf_target      import RetopoFlow_Target
+from .rf.rf_tools       import RetopoFlow_Tools
+from .rf.rf_ui          import RetopoFlow_UI
+from .rf.rf_undo        import RetopoFlow_Undo
 
 from ..addon_common.common import ui
 from ..addon_common.common.globals import Globals
@@ -51,34 +52,34 @@ class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
         return True
 
     def blender_ui_set(self):
-        self.manipulator_hide()
+        # self.manipulator_hide()
         self.panels_hide()
-        self.overlays_hide()
+        # self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
 
     def start(self):
         self.reload_stylings()
         self.blender_ui_set()
-        #self.helpsystem_open('simple.md')
         self.helpsystem_open('quick_start.md', done_on_esc=True)
         Globals.ui_document.body.dirty('changed document size', children=True)
 
     def end(self):
         self._cc_blenderui_end()
-        #profiler.printout()
-        #print("Children: %d" % self.document.body.count_children())
-        #print("All children: %d" % self.document.body.count_all_children())
 
     @CookieCutter.FSM_State('main')
     def main(self):
         if self.actions.pressed({'ESC'}):
             self.done()
             return
+        if self.actions.pressed({'F10'}):
+            self.reload_stylings()
+            return
 
 
 class RetopoFlow(
     RetopoFlow_Blender,
+    RetopoFlow_BlenderSave,
     RetopoFlow_Drawing,
     RetopoFlow_Grease,
     RetopoFlow_HelpSystem,
