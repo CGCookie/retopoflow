@@ -49,9 +49,9 @@ We focused on stability and bug handling in addition to new features, improving 
 
 Below is a list of known issues that we are currently working on.
 
-- UI starts to become sluggish when there is lots of text (ex: Welcome help).
 - Patches supports only rudimentary fills.
 - The 3D view panel tabs (left, top, right) flicker slightly when RetopoFlow redraws.
+- Some OSX machines draw strangely.
 
 
 ## Final Words

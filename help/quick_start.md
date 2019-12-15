@@ -4,10 +4,21 @@ We wrote this guide to help you get started as quickly a possible with the Retop
 More detailed help is available by pressing `F1` after you start RetopoFlow.
 
 
-## TL;DR
+## The Short, Short Version
 
-- To start retopologizing for the first time, switch to Object mode, click on the "RetopoFlow" menu, then click the "RF: Create new target" menu item.
-- To continue working on a previous retopology session, switch to Edit Mode on the target mesh, then either click on the diamond next to the "RetopoFlow" menu or choose one of the tools in the menu.
+To start retopologizing for the first time:
+
+1. Switch to Object mode
+2. Click on the "RetopoFlow" menu
+3. Click the "RF: Create new target" menu item
+
+<br>
+
+To continue working on a previous retopology session:
+
+1. Select the low-poly retopo target mesh
+2. Switch to Edit Mode
+3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
 
 
 ## Terminology

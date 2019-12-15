@@ -1,4 +1,4 @@
-# Contours Help
+# Contours Help ![](contours_32.png width:32px;height:32px;padding:0px)
 
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it's ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.

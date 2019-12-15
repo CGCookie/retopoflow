@@ -1,4 +1,4 @@
-# Relax Help
+# Relax Help ![](relax_32.png width:32px;height:32px;padding:0px)
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
 
