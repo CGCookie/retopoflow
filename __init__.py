@@ -32,10 +32,12 @@ if "bpy" in locals():
     # reloading RF modules
     importlib.reload(retopoflow)
     importlib.reload(options)
+    importlib.reload(updater)
 else:
     print('RetopoFlow: Initial load')
     from .retopoflow import retopoflow
     from .config.options import options
+    from .retopoflow import updater
 
 import bpy
 from bpy.types import Menu, Operator
@@ -51,9 +53,9 @@ bl_info = {
     "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
-    "location":    "View 3D > Tool Shelf",
-    "warning":     "alpha-2 (α-2)",  # used for warning icon and text in addons panel
-    "wiki_url":    "http://docs.retopoflow.com",
+    "location":    "View 3D > Header",
+    "warning":     "alpha 2 (α2)",  # used for warning icon and text in addons panel
+    # "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
 }
@@ -62,18 +64,18 @@ bl_info = {
 faulthandler.enable()
 
 class VIEW3D_OT_RetopoFlow_OpenQuickStart(retopoflow.RetopoFlow_QuickStart):
-    """RetopoFlow Blender Operator"""
+    """Open RetopoFlow Quick Start Guide"""
     bl_idname = "cgcookie.retopoflow_openquickstart"
-    bl_label = "Quick Start Guide"
+    bl_label = "Open Quick Start Guide"
     bl_description = "Open RetopoFlow Quick Start Guide in a new window"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
 
 class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
-    """RetopoFlow Blender Operator"""
+    """Start RetopoFlow"""
     bl_idname = "cgcookie.retopoflow"
-    bl_label = "RetopoFlow"
+    bl_label = "Start RetopoFlow"
     bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
@@ -81,7 +83,7 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
 
 
 class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
-    """RetopoFlow Blender Operator"""
+    """Create new target object+mesh and start RetopoFlow"""
     bl_idname = "cgcookie.retopoflow_newtarget"
     bl_label = "RF: Create new target"
     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
@@ -106,7 +108,7 @@ class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
 
 def RF_Factory(starting_tool):
     class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
-        """RetopoFlow Blender Operator"""
+        """Start RetopoFlow with a specific tool"""
         bl_idname = "cgcookie.retopoflow_%s" % starting_tool.lower()
         bl_label = "RF: %s" % starting_tool
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s" % starting_tool
@@ -178,6 +180,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
 
     def draw(self, context):
         layout = self.layout
+        layout.label(text='Start RetopoFlow')
         if VIEW3D_MT_RetopoFlow.is_editing_target(context):
             # currently editing target, so show RF tools
             for c in customs:
@@ -188,6 +191,9 @@ class VIEW3D_MT_RetopoFlow(Menu):
         layout.separator()
         layout.operator('cgcookie.retopoflow_openquickstart')
         layout.operator('cgcookie.retopoflow_recover')
+        layout.separator()
+        layout.operator('cgcookie.retopoflow_updater_check_now')
+        layout.operator('cgcookie.retopoflow_updater_update_now')
 
     #############################################################################
     # the following two methods add/remove RF to/from the main 3D View menu
@@ -227,10 +233,12 @@ classes = [
 
 def register():
     for cls in classes: bpy.utils.register_class(cls)
+    updater.register(bl_info)
     VIEW3D_MT_RetopoFlow.menu_add()
 
 def unregister():
     VIEW3D_MT_RetopoFlow.menu_remove()
+    updater.unregister()
     for cls in reversed(classes): bpy.utils.unregister_class(cls)
 
 if __name__ == "__main__":
