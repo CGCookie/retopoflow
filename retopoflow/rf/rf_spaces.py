@@ -80,10 +80,10 @@ class RetopoFlow_Spaces:
 
     alerted_small_clip_start = False
     def Point_to_depth(self, xyz):
-        if not self.alerted_small_clip_start and self.actions.space.clip_start * self.unit_scaling_factor < 0.1:
+        if not self.alerted_small_clip_start and self.actions.space.clip_start < 0.1:
             self.alerted_small_clip_start = True
             message = []
-            message += ['The clip start is very small (<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.']
+            message += ['The clip start is very small (%f<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.' % (self.actions.space.clip_start, )]
             message += ['']
             message += ['You can increase the clip start in Options > General > View Options > Clip Start.']
             self.alert_user(

@@ -21,7 +21,11 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import re
+import time
 import importlib
+import faulthandler
+from concurrent.futures import ThreadPoolExecutor
+
 
 if "bpy" in locals():
     print('RetopoFlow: RELOADING!')
@@ -36,6 +40,7 @@ else:
 import bpy
 from bpy.types import Menu, Operator
 from bpy_extras import object_utils
+from bpy.app.handlers import persistent
 
 from .addon_common.common.blender import show_blender_text
 
@@ -47,16 +52,18 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Tool Shelf",
-    "warning":     "alpha (α)",  # used for warning icon and text in addons panel
+    "warning":     "alpha-2 (α-2)",  # used for warning icon and text in addons panel
     "wiki_url":    "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View"
 }
 
 
-class VIEW3D_OT_RetopoFlow_QS(retopoflow.RetopoFlow_QuickStart):
+faulthandler.enable()
+
+class VIEW3D_OT_RetopoFlow_OpenQuickStart(retopoflow.RetopoFlow_QuickStart):
     """RetopoFlow Blender Operator"""
-    bl_idname = "cgcookie.retopoflow_quickstart"
+    bl_idname = "cgcookie.retopoflow_openquickstart"
     bl_label = "Quick Start Guide"
     bl_description = "Open RetopoFlow Quick Start Guide in a new window"
     bl_space_type = "VIEW_3D"
@@ -70,12 +77,12 @@ class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO', 'BLOCKING'}
 
 
-class VIEW3D_OT_RetopoFlow_New(Operator):
+class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
     """RetopoFlow Blender Operator"""
-    bl_idname = "cgcookie.retopoflow_new"
+    bl_idname = "cgcookie.retopoflow_newtarget"
     bl_label = "RF: Create new target"
     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
     bl_space_type = "VIEW_3D"
@@ -94,50 +101,6 @@ class VIEW3D_OT_RetopoFlow_New(Operator):
         context.view_layer.objects.active = obj
         bpy.ops.object.mode_set(mode='EDIT')
         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-
-
-class VIEW3D_OT_RetopoFlow_OpenQuickStart(Operator):
-    """RetopoFlow Blender Operator"""
-    bl_idname = "cgcookie.retopoflow_open_quickstart"
-    bl_label = "Quick Start Guide"
-    bl_description = "Open RetopoFlow Quick Start Guide in a new window"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def execute(self, context):
-        t = open('help/quick_start.md', 'rt').read()
-        t = re.sub(r'^\n*', r'', t)         # remove leading newlines
-        t = re.sub(r'\n*$', r'', t)         # remove trailing newlines
-        t = re.sub(r'\n\n+', r'\n\n', t)    # make uniform paragraph separations
-        ps = t.split('\n\n')
-        l = []
-        for p in ps:
-            if p.startswith('- '):
-                l += [p]
-                continue
-            lines = p.split('\n')
-            if len(lines) == 2 and (lines[1].startswith('---') or lines[1].startswith('===')):
-                l += ['\n' + lines[0]] + lines[1:]
-                continue
-            l += ['  '.join(lines)]
-        t = '\n\n'.join(l)
-
-        # play it safe!
-        if 'RetopoFlow Quick Start Guide' not in bpy.data.texts:
-            # create a log file for error writing
-            bpy.data.texts.new('RetopoFlow Quick Start Guide')
-        # restore data, just in case
-        txt = bpy.data.texts['RetopoFlow Quick Start Guide']
-        txt.from_string(t)
-        txt.current_line_index = 0
-
-        show_blender_text('RetopoFlow Quick Start Guide')
-        return {'FINISHED'}
 
 
 
@@ -165,6 +128,22 @@ customs = [
     ] ]
 
 
+perform_backup_recovery = False
+backup_executor = ThreadPoolExecutor()
+@persistent
+def delayed_check():
+    global perform_backup_recovery, backup_executor
+    time.sleep(0.2)
+    if perform_backup_recovery:
+        print('Performing backup')
+        perform_backup_recovery = False
+        retopoflow.RetopoFlow.backup_recover()
+    else:
+        #print('skipping backup')
+        pass
+    backup_executor.submit(delayed_check)
+#delayed_check()
+
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
     bl_idname = 'cgcookie.retopoflow_recover'
     bl_label = 'Recover Auto Save'
@@ -175,17 +154,12 @@ class VIEW3D_OT_RetopoFlow_Recover(Operator):
 
     @classmethod
     def poll(cls, context):
-        return False # THIS IS BROKEN!!!
-        # filepath = '/tmp/RetopoFlow_backup.blend' # options.temp_filepath('blend')
-        # return os.path.exists(filepath)
+        #return False # THIS IS BROKEN!!!
         return retopoflow.RetopoFlow.has_backup()
 
-    def execute(self, context):
-        # filepath = '/tmp/RetopoFlow_backup.blend' # options.temp_filepath('blend')
-        # if not os.path.exists(filepath): return
-        # print('backup recover:', filepath)
-        # bpy.ops.wm.open_mainfile(filepath=filepath)
-        # #RetopoFlow_Blender.del_rotate_object()  # need to remove empty object for rotation
+    def invoke(self, context, event):
+        global perform_backup_recovery
+        #perform_backup_recovery = True
         retopoflow.RetopoFlow.backup_recover()
         return {'FINISHED'}
 
@@ -204,24 +178,16 @@ class VIEW3D_MT_RetopoFlow(Menu):
 
     def draw(self, context):
         layout = self.layout
-        #layout.operator('cgcookie.retopoflow')
         if VIEW3D_MT_RetopoFlow.is_editing_target(context):
-            self.draw_tools(context)
+            # currently editing target, so show RF tools
+            for c in customs:
+                layout.operator(c.bl_idname)
         else:
-            self.draw_new(context)
+            # currently not editing target, so show operator to create new target
+            layout.operator('cgcookie.retopoflow_newtarget')
         layout.separator()
-        # layout.operator('cgcookie.retopoflow_open_quickstart')
-        layout.operator('cgcookie.retopoflow_quickstart')
+        layout.operator('cgcookie.retopoflow_openquickstart')
         layout.operator('cgcookie.retopoflow_recover')
-
-    def draw_new(self, context):
-        layout = self.layout
-        layout.operator('cgcookie.retopoflow_new')
-
-    def draw_tools(self, context):
-        layout = self.layout
-        for c in customs:
-            layout.operator(c.bl_idname)
 
     #############################################################################
     # the following two methods add/remove RF to/from the main 3D View menu
@@ -254,10 +220,9 @@ class VIEW3D_MT_RetopoFlow(Menu):
 classes = [
     VIEW3D_MT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
-    VIEW3D_OT_RetopoFlow_New,
+    VIEW3D_OT_RetopoFlow_NewTarget,
     VIEW3D_OT_RetopoFlow_Recover,
     VIEW3D_OT_RetopoFlow_OpenQuickStart,
-    VIEW3D_OT_RetopoFlow_QS,
 ] + customs
 
 def register():
