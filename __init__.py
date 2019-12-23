@@ -214,6 +214,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
             if VIEW3D_MT_RetopoFlow.is_editing_target(context):
                 row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
             row.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
+            row.operator('cgcookie.retopoflow_openquickstart', text="", icon='QUESTION')
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod
     def menu_remove():
