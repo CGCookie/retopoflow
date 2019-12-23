@@ -1289,7 +1289,7 @@ class RFTarget(RFMesh):
         threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
         symmetry = set()
         if self.mirror_mod.x and px <= threshold: symmetry.add('x')
-        if self.mirror_mod.y and py <= threshold: symmetry.add('y')
+        if self.mirror_mod.y and -py <= threshold: symmetry.add('y')
         if self.mirror_mod.z and pz <= threshold: symmetry.add('z')
         return symmetry
 

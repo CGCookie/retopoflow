@@ -641,9 +641,9 @@ class Patches(RFTool_Patches):
             symmetry0 = self.rfcontext.get_point_symmetry(sv0[0].co)
             symmetry2 = self.rfcontext.get_point_symmetry(sv2[0].co)
             use_symmetry = (symmetry0 == symmetry2)
-            print([v.co for v in sv0])
-            print([v.co for v in sv2])
-            print(symmetry0, symmetry2, use_symmetry)
+            #print([v.co for v in sv0])
+            #print([v.co for v in sv2])
+            #print(symmetry0, symmetry2, use_symmetry)
 
             off0,off2 = sv0[0].co-sv0[-1].co, sv2[0].co-sv2[-1].co
 
