@@ -256,6 +256,7 @@ class PolyPen(RFTool_PolyPen):
 
     @RFTool_PolyPen.dirty_when_done
     def _insert(self):
+        self.last_delta = None
         self.move_done_pressed = None
         self.move_done_released = ['insert', 'insert alt0']
         self.move_cancelled = 'cancel'
@@ -503,6 +504,7 @@ class PolyPen(RFTool_PolyPen):
         if self.rfcontext.actions.released('action'):
             return 'main'
         if (self.rfcontext.actions.mouse - self.mousedown).length > 7:
+            self.last_delta = None
             self.move_done_pressed = None
             self.move_done_released = ['action']
             self.move_cancelled = 'cancel'
