@@ -21,6 +21,8 @@ import os
 import bpy
 from bpy.app.handlers import persistent
 
+from ..config.options import options
+
 # updater import, import safely
 # Prevents popups for users with invalid python installs e.g. missing libraries
 try:
@@ -48,6 +50,8 @@ except Exception as e:
 # otherwise the bl_idname's will not match and have errors.
 # Must be all lowercase and no spaces
 updater.addon = "cgcookie"
+addon_package = __package__.split('.')[0]
+#updater.addon_package = ''
 
 
 # -----------------------------------------------------------------------------
@@ -83,9 +87,9 @@ def get_user_preferences(context=None):
         context = bpy.context
     prefs = None
     if hasattr(context, "user_preferences"):
-        prefs = context.user_preferences.addons.get(__package__, None)
+        prefs = context.user_preferences.addons.get(addon_package, None)
     elif hasattr(context, "preferences"):
-        prefs = context.preferences.addons.get(__package__, None)
+        prefs = context.preferences.addons.get(addon_package, None)
     if prefs:
         return prefs.preferences
     # To make the addon stable and non-exception prone, return None
@@ -218,18 +222,11 @@ class addon_updater_check_now(bpy.types.Operator):
             # Ignoring if error, to prevent being stuck on the error screen
             return {'CANCELLED'}
 
-        # apply the UI settings
-        settings = get_user_preferences(context)
-        if not settings:
-            if updater.verbose:
-                print("Could not get {} preferences, update check skipped".format(
-                    __package__))
-            return {'CANCELLED'}
-        updater.set_check_interval(enable=settings.auto_check_update,
-                    months=settings.updater_intrval_months,
-                    days=settings.updater_intrval_days,
-                    hours=settings.updater_intrval_hours,
-                    minutes=settings.updater_intrval_minutes
+        updater.set_check_interval(enable=options['updater auto check update'],
+                    months=options['updater interval months'],
+                    days=options['updater interval days'],
+                    hours=options['updater interval hours'],
+                    minutes=options['updater interval minutes'],
                     ) # optional, if auto_check_update
 
         # input is an optional callback function
@@ -256,8 +253,12 @@ class addon_updater_update_now(bpy.types.Operator):
         options={'HIDDEN'}
     )
 
-    def execute(self,context):
+    @classmethod
+    def poll(cls, context):
+        return not updater.invalidupdater and updater.update_ready
 
+
+    def execute(self,context):
         # in case of error importing updater
         if updater.invalidupdater == True:
             return {'CANCELLED'}
@@ -722,14 +723,11 @@ def check_for_update_background():
         return
 
     # apply the UI settings
-    settings = get_user_preferences(bpy.context)
-    if not settings:
-        return
-    updater.set_check_interval(enable=settings.auto_check_update,
-                months=settings.updater_intrval_months,
-                days=settings.updater_intrval_days,
-                hours=settings.updater_intrval_hours,
-                minutes=settings.updater_intrval_minutes
+    updater.set_check_interval(enable=options['updater auto check update'],
+                months=options['updater interval months'],
+                days=options['updater interval days'],
+                hours=options['updater interval hours'],
+                minutes=options['updater interval minutes'],
                 ) # optional, if auto_check_update
 
     # input is an optional callback function
@@ -748,17 +746,11 @@ def check_for_update_nonthreaded(self, context):
 
     # only check if it's ready, ie after the time interval specified
     # should be the async wrapper call here
-    settings = get_user_preferences(bpy.context)
-    if not settings:
-        if updater.verbose:
-            print("Could not get {} preferences, update check skipped".format(
-                __package__))
-        return
-    updater.set_check_interval(enable=settings.auto_check_update,
-                months=settings.updater_intrval_months,
-                days=settings.updater_intrval_days,
-                hours=settings.updater_intrval_hours,
-                minutes=settings.updater_intrval_minutes
+    updater.set_check_interval(enable=options['updater auto check update'],
+                months=options['updater interval months'],
+                days=options['updater interval days'],
+                hours=options['updater interval hours'],
+                minutes=options['updater interval minutes'],
                 ) # optional, if auto_check_update
 
     (update_ready, version, link) = updater.check_for_update(now=False)
@@ -1252,12 +1244,12 @@ def register(bl_info):
     updater.user = "cgcookie"
 
     # choose your own repository, must match git name
-    updater.repo = "blender-addon-updater"
+    updater.repo = "retopoflow"
 
     #updater.addon = # define at top of module, MUST be done first
 
     # Website for manual addon download, optional but recommended to set
-    updater.website = "https://github.com/CGCookie/blender-addon-updater/"
+    updater.website = "https://github.com/CGCookie/retopoflow/"
 
     # Addon subfolder path
     # "sample/path/to/addon"

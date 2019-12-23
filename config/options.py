@@ -213,6 +213,13 @@ class Options:
         'tweak mask selected':  False,
 
         'patches angle':        120,
+
+        # addon updater settings
+        'updater auto check update': True,
+        'updater interval months': 0,
+        'updater interval days': 1,
+        'updater interval hours': 0,
+        'updater interval minutes': 0,
     }
 
     db = None           # current options dict
@@ -259,7 +266,7 @@ class Options:
     def update_external_vars(self):
         Debugger.set_error_level(self['debug level'])
         Logger.set_log_filename(self['log_filename'])  #self.get_path('log_filename'))
-        Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
+        # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self.get_path('profiler_filename'))
 
     def dirty(self):

@@ -60,7 +60,6 @@ bl_info = {
     "category":    "3D View"
 }
 
-
 faulthandler.enable()
 
 class VIEW3D_OT_RetopoFlow_OpenQuickStart(retopoflow.RetopoFlow_QuickStart):
@@ -192,6 +191,7 @@ class VIEW3D_MT_RetopoFlow(Menu):
         layout.operator('cgcookie.retopoflow_openquickstart')
         layout.operator('cgcookie.retopoflow_recover')
         layout.separator()
+        #layout.label(text='RetopoFlow Updater')
         layout.operator('cgcookie.retopoflow_updater_check_now')
         layout.operator('cgcookie.retopoflow_updater_update_now')
 
@@ -200,6 +200,8 @@ class VIEW3D_MT_RetopoFlow(Menu):
     # NOTE: this is a total hack: hijacked the draw function!
     @staticmethod
     def menu_add():
+        # for more icon options, see:
+        #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
         VIEW3D_MT_RetopoFlow.menu_remove()
         VIEW3D_MT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
         def hijacked(context, layout):
