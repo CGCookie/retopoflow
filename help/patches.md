@@ -3,6 +3,8 @@
 The Patches tool helps fill in holes in your topology.
 Select the strip of boundary edges that you wish to fill.
 
+![](help_patches_2sides_beforeafter.png width:100%;border:0px)
+
 ## Actions
 
 |  |  |  |
@@ -23,7 +25,6 @@ More support coming soon!
 - 3 connected strips in a C-shape: first and last strips must contain the same number of edges
 - 4 strips in a rectangular loop: opposite strips must contain the same number of edges
 
-![](help_patches_2sides_beforeafter.png)
 
 If no pre-visualized regions show after selection, no geometry will be created after pressing F.
 

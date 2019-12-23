@@ -2,7 +2,7 @@
 
 The Tweak tool allows you to easily adjust vertex positions with a brush.
 
-![](help_tweak.png)
+![](help_tweak.png width:100%;border:0px)
 
 ## Actions
 
