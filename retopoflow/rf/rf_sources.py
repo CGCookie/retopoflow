@@ -40,11 +40,15 @@ class RetopoFlow_Sources:
     @profiler.function
     def setup_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
+        print('  rfsources...')
         self.rfsources = [RFSource.new(src) for src in self.get_sources()]
+        print('  bboxes...')
         self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
         dprint('%d sources found' % len(self.rfsources))
         opts = visualization.get_source_settings()
+        print('  drawing...')
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
+        print('  done!')
 
     @profiler.function
     def setup_sources_symmetry(self):

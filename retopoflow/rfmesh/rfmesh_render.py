@@ -49,7 +49,7 @@ from ...addon_common.common.utils import min_index
 from ...addon_common.common.hasher import hash_object, hash_bmesh
 from ...addon_common.common.decorators import stats_wrapper
 from ...addon_common.common import bmesh_render as bmegl
-from ...addon_common.common.bmesh_render import BGLBufferedRender, triangulateFace
+from ...addon_common.common.bmesh_render import BGLBufferedRender, triangulateFace, BufferedRender_Batch
 
 from ...config.options import options
 
@@ -167,9 +167,12 @@ class RFMeshRender():
 
     @profiler.function
     def add_buffered_render(self, bgl_type, data):
-        buffered_render = BGLBufferedRender(bgl_type)
-        buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
-        self.buffered_renders.append(buffered_render)
+        batch = BufferedRender_Batch(bgl_type)
+        batch.buffer(data['vco'], data['vno'], data['sel'])
+        self.buffered_renders.append(batch)
+        # buffered_render = BGLBufferedRender(bgl_type)
+        # buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
+        # self.buffered_renders.append(buffered_render)
 
     @profiler.function
     def _gather_data(self):
@@ -285,54 +288,12 @@ class RFMeshRender():
         pr = profiler.start('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else ''))
         if True:
             if not self.async_load:
+                # print('RetopoFlow: loading mesh data for object %s synchronously' % self.rfmesh.get_obj_name())
                 profiler.function(gather)()
             else:
+                # print('RetopoFlow: loading mesh data for object %s asynchronously' % self.rfmesh.get_obj_name())
                 self._gather_submit = self.executor.submit(gather)
         pr.done()
-
-    @profiler.function
-    def _draw_buffered(self, alpha_above, alpha_below, cull_backfaces, alpha_backface):
-        bmegl.glSetDefaultOptions()
-        bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
-
-        opts = dict(self.opts)
-        opts['cull backfaces'] = cull_backfaces
-        opts['alpha backface'] = alpha_backface
-        opts['dpi mult'] = self.drawing.get_dpi_mult()
-        mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
-        for axis in mirror_axes: opts['mirror %s' % axis] = True
-
-        pr = profiler.start('geometry above')
-        if True:
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            opts['poly hidden']         = 1 - alpha_above
-            opts['poly mirror hidden']  = 1 - alpha_above
-            opts['line hidden']         = 1 - alpha_above
-            opts['line mirror hidden']  = 1 - alpha_above
-            opts['point hidden']        = 1 - alpha_above
-            opts['point mirror hidden'] = 1 - alpha_above
-            for buffered_render in self.buffered_renders:
-                buffered_render.draw(opts)
-        pr.done()
-
-        if not opts.get('no below', False):
-            # draw geometry hidden behind
-            pr = profiler.start('geometry below')
-            if True:
-                bgl.glDepthFunc(bgl.GL_GREATER)
-                opts['poly hidden']         = 1 - alpha_below
-                opts['poly mirror hidden']  = 1 - alpha_below
-                opts['line hidden']         = 1 - alpha_below
-                opts['line mirror hidden']  = 1 - alpha_below
-                opts['point hidden']        = 1 - alpha_below
-                opts['point mirror hidden'] = 1 - alpha_below
-                for buffered_render in self.buffered_renders:
-                    buffered_render.draw(opts)
-            pr.done()
-
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glDepthRange(0, 1)
 
     @profiler.function
     def clean(self):
@@ -367,6 +328,87 @@ class RFMeshRender():
 
         profiler.add_note('--> passed through')
 
+    # @profiler.function
+    # def _draw_buffered(self, alpha_above, alpha_below, cull_backfaces, alpha_backface):
+    #     bmegl.glSetDefaultOptions()
+    #     bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
+
+    #     opts = dict(self.opts)
+    #     opts['cull backfaces'] = cull_backfaces
+    #     opts['alpha backface'] = alpha_backface
+    #     opts['dpi mult'] = self.drawing.get_dpi_mult()
+    #     mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
+    #     for axis in mirror_axes: opts['mirror %s' % axis] = True
+
+    #     pr = profiler.start('geometry above')
+    #     if True:
+    #         bgl.glDepthFunc(bgl.GL_LEQUAL)
+    #         opts['poly hidden']         = 1 - alpha_above
+    #         opts['poly mirror hidden']  = 1 - alpha_above
+    #         opts['line hidden']         = 1 - alpha_above
+    #         opts['line mirror hidden']  = 1 - alpha_above
+    #         opts['point hidden']        = 1 - alpha_above
+    #         opts['point mirror hidden'] = 1 - alpha_above
+    #         for buffered_render in self.buffered_renders:
+    #             buffered_render.draw(opts)
+    #     pr.done()
+
+    #     if not opts.get('no below', False):
+    #         # draw geometry hidden behind
+    #         pr = profiler.start('geometry below')
+    #         if True:
+    #             bgl.glDepthFunc(bgl.GL_GREATER)
+    #             opts['poly hidden']         = 1 - alpha_below
+    #             opts['poly mirror hidden']  = 1 - alpha_below
+    #             opts['line hidden']         = 1 - alpha_below
+    #             opts['line mirror hidden']  = 1 - alpha_below
+    #             opts['point hidden']        = 1 - alpha_below
+    #             opts['point mirror hidden'] = 1 - alpha_below
+    #             for buffered_render in self.buffered_renders:
+    #                 buffered_render.draw(opts)
+    #         pr.done()
+
+    #     bgl.glDepthFunc(bgl.GL_LEQUAL)
+    #     bgl.glDepthMask(bgl.GL_TRUE)
+    #     bgl.glDepthRange(0, 1)
+
+    # @profiler.function
+    # def draw(
+    #     self,
+    #     view_forward,
+    #     buf_matrix_target, buf_matrix_target_inv,
+    #     buf_matrix_view, buf_matrix_view_invtrans,
+    #     buf_matrix_proj,
+    #     alpha_above, alpha_below,
+    #     cull_backfaces, alpha_backface,
+    #     symmetry=None, symmetry_view=None,
+    #     symmetry_effect=0.0, symmetry_frame: Frame=None
+    # ):
+    #     self.clean()
+    #     if not self.buffered_renders: return
+
+    #     try:
+    #         bmegl.bmeshShader.enable()
+    #         bmegl.bmeshShader.assign('matrix_m', self.buf_matrix_model)
+    #         bmegl.bmeshShader.assign('matrix_mn', self.buf_matrix_normal)
+    #         bmegl.bmeshShader.assign('matrix_t', buf_matrix_target)
+    #         bmegl.bmeshShader.assign('matrix_ti', buf_matrix_target_inv)
+    #         bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
+    #         bmegl.bmeshShader.assign('matrix_vn', buf_matrix_view_invtrans)
+    #         bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
+    #         bmegl.bmeshShader.assign('dir_forward', view_forward)
+    #         bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view,
+    #                           effect=symmetry_effect, frame=symmetry_frame)
+    #         self._draw_buffered(alpha_above, alpha_below, cull_backfaces, alpha_backface)
+    #     except:
+    #         Debugger.print_exception()
+    #         pass
+    #     finally:
+    #         try:
+    #             bmegl.bmeshShader.disable()
+    #         except:
+    #             pass
+
     @profiler.function
     def draw(
         self,
@@ -383,23 +425,63 @@ class RFMeshRender():
         if not self.buffered_renders: return
 
         try:
-            bmegl.bmeshShader.enable()
-            bmegl.bmeshShader.assign('matrix_m', self.buf_matrix_model)
-            bmegl.bmeshShader.assign('matrix_mn', self.buf_matrix_normal)
-            bmegl.bmeshShader.assign('matrix_t', buf_matrix_target)
-            bmegl.bmeshShader.assign('matrix_ti', buf_matrix_target_inv)
-            bmegl.bmeshShader.assign('matrix_v', buf_matrix_view)
-            bmegl.bmeshShader.assign('matrix_vn', buf_matrix_view_invtrans)
-            bmegl.bmeshShader.assign('matrix_p', buf_matrix_proj)
-            bmegl.bmeshShader.assign('dir_forward', view_forward)
-            bmegl.glSetMirror(symmetry=symmetry, view=symmetry_view,
-                              effect=symmetry_effect, frame=symmetry_frame)
-            self._draw_buffered(alpha_above, alpha_below, cull_backfaces, alpha_backface)
+            bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
+
+            opts = dict(self.opts)
+
+            opts['matrix model'] = self.rfmesh.xform.mx_p
+            opts['matrix normal'] = self.rfmesh.xform.mx_n
+            opts['matrix target'] = buf_matrix_target
+            opts['matrix target inverse'] = buf_matrix_target_inv
+            opts['matrix view'] = buf_matrix_view
+            opts['matrix view normal'] = buf_matrix_view_invtrans
+            opts['matrix projection'] = buf_matrix_proj
+            opts['forward direction'] = view_forward
+
+            opts['symmetry'] = symmetry
+            opts['symmetry frame'] = symmetry_frame
+            opts['symmetry view'] = symmetry_view
+            opts['symmetry effect'] = symmetry_effect
+
+            bmegl.glSetDefaultOptions()
+
+            opts['cull backfaces'] = cull_backfaces
+            opts['alpha backface'] = alpha_backface
+            opts['dpi mult'] = self.drawing.get_dpi_mult()
+            mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
+            for axis in mirror_axes: opts['mirror %s' % axis] = True
+
+            pr = profiler.start('geometry above')
+            if True:
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
+                opts['poly hidden']         = 1 - alpha_above
+                opts['poly mirror hidden']  = 1 - alpha_above
+                opts['line hidden']         = 1 - alpha_above
+                opts['line mirror hidden']  = 1 - alpha_above
+                opts['point hidden']        = 1 - alpha_above
+                opts['point mirror hidden'] = 1 - alpha_above
+                for buffered_render in self.buffered_renders:
+                    buffered_render.draw(opts)
+            pr.done()
+
+            if not opts.get('no below', False):
+                # draw geometry hidden behind
+                pr = profiler.start('geometry below')
+                if True:
+                    bgl.glDepthFunc(bgl.GL_GREATER)
+                    opts['poly hidden']         = 1 - alpha_below
+                    opts['poly mirror hidden']  = 1 - alpha_below
+                    opts['line hidden']         = 1 - alpha_below
+                    opts['line mirror hidden']  = 1 - alpha_below
+                    opts['point hidden']        = 1 - alpha_below
+                    opts['point mirror hidden'] = 1 - alpha_below
+                    for buffered_render in self.buffered_renders:
+                        buffered_render.draw(opts)
+                pr.done()
+
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            bgl.glDepthMask(bgl.GL_TRUE)
+            bgl.glDepthRange(0, 1)
         except:
             Debugger.print_exception()
             pass
-        finally:
-            try:
-                bmegl.bmeshShader.disable()
-            except:
-                pass

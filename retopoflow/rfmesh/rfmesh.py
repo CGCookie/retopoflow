@@ -1412,7 +1412,7 @@ class RFTarget(RFMesh):
     def holes_fill(self, edges, sides):
         edges = list(map(self._unwrap, edges))
         ret = holes_fill(self.bme, edges=edges, sides=sides)
-        print(ret)
+        print('RetopoFlow holes_fill', ret)
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         if del_faces:

@@ -53,11 +53,11 @@ class RetopoFlow_Drawing:
         if not self.actions.r3d: return
         # if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
 
-        buf_matrix_target = self.rftarget_draw.buf_matrix_model
-        buf_matrix_target_inv = self.rftarget_draw.buf_matrix_inverse
-        buf_matrix_view = XForm.to_bglMatrix(self.actions.r3d.view_matrix)
-        buf_matrix_view_invtrans = XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
-        buf_matrix_proj = XForm.to_bglMatrix(self.actions.r3d.window_matrix)
+        buf_matrix_target = self.rftarget_draw.rfmesh.xform.mx_p # self.rftarget_draw.buf_matrix_model
+        buf_matrix_target_inv = self.rftarget_draw.rfmesh.xform.imx_p # self.rftarget_draw.buf_matrix_inverse
+        buf_matrix_view = self.actions.r3d.view_matrix # XForm.to_bglMatrix(self.actions.r3d.view_matrix)
+        buf_matrix_view_invtrans = matrix_normal(self.actions.r3d.view_matrix) # XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
+        buf_matrix_proj = self.actions.r3d.window_matrix # XForm.to_bglMatrix(self.actions.r3d.window_matrix)
         view_forward = self.Vec_forward()  # self.actions.r3d.view_rotation * Vector((0,0,-1))
 
         bgl.glEnable(bgl.GL_MULTISAMPLE)
