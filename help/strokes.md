@@ -3,7 +3,7 @@
 The Strokes tool helps fill in holes in your topology.
 This tool lets you insert edge strips and extruding edges by brushing a stroke on the source.
 
-![](help_strokes.png width:100%;border:0px)
+![](help_strokes.png)
 
 ## Drawing
 

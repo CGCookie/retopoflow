@@ -8,7 +8,7 @@ Each additional stroke drawn will either extrude the current selection or cut a 
 
 You may draw strokes in any order, from any direction.
 
-![](help_contours.png width:100%;border:0px)
+![](help_contours.png)
 
 
 ## Drawing

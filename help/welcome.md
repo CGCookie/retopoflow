@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow 3.0.0β!
+# Welcome to RetopoFlow 3.0.0-α2!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
 The RF tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
@@ -28,7 +28,7 @@ Whenever you see a bug, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
 We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
-![Global exception handling.](global_exception.png width:100%;border:0px)
+![Global exception handling.](global_exception.png)
 
 
 

@@ -3,7 +3,7 @@
 The Patches tool helps fill in holes in your topology.
 Select the strip of boundary edges that you wish to fill.
 
-![](help_patches_2sides_beforeafter.png width:100%;border:0px)
+![](help_patches_2sides_beforeafter.png)
 
 ## Actions
 
