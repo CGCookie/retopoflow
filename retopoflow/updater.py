@@ -701,6 +701,7 @@ def post_update_callback(module_name, res=None):
 def ui_refresh(update_status):
     # find a way to just re-draw self?
     # callback intended for trigger by async thread
+    print('Updater UI_REFRESH')
     for windowManager in bpy.data.window_managers:
         for window in windowManager.windows:
             for area in window.screen.areas:
