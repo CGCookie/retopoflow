@@ -21,6 +21,7 @@ import os
 import bpy
 from bpy.app.handlers import persistent
 
+from ..addon_common.common.blender import tag_redraw_all
 from ..config.options import options
 
 # updater import, import safely
@@ -701,11 +702,7 @@ def post_update_callback(module_name, res=None):
 def ui_refresh(update_status):
     # find a way to just re-draw self?
     # callback intended for trigger by async thread
-    print('Updater UI_REFRESH')
-    for windowManager in bpy.data.window_managers:
-        for window in windowManager.windows:
-            for area in window.screen.areas:
-                area.tag_redraw()
+    tag_redraw_all('Updater UI_REFRESH')
 
 
 def check_for_update_background():

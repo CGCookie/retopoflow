@@ -37,7 +37,7 @@ from ..rfmesh.rfmesh_render import RFMeshRender
 
 class RetopoFlow_Target:
     '''
-    functions to work on RFTarget
+    functions to work on target mesh (RFTarget)
     '''
 
     @profiler.function
@@ -510,39 +510,23 @@ class RetopoFlow_Target:
 
     def deselect_all(self):
         self.rftarget.deselect_all()
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def deselect(self, elems, supparts=True, subparts=True):
         self.rftarget.deselect(elems, supparts=supparts, subparts=subparts)
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def select(self, elems, supparts=True, subparts=True, only=True):
         self.rftarget.select(elems, supparts=supparts, subparts=subparts, only=only)
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
-
-    def reselect(self):
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def select_toggle(self):
         self.rftarget.select_toggle()
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def select_edge_loop(self, edge, only=True, **kwargs):
         eloop,connected = self.get_edge_loop(edge)
         self.rftarget.select(eloop, only=only, **kwargs)
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
-        # if self.tool: self.tool.update()
-        self.update_rot_object()
 
     def update_rot_object(self):
         self.rot_object.location = self.rftarget.get_selection_center()
@@ -556,7 +540,6 @@ class RetopoFlow_Target:
             self.dissolve_option(opt[1])
         elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
             self.delete_option(opt[1])
-        # self.tool.update()
 
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()

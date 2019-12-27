@@ -52,6 +52,7 @@ class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
         return True
 
     def blender_ui_set(self):
+        self.viewaa_simplify()
         # self.manipulator_hide()
         self.panels_hide()
         # self.overlays_hide()

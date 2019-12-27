@@ -311,6 +311,7 @@ class RetopoFlow_UI:
     def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         if scale_to_unit_box: self.scale_to_unit_box()
+        self.viewaa_simplify()
         self.manipulator_hide()
         self.panels_hide()
         self.overlays_hide()

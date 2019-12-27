@@ -40,6 +40,7 @@ class RetopoFlow_States(CookieCutter):
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
+            self.update_rot_object()
             self.rftool._callback('target change')
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback_widget('target change')

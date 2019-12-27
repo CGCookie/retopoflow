@@ -249,7 +249,7 @@ class RFMesh():
     @blender_version_wrapper('<','2.80')
     def obj_select_set(self, v): self.obj.select = v
     @blender_version_wrapper('>=','2.80')
-    def obj_select_set(self, v): self.obj.select_set(v) #'SELECT' if v else 'DESELECT'
+    def obj_select_set(self, v): self.obj.select_set(v)
 
     def obj_render_hide_get(self): return self.obj.hide_render
     def obj_render_hide_set(self, v): self.obj.hide_render = v

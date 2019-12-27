@@ -37,6 +37,10 @@ from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
 class RetopoFlow_Blender:
+    '''
+    handles most interactions with blender
+    '''
+
     @staticmethod
     @blender_version_wrapper('<','2.80')
     def is_valid_source(o):
@@ -101,11 +105,6 @@ class RetopoFlow_Blender:
                 # currently in local view
                 return False
         return True
-
-    # @staticmethod
-    # @blender_version_wrapper('<','2.80')
-    # def get_sources():
-    #     return [o for o in bpy.context.scene.objects if RetopoFlow_Blender.is_valid_source(o)]
 
     @staticmethod
     def get_sources():

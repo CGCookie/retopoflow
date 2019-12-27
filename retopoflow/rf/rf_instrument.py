@@ -40,21 +40,22 @@ class RetopoFlow_Instrumentation:
         target_json = self.rftarget.to_json()
         data = {'action': action, 'target': target_json}
         data_str = json.dumps(data, separators=[',',':'], indent=0)
-        RFContext.instrument_queue.put(data_str)
+        self.instrument_queue.put(data_str)
 
         # write data to end of textblock asynchronously
         # TODO: try writing to file (text/binary), because writing to textblock is _very_ slow! :(
         def write_out():
             while True:
-                if RFContext.instrument_queue.empty():
+                if self.instrument_queue.empty():
                     time.sleep(0.1)
                     continue
-                data_str = RFContext.instrument_queue.get()
+                data_str = self.instrument_queue.get()
                 data_str = data_str.splitlines()
                 tb.write('')        # position cursor to end
                 for line in data_str:
                     tb.write(line)
                 tb.write('\n')
-        if not RFContext.instrument_thread:
+        if not self.instrument_thread:
+            # executor only needed to start the following instrument_thread
             executor = ThreadPoolExecutor()
-            RFContext.instrument_thread = executor.submit(write_out)
+            self.instrument_thread = executor.submit(write_out)

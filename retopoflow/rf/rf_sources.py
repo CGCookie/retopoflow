@@ -34,7 +34,7 @@ from ..rfmesh.rfmesh_render import RFMeshRender
 
 class RetopoFlow_Sources:
     '''
-    functions to work on all RFSource objects
+    functions to work on all source meshes (RFSource)
     '''
 
     @profiler.function

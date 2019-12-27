@@ -37,9 +37,9 @@ from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
 class RetopoFlow_BlenderSave:
-
-    #############################################
-    # backup / restore methods
+    '''
+    backup / restore methods
+    '''
 
     def check_auto_save(self):
         use_auto_save_temporary_files = get_preferences(self.actions.context).filepaths.use_auto_save_temporary_files
@@ -53,7 +53,6 @@ class RetopoFlow_BlenderSave:
     @staticmethod
     def has_backup():
         filepath = options.temp_filepath('blend')
-        # os.path.exists(options.temp_filepath('state'))
         return os.path.exists(filepath)
 
     @staticmethod
@@ -62,8 +61,6 @@ class RetopoFlow_BlenderSave:
         if not os.path.exists(filepath): return
         print('backup recover:', filepath)
         bpy.ops.wm.open_mainfile(filepath=filepath)
-        #RetopoFlow_BlenderSave.del_rotate_object()  # need to remove empty object for rotation
-        #RFMode.restore_window_state()
 
     def save_backup(self):
         filepath = options.temp_filepath('blend')
@@ -72,13 +69,10 @@ class RetopoFlow_BlenderSave:
         if os.path.exists(filepath1): os.remove(filepath1)
         if os.path.exists(filepath): os.rename(filepath, filepath1)
         self.blender_ui_reset()
-        #self.restore_window_state(ignore_panels=True)
         bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
-        # self.overwrite_window_state()
         self.blender_ui_set()
 
     def save_normal(self):
-        # self.restore_window_state(ignore_panels=True)
         self.blender_ui_reset()
         try:
             bpy.ops.wm.save_mainfile()
