@@ -412,7 +412,7 @@ class RFMeshRender():
     @profiler.function
     def draw(
         self,
-        view_forward,
+        view_forward, unit_scaling_factor,
         buf_matrix_target, buf_matrix_target_inv,
         buf_matrix_view, buf_matrix_view_invtrans,
         buf_matrix_proj,
@@ -437,6 +437,7 @@ class RFMeshRender():
             opts['matrix view normal'] = buf_matrix_view_invtrans
             opts['matrix projection'] = buf_matrix_proj
             opts['forward direction'] = view_forward
+            opts['unit scaling factor'] = unit_scaling_factor
 
             opts['symmetry'] = symmetry
             opts['symmetry frame'] = symmetry_frame

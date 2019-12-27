@@ -73,7 +73,7 @@ class RetopoFlow_Drawing:
             if True:
                 for rs,rfs in zip(self.rfsources, self.rfsources_draw):
                     rfs.draw(
-                        view_forward,
+                        view_forward, self.unit_scaling_factor,
                         buf_matrix_target, buf_matrix_target_inv,
                         buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                         1.00, 0.05, False, 0.5,
@@ -90,7 +90,7 @@ class RetopoFlow_Drawing:
             cull_backfaces = options['target cull backfaces']
             alpha_backface = options['target alpha backface']
             self.rftarget_draw.draw(
-                view_forward,
+                view_forward, self.unit_scaling_factor,
                 buf_matrix_target, buf_matrix_target_inv,
                 buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
                 alpha_above, alpha_below, cull_backfaces, alpha_backface
