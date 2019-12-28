@@ -111,7 +111,7 @@ class Options:
         'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
-        'debug level':          0,      # debug level, 0--5 (for printing to console)
+        'debug level':          0,      # debug level, 0--5 (for printing to console). 0=no print; 5=print all
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
         'visualize counts':     True,   # visualize geometry counts

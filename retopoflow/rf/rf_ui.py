@@ -312,7 +312,10 @@ class RetopoFlow_UI:
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         if scale_to_unit_box: self.scale_to_unit_box()
         self.viewaa_simplify()
-        self.manipulator_hide()
+
+        self.manipulator_hide() # <---------------------------------------------------------------
+        self._space.show_gizmo = True
+
         self.panels_hide()
         self.overlays_hide()
         self.region_darken()
