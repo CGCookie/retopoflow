@@ -49,7 +49,7 @@ from ...addon_common.common.utils import min_index
 from ...addon_common.common.hasher import hash_object, hash_bmesh
 from ...addon_common.common.decorators import stats_wrapper
 from ...addon_common.common import bmesh_render as bmegl
-from ...addon_common.common.bmesh_render import BGLBufferedRender, triangulateFace, BufferedRender_Batch
+from ...addon_common.common.bmesh_render import triangulateFace, BufferedRender_Batch
 
 from ...config.options import options
 
