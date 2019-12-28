@@ -426,7 +426,7 @@ class Visualization_Settings:
 
             'line color':                  (*color_frozen[:3], 1.00),
             'line color selected':         (*color_select[:3], 1.00),
-            'line width':                  2.0,
+            'line width':                  1.0,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
             'line mirror stipple':         False,
@@ -440,7 +440,7 @@ class Visualization_Settings:
             'point color':                 (*color_frozen[:3], 1.00),
             'point color selected':        (*color_select[:3], 1.00),
             'point color highlight':       (1.0, 1.0, 0.1, 1.0),
-            'point size':                  3.0,
+            'point size':                  4.0,
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
