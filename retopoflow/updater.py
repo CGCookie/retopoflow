@@ -1291,7 +1291,7 @@ def register(bl_info):
     # as a part of the pattern list below so they will always be overwritten by an
     # update. If a pattern file is not found in new update, no action is taken
     # This does NOT detele anything, only defines what is allowed to be overwritten
-    updater.overwrite_patterns = ["*.png","*.jpg","README.md","LICENSE.txt"]
+    updater.overwrite_patterns = ["*.png","*.md","LICENSE","*.glsl","*.ttf","*.css"]
     # updater.overwrite_patterns = []
     # other examples:
     # ["*"] means ALL files/folders will be overwritten by update, was the behavior pre updater v1.0.4
@@ -1308,7 +1308,7 @@ def register(bl_info):
     # file name removed exists in the update, then it acts as if pattern
     # is placed in the overwrite_patterns property. Note this is effectively
     # ignored if clean=True in the run_update method
-    updater.remove_pre_update_patterns = ["*.py", "*.pyc"]
+    updater.remove_pre_update_patterns = ["*.py","*.pyc","*.md","*.png","*.glsl","*.ttf","*.css"]
     # Note setting ["*"] here is equivalent to always running updates with
     # clean = True in the run_update method, ie the equivalent of a fresh,
     # new install. This would also delete any resources or user-made/modified
@@ -1323,7 +1323,7 @@ def register(bl_info):
     # but the user has the option from user preferences to directly
     # update to the master branch or any other branches specified using
     # the "install {branch}/older version" operator.
-    updater.include_branches = True
+    updater.include_branches = False
 
     # (GitHub only) This options allows the user to use releases over tags for data,
     # which enables pulling down release logs/notes, as well as specify installs from
@@ -1364,12 +1364,12 @@ def register(bl_info):
     # Set the min and max versions allowed to install.
     # Optional, default None
     # min install (>=) will install this and higher
-    updater.version_min_update = (0,0,0)
+    updater.version_min_update = (3,0,0)
     # updater.version_min_update = None  # if not wanting to define a min
 
     # max install (<) will install strictly anything lower
-    # updater.version_max_update = (9,9,9)
-    updater.version_max_update = None # set to None if not wanting to set max
+    updater.version_max_update = (3,9,9)
+    # updater.version_max_update = None # set to None if not wanting to set max
 
     # Function defined above, customize as appropriate per repository
     updater.skip_tag = skip_tag_function # min and max used in this function
