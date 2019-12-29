@@ -349,6 +349,34 @@ class RetopoFlow_UI:
 
         self.alert_windows = 0
 
+        def setup_tiny_ui():
+            return
+            self.ui_tiny = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id='tinydialog', closeable=False, parent=self.document.body)
+            ui_tools = ui.div(id='ttools', parent=self.ui_tiny)
+            def add_tool(rftool):
+                nonlocal ui_tools
+                # must be a fn so that local vars are unique and correctly captured
+                lbl, img = rftool.name, rftool.icon
+                if hasattr(self, 'rf_starting_tool'):
+                    checked = rftool.name == self.rf_starting_tool
+                else:
+                    checked = not hasattr(add_tool, 'notfirst')
+                if checked: self.select_rftool(rftool)
+                radio = ui.input_radio(
+                    id='ttool-%s'%lbl.lower(),
+                    value=lbl.lower(),
+                    title=rftool.description,
+                    name="tool",
+                    classes="tool",
+                    checked=checked,
+                    parent=ui_tools,
+                )
+                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
+                ui.img(src=img, parent=radio, title=rftool.description)
+                #ui.label(innerText=lbl, parent=radio, title=rftool.description)
+                add_tool.notfirst = True
+            for rftool in self.rftools: add_tool(rftool)
+
         def setup_main_ui():
             self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", closeable=False, parent=self.document.body)
 
@@ -403,7 +431,7 @@ class RetopoFlow_UI:
                         label='Auto Hide Tool Options',
                         title='If enabled, options for selected tool will show while other tool options hide.',
                         checked=self._var_auto_hide_options,
-                        style='display:block',
+                        style='display:block;width:100%',
                     ),
                     # ui.button(label='Maximize Area'),
                     ui.collapsible(label='Target Cleaning', id='target-cleaning', children=[
@@ -528,6 +556,7 @@ class RetopoFlow_UI:
             ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
 
         setup_main_ui()
+        setup_tiny_ui()
         setup_options()
         setup_delete_ui()
 

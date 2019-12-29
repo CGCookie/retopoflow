@@ -263,6 +263,23 @@ dialog#maindialog * {
     overflow-x: hidden;
 }
 
+dialog#tinydialog {
+    width: 100px;
+    min-width: 50px;
+    max-width: 500px;
+    padding: 0px;
+}
+dialog#tinydialog * {
+    overflow-x: hidden;
+}
+dialog#tinydialog > div#ttools > * {
+    display: inline;
+    /*background: white;*/
+}
+dialog#tinydialog input[type="radio"] > img {
+    display: none;
+}
+
 dialog#optionsdialog {
     width: 250px;
     min-width: 150px;
