@@ -40,7 +40,7 @@ else:
     from .retopoflow import updater
 
 import bpy
-from bpy.types import Menu, Operator
+from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
@@ -165,9 +165,11 @@ class VIEW3D_OT_RetopoFlow_Recover(Operator):
         return {'FINISHED'}
 
 
-class VIEW3D_MT_RetopoFlow(Menu):
+class VIEW3D_PT_RetopoFlow(Panel):
     """RetopoFlow Blender Menu"""
     bl_label = "RetopoFlow"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
 
     @staticmethod
     def is_editing_target(context):
@@ -179,12 +181,14 @@ class VIEW3D_MT_RetopoFlow(Menu):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text='Start RetopoFlow')
-        if VIEW3D_MT_RetopoFlow.is_editing_target(context):
+        if VIEW3D_PT_RetopoFlow.is_editing_target(context):
             # currently editing target, so show RF tools
+            layout.label(text='Start RetopoFlow with Tool')
+            col = layout.column()
             for c in customs:
-                layout.operator(c.bl_idname)
+                col.operator(c.bl_idname)
         else:
+            layout.label(text='Start RetopoFlow')
             # currently not editing target, so show operator to create new target
             layout.operator('cgcookie.retopoflow_newtarget')
         layout.separator()
@@ -192,8 +196,10 @@ class VIEW3D_MT_RetopoFlow(Menu):
         layout.operator('cgcookie.retopoflow_recover')
         layout.separator()
         #layout.label(text='RetopoFlow Updater')
-        layout.operator('cgcookie.retopoflow_updater_check_now')
-        layout.operator('cgcookie.retopoflow_updater_update_now')
+        layout.label(text='RetopoFlow Updater')
+        col = layout.column()
+        col.operator('cgcookie.retopoflow_updater_check_now')
+        col.operator('cgcookie.retopoflow_updater_update_now')
 
     #############################################################################
     # the following two methods add/remove RF to/from the main 3D View menu
@@ -202,32 +208,33 @@ class VIEW3D_MT_RetopoFlow(Menu):
     def menu_add():
         # for more icon options, see:
         #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
-        VIEW3D_MT_RetopoFlow.menu_remove()
-        VIEW3D_MT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+        VIEW3D_PT_RetopoFlow.menu_remove()
+        VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
         def hijacked(context, layout):
             obj = context.active_object
             mode_string = context.mode
             edit_object = context.edit_object
             gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
 
-            VIEW3D_MT_RetopoFlow._menu_original(context, layout)
+            VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
             row = layout.row(align=True)
-            if VIEW3D_MT_RetopoFlow.is_editing_target(context):
+            if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                 row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
-            row.menu("VIEW3D_MT_RetopoFlow", text="RetopoFlow")
+            # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+            row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow")
             row.operator('cgcookie.retopoflow_openquickstart', text="", icon='QUESTION')
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod
     def menu_remove():
-        if not hasattr(VIEW3D_MT_RetopoFlow, '_menu_original'): return
-        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_MT_RetopoFlow._menu_original
-        del VIEW3D_MT_RetopoFlow._menu_original
+        if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
+        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
+        del VIEW3D_PT_RetopoFlow._menu_original
 
 
 # registration
 classes = [
-    VIEW3D_MT_RetopoFlow,
+    VIEW3D_PT_RetopoFlow,
     VIEW3D_OT_RetopoFlow,
     VIEW3D_OT_RetopoFlow_NewTarget,
     VIEW3D_OT_RetopoFlow_Recover,
@@ -237,10 +244,10 @@ classes = [
 def register():
     for cls in classes: bpy.utils.register_class(cls)
     updater.register(bl_info)
-    VIEW3D_MT_RetopoFlow.menu_add()
+    VIEW3D_PT_RetopoFlow.menu_add()
 
 def unregister():
-    VIEW3D_MT_RetopoFlow.menu_remove()
+    VIEW3D_PT_RetopoFlow.menu_remove()
     updater.unregister()
     for cls in reversed(classes): bpy.utils.unregister_class(cls)
 
