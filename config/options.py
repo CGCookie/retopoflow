@@ -372,14 +372,17 @@ class Themes:
         'Blue': {
             'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats( 26, 111, 255, 255),
+            'new':     rgba_ints_to_floats( 40,  40, 255, 255),
         },
         'Green': {
             'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats( 78, 207,  81, 255),
+            'new':     rgba_ints_to_floats( 40, 255,  40, 255),
         },
         'Orange': {
             'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats(207, 135,  78, 255),
+            'new':     rgba_ints_to_floats(255, 128,  64, 255),
         },
     }
     def __getitem__(self, key): return self.themes[options['color theme']][key]
