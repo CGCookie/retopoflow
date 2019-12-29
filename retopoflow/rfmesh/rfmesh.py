@@ -889,6 +889,11 @@ class RFMesh():
             c += 1
         if c: self.selection_center = v / c
         return self.xform.l2w_point(self.selection_center)
+    def get_selection_bbox(self):
+        l2w_point = self.xform.l2w_point
+        coords = [l2w_point(bmv.co) for bmv in self.bme.verts if bmv.is_valid and bmv.select]
+        #if not coords: return self.get_bbox()
+        return BBox(from_coords=coords)
 
     def deselect_all(self):
         for bmv in self.bme.verts: bmv.select = False

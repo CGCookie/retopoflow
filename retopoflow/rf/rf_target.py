@@ -25,9 +25,10 @@ from mathutils import Vector
 
 from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
+from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm
+from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D, Accel2D
 
 from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
@@ -529,7 +530,20 @@ class RetopoFlow_Target:
         self.rftarget.select(eloop, **kwargs)
 
     def update_rot_object(self):
-        self.rot_object.location = self.rftarget.get_selection_center()
+        # self.rot_object.location = self.rftarget.get_selection_center()
+        bbox = self.rftarget.get_selection_bbox()
+        if bbox.min == None:
+            #bbox = BBox.merge(src.get_bbox() for src in self.rfsources)
+            bboxes = []
+            for s in self.rfsources:
+                verts = [matrix_vector_mult(s.obj.matrix_world, Vector((v[0], v[1], v[2], 1))) for v in s.obj.bound_box]
+                verts = [(v[0]/v[3], v[1]/v[3], v[2]/v[3]) for v in verts]
+                bboxes.append(BBox(from_coords=verts))
+            bbox = BBox.merge(bboxes)
+        # print('update_rot_object', bbox)
+        diff = bbox.max - bbox.min
+        self.rot_object.location = bbox.min + diff / 2
+        self.rot_object.scale = diff / 2
 
     #######################################################
     # delete / dissolve
