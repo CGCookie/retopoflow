@@ -44,6 +44,7 @@ from ..addon_common.common.ui_styling import load_defaultstylings
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ..config.keymaps import default_rf_keymaps
+from ..config.options import options
 
 
 class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
@@ -139,6 +140,8 @@ class RetopoFlow(
         self.setup_rftools()
         print('RetopoFlow: setting up grease')
         self.setup_grease()
+        print('RetopoFlow: setting up drawing')
+        self.setup_drawing()
         print('RetopoFlow: setting up ui')
         self.setup_ui()                 # must be called after self.setup_target() and self.setup_rftools()!!
         print('RetopoFlow: setting up undo')
@@ -148,6 +151,7 @@ class RetopoFlow(
 
     def end(self):
         self.blender_ui_reset()
+        options.clear_callbacks()
         # self.end_rotate_about_active()
         # self.teardown_target()
         # self.unscale_from_unit_box()

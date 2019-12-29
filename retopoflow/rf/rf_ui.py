@@ -41,7 +41,7 @@ from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
 
 from ...config.options import (
-    options,
+    options, themes, visualization,
     retopoflow_issues_url, retopoflow_tip_url,
     retopoflow_version, retopoflow_version_git,
     build_platform,
@@ -376,6 +376,7 @@ class RetopoFlow_UI:
                 ui.button(label='General', title='Show general help (F1)', on_mouseclick=delay_exec("self.helpsystem_open('general.md')")),
                 ui.button(label='Tool', title='Show help for currently selected tool (F2)', on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")),
             ])
+            ui.button(label='Show Options', title='Show options window', parent=self.ui_main, on_mouseclick=delay_exec('self.ui_options.is_visible = True'))
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
             if False:
@@ -389,15 +390,18 @@ class RetopoFlow_UI:
 
 
         def setup_options():
-            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=False, parent=self.document.body)
+            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=True, hide_on_close=True, parent=self.document.body)
 
             options['remove doubles dist']
 
+            def theme_change(e):
+                if not e.target.checked: return
+                options['color theme'] = e.target.value
             self.ui_options.append_child(
                 ui.collapsible(label='General', title='General options', id='generaloptions', children=[
                     ui.input_checkbox(
-                        label='Auto Hide Options',
-                        title='If enabled, options for selected tool will show while other tool options hide',
+                        label='Auto Hide Tool Options',
+                        title='If enabled, options for selected tool will show while other tool options hide.',
                         checked=self._var_auto_hide_options,
                         style='display:block',
                     ),
@@ -417,6 +421,42 @@ class RetopoFlow_UI:
                         ui.collection(label='Clipping', id='clipping', children=[
                             ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
                             ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
+                        ]),
+                        ui.collection(label='Theme', children=[
+                            ui.input_radio(
+                                id='theme-color-green',
+                                title='Draw the target mesh using a green theme.',
+                                value='Green',
+                                checked=(options['color theme']=='Green'),
+                                name='theme-color',
+                                classes='symmetry-viz',
+                                children=[ui.label(innerText='Green', title='Draw the target mesh using a green theme.')],
+                                on_input=theme_change,
+                            ),
+                            ui.input_radio(
+                                id='theme-color-blue',
+                                title='Draw the target mesh using a blue theme.',
+                                value='Blue',
+                                checked=(options['color theme']=='Blue'),
+                                name='theme-color',
+                                classes='symmetry-viz',
+                                children=[ui.label(innerText='Blue', title='Draw the target mesh using a blue theme.')],
+                                on_input=theme_change,
+                            ),
+                            ui.input_radio(
+                                id='theme-color-orange',
+                                title='Draw the target mesh using a orange theme.',
+                                value='Orange',
+                                checked=(options['color theme']=='Orange'),
+                                name='theme-color',
+                                classes='symmetry-viz',
+                                children=[ui.label(innerText='Orange', title='Draw the target mesh using a orange theme.')],
+                                on_input=theme_change,
+                            ),
+                        ]),
+                        ui.collapsible(label='Target Drawing', children=[
+                            ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
+                            ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
                         ]),
                     ]),
                 ]),
@@ -454,12 +494,21 @@ class RetopoFlow_UI:
 
 
         def setup_delete_ui():
-            self.ui_delete = ui.framed_dialog(label='Delete/Dissolve', id='deletedialog', parent=self.document.body, resizable_x=False, hide_on_close=True)
+            self.ui_delete = ui.framed_dialog(
+                label='Delete/Dissolve',
+                id='deletedialog',
+                parent=self.document.body,
+                resizable_x=False,
+                hide_on_close=True,
+                )
             self.ui_delete.width = 200
             self.ui_delete.is_visible = False
             def hide_ui_delete():
                 self.ui_delete.is_visible = False
+            def key(e):
+                if e.key == 'ESC': hide_ui_delete()
             self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
+            self.ui_delete.add_eventListener('on_keypress', key)
 
             def act(opt):
                 self.delete_dissolve_option(opt)

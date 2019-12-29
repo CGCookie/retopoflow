@@ -35,7 +35,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.hasher import Hasher
 from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
-from ...config.options import options
+from ...config.options import options, visualization
 
 # from ..keymaps import default_rf_keymaps
 
@@ -43,6 +43,14 @@ from ...config.options import options
 class RetopoFlow_Drawing:
     def get_view_version(self):
         return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens)
+
+    def setup_drawing(self):
+        def callback(key, oldval, val):
+            source_opts = visualization.get_source_settings()
+            target_opts = visualization.get_target_settings()
+            self.rftarget_draw.replace_opts(target_opts)
+            for d in self.rfsources_draw: d.replace_opts(source_opts)
+        options.add_callback(callback)
 
     @CookieCutter.PreDraw
     def predraw(self):
@@ -85,6 +93,10 @@ class RetopoFlow_Drawing:
             pr.done()
 
         pr = profiler.start('render target')
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
+        bgl.glEnable(bgl.GL_BLEND)
         if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
             cull_backfaces = options['target cull backfaces']

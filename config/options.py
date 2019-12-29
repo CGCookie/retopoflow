@@ -164,12 +164,15 @@ class Options:
         'select dist':          10,             # pixels away to select
         'remove doubles dist':  0.001,
 
-        'color theme':          'Green',
-        'symmetry view':        'Edge',
-        'symmetry effect':      0.5,
+        'color theme':              'Green',
+        'symmetry view':            'Edge',
+        'symmetry effect':          0.5,
         'normal offset multiplier': 1.0,
-        'constrain offset':     True,
+        'constrain offset':         True,
 
+        # visualization settings
+        'target vert size':         4.0,
+        'target edge size':         2.0,
         'target alpha':             1.0,
         'target hidden alpha':      0.1,
         'target alpha backface':    0.2,
@@ -240,16 +243,31 @@ class Options:
                 print('RetopoFlow version has changed.  Reseting options')
                 self.reset()
         self.update_external_vars()
+        self._callbacks = []
+        self._calling = False
 
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
 
     def __setitem__(self, key, val):
         assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
+        assert not self._calling, 'Attempting to change option %s to %s while calling callbacks' % (str(key), str(val))
         if self[key] == val: return
+        oldval = self[key]
         Options.db[key] = val
         self.dirty()
         self.clean()
+        self._calling = True
+        for callback in self._callbacks:
+            callback(key, oldval, val)
+        self._calling = False
+
+    def add_callback(self, callback):
+        self._callbacks += [callback]
+    def remove_callback(self, callback):
+        self._callbacks = [cb for cb in self._callbacks if cb != callback]
+    def clear_callbacks(self):
+        self._callbacks = []
 
     def get_path(self, key):
         return os.path.join(Options.path_root, self[key])
@@ -352,31 +370,16 @@ def rgba_ints_to_floats(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
 class Themes:
     themes = {
         'Blue': {
-            'mesh':    rgba_ints_to_floats( 78, 207,  81, 255),
-            'frozen':  rgba_ints_to_floats(255, 255, 255, 255),
-            'new':     rgba_ints_to_floats( 40, 255,  40, 255),
+            'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats( 26, 111, 255, 255),
-            'active':  rgba_ints_to_floats( 26, 111, 255, 255),
-            'warning': rgba_ints_to_floats(182,  31,   0, 125),
-            'stroke':  rgba_ints_to_floats( 40, 255,  40, 255),
         },
         'Green': {
-            'mesh':    rgba_ints_to_floats( 26, 111, 255, 255),
-            'frozen':  rgba_ints_to_floats(255, 255, 255, 255),
-            'new':     rgba_ints_to_floats( 40, 255,  40, 255),
+            'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats( 78, 207,  81, 255),
-            'active':  rgba_ints_to_floats( 78, 207,  81, 255),
-            'warning': rgba_ints_to_floats(182,  31,   0, 125),
-            'stroke':  rgba_ints_to_floats( 40, 255,  40, 255),
         },
         'Orange': {
-            'mesh':    rgba_ints_to_floats( 26, 111, 255, 255),
-            'frozen':  rgba_ints_to_floats(255, 255, 255, 255),
-            'new':     rgba_ints_to_floats( 40, 255,  40, 255),
+            'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
             'select':  rgba_ints_to_floats(207, 135,  78, 255),
-            'active':  rgba_ints_to_floats(207, 135,  78, 255),
-            'warning': rgba_ints_to_floats(182,  31,   0, 125),
-            'stroke':  rgba_ints_to_floats( 40, 255,  40, 255),
         },
     }
     def __getitem__(self, key): return self.themes[options['color theme']][key]
@@ -387,14 +390,16 @@ class Visualization_Settings:
         self.update_settings()
 
     def update_settings(self):
-        watch = ['color theme', 'normal offset multiplier', 'constrain offset']
+        watch = ['color theme', 'normal offset multiplier', 'constrain offset', 'target vert size', 'target edge size']
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
 
-        color_select = themes['select'] # self.settings.theme_colors_selection[options['color theme']]
-        color_frozen = themes['frozen'] # self.settings.theme_colors_frozen[options['color theme']]
+        color_mesh = themes['mesh']
+        color_select = themes['select']
         normal_offset_multiplier = options['normal offset multiplier']
         constrain_offset = options['constrain offset']
+        vert_size = options['target vert size']
+        edge_size = options['target edge size']
 
         self._source_settings = {
             'poly color':     (0.0, 0.0, 0.0, 0.0),
@@ -415,36 +420,36 @@ class Visualization_Settings:
         }
 
         self._target_settings = {
-            'poly color':                  (*color_frozen[:3], 0.20),
+            'poly color':                  (*color_mesh[:3],   0.20),
             'poly color selected':         (*color_select[:3], 0.20),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
-            'poly mirror color':           (*color_frozen[:3], 0.10),
+            'poly mirror color':           (*color_mesh[:3],   0.10),
             'poly mirror color selected':  (*color_select[:3], 0.10),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
-            'line color':                  (*color_frozen[:3], 1.00),
+            'line color':                  (*color_mesh[:3],   1.00),
             'line color selected':         (*color_select[:3], 1.00),
-            'line width':                  1.0,
+            'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
             'line mirror stipple':         False,
-            'line mirror color':           (*color_frozen[:3], 0.25),
+            'line mirror color':           (*color_mesh[:3],   0.25),
             'line mirror color selected':  (*color_select[:3], 0.25),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
             'line mirror stipple':         False,
 
-            'point color':                 (*color_frozen[:3], 1.00),
+            'point color':                 (*color_mesh[:3],   1.00),
             'point color selected':        (*color_select[:3], 1.00),
             'point color highlight':       (1.0, 1.0, 0.1, 1.0),
-            'point size':                  4.0,
+            'point size':                  vert_size,
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
-            'point mirror color':          (*color_frozen[:3], 0.25),
+            'point mirror color':          (*color_mesh[:3],   0.25),
             'point mirror color selected': (*color_select[:3], 0.25),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
@@ -473,6 +478,13 @@ class Visualization_Settings:
 
     def __getitem__(self, key):
         return self.target(key)
+
+    def __setitem__(self, key, val):
+        assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
+        if self[key] == val: return
+        Options.db[key] = val
+        self.dirty()
+        self.clean()
 
 
 # set all the default values!

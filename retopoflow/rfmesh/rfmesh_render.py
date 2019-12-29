@@ -241,7 +241,7 @@ class RFMeshRender():
                 pr.done()
 
                 time_end = time.time()
-                print('RFMeshRender: Gather time: %0.2f' % (time_end - time_start))
+                # print('RFMeshRender: Gather time: %0.2f' % (time_end - time_start))
 
             except Exception as e:
                 print('EXCEPTION WHILE GATHERING: ' + str(e))

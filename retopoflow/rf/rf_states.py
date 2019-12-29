@@ -78,7 +78,9 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             if self.actions.pressed('toggle ui'):
-                self.document.body.is_visible = not self.document.body.is_visible
+                show = not self.ui_main.is_visible
+                self.ui_main.is_visible = show
+                self.ui_options.is_visible = show
                 return
 
             for rftool in self.rftools:
