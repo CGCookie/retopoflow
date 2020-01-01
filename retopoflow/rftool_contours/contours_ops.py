@@ -34,7 +34,12 @@ from ...addon_common.common.utils import max_index, iter_pairs
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Plane
 from ...config.options import options
 
-from .contours_utils import Contours_Loop, find_loops, find_strings, find_parallel_loops, loop_plane, loop_length, string_length
+from .contours_utils import (
+    Contours_Loop,
+    find_loops, find_strings, find_parallel_loops,
+    loop_plane, loop_length, string_length,
+    edges_between_loops,
+)
 
 RFTool_Contours = rftools['RFTool_Contours']
 
