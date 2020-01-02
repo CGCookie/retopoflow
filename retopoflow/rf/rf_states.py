@@ -83,6 +83,10 @@ class RetopoFlow_States(CookieCutter):
                 self.ui_options.is_visible = show
                 return
 
+            if self.actions.pressed('F11'):
+                self.reload_stylings()
+                return
+
             for rftool in self.rftools:
                 if not rftool.shortcut: continue
                 if self.actions.pressed(rftool.shortcut):

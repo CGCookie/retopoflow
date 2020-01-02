@@ -38,7 +38,7 @@ from .contours_utils import (
     Contours_Loop,
     find_loops, find_strings, find_parallel_loops,
     loop_plane, loop_length, string_length,
-    edges_between_loops,
+#    edges_between_loops,
 )
 
 RFTool_Contours = rftools['RFTool_Contours']

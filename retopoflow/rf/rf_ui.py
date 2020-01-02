@@ -256,7 +256,7 @@ class RetopoFlow_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
-            ui_details = ui.collapsible(label='Crash details')
+            ui_details = ui.collapsible(id='crashdetails', label='Crash details')
             ui_details.builder([
                 ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),  # align=0
                 ui.pre(innerText=msg_report),    # fontid=fontid
@@ -287,9 +287,12 @@ class RetopoFlow_UI:
             container.append_child(ui_details)
         if ui_checker:
             container.append_child(ui_checker)
-        ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=container)
+        ui_bottombuttons = ui.div(id='alertdialog-buttons', parent=win)
+        ui_close = ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
         if show_quit:
-            ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=container)
+            ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
+        else:
+            ui_close.style = 'width:100%'
 
         #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)

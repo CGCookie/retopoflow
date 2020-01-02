@@ -234,13 +234,6 @@ div.collapsible > div.inside {
 
 
 
-div.issue-checker button.action {
-    display: inline;
-    width: 25%;
-    white-space: pre;
-}
-
-
 *#merge-by-distance button {
     display: inline;
     width: 50%;
@@ -263,6 +256,7 @@ dialog#maindialog * {
     overflow-x: hidden;
 }
 
+
 dialog#tinydialog {
     width: 100px;
     min-width: 50px;
@@ -280,11 +274,13 @@ dialog#tinydialog input[type="radio"] > img {
     display: none;
 }
 
+
 dialog#optionsdialog {
     width: 250px;
     min-width: 150px;
     max-width: 500px;
 }
+
 
 dialog#helpsystem {
     width: 60%;
@@ -301,20 +297,40 @@ dialog#helpsystem div#helpsystem-buttons button {
 }
 
 
+dialog.alertdialog {
+    width: 60%;
+    left: 20%;
+}
 dialog.alertdialog.note {
     background-color: rgba(50, 50, 76, 0.95);
 }
-
 dialog.alertdialog.warning {
     background-color: rgba(90, 64, 38, 0.95);
 }
-
 dialog.alertdialog.error {
     background-color: rgba(76, 38, 38, 0.95);
 }
-
 dialog.alertdialog.assert, dialog.alertdialog.exception {
     background-color: rgba(96, 0, 0, 0.95);
 }
+dialog.alertdialog div#alertdialog-buttons {
+    margin: 1px;
+    width: 100%;
+}
+dialog.alertdialog div#alertdialog-buttons button {
+    display: inline;
+    width: 50%;
+}
+dialog.alertdialog div#crashdetails pre {
+    white-space: pre;
+}
+
+div.issue-checker button.action {
+    display: inline;
+    margin: 0px;
+    width: 25%;
+    white-space: pre;
+}
+
 
 
