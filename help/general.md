@@ -15,8 +15,8 @@ For more details, see the tooltips when hovering or the product documentation pa
 | --- | --- | --- |
 | `Esc`      | : | quit RetopoFlow |
 | `Ctrl+S`   | : | save blend file |
+| `F1`       | : | view general help (this document) |
 | `Shift+F1` | : | view all help documents (table of contents) |
-| `F1`       | : | view general help (this help file) |
 | `F2`       | : | view help for currently selected tool |
 | `F9`       | : | toggle on/off main RF windows |
 
@@ -62,17 +62,43 @@ The `Action` command is set to the left mouse button.
 The `Select` command is set to the right mouse button.
 
 
+
 ## General Options
 
-The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing `Ctrl+Up` / `Shift+Space` / `Alt+F10`.
+The UI Scale option controls how large or small RetopoFlow will draw things.
+Larger numbers produce larger fonts, thicker lines, larger vertices, etc.
 
-The Snap Verts button will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
+If the Auto Hide Tool Options is checked, the options for the currently selected tool will be shown, but all other tool options will be hidden.
+
+<!-- The Maximize Area button will make the 3D view take up the entire Blender window, similar to pressing `Ctrl+Up` / `Shift+Space` / `Alt+F10`. -->
+
+
+
+
+### Target Cleaning
+
+The Snap Verts buttons will snap either All vertices or only Selected vertices to the nearest point on the source meshes.
+
+The Merge by Distance will merge vertices into a single vertex if they are within a given distance.
+
+
+
+
+### View Options
+
+The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
 ![](help_themes.png)
 
-When the Auto Collapse Options is checked, tool options will automatically collapse in the options panel when the current tool changes.
+The Target Drawing options control the rendering of the target mesh.
+The Above and Below options control transparency of the target mesh.
+Vertex Size and Edge Size control how large the vertices and how think the edges are.
+
+
+
+
 
 
 ## Symmetry Options
