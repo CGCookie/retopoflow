@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import math
 import copy
+import heapq
+from dataclasses import dataclass, field
 
 import bpy
 import bmesh
@@ -40,7 +42,7 @@ from ...addon_common.common.maths import Point, Normal
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
 from ...addon_common.common.hasher import hash_object, Hasher
-from ...addon_common.common.utils import min_index, UniqueCounter
+from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
@@ -369,177 +371,251 @@ class RFMesh():
     def _crawl(self, bmf_start, plane):
         '''
         crawl about RFMesh along plane starting with bmf
+        returns list of tuples (face0, edge between face0 and face1, face1, intersection of edge and plane)
         '''
 
         def intersect_edge(bme):
+            nonlocal plane
             bmv0, bmv1 = bme.verts
-            crosses = plane.edge_intersection((bmv0.co, bmv1.co))
-            return crosses[0][0] if crosses else None
-
+            return plane.edge_intersection(bmv0.co, bmv1.co)
         def intersect_face(bmf):
             crosses = [(bme, intersect_edge(bme)) for bme in bmf.edges]
             return [(bme, cross) for (bme, cross) in crosses if cross]
+        def intersected_face(bmf):
+            nonlocal plane
+            sides = [plane.side(bmv.co, threshold=0) for bmv in bmf.verts]
+            if any(s == 0 for s in sides): return True
+            return any(s0 != s1 for (s0, s1) in iter_pairs(sides, True))
+        def adjacent_faces(bmf):
+            return {bmf_adj for bmv in bmf.verts for bmf_adj in bmv.link_faces}
+        def next_face(bmf, bme):
+            return next((bmf_other for bmf_other in bme.link_faces if bmf_other != bmf), None)
 
-        # assuming all faces are triangles!
+        ###########################################################
+
+        # find all bmfaces that are connected to bmf_start and the plane intersects
+        bmfs_intersect = set()
+        bmfs_touched = set()
+        bmfs_working = { bmf_start }
+        while bmfs_working:
+            bmf = bmfs_working.pop()
+            if bmf in bmfs_touched: continue
+            bmfs_touched.add(bmf)
+            if not intersected_face(bmf): continue
+            bmfs_intersect.add(bmf)
+            bmfs_working.update(adjacent_faces(bmf))
+
+        # find all bmverts and bmedges that intersect plane and compute the corresponding intersection point
+        points = {}
+        bmvs_touched = set()
+        bmes_touched = set()
+        for bmf in bmfs_intersect:
+            points[bmf] = []
+            for bmv in bmf.verts:
+                if bmv in points:
+                    pt,l = points[bmv]
+                    points[bmf].append((pt, bmv))
+                    l.append(bmf)
+                    continue
+                if bmv in bmvs_touched: continue
+                bmvs_touched.add(bmv)
+                if plane.side(bmv.co, threshold=0) != 0: continue
+                pt = bmv.co
+                points[bmf].append((pt, bmv))
+                points[bmv] = (pt, [bmf])
+            for bme in bmf.edges:
+                if bme in points:
+                    pt,l = points[bme]
+                    points[bmf].append((pt, bme))
+                    l.append(bmf)
+                if bme in bmes_touched: continue
+                bmes_touched.add(bme)
+                v0, v1 = bme.verts
+                if v0 in points or v1 in points: continue
+                pt = plane.edge_intersection(v0.co, v1.co, threshold=0)
+                if not pt: continue
+                points[bmf].append((pt, bme))
+                points[bme] = (pt, [bmf])
+
+        bmfs_intersect = {bmf for bmf in bmfs_intersect if len(points[bmf]) == 2}
+        for bmv in bmvs_touched:
+            if bmv not in points: continue
+            pt, l = points[bmv]
+            l = [bmf for bmf in l if bmf in bmfs_intersect]
+            if len(l) in {1,2}: points[bmv] = (pt, l)
+            else: del points[bmv]
+        for bme in bmes_touched:
+            if bme not in points: continue
+            pt, l = points[bme]
+            l = [bmf for bmf in l if bmf in bmfs_intersect]
+            if len(l) in {1,2}: points[bme] = (pt, l)
+            else: del points[bme]
+        if not bmfs_intersect: return [] # something bad happened
+        if bmf_start not in bmfs_intersect:
+            # bmf_start must have had only one intersection point, so pick any other to be new bmf_start
+            bmf_start = next(iter(bmfs_intersect))
+
+        # create adjacency graph that we'll use to crawl over
+        graph = {}
+        # graph.update({ bmf:adjacent_faces(bmf) for bmf in bmfs_intersect })
+        graph.update({ bmv:[bmf for bmf in bmv.link_faces if bmf in bmfs_intersect] for bmv in bmvs_touched })
+        graph.update({ bme:[bmf for bmf in bme.link_faces if bmf in bmfs_intersect] for bme in bmes_touched })
+        graph = { k:v for (k,v) in graph.items() if v }
+
         ret = []
-        bmf_current = bmf_start
-        crosses = intersect_face(bmf_current)
-        if len(crosses) != 2:
-            return ret
-        bme_start0, bme_start1 = crosses[0][0], crosses[1][0]
-        bme_next = bme_start0
-        cross, cross1 = crosses[0][1], crosses[1][1]
-        while True:
-            bmf_next = next((
-                bmf
-                for bmf in bme_next.link_faces
-                if bmf != bmf_current
-            ), None)
-            if not bmf_next:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            if bmf_next == bmf_start:
-                ret += [(bmf_current, bme_next, bmf_next, cross1)]
-                return ret
-            ret += [(bmf_current, bme_next, bmf_next, cross)]
-            crosses = intersect_face(bmf_next)
-            if len(crosses) != 2:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            bmf_current = bmf_next
-            bme_next_, cross_ = next((
-                (bme, cross)
-                for (bme, cross) in crosses
-                if bme != bme_next
-            ), (None, None))
-            if not bme_next_:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            bme_next, cross = bme_next_, cross_
-
-        # go other way
-        ret = [(f1, e, f0, c) for (f0, e, f1, c) in reversed(ret)]
-        bme_next = bme_start1
-        cross = cross1
-        bmf_current = bmf_start
-        while True:
-            bmf_next = next((
-                bmf
-                for bmf in bme_next.link_faces
-                if bmf != bmf_current
-            ), None)
-            if not bmf_next:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            if bmf_next == bmf_start:
-                # PROBLEM!
-                ret += [(bmf_current, bme_next, bmf_next, cross1)]
-                return ret
-            ret += [(bmf_current, bme_next, bmf_next, cross)]
-            crosses = intersect_face(bmf_next)
-            if len(crosses) != 2:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            bmf_current = bmf_next
-            bme_next_, cross_ = next((
-                (bme, cross)
-                for (bme, cross) in crosses
-                if bme != bme_next
-            ), (None, None))
-            if not bme_next_:
-                ret += [(bmf_current, bme_next, None, cross)]
-                break
-            bme_next, cross = bme_next_, cross_
-
+        def crawl(i_current):
+            nonlocal ret, bmf_start, points, graph
+            bmf_current = bmf_start
+            while True:
+                pt_current, bmelem_current = i_current
+                bmfs_adj = points[bmelem_current][1] if bmelem_current in points else []
+                bmf_next = next((bmf_adj for bmf_adj in bmfs_adj if bmf_adj != bmf_current), None)
+                ret += [(bmf_current, pt_current, bmf_next)]
+                if bmf_next is None: return False
+                if bmf_next == bmf_start: return True
+                i0, i1 = points[bmf_next]
+                i_current = i0 if i_current == i1 else i1
+                bmf_current = bmf_next
+        wrapped = crawl(points[bmf_start][0])
+        if not wrapped:
+            # did not wrap, so switch directions
+            ret = [(f1,c,f0) for (f0,c,f1) in reversed(ret)]
+            crawl(points[bmf_start][1])
         return ret
 
-    @profiler.function
-    def plane_intersection_crawl(self, ray:Ray, plane:Plane):
-        ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
-        _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
-        bmf = self.bme.faces[i]
-        ret = self._crawl(bmf, plane)
-        w,l2w_point = self._wrap,self.xform.l2w_point
-        ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-        return ret
+        # crosses = intersect_face(bmf_start)     # assuming all faces are triangles!
+        # if len(crosses) != 2: return []         # face does not cross plane
+        # bme_start0, cross0 = crosses[0]
+        # bme_start1, cross1 = crosses[1]
+
+        # ret = []
+        # bme_next = bme_start0
+        # cross = cross0
+
+        # def crawl(bme_next, cross_next):
+        #     nonlocal ret, bmf_start
+        #     bmf_current = bmf_start
+        #     while True:
+        #         bmf_next = next_face(bmf_current, bme_next)
+        #         if bmf_next:
+        #             crosses = intersect_face(bmf_next)
+        #             if len(crosses) != 2: bmf_next = None           # bmvert of bmf_next lies on plane
+        #         ret += [(bmf_current, bme_next, bmf_next, cross_next)]
+        #         if not bmf_next: return False                       # cannot continue this direction
+        #         if bmf_next == bmf_start: return True               # wrapped around!
+        #         bmf_current = bmf_next
+        #         bme_next, cross_next = next(((e,c) for (e,c) in crosses if e != bme_next), (None, None))
+        #         if not bme_next: return False                       # something bad happened!
+        #     return False
+
+        # wrapped = crawl(bme_start0, cross0)                                 # crawl one direction
+        # if not wrapped:
+        #     # did not wrap around, so should continue crawling the other way
+        #     ret = [(f1, e, f0, c) for (f0, e, f1, c) in reversed(ret)]      # reverse results
+        #     crawl(bme_start1, cross1)                                       # crawl other direction
+        # return ret
 
     @profiler.function
-    def plane_intersection_walk_crawl(self, ray:Ray, plane:Plane):
+    def plane_intersection_crawl(self, ray:Ray, plane:Plane, walk_to_plane:bool=False):
         '''
-        intersect object with ray, walk to plane, then crawl about
+        intersect object with ray, (possibly) walk to plane, then crawl about
         '''
         # intersect self with ray
         ray,plane = self.xform.w2l_ray(ray),self.xform.w2l_plane(plane)
         _,_,i,_ = self.get_bvh().ray_cast(ray.o, ray.d, ray.max)
         bmf = self.bme.faces[i]
 
-        # walk along verts and edges from intersection to plane
-        def walk_to_plane(bmf):
-            bmvs = [bmv for bmv in bmf.verts]
-            bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]
-            if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
-                # bmf crosses plane already
-                return bmf
+        if walk_to_plane:
+            # follow link_faces of verts that walk us toward the plane until we find a bmface that crosses/touches
+            # we have two different greedy implementations.  one follows bmfaces and uses a heap; the other greedily
+            # follows bmedges one at a time.
 
-            idx = min_index(bmvs_dot)
-            bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
-            touched = set()
-            while True:
-                touched.add(bmv)
-                obmvs = [bme.other_vert(bmv) for bme in bmv.link_edges]
-                obmvs = [obmv for obmv in obmvs if obmv not in touched]
-                if not obmvs: return None
-                obmvs_dot = [plane.signed_distance_to(obmv.co)*sign for obmv in obmvs]
-                idx = min_index(obmvs_dot)
-                obmv,obmv_dot = obmvs[idx],obmvs_dot[idx]
-                if obmv_dot <= 0:
-                    # found plane!
-                    return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
-                if obmv_dot > bmv_dot: return None
-                bmv = obmv
-                bmv_dot = obmv_dot
+            # https://docs.python.org/3.8/library/heapq.html#priority-queue-implementation-notes
+            @dataclass(order=True)
+            class PrioritizedBMV:
+                dot: float
+                bmv: BMVert=field(compare=False)
+                def __init__(self, bmv, dot):
+                    self.dot = dot
+                    self.bmv = bmv
+            def walk_to_plane_heap(bmf, ignore_touching=False):
+                '''
+                this implementation uses a heap (priority queue) to greedily follow link_faces of bmverts.
+                NOTE: the route taken is not necessarily the shortest in terms of
+                      edge lengths or distance to from initial to final bmf!
+                if ignore_touching: do not consider bmverts that lie exactly on plane.  this is useful because _crawl (above)
+                assumes that there will be exactly two bmedges of the bmface that cross the plane
+                '''
+                bmvs = [bmv for bmv in bmf.verts]
+                bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]   # which side of plane are bmverts?
+                if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0: return bmf        # bmf crosses/touches plane already!
+                sign = -1 if bmvs_dot[0] < 0 else 1                             # indicates direction that we need to walk
+                bmv_heap = []
+                touched = { bmf }
+                for bmv,bmv_dot in zip(bmvs, bmvs_dot):
+                    heapq.heappush(bmv_heap, PrioritizedBMV(bmv, abs(bmv_dot)))
+                    touched.add(bmv)
+                while True:
+                    if not bmv_heap: return None
+                    data = heapq.heappop(bmv_heap)          # get next bmvert to process
+                    bmv,bmv_dot = data.bmv, data.dot
+                    if bmv_dot <= 0: break                  # found a vert at or across the plane!
+                    for bmf in bmv.link_faces:
+                        if bmf in touched: continue
+                        touched.add(bmf)
+                        for bmv in bmf.verts:
+                            if bmv in touched: continue
+                            touched.add(bmv)
+                            bmv_dot = plane.signed_distance_to(bmv.co)
+                            bmv_dot = abs(bmv_dot) if ignore_touching else bmv_dot*sign
+                            heapq.heappush(bmv_heap, PrioritizedBMV(bmv, bmv_dot))
+                # find a bmface adjacent to bmv that crosses the plane
+                for bmf in bmv.link_faces:
+                    bmvs = [bmv for bmv in bmf.verts]
+                    bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]   # which side of plane are bmverts?
+                    if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0: return bmf        # bmf crosses/touches plane!
+                assert False
 
-        bmf = walk_to_plane(bmf)
-        if not bmf: return None
+            def walk_to_plane_single(bmf):
+                '''
+                this implementation uses a greedy algorithm to follow link_edges of bmverts.
+                NOTE: the route taken is not necessarily the shortest in terms of
+                      edge lengths or distance to from initial to final bmf!
+                '''
+                bmvs = [bmv for bmv in bmf.verts]
+                bmvs_dot = [plane.signed_distance_to(bmv.co) for bmv in bmvs]
+                if max(bmvs_dot) >= 0 and min(bmvs_dot) <= 0:
+                    # bmf crosses plane already
+                    return bmf
+                idx = min_index(bmvs_dot)
+                bmv,bmv_dot,sign = bmvs[idx],abs(bmvs_dot[idx]),(-1 if bmvs_dot[idx] < 0 else 1)
+                touched = set()
+                while True:
+                    # search all verts that are connected to bmv (via an edge) and find
+                    # the other vert that gets us closer to the plane.  if the other vert
+                    # allows us to cross the plane, we're done!
+                    touched.add(bmv)
+                    obmvs = [bme.other_vert(bmv) for bme in bmv.link_edges]
+                    obmvs = [obmv for obmv in obmvs if obmv not in touched]
+                    if not obmvs: return None
+                    obmvs_dot = [plane.signed_distance_to(obmv.co)*sign for obmv in obmvs]
+                    idx = min_index(obmvs_dot)
+                    obmv,obmv_dot = obmvs[idx],obmvs_dot[idx]
+                    if obmv_dot <= 0:
+                        # found plane!
+                        return next(iter(set(bmv.link_faces) & set(obmv.link_faces)))
+                    if obmv_dot > bmv_dot: return None
+                    bmv = obmv
+                    bmv_dot = obmv_dot
+
+            bmf = walk_to_plane_heap(bmf)  # walk_to_plane_single(bmf)
+            if not bmf: return None
 
         # crawl about self along plane
         ret = self._crawl(bmf, plane)
         w,l2w_point = self._wrap,self.xform.l2w_point
-        ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+        ret = [(w(f0),l2w_point(c),w(f1)) for (f0,c,f1) in ret]
         return ret
-
-    @profiler.function
-    def plane_intersections_crawl(self, plane:Plane):
-        plane = self.xform.w2l_plane(plane)
-        w,l2w_point = self._wrap,self.xform.l2w_point
-
-        # find all faces that cross the plane
-        pr = profiler.start('finding all edges crossing plane')
-        if True:
-            dot = plane.n.dot
-            o = dot(plane.o)
-            edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
-        pr.done()
-
-        pr = profiler.start('finding faces crossing plane')
-        if True:
-            faces = set(bmf for bme in edges for bmf in bme.link_faces)
-        pr.done()
-
-        pr = profiler.start('crawling faces along plane')
-        if True:
-            rets = []
-            touched = set()
-            for bmf in faces:
-                if bmf in touched: continue
-                ret = self._crawl(bmf, plane)
-                touched |= set(f0 for f0,_,_,_ in ret if f0)
-                touched |= set(f1 for _,_,f1,_ in ret if f1)
-                ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-                rets += [ret]
-        pr.done()
-
-        return rets
 
     @profiler.function
     def plane_intersections_crawl(self, plane:Plane):

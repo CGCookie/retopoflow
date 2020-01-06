@@ -38,24 +38,24 @@ from .contours_utils import (
     Contours_Loop,
     find_loops, find_strings, find_parallel_loops,
     loop_plane, loop_length, string_length,
-#    edges_between_loops,
+    edges_between_loops,
 )
 
 RFTool_Contours = rftools['RFTool_Contours']
 
 class Contours_Ops:
     @RFTool_Contours.dirty_when_done
-    def new_cut(self, ray, plane, count=None, walk=True, check_hit=None):
+    def new_cut(self, ray, plane, count=None, walk_to_plane=True, check_hit=None):
         self.pts = []
         self.cut_pts = []
         self.cuts = []
         self.connected = False
 
-        crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk=walk)
+        crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk_to_plane=walk_to_plane)
         if not crawl: return
 
         # get crawl data (over source)
-        pts = [c for (f0,e,f1,c) in crawl]
+        pts = [c for (f0,c,f1) in crawl]
         connected_preclip = crawl[0][0] is not None
         center = Point.average(pts)
         pts,connected = self.rfcontext.clip_pointloop(pts, connected_preclip)
@@ -345,4 +345,4 @@ class Contours_Ops:
         plane = cl.plane
         ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
         self.rfcontext.delete_edges(e for v in loop for e in v.link_edges)
-        self.new_cut(ray, plane, walk=True, count=count_new)
+        self.new_cut(ray, plane, walk_to_plane=True, count=count_new)

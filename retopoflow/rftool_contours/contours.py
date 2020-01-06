@@ -76,6 +76,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.cut_pts = []
         self.connected = False
         self.cuts = []
+        self.crawl_viz = [] # for debugging
 
     @RFTool_Contours.on_target_change
     def update_target(self):
@@ -169,10 +170,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         if self.rfcontext.actions.pressed({'grab', 'action'}, unpress=False):
             ''' grab for translations '''
-            return 'move'
+            return 'grab'
 
         if self.rfcontext.actions.pressed('shift'):
-            ''' rotation of loops about plane normal '''
+            ''' rotation of loops (NOT strips) about plane normal '''
             return 'shift'
 
         if self.rfcontext.actions.pressed('rotate'):
@@ -207,12 +208,12 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         for cloop in self.move_cloops:
             xy = self.rfcontext.Point_to_Point2D(cloop.plane.o)
             ray = self.rfcontext.Point2D_to_Ray(xy)
-            crawl = self.rfcontext.plane_intersection_crawl(ray, cloop.plane, walk=True)
+            crawl = self.rfcontext.plane_intersection_crawl(ray, cloop.plane, walk_to_plane=True)
             if not crawl:
                 dprint('could not crawl around sources for loop')
                 self.move_cuts += [None]
                 continue
-            crawl_pts = [c for _,_,_,c in crawl]
+            crawl_pts = [c for _,c,_ in crawl]
             connected = cloop.connected         # XXX why was `crawl[0][0] is not None` here?
             crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
             if not crawl_pts or connected != cloop.connected:
@@ -252,7 +253,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_done_pressed = 'confirm'
         self.move_done_released = None
         self.move_cancelled = 'cancel'
-
 
     @RFTool_Contours.FSM_State('shift')
     @RFTool_Contours.dirty_when_done
@@ -309,15 +309,15 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
 
 
-    @RFTool_Contours.FSM_State('move', 'can enter')
-    def move_can_enter(self):
+    @RFTool_Contours.FSM_State('grab', 'can enter')
+    def grab_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         return bool(sel_loops or sel_strings)
 
-    @RFTool_Contours.FSM_State('move', 'enter')
-    def move_enter(self):
+    @RFTool_Contours.FSM_State('grab', 'enter')
+    def grab_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
@@ -331,9 +331,13 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
         self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
         self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_orig_origins = [Point(p) for p in self.move_origins]
         self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
 
-        self.rfcontext.undo_push('move contours')
+        self.rfcontext.undo_push('grab contours')
+
+        #self.grab_along = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
+        #self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
@@ -345,10 +349,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.move_done_released = None
         self.move_cancelled = 'cancel'
 
-    @RFTool_Contours.FSM_State('move')
+    @RFTool_Contours.FSM_State('grab')
     @RFTool_Contours.dirty_when_done
     @profiler.function
-    def move(self):
+    def grab(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
@@ -363,6 +367,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_prevmouse = self.rfcontext.actions.mouse
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        # self.crawl_viz = []
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
         for i_cloop in range(len(self.move_cloops)):
@@ -375,15 +380,18 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             circumference = self.move_circumferences[i_cloop]
 
             depth = self.rfcontext.Point_to_depth(origin)
+            if depth is None: continue
             origin2D_new = self.rfcontext.Point_to_Point2D(origin) + delta
             origin_new = self.rfcontext.Point2D_to_Point(origin2D_new, depth)
             plane_new = Plane(origin_new, cloop.plane.n)
             ray_new = self.rfcontext.Point2D_to_Ray(origin2D_new)
-            crawl = self.rfcontext.plane_intersection_crawl(ray_new, plane_new, walk=True)
+            crawl = self.rfcontext.plane_intersection_crawl(ray_new, plane_new, walk_to_plane=True)
             if not crawl: continue
-            crawl_pts = [c for _,_,_,c in crawl]
+            crawl_pts = [c for _,c,_ in crawl]
+            # self.crawl_viz += [crawl_pts]
             connected = crawl[0][0] is not None
-            crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            crawl_pts,nconnected = self.rfcontext.clip_pointloop(crawl_pts, connected)
+            connected = nconnected
             if not crawl_pts or connected != cloop.connected: continue
             cl_cut = Contours_Loop(crawl_pts, connected)
 
@@ -479,9 +487,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             normal = matrix_vector_mult(rmat, cloop.plane.n)
             plane = Plane(cloop.plane.o, normal)
             ray = self.rfcontext.Point2D_to_Ray(origin2D)
-            crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk=True)
+            crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk_to_plane=True)
             if not crawl: continue
-            crawl_pts = [c for _,_,_,c in crawl]
+            crawl_pts = [c for _,c,_ in crawl]
             connected = crawl[0][0] is not None
             crawl_pts,connected = self.rfcontext.clip_pointloop(crawl_pts, connected)
             if not crawl_pts or connected != cloop.connected: continue
@@ -516,7 +524,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         xy01 = xy0 + (xy1-xy0) / 2
         plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
         ray = self.rfcontext.Point2D_to_Ray(xy01)
-        self.new_cut(ray, plane, walk=False, check_hit=xy01)
+        self.new_cut(ray, plane, walk_to_plane=False, check_hit=xy01)
 
     @RFTool_Contours.Draw('post2d')
     @RFTool_Contours.FSM_OnlyInState('rotate')
@@ -541,6 +549,35 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             (0.1, 1.0, 1.0, 1.0), color1=(0.1, 1.0, 1.0, 0.0),
             width=2, stipple=[2,2],
         )
+
+    @RFTool_Contours.Draw('post2d')
+    @RFTool_Contours.FSM_OnlyInState('grab')
+    def draw_post2d_grab(self):
+        project = self.rfcontext.Point_to_Point2D
+        intersect = self.rfcontext.raycast_sources_Point2D
+        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        c0_good, c1_good = (1.0, 0.1, 1.0, 0.5), (1.0, 0.1, 1.0, 0.0)
+        c0_bad,  c1_bad  = (1.0, 0.1, 0.1, 1.0), (1.0, 0.1, 0.1, 0.0)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        for o in self.move_origins:
+            p0, p1 = project(o), project(o) + delta
+            _p,_,_,_ = intersect(p1)
+            Globals.drawing.draw2D_line(
+                p0, p1,
+                (c0_good if _p else c0_bad), color1=(c1_good if _p else c1_bad),
+                width=2, stipple=[2,2],
+            )
+
+    # @RFTool_Contours.Draw('post2d')
+    # def draw_post2d_crawl_viz(self):
+    #     # debug visualization
+    #     project = self.rfcontext.Point_to_Point2D
+    #     bgl.glEnable(bgl.GL_BLEND)
+    #     bgl.glEnable(bgl.GL_MULTISAMPLE)
+    #     for pts in self.crawl_viz:
+    #         pts = [project(pt) for pt in pts]
+    #         Globals.drawing.draw2D_linestrip(pts, (1,1,1,0.5))
 
     @RFTool_Contours.Draw('post2d')
     def draw_post2d(self):

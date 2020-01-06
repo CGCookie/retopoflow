@@ -274,7 +274,7 @@ class RetopoFlow_UI:
             self.document.body.delete_child(win)
             self.alert_windows -= 1
         def quit():
-            self.exit = True
+            self.done()
 
         if self.alert_windows >= 5:
             return

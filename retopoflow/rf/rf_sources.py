@@ -134,19 +134,15 @@ class RetopoFlow_Sources:
     ###################################################
     # plane intersection
 
-    def plane_intersection_crawl(self, ray:Ray, plane:Plane, walk=False):
+    def plane_intersection_crawl(self, ray:Ray, plane:Plane, walk_to_plane=False):
         bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
             if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.raycast(ray)
             if bp is None or (hp is not None and hd < bd):
                 bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
-        if not bp: return []
-
-        if walk:
-            return bo.plane_intersection_walk_crawl(ray, plane)
-        else:
-            return bo.plane_intersection_crawl(ray, plane)
+        if not bo: return []
+        return bo.plane_intersection_crawl(ray, plane, walk_to_plane=walk_to_plane)
 
     def plane_intersections_crawl(self, plane:Plane):
         return [crawl for rfsource in self.rfsources for crawl in rfsource.plane_intersections_crawl(plane) if self.get_rfsource_snap(rfsource)]

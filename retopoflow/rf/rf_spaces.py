@@ -80,6 +80,9 @@ class RetopoFlow_Spaces:
 
     alerted_small_clip_start = False
     def Point_to_depth(self, xyz):
+        '''
+        computes the distance of point (xyz) from view camera
+        '''
         if not self.alerted_small_clip_start and self.actions.space.clip_start < 0.1:
             self.alerted_small_clip_start = True
             message = []
@@ -91,7 +94,14 @@ class RetopoFlow_Spaces:
                 message='\n'.join(message),
                 level='Warning'
             )
+
+        xy = self.Point_to_Point2D(xyz)
+        if xy is None: return None
+        oxyz = self.Point2D_to_Origin(xy)
+        return (xyz - oxyz).length
+
         if True:
+            # seems not to work in ORTHO (issue #780)
             view_loc = self.actions.r3d.view_location
             view_dist = self.actions.r3d.view_distance
             view_rot = self.actions.r3d.view_rotation
@@ -99,6 +109,7 @@ class RetopoFlow_Spaces:
             # print(view_cam, (view_cam-xyz).length)
             return (view_cam - xyz).length
         else:
+            # old code that is similar to the code just before this if?
             xy = Point2D(location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz))
             # print(xyz, xy)
             if xy is None: return None
