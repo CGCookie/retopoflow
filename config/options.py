@@ -175,8 +175,8 @@ class Options:
         # visualization settings
         'target vert size':         4.0,
         'target edge size':         1.0,
-        'target alpha':             1.0,
-        'target hidden alpha':      0.1,
+        'target alpha':             0.10,
+        'target hidden alpha':      0.02,
         'target alpha backface':    0.2,
         'target cull backfaces':    False,
 
@@ -438,7 +438,7 @@ class Visualization_Settings:
 
         self._target_settings = {
             'poly color':                  (*color_mesh[:3],   0.20),
-            'poly color selected':         (*color_select[:3], 0.20),
+            'poly color selected':         (*color_select[:3], 0.30),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
             'poly mirror color':           (*color_mesh[:3],   0.10),

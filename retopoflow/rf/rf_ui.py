@@ -492,6 +492,8 @@ class RetopoFlow_UI:
                             ),
                         ]),
                         ui.collapsible(label='Target Drawing', children=[
+                            ui.labeled_input_text(label='Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
                             ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
                             ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
                         ]),
