@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow 3.0.0-α2!
+# Welcome to RetopoFlow 3.0.0β!
 
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
 The RF tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
@@ -37,9 +37,9 @@ We have added buttons to open the issue tracker in your default browser and to s
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
 
-- Give us a rating with comments on the Blender Market. <br>(requires purchasing a copy through Blender Market)
-- Purchase a copy of RetopoFlow on the Blender Market to help fund future developments.
-- Consider donating to our drink funds :)
+- Purchase a copy of RetopoFlow on the [Blender Market](https://blendermarket.com/products/retopoflow) to help fund future developments.
+- Give us a [rating](https://blendermarket.com/products/retopoflow/ratings) with comments on the Blender Market. (requires purchasing a copy through Blender Market)
+- Consider [donating](https://paypal.me/gfxcoder/) to our drink funds :)
 
 We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
@@ -50,8 +50,8 @@ We focused on stability and bug handling in addition to new features, improving 
 Below is a list of known issues that we are currently working on.
 
 - Patches supports only rudimentary fills.
-- The 3D view panel tabs (left, top, right) flicker slightly when RetopoFlow redraws.
-- Some OSX machines draw strangely.
+- RetopoFlow does not use Blender keymap settings, including Left/Right select.
+- Starting RetopoFlow with large source meshes can be slow.
 
 
 ## Final Words
