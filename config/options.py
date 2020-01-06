@@ -135,7 +135,7 @@ class Options:
 
         'async mesh loading': True,
 
-        'tools autohide': False,        # should tool's options auto-hide/-show when switching tools?
+        'tools autohide': True,         # should tool's options auto-hide/-show when switching tools?
         'tools autocollapse': True,     # should tool's options auto-open/-collapse when switching tools?
         'background gradient': True,    # draw focus gradient
 
@@ -257,10 +257,6 @@ class Options:
         Options.db[key] = val
         self.dirty()
         self.clean()
-        self._calling = True
-        for callback in self._callbacks:
-            callback(key, oldval, val)
-        self._calling = False
 
     def add_callback(self, callback):
         self._callbacks += [callback]
@@ -268,6 +264,10 @@ class Options:
         self._callbacks = [cb for cb in self._callbacks if cb != callback]
     def clear_callbacks(self):
         self._callbacks = []
+    def call_callbacks(self):
+        self._calling = True
+        for callback in self._callbacks: callback()
+        self._calling = False
 
     def get_path(self, key):
         return os.path.join(Options.path_root, self[key])
@@ -302,6 +302,7 @@ class Options:
         json.dump(Options.db, open(Options.fndb, 'wt'), indent=2, sort_keys=True)
         Options.is_dirty = False
         Options.last_save = time.time()
+        self.call_callbacks()
 
     def read(self):
         Options.db = {}

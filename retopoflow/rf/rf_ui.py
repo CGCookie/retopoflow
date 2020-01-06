@@ -428,6 +428,11 @@ class RetopoFlow_UI:
             def theme_change(e):
                 if not e.target.checked: return
                 options['color theme'] = e.target.value
+            def reset_options():
+                options.reset()
+                self.update_ui()
+                self.document.body.dirty(children=True)
+
             self.ui_options.append_child(
                 ui.collapsible(label='General', title='General options', id='generaloptions', children=[
                     ui.input_checkbox(
@@ -490,6 +495,9 @@ class RetopoFlow_UI:
                             ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
                         ]),
                     ]),
+                    ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
+                        ui.button(label='Reset Options', title='Reset options to factory settings', on_mouseclick=reset_options)
+                    ])
                 ]),
             )
 

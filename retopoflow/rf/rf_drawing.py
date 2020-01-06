@@ -45,7 +45,7 @@ class RetopoFlow_Drawing:
         return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens)
 
     def setup_drawing(self):
-        def callback(key, oldval, val):
+        def callback():
             source_opts = visualization.get_source_settings()
             target_opts = visualization.get_target_settings()
             self.rftarget_draw.replace_opts(target_opts)
