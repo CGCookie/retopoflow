@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2019 CG Cookie
+Copyright (C) 2020 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
