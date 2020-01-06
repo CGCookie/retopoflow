@@ -29,7 +29,7 @@ To continue working on a previous retopology session:
 |  |  |  |
 | --- | --- | --- |
 | Source Object(s) | : | The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode) |
-| Target Object | : | The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow. |
+| Target Object    | : | The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow. |
 
 
 ## Target and Source Objects
