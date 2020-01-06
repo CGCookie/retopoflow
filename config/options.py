@@ -32,6 +32,7 @@ import bpy
 
 from ..addon_common.common.blender import get_preferences
 from ..addon_common.common.debug import Debugger, dprint
+from ..addon_common.common.drawing import Drawing
 from ..addon_common.common.logger import Logger
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
@@ -169,10 +170,11 @@ class Options:
         'symmetry effect':          0.5,
         'normal offset multiplier': 1.0,
         'constrain offset':         True,
+        'ui scale':                 1.0,
 
         # visualization settings
         'target vert size':         4.0,
-        'target edge size':         2.0,
+        'target edge size':         1.0,
         'target alpha':             1.0,
         'target hidden alpha':      0.1,
         'target alpha backface':    0.2,
@@ -232,6 +234,8 @@ class Options:
     write_delay = 2.0   # seconds to wait before writing db to file
 
     def __init__(self):
+        self._callbacks = []
+        self._calling = False
         if not Options.fndb:
             path = os.path.split(os.path.abspath(__file__))[0]
             Options.path_root = os.path.abspath(os.path.join(path, '..'))
@@ -243,8 +247,6 @@ class Options:
                 print('RetopoFlow version has changed.  Reseting options')
                 self.reset()
         self.update_external_vars()
-        self._callbacks = []
-        self._calling = False
 
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
@@ -286,6 +288,8 @@ class Options:
         Logger.set_log_filename(self['log_filename'])  #self.get_path('log_filename'))
         # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self.get_path('profiler_filename'))
+        Drawing.set_custom_dpi_mult(self['ui scale'])
+        self.call_callbacks()
 
     def dirty(self):
         Options.is_dirty = True
@@ -302,7 +306,6 @@ class Options:
         json.dump(Options.db, open(Options.fndb, 'wt'), indent=2, sort_keys=True)
         Options.is_dirty = False
         Options.last_save = time.time()
-        self.call_callbacks()
 
     def read(self):
         Options.db = {}

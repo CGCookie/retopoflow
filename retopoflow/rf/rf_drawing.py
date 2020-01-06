@@ -46,9 +46,11 @@ class RetopoFlow_Drawing:
 
     def setup_drawing(self):
         def callback():
+            Globals.drawing.update_dpi()
             source_opts = visualization.get_source_settings()
             target_opts = visualization.get_target_settings()
             self.rftarget_draw.replace_opts(target_opts)
+            self.document.body.dirty(children=True)
             for d in self.rfsources_draw: d.replace_opts(source_opts)
         options.add_callback(callback)
 

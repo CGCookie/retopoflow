@@ -435,6 +435,7 @@ class RetopoFlow_UI:
 
             self.ui_options.append_child(
                 ui.collapsible(label='General', title='General options', id='generaloptions', children=[
+                    ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                     ui.input_checkbox(
                         label='Auto Hide Tool Options',
                         title='If enabled, options for selected tool will show while other tool options hide.',
