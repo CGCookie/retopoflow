@@ -7,6 +7,7 @@ __pycache__
 tmp/
 /scripts/
 /test/
+/test-models/*
 
 .DS_Store
 .*/
@@ -37,6 +38,7 @@ b279a
 b279b
 b280
 b281
+b281a
 b282
 
 .git
