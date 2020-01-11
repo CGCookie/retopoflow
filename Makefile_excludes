@@ -9,6 +9,8 @@ tmp/
 /test/
 /test-models/*
 
+updater_tmp/*.json
+
 .DS_Store
 .*/
 

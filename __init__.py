@@ -62,14 +62,26 @@ bl_info = {
 
 faulthandler.enable()
 
-class VIEW3D_OT_RetopoFlow_OpenQuickStart(retopoflow.RetopoFlow_QuickStart):
+class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
     """Open RetopoFlow Quick Start Guide"""
-    bl_idname = "cgcookie.retopoflow_openquickstart"
+    bl_idname = "cgcookie.retopoflow_help_quickstart"
     bl_label = "Open Quick Start Guide"
-    bl_description = "Open RetopoFlow Quick Start Guide in a new window"
+    bl_description = "Open RetopoFlow Quick Start Guide"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
+    rf_startdoc = 'quick_start.md'
+
+class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
+    """Open RetopoFlow Welcome"""
+    bl_idname = "cgcookie.retopoflow_help_welcome"
+    bl_label = "Open Welcome Message"
+    bl_description = "Open RetopoFlow Welcome Message"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'REGISTER', 'UNDO'}
+    rf_startdoc = 'welcome.md'
+
 
 class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
     """Start RetopoFlow"""
@@ -192,7 +204,10 @@ class VIEW3D_PT_RetopoFlow(Panel):
             # currently not editing target, so show operator to create new target
             layout.operator('cgcookie.retopoflow_newtarget')
         layout.separator()
-        layout.operator('cgcookie.retopoflow_openquickstart')
+        layout.label(text='Open Help')
+        layout.operator('cgcookie.retopoflow_help_quickstart')
+        layout.operator('cgcookie.retopoflow_help_welcome')
+        layout.separator()
         layout.operator('cgcookie.retopoflow_recover')
         layout.separator()
         #layout.label(text='RetopoFlow Updater')
@@ -223,7 +238,7 @@ class VIEW3D_PT_RetopoFlow(Panel):
                 row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
             # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
             row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-            row.operator('cgcookie.retopoflow_openquickstart', text="", icon='QUESTION')
+            row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod
     def menu_remove():
@@ -238,7 +253,8 @@ classes = [
     VIEW3D_OT_RetopoFlow,
     VIEW3D_OT_RetopoFlow_NewTarget,
     VIEW3D_OT_RetopoFlow_Recover,
-    VIEW3D_OT_RetopoFlow_OpenQuickStart,
+    VIEW3D_OT_RetopoFlow_Help_QuickStart,
+    VIEW3D_OT_RetopoFlow_Help_Welcome,
 ] + customs
 
 def register():

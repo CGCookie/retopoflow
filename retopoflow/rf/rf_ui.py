@@ -305,7 +305,7 @@ class RetopoFlow_UI:
         for rftool in self.rftools_ui.keys():
             show = not autohide or (rftool == self.rftool)
             for ui_elem in self.rftools_ui[rftool]:
-                if ui_elem.is_visible == show: continue
+                if ui_elem.get_is_visible() == show: continue
                 ui_elem.is_visible = show
                 changed = True
         if changed:
@@ -499,7 +499,16 @@ class RetopoFlow_UI:
                         ]),
                     ]),
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
-                        ui.button(label='Reset Options', title='Reset options to factory settings', on_mouseclick=reset_options)
+                        ui.collapsible(label='Tooltip Settings', children=[
+                            ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
+                            ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']'''), min_value=0.0),
+                        ]),
+                        ui.collapsible(label='Keyboard Settings', children=[
+                            ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
+                            ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
+                            ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
+                        ]),
+                        ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
                     ])
                 ]),
             )

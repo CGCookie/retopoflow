@@ -47,7 +47,7 @@ from ..config.keymaps import default_rf_keymaps
 from ..config.options import options
 
 
-class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
+class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     @classmethod
     def can_start(cls, context):
         return True
@@ -63,7 +63,7 @@ class RetopoFlow_QuickStart(CookieCutter, RetopoFlow_HelpSystem):
     def start(self):
         self.reload_stylings()
         self.blender_ui_set()
-        self.helpsystem_open('quick_start.md', done_on_esc=True)
+        self.helpsystem_open(self.rf_startdoc, done_on_esc=True)
         Globals.ui_document.body.dirty('changed document size', children=True)
 
     def end(self):

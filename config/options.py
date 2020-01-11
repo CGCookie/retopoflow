@@ -36,6 +36,7 @@ from ..addon_common.common.drawing import Drawing
 from ..addon_common.common.logger import Logger
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
+from ..addon_common.common.ui_core import UI_Document
 from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 
@@ -123,6 +124,9 @@ class Options:
         'low fps time':         10,     # time (seconds) before warning user of low fps
 
         'show tooltips':        True,
+        'tooltip delay':        0.75,
+        'keyboard repeat delay': 0.25, # delay before repeating
+        'keyboard repeat pause': 0.10, # pause between repeats
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
@@ -289,6 +293,10 @@ class Options:
         # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self.get_path('profiler_filename'))
         Drawing.set_custom_dpi_mult(self['ui scale'])
+        UI_Document.key_repeat_delay = self['keyboard repeat delay']
+        UI_Document.key_repeat_pause = self['keyboard repeat pause']
+        UI_Document.show_tooltips = self['show tooltips']
+        UI_Document.tooltip_delay = self['tooltip delay']
         self.call_callbacks()
 
     def dirty(self):
@@ -327,11 +335,13 @@ class Options:
     def keys(self):
         return Options.db.keys()
 
-    def reset(self):
-        keys = list(Options.db.keys())
+    def reset(self, keys=None, version=True):
+        if keys is None:
+            keys = list(Options.db.keys())
         for key in keys:
             del Options.db[key]
-        Options.db['rf version'] = retopoflow_version
+        if version:
+            Options.db['rf version'] = retopoflow_version
         self.dirty()
         self.clean()
 
