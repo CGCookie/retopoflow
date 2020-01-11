@@ -501,7 +501,7 @@ class RetopoFlow_UI:
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
                         ui.collapsible(label='Tooltip Settings', children=[
                             ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
-                            ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']'''), min_value=0.0),
+                            ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
                         ]),
                         ui.collapsible(label='Keyboard Settings', children=[
                             ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
