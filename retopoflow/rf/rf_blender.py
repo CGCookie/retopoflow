@@ -173,7 +173,10 @@ class RetopoFlow_Blender:
     @blender_version_wrapper('>=', '2.80')
     def setup_rotate_about_active(self):
         self.end_rotate_about_active()      # clear out previous rotate-about object
+        auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
+        bpy.context.preferences.edit.use_enter_edit_mode = False
         o = object_data_add(bpy.context, None, name='RetopoFlow_Rotate')
+        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
         o.select_set(True)
         bpy.context.view_layer.objects.active = o
         self.rot_object = o

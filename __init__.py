@@ -107,12 +107,15 @@ class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
         return True
 
     def invoke(self, context, event):
+        auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
+        bpy.context.preferences.edit.use_enter_edit_mode = False
         for o in bpy.data.objects: o.select_set(False)
         mesh = bpy.data.meshes.new('RetopoFlow')
         obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
         obj.select_set(True)
         context.view_layer.objects.active = obj
         bpy.ops.object.mode_set(mode='EDIT')
+        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
 
 
