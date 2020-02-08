@@ -329,11 +329,18 @@ class Contours_Ops:
 
     @RFTool_Contours.dirty_when_done
     def change_count(self, *, count=None, delta=None):
-        assert count is not None or delta is not None, 'Must specify either count or delta!'
+        assert count is not None or delta is not None, 'Contours.change_count: Must specify either count or delta!'
         sel_edges = self.rfcontext.get_selected_edges()
         loops = find_loops(sel_edges)
-        if len(loops) != 1: return
-        loop = loops[0]
+        strings = find_strings(sel_edges)
+        if len(loops) == 1 and len(strings) == 0:
+            self._change_loop_count(loops[0], count=count, delta=delta)
+        elif len(strings) == 1 and len(loops) == 0:
+            self._change_string_count(strings[0], count=count, delta=delta)
+        else:
+            print('Contours.change_count: expected either 1 loop+0 strings or 1 string+0 loops, but found %d loops and %d strings' % (len(loops), len(strings)))
+
+    def _change_loop_count(self, loop, *, count=None, delta=None):
         count_cur = len(loop)
         if count is not None: count_new = count
         else: count_new = count_cur + delta
@@ -346,3 +353,26 @@ class Contours_Ops:
         ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
         self.rfcontext.delete_edges(e for v in loop for e in v.link_edges)
         self.new_cut(ray, plane, walk_to_plane=True, count=count_new)
+
+    def _change_string_count(self, string, *, count=None, delta=None):
+        count_cur = len(string)
+        if count is not None: count_new = count
+        else: count_new = count_cur + delta
+        count_new = max(3, count_new)
+        if count_cur == count_new: return
+        if any(len(v.link_edges) != 2 for v in string[1:-1]):
+            print('Contours._change_string_count: string is connected to other geometry')
+            return
+        if any(len(v.link_edges) != 1 for v in string[:1] + string[-1:]):
+            print('Contours._change_string_count: string is connected to other geometry')
+            return
+        cl = Contours_Loop(string, False)
+        avg = Point.average(v.co for v in string)
+        plane = cl.plane
+        ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
+        self.rfcontext.delete_edges(e for v in string for e in v.link_edges)
+        self.new_cut(ray, plane, walk_to_plane=True, count=count_new)
+
+
+
+
