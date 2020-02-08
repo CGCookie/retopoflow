@@ -185,8 +185,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             return
 
         if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+            delta = 1 if self.rfcontext.actions.pressed('increase count') else -1
             self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=1 if self.rfcontext.actions.using('increase count') else -1)
+            self.change_count(delta=delta)
             return
 
 
