@@ -407,7 +407,7 @@ class RetopoFlow_UI:
                 ui.button(label='General', title='Show general help (F1)', on_mouseclick=delay_exec("self.helpsystem_open('general.md')")),
                 ui.button(label='Tool', title='Show help for currently selected tool (F2)', on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")),
             ])
-            ui.button(label='Show Options', title='Show options window', parent=self.ui_main, on_mouseclick=delay_exec('self.ui_options.is_visible = True'))
+            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=self.ui_main, on_mouseclick=delay_exec('self.ui_options.is_visible = True; self.ui_show_options.disabled = True'))
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
             if False:
@@ -421,7 +421,7 @@ class RetopoFlow_UI:
 
 
         def setup_options():
-            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=True, hide_on_close=True, parent=self.document.body)
+            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=True, hide_on_close=True, close_callback=delay_exec('self.ui_show_options.disabled = False'), parent=self.document.body)
 
             options['remove doubles dist']
 
