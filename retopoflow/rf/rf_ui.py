@@ -282,11 +282,12 @@ class RetopoFlow_UI:
 
         win = ui.framed_dialog(label=title, classes='alertdialog %s'%str(level))
         ui.markdown(mdown=message, parent=win)
-        container = ui.div(parent=win)
-        if ui_details:
-            container.append_child(ui_details)
-        if ui_checker:
-            container.append_child(ui_checker)
+        if ui_details or ui_checker:
+            container = ui.div(parent=win)
+            if ui_details:
+                container.append_child(ui_details)
+            if ui_checker:
+                container.append_child(ui_checker)
         ui_bottombuttons = ui.div(id='alertdialog-buttons', parent=win)
         ui_close = ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
         if show_quit:
