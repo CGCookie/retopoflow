@@ -15,7 +15,7 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| `Action` | : | select and slide loop |
+| `Action` | : | slide selected loop |
 | `Select` <br> `Shift+Select` | : | select edge |
 | `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select loop |
 | `Ctrl+Action` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
