@@ -42,6 +42,14 @@ class RetopoFlow_Spaces:
     Note: if 2D is not specified, then it is a 1D or 3D entity (whichever is applicable)
     '''
 
+    def get_view_origin(self):
+        # does not work in ORTHO
+        view_loc = self.actions.r3d.view_location
+        view_dist = self.actions.r3d.view_distance
+        view_rot = self.actions.r3d.view_rotation
+        view_cam = Point(view_loc + quat_vector_mult(view_rot, Vector((0,0,view_dist))))
+        return view_cam
+
     def Point2D_to_Vec(self, xy:Point2D):
         if xy is None: return None
         return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
@@ -64,7 +72,7 @@ class RetopoFlow_Spaces:
             dprint(r)
             dprint(depth)
             return None
-        return Point(r.o + depth * r.d)
+        return r.eval(depth) # Point(r.o + depth * r.d)
         #return Point(region_2d_to_location_3d(self.actions.region, self.actions.r3d, xy, depth))
 
     def Point2D_to_Plane(self, xy0:Point2D, xy1:Point2D):
@@ -83,39 +91,11 @@ class RetopoFlow_Spaces:
         '''
         computes the distance of point (xyz) from view camera
         '''
-        if not self.alerted_small_clip_start and self.actions.space.clip_start < 0.1:
-            self.alerted_small_clip_start = True
-            message = []
-            message += ['The clip start is very small (%f<0.1), which can cause the brush sizes (ex: Tweak) to jump or shake as you move your mouse.' % (self.actions.space.clip_start, )]
-            message += ['']
-            message += ['You can increase the clip start in Options > General > View Options > Clip Start.']
-            self.alert_user(
-                title='Very small clip start',
-                message='\n'.join(message),
-                level='Warning'
-            )
 
         xy = self.Point_to_Point2D(xyz)
         if xy is None: return None
         oxyz = self.Point2D_to_Origin(xy)
         return (xyz - oxyz).length
-
-        if True:
-            # seems not to work in ORTHO (issue #780)
-            view_loc = self.actions.r3d.view_location
-            view_dist = self.actions.r3d.view_distance
-            view_rot = self.actions.r3d.view_rotation
-            view_cam = Point(view_loc + quat_vector_mult(view_rot, Vector((0,0,view_dist))))
-            # print(view_cam, (view_cam-xyz).length)
-            return (view_cam - xyz).length
-        else:
-            # old code that is similar to the code just before this if?
-            xy = Point2D(location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz))
-            # print(xyz, xy)
-            if xy is None: return None
-            oxyz = Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
-            # print(oxyz, (xyz-oxyz).length)
-            return (xyz - oxyz).length
 
     @profiler.function
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
@@ -130,9 +110,11 @@ class RetopoFlow_Spaces:
     def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
         # computes size of 3D object at distance (depth) as it projects to 2D size
         # TODO: there are more efficient methods of computing this!
+        # note: scaling then unscaling by inverse of near clip to account for numerical instability with small clip_start values
+        scale = 1.0 / self.actions.space.clip_start
         p3d0 = self.Point2D_to_Point(xy, depth)
-        p3d1 = self.Point2D_to_Point(xy + Vec2D((size2D,0)), depth)
-        return (p3d0 - p3d1).length
+        p3d1 = self.Point2D_to_Point(xy + Vec2D((scale * size2D, 0)), depth)
+        return (p3d0 - p3d1).length / scale
 
     def size_to_size2D(self, size:float, xyz:Point):
         xy = self.Point_to_Point2D(xyz)
