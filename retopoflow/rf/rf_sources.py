@@ -152,7 +152,7 @@ class RetopoFlow_Sources:
     # visibility testing
 
     @profiler.function
-    def is_visible(self, point:Point, normal:Normal):
+    def is_visible(self, point:Point, normal:Normal=None):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size.x: return False
@@ -162,5 +162,3 @@ class RetopoFlow_Sources:
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
         return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource))
-
-

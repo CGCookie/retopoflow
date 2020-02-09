@@ -583,6 +583,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.Draw('post2d')
     def draw_post2d(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
+        is_visible = self.rfcontext.is_visible
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
@@ -599,8 +600,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in loop]
-            if any(cos):
-                loop = [(bmv,co) for bmv,co in zip(loop,cos) if co]
+            vis = [is_visible(vert.co, vert.normal) if co else False for (vert, co) in zip(loop, cos)]
+            if any(vis):
+                loop = [(bmv,co) for (bmv, co, vi) in zip(loop, cos, vis) if vi]
                 bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count: bmv_count[bmv] = []
                 bmv_count[bmv].append( (count, True) )
@@ -625,8 +627,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
             # draw segment count label
             cos = [point_to_point2d(vert.co) for vert in string]
-            if any(cos):
-                string = [(bmv,co) for bmv,co in zip(string,cos) if co]
+            vis = [is_visible(vert.co, vert.normal) if co else False for (vert, co) in zip(string, cos)]
+            if any(vis):
+                string = [(bmv,co) for (bmv, co, vi) in zip(string, cos, vis) if vi]
                 bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count: bmv_count[bmv] = []
                 bmv_count[bmv].append( (count, False) )
