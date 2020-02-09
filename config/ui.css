@@ -334,3 +334,35 @@ div.issue-checker button.action {
 
 
 
+
+dialog#geometrydialog {
+    right: 0px;
+    bottom: 130px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+}
+
+dialog#geometrydialog table {
+    border: 0px transparent;
+    background-color: transparent;
+    margin: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog tr {
+    margin: 0px;
+    border-width: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog td {
+    margin: 0px;
+    border-width: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog table div {
+    border: 0px transparent;
+    background-color: transparent;
+    width: auto;
+    margin: 1px;
+    padding: 1px;
+}

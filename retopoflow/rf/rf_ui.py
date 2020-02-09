@@ -343,6 +343,14 @@ class RetopoFlow_UI:
         yield None
         self.blender_ui_set()
 
+    def update_ui_geometry(self):
+        self.ui_geometry.is_visible = False  # toggle visibility as workaround hack for relaying out table :(
+        self.ui_geometry_verts.innerText = str(self.rftarget.get_vert_count())
+        self.ui_geometry_edges.innerText = str(self.rftarget.get_edge_count())
+        self.ui_geometry_faces.innerText = str(self.rftarget.get_face_count())
+        self.ui_geometry.is_visible = True
+        # TODO: FIX WORKAROUND HACK!
+
     def setup_ui(self):
         self.blender_ui_set(scale_to_unit_box=False, add_rotate=False)
 
@@ -381,6 +389,28 @@ class RetopoFlow_UI:
                 add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
+        def setup_counts_ui():
+            self.ui_geometry = ui.framed_dialog(label="Geometry", id="geometrydialog", resizable=False, closeable=True, hide_on_close=True, close_callback=delay_exec('self.ui_show_geometry.disabled=False'), parent=self.document.body, children=[
+                ui.table(children=[
+                    ui.tr(children=[
+                        ui.td(children=[ui.div(innerText='Verts:')]),
+                        ui.td(children=[ui.div(innerText='0', id='geometry-verts')]),
+                    ]),
+                    ui.tr(children=[
+                        ui.td(children=[ui.div(innerText='Edges:')]),
+                        ui.td(children=[ui.div(innerText='0', id='geometry-edges')]),
+                    ]),
+                    ui.tr(children=[
+                        ui.td(children=[ui.div(innerText='Faces:')]),
+                        ui.td(children=[ui.div(innerText='0', id='geometry-faces')]),
+                    ]),
+                ])
+            ])
+            self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
+            self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
+            self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
+            self.update_ui_geometry()
+
         def setup_main_ui():
             self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", closeable=False, parent=self.document.body)
 
@@ -408,7 +438,9 @@ class RetopoFlow_UI:
                 ui.button(label='General', title='Show general help (F1)', on_mouseclick=delay_exec("self.helpsystem_open('general.md')")),
                 ui.button(label='Tool', title='Show help for currently selected tool (F2)', on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")),
             ])
-            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=self.ui_main, on_mouseclick=delay_exec('self.ui_options.is_visible = True; self.ui_show_options.disabled = True'))
+            ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
+            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=delay_exec('self.ui_options.is_visible = True; self.ui_show_options.disabled = True'))
+            self.ui_show_geometry = ui.button(label='Show Geometry', title='Show geometry window', disabled=True, parent=ui_show, on_mouseclick=delay_exec('self.ui_geometry.is_visible = True; self.ui_show_geometry.disabled = True'))
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
             if False:
@@ -583,6 +615,7 @@ class RetopoFlow_UI:
         setup_tiny_ui()
         setup_options()
         setup_delete_ui()
+        setup_counts_ui()
 
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()

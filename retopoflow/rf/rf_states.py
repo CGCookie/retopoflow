@@ -44,6 +44,7 @@ class RetopoFlow_States(CookieCutter):
             self.rftool._callback('target change')
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback_widget('target change')
+            self.update_ui_geometry()
             tag_redraw_all('RF_States update')
 
         view_version = self.get_view_version()
