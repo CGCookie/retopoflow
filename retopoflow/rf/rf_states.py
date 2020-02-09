@@ -83,6 +83,8 @@ class RetopoFlow_States(CookieCutter):
                 self.ui_main.is_visible = show
                 if self.ui_show_options.disabled:
                     self.ui_options.is_visible = show
+                if self.ui_show_geometry.disabled:
+                    self.ui_geometry.is_visible = show
                 return
 
             if self.actions.pressed('F11'):
