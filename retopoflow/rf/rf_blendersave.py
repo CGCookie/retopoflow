@@ -63,13 +63,19 @@ class RetopoFlow_BlenderSave:
         bpy.ops.wm.open_mainfile(filepath=filepath)
 
     def save_backup(self):
+        if hasattr(self, '_backup_broken'): return
         filepath = options.temp_filepath('blend')
         filepath1 = "%s1" % filepath
         dprint('saving backup to %s' % filepath)
         if os.path.exists(filepath1): os.remove(filepath1)
         if os.path.exists(filepath): os.rename(filepath, filepath1)
         self.blender_ui_reset()
-        bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
+        try:
+            assert False
+            bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
+        except Exception as e:
+            self._backup_broken = True
+            self.alert_user(title='Could not save backup', message='Could not save backup file.  Temporarily preventing further backup attempts.  You might try saving file manually.\n\nFile path: %s\n\nError message: "%s"' % (filepath, str(e)))
         self.blender_ui_set()
 
     def save_normal(self):
