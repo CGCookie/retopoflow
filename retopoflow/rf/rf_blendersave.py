@@ -71,7 +71,6 @@ class RetopoFlow_BlenderSave:
         if os.path.exists(filepath): os.rename(filepath, filepath1)
         self.blender_ui_reset()
         try:
-            assert False
             bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
         except Exception as e:
             self._backup_broken = True
