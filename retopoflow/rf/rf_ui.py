@@ -535,6 +535,7 @@ class RetopoFlow_UI:
                         ]),
                     ]),
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
+                        ui.div(innerText='FPS: 0', id='fpsdiv'),
                         ui.collapsible(label='Tooltip Settings', children=[
                             ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
                             ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
@@ -548,6 +549,7 @@ class RetopoFlow_UI:
                     ])
                 ]),
             )
+            self.ui_fpsdiv = self.document.body.getElementById('fpsdiv')
 
             def symmetry_viz_change(e):
                 if not e.target.checked: return
