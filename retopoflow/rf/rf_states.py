@@ -32,6 +32,11 @@ class RetopoFlow_States(CookieCutter):
         self.view_version = None
 
     def update(self, timer=True):
+        if not self.loading_done:
+            # calling self.fsm.update() in case mouse is hovering over ui
+            self.fsm.update()
+            return
+
         if timer:
             self.rftool._callback('timer')
             if self.rftool.rfwidget:

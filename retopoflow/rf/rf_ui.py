@@ -312,7 +312,7 @@ class RetopoFlow_UI:
         if changed:
             self.ui_options.dirty('update', parent=True, children=True)
 
-    def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True):
+    def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True, hide_target=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         if scale_to_unit_box: self.scale_to_unit_box()
         self.viewaa_simplify()
@@ -326,7 +326,7 @@ class RetopoFlow_UI:
         self.header_text_set('RetopoFlow')
         bpy.ops.object.mode_set(mode='OBJECT')
         if add_rotate: self.setup_rotate_about_active()
-        self.hide_target()
+        if hide_target: self.hide_target()
 
     def blender_ui_reset(self):
         # print('RetopoFlow: blender_ui_reset')
@@ -351,8 +351,11 @@ class RetopoFlow_UI:
         self.ui_geometry.is_visible = True
         # TODO: FIX WORKAROUND HACK!
 
+    def setup_ui_blender(self):
+        self.blender_ui_set(scale_to_unit_box=False, add_rotate=False, hide_target=False)
+
     def setup_ui(self):
-        self.blender_ui_set(scale_to_unit_box=False, add_rotate=False)
+        self.hide_target()
 
         # load ui.css
         self.reload_stylings()

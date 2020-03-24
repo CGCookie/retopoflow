@@ -45,7 +45,7 @@ from ...addon_common.common.hasher import hash_object, Hasher
 from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
-from ...addon_common.common.profiler import profiler
+from ...addon_common.common.profiler import profiler, time_it
 
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
@@ -99,33 +99,27 @@ class RFMesh():
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
-        pr = profiler.start('checking for NaNs')
-        if True:
+        with profiler.code('checking for NaNs'):
             hasnan = any(
                 math.isnan(v)
                 for emv in obj.data.vertices
                 for v in emv.co
             )
-            pr2 = profiler.start('validating mesh data')
-            if True:
+            with profiler.code('validating mesh data'):
                 if hasnan:
-                    dprint('Mesh data contains NaN in vertex coordinate!')
-                    dprint('Cleaning mesh')
+                    print('Mesh data contains NaN in vertex coordinate!')
+                    print('Cleaning mesh')
                     obj.data.validate(verbose=True, clean_customdata=False)
                 else:
                     # cleaning mesh quietly
                     obj.data.validate(verbose=False, clean_customdata=False)
-            pr2.done()
-        pr.done()
 
-        pr = profiler.start('setup init')
-        if True:
+        with profiler.code('setup init'):
             self.obj = obj
             self.xform = XForm(self.obj.matrix_world)
             self.hash = hash_object(self.obj)
             self._version = None
             self._version_selection = None
-        pr.done()
 
         if bme is not None:
             self.bme = bme
@@ -133,8 +127,7 @@ class RFMesh():
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
-                pr = profiler.start('copying selection')
-                if True:
+                with profiler.code('copying selection'):
                     self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                     # copy selection from editmesh
                     for bmf, emf in zip(self.bme.faces, self.obj.data.polygons):
@@ -143,19 +136,16 @@ class RFMesh():
                         bme.select = eme.select
                     for bmv, emv in zip(self.bme.verts, self.obj.data.vertices):
                         bmv.select = emv.select
-                pr.done()
             else:
                 self.deselect_all()
 
         if triangulate:
             self.triangulate()
 
-        pr = profiler.start('setup finishing')
-        if True:
+        with profiler.code('setup finishing'):
             self.selection_center = Point((0, 0, 0))
             self.store_state()
             self.dirty()
-        pr.done()
 
     ##########################################################
 

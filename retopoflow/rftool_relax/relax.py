@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import math
+import time
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Relax
 
@@ -143,6 +144,15 @@ class Relax(RFTool_Relax):
         if not bmf or bmf.select: return
         self.rfcontext.select(bmf, supparts=False, only=False)
 
+    @RFTool_Relax.FSM_State('relax', 'enter')
+    def relax_enter(self):
+        self._time = time.time()
+        self._timer = self.actions.context.window_manager.event_timer_add(1.0 / 120, window=self.actions.context.window)  # 1.0 / 120
+
+    @RFTool_Relax.FSM_State('relax', 'exit')
+    def relax_exit(self):
+        self.actions.context.window_manager.event_timer_remove(self._timer)
+
     @RFTool_Relax.FSM_State('relax')
     @RFTool.dirty_when_done
     def relax(self):
@@ -187,7 +197,9 @@ class Relax(RFTool_Relax):
 
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
 
-        time_delta = self.rfcontext.actions.time_delta
+        cur_time = time.time()
+        time_delta = cur_time - self._time
+        self._time = cur_time
         strength = (5.0 / opt_steps) * self.rfwidget.strength * time_delta
         radius = self.rfwidget.get_scaled_radius()
 

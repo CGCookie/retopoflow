@@ -1,6 +1,7 @@
 __pycache__
 
-/test_models/
+test-models
+test_models
 /tools/
 /retopoflow_updater/
 /icons/working/

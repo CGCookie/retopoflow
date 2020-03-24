@@ -21,6 +21,10 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import bpy
+import time
+
+from concurrent.futures import ThreadPoolExecutor
+
 
 from .rf.rf_blender     import RetopoFlow_Blender
 from .rf.rf_blendersave import RetopoFlow_BlenderSave
@@ -37,6 +41,8 @@ from .rf.rf_ui          import RetopoFlow_UI
 from .rf.rf_undo        import RetopoFlow_Undo
 
 from ..addon_common.common import ui
+from ..addon_common.common.blender import tag_redraw_all
+from ..addon_common.common.debug import debugger
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec
@@ -114,7 +120,62 @@ class RetopoFlow(
         # all seems good!
         return True
 
+    @CookieCutter.FSM_State('loading', 'enter')
+    def setup_next_stage_enter(self):
+        d = {}
+        d['working'] = False
+        d['timer'] = bpy.context.window_manager.event_timer_add(1.0 / 120, window=bpy.context.window)
+        d['ui_window'] = ui.framed_dialog(label='RetopoFlow is loading...', id='loadingdialog', closeable=False, parent=self.document.body)
+        d['ui_div'] = ui.markdown(id='loadingdiv', mdown='Loading...', parent=d['ui_window'])
+        d['i_stage'] = 0
+        d['i_step'] = 0
+        d['time'] = 0           # will be updated to current time
+        d['delay'] = 0.05
+        d['stages'] = [
+            ('target mesh',              self.setup_target),
+            ('source mesh(es)',          self.setup_sources),
+            ('symmetry data structures', self.setup_sources_symmetry),    # must be called after self.setup_target()!!
+            ('rotation target',          self.setup_rotate_about_active),
+            ('RetopoFlow states',        self.setup_states),
+            ('RetopoFlow tools',         self.setup_rftools),
+            ('grease marks',             self.setup_grease),
+            ('drawing callbacks',        self.setup_drawing),
+            ('user interface',           self.setup_ui),                  # must be called after self.setup_target() and self.setup_rftools()!!
+            ('undo system',              self.setup_undo),                # must be called after self.setup_ui()!!
+        ]
+        self._setup_data = d
+
+    @CookieCutter.FSM_State('loading')
+    def setup_next_stage(self):
+        d = self._setup_data
+        if d['working']: return
+        if time.time() < d['time'] + d['delay']: return
+
+        d['working'] = True
+        try:
+            stage_name, stage_fn = d['stages'][d['i_stage']]
+            if d['i_step'] == 0:
+                print('RetopoFlow: setting up %s' % stage_name)
+                ui.set_markdown(d['ui_div'], mdown='Setting up %s' % stage_name)
+            else:
+                stage_fn()
+        except Exception as e:
+            debugger.print_exception()
+            assert False
+        d['i_step'] = (d['i_step'] + 1) % 2
+        if d['i_step'] == 0: d['i_stage'] += 1
+        d['time'] = time.time()         # record current time
+        if d['i_stage'] == len(d['stages']):
+            print('RetopoFlow: done with start')
+            self.loading_done = True
+            self.fsm.force_set_state('main')
+            self.document.body.delete_child(d['ui_window']._default_element)
+            bpy.context.window_manager.event_timer_remove(d['timer'])
+        d['working'] = False
+
     def start(self):
+        self.loading_done = False
+
         self.store_window_state()
         RetopoFlow.instance = self
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -125,29 +186,12 @@ class RetopoFlow(
         print('Unit scaling factor:', self.unit_scaling_factor)
         self.scale_to_unit_box()
 
-        print('RetopoFlow: setting up target')
-        self.setup_target()
-        print('RetopoFlow: setting up source(s)')
-        self.setup_sources()
-        print('RetopoFlow: setting up source(s) symmetry')
-        self.setup_sources_symmetry()   # must be called after self.setup_target()!!
-        print('RetopoFlow: setting up rotation target')
-        self.setup_rotate_about_active()
+        self.setup_ui_blender()
+        self.reload_stylings()
 
-        print('RetopoFlow: setting up states')
-        self.setup_states()
-        print('RetopoFlow: setting up rftools')
-        self.setup_rftools()
-        print('RetopoFlow: setting up grease')
-        self.setup_grease()
-        print('RetopoFlow: setting up drawing')
-        self.setup_drawing()
-        print('RetopoFlow: setting up ui')
-        self.setup_ui()                 # must be called after self.setup_target() and self.setup_rftools()!!
-        print('RetopoFlow: setting up undo')
-        self.setup_undo()               # must be called after self.setup_ui()!!
+        # the rest of setup is handled in `loading` state and self.setup_next_stage above
+        self.fsm.force_set_state('loading')
 
-        print('RetopoFlow: done with start')
 
     def end(self):
         self.blender_ui_reset()

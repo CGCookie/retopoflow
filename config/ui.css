@@ -246,6 +246,14 @@ div.collapsible > div.inside {
 
 
 
+dialog#loadingdialog {
+    width: 40%;
+    left: 30%;
+    /*height: 60%;*/
+    top: -40%;
+}
+
+
 dialog#maindialog {
     width: 175px;
     min-width: 50px;
