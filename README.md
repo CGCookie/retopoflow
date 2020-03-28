@@ -10,11 +10,27 @@ You may purchase RetopoFlow on the [Blender Market](https://blendermarket.com/pr
 
 Purchasing a license entitles you to tool support and helps ensure RetopoFlows continued development.
 
+**Installation steps (from Github)**
 
-## Getting Support
+1. To get the latest (development) version of Retopoflow, go to https://github.com/CGCookie/retopoflow/tree/b280. Mind the end of the URL, you need to get the latest changes from the **b280** branch.
+
+2. Click on the green button "**Clone or Download**", then "**Download ZIP**"
+
+3. Extract the **retopoflow-b280.zip** file and rename the "**retopoflow-b280**" folder to "**retopoflow**".
+
+4. You may notice that the "**Addon_common**" folder is empty. 
+Go to https://github.com/CGCookie/addon_common/tree/b280 and download the content of the repository (download the ZIP file).
+
+5. Unzip "**addon_common-b280.zip**" and extract its content to the "**retopoflow\\Addon_common\\**" folder.
+
+6. re-zip the "**retopoflow**" folder and install the addon normally from the **Preferences > Addons > Install** button.
+
+
+# Getting Support
 You can get support for tools by sending a message to CG Cookie on your [Blender Market Inbox](https://blendermarket.com/inbox).
 
 A valid purchase is required for product support.
+
 
 # Contributing
 Pull requests are welcome! If you'd like to contribute to the project then simply Fork the repo, work on your changes, and then submit a pull request. We are quite strict on what we allow in, but all suggestions are welcome. If you're unsure what to contribute, then look at the [open issues](https://github.com/CGCookie/retopoflow/issues) for the current to-dos.
