@@ -259,6 +259,7 @@ dialog#maindialog {
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
+    /*background: rgba(64,0,0,0.9);*/
 }
 dialog#maindialog * {
     overflow-x: hidden;
