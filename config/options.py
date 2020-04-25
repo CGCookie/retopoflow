@@ -46,7 +46,7 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.0.0β'
+retopoflow_version = '3.0.0β2'
 retopoflow_version_tuple = (3, 0, 0)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"

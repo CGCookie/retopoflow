@@ -206,7 +206,7 @@ div.collection > div.header {
 
 div.collapsible {
     margin: 0px;
-    border: 1px rgba(64,64,64,0.125);
+    border: 1px rgba(64,96,128,0.125);
     padding: 1px;
 }
 div.collapsible > input.header {
