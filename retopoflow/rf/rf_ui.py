@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import json
+import time
 import inspect
 from datetime import datetime
 import contextlib
@@ -154,7 +155,7 @@ class RetopoFlow_UI:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.collapsible(label='RetopoFlow Issue Reporting', classes='issue-checker')
+            ui_checker = ui.collapsible(label='Report an issue', classes='issue-checker', collapsed=False)
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
             ui_buttons = ui.div(parent=ui_checker)
 
