@@ -23,6 +23,7 @@ import random
 
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import Cursors
+from ...addon_common.common.profiler import profiler
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
 
@@ -93,7 +94,13 @@ class RetopoFlow_States(CookieCutter):
                     self.ui_geometry.is_visible = show
                 return
 
+            if self.actions.pressed('F10'):
+                profiler.clear()
+                return
             if self.actions.pressed('F11'):
+                profiler.printout()
+                return
+            if self.actions.pressed('F12'):
                 self.reload_stylings()
                 return
 
