@@ -143,23 +143,12 @@ class RetopoFlow_UI:
         def report():
             nonlocal msg_report
             nonlocal report_details
+
+            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template.md')
+            issue_template = open(path, 'rt').read()
             data = {
                 'title': '%s: %s' % (self.rftool.name, title),
-                'body': '\n'.join([
-                    #'<!----------------------------------------------------',
-                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
-                    'Below are a few notes that will help us in fixing this problem.',
-                    '',
-                    '- Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    '- Screenshots and .blend files are very helpful.',
-                    '- Change the title of this bug report to something descriptive and helpful.',
-                    '',
-                    'Thank you!',
-                    #'----------------------------------------------------->',
-                    '',
-                    '',
-                    '```',msg_report,'```'
-                ])
+                'body': '%s\n\n```\n%s\n```' % (issue_template, msg_report),
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)

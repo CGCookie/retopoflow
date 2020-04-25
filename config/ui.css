@@ -375,3 +375,9 @@ dialog#geometrydialog table div {
     margin: 1px;
     padding: 1px;
 }
+
+
+
+div.mdown h3> span {
+    color: rgba(192, 192, 192, 1.0);
+}

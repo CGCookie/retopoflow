@@ -1,5 +1,7 @@
 # Welcome to RetopoFlow 3.0.0β2!
 
+Welcome to the latest version of RetopoFlow!
+
 RetopoFlow is an add-on for Blender that brings together a set of retopology tools within a custom Blender mode to enable you to work more quickly, efficiently, and in a more artist-friendly manner.
 The RF tools, which are specifically designed for retopology, create a complete workflow in Blender without the need for additional software.
 
@@ -7,11 +9,20 @@ The RetopoFlow tools automatically generate geometry by drawing on an existing s
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
 
+
 ## Version 3.0 Notes
 
-Welcome to the newest version of RetopoFlow!
-This version of RetopoFlow has been modified to work in Blender 2.80--2.82a.
-Note: this version will _not_ work in Blender 2.79b or earlier.
+Below are a few notes about the current version of RetopoFlow.
+
+
+### Blender versions
+
+RetopoFlow has been tested to work well with Blender 2.80--2.82a.
+RF does have a few issues with Blender 2.83β and 2.90α that we are currently working on.
+Note: This version will _not_ work in Blender 2.79b or earlier.
+
+
+### New Framework
 
 Due to some significant changes in the Blender 2.80 Python API, we had to rewrite a few key parts of RetopoFlow, specifically the rendering and UI.
 Rather than keeping these updates only for RetopoFlow users, we decided to build the changes into a new framework called [CookieCutter](https://github.com/CGCookie/addon_common).
@@ -24,15 +35,17 @@ But with any unveiling on new things, there are new bugs and performance issues.
 Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
 We will need your help, though.
 
+
+### Reporting Bugs
+
 Whenever you see a bug, please let us know so that we can fix them!
 Be sure to submit screenshots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
 We have added buttons to open the issue tracker in your default browser and to save screenshots of Blender.
 
-![Global exception handling.](global_exception.png)
+![Global exception handling.](global_exception.png max-height:500px)
 
 
-
-## Feedback
+### Feedback
 
 We want to know how RetopoFlow has benefited you in your work.
 Please consider doing the following:
@@ -45,7 +58,7 @@ We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
 
 
-## Known Issues / Future Work
+### Known Issues / Future Work
 
 Below is a list of known issues that we are currently working on.
 
