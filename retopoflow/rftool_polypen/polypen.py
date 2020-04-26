@@ -106,7 +106,8 @@ class PolyPen(RFTool_PolyPen):
             self.vis_faces = self.rfcontext.accel_vis_faces
         pr.done()
 
-        self.set_next_state()
+        if self.rfcontext.loading_done:
+            self.set_next_state()
 
     @profiler.function
     def set_next_state(self):

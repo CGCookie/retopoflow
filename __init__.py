@@ -36,7 +36,7 @@ if "bpy" in locals():
 else:
     print('RetopoFlow: Initial load')
     from .retopoflow import retopoflow
-    from .config.options import options
+    from .config.options import options, retopoflow_version
     from .retopoflow import updater
 
 import bpy
@@ -54,10 +54,10 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Header",
-    "warning":     "beta (β)",  # used for warning icon and text in addons panel
-    # "wiki_url":    "http://docs.retopoflow.com",
+    "warning":     "beta2 (β2)",  # used for warning icon and text in addons panel
+    "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
-    "category":    "3D View"
+    "category":    "3D View",
 }
 
 faulthandler.enable()
@@ -182,7 +182,7 @@ class VIEW3D_OT_RetopoFlow_Recover(Operator):
 
 class VIEW3D_PT_RetopoFlow(Panel):
     """RetopoFlow Blender Menu"""
-    bl_label = "RetopoFlow"
+    bl_label = "RetopoFlow %s" % retopoflow_version
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
 
@@ -240,7 +240,7 @@ class VIEW3D_PT_RetopoFlow(Panel):
             if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                 row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
             # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-            row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+            row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
             row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
         bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
     @staticmethod

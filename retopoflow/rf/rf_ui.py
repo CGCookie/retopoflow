@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import json
+import time
 import inspect
 from datetime import datetime
 import contextlib
@@ -143,29 +144,18 @@ class RetopoFlow_UI:
         def report():
             nonlocal msg_report
             nonlocal report_details
+
+            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template.md')
+            issue_template = open(path, 'rt').read()
             data = {
                 'title': '%s: %s' % (self.rftool.name, title),
-                'body': '\n'.join([
-                    #'<!----------------------------------------------------',
-                    'Please tell us what you were trying to do, what you expected RetopoFlow to do, and what actually happened.' +
-                    'Below are a few notes that will help us in fixing this problem.',
-                    '',
-                    '- Provide as much information as you can so that we can reproduce the problem and fix it.',
-                    '- Screenshots and .blend files are very helpful.',
-                    '- Change the title of this bug report to something descriptive and helpful.',
-                    '',
-                    'Thank you!',
-                    #'----------------------------------------------------->',
-                    '',
-                    '',
-                    '```',msg_report,'```'
-                ])
+                'body': '%s\n\n```\n%s\n```' % (issue_template, msg_report),
             }
             url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.collapsible(label='RetopoFlow Issue Reporting', classes='issue-checker')
+            ui_checker = ui.collapsible(label='Report an issue', classes='issue-checker', collapsed=False)
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
             ui_buttons = ui.div(parent=ui_checker)
 
@@ -312,7 +302,7 @@ class RetopoFlow_UI:
         if changed:
             self.ui_options.dirty('update', parent=True, children=True)
 
-    def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True):
+    def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True, hide_target=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         if scale_to_unit_box: self.scale_to_unit_box()
         self.viewaa_simplify()
@@ -326,7 +316,7 @@ class RetopoFlow_UI:
         self.header_text_set('RetopoFlow')
         bpy.ops.object.mode_set(mode='OBJECT')
         if add_rotate: self.setup_rotate_about_active()
-        self.hide_target()
+        if hide_target: self.hide_target()
 
     def blender_ui_reset(self):
         # print('RetopoFlow: blender_ui_reset')
@@ -351,8 +341,11 @@ class RetopoFlow_UI:
         self.ui_geometry.is_visible = True
         # TODO: FIX WORKAROUND HACK!
 
+    def setup_ui_blender(self):
+        self.blender_ui_set(scale_to_unit_box=False, add_rotate=False, hide_target=False)
+
     def setup_ui(self):
-        self.blender_ui_set(scale_to_unit_box=False, add_rotate=False)
+        self.hide_target()
 
         # load ui.css
         self.reload_stylings()
@@ -532,6 +525,7 @@ class RetopoFlow_UI:
                         ]),
                     ]),
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
+                        ui.div(innerText='FPS: 0', id='fpsdiv'),
                         ui.collapsible(label='Tooltip Settings', children=[
                             ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
                             ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
@@ -545,6 +539,7 @@ class RetopoFlow_UI:
                     ])
                 ]),
             )
+            self.ui_fpsdiv = self.document.body.getElementById('fpsdiv')
 
             def symmetry_viz_change(e):
                 if not e.target.checked: return

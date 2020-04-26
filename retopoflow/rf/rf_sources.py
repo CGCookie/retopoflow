@@ -20,10 +20,11 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
+import time
 
 from ...config.options import visualization
 from ...addon_common.common.maths import BBox
-from ...addon_common.common.profiler import profiler
+from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane
 from ...addon_common.common.maths import Point2D, Accel2D
@@ -48,6 +49,7 @@ class RetopoFlow_Sources:
         opts = visualization.get_source_settings()
         print('  drawing...')
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
+        dprint('%d sources found' % len(self.rfsources))
         print('  done!')
 
     @profiler.function

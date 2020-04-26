@@ -31,7 +31,7 @@ from ...config.options import options, retopoflow_version
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
-from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object
+from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object, get_active_object
 from ...addon_common.common.blender import toggle_screen_header, toggle_screen_toolbar, toggle_screen_properties, toggle_screen_lastop
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
@@ -50,7 +50,7 @@ class RetopoFlow_Blender:
         if type(o.data) is not bpy.types.Mesh: return False
         if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
         if o.hide: return False
-        if o.select and o == bpy.context.active_object: return False
+        if o.select and o == get_active_object(): return False
         if not o.data.polygons: return False
         return True
 
@@ -58,7 +58,7 @@ class RetopoFlow_Blender:
     @blender_version_wrapper('>=','2.80')
     def is_valid_source(o):
         if not o: return False
-        if o == bpy.context.active_object: return False
+        if o == get_active_object(): return False
         # if o == bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
@@ -71,7 +71,7 @@ class RetopoFlow_Blender:
     def is_valid_target(o):
         assert False, "TODO: NEED TO UPDATE!!! SEE 2.80+ VERSION BELOW"
         if not o: return False
-        if o != bpy.context.active_object: return False
+        if o != get_active_object(): return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
@@ -83,7 +83,7 @@ class RetopoFlow_Blender:
     @blender_version_wrapper('>=','2.80')
     def is_valid_target(o):
         if not o: return False
-        if o != bpy.context.active_object: return False
+        if o != get_active_object(): return False
         # if o != bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
@@ -112,7 +112,7 @@ class RetopoFlow_Blender:
 
     @staticmethod
     def get_target():
-        o = bpy.context.active_object
+        o = get_active_object()
         return o if RetopoFlow_Blender.is_valid_target(o) else None
 
 

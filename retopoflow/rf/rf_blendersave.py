@@ -47,6 +47,8 @@ class RetopoFlow_BlenderSave:
         if hasattr(self, 'time_to_save'):
             if time.time() < self.time_to_save: return
             self.save_backup()
+        else:
+            self.last_change_count = 0
         auto_save_time = get_preferences(self.actions.context).filepaths.auto_save_time * 60
         self.time_to_save = time.time() + auto_save_time
 
@@ -64,6 +66,9 @@ class RetopoFlow_BlenderSave:
 
     def save_backup(self):
         if hasattr(self, '_backup_broken'): return
+        if self.last_change_count == self.change_count:
+            dprint('skipping backup save')
+            return
         filepath = options.temp_filepath('blend')
         filepath1 = "%s1" % filepath
         dprint('saving backup to %s' % filepath)
@@ -72,6 +77,7 @@ class RetopoFlow_BlenderSave:
         self.blender_ui_reset()
         try:
             bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
+            self.last_change_count = self.change_count
         except Exception as e:
             self._backup_broken = True
             self.alert_user(title='Could not save backup', message='Could not save backup file.  Temporarily preventing further backup attempts.  You might try saving file manually.\n\nFile path: %s\n\nError message: "%s"' % (filepath, str(e)))

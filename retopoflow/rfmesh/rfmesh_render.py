@@ -50,6 +50,7 @@ from ...addon_common.common.hasher import hash_object, hash_bmesh
 from ...addon_common.common.decorators import stats_wrapper
 from ...addon_common.common import bmesh_render as bmegl
 from ...addon_common.common.bmesh_render import triangulateFace, BufferedRender_Batch
+from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options
 
@@ -262,6 +263,8 @@ class RFMeshRender():
 
     @profiler.function
     def clean(self):
+        if not self.buf_data_queue.empty():
+            tag_redraw_all('buffer update')
         while not self.buf_data_queue.empty():
             data = self.buf_data_queue.get()
             if data == 'done':

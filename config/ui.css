@@ -206,7 +206,7 @@ div.collection > div.header {
 
 div.collapsible {
     margin: 0px;
-    border: 1px rgba(64,64,64,0.125);
+    border: 1px rgba(64,96,128,0.125);
     padding: 1px;
 }
 div.collapsible > input.header {
@@ -246,11 +246,20 @@ div.collapsible > div.inside {
 
 
 
+dialog#loadingdialog {
+    width: 40%;
+    left: 30%;
+    /*height: 60%;*/
+    top: -40%;
+}
+
+
 dialog#maindialog {
     width: 175px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
+    /*background: rgba(64,0,0,0.9);*/
 }
 dialog#maindialog * {
     overflow-x: hidden;
@@ -365,4 +374,10 @@ dialog#geometrydialog table div {
     width: auto;
     margin: 1px;
     padding: 1px;
+}
+
+
+
+div.mdown h3> span {
+    color: rgba(192, 192, 192, 1.0);
 }

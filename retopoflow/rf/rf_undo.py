@@ -28,6 +28,7 @@ class RetopoFlow_Undo:
     def setup_undo(self):
         self.undo = []
         self.redo = []
+        self.change_count = 0
 
         # # touching undo stack to work around weird bug
         # # to reproduce:
@@ -62,29 +63,34 @@ class RetopoFlow_Undo:
         while len(self.undo) > options['undo depth']: self.undo.pop(0)     # limit stack size
         self.redo.clear()
         self.instrument_write(action)
+        self.change_count += 1
 
     def undo_repush(self, action):
         if not self.undo: return
         self._restore_state(self.undo.pop(), set_tool=False)
         self.undo.append(self._create_state(action))
         self.redo.clear()
+        self.change_count += 1
 
     def undo_pop(self):
         if not self.undo: return
         self.redo.append(self._create_state('undo'))
         self._restore_state(self.undo.pop())
         self.instrument_write('undo')
+        self.change_count += 1
 
     def undo_cancel(self):
         if not self.undo: return
         self._restore_state(self.undo.pop())
         self.instrument_write('cancel (undo)')
+        self.change_count += 1
 
     def redo_pop(self):
         if not self.redo: return
         self.undo.append(self._create_state('redo'))
         self._restore_state(self.redo.pop())
         self.instrument_write('redo')
+        self.change_count += 1
 
     def undo_stack_actions(self):
         return [u['action'] for u in reversed(self.undo)]

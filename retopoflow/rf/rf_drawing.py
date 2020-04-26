@@ -56,11 +56,13 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.PreDraw
     def predraw(self):
+        if not self.loading_done: return
         self.update(timer=False)
 
     @CookieCutter.Draw('post3d')
     def draw_target_and_sources(self):
         if not self.actions.r3d: return
+        if not self.loading_done: return
         # if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
 
         buf_matrix_target = self.rftarget_draw.rfmesh.xform.mx_p # self.rftarget_draw.buf_matrix_model
@@ -142,14 +144,17 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.Draw('pre3d')
     def draw_tool_pre3d(self):
+        if not self.loading_done: return
         self.rftool._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_tool_post3d(self):
+        if not self.loading_done: return
         self.rftool._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_tool_post2d(self):
+        if not self.loading_done: return
         self.rftool._draw_post2d()
 
 
@@ -158,18 +163,21 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.Draw('pre3d')
     def draw_widget_pre3d(self):
+        if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         self.rftool.rfwidget._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_widget_post3d(self):
+        if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         self.rftool.rfwidget._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_widget_post2d(self):
+        if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         self.rftool.rfwidget._draw_post2d()

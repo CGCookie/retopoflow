@@ -23,6 +23,7 @@ import random
 
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import Cursors
+from ...addon_common.common.profiler import profiler
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
 
@@ -32,6 +33,11 @@ class RetopoFlow_States(CookieCutter):
         self.view_version = None
 
     def update(self, timer=True):
+        if not self.loading_done:
+            # calling self.fsm.update() in case mouse is hovering over ui
+            self.fsm.update()
+            return
+
         if timer:
             self.rftool._callback('timer')
             if self.rftool.rfwidget:
@@ -55,6 +61,7 @@ class RetopoFlow_States(CookieCutter):
                 self.rftool.rfwidget._callback_widget('view change')
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
+        self.ui_fpsdiv.innerText = 'FPS: %f' % self.document._draw_fps
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
@@ -88,7 +95,13 @@ class RetopoFlow_States(CookieCutter):
                     self.ui_geometry.is_visible = show
                 return
 
+            if self.actions.pressed('F10'):
+                profiler.clear()
+                return
             if self.actions.pressed('F11'):
+                profiler.printout()
+                return
+            if self.actions.pressed('F12'):
                 self.reload_stylings()
                 return
 
