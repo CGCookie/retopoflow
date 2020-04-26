@@ -156,7 +156,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 kwargs_deselect={'subparts': False},
             )
 
-        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
 
@@ -172,13 +172,13 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             ''' grab for translations '''
             return 'grab'
 
-        if self.rfcontext.actions.pressed('shift'):
+        if self.rfcontext.actions.pressed('rotate plane'):
             ''' rotation of loops (NOT strips) about plane normal '''
-            return 'shift'
+            return 'rotate plane'
 
-        if self.rfcontext.actions.pressed('rotate'):
+        if self.rfcontext.actions.pressed('rotate screen'):
             ''' screen-space rotation of loops about plane origin '''
-            return 'rotate'
+            return 'rotate screen'
 
         if self.rfcontext.actions.pressed('fill'):
             self.fill()
@@ -191,8 +191,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             return
 
 
-    @RFTool_Contours.FSM_State('shift', 'can enter')
-    def shift_can_enter(self):
+    @RFTool_Contours.FSM_State('rotate plane', 'can enter')
+    def rotateplane_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         if not sel_loops: return False
@@ -228,8 +228,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             dprint('Found no loops to shift')
             return False
 
-    @RFTool_Contours.FSM_State('shift', 'enter')
-    def shift_enter(self):
+    @RFTool_Contours.FSM_State('rotate plane', 'enter')
+    def rotateplane_enter(self):
         self.rot_axis = Vec((0,0,0))
         self.rot_origin = Point.average(cut.get_origin() for cut in self.move_cuts if cut)
         self.shift_about = self.rfcontext.Point_to_Point2D(self.rot_origin)
@@ -247,7 +247,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rot_perp2D = Vec2D((self.rot_axis2D.y, -self.rot_axis2D.x))
         print(self.rot_axis, self.rot_axis2D, self.rot_perp2D)
 
-        self.rfcontext.undo_push('shift contours')
+        self.rfcontext.undo_push('rotate plane contours')
 
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
@@ -255,10 +255,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_done_released = None
         self.move_cancelled = 'cancel'
 
-    @RFTool_Contours.FSM_State('shift')
+    @RFTool_Contours.FSM_State('rotate plane')
     @RFTool_Contours.dirty_when_done
     @profiler.function
-    def modal_shift(self):
+    def rotateplane_main(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
@@ -266,6 +266,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        if self.rfcontext.actions.pressed('rotate screen'):
+            self.rfcontext.undo_cancel()
+            return 'rotate screen'
 
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
@@ -350,6 +354,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.move_done_released = None
         self.move_cancelled = 'cancel'
 
+        print('Contours.grab_enter!!')
+
     @RFTool_Contours.FSM_State('grab')
     @RFTool_Contours.dirty_when_done
     @profiler.function
@@ -417,15 +423,15 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
 
 
-    @RFTool_Contours.FSM_State('rotate', 'can enter')
-    def rotate_can_enter(self):
+    @RFTool_Contours.FSM_State('rotate screen', 'can enter')
+    def rotatescreen_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         return sel_loops or sel_strings
 
-    @RFTool_Contours.FSM_State('rotate', 'enter')
-    def rotate_enter(self):
+    @RFTool_Contours.FSM_State('rotate screen', 'enter')
+    def rotatescreen_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
@@ -440,7 +446,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
         self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
 
-        self.rfcontext.undo_push('rotate contours')
+        self.rfcontext.undo_push('rotate screen contours')
 
         self.mousedown = self.rfcontext.actions.mouse
 
@@ -452,10 +458,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_done_released = None
         self.move_cancelled = 'cancel'
 
-    @RFTool_Contours.FSM_State('rotate')
+    @RFTool_Contours.FSM_State('rotate screen')
     @RFTool_Contours.dirty_when_done
     @profiler.function
-    def modal_rotate(self):
+    def rotatescreen_main(self):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
@@ -463,6 +469,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        if self.rfcontext.actions.pressed('rotate plane'):
+            self.rfcontext.undo_cancel()
+            return 'rotate plane'
 
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
@@ -528,8 +538,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.new_cut(ray, plane, walk_to_plane=False, check_hit=xy01)
 
     @RFTool_Contours.Draw('post2d')
-    @RFTool_Contours.FSM_OnlyInState('rotate')
-    def draw_post2d_rotate(self):
+    @RFTool_Contours.FSM_OnlyInState('rotate screen')
+    def draw_post2d_rotate_screenspace(self):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         Globals.drawing.draw2D_line(
@@ -540,8 +550,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         )
 
     @RFTool_Contours.Draw('post2d')
-    @RFTool_Contours.FSM_OnlyInState('shift')
-    def draw_post2d_shift(self):
+    @RFTool_Contours.FSM_OnlyInState('rotate plane')
+    def draw_post2d_rotate_plane(self):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_MULTISAMPLE)
         Globals.drawing.draw2D_line(

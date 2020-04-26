@@ -58,6 +58,7 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('main')
     def modal_main(self):
+        # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
             if self.actions.pressed({'done'}):
                 self.done()
@@ -113,7 +114,9 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             # handle selection
+            # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
             if self.actions.pressed('select all'):
+                # print('modal_main:selecting all toggle')
                 self.undo_push('select all')
                 self.select_toggle()
                 return

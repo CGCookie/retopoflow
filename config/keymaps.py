@@ -35,7 +35,7 @@ CTRL OSK ALT   SPACE    ALT CTRL   LFT DWN RHT     0   .
 default_rf_keymaps = {
     'toggle full area': {'CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'},
 
-    'action': {'LEFTMOUSE'},
+    'action': {'LEFTMOUSE+DRAG'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
@@ -66,21 +66,24 @@ default_rf_keymaps = {
     'insert alt0': {'SHIFT+LEFTMOUSE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
+    # general commands
     'grab': {'G'},
-    'delete': {'X','DELETE'},
+    'rotate': {'R'},
+    'scale': {'S'},
+    'delete': {'X', 'DEL', 'BACK_SPACE'},
 
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
 
     # contours
-    'shift': {'S'},             # rotation of loops
-    'rotate': {'SHIFT+S'},
+    'rotate plane': {'R'},              # rotate loops about contour plane normal
+    'rotate screen': {'R', 'SHIFT+R'},  # rotate loops in screen space
 
     # loops
-    'slide': {'S'},
+    'slide': {'G'},     # slide loop
 
     # patches
-    'fill': {'F'},
+    'fill': {'F', 'RET', 'NUMPAD_ENTER'},
 
     # grease pencil
     'grease clear': {'C'},
@@ -92,14 +95,14 @@ default_rf_keymaps = {
     'brush strength': {'SHIFT+F'},
 
     # shortcuts to tools
-    'contours tool': {'Q'},
-    'polystrips tool': {'W'},
-    'polypen tool': {'E'},
-    'relax tool': {'R'},
-    'tweak tool': {'T'},
-    'loops tool': {'Y'},
-    'patches tool': {'U'},
-    'strokes tool': {'I'},
-    'stretch tool': {'O'},          # not ported from rf279, yet
-    'grease pencil tool': {'P'},    # not ported from rf279, yet
+    'contours tool': {'ONE'},
+    'polystrips tool': {'TWO'},
+    'polypen tool': {'THREE'},
+    'relax tool': {'FOUR'},
+    'tweak tool': {'FIVE'},
+    'loops tool': {'SIX'},
+    'patches tool': {'SEVEN'},
+    'strokes tool': {'EIGHT'},
+    'stretch tool': {'NINE'},          # not ported from rf279, yet
+    'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }
