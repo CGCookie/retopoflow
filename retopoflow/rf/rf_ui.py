@@ -37,6 +37,7 @@ from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
+from ...addon_common.common.blender import get_preferences
 from ...addon_common.common import ui
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
@@ -310,7 +311,10 @@ class RetopoFlow_UI:
         self.manipulator_hide() # <---------------------------------------------------------------
         self._space.show_gizmo = True
 
-        self.panels_hide()
+        if get_preferences().system.use_region_overlap:
+            # DO NOT HIDE HEADER WHEN REGION OVERLAP IS OFF!!!
+            # bug in 282a (at least)
+            self.panels_hide()
         self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
