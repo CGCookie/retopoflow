@@ -512,6 +512,10 @@ class PolyPen(RFTool_PolyPen):
             self.rfcontext.undo_push('move after select')
             return 'move'
 
+    @RFTool_PolyPen.FSM_State('move', 'enter')
+    def move_enter(self):
+        self._timer = self.actions.start_timer(120)
+
     @RFTool_PolyPen.FSM_State('move')
     @profiler.function
     @RFTool_PolyPen.dirty_when_done
@@ -529,6 +533,10 @@ class PolyPen(RFTool_PolyPen):
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
+
+        # only update verts on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.actions.mouse_prev == self.actions.mouse: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
@@ -548,6 +556,10 @@ class PolyPen(RFTool_PolyPen):
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+
+    @RFTool_PolyPen.FSM_State('move', 'exit')
+    def move_exit(self):
+        self._timer.done()
 
 
     def draw_lines(self, coords, poly_alpha=0.2):
