@@ -263,6 +263,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_done_released = None
         self.move_cancelled = 'cancel'
 
+        self._timer = self.actions.start_timer(120.0)
+
     @RFTool_Contours.FSM_State('rotate plane')
     @RFTool_Contours.dirty_when_done
     @profiler.function
@@ -321,6 +323,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
             self.rfcontext.update_verts_faces(verts)
 
+    @RFTool_Contours.FSM_State('rotate plane', 'exit')
+    def rotateplane_exit(self):
+        self._timer.done()
+
 
     @RFTool_Contours.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
@@ -362,7 +368,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.move_done_released = None
         self.move_cancelled = 'cancel'
 
-        print('Contours.grab_enter!!')
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_Contours.FSM_State('grab')
     @RFTool_Contours.dirty_when_done
@@ -378,6 +384,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
+        # if not self.rfcontext.actions.mousemove: return
         if self.move_prevmouse == self.rfcontext.actions.mouse: return
         self.move_prevmouse = self.rfcontext.actions.mouse
 
@@ -430,6 +437,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
             self.rfcontext.update_verts_faces(verts)
 
+    @RFTool_Contours.FSM_State('grab', 'exit')
+    def grab_exit(self):
+        self._timer.done()
+
 
     @RFTool_Contours.FSM_State('rotate screen', 'can enter')
     def rotatescreen_can_enter(self):
@@ -465,6 +476,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_done_pressed = 'confirm'
         self.move_done_released = None
         self.move_cancelled = 'cancel'
+
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_Contours.FSM_State('rotate screen')
     @RFTool_Contours.dirty_when_done
@@ -534,6 +547,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 if i == l: break
 
             self.rfcontext.update_verts_faces(verts)
+
+    @RFTool_Contours.FSM_State('rotate screen', 'exit')
+    def rotatescreen_exit(self):
+        self._timer.done()
 
 
     @RFWidget_Line.on_action

@@ -151,6 +151,7 @@ class Tweak(RFTool_Tweak):
         if not bmf or bmf.select: return
         self.rfcontext.select(bmf, supparts=False, only=False)
 
+
     @RFTool_Tweak.FSM_State('move', 'can enter')
     def move_can_enter(self):
         radius = self.rfwidget.get_scaled_radius()
@@ -178,15 +179,20 @@ class Tweak(RFTool_Tweak):
         if opt_mask_selected: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.select]
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
         self.mousedown = self.rfcontext.actions.mousedown
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_Tweak.FSM_State('move')
     @RFTool_Tweak.dirty_when_done
-    def modal_move(self):
+    def move(self):
         if self.rfcontext.actions.released(['action','action alt0']):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        # only update cut on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.actions.mouse_prev == self.actions.mouse: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -197,3 +203,6 @@ class Tweak(RFTool_Tweak):
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 
+    @RFTool_Tweak.FSM_State('move', 'exit')
+    def move_exit(self):
+        self._timer.done()

@@ -147,11 +147,11 @@ class Relax(RFTool_Relax):
     @RFTool_Relax.FSM_State('relax', 'enter')
     def relax_enter(self):
         self._time = time.time()
-        self._timer = self.actions.context.window_manager.event_timer_add(1.0 / 120, window=self.actions.context.window)  # 1.0 / 120
+        self._timer = self.actions.start_timer(120)
 
     @RFTool_Relax.FSM_State('relax', 'exit')
     def relax_exit(self):
-        self.actions.context.window_manager.event_timer_remove(self._timer)
+        self._timer.done()
 
     @RFTool_Relax.FSM_State('relax')
     @RFTool.dirty_when_done

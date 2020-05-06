@@ -124,7 +124,7 @@ class RetopoFlow(
     def setup_next_stage_enter(self):
         d = {}
         d['working'] = False
-        d['timer'] = bpy.context.window_manager.event_timer_add(1.0 / 120, window=bpy.context.window)
+        d['timer'] = self.actions.start_timer(30)
         d['ui_window'] = ui.framed_dialog(label='RetopoFlow is loading...', id='loadingdialog', closeable=False, parent=self.document.body)
         d['ui_div'] = ui.markdown(id='loadingdiv', mdown='Loading...', parent=d['ui_window'])
         d['i_stage'] = 0
@@ -170,7 +170,7 @@ class RetopoFlow(
             self.loading_done = True
             self.fsm.force_set_state('main')
             self.document.body.delete_child(d['ui_window']._default_element)
-            bpy.context.window_manager.event_timer_remove(d['timer'])
+            d['timer'].done()
         d['working'] = False
 
     def start(self):

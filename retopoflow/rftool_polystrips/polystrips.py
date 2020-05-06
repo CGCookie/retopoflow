@@ -249,6 +249,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_PolyStrips.FSM_State('move handle')
     @RFTool_PolyStrips.dirty_when_done
@@ -281,6 +282,10 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()
+
+    @RFTool_PolyStrips.FSM_State('move handle', 'exit')
+    def movehandle_exit(self):
+        self._timer.done()
 
 
     @RFTool_PolyStrips.FSM_State('rotate', 'can enter')
@@ -321,11 +326,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_done_released = 'action alt0'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('rotate')
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_PolyStrips.FSM_State('rotate')
     @RFTool_PolyStrips.dirty_when_done
     @profiler.function
-    def modal_rotate(self):
+    def rotate(self):
         if not self.rotate_about: return 'main'
         if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
@@ -350,6 +356,10 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()
+
+    @RFTool_PolyStrips.FSM_State('rotate', 'exit')
+    def rotate_exit(self):
+        self._timer.done()
 
 
 
@@ -414,7 +424,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 if bmv not in self.scale_bmv:
                     self.scale_bmv[bmv] = []
                 self.scale_bmv[bmv] += [(c, bmv.co-c, s)]
-        return 'scale'
+
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_PolyStrips.FSM_State('scale')
     @RFTool.dirty_when_done
@@ -442,6 +453,10 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             bmv.co = n / len(l)
             snap_vert(bmv)
 
+    @RFTool_PolyStrips.FSM_State('scale', 'exit')
+    def scale_exit(self):
+        self._timer.done()
+
 
     @RFTool_PolyStrips.FSM_State('move all', 'can enter')
     @profiler.function
@@ -461,11 +476,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_done_pressed = None if lmb_drag else 'confirm'
         self.move_done_released = 'action' if lmb_drag else None
         self.move_cancelled = 'cancel'
+        self._timer = self.actions.start_timer(120.0)
 
     @RFTool_PolyStrips.FSM_State('move all')
     @RFTool_PolyStrips.dirty_when_done
     @profiler.function
-    def modal_move(self):
+    def moveall(self):
         if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.rfcontext.actions.released(self.move_done_released):
@@ -482,6 +498,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
         #self.update()
 
+    @RFTool_PolyStrips.FSM_State('move all', 'exit')
+    def moveall_exit(self):
+        self._timer.done()
 
 
 
