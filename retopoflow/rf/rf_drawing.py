@@ -37,8 +37,6 @@ from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
 from ...config.options import options, visualization
 
-# from ..keymaps import default_rf_keymaps
-
 
 class RetopoFlow_Drawing:
     def get_view_version(self):

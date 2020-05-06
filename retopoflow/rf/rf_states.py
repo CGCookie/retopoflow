@@ -223,7 +223,7 @@ class RetopoFlow_States(CookieCutter):
         assert self.selection_painting_opts
         if self.actions.mousemove:
             tag_redraw_all('RF selection_painting')
-        if not self.actions.using(['select','select add']):
+        if not self.actions.using(['select','select add','select paint']):
             self.selection_painting_opts = None
             return 'main'
         if self._last_mouse == self.actions.mouse: return

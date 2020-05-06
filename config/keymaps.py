@@ -35,15 +35,16 @@ CTRL OSK ALT   SPACE    ALT CTRL   LFT DWN RHT     0   .
 default_rf_keymaps = {
     'toggle full area': {'CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'},
 
-    'action': {'LEFTMOUSE+DRAG'},
+    'action': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
-    'select': {'RIGHTMOUSE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
+    'select': {'RIGHTMOUSE', 'RIGHTMOUSE+DOUBLE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
     'select add': {'SHIFT+RIGHTMOUSE'},
     'select smart': {'CTRL+RIGHTMOUSE'},
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
     'select all': {'A'},
+    'select paint': {'RIGHTMOUSE+DRAG', 'SHIFT+RIGHTMOUSE+DRAG'},
 
     'all help': {'SHIFT+F1'},
     'general help': {'F1'},

@@ -148,6 +148,14 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def main(self):
         Cursors.set('CROSSHAIR')
 
+        if self.actions.pressed({'select paint'}):
+            return self.rfcontext.setup_selection_painting(
+                'edge',
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
+
         if self.actions.pressed({'select', 'select add'}):
             return self.rfcontext.setup_selection_painting(
                 'edge',
@@ -531,6 +539,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFWidget_Line.on_action
     def new_line(self):
         xy0,xy1 = self.rfwidget.line2D
+        if not xy0 or not xy1: return
         if (xy1-xy0).length < 0.001: return
         xy01 = xy0 + (xy1-xy0) / 2
         plane = self.rfcontext.Point2D_to_Plane(xy0, xy1)
