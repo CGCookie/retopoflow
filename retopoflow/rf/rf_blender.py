@@ -282,7 +282,7 @@ class RetopoFlow_Blender:
         if not os.path.exists(filepath): return
         data = json.loads(open(filepath, 'rt').read())
 
-        bpy.context.window.screen = bpy.data.screens[data['screen name']]
+        # bpy.context.window.screen = bpy.data.screens[data['screen name']]
 
         for wm in bpy.data.window_managers:
             data_wm = data['data_wm'][wm.name]
