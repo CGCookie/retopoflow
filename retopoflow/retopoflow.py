@@ -195,6 +195,7 @@ class RetopoFlow(
 
     def end(self):
         self.blender_ui_reset()
+        self.undo_clear()
         options.clear_callbacks()
         # self.end_rotate_about_active()
         # self.teardown_target()

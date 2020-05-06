@@ -52,6 +52,7 @@ Please consider doing the following:
 
 - Purchase a copy of RetopoFlow on the [Blender Market](https://blendermarket.com/products/retopoflow) to help fund future developments.
 - Give us a [rating](https://blendermarket.com/products/retopoflow/ratings) with comments on the Blender Market. (requires purchasing a copy through Blender Market)
+- Follow our development on [Twitter](https://twitter.com/RetopoFlow_Dev).
 - Consider [donating](https://paypal.me/gfxcoder/) to our drink funds :)
 
 We have worked hard to make this as production-ready as possible.
@@ -65,6 +66,7 @@ Below is a list of known issues that we are currently working on.
 - Patches supports only rudimentary fills.
 - RetopoFlow does not use Blender keymap settings, including Left/Right select.
 - Starting RetopoFlow with large source meshes can be slow.
+- RetopoFlow is still in alpha for Blender versions 2.83 and 2.90
 
 
 ## Final Words

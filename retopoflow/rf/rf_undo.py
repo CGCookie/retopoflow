@@ -26,10 +26,12 @@ from ...addon_common.common.blender import tag_redraw_all
 
 class RetopoFlow_Undo:
     def setup_undo(self):
+        self.change_count = 0
+        self.undo_clear()
+
+    def undo_clear(self):
         self.undo = []
         self.redo = []
-        self.change_count = 0
-
         # # touching undo stack to work around weird bug
         # # to reproduce:
         # #     start PS, select a strip, drag a handle but then cancel, exit RF
