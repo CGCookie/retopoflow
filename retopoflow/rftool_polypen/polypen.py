@@ -462,6 +462,7 @@ class PolyPen(RFTool_PolyPen):
         if not options['polypen automerge']: return
 
         # TODO: remove colocated faces
+        if self.mousedown is None: return
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         update_verts = []
