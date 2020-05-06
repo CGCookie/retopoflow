@@ -23,18 +23,21 @@ For more details, see the tooltips when hovering or the product documentation pa
 ## Tool Shortcuts
 
 Pressing the tool's shortcut will automatically switch to that tool.
-Note: selection and the undo stack is maintained between tools.
+The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 |  |  |  |
 | --- | --- | --- |
-| `Q` | : | Contours |
-| `W` | : | PolyStrips |
-| `E` | : | PolyPen |
-| `R` | : | Relax |
-| `T` | : | Tweak |
-| `Y` | : | Loops |
-| `U` | : | Patches |
-| `I` | : | Strokes |
+| `1` | : | Contours |
+| `2` | : | PolyStrips |
+| `3` | : | PolyPen |
+| `4` | : | Relax |
+| `5` | : | Tweak |
+| `6` | : | Loops |
+| `7` | : | Patches |
+| `8` | : | Strokes |
+
+Note: selection and the undo stack is maintained between tools.
+
 
 
 ## Universal Shortcuts

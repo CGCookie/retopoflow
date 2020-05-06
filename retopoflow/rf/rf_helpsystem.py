@@ -58,7 +58,7 @@ class RetopoFlow_HelpSystem:
                 label='RetopoFlow Help System',
                 id='helpsystem',
                 resizable=False,
-                closeable=False,
+                closeable=True,
                 moveable=False,
                 parent=self.document.body
             )
