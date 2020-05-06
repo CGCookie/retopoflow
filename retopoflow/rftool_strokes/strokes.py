@@ -191,17 +191,12 @@ class Strokes(RFTool_Strokes):
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
         if self.rfcontext.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = None
-            self.move_cancelled = 'cancel'
             return 'move'
 
-        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
-            print('changing count!', self.strip_crosses, self.strip_loops, self.replay)
+        # if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+        #     print('changing count!', self.strip_crosses, self.strip_loops, self.replay)
         if self.rfcontext.actions.pressed('increase count') and self.replay:
-            print('increase count')
+            # print('increase count')
             if self.strip_crosses is not None and not self.strip_edges:
                 self.strip_crosses += 1
                 self.replay()
@@ -210,7 +205,7 @@ class Strokes(RFTool_Strokes):
                 self.replay()
 
         if self.rfcontext.actions.pressed('decrease count') and self.replay:
-            print('decrease count')
+            # print('decrease count')
             if self.strip_crosses is not None and self.strip_crosses > 1 and not self.strip_edges:
                 self.strip_crosses -= 1
                 self.replay()
@@ -275,7 +270,7 @@ class Strokes(RFTool_Strokes):
             else:
                 self.replay = self.create_strip
 
-        print(self.replay)
+        # print(self.replay)
         if self.replay: self.replay()
 
     @RFTool_Strokes.dirty_when_done
@@ -735,8 +730,14 @@ class Strokes(RFTool_Strokes):
         self.defer_recomputing = False
         self.update()
 
-    @profiler.function
-    def prep_move(self, bmverts=None, defer_recomputing=True):
+    @RFTool_Strokes.FSM_State('move', 'enter')
+    def move_enter(self, bmverts=None, defer_recomputing=True):
+        self.rfcontext.undo_push('move grabbed')
+
+        self.move_done_pressed = 'confirm'
+        self.move_done_released = None
+        self.move_cancelled = 'cancel'
+
         self.sel_verts = self.rfcontext.get_selected_verts()
         self.vis_accel = self.rfcontext.get_vis_accel()
         self.vis_verts = self.rfcontext.accel_vis_verts
@@ -747,10 +748,12 @@ class Strokes(RFTool_Strokes):
         self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
         self.defer_recomputing = defer_recomputing
+        self._timer = self.actions.start_timer(120)
 
+    @RFTool_Strokes.FSM_State('move')
     @RFTool_Strokes.dirty_when_done
     @profiler.function
-    def modal_move(self):
+    def move(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -764,6 +767,10 @@ class Strokes(RFTool_Strokes):
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
+
+        # only update verts on timer events and when mouse has moved
+        if not self.rfcontext.actions.timer: return
+        if self.actions.mouse_prev == self.actions.mouse: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -781,6 +788,11 @@ class Strokes(RFTool_Strokes):
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+
+    @RFTool_Strokes.FSM_State('move', 'exit')
+    def move_exit(self):
+        self._timer.done()
+
 
     def draw_postpixel(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
