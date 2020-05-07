@@ -64,8 +64,8 @@ default_rf_keymaps = {
 
     'edit mode': {'TAB'},
 
-    'insert': {'CTRL+LEFTMOUSE'},
-    'insert alt0': {'SHIFT+LEFTMOUSE'},
+    'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
+    'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
     # general commands
