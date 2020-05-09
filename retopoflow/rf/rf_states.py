@@ -100,6 +100,7 @@ class RetopoFlow_States(CookieCutter):
                 return
             if self.actions.pressed('F11'):
                 profiler.printout()
+                self.document.debug_print()
                 return
             if self.actions.pressed('F12'):
                 self.reload_stylings()
