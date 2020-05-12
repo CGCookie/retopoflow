@@ -15,26 +15,28 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
+| `Action+Drag` | : | slide selected loop |
+| `Action+Double` | : | select loop |
 | `Action` | : | slide selected loop |
 | `Select` <br> `Shift+Select` | : | select edge |
 | `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select loop |
 | `Ctrl+Action` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
 | `A` | : | deselect / select all |
-| `F` | : | Bridge selected edge loops |
+| `F` <br> `Enter` | : | Bridge selected edge loops |
 
 ## Transform
 
 |  |  |  |
 | --- | --- | --- |
 | `G` | : | slide |
-| `S` | : | shift |
-| `Shift+S` | : | rotate |
+| `R` | : | rotate loop in plane |
+| `Shift+R`<br>`R+Double` | : | rotate loop in screen |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| `X` | : | delete/dissolve selected |
+| `X` <br> `Delete` <br> `Backspace` | : | delete/dissolve selected |
 | `Shift+Up` <br> `Shift+Down` | : | increase / decrease segment counts |
 | `Equals` <br> `Minus` | : | increase / decrease segment counts |
 
