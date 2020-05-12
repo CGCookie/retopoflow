@@ -224,9 +224,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         sel_loops = find_loops(sel_edges)
         if not sel_loops:
             if self.strings_data:
-                self.rfcontext.alert_user('Contours', 'Cannot plane-rotate loops that cross the symmetry plane')
+                self.rfcontext.alert_user('Cannot plane-rotate loops that cross the symmetry plane')
             else:
-                self.rfcontext.alert_user('Contours', 'Could not find valid loops to plane-rotate')
+                self.rfcontext.alert_user('Could not find valid loops to plane-rotate')
             return False
 
         self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
@@ -257,7 +257,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             cl_cut.align_to(cloop)
             self.move_cuts += [cl_cut]
         if not any(self.move_cuts):
-            self.rfcontext.alert_user('Contours', 'Could not find valid loops to plane-rotate')
+            self.rfcontext.alert_user('Could not find valid loops to plane-rotate')
             dprint('Found no loops to shift')
             return False
 

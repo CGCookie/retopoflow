@@ -361,6 +361,6 @@ class PolyStrips_Ops:
         if nfaces:
             self.rfcontext.select(nfaces, supparts=False, only=False)
         else:
-            #self.rfcontext.alert_user('PolyStrips', 'Could not find a strip to adjust')
+            #self.rfcontext.alert_user('Could not find a strip to adjust')
             pass
 

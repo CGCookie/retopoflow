@@ -160,7 +160,7 @@ class Loops(RFTool_Loops):
                 nonlocal new_edges
                 f0 = next(iter(v0.shared_faces(v1)), None)
                 if not f0:
-                    self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
+                    self.rfcontext.alert_user('Something unexpected happened', level='warning')
                     self.rfcontext.undo_cancel()
                     return
                 f1 = f0.split(v0, v1)

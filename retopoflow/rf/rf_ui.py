@@ -112,7 +112,7 @@ class RetopoFlow_UI:
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
         self.rftool._reset()
 
-    def alert_user(self, title=None, message=None, level=None, msghash=None):
+    def alert_user(self, message=None, title=None, level=None, msghash=None):
         show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
@@ -125,6 +125,8 @@ class RetopoFlow_UI:
         ui_show = None
         message_orig = message
         report_details = ''
+
+        if title is None and self.rftool: title = self.rftool.name
 
         def screenshot():
             ss_filename = options['screenshot filename']
@@ -289,6 +291,11 @@ class RetopoFlow_UI:
         #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)
         self.alert_windows += 1
+        if level in {'note', None}:
+            win.style = 'width:600px;'
+            # win.style = 'left:auto; top:auto;'
+            self.document.force_clean(self.actions.context)
+            self.document.center_on_mouse(win)
 
     def update_ui(self):
         if not hasattr(self, 'rftools_ui'): return

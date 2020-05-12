@@ -375,7 +375,6 @@ class Strokes(RFTool_Strokes):
                 best_score = score
         if not best:
             self.rfcontext.alert_user(
-                'Strokes',
                 'Could not find suitable edge cycle.  Make sure your selection is accurate.'
             )
             return
@@ -486,7 +485,6 @@ class Strokes(RFTool_Strokes):
 
         if len(diffs0) != len(diffs1):
             self.rfcontext.alert_user(
-                'Strokes',
                 'Selections must contain same number of edges'
             )
             return
@@ -530,7 +528,6 @@ class Strokes(RFTool_Strokes):
     @RFTool_Strokes.dirty_when_done
     def extrude_t(self):
         self.rfcontext.alert_user(
-            'Strokes',
             'T-shaped extrusions are not handled, yet'
         )
 
@@ -621,7 +618,6 @@ class Strokes(RFTool_Strokes):
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
-                'Strokes',
                 'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
             )
             return
@@ -650,7 +646,6 @@ class Strokes(RFTool_Strokes):
                 best_score = score
         if not best:
             self.rfcontext.alert_user(
-                'Strokes',
                 'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.'
             )
             return
