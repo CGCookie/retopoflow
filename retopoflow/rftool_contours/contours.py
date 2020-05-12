@@ -65,7 +65,11 @@ from .contours_utils import (
 class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_UI):
     @RFTool_Contours.on_init
     def init(self):
-        self.rfwidget = RFWidget_Line(self)
+        self.rfwidgets = {
+            'cut': RFWidget_Line(self),
+            'hover': None,
+        }
+        self.rfwidget = self.rfwidgets['cut']
         # self.rfwidget.register_action_callback(self.new_line)
 
     @RFTool_Contours.on_reset
@@ -80,12 +84,12 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
     @RFTool_Contours.on_target_change
     def update_target(self):
-        sel_edges = self.rfcontext.get_selected_edges()
+        self.sel_edges = set(self.rfcontext.get_selected_edges())
         #sel_faces = self.rfcontext.get_selected_faces()
 
         # find verts along selected loops and strings
-        sel_loops = find_loops(sel_edges)
-        sel_strings = find_strings(sel_edges)
+        sel_loops = find_loops(self.sel_edges)
+        sel_strings = find_strings(self.sel_edges)
 
         # filter out any loops or strings that are in the middle of a selected patch
         def in_middle(bmvs, is_loop):
@@ -146,7 +150,44 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
     @RFTool_Contours.FSM_State('main')
     def main(self):
-        Cursors.set('CROSSHAIR')
+        hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
+
+        if hovering_sel_edge:
+            self.rfwidget = self.rfwidgets['hover']
+            Cursors.set('HAND')
+        else:
+            self.rfwidget = self.rfwidgets['cut']
+            Cursors.set('CROSSHAIR')
+
+        if self.actions.pressed({'grab'}, unpress=False):
+            ''' grab for translations '''
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            return 'grab'
+
+        if hovering_sel_edge:
+            if self.actions.pressed({'action'}, unpress=False):
+                self.move_done_pressed = None
+                self.move_done_released = 'action'
+                return 'grab'
+
+        if self.rfcontext.actions.pressed('rotate plane'):
+            ''' rotation of loops (NOT strips) about plane normal '''
+            return 'rotate plane'
+
+        if self.rfcontext.actions.pressed('rotate screen'):
+            ''' screen-space rotation of loops about plane origin '''
+            return 'rotate screen'
+
+        if self.rfcontext.actions.pressed('fill'):
+            self.fill()
+            return
+
+        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+            delta = 1 if self.rfcontext.actions.pressed('increase count') else -1
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(delta=delta)
+            return
 
         if self.actions.pressed({'select paint'}):
             return self.rfcontext.setup_selection_painting(
@@ -176,34 +217,17 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.select_edge_loop(edge, only=sel_only, supparts=False)
             return
 
-        if self.rfcontext.actions.pressed({'grab', 'action'}, unpress=False):
-            ''' grab for translations '''
-            return 'grab'
-
-        if self.rfcontext.actions.pressed('rotate plane'):
-            ''' rotation of loops (NOT strips) about plane normal '''
-            return 'rotate plane'
-
-        if self.rfcontext.actions.pressed('rotate screen'):
-            ''' screen-space rotation of loops about plane origin '''
-            return 'rotate screen'
-
-        if self.rfcontext.actions.pressed('fill'):
-            self.fill()
-            return
-
-        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
-            delta = 1 if self.rfcontext.actions.pressed('increase count') else -1
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=delta)
-            return
-
 
     @RFTool_Contours.FSM_State('rotate plane', 'can enter')
     def rotateplane_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
-        if not sel_loops: return False
+        if not sel_loops:
+            if self.strings_data:
+                self.rfcontext.alert_user('Contours', 'Cannot plane-rotate loops that cross the symmetry plane')
+            else:
+                self.rfcontext.alert_user('Contours', 'Could not find valid loops to plane-rotate')
+            return False
 
         self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
         self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
@@ -233,6 +257,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             cl_cut.align_to(cloop)
             self.move_cuts += [cl_cut]
         if not any(self.move_cuts):
+            self.rfcontext.alert_user('Contours', 'Could not find valid loops to plane-rotate')
             dprint('Found no loops to shift')
             return False
 
@@ -259,9 +284,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         self.mousedown = self.rfcontext.actions.mouse
         self.move_prevmouse = None
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
-        self.move_cancelled = 'cancel'
 
         self._timer = self.actions.start_timer(120.0)
 
@@ -269,11 +291,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.dirty_when_done
     @profiler.function
     def rotateplane_main(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.rfcontext.actions.pressed('confirm'):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
@@ -340,7 +360,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
-        after_action = self.rfcontext.actions.pressed('action')
 
         # prefer to move loops over strings
         if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
@@ -358,15 +377,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         #self.grab_along = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
         #self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
-        self.mousedown = self.rfcontext.actions.mouse
+        self.mousedown = self.actions.mouse
         self.move_prevmouse = None
-        if after_action:
-            self.move_done_pressed = None
-            self.move_done_released = 'action'
-        else:
-            self.move_done_pressed = 'confirm'
-            self.move_done_released = None
-        self.move_cancelled = 'cancel'
 
         self._timer = self.actions.start_timer(120.0)
 
@@ -374,11 +386,11 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.dirty_when_done
     @profiler.function
     def grab(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+        if self.rfcontext.actions.released(self.move_done_released):
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
@@ -473,9 +485,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
         self.move_prevmouse = None
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
-        self.move_cancelled = 'cancel'
 
         self._timer = self.actions.start_timer(120.0)
 
@@ -483,11 +492,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.dirty_when_done
     @profiler.function
     def rotatescreen_main(self):
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.rfcontext.actions.pressed('confirm'):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
-            return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 

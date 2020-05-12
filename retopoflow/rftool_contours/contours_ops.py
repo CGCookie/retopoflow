@@ -194,7 +194,7 @@ class Contours_Ops:
                         nonlocal new_edges
                         f0 = next(iter(v0.shared_faces(v1)), None)
                         if not f0:
-                            self.rfcontext.alert_user('Loops', 'Something unexpected happened', level='warning')
+                            self.rfcontext.alert_user('Contours', 'Something unexpected happened in trying to create a new cut', level='warning')
                             self.rfcontext.undo_cancel()
                             return
                         f1 = f0.split(v0, v1)
@@ -309,14 +309,14 @@ class Contours_Ops:
         sel_loops = find_loops(sel_edges)
 
         if len(sel_loops) != 2:
-            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            self.rfcontext.alert_user('Contours', 'In order to fill, select exactly 2 loops of the same edge count')
             return
         loop0, loop1 = sel_loops
         if len(loop0) != len(loop1):
-            self.rfcontext.alert_user('Contours', 'Select exactly 2 loops of the same edge count')
+            self.rfcontext.alert_user('Contours', 'In order to fill, select exactly 2 loops of the same edge count')
             return
         if any(v0.share_edge(v1) for v0 in loop0 for v1 in loop1):
-            self.rfcontext.alert_user('Contours', 'The 2 selected loops cannot share an edge')
+            self.rfcontext.alert_user('Contours', 'In order to fill, the 2 selected loops cannot share an edge')
             return
 
         self.rfcontext.undo_push('fill')
