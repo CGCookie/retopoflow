@@ -60,6 +60,34 @@ class Loops(RFTool_Loops):
         self.nearest_edge = None
         self.set_next_state()
 
+    def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
+        if bme.select:
+            # edge is already selected
+            return True
+        bmv0, bmv1 = bme.verts
+        s0, s1 = bmv0.select, bmv1.select
+        if s0 and s1:
+            # both verts are selected, so return True
+            return True
+        if not s0 and not s1:
+            if no_verts_select:
+                # neither are selected, so return True by default
+                return True
+            else:
+                # return True if none are selected; otherwise return False
+                return self.rfcontext.none_selected()
+        # if mouse is at least a ratio of the distance toward unselected vert, return True
+        if s1: bmv0, bmv1 = bmv1, bmv0
+        p = self.actions.mouse
+        p0 = self.rfcontext.Point_to_Point2D(bmv0.co)
+        p1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+        v01 = p1 - p0
+        l01 = v01.length
+        d01 = v01 / l01
+        dot = d01.dot(p - p0)
+        return dot / l01 > ratio
+
+
     @RFTool_Loops.FSM_State('main')
     def main(self):
         if self.rfcontext.actions.pressed('action'):
@@ -73,6 +101,15 @@ class Loops(RFTool_Loops):
                 self.rfcontext.undo_cancel()
                 return
             return 'slide after select'
+
+        if self.rfcontext.actions.pressed({'select paint'}):
+            print('Loops selection painting')
+            return self.rfcontext.setup_selection_painting(
+                'edge',
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
 
         if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
