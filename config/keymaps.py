@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from ..addon_common.common.blender_preferences import mouse_select
+
 
 '''
 Standard US 101 QWERTY Keyboard
@@ -112,3 +114,20 @@ default_rf_keymaps = {
     'stretch tool': {'NINE'},          # not ported from rf279, yet
     'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }
+
+left_rf_keymaps = {
+    'select': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
+    'select add': {'SHIFT+LEFTMOUSE'},
+    'select smart add': {'CTRL+SHIFT+LEFTMOUSE'},
+    'select paint': {'LEFTMOUSE+DRAG', 'SHIFT+LEFTMOUSE+DRAG'},
+    'select invert': {'CTRL+I'},
+}
+
+right_rf_keymaps = {}
+
+def get_keymaps():
+    keymap = default_rf_keymaps
+    keymap_replace = left_rf_keymaps if mouse_select() == 'LEFT' else right_rf_keymaps
+    for k,v in keymap_replace.items():
+        keymap[k] = v
+    return keymap

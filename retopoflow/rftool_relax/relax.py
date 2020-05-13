@@ -35,7 +35,6 @@ from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
 from ...config.options import options, themes
-from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_Relax(RFTool):
@@ -43,7 +42,7 @@ class RFTool_Relax(RFTool):
     description = 'Relax the vertex positions to smooth out topology'
     icon        = 'relax_32.png'
     help        = 'relax.md'
-    shortcut    = default_rf_keymaps['relax tool']
+    shortcut    = 'relax tool'
 
 
 class Relax(RFTool_Relax):

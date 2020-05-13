@@ -39,7 +39,6 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
 from ...config.options import options
-from ...config.keymaps import default_rf_keymaps
 
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -58,7 +57,7 @@ class RFTool_PolyStrips(RFTool):
     description = 'Create and edit strips of quads'
     icon        = 'polystrips_32.png'
     help        = 'polystrips.md'
-    shortcut    = default_rf_keymaps['polystrips tool']
+    shortcut    = 'polystrips tool'
 
 
 ################################################################################################

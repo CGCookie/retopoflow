@@ -38,14 +38,13 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.boundvar import BoundVar, BoundInt
 
 from ...config.options import options
-from ...config.keymaps import default_rf_keymaps
 
 class RFTool_Contours(RFTool):
     name        = 'Contours'
     description = 'Retopologize cylindrical forms, like arms and legs'
     icon        = 'contours_32.png'
     help        = 'contours.md'
-    shortcut    = default_rf_keymaps['contours tool']
+    shortcut    = 'contours tool'
 
 
 ################################################################################################

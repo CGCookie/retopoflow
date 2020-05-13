@@ -1,5 +1,8 @@
 # Tweak Help ![](tweak_32.png width:32px;height:32px;padding:0px)
 
+Shortcut: {{tweak tool}}
+
+
 The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 ![](help_tweak.png)

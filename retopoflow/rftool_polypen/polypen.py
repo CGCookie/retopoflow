@@ -41,7 +41,6 @@ from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 
 from ...config.options import options, themes
-from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_PolyPen(RFTool):
@@ -49,7 +48,7 @@ class RFTool_PolyPen(RFTool):
     description = 'Create complex topology on vertex-by-vertex basis'
     icon        = 'polypen_32.png'
     help        = 'polypen.md'
-    shortcut    = default_rf_keymaps['polypen tool']
+    shortcut    = 'polypen tool'
 
 
 class PolyPen(RFTool_PolyPen):

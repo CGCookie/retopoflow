@@ -1,5 +1,8 @@
 # PolyStrips Help ![](polystrips_32.png width:32px;height:32px;padding:0px)
 
+Shortcut: {{polystrips tool}}
+
+
 The PolyStrips tool provides quick and easy ways to map out key face loops for complex models.
 For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.
 

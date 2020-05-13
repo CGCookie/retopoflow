@@ -36,7 +36,6 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
 from ...config.options import options
-from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_Loops(RFTool):
@@ -44,7 +43,7 @@ class RFTool_Loops(RFTool):
     description = 'Edge loops creation, shifting, and deletion'
     icon        = 'loops_32.png'
     help        = 'loops.md'
-    shortcut    = default_rf_keymaps['loops tool']
+    shortcut    = 'loops tool'
 
 
 class Loops(RFTool_Loops):

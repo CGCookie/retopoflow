@@ -1,9 +1,9 @@
 # General Help
 
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
-For tool-specific help, select the tool from the Tools panel, and either press `F2` or click Tool Help.
+For tool-specific help, select the tool from the Tools panel, and either press {{tool help}} or click Tool Help.
 
-Click [here](table_of_contents.md) or press `Shift+F1` to see all of the built-in documentation.
+Click [here](table_of_contents.md) or press {{all help}} to see all of the built-in documentation.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -13,12 +13,12 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| `Esc`      | : | quit RetopoFlow |
-| `Ctrl+S`   | : | save blend file |
-| `F1`       | : | view general help (this document) |
-| `Shift+F1` | : | view all help documents (table of contents) |
-| `F2`       | : | view help for currently selected tool |
-| `F9`       | : | toggle on/off main RF windows |
+| {{done}}          | : | quit RetopoFlow |
+| {{save action}}   | : | save blend file |
+| {{general help}}  | : | view general help (this document) |
+| {{all help}}      | : | view all help documents (table of contents) |
+| {{tool help}}     | : | view help for currently selected tool |
+| {{toggle ui}}     | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
 
@@ -27,14 +27,14 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 |  |  |  |
 | --- | --- | --- |
-| `1` | : | Contours |
-| `2` | : | PolyStrips |
-| `3` | : | PolyPen |
-| `4` | : | Relax |
-| `5` | : | Tweak |
-| `6` | : | Loops |
-| `7` | : | Patches |
-| `8` | : | Strokes |
+| {{contours tool}}   | : | Contours |
+| {{polystrips tool}} | : | PolyStrips |
+| {{polypen tool}}    | : | PolyPen |
+| {{relax tool}}      | : | Relax |
+| {{tweak tool}}      | : | Tweak |
+| {{loops tool}}      | : | Loops |
+| {{patches tool}}    | : | Patches |
+| {{strokes tool}}    | : | Strokes |
 
 Note: selection and the undo stack is maintained between tools.
 
@@ -47,23 +47,19 @@ For example, pressing `G` in Contours will slide the selected loop.
 
 |  |  |  |
 | --- | --- | --- |
-| `A` | : | deselect / select all |
-| `Action` drag | : | transform selection |
-| `Shift+Select` click | : | toggle selection |
-| `Select` drag <br> `Shift+Select` drag | : | selection painting |
-| `LMB+Double` <br> `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | smart selection |
-| `Ctrl+I` | : | invert selection |
-| `G` | : | grab and move selected geometry |
-| `X` | : | delete / dissolve selection |
-| `Ctrl+Z` | : | undo |
-| `Ctrl+Shift+Z` | : | redo |
+| {{insert}}                            | : | create new geometry with current tool / apply relax or tweak |
+| {{select}}                            | : | select |
+| {{select all}}                        | : | deselect / select all |
+| {{select invert}}                     | : | invert selection |
+| {{select paint}}                      | : | selection painting |
+| {{action}}                            | : | transform selection |
+| {{select smart, select smart add}}    | : | smart selection |
+| {{grab}}                              | : | grab and move selected geometry |
+| {{rotate}}                            | : | rotate selected geometry |
+| {{scale}}                             | : | scale selected geometry |
+| {{delete}}                            | : | delete / dissolve selection |
+| {{undo}} <br> {{redo}}                | : | undo / redo |
 
-
-## Defaults
-
-The `Action` command is set to the left mouse button.
-
-The `Select` command is set to the right mouse button.
 
 
 

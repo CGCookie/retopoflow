@@ -1,5 +1,8 @@
 # PolyPen Help ![](polypen_32.png width:32px;height:32px;padding:0px)
 
+Shortcut: {{polypen tool}}
+
+
 The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
 

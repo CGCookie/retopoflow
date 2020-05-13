@@ -46,7 +46,6 @@ from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 from ...config.options import options, themes, visualization
-from ...config.keymaps import default_rf_keymaps
 
 
 class RFTool_Patches(RFTool):
@@ -54,7 +53,7 @@ class RFTool_Patches(RFTool):
     description = 'Fill holes in your topology'
     icon        = 'patches_32.png'
     help        = 'patches.md'
-    shortcut    = default_rf_keymaps['patches tool']
+    shortcut    = 'patches tool'
 
 
 class Patches(RFTool_Patches):

@@ -1,5 +1,8 @@
 # Contours Help ![](contours_32.png width:32px;height:32px;padding:0px)
 
+Shortcut: {{contours tool}}
+
+
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it's ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
 
@@ -15,26 +18,26 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| {{insert}} | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
-| {{action}} | : | slide selected loop |
+| {{insert}}                         | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| {{action}}                         | : | slide selected loop |
 | {{select smart, select smart add}} | : | select loop |
-| {{select, select add}} | : | select edge |
-| {{select all}} | : | deselect / select all |
-| {{fill}} | : | Bridge selected edge loops |
+| {{select, select add}}             | : | select edge |
+| {{select all}}                     | : | deselect / select all |
+| {{fill}}                           | : | bridge selected edge loops |
 
 ## Transform
 
 |  |  |  |
 | --- | --- | --- |
-| {{grab}} | : | slide |
-| {{rotate plane}} | : | rotate loop in plane |
+| {{grab}}          | : | slide |
+| {{rotate plane}}  | : | rotate loop in plane |
 | {{rotate screen}} | : | rotate loop in screen |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}} | : | delete/dissolve selected |
+| {{delete}}                                 | : | delete/dissolve selected |
 | {{increase count}} <br> {{decrease count}} | : | increase / decrease segment counts |
 
 ## Tips

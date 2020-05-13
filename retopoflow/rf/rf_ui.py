@@ -51,8 +51,6 @@ from ...config.options import (
     gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
 )
 
-from ...config.keymaps import default_rf_keymaps
-
 def get_environment_details():
     blender_version = '%d.%02d.%d' % bpy.app.version
     blender_branch = bpy.app.build_branch.decode('utf-8')
