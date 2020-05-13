@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 import time
 
-from ...config.options import visualization
+from ...config.options import visualization, options
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.debug import dprint
@@ -159,8 +159,20 @@ class RetopoFlow_Sources:
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size.x: return False
         if p2D.y < 0 or p2D.y > self.actions.size.y: return False
-        max_dist_offset = self.sources_bbox.get_min_dimension()*0.01 + 0.0008
+        max_dist_offset = self.sources_bbox.get_min_dimension() * options['visible bbox factor'] + options['visible dist offset']
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
         return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource))
+
+    def visibility_preset_normal(self):
+        options['visible bbox factor'] = 0.001
+        options['visible dist offset'] = 0.0008
+        self.get_vis_accel()
+
+    def visibility_preset_tiny(self):
+        options['visible bbox factor'] = 0.0
+        options['visible dist offset'] = 0.0004
+        self.get_vis_accel()
+
+

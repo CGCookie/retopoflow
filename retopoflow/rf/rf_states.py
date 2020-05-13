@@ -38,6 +38,8 @@ class RetopoFlow_States(CookieCutter):
             self.fsm.update()
             return
 
+        options.clean()
+
         if timer:
             self.rftool._callback('timer')
             if self.rftool.rfwidget:

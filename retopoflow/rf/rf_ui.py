@@ -535,6 +535,14 @@ class RetopoFlow_UI:
                             ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
                         ]),
                     ]),
+                    ui.collapsible(label='Visibility Test', title='These options are used to tune the parameters for visibility testing', children=[
+                        ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                        ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                        ui.collection(label='Presets', id='vistest-presets', children=[
+                            ui.button(label='Tiny', title='Preset options for working on tiny objects', on_mouseclick=self.visibility_preset_tiny),
+                            ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
+                        ]),
+                    ]),
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
                         ui.div(innerText='FPS: 0', id='fpsdiv'),
                         ui.collapsible(label='Tooltip Settings', children=[

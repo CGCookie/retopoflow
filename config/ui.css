@@ -244,6 +244,11 @@ div.collapsible > div.inside {
     width: 50%;
 }
 
+*#vistest-presets button {
+    display: inline;
+    width: 50%;
+}
+
 
 
 dialog#loadingdialog {
