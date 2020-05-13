@@ -35,6 +35,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
+from ...config.options import options
 from ...config.keymaps import default_rf_keymaps
 
 
@@ -59,6 +60,7 @@ class Loops(RFTool_Loops):
     def reset(self):
         self.nearest_edge = None
         self.set_next_state()
+        self.hovering_edge = None
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -90,17 +92,32 @@ class Loops(RFTool_Loops):
 
     @RFTool_Loops.FSM_State('main')
     def main(self):
-        if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('select and grab')
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            self.rfcontext.select_edge_loop(edge, supparts=False, only=True)
-            self.set_next_state()
-            self.prep_edit()
-            if not self.edit_ok:
-                self.rfcontext.undo_cancel()
-                return
-            return 'slide after select'
+        if not self.actions.using('action', ignoredrag=True):
+            # only update while not pressing action, because action includes drag, and
+            # the artist might move mouse off selected edge before drag kicks in!
+            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
+
+        if self.hovering_edge:
+            if self.rfcontext.actions.pressed({'action', 'action alt0'}, unpress=False):
+                if not self.hovering_sel_edge:
+                    only = self.rfcontext.actions.pressed('action')
+                    self.rfcontext.undo_push('select and grab')
+                    self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False, only=only)
+                    self.set_next_state()
+                    self.prep_edit()
+                    if not self.edit_ok:
+                        self.rfcontext.undo_cancel()
+                        return
+                else:
+                    self.prep_edit()
+                    if not self.edit_ok:
+                        return
+                self.move_done_pressed = None
+                self.move_done_released = 'action'
+                self.move_cancelled = 'cancel'
+                self.rfcontext.undo_push('slide edge loop/strip')
+                return 'slide'
 
         if self.rfcontext.actions.pressed({'select paint'}):
             print('Loops selection painting')
@@ -373,18 +390,6 @@ class Loops(RFTool_Loops):
         self.mouse_down = self.rfcontext.actions.mouse
         self.percent_start = 0.0
         self.edit_ok = True
-
-    @RFTool_Loops.FSM_State('slide after select')
-    @profiler.function
-    def modal_slide_after_select(self):
-        if self.rfcontext.actions.released('action'):
-            return 'main'
-        if (self.rfcontext.actions.mouse - self.mouse_down).length > self.drawing.scale(7):
-            self.move_done_pressed = None
-            self.move_done_released = 'action' #['select','select add','select smart']
-            self.move_cancelled = 'cancel'
-            self.rfcontext.undo_push('slide edge loop/strip')
-            return 'slide'
 
     @RFTool_Loops.FSM_State('slide', 'enter')
     def slide_enter(self):

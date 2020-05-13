@@ -137,6 +137,11 @@ class RetopoFlow_States(CookieCutter):
                 self.select_toggle()
                 return
 
+            if self.actions.pressed('select invert'):
+                self.undo_push('select invert')
+                self.select_invert()
+                return
+
             if self.actions.pressed('delete'):
                 w,h = self.actions.region.width,self.actions.region.height
                 self.ui_delete.reposition(
@@ -170,6 +175,45 @@ class RetopoFlow_States(CookieCutter):
 
         if not self.ignore_ui_events:
             self.check_auto_save()
+
+
+    def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):
+        v01 = pt1 - pt0
+        self.action_data = {
+            'p0': pt0, 'p1': pt1, 'v01': v01,
+            'fn callback': fn_callback,
+            'done pressed': done_pressed, 'done released': done_released, 'cancel pressed': cancel_pressed,
+            'val': lambda p: v01.dot(p - pt0),
+        }
+        return 'action handler'
+
+    @CookieCutter.FSM_State('action handler', 'enter')
+    def action_handler_enter(self):
+        assert self.action_data
+        self.undo_push('action handler')
+        self.action_data['timer'] = self.actions.start_timer(120.0)
+        self.action_data['mouse'] = self.actions.mouse
+        self.action_data['val start'] = self.action_data['val'](self.actions.mouse)
+
+    @CookieCutter.FSM_State('action handler')
+    def action_handler(self):
+        d = self.action_data
+        if self.actions.pressed(d['done pressed']) or self.actions.released(d['done released']):
+            self.actions_data = None
+            return 'main'
+        if self.actions.released(d['cancel pressed']):
+            self.undo_pop()
+            self.dirty()
+            return 'main'
+        if not self.actions.mousemove: return
+        val = self.action_data['val'](self.actions.mouse)
+        self.action_data['fn callback'](val - self.action_data['val start'])
+        self.dirty()
+
+    @CookieCutter.FSM_State('action handler', 'exit')
+    def action_handler_exit(self):
+        self.action_data['timer'].done()
+
 
     def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         accel_nearest2D = {

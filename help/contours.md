@@ -15,30 +15,27 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| `Action+Drag` | : | slide selected loop |
-| `Action+Double` | : | select loop |
-| `Action` | : | slide selected loop |
-| `Select` <br> `Shift+Select` | : | select edge |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select loop |
-| `Ctrl+Action` | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
-| `A` | : | deselect / select all |
-| `F` <br> `Enter` | : | Bridge selected edge loops |
+| {{insert}} | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| {{action}} | : | slide selected loop |
+| {{select smart, select smart add}} | : | select loop |
+| {{select, select add}} | : | select edge |
+| {{select all}} | : | deselect / select all |
+| {{fill}} | : | Bridge selected edge loops |
 
 ## Transform
 
 |  |  |  |
 | --- | --- | --- |
-| `G` | : | slide |
-| `R` | : | rotate loop in plane |
-| `Shift+R`<br>`R+Double` | : | rotate loop in screen |
+| {{grab}} | : | slide |
+| {{rotate plane}} | : | rotate loop in plane |
+| {{rotate screen}} | : | rotate loop in screen |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| `X` <br> `Delete` <br> `Backspace` | : | delete/dissolve selected |
-| `Shift+Up` <br> `Shift+Down` | : | increase / decrease segment counts |
-| `Equals` <br> `Minus` | : | increase / decrease segment counts |
+| {{delete}} | : | delete/dissolve selected |
+| {{increase count}} <br> {{decrease count}} | : | increase / decrease segment counts |
 
 ## Tips
 

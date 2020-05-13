@@ -36,7 +36,7 @@ Standard US 101 QWERTY Keyboard
 default_rf_keymaps = {
     'toggle full area': {'CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'},
 
-    'action': {'LEFTMOUSE', 'LEFTMOUSE+DRAG', 'LEFTMOUSE+DOUBLE'},
+    'action': {'LEFTMOUSE+DRAG'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
@@ -46,6 +46,7 @@ default_rf_keymaps = {
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
     'select all': {'A'},
     'select paint': {'RIGHTMOUSE+DRAG', 'SHIFT+RIGHTMOUSE+DRAG'},
+    'select invert': {'CTRL+I'},
 
     'all help': {'SHIFT+F1'},
     'general help': {'F1'},
@@ -57,7 +58,8 @@ default_rf_keymaps = {
     'cancel': {'ESC', 'RIGHTMOUSE'},
     'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
-    'done': {'ESC'}, #, 'RET', 'NUMPAD_ENTER'},
+
+    'done': {'TAB'},  # if options['escape to quit'], then 'ESC' is added
 
     'undo': {'CTRL+Z'},
     'redo': {'CTRL+SHIFT+Z'},
@@ -95,6 +97,8 @@ default_rf_keymaps = {
     'brush size': {'F'},
     'brush falloff': {'CTRL+F'},
     'brush strength': {'SHIFT+F'},
+    'brush': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE'},
+    'brush alt': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
 
     # shortcuts to tools
     'contours tool': {'ONE'},

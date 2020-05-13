@@ -124,8 +124,8 @@ class Tweak(RFTool_Tweak):
             self.rfcontext.select(faces, only=False)
             return
 
-        if self.rfcontext.actions.pressed(['action', 'action alt0'], unpress=False):
-            self.sel_only = self.rfcontext.actions.using('action alt0')
+        if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
+            self.sel_only = self.rfcontext.actions.using('brush alt')
             self.rfcontext.actions.unpress()
             return 'move'
 
@@ -184,7 +184,7 @@ class Tweak(RFTool_Tweak):
     @RFTool_Tweak.FSM_State('move')
     @RFTool_Tweak.dirty_when_done
     def move(self):
-        if self.rfcontext.actions.released(['action','action alt0']):
+        if self.rfcontext.actions.released(['brush','brush alt']):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()

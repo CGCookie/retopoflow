@@ -51,7 +51,8 @@ For example, pressing `G` in Contours will slide the selected loop.
 | `Action` drag | : | transform selection |
 | `Shift+Select` click | : | toggle selection |
 | `Select` drag <br> `Shift+Select` drag | : | selection painting |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | smart selection |
+| `LMB+Double` <br> `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | smart selection |
+| `Ctrl+I` | : | invert selection |
 | `G` | : | grab and move selected geometry |
 | `X` | : | delete / dissolve selection |
 | `Ctrl+Z` | : | undo |

@@ -27,6 +27,7 @@ from mathutils import Matrix
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_line import RFWidget_Line
+from ..rfwidgets.rfwidget_move import RFWidget_Move
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import matrix_vector_mult
@@ -67,10 +68,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def init(self):
         self.rfwidgets = {
             'cut': RFWidget_Line(self),
-            'hover': None,
+            'hover': RFWidget_Move(self),
         }
-        self.rfwidget = self.rfwidgets['cut']
-        # self.rfwidget.register_action_callback(self.new_line)
+        self.rfwidget = None
 
     @RFTool_Contours.on_reset
     def reset(self):
@@ -81,6 +81,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.connected = False
         self.cuts = []
         self.crawl_viz = [] # for debugging
+        self.hovering_sel_edge = None
 
     @RFTool_Contours.on_target_change
     def update_target(self):
@@ -150,23 +151,25 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
     @RFTool_Contours.FSM_State('main')
     def main(self):
-        hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
+        if not self.actions.using('action', ignoredrag=True):
+            # only update while not pressing action, because action includes drag, and
+            # the artist might move mouse off selected edge before drag kicks in!
+            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
 
-        if hovering_sel_edge:
+        if self.hovering_sel_edge:
             self.rfwidget = self.rfwidgets['hover']
-            Cursors.set('HAND')
         else:
             self.rfwidget = self.rfwidgets['cut']
-            Cursors.set('CROSSHAIR')
 
-        if self.actions.pressed({'grab'}, unpress=False):
+        if self.actions.pressed('grab'):
             ''' grab for translations '''
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             return 'grab'
 
-        if hovering_sel_edge:
-            if self.actions.pressed({'action'}, unpress=False):
+        if self.hovering_sel_edge:
+            if self.actions.pressed({'action'}):
+                # return self.action_setup()
                 self.move_done_pressed = None
                 self.move_done_released = 'action'
                 return 'grab'
@@ -348,6 +351,36 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer.done()
 
 
+    def action_setup(self):
+        sel_edges = self.rfcontext.get_selected_edges()
+        sel_loops = find_loops(sel_edges)
+        sel_strings = find_strings(sel_edges, min_length=2)
+        if not sel_loops or sel_strings: return
+
+        # prefer to move loops over strings
+        if sel_loops: self.move_cloops = [Contours_Loop(loop, True) for loop in sel_loops]
+        else: self.move_cloops = [Contours_Loop(string, False) for string in sel_strings]
+        self.move_verts = [[bmv for bmv in cloop.verts] for cloop in self.move_cloops]
+        self.move_pts = [[Point(pt) for pt in cloop.pts] for cloop in self.move_cloops]
+        self.move_dists = [list(cloop.dists) for cloop in self.move_cloops]
+        self.move_circumferences = [cloop.circumference for cloop in self.move_cloops]
+        self.move_origins = [cloop.plane.o for cloop in self.move_cloops]
+        self.move_orig_origins = [Point(p) for p in self.move_origins]
+        self.move_proj_dists = [list(cloop.proj_dists) for cloop in self.move_cloops]
+
+        #self.grab_along = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
+        #self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
+
+        self.mousedown = self.actions.mouse
+        self.move_prevmouse = None
+
+        return self.rfcontext.setup_action()
+
+    def action_callback(self, val):
+        pass
+
+
+
     @RFTool_Contours.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
@@ -387,10 +420,13 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @profiler.function
     def grab(self):
         if self.rfcontext.actions.pressed(self.move_done_pressed):
+            print('Contours.grab: pressed', self.move_done_pressed)
             return 'main'
-        if self.rfcontext.actions.released(self.move_done_released):
+        if self.rfcontext.actions.released(self.move_done_released, ignoredrag=True):
+            print('Contours.grab: released', self.move_done_released)
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
+            print('Contours.grab: cancel')
             self.rfcontext.undo_cancel()
             return 'main'
 

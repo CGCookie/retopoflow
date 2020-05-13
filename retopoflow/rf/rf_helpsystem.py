@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import os
+import re
 import bpy
 
 from ...addon_common.common import ui
@@ -42,6 +43,15 @@ class RetopoFlow_HelpSystem:
         Globals.ui_document.body.dirty('Reloaded stylings', children=True)
         Globals.ui_document.body.dirty_styling()
         Globals.ui_document.body.dirty_flow()
+
+    def substitute_keymaps(self, mdown):
+        while True:
+            m = re.search(r'{{(?P<action>[^}]+)}}', mdown)
+            if not m: break
+            action = {s.strip() for s in m.group('action').split(',')}
+            sub = "`" + self.actions.to_human_readable(action, join='`, `') + "`"
+            mdown = mdown[:m.start()] + sub + mdown[m.end():]
+        return mdown
 
     def helpsystem_open(self, mdown_path, done_on_esc=False):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
@@ -80,4 +90,4 @@ class RetopoFlow_HelpSystem:
             def key(e):
                 if e.key == 'ESC': close()
             ui_help.add_eventListener('on_keypress', key)
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path)
+        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fn=self.substitute_keymaps)

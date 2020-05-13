@@ -144,6 +144,8 @@ class Options:
         'tools autocollapse': True,     # should tool's options auto-open/-collapse when switching tools?
         'background gradient': True,    # draw focus gradient
 
+        'escape to quit': False,        # True:ESC is action for quitting
+
         # True=tool's options are visible
         'tool contours visible': True,
         'tool polystrips visible': True,

@@ -531,6 +531,9 @@ class RetopoFlow_Target:
     def select_toggle(self):
         self.rftarget.select_toggle()
 
+    def select_invert(self):
+        self.rftarget.select_invert()
+
     def select_edge_loop(self, edge, only=True, **kwargs):
         eloop,connected = self.get_edge_loop(edge)
         self.rftarget.select(eloop, only=only, **kwargs)

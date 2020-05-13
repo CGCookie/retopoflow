@@ -47,6 +47,7 @@ from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec
 from ..addon_common.common.ui_styling import load_defaultstylings
+from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ..config.keymaps import default_rf_keymaps
@@ -67,6 +68,9 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.header_text_set('RetopoFlow')
 
     def start(self):
+        keymaps = default_rf_keymaps
+        keymaps['done'] = keymaps['done'] | {'ESC'}
+        self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
         self.helpsystem_open(self.rf_startdoc, done_on_esc=True)
@@ -102,8 +106,6 @@ class RetopoFlow(
 ):
 
     instance = None
-
-    default_keymap = default_rf_keymaps
 
     @classmethod
     def can_start(cls, context):
@@ -175,6 +177,10 @@ class RetopoFlow(
 
     def start(self):
         self.loading_done = False
+
+        keymaps = default_rf_keymaps
+        if options['escape to quit']: keymaps['done'] = keymaps['done'] | {'ESC'}
+        self.actions = ActionHandler(self.context, keymaps)
 
         self.store_window_state()
         RetopoFlow.instance = self

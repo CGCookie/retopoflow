@@ -1244,6 +1244,18 @@ class RFMesh():
         if sel: self.deselect_all()
         else:   self.select_all()
 
+    def select_invert(self):
+        if True:
+            sel_verts = [bmv for bmv in self.bme.verts if not bmv.select]
+            for bmf in self.bme.faces: bmf.select = all(bmv.select in sel_verts for bmv in bmf.verts)
+            for bme in self.bme.edges: bme.select = all(bmv in sel_verts for bmv in bme.verts)
+            for bmv in self.bme.verts: bmv.select = (bmv in sel_verts)
+        else:
+            for bmv in self.bme.verts: bmv.select = not bmv.select
+            for bme in self.bme.edges: bme.select = not bme.select
+            for bmf in self.bme.faces: bmf.select = not bmf.select
+        self.dirty()
+
 
 class RFSource(RFMesh):
     '''

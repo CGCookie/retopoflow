@@ -51,6 +51,7 @@ from ...config.options import (
     gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
 )
 
+from ...config.keymaps import default_rf_keymaps
 
 def get_environment_details():
     blender_version = '%d.%02d.%d' % bpy.app.version
@@ -356,6 +357,9 @@ class RetopoFlow_UI:
         self.blender_ui_set(scale_to_unit_box=False, add_rotate=False, hide_target=False)
 
     def setup_ui(self):
+        # NOTE: lambda is needed on next line so that RF keymaps are bound!
+        humanread = lambda x: self.actions.to_human_readable(x)
+
         self.hide_target()
 
         # load ui.css
@@ -429,7 +433,15 @@ class RetopoFlow_UI:
                 else:
                     checked = not hasattr(add_tool, 'notfirst')
                 if checked: self.select_rftool(rftool)
-                radio = ui.input_radio(id='tool-%s'%lbl.lower(), value=lbl.lower(), title=rftool.description, name="tool", classes="tool", checked=checked, parent=ui_tools)
+                radio = ui.input_radio(
+                    id='tool-%s'%lbl.lower(),
+                    value=lbl.lower(),
+                    title='%s (%s)' % (rftool.description, humanread(rftool.shortcut)),
+                    name="tool",
+                    classes="tool",
+                    checked=checked,
+                    parent=ui_tools
+                )
                 radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
                 ui.img(src=img, parent=radio, title=rftool.description)
                 ui.label(innerText=lbl, parent=radio, title=rftool.description)
@@ -437,16 +449,32 @@ class RetopoFlow_UI:
             for rftool in self.rftools: add_tool(rftool)
 
             ui.collapsible(label='Help', id='help-buttons', parent=self.ui_main, children=[
-                ui.button(label='Welcome!', title='Show the "Welcome!" message from the RetopoFlow team', on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")),
-                ui.button(label='Table of Contents', title='Show help table of contents (Shift+F1)', on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")),
-                ui.button(label='General', title='Show general help (F1)', on_mouseclick=delay_exec("self.helpsystem_open('general.md')")),
-                ui.button(label='Tool', title='Show help for currently selected tool (F2)', on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")),
+                ui.button(
+                    label='Welcome!',
+                    title='Show the "Welcome!" message from the RetopoFlow team',
+                    on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
+                ),
+                ui.button(
+                    label='Table of Contents',
+                    title='Show help table of contents (%s)' % humanread('all help'),
+                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
+                ),
+                ui.button(
+                    label='General',
+                    title='Show general help (%s)' % humanread('general help'),
+                    on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
+                ),
+                ui.button(
+                    label='Tool',
+                    title='Show help for currently selected tool (%s)' % humanread('tool help'),
+                    on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
+                ),
             ])
             ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
             self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=delay_exec('self.ui_options.is_visible = True; self.ui_show_options.disabled = True'))
             self.ui_show_geometry = ui.button(label='Show Geometry', title='Show geometry window', disabled=True, parent=ui_show, on_mouseclick=delay_exec('self.ui_geometry.is_visible = True; self.ui_show_geometry.disabled = True'))
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(label='Exit', title='Quit RetopoFlow (Esc)', parent=self.ui_main, on_mouseclick=self.done)
+            ui.button(label='Exit', title='Quit RetopoFlow (%s)' % humanread('done'), parent=self.ui_main, on_mouseclick=self.done)
             if False:
                 ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
             if False:
@@ -469,6 +497,12 @@ class RetopoFlow_UI:
                 options.reset()
                 self.update_ui()
                 self.document.body.dirty(children=True)
+
+            def update_esctoquit():
+                if options['escape to quit']:
+                    self.actions.keymap2['done'].add('ESC')
+                else:
+                    self.actions.keymap2['done'].discard('ESC')
 
             self.ui_options.append_child(
                 ui.collapsible(label='General', title='General options', id='generaloptions', children=[
@@ -543,6 +577,7 @@ class RetopoFlow_UI:
                             ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
                         ]),
                     ]),
+                    ui.input_checkbox(label='Escape to Quit', title='Check to allow Esc key to quit RetopoFlow', checked=BoundVar('''options['escape to quit']''', on_change=update_esctoquit)),
                     ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
                         ui.div(innerText='FPS: 0', id='fpsdiv'),
                         ui.collapsible(label='Tooltip Settings', children=[
