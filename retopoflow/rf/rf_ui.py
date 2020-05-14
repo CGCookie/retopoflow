@@ -657,8 +657,8 @@ class RetopoFlow_UI:
                 resizable_x=False,
                 hide_on_close=True,
                 close_callback=hide_ui_delete,
+                style='width:200px',
                 )
-            self.ui_delete.width = 200
             self.ui_delete.is_visible = False
             # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
             self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
