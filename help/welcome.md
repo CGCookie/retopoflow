@@ -8,6 +8,8 @@ The RF tools, which are specifically designed for retopology, create a complete 
 The RetopoFlow tools automatically generate geometry by drawing on an existing surface, snapping the new mesh to the source surface at all times, meaning you never have to worry about your mesh conforming to the original model---no Shrinkwrap modifier required!
 Additionally, all mesh generation is quad-based (except for PolyPen).
 
+<input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
+
 
 
 ## Version 3.0 Notes
@@ -69,6 +71,7 @@ Below is a list of known issues that we are currently working on.
 - RetopoFlow is still in alpha for Blender versions 2.83 and 2.90
 
 
+
 ## Final Words
 
 We thank you for using RetopoFlow, and we look forward to hearing back from you!
@@ -77,3 +80,6 @@ Cheers!
 
 <br>
 ---The CG Cookie Tool Development Team
+
+
+<input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>

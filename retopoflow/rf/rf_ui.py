@@ -669,5 +669,5 @@ class RetopoFlow_UI:
         self.update_ui()
         if options['welcome']:
             self.helpsystem_open('welcome.md')
-            options['welcome'] = False
+            # options['welcome'] = False
 

@@ -28,6 +28,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.ui_styling import load_defaultstylings
 
+from ...config.options import options
 
 class RetopoFlow_HelpSystem:
     @staticmethod
