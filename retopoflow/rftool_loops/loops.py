@@ -29,7 +29,7 @@ from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 
 from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ..rfwidgets.rfwidget_move import RFWidget_Move
-from ..rfwidgets.rfwidget_line import RFWidget_Line
+from ..rfwidgets.rfwidget_line import RFWidget_Line_Loops
 
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
@@ -55,7 +55,7 @@ class Loops(RFTool_Loops):
     def init(self):
         self.rfwidgets = {
             'default': RFWidget_Default(self),
-            'cut': RFWidget_Line(self),
+            'cut': RFWidget_Line_Loops(self),
             'hover': RFWidget_Move(self),
         }
         self.rfwidget = None

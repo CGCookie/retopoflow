@@ -27,7 +27,7 @@ from mathutils import Matrix
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default
-from ..rfwidgets.rfwidget_line import RFWidget_Line
+from ..rfwidgets.rfwidget_line import RFWidget_Line_Contours
 from ..rfwidgets.rfwidget_move import RFWidget_Move
 
 from ...addon_common.common.globals import Globals
@@ -68,7 +68,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def init(self):
         self.rfwidgets = {
             'default': RFWidget_Default(self),
-            'cut': RFWidget_Line(self),
+            'cut': RFWidget_Line_Contours(self),
             'hover': RFWidget_Move(self),
         }
         self.rfwidget = None
@@ -603,7 +603,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer.done()
 
 
-    @RFWidget_Line.on_action
+    @RFWidget_Line_Contours.on_action
     def new_line(self):
         xy0,xy1 = self.rfwidget.line2D
         if not xy0 or not xy1: return
