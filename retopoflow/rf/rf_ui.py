@@ -274,7 +274,7 @@ class RetopoFlow_UI:
             nonlocal win
             if not win.is_hovered: close()
         def keypress_event(e):
-            if e.key != 'ESC': close()
+            if e.key == 'ESC': close()
         def quit():
             self.done()
 
@@ -299,6 +299,7 @@ class RetopoFlow_UI:
 
         #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)
+        self.document.focus(win)
         self.alert_windows += 1
         if level in {'note', None}:
             win.style = 'width:600px;'
