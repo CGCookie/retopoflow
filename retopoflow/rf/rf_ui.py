@@ -19,7 +19,9 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import gc
 import os
+import sys
 import json
 import time
 import inspect
@@ -263,8 +265,16 @@ class RetopoFlow_UI:
 
         def close():
             nonlocal win
-            self.document.body.delete_child(win)
-            self.alert_windows -= 1
+            if win.parent:
+                self.document.body.delete_child(win)
+                self.alert_windows -= 1
+            self.document.sticky_element = None
+            self.document.clear_last_under()
+        def mouseleave_event(e):
+            nonlocal win
+            if not win.is_hovered: close()
+        def keypress_event(e):
+            if e.key != 'ESC': close()
         def quit():
             self.done()
 
@@ -272,7 +282,7 @@ class RetopoFlow_UI:
             return
             #self.exit = True
 
-        win = ui.framed_dialog(label=title, classes='alertdialog %s'%str(level))
+        win = ui.framed_dialog(label=title, classes='alertdialog %s'%str(level), close_callback=close)
         ui.markdown(mdown=message, parent=win)
         if ui_details or ui_checker:
             container = ui.div(parent=win)
@@ -295,6 +305,9 @@ class RetopoFlow_UI:
             # win.style = 'left:auto; top:auto;'
             self.document.force_clean(self.actions.context)
             self.document.center_on_mouse(win)
+            self.document.sticky_element = win
+            win.add_eventListener('on_mouseleave', mouseleave_event)
+            win.add_eventListener('on_keypress', keypress_event)
 
     def update_ui(self):
         if not hasattr(self, 'rftools_ui'): return
@@ -626,25 +639,32 @@ class RetopoFlow_UI:
 
 
         def setup_delete_ui():
+            def hide_ui_delete():
+                self.ui_delete.is_visible = False
+                self.document.sticky_element = None
+                self.document.clear_last_under()
+            def mouseleave_event(e):
+                if self.ui_delete.is_hovered: return
+                hide_ui_delete()
+            def key(e):
+                if e.key == 'ESC': hide_ui_delete()
             self.ui_delete = ui.framed_dialog(
                 label='Delete/Dissolve',
                 id='deletedialog',
                 parent=self.document.body,
                 resizable_x=False,
                 hide_on_close=True,
+                close_callback=hide_ui_delete,
                 )
             self.ui_delete.width = 200
             self.ui_delete.is_visible = False
-            def hide_ui_delete():
-                self.ui_delete.is_visible = False
-            def key(e):
-                if e.key == 'ESC': hide_ui_delete()
-            self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
+            # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
+            self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
             self.ui_delete.add_eventListener('on_keypress', key)
 
             def act(opt):
                 self.delete_dissolve_option(opt)
-                self.ui_delete.is_visible = False
+                hide_ui_delete()
 
             ui_delete = ui.collection('Delete', parent=self.ui_delete)
             ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
@@ -669,5 +689,18 @@ class RetopoFlow_UI:
         self.update_ui()
         if options['welcome']:
             self.helpsystem_open('welcome.md')
-            # options['welcome'] = False
 
+    def show_delete_dialog(self):
+        w,h = self.actions.region.width,self.actions.region.height
+        self.ui_delete.reposition(
+            left = self.actions.mouse.x - 100,
+            top = self.actions.mouse.y - h + 20,
+        )
+        self.ui_delete.is_visible = True
+        self.document.focus(self.ui_delete)
+        self.document.sticky_element = self.ui_delete
+
+        # # The following is what is done with dialogs
+        # self.document.force_clean(self.actions.context)
+        # self.document.center_on_mouse(win)
+        # self.document.sticky_element = win
