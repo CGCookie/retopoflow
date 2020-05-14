@@ -648,6 +648,7 @@ class RetopoFlow_UI:
                 hide_ui_delete()
             def key(e):
                 if e.key == 'ESC': hide_ui_delete()
+
             self.ui_delete = ui.framed_dialog(
                 label='Delete/Dissolve',
                 id='deletedialog',
@@ -691,6 +692,10 @@ class RetopoFlow_UI:
             self.helpsystem_open('welcome.md')
 
     def show_delete_dialog(self):
+        if not self.any_selected():
+            self.alert_user('No geometry selected to delete/dissolve', title='Delete/Dissolve')
+            return
+
         w,h = self.actions.region.width,self.actions.region.height
         self.ui_delete.reposition(
             left = self.actions.mouse.x - 100,
