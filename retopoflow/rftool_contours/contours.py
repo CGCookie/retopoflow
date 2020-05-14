@@ -26,6 +26,7 @@ import bgl
 from mathutils import Matrix
 
 from ..rftool import RFTool
+from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ..rfwidgets.rfwidget_line import RFWidget_Line
 from ..rfwidgets.rfwidget_move import RFWidget_Move
 
@@ -66,6 +67,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.on_init
     def init(self):
         self.rfwidgets = {
+            'default': RFWidget_Default(self),
             'cut': RFWidget_Line(self),
             'hover': RFWidget_Move(self),
         }
@@ -157,8 +159,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         if self.hovering_sel_edge:
             self.rfwidget = self.rfwidgets['hover']
-        else:
+        elif self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
+        else:
+            self.rfwidget = self.rfwidgets['default']
 
         if self.actions.pressed('grab'):
             ''' grab for translations '''
@@ -167,7 +171,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             return 'grab'
 
         if self.hovering_sel_edge:
-            if self.actions.pressed({'action'}):
+            if self.actions.pressed('action'):
                 # return self.action_setup()
                 self.move_done_pressed = None
                 self.move_done_released = 'action'
@@ -191,17 +195,21 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.change_count(delta=delta)
             return
 
-        if self.actions.pressed({'select paint'}):
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
             return self.rfcontext.setup_selection_painting(
                 'edge',
+                sel_only=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
 
-        if self.actions.pressed({'select', 'select add'}):
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
             return self.rfcontext.setup_selection_painting(
                 'edge',
+                sel_only=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},

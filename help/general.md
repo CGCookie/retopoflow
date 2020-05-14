@@ -48,17 +48,18 @@ For example, pressing `G` in Contours will slide the selected loop.
 |  |  |  |
 | --- | --- | --- |
 | {{insert}}                            | : | create new geometry with current tool / apply relax or tweak |
-| {{select}}                            | : | select |
-| {{select all}}                        | : | deselect / select all |
-| {{select invert}}                     | : | invert selection |
-| {{select paint}}                      | : | selection painting |
-| {{action}}                            | : | transform selection |
+| {{select single, select single add}}  | : | select single |
+| {{select paint, select paint add}}    | : | selection painting |
 | {{select smart, select smart add}}    | : | smart selection |
+| {{select all}}                        | : | select / deselect all |
+| {{select invert}}                     | : | invert selection |
+| {{action}}                            | : | transform selection when mouse hovers selected geometry |
 | {{grab}}                              | : | grab and move selected geometry |
 | {{rotate}}                            | : | rotate selected geometry |
 | {{scale}}                             | : | scale selected geometry |
 | {{delete}}                            | : | delete / dissolve selection |
-| {{undo}} <br> {{redo}}                | : | undo / redo |
+| {{undo}}                              | : | undo |
+| {{redo}}                              | : | redo |
 
 
 

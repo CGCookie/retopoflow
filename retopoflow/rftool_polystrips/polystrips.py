@@ -197,7 +197,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             return 'move all'
 
 
-        if self.actions.pressed({'select paint', 'select', 'select add'}):
+        if self.actions.pressed({'select paint', 'select single', 'select single add'}):
             print('PolyStrips Selection')
             return self.rfcontext.setup_selection_painting(
                 'face',

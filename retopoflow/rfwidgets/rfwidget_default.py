@@ -33,7 +33,7 @@ from ...config.options import themes
 
 class RFW_Default(RFWidget):
     rfw_name = 'Default'
-    rfw_cursor = 'CROSSHAIR'
+    rfw_cursor = 'DEFAULT'
 
 class RFWidget_Default(RFW_Default):
     @RFW_Default.FSM_State('main')

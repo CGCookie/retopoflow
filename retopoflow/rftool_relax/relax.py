@@ -85,12 +85,12 @@ class Relax(RFTool_Relax):
 
     @RFTool_Relax.FSM_State('main')
     def main(self) :
-        if self.rfcontext.actions.pressed('select'):
+        if self.rfcontext.actions.pressed('select single'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
 
-        if self.rfcontext.actions.pressed('select add'):
+        if self.rfcontext.actions.pressed('select single add'):
             face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
             if not face: return
             if face.select:
@@ -125,7 +125,7 @@ class Relax(RFTool_Relax):
 
     @RFTool_Relax.FSM_State('selectadd/deselect')
     def selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             face,_ = self.rfcontext.accel_nearest2D_face()
             if face and face.select: self.rfcontext.deselect(face)
@@ -137,7 +137,7 @@ class Relax(RFTool_Relax):
 
     @RFTool_Relax.FSM_State('select')
     def select(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
         bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return

@@ -170,7 +170,7 @@ class Strokes(RFTool_Strokes):
         mouse = self.rfcontext.actions.mouse
         self.vis_accel = self.rfcontext.get_vis_accel()
 
-        if self.rfcontext.actions.pressed({'select paint', 'select', 'select add'}):
+        if self.rfcontext.actions.pressed({'select paint', 'select single', 'select single add'}):
             return self.rfcontext.setup_selection_painting(
                 'edge',
                 #fn_filter_bmelem=self.filter_edge_selection,

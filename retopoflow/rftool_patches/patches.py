@@ -113,12 +113,12 @@ class Patches(RFTool_Patches):
             self.update()
             return
 
-        if self.rfcontext.actions.using('select'):
+        if self.rfcontext.actions.using('select single'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
 
-        if self.rfcontext.actions.using('select add'):
+        if self.rfcontext.actions.using('select single add'):
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if not edge: return
             if edge.select:
@@ -161,7 +161,7 @@ class Patches(RFTool_Patches):
     @RFTool_Patches.FSM_State('selectadd/deselect')
     @profiler.function
     def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if bme and bme.select: self.rfcontext.deselect(bme)
@@ -174,7 +174,7 @@ class Patches(RFTool_Patches):
     @RFTool_Patches.FSM_State('select')
     @profiler.function
     def modal_select(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
         bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
         if not bme or bme.select: return

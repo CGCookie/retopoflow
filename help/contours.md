@@ -18,12 +18,13 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| {{insert}}                         | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
-| {{action}}                         | : | slide selected loop |
-| {{select smart, select smart add}} | : | select loop |
-| {{select, select add}}             | : | select edge |
-| {{select all}}                     | : | deselect / select all |
-| {{fill}}                           | : | bridge selected edge loops |
+| {{insert}}                           | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| {{action}}                           | : | slide selected loop |
+| {{select single, select single add}} | : | select edge |
+| {{select smart, select smart add}}   | : | select loop |
+| {{select paint, select paint add}}   | : | selection painting |
+| {{select all}}                       | : | deselect / select all |
+| {{fill}}                             | : | bridge selected edge loops |
 
 ## Transform
 
@@ -37,8 +38,9 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}}                                 | : | delete/dissolve selected |
-| {{increase count}} <br> {{decrease count}} | : | increase / decrease segment counts |
+| {{delete}}         | : | delete/dissolve selected |
+| {{increase count}} | : | increase segment counts |
+| {{decrease count}} | : | decrease segment counts |
 
 ## Tips
 

@@ -91,12 +91,12 @@ class Tweak(RFTool_Tweak):
 
     @RFTool_Tweak.FSM_State('main')
     def main(self):
-        if self.rfcontext.actions.pressed('select'):
+        if self.rfcontext.actions.pressed('select single'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
 
-        if self.rfcontext.actions.pressed('select add'):
+        if self.rfcontext.actions.pressed('select single add'):
             face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
             if not face: return
             if face.select:
@@ -131,7 +131,7 @@ class Tweak(RFTool_Tweak):
     @RFTool_Tweak.FSM_State('selectadd/deselect')
     @profiler.function
     def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             face,_ = self.rfcontext.accel_nearest2D_face()
             if face and face.select: self.rfcontext.deselect(face)
@@ -144,7 +144,7 @@ class Tweak(RFTool_Tweak):
     @RFTool_Tweak.FSM_State('select')
     @profiler.function
     def modal_select(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
         bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
         if not bmf or bmf.select: return

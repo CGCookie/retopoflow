@@ -38,21 +38,27 @@ Standard US 101 QWERTY Keyboard
 default_rf_keymaps = {
     'toggle full area': {'CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'},
 
+    # when mouse is hovering a widget or selected geometry, actions take precedence
     'action': {'LEFTMOUSE+DRAG'},
     'action alt0': {'SHIFT+LEFTMOUSE'},
     'action alt1': {'CTRL+SHIFT+LEFTMOUSE'},
 
-    'select': {'RIGHTMOUSE', 'RIGHTMOUSE+DOUBLE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
-    'select add': {'SHIFT+RIGHTMOUSE'},
-    'select smart': {'CTRL+RIGHTMOUSE', 'LEFTMOUSE+DOUBLE'},
-    'select smart add': {'CTRL+SHIFT+RIGHTMOUSE'},
+    # selections filled in later
+    'select single': {},
+    'select single add': {},
+    'select smart': {},
+    'select smart add': {},
+    'select paint': {},
+    'select paint add': {},
+
     'select all': {'A'},
-    'select paint': {'RIGHTMOUSE+DRAG', 'SHIFT+RIGHTMOUSE+DRAG'},
     'select invert': {'CTRL+I'},
 
+    # various help
     'all help': {'SHIFT+F1'},
     'general help': {'F1'},
     'tool help': {'F2'},
+
     'toggle ui': {'F9'},
 
     'autosave': {'TIMER_AUTOSAVE'},
@@ -66,11 +72,9 @@ default_rf_keymaps = {
     'undo': {'CTRL+Z'},
     'redo': {'CTRL+SHIFT+Z'},
 
-    'edit mode': {'TAB'},
-
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
-    'insert alt1': {'CTRL+SHIFT+LEFTMOUSE'},
+    'insert alt1': {'CTRL+SHIFT+LEFTMOUSE', 'CTRL+SHIFT+LEFTMOUSE+DOUBLE'},
 
     # general commands
     'grab': {'G'},
@@ -99,8 +103,8 @@ default_rf_keymaps = {
     'brush size': {'F'},
     'brush falloff': {'CTRL+F'},
     'brush strength': {'SHIFT+F'},
-    'brush': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE'},
-    'brush alt': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
+    'brush': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE', 'LEFTMOUSE+DRAG'},
+    'brush alt': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE', 'SHIFT+LEFTMOUSE+DRAG'},
 
     # shortcuts to tools
     'contours tool': {'ONE'},
@@ -116,14 +120,22 @@ default_rf_keymaps = {
 }
 
 left_rf_keymaps = {
-    'select': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE'},   # TODO: update based on bpy.context.user_preferences.inputs.select_mouse
-    'select add': {'SHIFT+LEFTMOUSE'},
-    'select smart add': {'CTRL+SHIFT+LEFTMOUSE'},
-    'select paint': {'LEFTMOUSE+DRAG', 'SHIFT+LEFTMOUSE+DRAG'},
-    'select invert': {'CTRL+I'},
+    'select single': {'LEFTMOUSE+CLICK'},
+    'select single add': {'SHIFT+LEFTMOUSE+CLICK'},
+    'select smart': {'LEFTMOUSE+DOUBLE'},
+    'select smart add': {'SHIFT+LEFTMOUSE+DOUBLE'},
+    'select paint': {'LEFTMOUSE+DRAG'},
+    'select paint add': {'SHIFT+LEFTMOUSE+DRAG'},
 }
 
-right_rf_keymaps = {}
+right_rf_keymaps = {
+    'select single': {'RIGHTMOUSE+CLICK'},
+    'select single add': {'SHIFT+RIGHTMOUSE+CLICK'},
+    'select smart': {'CTRL+RIGHTMOUSE', 'RIGHTMOUSE+DOUBLE'},
+    'select smart add': {'CTRL+SHIFT+RIGHTMOUSE', 'SHIFT+RIGHTMOUSE+DOUBLE'},
+    'select paint': {'RIGHTMOUSE+DRAG'},
+    'select paint add': {'SHIFT+RIGHTMOUSE+DRAG'},
+}
 
 def get_keymaps():
     keymap = default_rf_keymaps

@@ -26,7 +26,11 @@ import random
 
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
+
 from ..rfwidgets.rfwidget_default import RFWidget_Default
+from ..rfwidgets.rfwidget_move import RFWidget_Move
+from ..rfwidgets.rfwidget_line import RFWidget_Line
+
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
@@ -49,7 +53,12 @@ class RFTool_Loops(RFTool):
 class Loops(RFTool_Loops):
     @RFTool_Loops.on_init
     def init(self):
-        self.rfwidget = RFWidget_Default(self)
+        self.rfwidgets = {
+            'default': RFWidget_Default(self),
+            'cut': RFWidget_Line(self),
+            'hover': RFWidget_Move(self),
+        }
+        self.rfwidget = None
 
     @RFTool_Loops.on_mouse_move
     def mouse_move(self):
@@ -98,58 +107,27 @@ class Loops(RFTool_Loops):
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
 
         if self.hovering_edge:
+            self.rfwidget = self.rfwidgets['hover']
+        elif self.actions.using_onlymods('insert'):
+            self.rfwidget = self.rfwidgets['cut']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
+        if self.hovering_edge:
             if self.rfcontext.actions.pressed({'action', 'action alt0'}, unpress=False):
+                self.rfcontext.undo_push('slide edge loop/strip')
                 if not self.hovering_sel_edge:
                     only = self.rfcontext.actions.pressed('action')
-                    self.rfcontext.undo_push('select and grab')
                     self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False, only=only)
                     self.set_next_state()
-                    self.prep_edit()
-                    if not self.edit_ok:
-                        self.rfcontext.undo_cancel()
-                        return
-                else:
-                    self.prep_edit()
-                    if not self.edit_ok:
-                        return
+                self.prep_edit()
+                if not self.edit_ok:
+                    self.rfcontext.undo_cancel()
+                    return
                 self.move_done_pressed = None
                 self.move_done_released = 'action'
                 self.move_cancelled = 'cancel'
-                self.rfcontext.undo_push('slide edge loop/strip')
                 return 'slide'
-
-        if self.rfcontext.actions.pressed({'select paint'}):
-            print('Loops selection painting')
-            return self.rfcontext.setup_selection_painting(
-                'edge',
-                fn_filter_bmelem=self.filter_edge_selection,
-                kwargs_select={'supparts': False},
-                kwargs_deselect={'subparts': False},
-            )
-
-        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select smart')
-            self.rfcontext.actions.unpress()
-            self.rfcontext.undo_push('select smart')
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                if sel_only: self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
-            return
-
-        if self.rfcontext.actions.pressed('select add'):
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            if edge.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
 
         if self.rfcontext.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
@@ -219,10 +197,44 @@ class Loops(RFTool_Loops):
             self.rfcontext.undo_push('slide edge loop/strip')
             return 'slide'
 
+        if self.rfcontext.actions.pressed({'select paint'}):
+            print('Loops selection painting')
+            return self.rfcontext.setup_selection_painting(
+                'edge',
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
+
+        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
+            self.rfcontext.undo_push('select smart')
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge:
+                if sel_only: self.rfcontext.deselect_all()
+                return
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
+            return
+
+        if self.rfcontext.actions.pressed('select single add'):
+            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+            if not edge: return
+            if edge.select:
+                self.mousedown = self.rfcontext.actions.mouse
+                return 'selectadd/deselect'
+            return 'select'
+
+        if self.rfcontext.actions.pressed('select single'):
+            self.rfcontext.undo_push('select')
+            self.rfcontext.deselect_all()
+            return 'select'
+
+
 
     @RFTool_Loops.FSM_State('selectadd/deselect')
     def selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if edge and edge.select: self.rfcontext.deselect(edge)
@@ -234,7 +246,7 @@ class Loops(RFTool_Loops):
 
     @RFTool_Loops.FSM_State('select')
     def select(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
         bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
         if not bme or bme.select: return

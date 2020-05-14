@@ -209,14 +209,14 @@ class RetopoFlow_States(CookieCutter):
         self.action_data['timer'].done()
 
 
-    def setup_selection_painting(self, bmelem, select=None, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
+    def setup_selection_painting(self, bmelem_type, select=None, sel_only=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         accel_nearest2D = {
             'vert': self.accel_nearest2D_vert,
             'edge': self.accel_nearest2D_edge,
             'face': self.accel_nearest2D_face,
-        }[bmelem]
+        }[bmelem_type]
 
-        fn_filter_bmelem = fn_filter_bmelem or (lambda bmelem: True)
+        fn_filter_bmelem = fn_filter_bmelem or (lambda _: True)
         kwargs_filter = kwargs_filter or {}
         kwargs_select = kwargs_select or {}
         kwargs_deselect = kwargs_deselect or {}
@@ -230,11 +230,10 @@ class RetopoFlow_States(CookieCutter):
         if select is None:
             # look at what's under the mouse and check if select add is used
             bmelem = get_bmelem(use_filter=False)
-            adding = self.actions.using('select add')
             if not bmelem: return               # nothing there; leave!
             if not bmelem.select: select = True # bmelem is not selected, so we are selecting
-            else: select = not adding           # bmelem is selected, so we are deselecting if "select add"
-            deselect_all = not adding           # deselect all if not "select add"
+            else: select = sel_only             # bmelem is selected, so we are deselecting if "select add"
+            deselect_all = sel_only             # deselect all if not "select add"
         else:
             bmelem = None
 
@@ -264,7 +263,10 @@ class RetopoFlow_States(CookieCutter):
         assert self.selection_painting_opts
         if self.actions.mousemove:
             tag_redraw_all('RF selection_painting')
-        if not self.actions.using(['select','select add','select paint']):
+        if self.actions.pressed('cancel'):
+            self.selection_painting_opts = None
+            return 'main'
+        if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):
             self.selection_painting_opts = None
             return 'main'
         if self._last_mouse == self.actions.mouse: return

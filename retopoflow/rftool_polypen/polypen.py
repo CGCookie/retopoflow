@@ -165,12 +165,12 @@ class PolyPen(RFTool_PolyPen):
             self.prep_move(defer_recomputing=False)
             return 'move after select'
 
-        if self.rfcontext.actions.pressed('select'):
+        if self.rfcontext.actions.pressed('select single'):
             self.rfcontext.undo_push('select')
             self.rfcontext.deselect_all()
             return 'select'
 
-        if self.rfcontext.actions.pressed('select add'):
+        if self.rfcontext.actions.pressed('select single add'):
             bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
             bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
             bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
@@ -216,7 +216,7 @@ class PolyPen(RFTool_PolyPen):
             self.update_state_info()
             self.delay_update = True
             self.needs_update = False
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
         if self.last_mouse == self.actions.mouse: return
         self.last_mouse = self.actions.mouse
@@ -231,7 +231,7 @@ class PolyPen(RFTool_PolyPen):
     @RFTool_PolyPen.FSM_State('select add')
     @RFTool_PolyPen.dirty_when_done
     def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select','select add']):
+        if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
             bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
