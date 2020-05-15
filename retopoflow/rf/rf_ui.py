@@ -342,13 +342,13 @@ class RetopoFlow_UI:
         if add_rotate: self.setup_rotate_about_active()
         if hide_target: self.hide_target()
 
-    def blender_ui_reset(self):
+    def blender_ui_reset(self, ignore_panels=False):
         # print('RetopoFlow: blender_ui_reset')
         self.end_rotate_about_active()
         self.teardown_target()
         self.unscale_from_unit_box()
-        self.restore_window_state()
-        self._cc_blenderui_end()
+        self.restore_window_state(ignore_panels=ignore_panels)
+        self._cc_blenderui_end(ignore_panels=ignore_panels)
         bpy.ops.object.mode_set(mode='EDIT')
 
     @contextlib.contextmanager

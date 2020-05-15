@@ -74,7 +74,7 @@ class RetopoFlow_BlenderSave:
         dprint('saving backup to %s' % filepath)
         if os.path.exists(filepath1): os.remove(filepath1)
         if os.path.exists(filepath): os.rename(filepath, filepath1)
-        self.blender_ui_reset()
+        self.blender_ui_reset(ignore_panels=True)
         try:
             bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
             self.last_change_count = self.change_count
