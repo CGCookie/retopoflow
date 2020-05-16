@@ -39,27 +39,27 @@ def create_new_class():
     RFTools might need to share RFWidges that are independent of each other.
     '''
 
-    class RFW_Line(RFWidget):
+    class RFW_LineCut(RFWidget):
         rfw_name = 'Line'
         rfw_cursor = 'CROSSHAIR'
         line_color = Color.white
 
-    class RFWidget_Line(RFW_Line):
-        @RFW_Line.on_init
+    class RFWidget_LineCut(RFW_LineCut):
+        @RFW_LineCut.on_init
         def init(self):
             self.line2D = [None, None]
 
-        @RFW_Line.FSM_State('main')
+        @RFW_LineCut.FSM_State('main')
         def modal_main(self):
             if self.actions.pressed('insert'):
                 return 'line'
 
-        @RFW_Line.FSM_State('line', 'enter')
+        @RFW_LineCut.FSM_State('line', 'enter')
         def modal_line_enter(self):
             self.line2D = [self.actions.mouse, None]
             tag_redraw_all('Line line_enter')
 
-        @RFW_Line.FSM_State('line')
+        @RFW_LineCut.FSM_State('line')
         def modal_line(self):
             if self.actions.released('insert'):
                 print('INSERT')
@@ -74,12 +74,12 @@ def create_new_class():
                 self.line2D[1] = self.actions.mouse
                 tag_redraw_all('Line line')
 
-        @RFW_Line.FSM_State('line', 'exit')
+        @RFW_LineCut.FSM_State('line', 'exit')
         def modal_line_exit(self):
             tag_redraw_all('Line line_exit')
 
-        @RFW_Line.Draw('post2d')
-        @RFW_Line.FSM_OnlyInState('line')
+        @RFW_LineCut.Draw('post2d')
+        @RFW_LineCut.FSM_OnlyInState('line')
         def draw_line(self):
             #cr,cg,cb,ca = self.line_color
             p0,p1 = self.line2D
@@ -91,5 +91,5 @@ def create_new_class():
             Globals.drawing.draw2D_circle(ctr, 10, (0,0,0,0.5), width=3)
             Globals.drawing.draw2D_circle(ctr, 10, (1,1,1,0.5), width=1)
 
-    return RFWidget_Line
+    return RFWidget_LineCut
 

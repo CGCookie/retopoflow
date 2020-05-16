@@ -31,7 +31,7 @@ from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
 from ...config.options import themes
 
-def create_new_class():
+def create_new_class(cursor='DEFAULT'):
     '''
     This function is a class factory.  It is needed, because the FSM is shared across instances.
     RFTools might need to share RFWidges that are independent of each other.
@@ -39,7 +39,7 @@ def create_new_class():
 
     class RFW_Default(RFWidget):
         rfw_name = 'Default'
-        rfw_cursor = 'DEFAULT'
+        rfw_cursor = cursor
 
     class RFWidget_Default(RFW_Default):
         @RFW_Default.FSM_State('main')

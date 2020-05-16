@@ -596,7 +596,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer.done()
 
 
-    @Contours_RFWidgets.RFWidget_Line.on_action
+    @Contours_RFWidgets.RFWidget_LineCut.on_action
     def new_line(self):
         xy0,xy1 = self.rfwidget.line2D
         if not xy0 or not xy1: return

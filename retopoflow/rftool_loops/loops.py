@@ -27,7 +27,7 @@ import random
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 
-from ..rfwidgets import rfwidget_default, rfwidget_move, rfwidget_line
+from ..rfwidgets import rfwidget_default, rfwidget_move
 
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
@@ -50,12 +50,12 @@ class RFTool_Loops(RFTool):
 class Loops_RFWidgets:
     RFWidget_Default = rfwidget_default.create_new_class()
     RFWidget_Move = rfwidget_move.create_new_class()
-    RFWidget_Line = rfwidget_line.create_new_class()  # TODO: do not use line (line cut)!  just change cursor to crosshair
+    RFWidget_Crosshair = rfwidget_default.create_new_class('CROSSHAIR')
 
     def init_rfwidgets(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
-            'cut':     self.RFWidget_Line(self),
+            'cut':     self.RFWidget_Crosshair(self),
             'hover':   self.RFWidget_Move(self),
         }
         self.rfwidget = None
@@ -424,6 +424,8 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        self.rfwidget = self.rfwidgets['hover']
 
         # only update loop on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
