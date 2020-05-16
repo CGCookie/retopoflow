@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import math
 import time
 from ..rftool import RFTool
-from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Relax
+from ..rfwidgets import rfwidget_brushfalloff
 
 from ...addon_common.common.maths import (
     Vec, Vec2D,
@@ -44,11 +44,15 @@ class RFTool_Relax(RFTool):
     help        = 'relax.md'
     shortcut    = 'relax tool'
 
+class Relax_RFWidgets:
+    RFWidget_BrushFalloff = rfwidget_brushfalloff.create_new_class()
+    def init_rfwidgets(self):
+        self.rfwidget = self.RFWidget_BrushFalloff(self)
 
-class Relax(RFTool_Relax):
+class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool_Relax.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushFalloff_Relax(self)
+        self.init_rfwidgets()
         self._var_mask_boundary = BoundBool('''options['relax mask boundary']''')
         self._var_mask_hidden   = BoundBool('''options['relax mask hidden']''')
         self._var_mask_selected = BoundBool('''options['relax mask selected']''')

@@ -28,29 +28,6 @@ from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
 
-from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_PolyStrips
-from ..rfwidgets.rfwidget_move import RFWidget_Move
-from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
-from ...addon_common.common.blender import matrix_vector_mult
-from ...addon_common.common.debug import dprint
-from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.maths import Vec2D, Point, rotate2D
-from ...addon_common.common.profiler import profiler
-from ...addon_common.common.utils import iter_pairs
-
-from ...config.options import options
-
-from .polystrips_utils import (
-    RFTool_PolyStrips_Strip,
-    hash_face_pair,
-    strip_details,
-    crawl_strip,
-    is_boundaryvert, is_boundaryedge,
-    process_stroke_filter, process_stroke_source,
-    process_stroke_get_next, process_stroke_get_marks,
-    mark_info,
-    )
-
 
 class RFTool_PolyStrips(RFTool):
     name        = 'PolyStrips'
@@ -67,18 +44,33 @@ class RFTool_PolyStrips(RFTool):
 from .polystrips_ops   import PolyStrips_Ops
 from .polystrips_props import PolyStrips_Props
 from .polystrips_ui    import PolyStrips_UI
+from .polystrips_rfwidgets import PolyStrips_RFWidgets
+from .polystrips_utils import (
+    RFTool_PolyStrips_Strip,
+    hash_face_pair,
+    strip_details,
+    crawl_strip,
+    is_boundaryvert, is_boundaryedge,
+    process_stroke_filter, process_stroke_source,
+    process_stroke_get_next, process_stroke_get_marks,
+    mark_info,
+)
+
+from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
+from ...addon_common.common.blender import matrix_vector_mult
+from ...addon_common.common.debug import dprint
+from ...addon_common.common.drawing import Drawing, Cursors
+from ...addon_common.common.maths import Vec2D, Point, rotate2D
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.utils import iter_pairs
+
+from ...config.options import options
 
 
-
-class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_UI):
+class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_UI, PolyStrips_RFWidgets):
     @RFTool_PolyStrips.on_init
     def init(self):
-        self.rfwidgets = {
-            'brushstroke': RFWidget_BrushStroke_PolyStrips(self),
-            'move': RFWidget_Move(self),
-        }
-        # self.rfwidgets['brushstroke'].register_action_callback(self.new_brushstroke)
-        self.rfwidget = self.rfwidgets['brushstroke']
+        self.init_rfwidgets()
 
     @RFTool_PolyStrips.on_reset
     def reset(self):

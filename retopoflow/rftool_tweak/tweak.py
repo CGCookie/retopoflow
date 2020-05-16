@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 
 from ..rftool import RFTool
+from ..rfwidgets import rfwidget_brushfalloff
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -29,14 +30,12 @@ from ...addon_common.common.drawing import (
     CC_2D_LINES, CC_2D_LINE_LOOP,
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
-from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Tweak
 
 from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
 from ...addon_common.common.globals import Globals
-from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 
@@ -50,11 +49,17 @@ class RFTool_Tweak(RFTool):
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
 
+class Tweak_RFWidgets:
+    RFWidget_BrushFalloff = rfwidget_brushfalloff.create_new_class()
 
-class Tweak(RFTool_Tweak):
+    def init_rfwidgets(self):
+        self.rfwidget = self.RFWidget_BrushFalloff(self)
+
+
+class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     @RFTool_Tweak.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushFalloff_Tweak(self)
+        self.init_rfwidgets()
         self._var_mask_boundary = BoundBool('''options['tweak mask boundary']''')
         self._var_mask_hidden   = BoundBool('''options['tweak mask hidden']''')
         self._var_mask_selected = BoundBool('''options['tweak mask selected']''')

@@ -26,9 +26,6 @@ import bgl
 from mathutils import Matrix
 
 from ..rftool import RFTool
-from ..rfwidgets.rfwidget_default import RFWidget_Default
-from ..rfwidgets.rfwidget_line import RFWidget_Line_Contours
-from ..rfwidgets.rfwidget_move import RFWidget_Move
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import matrix_vector_mult
@@ -55,23 +52,19 @@ class RFTool_Contours(RFTool):
 from .contours_ops import Contours_Ops
 from .contours_props import Contours_Props
 from .contours_ui import Contours_UI
-from .contours_utils import Contours_Utils
+from .contours_rfwidgets import Contours_RFWidgets
 from .contours_utils import (
     find_loops,
     find_strings,
     loop_plane, loop_radius,
     Contours_Loop,
+    Contours_Utils,
 )
 
-class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_UI):
+class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_UI, Contours_RFWidgets):
     @RFTool_Contours.on_init
     def init(self):
-        self.rfwidgets = {
-            'default': RFWidget_Default(self),
-            'cut': RFWidget_Line_Contours(self),
-            'hover': RFWidget_Move(self),
-        }
-        self.rfwidget = None
+        self.init_rfwidgets()
 
     @RFTool_Contours.on_reset
     def reset(self):
@@ -157,10 +150,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             # the artist might move mouse off selected edge before drag kicks in!
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
 
-        if self.hovering_sel_edge:
-            self.rfwidget = self.rfwidgets['hover']
-        elif self.actions.using_onlymods('insert'):
+        if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
+        elif self.hovering_sel_edge:
+            self.rfwidget = self.rfwidgets['hover']
         else:
             self.rfwidget = self.rfwidgets['default']
 
@@ -603,7 +596,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer.done()
 
 
-    @RFWidget_Line_Contours.on_action
+    @Contours_RFWidgets.RFWidget_Line.on_action
     def new_line(self):
         xy0,xy1 = self.rfwidget.line2D
         if not xy0 or not xy1: return

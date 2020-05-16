@@ -25,6 +25,7 @@ from itertools import chain
 import bgl
 
 from ..rftool import RFTool
+from ..rfwidgets import rfwidget_default
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -39,7 +40,6 @@ from ...addon_common.common.maths import (
     mid,
 )
 from ...addon_common.common.globals import Globals
-from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common import ui
@@ -55,11 +55,16 @@ class RFTool_Patches(RFTool):
     help        = 'patches.md'
     shortcut    = 'patches tool'
 
+class Patches_RFWidgets:
+    RFWidget_Default = rfwidget_default.create_new_class()
 
-class Patches(RFTool_Patches):
+    def init_rfwidgets(self):
+        self.rfwidget = self.RFWidget_Default(self)
+
+class Patches(RFTool_Patches, Patches_RFWidgets):
     @RFTool_Patches.on_init
     def init(self):
-        self.rfwidget = RFWidget_Default(self)
+        self.init_rfwidgets()
         self.corners = {}
         self.crosses = None
         self._var_angle = BoundFloat('''options['patches angle']''', min_value=0, max_value=180)

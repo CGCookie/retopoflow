@@ -26,6 +26,8 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
 from ..rftool import RFTool
+from ..rfwidgets import rfwidget_brushstroke
+
 
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
@@ -47,8 +49,6 @@ from ...addon_common.common.boundvar import BoundBool, BoundInt
 #     )
 from ...config.options import options, themes
 
-from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Strokes
-
 from .strokes_utils import (
     process_stroke_filter, process_stroke_source,
     find_edge_cycles,
@@ -64,8 +64,13 @@ class RFTool_Strokes(RFTool):
     help        = 'strokes.md'
     shortcut    = 'strokes tool'
 
+class Strokes_RFWidgets:
+    RFWidget_BrushStroke = rfwidget_brushstroke.create_new_class()
+    def init_rfwidgets(self):
+        self.rfwidget = self.RFWidget_BrushStroke(self)
+        
 
-class Strokes(RFTool_Strokes):
+class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @property
     def cross_count(self):
         return self.strip_crosses or 0
@@ -90,8 +95,7 @@ class Strokes(RFTool_Strokes):
 
     @RFTool_Strokes.on_init
     def init(self):
-        self.rfwidget = RFWidget_BrushStroke_Strokes(self)
-
+        self.init_rfwidgets()
         self.strip_crosses = None
         self.strip_loops = None
         self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
@@ -212,7 +216,7 @@ class Strokes(RFTool_Strokes):
                 self.strip_loops -= 1
                 self.replay()
 
-    @RFWidget_BrushStroke_Strokes.on_action
+    @Strokes_RFWidgets.RFWidget_BrushStroke.on_action
     def stroke(self):
         # called when artist finishes a stroke
 

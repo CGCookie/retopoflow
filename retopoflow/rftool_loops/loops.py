@@ -27,9 +27,7 @@ import random
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 
-from ..rfwidgets.rfwidget_default import RFWidget_Default
-from ..rfwidgets.rfwidget_move import RFWidget_Move
-from ..rfwidgets.rfwidget_line import RFWidget_Line_Loops
+from ..rfwidgets import rfwidget_default, rfwidget_move, rfwidget_line
 
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
@@ -49,16 +47,24 @@ class RFTool_Loops(RFTool):
     help        = 'loops.md'
     shortcut    = 'loops tool'
 
+class Loops_RFWidgets:
+    RFWidget_Default = rfwidget_default.create_new_class()
+    RFWidget_Move = rfwidget_move.create_new_class()
+    RFWidget_Line = rfwidget_line.create_new_class()  # TODO: do not use line (line cut)!  just change cursor to crosshair
 
-class Loops(RFTool_Loops):
-    @RFTool_Loops.on_init
-    def init(self):
+    def init_rfwidgets(self):
         self.rfwidgets = {
-            'default': RFWidget_Default(self),
-            'cut': RFWidget_Line_Loops(self),
-            'hover': RFWidget_Move(self),
+            'default': self.RFWidget_Default(self),
+            'cut':     self.RFWidget_Line(self),
+            'hover':   self.RFWidget_Move(self),
         }
         self.rfwidget = None
+
+
+class Loops(RFTool_Loops, Loops_RFWidgets):
+    @RFTool_Loops.on_init
+    def init(self):
+        self.init_rfwidgets()
 
     @RFTool_Loops.on_mouse_move
     def mouse_move(self):
@@ -106,10 +112,10 @@ class Loops(RFTool_Loops):
             self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
 
-        if self.hovering_edge:
-            self.rfwidget = self.rfwidgets['hover']
-        elif self.actions.using_onlymods('insert'):
+        if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
+        elif self.hovering_edge:
+            self.rfwidget = self.rfwidgets['hover']
         else:
             self.rfwidget = self.rfwidgets['default']
 

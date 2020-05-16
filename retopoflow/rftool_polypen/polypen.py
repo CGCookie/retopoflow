@@ -23,6 +23,7 @@ import bgl
 import random
 
 from ..rftool import RFTool
+from ..rfwidgets import rfwidget_default
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -33,7 +34,6 @@ from ...addon_common.common.drawing import (
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec
 from ...addon_common.common.globals import Globals
-from ..rfwidgets.rfwidget_default import RFWidget_Default
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common import ui
@@ -50,11 +50,17 @@ class RFTool_PolyPen(RFTool):
     help        = 'polypen.md'
     shortcut    = 'polypen tool'
 
+class PolyPen_RFWidgets:
+    RFWidget_Default = rfwidget_default.create_new_class()
 
-class PolyPen(RFTool_PolyPen):
+    def init_rfwidgets(self):
+        self.rfwidget = self.RFWidget_Default(self)
+
+
+class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.on_init
     def init(self):
-        self.rfwidget = RFWidget_Default(self)
+        self.init_rfwidgets()
         self.delay_update = False
         self.update_state_info()
         self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
