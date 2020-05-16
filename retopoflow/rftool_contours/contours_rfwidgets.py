@@ -19,11 +19,11 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..rfwidgets import rfwidget_default, rfwidget_move, rfwidget_linecut
+from ..rfwidgets import rfwidget_default, rfwidget_linecut
 
 class Contours_RFWidgets:
     RFWidget_Default = rfwidget_default.create_new_class()
-    RFWidget_Move = rfwidget_move.create_new_class()
+    RFWidget_Move = rfwidget_default.create_new_class('HAND')
     RFWidget_LineCut = rfwidget_linecut.create_new_class()
 
     def init_rfwidgets(self):

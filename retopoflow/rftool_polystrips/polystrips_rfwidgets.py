@@ -19,12 +19,12 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..rfwidgets import rfwidget_brushstroke, rfwidget_move
+from ..rfwidgets import rfwidget_brushstroke, rfwidget_default
 
 
 class PolyStrips_RFWidgets:
     RFWidget_BrushStroke = rfwidget_brushstroke.create_new_class()
-    RFWidget_Move = rfwidget_move.create_new_class()
+    RFWidget_Move = rfwidget_default.create_new_class('HAND')
 
     def init_rfwidgets(self):
         self.rfwidgets = {

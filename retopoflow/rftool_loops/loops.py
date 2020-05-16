@@ -27,7 +27,7 @@ import random
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 
-from ..rfwidgets import rfwidget_default, rfwidget_move
+from ..rfwidgets import rfwidget_default
 
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
@@ -49,7 +49,7 @@ class RFTool_Loops(RFTool):
 
 class Loops_RFWidgets:
     RFWidget_Default = rfwidget_default.create_new_class()
-    RFWidget_Move = rfwidget_move.create_new_class()
+    RFWidget_Move = rfwidget_default.create_new_class('HAND')
     RFWidget_Crosshair = rfwidget_default.create_new_class('CROSSHAIR')
 
     def init_rfwidgets(self):
