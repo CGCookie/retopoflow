@@ -19,12 +19,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..rfwidgets import rfwidget_default, rfwidget_linecut
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_linecut import RFWidget_LineCut_Factory
 
 class Contours_RFWidgets:
-    RFWidget_Default = rfwidget_default.create_new_class()
-    RFWidget_Move = rfwidget_default.create_new_class('HAND')
-    RFWidget_LineCut = rfwidget_linecut.create_new_class()
+    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+    RFWidget_LineCut = RFWidget_LineCut_Factory.create()
 
     def init_rfwidgets(self):
         self.rfwidgets = {

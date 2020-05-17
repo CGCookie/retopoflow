@@ -8,11 +8,20 @@ The Loops tool also works on any strip of edges.
 
 ![](help_loops.png)
 
-## Actions
+## Creating and Selecting
 
 |  |  |  |
 | --- | --- | --- |
-| `Ctrl+Action` | : | insert edge loop |
-| `Select` <br> `Shift+Select` | : | select edge(s) |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
-| `S` | : | slide edge loop |
+| {{insert}}                           | : | insert edge loop |
+| {{select single, select single add}} | : | select edges |
+| {{select smart, select smart add}}   | : | select loop |
+| {{select paint, select paint add}}   | : | selection painting |
+| {{select all}}                       | : | deselect / select all |
+
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{slide}} | : | slide loop |
+

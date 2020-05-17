@@ -32,64 +32,74 @@ from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
 from ...config.options import themes
 
 
+'''
+RFWidget_LineCut handles a line cut in screen space.
+When cutting, a line segment is drawn from mouse down to current mouse position with a small circle at the very center
+'''
 
-def create_new_class():
+class RFWidget_LineCut_Factory:
     '''
     This function is a class factory.  It is needed, because the FSM is shared across instances.
     RFTools might need to share RFWidges that are independent of each other.
     '''
 
-    class RFW_LineCut(RFWidget):
-        rfw_name = 'Line'
-        rfw_cursor = 'CROSSHAIR'
-        line_color = Color.white
+    @staticmethod
+    def create(line_color=None, circle_color=Color((1,1,1,0.5)), circle_border_color=Color((0,0,0,0.5))):
 
-    class RFWidget_LineCut(RFW_LineCut):
-        @RFW_LineCut.on_init
-        def init(self):
-            self.line2D = [None, None]
+        class RFW_LineCut(RFWidget):
+            rfw_name = 'Line'
+            rfw_cursor = 'CROSSHAIR'
+            
 
-        @RFW_LineCut.FSM_State('main')
-        def modal_main(self):
-            if self.actions.pressed('insert'):
-                return 'line'
-
-        @RFW_LineCut.FSM_State('line', 'enter')
-        def modal_line_enter(self):
-            self.line2D = [self.actions.mouse, None]
-            tag_redraw_all('Line line_enter')
-
-        @RFW_LineCut.FSM_State('line')
-        def modal_line(self):
-            if self.actions.released('insert'):
-                print('INSERT')
-                self.callback_actions()
-                return 'main'
-
-            if self.actions.pressed('cancel'):
+        class RFWidget_LineCut(RFW_LineCut):
+            @RFW_LineCut.on_init
+            def init(self):
                 self.line2D = [None, None]
-                return 'main'
+                self.line_color = line_color
+                self.circle_color = circle_color
+                self.circle_border_color = circle_border_color
 
-            if self.line2D[1] != self.actions.mouse:
-                self.line2D[1] = self.actions.mouse
-                tag_redraw_all('Line line')
+            @RFW_LineCut.FSM_State('main')
+            def modal_main(self):
+                if self.actions.pressed('insert'):
+                    return 'line'
 
-        @RFW_LineCut.FSM_State('line', 'exit')
-        def modal_line_exit(self):
-            tag_redraw_all('Line line_exit')
+            @RFW_LineCut.FSM_State('line', 'enter')
+            def modal_line_enter(self):
+                self.line2D = [self.actions.mouse, None]
+                tag_redraw_all('Line line_enter')
 
-        @RFW_LineCut.Draw('post2d')
-        @RFW_LineCut.FSM_OnlyInState('line')
-        def draw_line(self):
-            #cr,cg,cb,ca = self.line_color
-            p0,p1 = self.line2D
-            ctr = p0 + (p1-p0)/2
+            @RFW_LineCut.FSM_State('line')
+            def modal_line(self):
+                if self.actions.released('insert'):
+                    print('INSERT')
+                    self.callback_actions()
+                    return 'main'
 
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glEnable(bgl.GL_MULTISAMPLE)
-            Globals.drawing.draw2D_line(p0, p1, themes['stroke'], width=2, stipple=[2, 2])  # self.line_color)
-            Globals.drawing.draw2D_circle(ctr, 10, (0,0,0,0.5), width=3)
-            Globals.drawing.draw2D_circle(ctr, 10, (1,1,1,0.5), width=1)
+                if self.actions.pressed('cancel'):
+                    self.line2D = [None, None]
+                    return 'main'
 
-    return RFWidget_LineCut
+                if self.line2D[1] != self.actions.mouse:
+                    self.line2D[1] = self.actions.mouse
+                    tag_redraw_all('Line line')
+
+            @RFW_LineCut.FSM_State('line', 'exit')
+            def modal_line_exit(self):
+                tag_redraw_all('Line line_exit')
+
+            @RFW_LineCut.Draw('post2d')
+            @RFW_LineCut.FSM_OnlyInState('line')
+            def draw_line(self):
+                #cr,cg,cb,ca = self.line_color
+                p0,p1 = self.line2D
+                ctr = p0 + (p1-p0)/2
+
+                bgl.glEnable(bgl.GL_BLEND)
+                bgl.glEnable(bgl.GL_MULTISAMPLE)
+                Globals.drawing.draw2D_line(p0, p1, self.line_color or themes['stroke'], width=2, stipple=[2, 2])  # self.line_color)
+                Globals.drawing.draw2D_circle(ctr, 10, self.circle_border_color, width=3) # dark rim
+                Globals.drawing.draw2D_circle(ctr, 10, self.circle_color, width=1) # light center
+
+        return RFWidget_LineCut
 

@@ -34,6 +34,7 @@ from ..addon_common.common.blender import get_preferences
 from ..addon_common.common.debug import Debugger, dprint
 from ..addon_common.common.drawing import Drawing
 from ..addon_common.common.logger import Logger
+from ..addon_common.common.maths import Color
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
 from ..addon_common.common.ui_core import UI_Document
@@ -387,36 +388,47 @@ class Options:
         return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
 
 
-def rgba_ints_to_floats(r, g, b, a): return (r/255.0, g/255.0, b/255.0, a/255.0)
+def ints_to_Color(r, g, b, a=255): return Color((r/255.0, g/255.0, b/255.0, a/255.0))
 class Themes:
-    error = rgba_ints_to_floats(255,  64, 255, 255)
+    # fallback color for when specified key is not found
+    error = ints_to_Color(255,  64, 255, 255)
+
     common = {
-        'mesh':    rgba_ints_to_floats(255, 255, 255, 255),
-        'warning': rgba_ints_to_floats(182,  31,   0, 125),
-        'stroke':  rgba_ints_to_floats( 40, 255,  40, 255),
+        'mesh':       ints_to_Color(255, 255, 255, 255),
+        'warning':    ints_to_Color(182,  31,   0, 128),
+        'stroke':     ints_to_Color( 40, 255,  40, 255),
+
+        # RFTools
+        'polystrips': ints_to_Color(128, 255, 255,  96),
+        'strokes':    ints_to_Color( 64,  64,  64,  96),
+        'tweak':      ints_to_Color(255, 128,  25, 255),
+        'relax':      ints_to_Color(128, 255, 128, 255),
     }
+
     themes = {
         'Blue': {
-            'select':  rgba_ints_to_floats( 26, 111, 255, 255),
-            'new':     rgba_ints_to_floats( 40,  40, 255, 255),
-            'active':  rgba_ints_to_floats( 26, 111, 255, 255),
+            'select':  ints_to_Color( 26, 111, 255, 255),
+            'new':     ints_to_Color( 40,  40, 255, 255),
+            'active':  ints_to_Color( 26, 111, 255, 255),
         },
         'Green': {
-            'select':  rgba_ints_to_floats( 78, 207,  81, 255),
-            'new':     rgba_ints_to_floats( 40, 255,  40, 255),
-            'active':  rgba_ints_to_floats( 78, 207,  81, 255),
+            'select':  ints_to_Color( 78, 207,  81, 255),
+            'new':     ints_to_Color( 40, 255,  40, 255),
+            'active':  ints_to_Color( 78, 207,  81, 255),
         },
         'Orange': {
-            'select':  rgba_ints_to_floats(207, 135,  78, 255),
-            'new':     rgba_ints_to_floats(255, 128,  64, 255),
-            'active':  rgba_ints_to_floats(207, 135,  78, 255),
+            'select':  ints_to_Color(207, 135,  78, 255),
+            'new':     ints_to_Color(255, 128,  64, 255),
+            'active':  ints_to_Color(207, 135,  78, 255),
         },
     }
+
     @property
     def theme(self):
         return self.themes[options['color theme']]
     def __getitem__(self, key):
         return self.theme.get(key, self.common.get(key, self.error))
+
 
 class Visualization_Settings:
     def __init__(self):

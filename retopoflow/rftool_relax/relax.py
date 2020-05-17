@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import math
 import time
 from ..rftool import RFTool
-from ..rfwidgets import rfwidget_brushfalloff
+from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Factory
 
 from ...addon_common.common.maths import (
     Vec, Vec2D,
@@ -45,7 +45,8 @@ class RFTool_Relax(RFTool):
     shortcut    = 'relax tool'
 
 class Relax_RFWidgets:
-    RFWidget_BrushFalloff = rfwidget_brushfalloff.create_new_class()
+    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['relax'])
+
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_BrushFalloff(self)
 
@@ -85,7 +86,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool_Relax.on_reset
     def reset(self):
         self.sel_only = False
-        self.rfwidget.color = Color((0.5, 1.0, 0.5, 1.0))
 
     @RFTool_Relax.FSM_State('main')
     def main(self) :

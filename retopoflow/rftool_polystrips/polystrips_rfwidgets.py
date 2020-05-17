@@ -19,17 +19,22 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..rfwidgets import rfwidget_brushstroke, rfwidget_default
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+
+from ...config.options import themes
 
 
 class PolyStrips_RFWidgets:
-    RFWidget_BrushStroke = rfwidget_brushstroke.create_new_class()
-    RFWidget_Move = rfwidget_default.create_new_class('HAND')
+    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(outer_border_color=themes['polystrips'])
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
     def init_rfwidgets(self):
         self.rfwidgets = {
+            'default':     self.RFWidget_Default(self),
             'brushstroke': self.RFWidget_BrushStroke(self),
             'move':        self.RFWidget_Move(self),
         }
-        self.rfwidget = self.rfwidgets['brushstroke']
+        self.rfwidget = None
 

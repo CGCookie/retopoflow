@@ -26,8 +26,7 @@ import random
 
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
-
-from ..rfwidgets import rfwidget_default
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
@@ -48,9 +47,9 @@ class RFTool_Loops(RFTool):
     shortcut    = 'loops tool'
 
 class Loops_RFWidgets:
-    RFWidget_Default = rfwidget_default.create_new_class()
-    RFWidget_Move = rfwidget_default.create_new_class('HAND')
-    RFWidget_Crosshair = rfwidget_default.create_new_class('CROSSHAIR')
+    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
 
     def init_rfwidgets(self):
         self.rfwidgets = {
@@ -110,7 +109,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
             self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
+            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']

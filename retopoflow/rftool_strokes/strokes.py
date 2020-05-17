@@ -26,7 +26,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
 from ..rftool import RFTool
-from ..rfwidgets import rfwidget_brushstroke
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 
 
 from ...addon_common.common.debug import dprint
@@ -65,7 +65,7 @@ class RFTool_Strokes(RFTool):
     shortcut    = 'strokes tool'
 
 class Strokes_RFWidgets:
-    RFWidget_BrushStroke = rfwidget_brushstroke.create_new_class()
+    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(outer_border_color=themes['strokes'])
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_BrushStroke(self)
         

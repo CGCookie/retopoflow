@@ -14,33 +14,39 @@ You may draw strokes in any order, from any direction.
 ![](help_contours.png)
 
 
-## Drawing
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
 | {{insert}}                           | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| {{increase count}}                   | : | increase segment counts in selected loop |
+| {{decrease count}}                   | : | decrease segment counts in selected loop |
 | {{action}}                           | : | slide selected loop |
-| {{select single, select single add}} | : | select edge |
-| {{select smart, select smart add}}   | : | select loop |
-| {{select paint, select paint add}}   | : | selection painting |
-| {{select all}}                       | : | deselect / select all |
-| {{fill}}                             | : | bridge selected edge loops |
 
-## Transform
+
+## Selecting
 
 |  |  |  |
 | --- | --- | --- |
-| {{grab}}          | : | slide |
-| {{rotate plane}}  | : | rotate loop in plane |
-| {{rotate screen}} | : | rotate loop in screen |
+| {{select single, select single add}} | : | select edge |
+| {{select smart, select smart add}}   | : | select loop |
+| {{select paint, select paint add}}   | : | edge selection painting |
+| {{select all}}                       | : | deselect / select all |
+| {{fill}}                             | : | bridge selected edge loops |
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{grab}}          | : | slide selected loops |
+| {{rotate plane}}  | : | rotate selected loop in plane |
+| {{rotate screen}} | : | rotate selected loop in screen |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
 | {{delete}}         | : | delete/dissolve selected |
-| {{increase count}} | : | increase segment counts |
-| {{decrease count}} | : | decrease segment counts |
 
 ## Tips
 

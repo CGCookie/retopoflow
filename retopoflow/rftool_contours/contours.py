@@ -148,7 +148,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
-            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], select_only=True)
+            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
@@ -199,6 +199,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            # TODO: DO NOT PAINT!
             sel_only = self.actions.pressed('select single')
             return self.rfcontext.setup_selection_painting(
                 'edge',

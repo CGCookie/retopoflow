@@ -78,6 +78,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.strip_pts = []
         self.hovering_strips = set()
         self.hovering_handles = []
+        self.hovering_sel_face = None
         self.sel_cbpts = []
         self.stroke_cbs = CubicBezierSpline()
 
@@ -154,6 +155,11 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
         self.vis_accel = self.rfcontext.get_vis_accel()
 
+        if not self.actions.using('action', ignoredrag=True):
+            # only update while not pressing action, because action includes drag, and
+            # the artist might move mouse off selected edge before drag kicks in!
+            self.hovering_sel_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'], selected_only=True)
+
         self.hovering_handles.clear()
         self.hovering_strips.clear()
         for strip in self.strips:
@@ -166,15 +172,14 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 self.hovering_handles.append(cbpt)
                 self.hovering_strips.add(strip)
 
-        if self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift:
+        if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['brushstroke']
-            Cursors.set('CROSSHAIR')
         elif self.hovering_handles:
             self.rfwidget = self.rfwidgets['move']
-            Cursors.set('HAND')
+        elif self.hovering_sel_face:
+            self.rfwidget = self.rfwidgets['move']
         else:
-            self.rfwidget = self.rfwidgets['brushstroke']
-            Cursors.set('CROSSHAIR')
+            self.rfwidget = self.rfwidgets['default']
 
         # handle edits
         if self.hovering_handles:
@@ -185,28 +190,40 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             if self.rfcontext.actions.pressed('action alt1'):
                 return 'scale'
 
-        if self.rfcontext.actions.pressed({'grab','action'}, unpress=False):
+        if self.hovering_sel_face:
+            if self.rfcontext.actions.pressed('action', unpress=False):
+                return 'move all'
+
+        if self.rfcontext.actions.pressed('grab', unpress=False):
             return 'move all'
 
+        if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
+            delta = 1 if self.rfcontext.actions.pressed('increase count') else -1
+            self.rfcontext.actions.unpress()
+            self.rfcontext.undo_push('change segment count', repeatable=True)
+            self.change_count(delta=delta)
+            return
 
-        if self.actions.pressed({'select paint', 'select single', 'select single add'}):
-            print('PolyStrips Selection')
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
             return self.rfcontext.setup_selection_painting(
                 'face',
+                sel_only=sel_only,
                 #fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
 
-        if self.rfcontext.actions.pressed('increase count'):
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=1)
-            return
-
-        if self.rfcontext.actions.pressed('decrease count'):
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=-1)
-            return
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            # TODO: DO NOT PAINT!
+            sel_only = self.actions.pressed('select single')
+            return self.rfcontext.setup_selection_painting(
+                'face',
+                sel_only=sel_only,
+                #fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
 
 
     @RFTool_PolyStrips.FSM_State('move handle', 'can enter')

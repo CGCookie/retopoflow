@@ -31,19 +31,28 @@ from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
 from ...config.options import themes
 
-def create_new_class(cursor='DEFAULT'):
+
+'''
+RFWidget_Default has no callbacks/actions.
+This RFWidget is useful for very simple cursor setting.
+'''
+
+class RFWidget_Default_Factory:
     '''
-    This function is a class factory.  It is needed, because the FSM is shared across instances.
+    This is a class factory.  It is needed, because the FSM is shared across instances.
     RFTools might need to share RFWidges that are independent of each other.
     '''
 
-    class RFW_Default(RFWidget):
-        rfw_name = 'Default'
-        rfw_cursor = cursor
+    @staticmethod
+    def create(cursor='DEFAULT'):
 
-    class RFWidget_Default(RFW_Default):
-        @RFW_Default.FSM_State('main')
-        def modal_main(self):
-            pass
+        class RFW_Default(RFWidget):
+            rfw_name = 'Default'
+            rfw_cursor = cursor
 
-    return RFWidget_Default
+        class RFWidget_Default(RFW_Default):
+            @RFW_Default.FSM_State('main')
+            def modal_main(self):
+                pass
+
+        return RFWidget_Default

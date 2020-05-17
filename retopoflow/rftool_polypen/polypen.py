@@ -23,7 +23,7 @@ import bgl
 import random
 
 from ..rftool import RFTool
-from ..rfwidgets import rfwidget_default
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -51,7 +51,7 @@ class RFTool_PolyPen(RFTool):
     shortcut    = 'polypen tool'
 
 class PolyPen_RFWidgets:
-    RFWidget_Default = rfwidget_default.create_new_class()
+    RFWidget_Default = RFWidget_Default_Factory.create()
 
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_Default(self)

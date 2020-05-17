@@ -31,6 +31,7 @@ from ...config.options import options
 class RetopoFlow_States(CookieCutter):
     def setup_states(self):
         self.view_version = None
+        self._last_rfwidget = None
 
     def update(self, timer=True):
         if not self.loading_done:
@@ -44,6 +45,11 @@ class RetopoFlow_States(CookieCutter):
             self.rftool._callback('timer')
             if self.rftool.rfwidget:
                 self.rftool.rfwidget._callback_widget('timer')
+
+        if self.rftool.rfwidget != self._last_rfwidget:
+            # force redraw when widget changes to clear out any widget drawing
+            self._last_rfwidget = self.rftool.rfwidget
+            tag_redraw_all('RFWidget change')
 
         rftarget_version = self.rftarget.get_version()
         if self.rftarget_version != rftarget_version:

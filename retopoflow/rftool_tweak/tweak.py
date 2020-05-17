@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 
 from ..rftool import RFTool
-from ..rfwidgets import rfwidget_brushfalloff
+from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Factory
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -50,7 +50,7 @@ class RFTool_Tweak(RFTool):
     shortcut    = 'tweak tool'
 
 class Tweak_RFWidgets:
-    RFWidget_BrushFalloff = rfwidget_brushfalloff.create_new_class()
+    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['tweak'])
 
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_BrushFalloff(self)
@@ -92,7 +92,6 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     @RFTool_Tweak.on_reset
     def reset(self):
         self.sel_only = False
-        self.rfwidget.color = Color((1.0, 0.5, 0.1, 1.0))
 
     @RFTool_Tweak.FSM_State('main')
     def main(self):

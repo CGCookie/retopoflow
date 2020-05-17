@@ -13,29 +13,39 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 ![](help_polystrips.png)
 
-## Drawing
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
-| `Action` | : | select quad then grab and move |
-| `Select` <br> `Shift+Select` | : | select quads |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select quad strip |
-| `Ctrl+Action` | : | draw strip of quads |
-| `F` | : | adjust brush size |
-| `A` | : | deselect / select all |
+| {{insert}}         | : | draw strip of quads |
+| {{brush size}}     | : | adjust brush size |
+| {{action}}         | : | grab and move selected geometry |
+| {{increase count}} | : | increase segment counts in selected strip |
+| {{decrease count}} | : | decrease segment counts in selected strip |
+
+
+## Selecting
+
+|  |  |  |
+| --- | --- | --- |
+| {{select single, select single add}} | : | select face |
+| {{select paint, select paint add}}   | : | face selection painting |
+| {{select all}}                       | : | deselect / select all |
+
 
 ## Control Points
 
+The following actions apply to when the mouse is hovering over control points of selected strip.
+
 |  |  |  |
 | --- | --- | --- |
-| `Action` | : | translate control point under mouse |
-| `Shift+Action` | : | translate all inner control points around neighboring outer control point |
-| `Ctrl+Shift+Action` | : | scale strip width by click+dragging on inner control point |
+| {{action}}      | : | grab and move control point under mouse |
+| {{action alt0}} | : | grab and move all inner control points around neighboring outer control point |
+| {{action alt1}} | : | scale strip width by dragging on inner control point |
+
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| `X` | : | delete/dissolve selected |
-| `Shift+Up` <br> `Shift+Down` | : | increase / decrease segment count of selected strip(s) |
-| `Equals` <br> `Minus` | : | increase / decrease segment count of selected strip(s) |
+| {{delete}} | : | delete/dissolve selected |
