@@ -12,10 +12,16 @@ The Loops tool also works on any strip of edges.
 
 |  |  |  |
 | --- | --- | --- |
-| {{insert}}                           | : | insert edge loop |
+| {{insert}} | : | insert edge loop |
+
+
+## Selecting
+
+|  |  |  |
+| --- | --- | --- |
 | {{select single, select single add}} | : | select edges |
-| {{select smart, select smart add}}   | : | select loop |
-| {{select paint, select paint add}}   | : | selection painting |
+| {{select smart, select smart add}}   | : | smart select loop |
+| {{select paint, select paint add}}   | : | paint edge selection |
 | {{select all}}                       | : | deselect / select all |
 
 

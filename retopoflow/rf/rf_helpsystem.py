@@ -29,6 +29,7 @@ from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.ui_styling import load_defaultstylings
 
 from ...config.options import options
+from ...config.keymaps import get_keymaps
 
 class RetopoFlow_HelpSystem:
     @staticmethod
@@ -57,6 +58,7 @@ class RetopoFlow_HelpSystem:
     def helpsystem_open(self, mdown_path, done_on_esc=False):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
+            keymaps = get_keymaps()
             def close():
                 nonlocal done_on_esc
                 if done_on_esc:
@@ -89,6 +91,15 @@ class RetopoFlow_HelpSystem:
                 )
             ])
             def key(e):
-                if e.key == 'ESC': close()
+                nonlocal keymaps, self
+                if e.key in keymaps['all help']:
+                    self.helpsystem_open('table_of_contents.md')
+                elif e.key in keymaps['general help']:
+                    self.helpsystem_open('general.md')
+                elif e.key in keymaps['tool help']:
+                    if hasattr(self, 'rftool'):
+                        self.helpsystem_open(self.rftool.help)
+                elif e.key == 'ESC':
+                    close()
             ui_help.add_eventListener('on_keypress', key)
         ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fn=self.substitute_keymaps)

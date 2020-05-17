@@ -8,15 +8,33 @@ Select the strip of boundary edges that you wish to fill.
 
 ![](help_patches_2sides_beforeafter.png)
 
-## Actions
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
-| `Select` <br> `Shift+Select` | : | select edge |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
-| `Shift+Up` <br> `Shift+Down` | : | adjust segment count |
-| `Ctrl+Shift+Action` | : | toggle vertex as corner |
-| `F` | : | fill visualized patch |
+| {{action alt0}}    | : | toggle vertex as a corner |
+| {{fill}}           | : | create visualized patch |
+| {{increase count}} | : | increase segment count when bridging |
+| {{decrease count}} | : | decrease segment count when bridging |
+
+
+## Selecting
+
+|  |  |  |
+| --- | --- | --- |
+| {{select single, select single add}} | : | select edge |
+| {{select smart, select smart add}}   | : | smart select boundary edges |
+| {{select paint, select paint add}}   | : | paint edge selection |
+| {{select all}}                       | : | deselect / select all |
+
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{action}}  | : | grab and move selected geometry under mouse |
+| {{grab}}    | : | grab and move selected geometry |
+
 
 ## Notes
 
@@ -29,7 +47,7 @@ More support coming soon!
 - 4 strips in a rectangular loop: opposite strips must contain the same number of edges
 
 
-If no pre-visualized regions show after selection, no geometry will be created after pressing F.
+If no pre-visualized regions show after selection, no geometry will be created after pressing {{fill}}.
 
 Adjust the Angle parameter to help Patches determine which connected edges should be in the same strip.
-Alternatively, you can manually toggle vertex corners using `Ctrl+Shift+Action`.
+Alternatively, you can manually toggle vertex corners using {{action alt0}}.

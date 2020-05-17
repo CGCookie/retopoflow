@@ -81,10 +81,10 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
 
     @CookieCutter.FSM_State('main')
     def main(self):
-        if self.actions.pressed({'ESC'}):
+        if self.actions.pressed('done'):
             self.done()
             return
-        if self.actions.pressed({'F10'}):
+        if self.actions.pressed({'F12'}):
             self.reload_stylings()
             return
 

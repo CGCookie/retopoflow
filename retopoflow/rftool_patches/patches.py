@@ -57,9 +57,14 @@ class RFTool_Patches(RFTool):
 
 class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
     def init_rfwidgets(self):
-        self.rfwidget = self.RFWidget_Default(self)
+        self.rfwidgets = {
+            'default': self.RFWidget_Default(self),
+            'hover': self.RFWidget_Move(self),
+        }
+        self.rfwidget = None
 
 class Patches(RFTool_Patches, Patches_RFWidgets):
     @RFTool_Patches.on_init
@@ -99,15 +104,60 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
     def update_ui(self):
         self._var_crosses.disabled = (self.crosses is None)
 
+    def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
+        if bme.select:
+            # edge is already selected
+            return True
+        bmv0, bmv1 = bme.verts
+        s0, s1 = bmv0.select, bmv1.select
+        if s0 and s1:
+            # both verts are selected, so return True
+            return True
+        if not s0 and not s1:
+            if no_verts_select:
+                # neither are selected, so return True by default
+                return True
+            else:
+                # return True if none are selected; otherwise return False
+                return self.rfcontext.none_selected()
+        # if mouse is at least a ratio of the distance toward unselected vert, return True
+        if s1: bmv0, bmv1 = bmv1, bmv0
+        p = self.actions.mouse
+        p0 = self.rfcontext.Point_to_Point2D(bmv0.co)
+        p1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+        v01 = p1 - p0
+        l01 = v01.length
+        d01 = v01 / l01
+        dot = d01.dot(p - p0)
+        return dot / l01 > ratio
+
     @RFTool_Patches.on_reset
     @RFTool_Patches.on_target_change
     def update(self):
+        self.rfcontext.get_vis_accel()
         self.crosses = None
         self._recompute()
         self.update_ui()
 
     @RFTool_Patches.FSM_State('main')
     def main(self):
+        self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+        self.hovering_sel_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'], selected_only=True)
+
+        if self.hovering_sel_edge or self.hovering_sel_face:
+            self.rfwidget = self.rfwidgets['hover']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
+        if self.hovering_sel_edge or self.hovering_sel_face:
+            if self.actions.pressed('action'):
+                self.rfcontext.undo_push('move grabbed')
+                self.prep_move()
+                self.move_done_pressed = None
+                self.move_done_released = 'action'
+                self.move_cancelled = 'cancel'
+                return 'move'
+
         if self.rfcontext.actions.pressed('action alt1'):
             vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=10)
             if not vert or not vert.select: return
@@ -118,32 +168,9 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             self.update()
             return
 
-        if self.rfcontext.actions.using('select single'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
-
-        if self.rfcontext.actions.using('select single add'):
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            if edge.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select smart')
-            self.rfcontext.actions.unpress()
-
-            self.rfcontext.undo_push('select smart')
-            selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces) < 2]
-            edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=10)
-            if not edge: return
-            #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
-            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
-
         if self.rfcontext.actions.pressed('fill'):
             self.fill_patch()
+            return
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
@@ -163,42 +190,39 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                 self.crosses -= 1
                 self._recompute()
 
-    @RFTool_Patches.FSM_State('selectadd/deselect')
-    @profiler.function
-    def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            self.rfcontext.undo_push('deselect')
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if bme and bme.select: self.rfcontext.deselect(bme)
-            return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        if delta.length > self.drawing.scale(5):
-            self.rfcontext.undo_push('select add')
-            return 'select'
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
+            return self.rfcontext.setup_selection_painting(
+                'edge',
+                sel_only=sel_only,
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
 
-    @RFTool_Patches.FSM_State('select')
-    @profiler.function
-    def modal_select(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            return 'main'
-        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        if not bme or bme.select: return
-        self.rfcontext.select(bme, supparts=False, only=False)
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
+            hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+            if not sel_only and not hovering_edge: return
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            if not hovering_edge: return
+            if sel_only or hovering_edge.select == False:
+                self.rfcontext.select(hovering_edge, supparts=False, only=False)
+            else:
+                self.rfcontext.deselect(hovering_edge)
+            return
 
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            sel_only = self.rfcontext.actions.pressed('select smart')
+            self.rfcontext.actions.unpress()
 
-    @RFTool_Patches.FSM_State('select', 'enter')
-    @profiler.function
-    def prep_move(self, bmverts=None, defer_recomputing=True):
-        self.sel_verts = self.rfcontext.get_selected_verts()
-        self.vis_accel = self.rfcontext.get_vis_accel()
-        self.vis_verts = self.rfcontext.accel_vis_verts
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-
-        if not bmverts: bmverts = self.sel_verts
-        self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv and bmv not in self.sel_verts]
-        self.mousedown = self.rfcontext.actions.mouse
-        self.defer_recomputing = defer_recomputing
+            self.rfcontext.undo_push('select smart')
+            selectable_edges = [e for e in self.rfcontext.visible_edges() if len(e.link_faces) < 2]
+            edge,_ = self.rfcontext.nearest2D_edge(edges=selectable_edges, max_dist=options['action dist'])
+            if not edge: return
+            #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
+            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
     @RFTool_Patches.FSM_State('move')
     @RFTool.dirty_when_done
@@ -208,12 +232,10 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
             self.update()
-            #self.mergeSnapped()
             return 'main'
-        if self.move_done_released and all(released(item) for item in self.move_done_released):
+        if self.actions.released(self.move_done_released, ignoredrag=True):
             self.defer_recomputing = False
             self.update()
-            #self.mergeSnapped()
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.defer_recomputing = False

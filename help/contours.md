@@ -21,7 +21,7 @@ You may draw strokes in any order, from any direction.
 | {{insert}}                           | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
 | {{increase count}}                   | : | increase segment counts in selected loop |
 | {{decrease count}}                   | : | decrease segment counts in selected loop |
-| {{action}}                           | : | slide selected loop |
+| {{fill}}                             | : | bridge selected edge loops |
 
 
 ## Selecting
@@ -29,16 +29,16 @@ You may draw strokes in any order, from any direction.
 |  |  |  |
 | --- | --- | --- |
 | {{select single, select single add}} | : | select edge |
-| {{select smart, select smart add}}   | : | select loop |
-| {{select paint, select paint add}}   | : | edge selection painting |
+| {{select smart, select smart add}}   | : | smart select loop |
+| {{select paint, select paint add}}   | : | paint edge selection |
 | {{select all}}                       | : | deselect / select all |
-| {{fill}}                             | : | bridge selected edge loops |
 
 ## Transforming
 
 |  |  |  |
 | --- | --- | --- |
-| {{grab}}          | : | slide selected loops |
+| {{action}}        | : | grab and slide selected geometry under mouse |
+| {{grab}}          | : | slide selected loop |
 | {{rotate plane}}  | : | rotate selected loop in plane |
 | {{rotate screen}} | : | rotate selected loop in screen |
 

@@ -29,7 +29,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 |  |  |  |
 | --- | --- | --- |
 | {{select single, select single add}} | : | select face |
-| {{select paint, select paint add}}   | : | face selection painting |
+| {{select paint, select paint add}}   | : | paint face selection |
 | {{select all}}                       | : | deselect / select all |
 
 
@@ -42,6 +42,14 @@ The following actions apply to when the mouse is hovering over control points of
 | {{action}}      | : | grab and move control point under mouse |
 | {{action alt0}} | : | grab and move all inner control points around neighboring outer control point |
 | {{action alt1}} | : | scale strip width by dragging on inner control point |
+
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{action}}  | : | grab and move selected geometry under mouse |
+| {{grab}}    | : | grab and move selected geometry |
 
 
 ## Other

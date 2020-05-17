@@ -421,13 +421,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @profiler.function
     def grab(self):
         if self.rfcontext.actions.pressed(self.move_done_pressed):
-            print('Contours.grab: pressed', self.move_done_pressed)
             return 'main'
         if self.rfcontext.actions.released(self.move_done_released, ignoredrag=True):
-            print('Contours.grab: released', self.move_done_released)
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
-            print('Contours.grab: cancel')
             self.rfcontext.undo_cancel()
             return 'main'
 
