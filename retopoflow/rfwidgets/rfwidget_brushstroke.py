@@ -66,7 +66,7 @@ class RFWidget_BrushStroke_Factory:
             def modal_main(self):
                 if self.actions.pressed('insert'):
                     return 'stroking'
-                if self.actions.pressed('brush size'):
+                if self.actions.pressed('brush radius'):
                     return 'brush sizing'
 
             @RFW_BrushStroke.FSM_State('stroking', 'enter')
@@ -122,7 +122,7 @@ class RFWidget_BrushStroke_Factory:
                 if not depth: return
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
-                bgl.glDepthRange(0.0, 0.99998)
+                bgl.glDepthRange(0.0, 0.99996)
                 Globals.drawing.draw3D_circle(p, (self.size-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale)
                 bgl.glDepthRange(0.0, 0.99995)
                 Globals.drawing.draw3D_circle(p, self.size*self.scale*1.0, self.outer_color, n=n, width=2*self.scale)

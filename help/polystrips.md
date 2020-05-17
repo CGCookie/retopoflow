@@ -18,7 +18,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 |  |  |  |
 | --- | --- | --- |
 | {{insert}}         | : | draw strip of quads |
-| {{brush size}}     | : | adjust brush size |
+| {{brush radius}}   | : | adjust brush size |
 | {{action}}         | : | grab and move selected geometry |
 | {{increase count}} | : | increase segment counts in selected strip |
 | {{decrease count}} | : | decrease segment counts in selected strip |

@@ -99,12 +99,11 @@ default_rf_keymaps = {
     'grease clear': {'C'},
 
     # widget
-    'brush radius': {'F'},
-    'brush size': {'F'},
-    'brush falloff': {'CTRL+F'},
-    'brush strength': {'SHIFT+F'},
     'brush': {'LEFTMOUSE', 'LEFTMOUSE+DOUBLE', 'LEFTMOUSE+DRAG'},
     'brush alt': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE', 'SHIFT+LEFTMOUSE+DRAG'},
+    'brush radius': {'F'},
+    'brush falloff': {'CTRL+F'},
+    'brush strength': {'SHIFT+F'},
 
     # shortcuts to tools
     'contours tool': {'ONE'},

@@ -7,17 +7,20 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 ![](help_relax.png)
 
-## Actions
+## Transforming
 
 |  |  |  |
 | --- | --- | --- |
-| `Action` | : | relax all vertices within brush radius |
-| `Shift+Action` | : | relax only selected vertices within brush radius |
-| `F` | : | adjust brush size |
-| `Shift+F` | : | adjust brush strength |
-| `Ctrl+F` | : | adjust brush falloff |
+| {{brush}}          | : | relax all vertices within brush radius |
+| {{brush alt}}      | : | relax only selected vertices within brush radius |
 
-## Options
+## Changing Brush Options
+
+| {{brush radius}}   | : | adjust brush size |
+| {{brush strength}} | : | adjust brush strength |
+| {{brush falloff}}  | : | adjust brush falloff |
+
+## Masking
 
 Relax has several options to control which vertices are or are not moved.
 

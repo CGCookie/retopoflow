@@ -80,6 +80,7 @@ class RFWidget_BrushFalloff_Factory:
                 actions = self.rfcontext.actions
                 self._change_pre = dist
                 self._change_center = actions.mouse - Vec2D((dist, 0))
+                self._timer = self.actions.start_timer(120)
                 tag_redraw_all('BrushFalloff_Relax change_enter')
 
             @RFW_BrushFalloff.FSM_State('change')
@@ -100,6 +101,7 @@ class RFWidget_BrushFalloff_Factory:
             def change_exit(self):
                 self._dist_to_var_fn = None
                 self._var_to_dist_fn = None
+                self._timer.done()
                 tag_redraw_all('BrushFalloff_Relax change_exit')
 
             @RFW_BrushFalloff.Draw('post3d')
@@ -112,27 +114,28 @@ class RFWidget_BrushFalloff_Factory:
                 if not depth: return
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
+                r = self._radius
                 co = self.outer_color
                 ci = self.inner_color
-                cc = self.fill_color * Color((1,1,1,self.strength))
-                ff = math.pow(0.5, 1.0 / self.falloff)
-                fs = (1-ff) * self.radius * self.scale
+                cc = self.fill_color * self.fill_color_scale
+                ff = math.pow(0.5, 1.0 / self._falloff)
+                fs = (1-ff) * r * self.scale
                 bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale - fs, cc, n=n, width=fs)
+                Globals.drawing.draw3D_circle(p, r*self.scale - fs, cc, n=n, width=fs)
                 bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale, co, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*ff, ci, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r*self.scale, co, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r*self.scale*ff, ci, n=n, width=2*self.scale)
                 bgl.glDepthRange(0.0, 1.0)
 
             @RFW_BrushFalloff.Draw('post2d')
             @RFW_BrushFalloff.FSM_OnlyInState('change')
             def draw_brush_sizing(self):
                 #r = (self._change_center - self.actions.mouse).length
-                r = self.radius
+                r = self._radius
                 co = self.outer_color
                 ci = self.inner_color
-                cc = self.fill_color * Color((1,1,1,self.strength))
-                ff = math.pow(0.5, 1.0 / self.falloff)
+                cc = self.fill_color * self.fill_color_scale
+                ff = math.pow(0.5, 1.0 / self._falloff)
                 fs = (1-ff) * self.radius
                 Globals.drawing.draw2D_circle(self._change_center, r-fs/2, cc, width=fs)
                 Globals.drawing.draw2D_circle(self._change_center, r, co, width=1)
@@ -159,6 +162,14 @@ class RFWidget_BrushFalloff_Factory:
             ###################
             # radius
 
+            @property
+            def radius(self):
+                return self._radius
+            @radius.setter
+            def radius(self, v):
+                # print('radius', v)
+                self._radius = max(1, float(v))
+
             def radius_to_dist(self):
                 return self.radius
 
@@ -175,6 +186,15 @@ class RFWidget_BrushFalloff_Factory:
             ##################
             # strength
 
+            @property
+            def strength(self):
+                return self._strength
+            @strength.setter
+            def strength(self, v):
+                # print('strength', v)
+                self._strength = max(0.01, min(1.0, float(v)))
+                self.fill_color_scale = Color((1, 1, 1, self.strength))
+
             def strength_to_dist(self):
                 return self.radius * (1.0 - self.strength)
 
@@ -190,6 +210,14 @@ class RFWidget_BrushFalloff_Factory:
 
             ##################
             # falloff
+
+            @property
+            def falloff(self):
+                return self._falloff
+            @falloff.setter
+            def falloff(self, v):
+                # print('falloff', v)
+                self._falloff = max(0.0, min(100.0, float(v)))
 
             def falloff_to_dist(self):
                 return self.radius * math.pow(0.5, 1.0 / self.falloff)

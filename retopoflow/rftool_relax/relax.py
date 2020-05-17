@@ -61,6 +61,11 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool_Relax.on_ui_setup
     def ui(self):
         return ui.collapsible('Relax', children=[
+            # ui.collection('Brush Options', children=[
+            #     ui.labeled_input_text(label='Size', title='Adjust size of brush', value=BoundFloat('''self.rfwidget.radius''')),
+            #     ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=BoundFloat('''self.rfwidget.strength''')),
+            #     ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=BoundFloat('''self.rfwidget.falloff''')),
+            # ]),
             ui.collection('Masking Options', children=[
                 ui.input_checkbox(
                     label='Boundary',
@@ -89,43 +94,43 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
     @RFTool_Relax.FSM_State('main')
     def main(self) :
-        if self.rfcontext.actions.pressed('select single'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select single add'):
-            face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-            if not face: return
-            if face.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-            if self.rfcontext.actions.pressed('select smart'):
-                self.rfcontext.deselect_all()
-            self.rfcontext.actions.unpress()
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            faces = set()
-            walk = {edge}
-            touched = set()
-            while walk:
-                edge = walk.pop()
-                if edge in touched: continue
-                touched.add(edge)
-                nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
-                walk |= {f.opposite_edge(edge) for f in nfaces}
-                faces |= nfaces
-            self.rfcontext.select(faces, only=False)
-            return
-
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
             self.rfcontext.actions.unpress()
             self.rfcontext.undo_push('relax')
             return 'relax'
+
+        # if self.rfcontext.actions.pressed('select single'):
+        #     self.rfcontext.undo_push('select')
+        #     self.rfcontext.deselect_all()
+        #     return 'select'
+
+        # if self.rfcontext.actions.pressed('select single add'):
+        #     face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        #     if not face: return
+        #     if face.select:
+        #         self.mousedown = self.rfcontext.actions.mouse
+        #         return 'selectadd/deselect'
+        #     return 'select'
+
+        # if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+        #     if self.rfcontext.actions.pressed('select smart'):
+        #         self.rfcontext.deselect_all()
+        #     self.rfcontext.actions.unpress()
+        #     edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        #     if not edge: return
+        #     faces = set()
+        #     walk = {edge}
+        #     touched = set()
+        #     while walk:
+        #         edge = walk.pop()
+        #         if edge in touched: continue
+        #         touched.add(edge)
+        #         nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
+        #         walk |= {f.opposite_edge(edge) for f in nfaces}
+        #         faces |= nfaces
+        #     self.rfcontext.select(faces, only=False)
+        #     return
 
     @RFTool_Relax.FSM_State('selectadd/deselect')
     def selectadd_deselect(self):
