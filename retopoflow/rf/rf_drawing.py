@@ -164,6 +164,7 @@ class RetopoFlow_Drawing:
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
+        if self._hover_ui: return
         self.rftool.rfwidget._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
@@ -171,6 +172,7 @@ class RetopoFlow_Drawing:
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
+        if self._hover_ui: return
         self.rftool.rfwidget._draw_post3d()
 
     @CookieCutter.Draw('post2d')
@@ -178,5 +180,6 @@ class RetopoFlow_Drawing:
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
+        if self._hover_ui: return
         self.rftool.rfwidget._draw_post2d()
 

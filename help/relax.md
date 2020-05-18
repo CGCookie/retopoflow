@@ -25,6 +25,7 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 ## Masking
 
 Relax has several options to control which vertices are or are not moved.
+Each option is below, along with setting and description.
 
 ### Boundary
 
