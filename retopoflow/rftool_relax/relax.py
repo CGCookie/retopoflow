@@ -54,32 +54,132 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool_Relax.on_init
     def init(self):
         self.init_rfwidgets()
-        self._var_mask_boundary = BoundBool('''options['relax mask boundary']''')
-        self._var_mask_hidden   = BoundBool('''options['relax mask hidden']''')
-        self._var_mask_selected = BoundBool('''options['relax mask selected']''')
 
     @RFTool_Relax.on_ui_setup
     def ui(self):
+        def relax_mask_boundary_change(e):
+            if not e.target.checked: return
+            options['relax mask boundary'] = e.target.value
+        def relax_mask_symmetry_change(e):
+            if not e.target.checked: return
+            options['relax mask symmetry'] = e.target.value
+        def relax_mask_hidden_change(e):
+            if not e.target.checked: return
+            options['relax mask hidden'] = e.target.value
+        def relax_mask_selected_change(e):
+            if not e.target.checked: return
+            options['relax mask selected'] = e.target.value
+
         return ui.collapsible('Relax', children=[
-            ui.collection('Masking Options', children=[
-                ui.input_checkbox(
-                    label='Boundary',
-                    title='Check to mask off vertices that are along boundary of target (includes along symmetry plane)',
-                    checked=self._var_mask_boundary,
-                    style='display:block',
-                ),
-                ui.input_checkbox(
-                    label='Hidden',
-                    title='Check to mask off vertices that are hidden behind source',
-                    checked=self._var_mask_hidden,
-                    style='display:block',
-                ),
-                ui.input_checkbox(
-                    label='Selected',
-                    title='Check to mask off vertices that are selected',
-                    checked=self._var_mask_selected,
-                    style='display:block',
-                ),
+            ui.collection('Masking Options', id='relax-masking', children=[
+                ui.collection('Boundary', children=[
+                    ui.input_radio(
+                        id='relax-boundary-exclude',
+                        title='Relax all vertices not along boundary',
+                        value='exclude',
+                        checked=(options['relax mask boundary']=='exclude'),
+                        name='relax-boundary',
+                        classes='half-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=relax_mask_boundary_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-boundary-include',
+                        title='Relax all vertices within brush, regardless of being along boundary',
+                        value='include',
+                        checked=(options['relax mask boundary']=='include'),
+                        name='relax-boundary',
+                        classes='half-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=relax_mask_boundary_change,
+                    ),
+                ]),
+                ui.collection('Symmetry', children=[
+                    ui.input_radio(
+                        id='relax-symmetry-exclude',
+                        title='Relax all vertices not along symmetry plane',
+                        value='exclude',
+                        checked=(options['relax mask symmetry']=='exclude'),
+                        name='relax-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=relax_mask_symmetry_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-symmetry-maintain',
+                        title='Relax vertices along symmetry plane, but keep them on symmetry plane',
+                        value='maintain',
+                        checked=(options['relax mask symmetry']=='maintain'),
+                        name='relax-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Maintain')],
+                        on_input=relax_mask_symmetry_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-symmetry-include',
+                        title='Relax all vertices within brush, regardless of being along symmetry plane',
+                        value='include',
+                        checked=(options['relax mask symmetry']=='include'),
+                        name='relax-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=relax_mask_symmetry_change,
+                    ),
+                ]),
+                ui.collection('Hidden', children=[
+                    ui.input_radio(
+                        id='relax-hidden-exclude',
+                        title='Relax all visible vertices',
+                        value='exclude',
+                        checked=(options['relax mask hidden']=='exclude'),
+                        name='relax-hidden',
+                        classes='half-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=relax_mask_hidden_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-hidden-include',
+                        title='Relax all vertices within brush, regardless of visibility',
+                        value='include',
+                        checked=(options['relax mask hidden']=='include'),
+                        name='relax-hidden',
+                        classes='half-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=relax_mask_hidden_change,
+                    ),
+                ]),
+                ui.collection('Selected', children=[
+                    ui.input_radio(
+                        id='relax-selected-exclude',
+                        title='Relax only unselected vertices',
+                        value='exclude',
+                        checked=(options['relax mask selected']=='exclude'),
+                        name='relax-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=relax_mask_selected_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-selected-only',
+                        title='Relax only selected vertices',
+                        value='only',
+                        checked=(options['relax mask selected']=='only'),
+                        name='relax-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='Only')],
+                        on_input=relax_mask_selected_change,
+                    ),
+                    ui.input_radio(
+                        id='relax-selected-all',
+                        title='Relax all vertices within brush, regardless of selection',
+                        value='all',
+                        checked=(options['relax mask selected']=='all'),
+                        name='relax-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='All')],
+                        on_input=relax_mask_selected_change,
+                    ),
+                ]),
             ]),
             ui.collapsible('Brush Options', children=[
                 ui.labeled_input_text(label='Size', title='Adjust size of brush', value=self.rfwidget.get_radius_boundvar()),
@@ -133,25 +233,25 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         #     self.rfcontext.select(faces, only=False)
         #     return
 
-    @RFTool_Relax.FSM_State('selectadd/deselect')
-    def selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            self.rfcontext.undo_push('deselect')
-            face,_ = self.rfcontext.accel_nearest2D_face()
-            if face and face.select: self.rfcontext.deselect(face)
-            return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        if delta.length > self.drawing.scale(5):
-            self.rfcontext.undo_push('select add')
-            return 'select'
+    # @RFTool_Relax.FSM_State('selectadd/deselect')
+    # def selectadd_deselect(self):
+    #     if not self.rfcontext.actions.using(['select single','select single add']):
+    #         self.rfcontext.undo_push('deselect')
+    #         face,_ = self.rfcontext.accel_nearest2D_face()
+    #         if face and face.select: self.rfcontext.deselect(face)
+    #         return 'main'
+    #     delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+    #     if delta.length > self.drawing.scale(5):
+    #         self.rfcontext.undo_push('select add')
+    #         return 'select'
 
-    @RFTool_Relax.FSM_State('select')
-    def select(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            return 'main'
-        bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-        if not bmf or bmf.select: return
-        self.rfcontext.select(bmf, supparts=False, only=False)
+    # @RFTool_Relax.FSM_State('select')
+    # def select(self):
+    #     if not self.rfcontext.actions.using(['select single','select single add']):
+    #         return 'main'
+    #     bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
+    #     if not bmf or bmf.select: return
+    #     self.rfcontext.select(bmf, supparts=False, only=False)
 
     @RFTool_Relax.FSM_State('relax', 'enter')
     def relax_enter(self):
@@ -194,15 +294,16 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         vert_strength = vert_strength or {}
 
         # gather options
-        opt_steps = options['relax steps']
         opt_mask_boundary = options['relax mask boundary']
-        opt_mask_hidden = options['relax mask hidden']
+        opt_mask_symmetry = options['relax mask symmetry']
+        opt_mask_hidden   = options['relax mask hidden']
         opt_mask_selected = options['relax mask selected']
-        opt_edge_length = options['relax edge length']
-        opt_face_radius = options['relax face radius']
-        opt_face_sides = options['relax face sides']
-        opt_face_angles = options['relax face angles']
-        opt_mult = options['relax force multiplier']
+        opt_steps         = options['relax steps']
+        opt_edge_length   = options['relax edge length']
+        opt_face_radius   = options['relax face radius']
+        opt_face_sides    = options['relax face sides']
+        opt_face_angles   = options['relax face angles']
+        opt_mult          = options['relax force multiplier']
 
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
 
@@ -242,7 +343,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 for bmv in verts:
                     vn,fn = bmv.normal,bmv.compute_normal()
                     d = fn - vn * vn.dot(fn)
-                    print(vn, fn, d)
+                    # print(vn, fn, d)
                     displace[bmv] += d
 
             # attempt to "square" up the faces
@@ -293,9 +394,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 if bmv not in verts: continue
                 if bmv not in vert_strength: continue
                 if self.sel_only and not bmv.select: continue
-                if opt_mask_boundary and bmv.is_boundary: continue
-                if vistest and opt_mask_hidden and not is_visible(bmv): continue
-                if opt_mask_selected and bmv.select: continue
+                if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
+                if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
+                if opt_mask_hidden == 'exclude' and vistest and not is_visible(bmv): continue
+                if opt_mask_selected == 'exclude' and bmv.select: continue
+                if opt_mask_selected == 'only' and not bmv.select: continue
                 f = displace[bmv] * (opt_mult * vert_strength[bmv])
                 bmv.co += f
+                if opt_mask_symmetry == 'maintain': bmv.snap_to_symmetry_plane()
                 self.rfcontext.snap_vert(bmv)

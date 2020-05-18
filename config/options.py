@@ -215,9 +215,10 @@ class Options:
         'polypen automerge':        True,
         'polypen triangle only':    False,
 
-        'relax mask boundary':  True,
-        'relax mask hidden':    True,
-        'relax mask selected':  False,
+        'relax mask boundary':  'include',
+        'relax mask symmetry':  'maintain',
+        'relax mask hidden':    'exclude',
+        'relax mask selected':  'all',
         'relax steps':          2,
         'relax edge length':    True,
         'relax face radius':    True,
@@ -226,6 +227,7 @@ class Options:
         'relax force multiplier': 1.5,
 
         'tweak mask boundary':  False,
+        'tweak mask symmetry':  True,
         'tweak mask hidden':    True,
         'tweak mask selected':  False,
 

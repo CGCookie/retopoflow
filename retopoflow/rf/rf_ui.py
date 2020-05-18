@@ -549,8 +549,8 @@ class RetopoFlow_UI:
                                 value='Green',
                                 checked=(options['color theme']=='Green'),
                                 name='theme-color',
-                                classes='symmetry-viz',
-                                children=[ui.label(innerText='Green', title='Draw the target mesh using a green theme.')],
+                                classes='third-size',
+                                children=[ui.label(innerText='Green')],
                                 on_input=theme_change,
                             ),
                             ui.input_radio(
@@ -559,8 +559,8 @@ class RetopoFlow_UI:
                                 value='Blue',
                                 checked=(options['color theme']=='Blue'),
                                 name='theme-color',
-                                classes='symmetry-viz',
-                                children=[ui.label(innerText='Blue', title='Draw the target mesh using a blue theme.')],
+                                classes='third-size',
+                                children=[ui.label(innerText='Blue')],
                                 on_input=theme_change,
                             ),
                             ui.input_radio(
@@ -569,8 +569,8 @@ class RetopoFlow_UI:
                                 value='Orange',
                                 checked=(options['color theme']=='Orange'),
                                 name='theme-color',
-                                classes='symmetry-viz',
-                                children=[ui.label(innerText='Orange', title='Draw the target mesh using a orange theme.')],
+                                classes='third-size',
+                                children=[ui.label(innerText='Orange')],
                                 on_input=theme_change,
                             ),
                         ]),
@@ -616,9 +616,36 @@ class RetopoFlow_UI:
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
                 ui.labeled_input_text(label='Threshold', title='Distance within which mirrored vertices will be merged.', value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0)),
                 ui.labeled_input_text(label='Effect', title='Effect of symmetry visualization.', value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)),
-                ui.input_radio(id='symmetry-viz-none', title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).', value='None', checked=(options['symmetry view']=='None'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='None', title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).')], on_input=symmetry_viz_change),
-                ui.input_radio(id='symmetry-viz-edge', title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).', value='Edge', checked=(options['symmetry view']=='Edge'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Edge', title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).')], on_input=symmetry_viz_change),
-                ui.input_radio(id='symmetry-viz-face', title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).', value='Face', checked=(options['symmetry view']=='Face'), name='symmetry-viz', classes='symmetry-viz', children=[ui.label(innerText='Face', title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).')], on_input=symmetry_viz_change),
+                ui.input_radio(
+                    id='symmetry-viz-none',
+                    title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
+                    value='None',
+                    checked=(options['symmetry view']=='None'),
+                    name='symmetry-viz',
+                    classes='third-size',
+                    children=[ui.label(innerText='None')],
+                    on_input=symmetry_viz_change
+                ),
+                ui.input_radio(
+                    id='symmetry-viz-edge',
+                    title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
+                    value='Edge',
+                    checked=(options['symmetry view']=='Edge'),
+                    name='symmetry-viz',
+                    classes='third-size',
+                    children=[ui.label(innerText='Edge')],
+                    on_input=symmetry_viz_change
+                ),
+                ui.input_radio(
+                    id='symmetry-viz-face',
+                    title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
+                    value='Face',
+                    checked=(options['symmetry view']=='Face'),
+                    name='symmetry-viz',
+                    classes='third-size',
+                    children=[ui.label(innerText='Face')],
+                    on_input=symmetry_viz_change
+                ),
             ])
             def symmetry_changed():
                 s = []

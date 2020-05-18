@@ -70,6 +70,7 @@ class BMElemWrapper:
         BMElemWrapper.l2w_normal = rftarget.xform.l2w_normal
         BMElemWrapper.w2l_normal = rftarget.xform.w2l_normal
         BMElemWrapper.symmetry_real = rftarget.symmetry_real
+        BMElemWrapper.mirror_mod = rftarget.mirror_mod
 
     @staticmethod
     def _unwrap(bmelem):
@@ -164,6 +165,33 @@ class RFVert(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
+
+    def snap_to_symmetry_plane(self):
+        mm = BMElemWrapper.mirror_mod
+        th = mm.symmetry_threshold * BMElemWrapper.rftarget.unit_scaling_factor / 2.0
+        x,y,z = self.bmelem.co
+        s = False
+        if mm.x and abs(x) <= th: x,s = 0,True
+        if mm.y and abs(y) <= th: y,s = 0,True
+        if mm.z and abs(z) <= th: z,s = 0,True
+        if s: self.bmelem.co = Point((x,y,z))
+
+    def is_on_symmetry_plane(self):
+        mm = BMElemWrapper.mirror_mod
+        th = mm.symmetry_threshold * BMElemWrapper.rftarget.unit_scaling_factor / 2.0
+        x,y,z = self.bmelem.co
+        if mm.x and abs(x) <= th: return True
+        if mm.y and abs(y) <= th: return True
+        if mm.z and abs(z) <= th: return True
+        return False
+
+    def is_on_boundary(self, symmetry_as_boundary=False):
+        '''
+        similar to is_boundary property, but optionally discard symmetry boundaries
+        '''
+        if not symmetry_as_boundary:
+            if self.is_on_symmetry_plane(): return False
+        return self.bmelem.is_boundary
 
     #############################################
 

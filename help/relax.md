@@ -16,6 +16,8 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 ## Changing Brush Options
 
+|  |  |  |
+| --- | --- | --- |
 | {{brush radius}}   | : | adjust brush size |
 | {{brush strength}} | : | adjust brush strength |
 | {{brush falloff}}  | : | adjust brush falloff |
@@ -24,6 +26,46 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 Relax has several options to control which vertices are or are not moved.
 
-- Boundary: check to prevent boundary vertices from moving.
-- Hidden: check to prevent vertices hidden by source mesh(es) from moving.
-- Selected: check to prevent selected vertices from moving.
+### Boundary
+
+|  |  |  |
+| --- | --- | --- |
+| Exclude  | : | Relax all vertices not along boundary |
+| Include  | : | Relax all vertices within brush, regardless of being along boundary |
+
+### Symmetry
+
+|  |  |  |
+| --- | --- | --- |
+| Exclude  | : | Relax all vertices not along symmetry plane |
+| Maintain | : | Relax vertices along symmetry plane, but keep them on symmetry plane |
+| Include  | : | Relax all vertices within brush, regardless of being along symmetry plane |
+
+### Hidden
+
+|  |  |  |
+| --- | --- | --- |
+| Exclude  | : | Relax all visible vertices |
+| Include  | : | Relax all vertices within brush, regardless of visibility |
+
+### Selected
+
+|  |  |  |
+| --- | --- | --- |
+| Exclude  | : | Relax only unselected vertices |
+| Only     | : | Relax only selected vertices |
+| All      | : | Relax all vertices within brush, regardless of selection |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
