@@ -8,7 +8,7 @@ The Loops tool also works on any strip of edges.
 
 ![](help_loops.png)
 
-## Creating and Selecting
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
@@ -29,5 +29,6 @@ The Loops tool also works on any strip of edges.
 
 |  |  |  |
 | --- | --- | --- |
-| {{slide}} | : | slide loop |
+| {{slide}}  | : | slide loop |
+| {{action}} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |
 

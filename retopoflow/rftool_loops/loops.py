@@ -119,11 +119,10 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             self.rfwidget = self.rfwidgets['default']
 
         if self.hovering_edge:
-            if self.rfcontext.actions.pressed({'action', 'action alt0'}, unpress=False):
+            if self.rfcontext.actions.pressed('action', unpress=False):
                 self.rfcontext.undo_push('slide edge loop/strip')
                 if not self.hovering_sel_edge:
-                    only = self.rfcontext.actions.pressed('action')
-                    self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False, only=only)
+                    self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False)
                     self.set_next_state()
                 self.prep_edit()
                 if not self.edit_ok:
@@ -203,7 +202,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             return 'slide'
 
         if self.rfcontext.actions.pressed({'select paint'}):
-            print('Loops selection painting')
             return self.rfcontext.setup_selection_painting(
                 'edge',
                 fn_filter_bmelem=self.filter_edge_selection,
@@ -211,29 +209,28 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                 kwargs_deselect={'subparts': False},
             )
 
-        if self.rfcontext.actions.pressed(['select smart', 'select smart add'], unpress=False):
+        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
+            if not sel_only and not self.hovering_edge: return
             self.rfcontext.undo_push('select smart')
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge:
-                if sel_only: self.rfcontext.deselect_all()
-                return
-            self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
+            if sel_only: self.rfcontext.deselect_all()
+            if self.hovering_edge:
+                self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False, only=sel_only)
             return
 
-        if self.rfcontext.actions.pressed('select single add'):
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            if edge.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select single'):
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
+            self.actions.unpress()
+            if not sel_only and not self.hovering_edge: return
             self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
+            if sel_only: self.rfcontext.deselect_all()
+            if self.hovering_edge:
+                if self.hovering_edge.select:
+                    self.rfcontext.deselect(self.hovering_edge)
+                else:
+                    self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
+            return
 
 
 
@@ -402,6 +399,11 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.vector.length_squared <= 0.0000001:
             # nearest edge has no length!
             return
+
+        # nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=sel_verts)
+        # if not nearest_vert: return
+        # if nearest_vert not in slide_data: return
+
         self.slide_data = slide_data
         self.mouse_down = self.rfcontext.actions.mouse
         self.percent_start = 0.0
