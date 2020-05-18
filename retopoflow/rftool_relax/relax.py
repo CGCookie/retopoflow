@@ -61,11 +61,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool_Relax.on_ui_setup
     def ui(self):
         return ui.collapsible('Relax', children=[
-            # ui.collection('Brush Options', children=[
-            #     ui.labeled_input_text(label='Size', title='Adjust size of brush', value=BoundFloat('''self.rfwidget.radius''')),
-            #     ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=BoundFloat('''self.rfwidget.strength''')),
-            #     ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=BoundFloat('''self.rfwidget.falloff''')),
-            # ]),
             ui.collection('Masking Options', children=[
                 ui.input_checkbox(
                     label='Boundary',
@@ -85,6 +80,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     checked=self._var_mask_selected,
                     style='display:block',
                 ),
+            ]),
+            ui.collapsible('Brush Options', children=[
+                ui.labeled_input_text(label='Size', title='Adjust size of brush', value=self.rfwidget.get_radius_boundvar()),
+                ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=self.rfwidget.get_strength_boundvar()),
+                ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=self.rfwidget.get_falloff_boundvar()),
+                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=self.rfwidget.reset_parameters),
             ]),
         ])
 

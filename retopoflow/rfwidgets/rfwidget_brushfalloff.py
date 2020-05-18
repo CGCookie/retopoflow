@@ -28,6 +28,7 @@ from ..rfwidget import RFWidget
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all, matrix_vector_mult
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color, Vec2D
 from ...config.options import themes
 
@@ -52,10 +53,13 @@ class RFWidget_BrushFalloff_Factory:
                 self.fill_color = fill_color
                 self.last_mouse = None
                 self.scale = 1.0
+                self.reset_parameters()
+                self.redraw_on_mouse = True
+
+            def reset_parameters(self):
                 self.radius = 50.0
                 self.falloff = 1.5
                 self.strength = 0.5
-                self.redraw_on_mouse = True
 
             @RFW_BrushFalloff.FSM_State('main')
             def main(self):
@@ -183,6 +187,9 @@ class RFWidget_BrushFalloff_Factory:
                     self.radius = max(1, int(v))
                 return (getter, setter)
 
+            def get_radius_boundvar(self):
+                return BoundFloat('''self.radius''', min_value=1)
+
             ##################
             # strength
 
@@ -208,6 +215,9 @@ class RFWidget_BrushFalloff_Factory:
                     self.strength = max(1, min(100, v)) / 100
                 return (getter, setter)
 
+            def get_strength_boundvar(self):
+                return BoundFloat('''self.strength''', min_value=0.01, max_value=1.0)
+
             ##################
             # falloff
 
@@ -232,6 +242,9 @@ class RFWidget_BrushFalloff_Factory:
                     self.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, v / 100)))
                     pass
                 return (getter, setter)
+
+            def get_falloff_boundvar(self):
+                return BoundFloat('''self.falloff''', min_value=0.00, max_value=100.0)
 
             ##################
             # mouse
