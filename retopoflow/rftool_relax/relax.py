@@ -74,8 +74,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             ui.collection('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
                     ui.input_radio(
-                        id='relax-boundary-exclude',
-                        title='Relax all vertices not along boundary',
+                        title='Relax vertices not along boundary',
                         value='exclude',
                         checked=(options['relax mask boundary']=='exclude'),
                         name='relax-boundary',
@@ -84,7 +83,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_boundary_change,
                     ),
                     ui.input_radio(
-                        id='relax-boundary-include',
                         title='Relax all vertices within brush, regardless of being along boundary',
                         value='include',
                         checked=(options['relax mask boundary']=='include'),
@@ -96,8 +94,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 ]),
                 ui.collection('Symmetry', children=[
                     ui.input_radio(
-                        id='relax-symmetry-exclude',
-                        title='Relax all vertices not along symmetry plane',
+                        title='Relax vertices not along symmetry plane',
                         value='exclude',
                         checked=(options['relax mask symmetry']=='exclude'),
                         name='relax-symmetry',
@@ -106,7 +103,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_symmetry_change,
                     ),
                     ui.input_radio(
-                        id='relax-symmetry-maintain',
                         title='Relax vertices along symmetry plane, but keep them on symmetry plane',
                         value='maintain',
                         checked=(options['relax mask symmetry']=='maintain'),
@@ -116,7 +112,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_symmetry_change,
                     ),
                     ui.input_radio(
-                        id='relax-symmetry-include',
                         title='Relax all vertices within brush, regardless of being along symmetry plane',
                         value='include',
                         checked=(options['relax mask symmetry']=='include'),
@@ -128,8 +123,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 ]),
                 ui.collection('Hidden', children=[
                     ui.input_radio(
-                        id='relax-hidden-exclude',
-                        title='Relax all visible vertices',
+                        title='Relax only visible vertices',
                         value='exclude',
                         checked=(options['relax mask hidden']=='exclude'),
                         name='relax-hidden',
@@ -138,7 +132,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_hidden_change,
                     ),
                     ui.input_radio(
-                        id='relax-hidden-include',
                         title='Relax all vertices within brush, regardless of visibility',
                         value='include',
                         checked=(options['relax mask hidden']=='include'),
@@ -150,7 +143,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 ]),
                 ui.collection('Selected', children=[
                     ui.input_radio(
-                        id='relax-selected-exclude',
                         title='Relax only unselected vertices',
                         value='exclude',
                         checked=(options['relax mask selected']=='exclude'),
@@ -160,7 +152,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_selected_change,
                     ),
                     ui.input_radio(
-                        id='relax-selected-only',
                         title='Relax only selected vertices',
                         value='only',
                         checked=(options['relax mask selected']=='only'),
@@ -170,7 +161,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         on_input=relax_mask_selected_change,
                     ),
                     ui.input_radio(
-                        id='relax-selected-all',
                         title='Relax all vertices within brush, regardless of selection',
                         value='all',
                         checked=(options['relax mask selected']=='all'),
@@ -396,10 +386,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 if self.sel_only and not bmv.select: continue
                 if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
                 if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
-                if opt_mask_hidden == 'exclude' and vistest and not is_visible(bmv): continue
+                if opt_mask_hidden   == 'exclude' and vistest and not is_visible(bmv): continue
                 if opt_mask_selected == 'exclude' and bmv.select: continue
                 if opt_mask_selected == 'only' and not bmv.select: continue
-                f = displace[bmv] * (opt_mult * vert_strength[bmv])
-                bmv.co += f
-                if opt_mask_symmetry == 'maintain': bmv.snap_to_symmetry_plane()
+                co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv])
+                if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
+                    snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
+                    co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
+                bmv.co = co
                 self.rfcontext.snap_vert(bmv)

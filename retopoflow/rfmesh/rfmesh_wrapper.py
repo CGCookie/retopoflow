@@ -148,7 +148,17 @@ class RFVert(BMElemWrapper):
     @co.setter
     def co(self, co):
         assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
-        self.bmelem.co = self.symmetry_real(co, to_world=False)
+        co = self.symmetry_real(co, to_world=False)
+        # # the following does not work well, because new verts have co=(0,0,0)
+        # mm = BMElemWrapper.mirror_mod
+        # if mm.use_clip:
+        #     rft = BMElemWrapper.rftarget
+        #     th = mm.symmetry_threshold * rft.unit_scaling_factor / 2.0
+        #     ox,oy,oz = self.bmelem.co
+        #     nx,ny,nz = (mm.x and abs(ox) <= th),(mm.y and abs(oy) <= th),(mm.z and abs(oz) <= th)
+        #     if nx or ny or nz:
+        #         co = rft.snap_to_symmetry(co, mm._symmetry, to_world=False, from_world=False)
+        self.bmelem.co = co
 
     @property
     def normal(self):
@@ -165,16 +175,6 @@ class RFVert(BMElemWrapper):
     @property
     def link_faces(self):
         return [RFFace(bmf) for bmf in self.bmelem.link_faces]
-
-    def snap_to_symmetry_plane(self):
-        mm = BMElemWrapper.mirror_mod
-        th = mm.symmetry_threshold * BMElemWrapper.rftarget.unit_scaling_factor / 2.0
-        x,y,z = self.bmelem.co
-        s = False
-        if mm.x and abs(x) <= th: x,s = 0,True
-        if mm.y and abs(y) <= th: y,s = 0,True
-        if mm.z and abs(z) <= th: z,s = 0,True
-        if s: self.bmelem.co = Point((x,y,z))
 
     def is_on_symmetry_plane(self):
         mm = BMElemWrapper.mirror_mod

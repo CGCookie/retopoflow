@@ -226,10 +226,10 @@ class Options:
         'relax face angles':    False,
         'relax force multiplier': 1.5,
 
-        'tweak mask boundary':  False,
-        'tweak mask symmetry':  True,
-        'tweak mask hidden':    True,
-        'tweak mask selected':  False,
+        'tweak mask boundary':  'include',
+        'tweak mask symmetry':  'maintain',
+        'tweak mask hidden':    'exclude',
+        'tweak mask selected':  'all',
 
         'patches angle':        120,
 

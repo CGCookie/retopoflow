@@ -60,32 +60,128 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     @RFTool_Tweak.on_init
     def init(self):
         self.init_rfwidgets()
-        self._var_mask_boundary = BoundBool('''options['tweak mask boundary']''')
-        self._var_mask_hidden   = BoundBool('''options['tweak mask hidden']''')
-        self._var_mask_selected = BoundBool('''options['tweak mask selected']''')
 
     @RFTool_Tweak.on_ui_setup
     def ui(self):
+        def tweak_mask_boundary_change(e):
+            if not e.target.checked: return
+            options['tweak mask boundary'] = e.target.value
+        def tweak_mask_symmetry_change(e):
+            if not e.target.checked: return
+            options['tweak mask symmetry'] = e.target.value
+        def tweak_mask_hidden_change(e):
+            if not e.target.checked: return
+            options['tweak mask hidden'] = e.target.value
+        def tweak_mask_selected_change(e):
+            if not e.target.checked: return
+            options['tweak mask selected'] = e.target.value
+
         return ui.collapsible('Tweak', children=[
-            ui.collection('Masking Options', children=[
-                ui.input_checkbox(
-                    label='Boundary',
-                    title='Check to mask off vertices that are along boundary of target (includes along symmetry plane)',
-                    checked=self._var_mask_boundary,
-                    style='display:block',
-                ),
-                ui.input_checkbox(
-                    label='Hidden',
-                    title='Check to mask off vertices that are hidden behind source',
-                    checked=self._var_mask_hidden,
-                    style='display:block',
-                ),
-                ui.input_checkbox(
-                    label='Selected',
-                    title='Check to mask off vertices that are selected',
-                    checked=self._var_mask_selected,
-                    style='display:block',
-                ),
+            ui.collection('Masking Options', id='tweak-masking', children=[
+                ui.collection('Boundary', children=[
+                    ui.input_radio(
+                        title='Tweak vertices not along boundary',
+                        value='exclude',
+                        checked=(options['tweak mask boundary']=='exclude'),
+                        name='tweak-boundary',
+                        classes='half-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=tweak_mask_boundary_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak all vertices within brush, regardless of being along boundary',
+                        value='include',
+                        checked=(options['tweak mask boundary']=='include'),
+                        name='tweak-boundary',
+                        classes='half-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=tweak_mask_boundary_change,
+                    ),
+                ]),
+                ui.collection('Symmetry', children=[
+                    ui.input_radio(
+                        title='Tweak vertices not along symmetry plane',
+                        value='exclude',
+                        checked=(options['tweak mask symmetry']=='exclude'),
+                        name='tweak-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=tweak_mask_symmetry_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
+                        value='maintain',
+                        checked=(options['tweak mask symmetry']=='maintain'),
+                        name='tweak-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Maintain')],
+                        on_input=tweak_mask_symmetry_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak all vertices within brush, regardless of being along symmetry plane',
+                        value='include',
+                        checked=(options['tweak mask symmetry']=='include'),
+                        name='tweak-symmetry',
+                        classes='third-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=tweak_mask_symmetry_change,
+                    ),
+                ]),
+                ui.collection('Hidden', children=[
+                    ui.input_radio(
+                        title='Tweak only visible vertices',
+                        value='exclude',
+                        checked=(options['tweak mask hidden']=='exclude'),
+                        name='tweak-hidden',
+                        classes='half-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=tweak_mask_hidden_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak all vertices within brush, regardless of visibility',
+                        value='include',
+                        checked=(options['tweak mask hidden']=='include'),
+                        name='tweak-hidden',
+                        classes='half-size',
+                        children=[ui.label(innerText='Include')],
+                        on_input=tweak_mask_hidden_change,
+                    ),
+                ]),
+                ui.collection('Selected', children=[
+                    ui.input_radio(
+                        title='Tweak only unselected vertices',
+                        value='exclude',
+                        checked=(options['tweak mask selected']=='exclude'),
+                        name='tweak-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='Exclude')],
+                        on_input=tweak_mask_selected_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak only selected vertices',
+                        value='only',
+                        checked=(options['tweak mask selected']=='only'),
+                        name='tweak-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='Only')],
+                        on_input=tweak_mask_selected_change,
+                    ),
+                    ui.input_radio(
+                        title='Tweak all vertices within brush, regardless of selection',
+                        value='all',
+                        checked=(options['tweak mask selected']=='all'),
+                        name='tweak-selected',
+                        classes='third-size',
+                        children=[ui.label(innerText='All')],
+                        on_input=tweak_mask_selected_change,
+                    ),
+                ]),
+            ]),
+            ui.collapsible('Brush Options', children=[
+                ui.labeled_input_text(label='Size', title='Adjust size of brush', value=self.rfwidget.get_radius_boundvar()),
+                ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=self.rfwidget.get_strength_boundvar()),
+                ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=self.rfwidget.get_falloff_boundvar()),
+                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=self.rfwidget.reset_parameters),
             ]),
         ])
 
@@ -95,64 +191,64 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
 
     @RFTool_Tweak.FSM_State('main')
     def main(self):
-        if self.rfcontext.actions.pressed('select single'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
-
-        if self.rfcontext.actions.pressed('select single add'):
-            face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-            if not face: return
-            if face.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
-
-        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-            if self.rfcontext.actions.pressed('select smart'):
-                self.rfcontext.deselect_all()
-            self.rfcontext.actions.unpress()
-            edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-            if not edge: return
-            faces = set()
-            walk = {edge}
-            touched = set()
-            while walk:
-                edge = walk.pop()
-                if edge in touched: continue
-                touched.add(edge)
-                nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
-                walk |= {f.opposite_edge(edge) for f in nfaces}
-                faces |= nfaces
-            self.rfcontext.select(faces, only=False)
-            return
-
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
             self.rfcontext.actions.unpress()
             return 'move'
 
-    @RFTool_Tweak.FSM_State('selectadd/deselect')
-    @profiler.function
-    def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            self.rfcontext.undo_push('deselect')
-            face,_ = self.rfcontext.accel_nearest2D_face()
-            if face and face.select: self.rfcontext.deselect(face)
-            return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        if delta.length > self.drawing.scale(5):
-            self.rfcontext.undo_push('select add')
-            return 'select'
+        # if self.rfcontext.actions.pressed('select single'):
+        #     self.rfcontext.undo_push('select')
+        #     self.rfcontext.deselect_all()
+        #     return 'select'
 
-    @RFTool_Tweak.FSM_State('select')
-    @profiler.function
-    def modal_select(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            return 'main'
-        bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-        if not bmf or bmf.select: return
-        self.rfcontext.select(bmf, supparts=False, only=False)
+        # if self.rfcontext.actions.pressed('select single add'):
+        #     face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
+        #     if not face: return
+        #     if face.select:
+        #         self.mousedown = self.rfcontext.actions.mouse
+        #         return 'selectadd/deselect'
+        #     return 'select'
+
+        # if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+        #     if self.rfcontext.actions.pressed('select smart'):
+        #         self.rfcontext.deselect_all()
+        #     self.rfcontext.actions.unpress()
+        #     edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        #     if not edge: return
+        #     faces = set()
+        #     walk = {edge}
+        #     touched = set()
+        #     while walk:
+        #         edge = walk.pop()
+        #         if edge in touched: continue
+        #         touched.add(edge)
+        #         nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
+        #         walk |= {f.opposite_edge(edge) for f in nfaces}
+        #         faces |= nfaces
+        #     self.rfcontext.select(faces, only=False)
+        #     return
+
+    # @RFTool_Tweak.FSM_State('selectadd/deselect')
+    # @profiler.function
+    # def modal_selectadd_deselect(self):
+    #     if not self.rfcontext.actions.using(['select single','select single add']):
+    #         self.rfcontext.undo_push('deselect')
+    #         face,_ = self.rfcontext.accel_nearest2D_face()
+    #         if face and face.select: self.rfcontext.deselect(face)
+    #         return 'main'
+    #     delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+    #     if delta.length > self.drawing.scale(5):
+    #         self.rfcontext.undo_push('select add')
+    #         return 'select'
+
+    # @RFTool_Tweak.FSM_State('select')
+    # @profiler.function
+    # def modal_select(self):
+    #     if not self.rfcontext.actions.using(['select single','select single add']):
+    #         return 'main'
+    #     bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
+    #     if not bmf or bmf.select: return
+    #     self.rfcontext.select(bmf, supparts=False, only=False)
 
 
     @RFTool_Tweak.FSM_State('move', 'can enter')
@@ -163,26 +259,36 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
 
     @RFTool_Tweak.FSM_State('move', 'enter')
     def move_enter(self):
-        radius = self.rfwidget.get_scaled_radius()
-        nearest = self.rfcontext.nearest_verts_mouse(radius)
-
         # gather options
-        opt_mask_hidden = options['tweak mask hidden']
         opt_mask_boundary = options['tweak mask boundary']
+        opt_mask_symmetry = options['tweak mask symmetry']
+        opt_mask_hidden   = options['tweak mask hidden']
         opt_mask_selected = options['tweak mask selected']
 
-        self.rfcontext.undo_push('tweak move')
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         get_strength_dist = self.rfwidget.get_strength_dist
-        def is_visible(bmv): return self.rfcontext.is_visible(bmv.co, bmv.normal)
-        self.bmverts = [(bmv, Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for bmv,d3d in nearest]
-        if self.sel_only: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if bmv.select]
-        if opt_mask_boundary: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.is_boundary]
-        if opt_mask_hidden:   self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if is_visible(bmv)]
-        if opt_mask_selected: self.bmverts = [(bmv,p2d,s) for bmv,p2d,s in self.bmverts if not bmv.select]
+        def is_visible(bmv):
+            return self.rfcontext.is_visible(bmv.co, bmv.normal)
+        def on_planes(bmv):
+            return self.rfcontext.symmetry_planes_for_point(bmv.co) if opt_mask_symmetry == 'maintain' else None
+
+        # get all verts under brush
+        radius = self.rfwidget.get_scaled_radius()
+        nearest = self.rfcontext.nearest_verts_mouse(radius)
+        self.bmverts = [(bmv, on_planes(bmv), Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for (bmv, d3d) in nearest]
+        # filter verts based on options
+        if self.sel_only:                  self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
+        if opt_mask_boundary == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.is_on_boundary()]
+        if opt_mask_symmetry == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.is_on_symmetry_plane()]
+        if opt_mask_hidden   == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if is_visible(bmv)]
+        if opt_mask_selected == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.select]
+        if opt_mask_selected == 'only':    self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
+
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
         self.mousedown = self.rfcontext.actions.mousedown
         self._timer = self.actions.start_timer(120.0)
+
+        self.rfcontext.undo_push('tweak move')
 
     @RFTool_Tweak.FSM_State('move')
     @RFTool_Tweak.dirty_when_done
@@ -201,8 +307,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         set2D_vert = self.rfcontext.set2D_vert
         update_face_normal = self.rfcontext.update_face_normal
 
-        for bmv,xy,strength in self.bmverts:
-            set2D_vert(bmv, xy + delta*strength)
+        for bmv,sympl,xy,strength in self.bmverts:
+            nco = set2D_vert(bmv, xy + delta*strength, sympl)
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 

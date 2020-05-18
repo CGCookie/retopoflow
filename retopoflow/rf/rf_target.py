@@ -344,6 +344,16 @@ class RetopoFlow_Target:
         if self.rftarget.mirror_mod.z and p.z < 0: return True
         return False
 
+    def symmetry_planes_for_point(self, point):
+        point = self.rftarget.xform.w2l_point(point)
+        mm = self.rftarget.mirror_mod
+        th = mm.symmetry_threshold * self.rftarget.unit_scaling_factor / 2.0
+        planes = set()
+        if mm.x and abs(point.x) <= th: planes.add('x')
+        if mm.y and abs(point.y) <= th: planes.add('y')
+        if mm.z and abs(point.z) <= th: planes.add('z')
+        return planes
+
     def mirror_point(self, point):
         p = self.rftarget.xform.w2l_point(point)
         if self.rftarget.mirror_mod.x: p.x = abs(p.x)
@@ -354,8 +364,8 @@ class RetopoFlow_Target:
     def get_point_symmetry(self, point):
         return self.rftarget.get_point_symmetry(point)
 
-    def snap_to_symmetry(self, point, symmetry):
-        return self.rftarget.snap_to_symmetry(point, symmetry)
+    def snap_to_symmetry(self, point, symmetry, to_world=True, from_world=True):
+        return self.rftarget.snap_to_symmetry(point, symmetry, to_world=to_world, from_world=from_world)
 
     def clamp_point_to_symmetry(self, point):
         return self.rftarget.symmetry_real(point)
@@ -401,9 +411,11 @@ class RetopoFlow_Target:
         vert.co = xyz
         vert.normal = norm
 
-    def set2D_vert(self, vert:RFVert, xy:Point2D):
+    def set2D_vert(self, vert:RFVert, xy:Point2D, snap_to_symmetry=None):
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
+        if snap_to_symmetry:
+            xyz = self.snap_to_symmetry(xyz, snap_to_symmetry)
         vert.co = xyz
         vert.normal = norm
         return xyz

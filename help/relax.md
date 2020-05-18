@@ -11,8 +11,8 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 |  |  |  |
 | --- | --- | --- |
-| {{brush}}          | : | relax all vertices within brush radius |
-| {{brush alt}}      | : | relax only selected vertices within brush radius |
+| {{brush}}          | : | relax all vertices within brush |
+| {{brush alt}}      | : | relax only selected vertices within brush |
 
 ## Changing Brush Options
 
@@ -31,14 +31,14 @@ Each option is below, along with setting and description.
 
 |  |  |  |
 | --- | --- | --- |
-| Exclude  | : | Relax all vertices not along boundary |
+| Exclude  | : | Relax vertices not along boundary |
 | Include  | : | Relax all vertices within brush, regardless of being along boundary |
 
 ### Symmetry
 
 |  |  |  |
 | --- | --- | --- |
-| Exclude  | : | Relax all vertices not along symmetry plane |
+| Exclude  | : | Relax vertices not along symmetry plane |
 | Maintain | : | Relax vertices along symmetry plane, but keep them on symmetry plane |
 | Include  | : | Relax all vertices within brush, regardless of being along symmetry plane |
 
@@ -46,7 +46,7 @@ Each option is below, along with setting and description.
 
 |  |  |  |
 | --- | --- | --- |
-| Exclude  | : | Relax all visible vertices |
+| Exclude  | : | Relax only visible vertices |
 | Include  | : | Relax all vertices within brush, regardless of visibility |
 
 ### Selected
@@ -56,17 +56,4 @@ Each option is below, along with setting and description.
 | Exclude  | : | Relax only unselected vertices |
 | Only     | : | Relax only selected vertices |
 | All      | : | Relax all vertices within brush, regardless of selection |
-
-
-
-
-
-
-
-
-
-
-
-
-
 
