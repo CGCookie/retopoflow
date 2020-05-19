@@ -386,6 +386,7 @@ class RetopoFlow_UI:
         self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
 
         self.alert_windows = 0
+        rf_starting_tool = getattr(self, 'rf_starting_tool', None) or options['quickstart tool']
 
         def setup_tiny_ui():
             return
@@ -395,10 +396,7 @@ class RetopoFlow_UI:
                 nonlocal ui_tools
                 # must be a fn so that local vars are unique and correctly captured
                 lbl, img = rftool.name, rftool.icon
-                if hasattr(self, 'rf_starting_tool'):
-                    checked = rftool.name == self.rf_starting_tool
-                else:
-                    checked = not hasattr(add_tool, 'notfirst')
+                checked= (rftool.name == rf_starting_tool)
                 if checked: self.select_rftool(rftool)
                 radio = ui.input_radio(
                     id='ttool-%s'%lbl.lower(),
@@ -412,7 +410,6 @@ class RetopoFlow_UI:
                 radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
                 ui.img(src=img, parent=radio, title=rftool.description)
                 #ui.label(innerText=lbl, parent=radio, title=rftool.description)
-                add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
         def setup_counts_ui():
@@ -446,10 +443,7 @@ class RetopoFlow_UI:
                 nonlocal ui_tools
                 # must be a fn so that local vars are unique and correctly captured
                 lbl, img = rftool.name, rftool.icon
-                if hasattr(self, 'rf_starting_tool'):
-                    checked = rftool.name == self.rf_starting_tool
-                else:
-                    checked = not hasattr(add_tool, 'notfirst')
+                checked = (rftool.name == rf_starting_tool)
                 if checked: self.select_rftool(rftool)
                 radio = ui.input_radio(
                     id='tool-%s'%lbl.lower(),
@@ -463,7 +457,6 @@ class RetopoFlow_UI:
                 radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
                 ui.img(src=img, parent=radio, title=rftool.description)
                 ui.label(innerText=lbl, parent=radio, title=rftool.description)
-                add_tool.notfirst = True
             for rftool in self.rftools: add_tool(rftool)
 
             ui.collapsible(label='Help', id='help-buttons', parent=self.ui_main, children=[

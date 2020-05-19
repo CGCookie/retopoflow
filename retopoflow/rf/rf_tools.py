@@ -31,6 +31,8 @@ from ..rftool_strokes.strokes       import Strokes
 
 from ..rftool import RFTool
 
+from ...config.options import options
+
 class RetopoFlow_Tools:
     def setup_rftools(self):
         self.rftools = [rftool(self) for rftool in RFTool.registry]
@@ -42,4 +44,5 @@ class RetopoFlow_Tools:
         e = self.document.body.getElementById('tool-%s'%rftool.name.lower())
         if e: e.checked = True
         self.update_ui()
+        options['quickstart tool'] = rftool.name
 

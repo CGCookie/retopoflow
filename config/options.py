@@ -147,6 +147,8 @@ class Options:
 
         'escape to quit': False,        # True:ESC is action for quitting
 
+        'quickstart tool': 'Contours',
+
         # True=tool's options are visible
         'tool contours visible': True,
         'tool polystrips visible': True,
