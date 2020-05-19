@@ -8,21 +8,38 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ![](help_strokes.png)
 
-## Drawing
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
-| `Select` <br> `Shift+Select` | : | select geometry |
-| `Ctrl+Select` <br> `Ctrl+Shift+Select` | : | select edge loop |
-| `Ctrl+Action` | : | insert edge strip / extrude selected geometry |
-| `A` | : | deselect / select all |
-| `Shift+Up` <br> `Shift+Down` | : | adjust segment count |
+| {{insert}}         | : | insert edge strip and bridge from selected geometry |
+| {{increase count}} | : | increase segment counts in bridge |
+| {{decrease count}} | : | decrease segment counts in bridge |
+
+
+## Selecting
+
+|  |  |  |
+| --- | --- | --- |
+| {{select single, select single add}} | : | select edges |
+| {{select smart, select smart add}}   | : | smart select loop |
+| {{select paint, select paint add}}   | : | paint edge selection |
+| {{select all}}                       | : | deselect / select all |
+
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{action}}        | : | grab and slide selected geometry under mouse |
+| {{grab}}          | : | slide selected loop |
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| `X` | : | delete/dissolve selected |
+| {{delete}}         | : | delete/dissolve selected |
+
 
 ## Tips
 

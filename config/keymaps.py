@@ -65,7 +65,7 @@ default_rf_keymaps = {
 
     'cancel': {'ESC', 'RIGHTMOUSE'},
     'cancel no select': {'ESC'},
-    'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE'},
+    'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
 
     'done': {'TAB'},  # if options['escape to quit'], then 'ESC' is added
 

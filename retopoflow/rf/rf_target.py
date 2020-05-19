@@ -120,7 +120,7 @@ class RetopoFlow_Target:
         return self.accel_vis_accel
 
     @profiler.function
-    def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None):
+    def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
@@ -130,6 +130,9 @@ class RetopoFlow_Target:
         else:
             max_dist = self.drawing.scale(max_dist)
             verts = vis_accel.get_verts(xy, max_dist)
+
+        if selected_only is not None:
+            verts = { bmv for bmv in verts if bmv.select == selected_only }
 
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 

@@ -26,6 +26,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
 from ..rftool import RFTool
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 
 
@@ -65,10 +66,18 @@ class RFTool_Strokes(RFTool):
     shortcut    = 'strokes tool'
 
 class Strokes_RFWidgets:
+    RFWidget_Default = RFWidget_Default_Factory.create()
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(outer_border_color=themes['strokes'])
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+
     def init_rfwidgets(self):
-        self.rfwidget = self.RFWidget_BrushStroke(self)
-        
+        self.rfwidgets = {
+            'default': self.RFWidget_Default(self),
+            'brush': self.RFWidget_BrushStroke(self),
+            'hover':   self.RFWidget_Move(self),
+        }
+        self.rfwidget = None
+
 
 class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @property
@@ -170,17 +179,57 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @RFTool_Strokes.FSM_State('main')
     @profiler.function
     def modal_main(self):
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        mouse = self.rfcontext.actions.mouse
-        self.vis_accel = self.rfcontext.get_vis_accel()
+        if not self.actions.using('action', ignoredrag=True):
+            # only update while not pressing action, because action includes drag, and
+            # the artist might move mouse off selected edge before drag kicks in!
+            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
-        if self.rfcontext.actions.pressed({'select paint', 'select single', 'select single add'}):
+        if self.actions.using_onlymods('insert'):
+            self.rfwidget = self.rfwidgets['brush']
+        elif self.hovering_sel_edge:
+            self.rfwidget = self.rfwidgets['hover']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
+
+        if self.hovering_sel_edge:
+            if self.actions.pressed('action'):
+                self.move_done_pressed = None
+                self.move_done_released = 'action'
+                self.move_cancelled = 'cancel'
+                return 'move'
+
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
+            self.actions.unpress()
             return self.rfcontext.setup_selection_painting(
                 'edge',
+                sel_only=sel_only,
                 #fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
+            self.actions.unpress()
+            if not sel_only and not self.hovering_edge: return
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            if not self.hovering_edge: return
+            if self.hovering_edge.select: self.rfcontext.deselect(self.hovering_edge)
+            else:                         self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
+            return
+
+
+        # if self.rfcontext.actions.pressed({'select paint', 'select single', 'select single add'}):
+        #     return self.rfcontext.setup_selection_painting(
+        #         'edge',
+        #         #fn_filter_bmelem=self.filter_edge_selection,
+        #         kwargs_select={'supparts': False},
+        #         kwargs_deselect={'subparts': False},
+        #     )
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
@@ -194,6 +243,9 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
         if self.rfcontext.actions.pressed('grab'):
+            self.move_done_pressed = 'confirm'
+            self.move_done_released = None
+            self.move_cancelled = 'cancel'
             return 'move'
 
         # if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
@@ -732,10 +784,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def move_enter(self, bmverts=None, defer_recomputing=True):
         self.rfcontext.undo_push('move grabbed')
 
-        self.move_done_pressed = 'confirm'
-        self.move_done_released = None
-        self.move_cancelled = 'cancel'
-
         self.sel_verts = self.rfcontext.get_selected_verts()
         self.vis_accel = self.rfcontext.get_vis_accel()
         self.vis_verts = self.rfcontext.accel_vis_verts
@@ -753,15 +801,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @profiler.function
     def move(self):
         released = self.rfcontext.actions.released
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
             #self.mergeSnapped()
             return 'main'
-        if self.move_done_released and all(released(item) for item in self.move_done_released):
+        if self.actions.released(self.move_done_released):
             self.defer_recomputing = False
             #self.mergeSnapped()
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.actions.pressed('cancel'):
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
