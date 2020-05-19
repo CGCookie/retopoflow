@@ -225,11 +225,9 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             if not sel_only and not self.hovering_edge: return
             self.rfcontext.undo_push('select')
             if sel_only: self.rfcontext.deselect_all()
-            if self.hovering_edge:
-                if self.hovering_edge.select:
-                    self.rfcontext.deselect(self.hovering_edge)
-                else:
-                    self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
+            if not self.hovering_edge: return
+            if self.hovering_edge.select: self.rfcontext.deselect(self.hovering_edge)
+            else:                         self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
             return
 
 

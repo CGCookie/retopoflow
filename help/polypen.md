@@ -8,20 +8,36 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ![](help_polypen.png)
 
-## Drawing
+## Creating
 
 |  |  |  |
 | --- | --- | --- |
-| `Select` <br> `Shift+Select` | : | select geometry |
-| `Ctrl+Action` | : | insert geometry connected to selected geometry |
-| `Shift+Action` | : | insert edges only |
-| `A` | : | deselect / select all |
+| {{insert}} | : | insert geometry connected to selected geometry |
+| {{insert alt1}} | : | insert only edges connected to selected geometry |
+
+## Selecting
+
+|  |  |  |
+| --- | --- | --- |
+| {{select single, select single add}} | : | select geometry |
+| {{select paint, select paint add}} | : | paint geometry selection |
+| {{select all}} | : | deselect / select all |
+
+
+## Transforming
+
+|  |  |  |
+| --- | --- | --- |
+| {{grab}}   | : | grab and move selected geometry |
+| {{action}} | : | grab and move selected geometry under mouse |
+
 
 ## Other
 
 |  |  |  |
 | --- | --- | --- |
-| `X` | : | delete/dissolve selected |
+| {{delete}} | : | delete/dissolve selected |
+
 
 ## Tips
 

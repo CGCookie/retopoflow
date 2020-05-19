@@ -216,11 +216,26 @@ class RetopoFlow_States(CookieCutter):
 
 
     def setup_selection_painting(self, bmelem_type, select=None, sel_only=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
-        accel_nearest2D = {
-            'vert': self.accel_nearest2D_vert,
-            'edge': self.accel_nearest2D_edge,
-            'face': self.accel_nearest2D_face,
-        }[bmelem_type]
+        if type(bmelem_type) is str:
+            accel_nearest2D = {
+                'vert': self.accel_nearest2D_vert,
+                'edge': self.accel_nearest2D_edge,
+                'face': self.accel_nearest2D_face,
+            }[bmelem_type]
+        else:
+            def mix(*args, **kwargs):
+                bmelem, dist = None, float('inf')
+                if 'vert' in bmelem_type:
+                    _bmelem, _dist = self.accel_nearest2D_vert(*args, **kwargs)
+                    if _bmelem and _dist < dist: bmelem,dist = _bmelem,_dist
+                if 'edge' in bmelem_type:
+                    _bmelem, _dist = self.accel_nearest2D_edge(*args, **kwargs)
+                    if _bmelem and _dist < dist: bmelem,dist = _bmelem,_dist
+                if 'face' in bmelem_type:
+                    _bmelem, _dist = self.accel_nearest2D_face(*args, **kwargs)
+                    if _bmelem and _dist < dist: bmelem,dist = _bmelem,_dist
+                return bmelem,dist
+            accel_nearest2D = mix
 
         fn_filter_bmelem = fn_filter_bmelem or (lambda _: True)
         kwargs_filter = kwargs_filter or {}

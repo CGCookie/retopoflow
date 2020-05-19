@@ -52,10 +52,16 @@ class RFTool_PolyPen(RFTool):
 
 class PolyPen_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
+    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
     def init_rfwidgets(self):
-        self.rfwidget = self.RFWidget_Default(self)
-
+        self.rfwidgets = {
+            'default': self.RFWidget_Default(self),
+            'insert':  self.RFWidget_Crosshair(self),
+            'hover':   self.RFWidget_Move(self),
+        }
+        self.rfwidget = None
 
 class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.on_init
@@ -63,6 +69,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.init_rfwidgets()
         self.delay_update = False
         self.update_state_info()
+        self.first_time = True
         self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
         self._var_automerge = BoundBool('''options['polypen automerge']''')
         self._var_triangle_only = BoundBool('''options['polypen triangle only']''')
@@ -112,17 +119,18 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         pr.done()
 
         if self.rfcontext.loading_done:
-            self.set_next_state()
+            self.set_next_state(force=True)
 
     @profiler.function
-    def set_next_state(self):
-        if not self.rfcontext.actions.mouse: return
+    def set_next_state(self, force=False):
+        if not self.rfcontext.actions.mouse and not force: return
 
         pr = profiler.start('getting nearest geometry')
         if True:
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
             self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
             self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
+            self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
         pr.done()
 
         # determine next state based on current selection, hovered geometry
@@ -156,36 +164,56 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if self.rfcontext.actions.mousemove:
-            self.set_next_state()
+        if self.first_time or self.rfcontext.actions.mousemove:
+            self.set_next_state(force=True)
+            self.first_time = False
             tag_redraw_all('PolyPen mousemove')
+
+        if self.actions.using_onlymods({'insert', 'insert alt1'}):
+            self.rfwidget = self.rfwidgets['insert']
+        elif self.nearest_geom and self.nearest_geom.select:
+            self.rfwidget = self.rfwidgets['hover']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'
 
-        if self.rfcontext.actions.pressed('insert alt0'):
-            return 'insert alt0'
+        if self.rfcontext.actions.pressed('insert alt1'):
+            return 'insert alt'
 
-        if self.rfcontext.actions.pressed('action'):
-            self.rfcontext.undo_push('grab')
-            self.prep_move(defer_recomputing=False)
-            return 'move after select'
+        if self.nearest_geom and self.nearest_geom.select:
+            if self.rfcontext.actions.pressed('action'):
+                self.rfcontext.undo_push('grab')
+                self.prep_move(defer_recomputing=False)
+                return 'move after select'
 
-        if self.rfcontext.actions.pressed('select single'):
-            self.rfcontext.undo_push('select')
-            self.rfcontext.deselect_all()
-            return 'select'
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
+            self.actions.unpress()
+            return self.rfcontext.setup_selection_painting(
+                {'vert','edge','face'},
+                sel_only=sel_only,
+                #fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+                kwargs_deselect={'subparts': False},
+            )
 
-        if self.rfcontext.actions.pressed('select single add'):
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
+            self.actions.unpress()
             bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
             bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
             bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
             sel = bmv or bme or bmf
+            if not sel_only and not sel: return
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
             if not sel: return
-            if sel.select:
-                self.mousedown = self.rfcontext.actions.mouse
-                return 'selectadd/deselect'
-            return 'select'
+            if sel.select: self.rfcontext.deselect(sel, subparts=False)
+            else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
+            return
 
         if self.rfcontext.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
@@ -202,73 +230,27 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         ]
 
 
-    @RFTool_PolyPen.FSM_State('select', 'enter')
-    def modal_select_enter(self):
-        self.last_mouse = None
-        self.delay_update = True
-        self.needs_update = False
-        self.vis_accel = self.rfcontext.get_vis_accel()
-
-    @RFTool_PolyPen.FSM_State('select', 'exit')
-    def modal_select_exit(self):
-        self.delay_update = False
-
-    @RFTool_PolyPen.FSM_State('select')
-    @RFTool_PolyPen.dirty_when_done
-    def modal_select(self):
-        if self.actions.event_type == 'TIMER' and self.needs_update:
-            # print('updating during selection painting')
-            self.delay_update = False
-            self.update_state_info()
-            self.delay_update = True
-            self.needs_update = False
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            return 'main'
-        if self.last_mouse == self.actions.mouse: return
-        self.last_mouse = self.actions.mouse
-        sel = None
-        sel,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'], vis_accel=self.vis_accel)
-        if not sel: sel,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'], vis_accel=self.vis_accel)
-        if not sel: sel,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'], vis_accel=self.vis_accel)
-        if not sel or sel.select: return
-        self.needs_update = True
-        self.rfcontext.select(sel, supparts=False, only=False)
-
-    @RFTool_PolyPen.FSM_State('select add')
-    @RFTool_PolyPen.dirty_when_done
-    def modal_selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
-            self.rfcontext.undo_push('deselect')
-            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
-            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
-            bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
-            sel = bmv or bme or bmf
-            if sel and sel.select: self.rfcontext.deselect(sel)
-            return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-        if delta.length > self.drawing.scale(5):
-            self.rfcontext.undo_push('select add')
-            return 'select'
-
     @RFTool_PolyPen.FSM_State('insert')
     def insert(self):
         self.rfcontext.undo_push('insert')
+        self.insert_mode = 'normal'
         return self._insert()
 
-    @RFTool_PolyPen.FSM_State('insert alt0')
+    @RFTool_PolyPen.FSM_State('insert alt')
     def insert_alt(self):
         self.rfcontext.undo_push('insert alt')
+        self.insert_mode = 'edge'
         return self._insert()
 
     @RFTool_PolyPen.dirty_when_done
     def _insert(self):
         self.last_delta = None
         self.move_done_pressed = None
-        self.move_done_released = ['insert', 'insert alt0']
+        self.move_done_released = ['insert', 'insert alt1']
         self.move_cancelled = 'cancel'
 
-        insert_normal     = self.rfcontext.actions.ctrl  and not self.rfcontext.actions.shift
-        insert_edges_only = self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl
+        insert_normal     = (self.insert_mode == 'normal')
+        insert_edges_only = (self.insert_mode == 'edge')
 
         if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
@@ -605,7 +587,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
         #if self.rfcontext.nav or self.mode != 'main': return
-        if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
+        if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
+        #if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
 
