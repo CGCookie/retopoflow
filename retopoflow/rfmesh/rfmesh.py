@@ -147,6 +147,9 @@ class RFMesh():
             self.store_state()
             self.dirty()
 
+    def __del__(self):
+        self.obj.to_mesh_clear()
+
     ##########################################################
 
     def get_frame(self): return self.xform.to_frame()
@@ -1268,29 +1271,38 @@ class RFSource(RFMesh):
     @staticmethod
     @profiler.function
     def new(obj:bpy.types.Object):
+        # TODO: REIMPLEMENT CACHING!!
+        #       HAD TO DISABLE THIS BECAUSE 2.83 AND 2.90 WOULD CRASH
+        #       WHEN RESTARTING RF.  PROBABLY DUE TO HOLDING REFS TO
+        #       OLD DATA (CRASH DUE TO FREEING INVALID DATA??)
+
         assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
 
         # check cache
         rfsource = None
-        if obj.data.name in RFSource.__cache:
-            # does cache match current state?
-            rfsource = RFSource.__cache[obj.data.name]
-            hashed = hash_object(obj)
-            #print(str(rfsource.hash))
-            #print(str(hashed))
-            if rfsource.hash != hashed:
-                rfsource = None
-        if not rfsource:
-            # need to (re)generate RFSource object
+        if False:
+            if obj.data.name in RFSource.__cache:
+                # does cache match current state?
+                rfsource = RFSource.__cache[obj.data.name]
+                hashed = hash_object(obj)
+                if rfsource.hash != hashed:
+                    rfsource = None
+            if not rfsource:
+                # need to (re)generate RFSource object
+                RFSource.creating = True
+                rfsource = RFSource()
+                del RFSource.creating
+                rfsource.__setup__(obj)
+                RFSource.__cache[obj.data.name] = rfsource
+            else:
+                rfsource = RFSource.__cache[obj.data.name]
+        else:
             RFSource.creating = True
             rfsource = RFSource()
             del RFSource.creating
             rfsource.__setup__(obj)
-            RFSource.__cache[obj.data.name] = rfsource
 
-        src = RFSource.__cache[obj.data.name]
-
-        return src
+        return rfsource
 
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'

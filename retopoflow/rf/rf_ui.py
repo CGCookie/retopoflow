@@ -33,7 +33,6 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bmesh
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat

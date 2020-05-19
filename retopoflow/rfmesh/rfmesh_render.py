@@ -71,16 +71,27 @@ class RFMeshRender():
     @staticmethod
     @profiler.function
     def new(rfmesh, opts, always_dirty=False):
-        with profiler.code('hashing object'):
-            ho = hash_object(rfmesh.obj)
-        with profiler.code('hashing bmesh'):
-            hb = hash_bmesh(rfmesh.bme)
-        h = (ho, hb)
-        if h not in RFMeshRender.cache:
+        # TODO: REIMPLEMENT CACHING!!
+        #       HAD TO DISABLE THIS BECAUSE 2.83 AND 2.90 WOULD CRASH
+        #       WHEN RESTARTING RF.  PROBABLY DUE TO HOLDING REFS TO
+        #       OLD DATA (CRASH DUE TO FREEING INVALID DATA??)
+
+        if False:
+            with profiler.code('hashing object'):
+                ho = hash_object(rfmesh.obj)
+            with profiler.code('hashing bmesh'):
+                hb = hash_bmesh(rfmesh.bme)
+            h = (ho, hb)
+            if h not in RFMeshRender.cache:
+                RFMeshRender.creating = True
+                RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts)
+                del RFMeshRender.creating
+            rfmrender = RFMeshRender.cache[h]
+        else:
             RFMeshRender.creating = True
-            RFMeshRender.cache[h] = RFMeshRender(rfmesh, opts)
+            rfmrender = RFMeshRender(rfmesh, opts)
             del RFMeshRender.creating
-        rfmrender = RFMeshRender.cache[h]
+
         rfmrender.always_dirty = always_dirty
         return rfmrender
 
