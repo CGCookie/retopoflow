@@ -76,9 +76,12 @@ class RFMesh():
     @staticmethod
     @profiler.function
     def get_bmesh_from_object(obj, deform=False):
-        depsgraph = bpy.context.evaluated_depsgraph_get()
         bme = bmesh.new()
-        bme.from_object(obj, depsgraph, deform=deform)
+        if deform:
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            bme.from_object(obj, depsgraph, deform=deform)
+        else:
+            bme.from_mesh(obj.data)
         return bme
 
     @stats_wrapper
@@ -1343,7 +1346,7 @@ class RFTarget(RFMesh):
         xz_symmetry_accel = rftarget_copy.xz_symmetry_accel if rftarget_copy else None
         yz_symmetry_accel = rftarget_copy.yz_symmetry_accel if rftarget_copy else None
 
-        super().__setup__(obj, bme=bme)
+        super().__setup__(obj, bme=bme, deform=False)
         # if Mirror modifier is attached, set up symmetry to match
         self.setup_mirror()
         self.setup_displace()
