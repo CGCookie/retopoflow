@@ -131,7 +131,7 @@ class addon_updater_install_popup(bpy.types.Operator):
         options={'HIDDEN'}
     )
 
-    def check (self, context):
+    def check(self, context):
         return True
 
     def invoke(self, context, event):
@@ -213,6 +213,10 @@ class addon_updater_check_now(bpy.types.Operator):
     bl_description = "Check now for an update to the RetopoFlow addon"
     bl_options = {'REGISTER', 'INTERNAL'}
 
+    @classmethod
+    def poll(cls, context):
+        return False
+
     def execute(self,context):
         if updater.invalidupdater == True:
             return {'CANCELLED'}
@@ -256,6 +260,7 @@ class addon_updater_update_now(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        return False
         return not updater.invalidupdater and updater.update_ready
 
 

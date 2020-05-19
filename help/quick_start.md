@@ -1,6 +1,7 @@
 # RetopoFlow 3.x Quick Start Guide
 
 We wrote this guide to help you get started as quickly a possible with the RetopoFlow 3.x.
+
 More detailed help is available by pressing `F1` after you start RetopoFlow.
 
 
@@ -34,9 +35,9 @@ To continue working on a previous retopology session:
 
 ## Target and Source Objects
 
-In RetopoFlow 1.x you were required to select the source and target objects explicitly.
-In RetopoFlow 2.x you were required to have the target mesh active, selected, and visible, with all other visible meshes considered as sources.
-In RetopoFlow 3.x the target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.
+- In RetopoFlow 1.x you were required to select the source and target objects explicitly.
+- In RetopoFlow 2.x you were required to have the target mesh active, selected, and visible, with all other visible meshes considered as sources.
+- In RetopoFlow 3.x the target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.
 
 Any mesh object that is visible and not the target object is considered a source object.
 This means that you can hide or move objects to different scenes to change which source objects will be retopologized.

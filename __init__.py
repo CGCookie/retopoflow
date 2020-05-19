@@ -214,7 +214,7 @@ class VIEW3D_PT_RetopoFlow(Panel):
         layout.operator('cgcookie.retopoflow_recover')
         layout.separator()
         #layout.label(text='RetopoFlow Updater')
-        layout.label(text='RetopoFlow Updater')
+        layout.label(text='RetopoFlow Updater (disabled)')
         col = layout.column()
         col.operator('cgcookie.retopoflow_updater_check_now')
         col.operator('cgcookie.retopoflow_updater_update_now')

@@ -1,9 +1,11 @@
 # General Help
 
+Help Shortcut: {{general help}}
+
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
 For tool-specific help, select the tool from the Tools panel, and either press {{tool help}} or click Tool Help.
 
-Click [here](table_of_contents.md) or press {{all help}} to see all of the built-in documentation.
+View the [table of contents](table_of_contents.md) for all built-in documentation by pressing {{all help}} at any time.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -25,16 +27,16 @@ For more details, see the tooltips when hovering or the product documentation pa
 Pressing the tool's shortcut will automatically switch to that tool.
 The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
-|  |  |  |
-| --- | --- | --- |
-| {{contours tool}}   | : | Contours |
-| {{polystrips tool}} | : | PolyStrips |
-| {{polypen tool}}    | : | PolyPen |
-| {{relax tool}}      | : | Relax |
-| {{tweak tool}}      | : | Tweak |
-| {{loops tool}}      | : | Loops |
-| {{patches tool}}    | : | Patches |
-| {{strokes tool}}    | : | Strokes |
+|  |  |  |  |
+| --- | --- | --- | --- |
+| {{contours tool}}   | : | Contours | [help](contours.md) |
+| {{polystrips tool}} | : | PolyStrips | [help](polystrips.md) |
+| {{polypen tool}}    | : | PolyPen | [help](polypen.md) |
+| {{relax tool}}      | : | Relax | [help](relax.md) |
+| {{tweak tool}}      | : | Tweak | [help](tweak.md) |
+| {{loops tool}}      | : | Loops | [help](loops.md) |
+| {{patches tool}}    | : | Patches | [help](patches.md) |
+| {{strokes tool}}    | : | Strokes | [help](strokes.md) |
 
 Note: selection and the undo stack is maintained between tools.
 
