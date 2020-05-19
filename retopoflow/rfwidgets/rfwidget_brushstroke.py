@@ -135,14 +135,14 @@ class RFWidget_BrushStroke_Factory:
                 # draw brush strokes (screen space)
                 #cr,cg,cb,ca = self.line_color
                 bgl.glEnable(bgl.GL_BLEND)
-                bgl.glEnable(bgl.GL_MULTISAMPLE)
+                # bgl.glEnable(bgl.GL_MULTISAMPLE)
                 Globals.drawing.draw2D_linestrip(self.stroke2D, themes['stroke'], width=2, stipple=[5, 5])
 
             @RFW_BrushStroke.Draw('post2d')
             @RFW_BrushStroke.FSM_OnlyInState('brush sizing')
             def draw_brush_sizing(self):
                 bgl.glEnable(bgl.GL_BLEND)
-                bgl.glEnable(bgl.GL_MULTISAMPLE)
+                # bgl.glEnable(bgl.GL_MULTISAMPLE)
                 r = (self.sizing_pos - self.actions.mouse).length
                 # Globals.drawing.draw2D_circle(self.sizing_pos, r*0.75, self.fill_color, width=r*0.5)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_color, width=1)

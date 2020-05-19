@@ -20,8 +20,9 @@ Below are a few notes about the current version of RetopoFlow.
 ### Blender versions
 
 RetopoFlow has been tested to work well with Blender 2.80--2.82a.
-RF does have a few issues with Blender 2.83β and 2.90α that we are currently working on.
-Note: This version will _not_ work in Blender 2.79b or earlier.
+RF does have a few visual issues with Blender 2.83β and 2.90α that we are currently working on, but RF _should_ work.
+
+Note: This version will *not* work in Blender 2.79b or earlier.
 
 
 ### New Framework
@@ -66,9 +67,7 @@ We focused on stability and bug handling in addition to new features, improving 
 Below is a list of known issues that we are currently working on.
 
 - Patches supports only rudimentary fills.
-- RetopoFlow does not use Blender keymap settings, including Left/Right select.
 - Starting RetopoFlow with large source meshes can be slow.
-- RetopoFlow is still in alpha for Blender versions 2.83 and 2.90
 
 
 

@@ -608,7 +608,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.FSM_OnlyInState('rotate screen')
     def draw_post2d_rotate_screenspace(self):
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
         Globals.drawing.draw2D_line(
             self.rotate_about,
             self.rfcontext.actions.mouse,
@@ -620,7 +620,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.FSM_OnlyInState('rotate plane')
     def draw_post2d_rotate_plane(self):
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
         Globals.drawing.draw2D_line(
             self.shift_about + self.rot_axis2D * 1000,
             self.shift_about - self.rot_axis2D * 1000,
@@ -637,7 +637,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         c0_good, c1_good = (1.0, 0.1, 1.0, 0.5), (1.0, 0.1, 1.0, 0.0)
         c0_bad,  c1_bad  = (1.0, 0.1, 0.1, 1.0), (1.0, 0.1, 0.1, 0.0)
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
         for o in self.move_origins:
             p0, p1 = project(o), project(o) + delta
             _p,_,_,_ = intersect(p1)

@@ -70,9 +70,9 @@ class RetopoFlow_Drawing:
         buf_matrix_proj = self.actions.r3d.window_matrix # XForm.to_bglMatrix(self.actions.r3d.window_matrix)
         view_forward = self.Vec_forward()  # self.actions.r3d.view_rotation * Vector((0,0,-1))
 
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
-        bgl.glEnable(bgl.GL_LINE_SMOOTH)
-        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         # bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
@@ -95,9 +95,9 @@ class RetopoFlow_Drawing:
             pr.done()
 
         pr = profiler.start('render target')
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
-        bgl.glEnable(bgl.GL_LINE_SMOOTH)
-        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
