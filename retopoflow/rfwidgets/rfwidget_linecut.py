@@ -72,7 +72,6 @@ class RFWidget_LineCut_Factory:
             @RFW_LineCut.FSM_State('line')
             def modal_line(self):
                 if self.actions.released('insert'):
-                    print('INSERT')
                     self.callback_actions()
                     return 'main'
 

@@ -61,6 +61,9 @@ class RFMesh():
     - translates to/from local space (transformations)
     '''
 
+    create_count = 0
+    delete_count = 0
+
     def __init__(self):
         assert False, (
             'Do not create new RFMesh directly!  '
@@ -71,25 +74,11 @@ class RFMesh():
         assert False, 'Do not copy me'
 
     @staticmethod
-    @blender_version_wrapper('<', '2.80')
     @profiler.function
     def get_bmesh_from_object(obj, deform=False):
-        mesh = obj.to_mesh(scene=bpy.context.scene, apply_modifiers=deform, settings='PREVIEW')
-        mesh.update()
+        depsgraph = bpy.context.evaluated_depsgraph_get()
         bme = bmesh.new()
-        bme.from_mesh(mesh)
-        del mesh
-        return bme
-
-    @staticmethod
-    @blender_version_wrapper('>=', '2.80')
-    @profiler.function
-    def get_bmesh_from_object(obj, deform=False):
-        mesh = obj.to_mesh()
-        mesh.update()
-        bme = bmesh.new()
-        bme.from_mesh(mesh)
-        del mesh
+        bme.from_object(obj, depsgraph, deform=deform)
         return bme
 
     @stats_wrapper
@@ -148,7 +137,9 @@ class RFMesh():
             self.dirty()
 
     def __del__(self):
-        self.obj.to_mesh_clear()
+        RFMesh.delete_count += 1
+        # print('RFMesh.__del__', self, RFMesh.create_count, RFMesh.delete_count)
+        self.bme.free()
 
     ##########################################################
 
@@ -1306,11 +1297,16 @@ class RFSource(RFMesh):
 
     def __init__(self):
         assert hasattr(RFSource, 'creating'), 'Do not create new RFSource directly!  Use RFSource.new()'
+        RFMesh.create_count += 1
+        # print('RFSource.__init__', RFMesh.create_count, RFMesh.delete_count)
 
     def __setup__(self, obj:bpy.types.Object):
         super().__setup__(obj, deform=True, triangulate=True, selection=False, keepeme=True)
         self.mirror_mod = None
         self.ensure_lookup_tables()
+
+    def __str__(self):
+        return '<RFSource %s>' % self.obj.name
 
 
 
@@ -1335,6 +1331,11 @@ class RFTarget(RFMesh):
 
     def __init__(self):
         assert hasattr(RFTarget, 'creating'), 'Do not create new RFTarget directly!  Use RFTarget.new()'
+        RFMesh.create_count += 1
+        # print('RFTarget.__init__', RFMesh.create_count, RFMesh.delete_count)
+
+    def __str__(self):
+        return '<RFTarget %s>' % self.obj.name
 
     def __setup__(self, obj:bpy.types.Object, unit_scaling_factor:float, rftarget_copy=None):
         bme = rftarget_copy.bme.copy() if rftarget_copy else None
@@ -1468,7 +1469,11 @@ class RFTarget(RFMesh):
         super().clean()
         if self.editmesh_version == self.get_version(): return
         self.editmesh_version = self.get_version()
+
+        # bpy.ops.object.editmode_toggle()
         self.bme.to_mesh(self.obj.data)
+        # bpy.ops.object.editmode_toggle()
+
         # bmesh.update_edit_mesh(self.obj.data)
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select

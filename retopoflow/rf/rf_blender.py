@@ -324,7 +324,7 @@ class RetopoFlow_Blender:
                 set_object_selection(o, True)
                 set_active_object(o)
 
-        # bpy.ops.object.mode_set(context=ctx, mode=data['mode translated'])
+        bpy.ops.object.mode_set(mode=data['mode translated'])
 
     def overwrite_window_state(self):
         if bpy.context.mode != 'OBJECT':

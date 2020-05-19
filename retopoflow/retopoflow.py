@@ -184,6 +184,8 @@ class RetopoFlow(
 
         self.store_window_state()
         RetopoFlow.instance = self
+
+        # bpy.context.object.update_from_editmode()
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # get scaling factor to fit all sources into unit box
@@ -200,14 +202,13 @@ class RetopoFlow(
 
 
     def end(self):
-        self.blender_ui_reset()
-        self.undo_clear()
         options.clear_callbacks()
-        # self.end_rotate_about_active()
-        # self.teardown_target()
-        # self.unscale_from_unit_box()
-        # bpy.ops.object.mode_set(mode='EDIT')
-        # self.restore_window_state()
-        self.tar_object = None
+        self.blender_ui_reset()
+        self.undo_clear(touch=False)
+        self.done_target()
+        self.done_sources()
+        # one more toggle, because done_target() might push to target mesh
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='EDIT')
         RetopoFlow.instance = None
 

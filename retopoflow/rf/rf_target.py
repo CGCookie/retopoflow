@@ -72,6 +72,12 @@ class RetopoFlow_Target:
         self.rftarget.obj_viewport_unhide()
         self.rftarget.obj_render_unhide()
 
+    def done_target(self):
+        del self.rftarget_draw
+        del self.rftarget
+        self.tar_object.to_mesh_clear()
+        del self.tar_object
+
     #########################################
     # acceleration structures
 

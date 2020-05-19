@@ -126,8 +126,8 @@ class Options:
 
         'show tooltips':        True,
         'tooltip delay':        0.75,
-        'keyboard repeat delay': 0.25, # delay before repeating
-        'keyboard repeat pause': 0.10, # pause between repeats
+        'keyboard repeat delay': 0.25,  # delay before repeating
+        'keyboard repeat pause': 0.10,  # pause between repeats
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 

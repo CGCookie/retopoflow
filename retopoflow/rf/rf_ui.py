@@ -102,6 +102,9 @@ def get_trace_details(undo_stack, msghash=None, message=None):
 
 
 class RetopoFlow_UI:
+    GitHub_checks = 0
+    GitHub_limit = 10
+
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
         if False:
@@ -165,40 +168,44 @@ class RetopoFlow_UI:
             def check_github():
                 nonlocal win, ui_buttons
                 try:
-                    # attempt to see if this issue already exists!
-                    # note: limited to 60 requests/hour!  see
-                    #     https://developer.github.com/v3/#rate-limiting
-                    #     https://developer.github.com/v3/search/#rate-limit
+                    if self.GitHub_checks < self.GitHub_limit:
+                        self.GitHub_checks += 1
+                        # attempt to see if this issue already exists!
+                        # note: limited to 60 requests/hour!  see
+                        #     https://developer.github.com/v3/#rate-limiting
+                        #     https://developer.github.com/v3/search/#rate-limit
 
-                    # make it unsecure to work around SSL issue
-                    # https://medium.com/@moreless/how-to-fix-python-ssl-certificate-verify-failed-97772d9dd14c
-                    import ssl
-                    if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
-                        ssl._create_default_https_context = ssl._create_unverified_context
+                        # make it unsecure to work around SSL issue
+                        # https://medium.com/@moreless/how-to-fix-python-ssl-certificate-verify-failed-97772d9dd14c
+                        import ssl
+                        if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+                            ssl._create_default_https_context = ssl._create_unverified_context
 
-                    url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
-                    response = urllib.request.urlopen(url)
-                    text = response.read().decode('utf-8')
-                    issues = json.loads(text)
-                    exists,solved,issueurl = False,False,None
-                    for issue in issues:
-                        if msghash not in issue['body']: continue
-                        issueurl = issue['html_url']
-                        exists = True
-                        if issue['state'] == 'closed': solved = True
-                    if not exists:
-                        print('GitHub: Not reported, yet')
-                        ui.set_markdown(ui_label, 'This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
-                    else:
-                        if not solved:
-                            print('GitHub: Already reported!')
-                            ui.set_markdown(ui_label, 'This issue appears to have been reported already.\n\nClick Open button to see the current status.')
+                        url = "https://api.github.com/repos/CGCookie/retopoflow/issues?state=all"
+                        response = urllib.request.urlopen(url)
+                        text = response.read().decode('utf-8')
+                        issues = json.loads(text)
+                        exists,solved,issueurl = False,False,None
+                        for issue in issues:
+                            if msghash not in issue['body']: continue
+                            issueurl = issue['html_url']
+                            exists = True
+                            if issue['state'] == 'closed': solved = True
+                        if not exists:
+                            print('GitHub: Not reported, yet')
+                            ui.set_markdown(ui_label, 'This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
                         else:
-                            print('GitHub: Already solved!')
-                            ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
-                        def go():
-                            bpy.ops.wm.url_open(url=issueurl)
-                        ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                            if not solved:
+                                print('GitHub: Already reported!')
+                                ui.set_markdown(ui_label, 'This issue appears to have been reported already.\n\nClick Open button to see the current status.')
+                            else:
+                                print('GitHub: Already solved!')
+                                ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
+                            def go():
+                                bpy.ops.wm.url_open(url=issueurl)
+                            ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                    else:
+                        ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
                     ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
@@ -324,6 +331,7 @@ class RetopoFlow_UI:
 
     def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True, hide_target=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
+        bpy.ops.object.mode_set(mode='OBJECT')
         if scale_to_unit_box: self.scale_to_unit_box()
         self.viewaa_simplify()
 
@@ -337,7 +345,6 @@ class RetopoFlow_UI:
         self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
-        bpy.ops.object.mode_set(mode='OBJECT')
         if add_rotate: self.setup_rotate_about_active()
         if hide_target: self.hide_target()
 

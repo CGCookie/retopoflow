@@ -52,6 +52,13 @@ class RetopoFlow_Sources:
         dprint('%d sources found' % len(self.rfsources))
         print('  done!')
 
+    def done_sources(self):
+        for rfs in self.rfsources:
+            rfs.obj.to_mesh_clear()
+        del self.sources_bbox
+        del self.rfsources_draw
+        del self.rfsources
+
     @profiler.function
     def setup_sources_symmetry(self):
         xyplane,xzplane,yzplane = self.rftarget.get_xy_plane(),self.rftarget.get_xz_plane(),self.rftarget.get_yz_plane()

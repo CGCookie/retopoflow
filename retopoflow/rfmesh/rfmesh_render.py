@@ -65,8 +65,10 @@ class RFMeshRender():
     RFMeshRender handles rendering RFMeshes.
     '''
 
-    executor = ThreadPoolExecutor()
     cache = {}
+
+    create_count = 0
+    delete_count = 0
 
     @staticmethod
     @profiler.function
@@ -101,6 +103,9 @@ class RFMeshRender():
             'Do not create new RFMeshRender directly!'
             'Use RFMeshRender.new()')
 
+        RFMeshRender.create_count += 1
+        # print('RFMeshRender.__init__', RFMeshRender.create_count, RFMeshRender.delete_count)
+
         # initially loading asynchronously?
         self.async_load = options['async mesh loading']
         self._is_loading = False
@@ -121,14 +126,15 @@ class RFMeshRender():
         self.replace_opts(opts)
 
     def __del__(self):
-        if hasattr(self, 'buf_matrix_model'):
-            del self.buf_matrix_model
-        if hasattr(self, 'buf_matrix_inverse'):
-            del self.buf_matrix_inverse
-        if hasattr(self, 'buf_matrix_normal'):
-            del self.buf_matrix_normal
-        if hasattr(self, 'buffered_renders'):
-            del self.buffered_renders
+        RFMeshRender.delete_count += 1
+        # print('RFMeshRender.__del__', self.rfmesh, RFMeshRender.create_count, RFMeshRender.delete_count)
+        self.bmesh.free()
+        if hasattr(self, 'buf_matrix_model'):   del self.buf_matrix_model
+        if hasattr(self, 'buf_matrix_inverse'): del self.buf_matrix_inverse
+        if hasattr(self, 'buf_matrix_normal'):  del self.buf_matrix_normal
+        if hasattr(self, 'buffered_renders'):   del self.buffered_renders
+        if hasattr(self, 'bmesh'):              del self.bmesh
+        if hasattr(self, 'rfmesh'):             del self.rfmesh
 
     @profiler.function
     def replace_opts(self, opts):
@@ -269,7 +275,7 @@ class RFMeshRender():
                 profiler.function(gather)()
             else:
                 # print('RetopoFlow: loading mesh data for object %s asynchronously' % self.rfmesh.get_obj_name())
-                self._gather_submit = self.executor.submit(gather)
+                self._gather_submit = ThreadPoolExecutor().submit(gather)
         pr.done()
 
     @profiler.function

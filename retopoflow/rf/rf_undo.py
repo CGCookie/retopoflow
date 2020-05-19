@@ -29,17 +29,18 @@ class RetopoFlow_Undo:
         self.change_count = 0
         self.undo_clear()
 
-    def undo_clear(self):
+    def undo_clear(self, touch=True):
         self.undo = []
         self.redo = []
-        # # touching undo stack to work around weird bug
-        # # to reproduce:
-        # #     start PS, select a strip, drag a handle but then cancel, exit RF
-        # #     start PS again, drag (already selected) handle... but strip does not move
-        # # i believe the bug has something to do with caching of RFMesh, but i'm not sure
-        # # pushing and then canceling an undo will flush the cache enough to circumvent it
-        self.undo_push('initial')
-        self.undo_cancel()
+        if not touch:
+            # touching undo stack to work around weird bug
+            # to reproduce:
+            #     start PS, select a strip, drag a handle but then cancel, exit RF
+            #     start PS again, drag (already selected) handle... but strip does not move
+            # i believe the bug has something to do with caching of RFMesh, but i'm not sure
+            # pushing and then canceling an undo will flush the cache enough to circumvent it
+            self.undo_push('initial')
+            self.undo_cancel()
 
     def _create_state(self, action):
         return {
