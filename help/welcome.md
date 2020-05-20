@@ -11,10 +11,25 @@ Additionally, all mesh generation is quad-based (except for PolyPen).
 <input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
 
 
+## Help
+
+We have created help documents to describe the major parts of RetopoFlow.
+
+At any time, press {{general help}} to open the [general help document](general.md), {{all help}} to open the [table of contents](table_of_contents.md), or {{tool help}} to open the help documents for the currently selected tool.
+
 
 ## Version 3.0 Notes
 
-Below are a few notes about the current version of RetopoFlow.
+In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
+Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
+
+Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x uses a similar workflow to RetopoFlow&nbsp;2.x.
+
+When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
+These windows allow you to switch between RF tools, set tool options, and get more information.
+Also, this one-time Welcome message will greet you.
+
+Below are more details about the current version of RetopoFlow.
 
 
 ### Change List
@@ -30,15 +45,17 @@ Below is a short list of major changes from RetopoFlow&nbsp;2.x.
 
 ### Blender versions
 
-As of 2020 May 19, RetopoFlow has been tested to work well with Blender&nbsp;2.80--2.90α.
-RF does have a few visual issues with Blender&nbsp;2.83β and 2.90α that we are currently working on, but RF _should_ work.
+As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.80--2.90α.
+
+RetopoFlow is slightly visually different starting in Blender&nbsp;2.83β.
+Since this is only a visual change---RF works just the same in all versions---we do not plan to correct for this by making RF visually consistent across all versions of Blender.
 
 Note: This version will *not* work in Blender&nbsp;2.79b or earlier.
 
 
 ### New Framework
 
-Due to some significant changes in the Blender 2.80 Python API, we had to rewrite a few key parts of RetopoFlow, specifically the rendering and UI.
+Due to some significant changes in the Blender&nbsp;2.80 Python API, we had to rewrite a few key parts of RetopoFlow, specifically the rendering and UI.
 Rather than keeping these updates only for RetopoFlow users, we decided to build the changes into a new framework called [CookieCutter](https://github.com/CGCookie/addon_common).
 The CookieCutter framework has several brand new systems to handle states, UI drawing and interaction, debugging and exceptions, rendering, and much more.
 CookieCutter was built from the ground up to be a maintainable, extensible, and configurable framework for Blender add-ons.
