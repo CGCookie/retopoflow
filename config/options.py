@@ -131,6 +131,8 @@ class Options:
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
+        'show geometry window': True,
+
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
         'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',

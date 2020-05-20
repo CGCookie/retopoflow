@@ -111,6 +111,7 @@ class RetopoFlow_States(CookieCutter):
                 self.document.debug_print()
                 return
             if self.actions.pressed('F12'):
+                print('RetopoFlow: Reloading stylings')
                 self.reload_stylings()
                 return
 

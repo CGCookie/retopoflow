@@ -116,13 +116,12 @@ dialog.framed > div.inside {
     padding: 0px 0px 2px 0px;
 }
 
+
+
 div#tools {
     border: 1px black;
     margin: 1px 1px 2px 1px;
 }
-
-
-
 input.tool {
     background: transparent;
     margin: 0px;
@@ -174,6 +173,9 @@ input.tool > label > label {
     border: 0px;
     padding:2px 0px; margin:0px; margin-left: 4px;
 }
+
+
+
 
 
 input.symmetry-enable {
@@ -293,14 +295,25 @@ dialog#maindialog * {
 }
 
 
+
+/***************************************************/
+/* tiny ui window                                  */
+/***************************************************/
+
 dialog#tinydialog {
-    width: 100px;
+    width: 268px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
+    border-width: 1px;
 }
 dialog#tinydialog * {
     overflow-x: hidden;
+}
+dialog#tinydialog span.dialog-title {
+    padding: 0px 2px;
+    font-size: 9pt;
+    height: 12px;
 }
 dialog#tinydialog > div#ttools > * {
     display: inline;
@@ -310,6 +323,75 @@ dialog#tinydialog input[type="radio"] > img {
     display: none;
 }
 
+div#ttools {
+    border: 1px black;
+    margin: 0px;
+}
+input.ttool {
+    display: inline;
+    background: transparent;
+    margin: 0px;
+    border-width: 0px;
+    width: 28px;
+    padding: 0px;
+}
+input.ttool > img {
+    display: none;
+}
+input.ttool:hover {
+    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+input.ttool[checked] {
+    background: hsla(200, 100%, 62.5%, 1.0);
+}
+input.ttool:active {
+    background: hsla(200, 100%, 62.5%, 0.5);
+}
+input.ttool:active:hover {
+    background: hsla(200, 100%, 62.5%, 0.75);
+}
+input.ttool > label {
+    display: inline;
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding: 4px 4px;
+    /*width: 100%;*/
+    /*height:20px;*/
+    color: white;
+}
+input.ttool[checked] label {
+    color: black;
+}
+input.ttool:active label {
+    color: black;
+}
+input.ttool > label > img {
+    display: inline;
+    border-radius: 0px;
+    border:0px white;
+    padding:0px;
+    margin:0px;
+    width:20px;
+    height:20px;
+}
+
+dialog#tinydialog div#ttools button.dialog-close {
+    padding: 4px;
+    width: 28px;
+    height: 28px;
+}
+/*dialog#tinydialog div#ttools button.dialog-close:hover {
+    background: hsla(200, 100%, 62.5%, 0.75);
+}
+*/
+
+
+
+
+/***************************************************/
+/* options window                                  */
+/***************************************************/
 
 dialog#optionsdialog {
     width: 250px;
@@ -317,6 +399,11 @@ dialog#optionsdialog {
     max-width: 500px;
 }
 
+
+
+/***************************************************/
+/* help window                                     */
+/***************************************************/
 
 dialog#helpsystem {
     width: 60%;
@@ -331,6 +418,12 @@ dialog#helpsystem div#helpsystem-buttons button {
     display: inline;
     width: 50%;
 }
+
+
+
+/***************************************************/
+/* alert window                                    */
+/***************************************************/
 
 
 dialog.alertdialog {
@@ -370,6 +463,9 @@ div.issue-checker button.action {
 
 
 
+/***************************************************/
+/* geometry window                                 */
+/***************************************************/
 
 dialog#geometrydialog {
     right: 0px;

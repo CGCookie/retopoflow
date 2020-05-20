@@ -43,6 +43,8 @@ class RetopoFlow_Tools:
         self.rftool._reset()
         e = self.document.body.getElementById('tool-%s'%rftool.name.lower())
         if e: e.checked = True
+        e = self.document.body.getElementById('ttool-%s'%rftool.name.lower())
+        if e: e.checked = True
         self.update_ui()
         options['quickstart tool'] = rftool.name
 
