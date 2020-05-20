@@ -16,7 +16,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 |  |  |  |
 | --- | --- | --- |
 | {{done}}          | : | quit RetopoFlow |
-| {{save action}}   | : | save blend file |
+| {{save action}}   | : | save blend file (same as Blender's save) |
 | {{general help}}  | : | view general help (this document) |
 | {{all help}}      | : | view all help documents (table of contents) |
 | {{tool help}}     | : | view help for currently selected tool |

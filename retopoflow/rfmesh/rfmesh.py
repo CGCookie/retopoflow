@@ -304,31 +304,24 @@ class RFMesh():
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
 
-        pr = profiler.start('vert sides')
-        if True:
+        with profiler.code('vert sides'):
             vert_side = {
                 bmv: side(bmv.co)
                 for bmv in self.bme.verts
             }
-        pr.done()
-        pr = profiler.start('split edges')
-        if True:
+        with profiler.code('split edges'):
             edges = {
                 bme
                 for bme in self.bme.edges
                 if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
             }
-        pr.done()
-        pr = profiler.start('split faces')
-        if True:
+        with profiler.code('split faces'):
             faces = {
                 bmf
                 for bme in edges
                 for bmf in bme.link_faces
             }
-        pr.done()
-        pr = profiler.start('intersections')
-        if True:
+        with profiler.code('intersections'):
             intersection = [
                 (l2w_point(p0), l2w_point(p1))
                 for bmf in faces
@@ -336,7 +329,6 @@ class RFMesh():
                     bmv.co for bmv in bmf.verts
                 ])
             ]
-        pr.done()
         return intersection
 
     def get_xy_plane(self):
@@ -610,20 +602,15 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        pr = profiler.start('finding all edges crossing plane')
-        if True:
+        with profiler.code('finding all edges crossing plane'):
             dot = plane.n.dot
             o = dot(plane.o)
             edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
-        pr.done()
 
-        pr = profiler.start('finding faces crossing plane')
-        if True:
+        with profiler.code('finding faces crossing plane'):
             faces = set(bmf for bme in edges for bmf in bme.link_faces)
-        pr.done()
 
-        pr = profiler.start('crawling faces along plane')
-        if True:
+        with profiler.code('crawling faces along plane'):
             rets = []
             touched = set()
             for bmf in faces:
@@ -633,7 +620,6 @@ class RFMesh():
                 touched |= set(f1 for _,_,f1,_ in ret if f1)
                 ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
                 rets += [ret]
-        pr.done()
 
         return rets
 

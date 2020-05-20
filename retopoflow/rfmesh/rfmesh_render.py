@@ -177,8 +177,7 @@ class RFMeshRender():
 
                 # NOTE: duplicating data rather than using indexing, otherwise
                 # selection will bleed
-                pr = profiler.start('gathering', enabled=not self.async_load)
-                if True:
+                with profiler.code('gathering', enabled=not self.async_load):
                     if self.load_faces:
                         tri_faces = [(bmf, list(bmvs))
                                      for bmf in self.bmesh.faces
@@ -256,7 +255,6 @@ class RFMeshRender():
 
                     if self.async_load:
                         self.buf_data_queue.put('done')
-                pr.done()
 
                 time_end = time.time()
                 # print('RFMeshRender: Gather time: %0.2f' % (time_end - time_start))
@@ -268,15 +266,13 @@ class RFMeshRender():
         self._is_loading = True
         self._is_loaded = False
 
-        pr = profiler.start('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else ''))
-        if True:
+        with profiler.code('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else '')):
             if not self.async_load:
                 # print('RetopoFlow: loading mesh data for object %s synchronously' % self.rfmesh.get_obj_name())
                 profiler.function(gather)()
             else:
                 # print('RetopoFlow: loading mesh data for object %s asynchronously' % self.rfmesh.get_obj_name())
                 self._gather_submit = ThreadPoolExecutor().submit(gather)
-        pr.done()
 
     @profiler.function
     def clean(self):
@@ -356,8 +352,7 @@ class RFMeshRender():
             mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
             for axis in mirror_axes: opts['mirror %s' % axis] = True
 
-            pr = profiler.start('geometry above')
-            if True:
+            with profiler.code('geometry above'):
                 bgl.glDepthFunc(bgl.GL_LEQUAL)
                 opts['poly hidden']         = 1 - alpha_above
                 opts['poly mirror hidden']  = 1 - alpha_above
@@ -367,12 +362,10 @@ class RFMeshRender():
                 opts['point mirror hidden'] = 1 - alpha_above
                 for buffered_render in self.buffered_renders:
                     buffered_render.draw(opts)
-            pr.done()
 
             if not opts.get('no below', False):
                 # draw geometry hidden behind
-                pr = profiler.start('geometry below')
-                if True:
+                with profiler.code('geometry below'):
                     bgl.glDepthFunc(bgl.GL_GREATER)
                     opts['poly hidden']         = 1 - alpha_below
                     opts['poly mirror hidden']  = 1 - alpha_below
@@ -382,7 +375,6 @@ class RFMeshRender():
                     opts['point mirror hidden'] = 1 - alpha_below
                     for buffered_render in self.buffered_renders:
                         buffered_render.draw(opts)
-                pr.done()
 
             bgl.glDepthFunc(bgl.GL_LEQUAL)
             bgl.glDepthMask(bgl.GL_TRUE)
