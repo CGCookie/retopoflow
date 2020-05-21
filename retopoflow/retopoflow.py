@@ -132,18 +132,20 @@ class RetopoFlow(
         d['i_stage'] = 0
         d['i_step'] = 0
         d['time'] = 0           # will be updated to current time
-        d['delay'] = 0.05
+        d['delay'] = 0.01
         d['stages'] = [
-            ('target mesh',              self.setup_target),
-            ('source mesh(es)',          self.setup_sources),
-            ('symmetry data structures', self.setup_sources_symmetry),    # must be called after self.setup_target()!!
-            ('rotation target',          self.setup_rotate_about_active),
-            ('RetopoFlow states',        self.setup_states),
-            ('RetopoFlow tools',         self.setup_rftools),
-            ('grease marks',             self.setup_grease),
-            ('drawing callbacks',        self.setup_drawing),
-            ('user interface',           self.setup_ui),                  # must be called after self.setup_target() and self.setup_rftools()!!
-            ('undo system',              self.setup_undo),                # must be called after self.setup_ui()!!
+            ('Setting up target mesh',              self.setup_target),
+            ('Setting up source mesh(es)',          self.setup_sources),
+            ('Setting up symmetry data structures', self.setup_sources_symmetry),    # must be called after self.setup_target()!!
+            ('Setting up rotation target',          self.setup_rotate_about_active),
+            ('Setting up RetopoFlow states',        self.setup_states),
+            ('Setting up RetopoFlow tools',         self.setup_rftools),
+            ('Setting up grease marks',             self.setup_grease),
+            ('Setting up visualizations',           self.setup_drawing),
+            ('Setting up user interface',           self.setup_ui),                  # must be called after self.setup_target() and self.setup_rftools()!!
+            ('Setting up undo system',              self.setup_undo),                # must be called after self.setup_ui()!!
+            ('Loading welcome message',             self.show_welcome_message),
+            ('Checking auto save / save',           self.check_auto_save_warnings),
         ]
         self._setup_data = d
 
@@ -157,8 +159,8 @@ class RetopoFlow(
         try:
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
-                print('RetopoFlow: setting up %s' % stage_name)
-                ui.set_markdown(d['ui_div'], mdown='Setting up %s' % stage_name)
+                print('RetopoFlow: %s' % stage_name)
+                ui.set_markdown(d['ui_div'], mdown='%s' % stage_name)
             else:
                 stage_fn()
         except Exception as e:

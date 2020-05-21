@@ -149,6 +149,12 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         else:
             self.rfwidget = self.rfwidgets['default']
 
+        for rfwidget in self.rfwidgets.values():
+            if self.rfwidget == rfwidget: continue
+            if rfwidget.inactive_passthrough():
+                self.rfwidget = rfwidget
+                return
+
         if self.hovering_sel_edge or self.hovering_sel_face:
             if self.actions.pressed('action'):
                 self.rfcontext.undo_push('move grabbed')

@@ -307,12 +307,13 @@ class RetopoFlow_UI:
         self.document.body.append_child(win)
         self.document.focus(win)
         self.alert_windows += 1
-        if level in {'note', None}:
+        if level in {'warning', 'note', None}:
             win.style = 'width:600px;'
             # win.style = 'left:auto; top:auto;'
             self.document.force_clean(self.actions.context)
             self.document.center_on_mouse(win)
             self.document.sticky_element = win
+        if level in {'note', None}:
             win.add_eventListener('on_mouseleave', mouseleave_event)
             win.add_eventListener('on_keypress', keypress_event)
 
@@ -377,20 +378,29 @@ class RetopoFlow_UI:
         self.blender_ui_set(scale_to_unit_box=False, add_rotate=False, hide_target=False)
 
     def show_geometry_window(self):
-        print('showing geometry window', options['show geometry window'])
         options['show geometry window'] = True
         self.ui_geometry.is_visible = True
         self.ui_show_geometry.disabled = True
     def hide_geometry_window(self):
-        print('hiding geometry window', options['show geometry window'])
         options['show geometry window'] = False
         self.ui_geometry.is_visible = False
         self.ui_show_geometry.disabled = False
 
+    def show_options_window(self):
+        options['show options window'] = True
+        self.ui_options.is_visible = True
+        self.ui_show_options.disabled = True
+    def hide_options_window(self):
+        options['show options window'] = False
+        self.ui_options.is_visible = False
+        self.ui_show_options.disabled = False
+
     def show_main_ui_window(self):
+        options['show main window'] = True
         self.ui_tiny.is_visible = False
         self.ui_main.is_visible = True
     def show_tiny_ui_window(self):
+        options['show main window'] = False
         self.ui_tiny.is_visible = True
         self.ui_main.is_visible = False
 
@@ -524,7 +534,7 @@ class RetopoFlow_UI:
                 ),
             ])
             ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
-            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=delay_exec('self.ui_options.is_visible = True; self.ui_show_options.disabled = True'))
+            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
             self.ui_show_geometry = ui.button(label='Show Geometry', title='Show geometry window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title='Quit RetopoFlow (%s)' % humanread('done'), parent=self.ui_main, on_mouseclick=self.done)
@@ -539,7 +549,7 @@ class RetopoFlow_UI:
 
 
         def setup_options():
-            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=True, hide_on_close=True, close_callback=delay_exec('self.ui_show_options.disabled = False'), parent=self.document.body)
+            self.ui_options = ui.framed_dialog(label='Options', id='optionsdialog', right=0, closeable=True, hide_on_close=True, close_callback=self.hide_options_window, parent=self.document.body)
 
             options['remove doubles dist']
 
@@ -706,6 +716,11 @@ class RetopoFlow_UI:
                 for ui_elem in ui_elems:
                     self.ui_options.append_child(ui_elem)
 
+            if options['show options window']:
+                self.show_options_window()
+            else:
+                self.hide_options_window()
+
 
         def setup_delete_ui():
             def hide_ui_delete():
@@ -755,10 +770,17 @@ class RetopoFlow_UI:
         setup_delete_ui()
         setup_counts_ui()
 
+        if options['show main window']:
+            self.show_main_ui_window()
+        else:
+            self.show_tiny_ui_window()
+
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()
-        if options['welcome']:
-            self.helpsystem_open('welcome.md')
+
+    def show_welcome_message(self):
+        if not options['welcome']: return
+        self.helpsystem_open('welcome.md')
 
     def show_delete_dialog(self):
         if not self.any_selected():

@@ -181,6 +181,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         else:
             self.rfwidget = self.rfwidgets['default']
 
+        for rfwidget in self.rfwidgets.values():
+            if self.rfwidget == rfwidget: continue
+            if rfwidget.inactive_passthrough():
+                self.rfwidget = rfwidget
+                return
+
         # handle edits
         if self.hovering_handles:
             if self.rfcontext.actions.pressed('action'):

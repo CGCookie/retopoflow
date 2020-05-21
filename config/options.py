@@ -111,7 +111,6 @@ class Options:
         'show experimental':    False,  # should show experimental tools?
 
         'welcome':              True,   # show welcome message?
-        'tools_min':            False,  # minimize tools window?
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
         'debug level':          0,      # debug level, 0--5 (for printing to console). 0=no print; 5=print all
@@ -131,7 +130,9 @@ class Options:
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
+        'show main window':     True,  # minimize tools window?
         'show geometry window': True,
+        'show options window':  True,
 
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
@@ -389,9 +390,12 @@ class Options:
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
     def temp_filepath(self, ext):
-        #tempdir = get_preferences().filepaths.temporary_directory
-        tempdir = tempfile.gettempdir()
-        return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
+        if not getattr(bpy.data, 'filepath', ''):
+            # not working on a saved .blend file, yet!
+            tempdir = tempfile.gettempdir()
+            return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
+        base,ext = os.path.splitext(bpy.data.filepath)
+        return '%s_RetopoFlow_AutoSave%s' % (base, ext)
 
 
 def ints_to_Color(r, g, b, a=255): return Color((r/255.0, g/255.0, b/255.0, a/255.0))

@@ -36,20 +36,46 @@ from ...addon_common.common.blender import toggle_screen_header, toggle_screen_t
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
+
 class RetopoFlow_BlenderSave:
     '''
     backup / restore methods
     '''
 
-    def check_auto_save(self):
-        use_auto_save_temporary_files = get_preferences(self.actions.context).filepaths.use_auto_save_temporary_files
-        if not use_auto_save_temporary_files: return
-        if hasattr(self, 'time_to_save'):
-            if time.time() < self.time_to_save: return
-            self.save_backup()
+    def check_auto_save_warnings(self):
+        prefs = get_preferences(self.actions.context)
+        use_auto_save = prefs.filepaths.use_auto_save_temporary_files
+        save = self.actions.to_human_readable('save action')
+        path_blend = getattr(bpy.data, 'filepath', '')
+        path_autosave = options.temp_filepath('blend')
+
+        if use_auto_save and path_blend: return
+
+        message = []
+        if not use_auto_save:
+            message += ['The Auto Save option in Blender (Edit > Preferences > Save & Load > Auto Save) is currently disabled.  Your changes will _NOT_ be saved automatically!']
+        if path_blend:
+            message += ['Press `%s` any time to save your changes.' % (save)]
         else:
-            self.last_change_count = 0
-        auto_save_time = get_preferences(self.actions.context).filepaths.auto_save_time * 60
+            message += ['You are currently working on an _UNSAVED_ Blender file.  Your changes will be saved to `%s` when you press `%s`' % (path_autosave, save)]
+        self.alert_user(
+            title='Blender auto save / save file checker',
+            message='\n\n'.join(message),
+            level='warning',
+        )
+
+    def check_auto_save(self):
+        prefs = get_preferences(self.actions.context)
+        use_auto_save = prefs.filepaths.use_auto_save_temporary_files
+        auto_save_time = prefs.filepaths.auto_save_time * 60
+        if not use_auto_save: return    # Blender's auto save is disabled  :(
+        if not hasattr(self, 'time_to_save'):
+            # RF just started, so do not save yet
+            self.last_change_count = None
+        elif time.time() > self.time_to_save:
+            # it is time to save, but only if changes were made!
+            self.save_backup()
+        # record the next time to save
         self.time_to_save = time.time() + auto_save_time
 
     @staticmethod

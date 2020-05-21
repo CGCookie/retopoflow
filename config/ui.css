@@ -280,6 +280,7 @@ dialog#loadingdialog {
     left: 30%;
     /*height: 60%;*/
     top: -40%;
+    z-index: 10000;
 }
 
 
@@ -427,20 +428,8 @@ dialog#helpsystem div#helpsystem-buttons button {
 
 
 dialog.alertdialog {
-    width: 60%;
+    width: 600px;
     left: 20%;
-}
-dialog.alertdialog.note {
-    background-color: rgba(50, 50, 76, 0.95);
-}
-dialog.alertdialog.warning {
-    background-color: rgba(90, 64, 38, 0.95);
-}
-dialog.alertdialog.error {
-    background-color: rgba(76, 38, 38, 0.95);
-}
-dialog.alertdialog.assert, dialog.alertdialog.exception {
-    background-color: rgba(96, 0, 0, 0.95);
 }
 dialog.alertdialog div#alertdialog-buttons {
     margin: 1px;
@@ -449,6 +438,45 @@ dialog.alertdialog div#alertdialog-buttons {
 dialog.alertdialog div#alertdialog-buttons button {
     display: inline;
     width: 50%;
+}
+
+dialog.alertdialog.note {
+    background-color: rgba(50, 50, 76, 0.95);
+}
+
+
+dialog.alertdialog.warning {
+    /*background-color: rgba(90, 64, 38, 0.95);*/
+    background-color: rgba(128, 72, 8, 0.95);
+}
+dialog.alertdialog.warning div#alertdialog-buttons {
+    background-color: rgba(64, 36, 4, 1.0);
+}
+dialog.alertdialog.warning div#alertdialog-buttons button {
+    background-color: rgba(128, 72, 8, 1.0);
+}
+dialog.alertdialog.warning div#alertdialog-buttons button:hover {
+    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+    background-color: rgba(128, 96, 32, 1.0);
+    border: 1px rgba(32, 32, 32, 1.00);
+}
+dialog.alertdialog.warning div#alertdialog-buttons button:active:hover {
+    color: black;
+    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
+}
+dialog.alertdialog.warning div#alertdialog-buttons button:focus {
+    color: black;
+    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
+}
+
+
+dialog.alertdialog.error {
+    width: 60%;
+    background-color: rgba(76, 38, 38, 0.95);
+}
+dialog.alertdialog.assert, dialog.alertdialog.exception {
+    width: 60%;
+    background-color: rgba(96, 0, 0, 0.95);
 }
 dialog.alertdialog div#crashdetails pre {
     white-space: pre;

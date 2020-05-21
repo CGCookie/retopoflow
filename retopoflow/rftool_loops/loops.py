@@ -118,6 +118,12 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         else:
             self.rfwidget = self.rfwidgets['default']
 
+        for rfwidget in self.rfwidgets.values():
+            if self.rfwidget == rfwidget: continue
+            if rfwidget.inactive_passthrough():
+                self.rfwidget = rfwidget
+                return
+
         if self.hovering_edge:
             if self.rfcontext.actions.pressed('action', unpress=False):
                 self.rfcontext.undo_push('slide edge loop/strip')

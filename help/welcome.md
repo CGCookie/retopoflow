@@ -100,6 +100,7 @@ Below is a list of known issues that we are currently working on.
 - RF actions are not tied into Blender keymaps.
 - RF does not allow execution of other add-ons, pie menus, Blender operators, etc.
 - RF does not work correctly with more than one 3D Views.
+- UI can take about a half second to register hovering or clicking.
 
 
 ## Final Words

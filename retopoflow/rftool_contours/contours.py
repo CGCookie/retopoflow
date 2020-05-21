@@ -157,6 +157,12 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         else:
             self.rfwidget = self.rfwidgets['default']
 
+        for rfwidget in self.rfwidgets.values():
+            if self.rfwidget == rfwidget: continue
+            if rfwidget.inactive_passthrough():
+                self.rfwidget = rfwidget
+                return
+
         if self.actions.pressed('grab'):
             ''' grab for translations '''
             self.move_done_pressed = 'confirm'

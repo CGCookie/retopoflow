@@ -143,6 +143,8 @@ class RFWidget:
             return ret
         return wrapper
 
+    def inactive_passthrough(self): pass
+
     def _draw_pre3d(self):  self._draw.pre3d()
     def _draw_post3d(self): self._draw.post3d()
     def _draw_post2d(self): self._draw.post2d()

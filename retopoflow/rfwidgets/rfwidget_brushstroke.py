@@ -69,6 +69,11 @@ class RFWidget_BrushStroke_Factory:
                 if self.actions.pressed('brush radius'):
                     return 'brush sizing'
 
+            def inactive_passthrough(self):
+                if self.actions.pressed('brush radius'):
+                    self._fsm.force_set_state('brush sizing')
+                    return True
+
             @RFW_BrushStroke.FSM_State('stroking', 'enter')
             def modal_line_enter(self):
                 self.stroke2D = [self.actions.mouse]
@@ -144,7 +149,9 @@ class RFWidget_BrushStroke_Factory:
                 bgl.glEnable(bgl.GL_BLEND)
                 # bgl.glEnable(bgl.GL_MULTISAMPLE)
                 r = (self.sizing_pos - self.actions.mouse).length
+
                 # Globals.drawing.draw2D_circle(self.sizing_pos, r*0.75, self.fill_color, width=r*0.5)
+                Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_border_color, width=7)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_color, width=1)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*0.5, self.inner_color, width=1)
 
