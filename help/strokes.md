@@ -1,4 +1,4 @@
-# Strokes Help ![](strokes_32.png width:32px;height:32px;padding:0px)
+# ![](strokes_32.png width:32px;height:32px;padding:0px) Strokes Help 
 
 Shortcut: {{strokes tool}}
 

@@ -1,4 +1,4 @@
-# Loops Help ![](loops_32.png width:32px;height:32px;padding:0px)
+# ![](loops_32.png width:32px;height:32px;padding:0px) Loops Help 
 
 Shortcut: {{loops tool}}
 

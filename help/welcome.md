@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow 3.0.0β2!
+# Welcome to RetopoFlow 3.0.0 Beta 2!
 
 Welcome to the latest version of RetopoFlow!
 
