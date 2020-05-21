@@ -282,8 +282,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         accel_nearest2D_vert = self.rfcontext.accel_nearest2D_vert
 
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
-        size = self.rfwidget.size
-        stroke = self.rfwidget.stroke2D
+        size = self.rfwidgets['brush'].size
+        stroke = self.rfwidgets['brush'].stroke2D
         stroke = process_stroke_filter(stroke)
         #stroke = process_stroke_source(stroke, raycast_sources_Point2D, is_point_on_mirrored_side=self.rfcontext.is_point_on_mirrored_side)
         #stroke = process_stroke_source(stroke, raycast_sources_Point2D, Point_to_Point2D=Point_to_Point2D, mirror_point=self.rfcontext.mirror_point)
@@ -308,8 +308,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 sel_verts = self.rfcontext.get_selected_verts()
                 sel_edges = self.rfcontext.get_selected_edges()
                 s0,s1 = Point_to_Point2D(stroke3D[0]),Point_to_Point2D(stroke3D[-1])
-                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
+                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
                 bmv0_sel = bmv0 and bmv0 in sel_verts
                 bmv1_sel = bmv1 and bmv1 in sel_verts
                 if bmv0_sel or bmv1_sel:
@@ -346,7 +346,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
@@ -373,13 +373,13 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
 
-        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidget.size)
-        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidget.size)
+        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].size)
+        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].size)
 
         self.defer_recomputing = True
 
@@ -515,8 +515,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         assert bmv0 and bmv1
@@ -551,7 +551,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
@@ -608,8 +608,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         if bmv1 in sel_verts:
@@ -630,7 +630,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidget.size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
@@ -672,8 +672,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         sd = s1 - s0
 
         # check if verts near stroke ends connect to any of the selected strips
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidget.size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidget.size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
@@ -731,7 +731,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         # determine cross count
         if self.strip_crosses is None:
-            self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidget.size)), 2)
+            self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidgets['brush'].size)), 2)
         crosses = self.strip_crosses + 1
 
         self.defer_recomputing = True
