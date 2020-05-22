@@ -13,7 +13,7 @@ To start retopologizing for the first time:
 2. Click on the "RetopoFlow" menu
 3. Click the "RF: Create new target" menu item
 
-![](start_rf_create_new_target.png height:250px)
+![](start_rf_create_new_target.png height:300px)
 
 <br>
 
@@ -23,7 +23,7 @@ To continue working on a previous retopology session:
 2. Switch to Edit Mode
 3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
 
-![](start_rf_tool.png height:250px)
+![](start_rf_tool.png height:300px)
 
 
 ## Other Help
