@@ -183,7 +183,7 @@ class RetopoFlow_States(CookieCutter):
             self.ignore_ui_events = True
 
         if not self.ignore_ui_events:
-            self.check_auto_save()
+            self.handle_auto_save()
 
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):

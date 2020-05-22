@@ -210,7 +210,7 @@ class addon_updater_install_popup(bpy.types.Operator):
 class addon_updater_check_now(bpy.types.Operator):
     bl_label = "Check now for RetopoFlow update"
     bl_idname = "cgcookie.retopoflow_updater_check_now"
-    bl_description = "Check now for an update to the RetopoFlow addon"
+    bl_description = "Check now for an update to the RetopoFlow addon.\nThis is disabled for this release"
     bl_options = {'REGISTER', 'INTERNAL'}
 
     @classmethod
@@ -245,7 +245,7 @@ class addon_updater_check_now(bpy.types.Operator):
 class addon_updater_update_now(bpy.types.Operator):
     bl_label = "Update RetopoFlow addon now"
     bl_idname = "cgcookie.retopoflow_updater_update_now"
-    bl_description = "Update to the latest version of the RetopoFlow addon"
+    bl_description = "Update to the latest version of the RetopoFlow addon.\nThis is disabled for this release"
     bl_options = {'REGISTER', 'INTERNAL'}
 
     # if true, run clean install - ie remove all files before adding new

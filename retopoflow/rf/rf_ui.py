@@ -133,13 +133,13 @@ class RetopoFlow_UI:
 
         def screenshot():
             ss_filename = options['screenshot filename']
-            if bpy.data.filepath == '':
-                # startup file
-                filepath = os.path.abspath(ss_filename)
-            else:
+            if getattr(bpy.data, 'filepath', ''):
                 # loaded .blend file
                 filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
                 filepath = os.path.join(filepath, ss_filename)
+            else:
+                # startup file
+                filepath = os.path.abspath(ss_filename)
             bpy.ops.screen.screenshot(filepath=filepath)
             self.alert_user(message='Saved screenshot to "%s"' % filepath)
         def open_issues():
@@ -350,7 +350,7 @@ class RetopoFlow_UI:
         if hide_target: self.hide_target()
 
     def blender_ui_reset(self, ignore_panels=False):
-        # print('RetopoFlow: blender_ui_reset')
+        # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
         self.end_rotate_about_active()
         self.teardown_target()
         self.unscale_from_unit_box()
@@ -574,7 +574,7 @@ class RetopoFlow_UI:
                         label='Auto Hide Tool Options',
                         title='If enabled, options for selected tool will show while other tool options hide.',
                         checked=self._var_auto_hide_options,
-                        style='display:block;width:100%',
+                        style='display:block; width:100%',
                     ),
                     # ui.button(label='Maximize Area'),
                     ui.collapsible(label='Target Cleaning', id='target-cleaning', children=[
@@ -625,12 +625,47 @@ class RetopoFlow_UI:
                                 on_input=theme_change,
                             ),
                         ]),
-                        ui.collapsible(label='Target Drawing', children=[
-                            ui.labeled_input_text(label='Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
+                        ui.collection(label='Target Drawing', children=[
+                            ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
                             ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
                             ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
+                            ui.collapsible(label='Individual Alpha Values', children=[
+                                ui.collection(label='Verts', children=[
+                                    ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
+                                ]),
+                                ui.collection(label="Edges", children=[
+                                    ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
+                                ]),
+                                ui.collection(label='Faces', children=[
+                                    ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
+                                    ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
+                                ]),
+                            ]),
                         ]),
+                    ]),
+                    ui.collapsible(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
+                        ui.input_checkbox(
+                            label='Check Auto Save',
+                            title='If enabled, check if Auto Save is disabled at start',
+                            checked=BoundBool('''options['check auto save']'''),
+                            style='display:block; width:100%',
+                        ),
+                        ui.input_checkbox(
+                            label='Check Unsaved',
+                            title='If enabled, check if blend file is unsaved at start',
+                            checked=BoundBool('''options['check unsaved']'''),
+                            style='display:block; width:100%',
+                        ),
                     ]),
                     ui.collapsible(label='Visibility Test', title='These options are used to tune the parameters for visibility testing', children=[
                         ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),

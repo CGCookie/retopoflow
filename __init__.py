@@ -83,16 +83,6 @@ class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
     rf_startdoc = 'welcome.md'
 
 
-class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
-    """Start RetopoFlow"""
-    bl_idname = "cgcookie.retopoflow"
-    bl_label = "Start RetopoFlow"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'UNDO', 'BLOCKING'}
-
-
 class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
     """Create new target object+mesh and start RetopoFlow"""
     bl_idname = "cgcookie.retopoflow_newtarget"
@@ -118,6 +108,15 @@ class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
         bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
 
+
+class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
+    """Start RetopoFlow"""
+    bl_idname = "cgcookie.retopoflow"
+    bl_label = "Start RetopoFlow"
+    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO', 'BLOCKING'}
 
 
 def RF_Factory(starting_tool):
@@ -160,17 +159,17 @@ def delayed_check():
     backup_executor.submit(delayed_check)
 #delayed_check()
 
+
 class VIEW3D_OT_RetopoFlow_Recover(Operator):
     bl_idname = 'cgcookie.retopoflow_recover'
     bl_label = 'Recover Auto Save'
-    bl_description = 'Recover from RetopoFlow auto save.\nPath: %s' % options.temp_filepath('blend')
+    bl_description = 'Recover from RetopoFlow auto save'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     rf_icon = 'rf_recover_icon'
 
     @classmethod
     def poll(cls, context):
-        #return False # THIS IS BROKEN!!!
         return retopoflow.RetopoFlow.has_backup()
 
     def invoke(self, context, event):
@@ -196,26 +195,33 @@ class VIEW3D_PT_RetopoFlow(Panel):
 
     def draw(self, context):
         layout = self.layout
+        box = layout.box()
         if VIEW3D_PT_RetopoFlow.is_editing_target(context):
             # currently editing target, so show RF tools
-            layout.label(text='Start RetopoFlow with Tool')
-            col = layout.column()
+            box.label(text='Start RetopoFlow with Tool')
+            col = box.column()
             for c in customs:
                 col.operator(c.bl_idname)
         else:
-            layout.label(text='Start RetopoFlow')
+            box.label(text='Start RetopoFlow')
             # currently not editing target, so show operator to create new target
-            layout.operator('cgcookie.retopoflow_newtarget')
-        layout.separator()
-        layout.label(text='Open Help')
-        layout.operator('cgcookie.retopoflow_help_quickstart')
-        layout.operator('cgcookie.retopoflow_help_welcome')
-        layout.separator()
-        layout.operator('cgcookie.retopoflow_recover')
-        layout.separator()
-        #layout.label(text='RetopoFlow Updater')
-        layout.label(text='RetopoFlow Updater (disabled)')
-        col = layout.column()
+            box.operator('cgcookie.retopoflow_newtarget')
+
+        box = layout.box()
+        box.label(text='Open Help')
+        col = box.column()
+        col.operator('cgcookie.retopoflow_help_quickstart')
+        col.operator('cgcookie.retopoflow_help_welcome')
+
+        box = layout.box()
+        box.label(text='Auto Save')
+        box.operator('cgcookie.retopoflow_recover')
+        # if retopoflow.RetopoFlow.has_backup():
+        #     box.label(text=options['last auto save path'])
+
+        box = layout.box()
+        box.label(text='RetopoFlow Updater (disabled)')
+        col = box.column()
         col.operator('cgcookie.retopoflow_updater_check_now')
         col.operator('cgcookie.retopoflow_updater_update_now')
 

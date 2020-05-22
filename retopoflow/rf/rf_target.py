@@ -23,6 +23,8 @@ import time
 from itertools import chain
 from mathutils import Vector
 
+import bpy
+
 from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import matrix_vector_mult
@@ -69,6 +71,7 @@ class RetopoFlow_Target:
         self.rftarget.obj_render_hide()
 
     def teardown_target(self):
+        # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
         self.rftarget.obj_viewport_unhide()
         self.rftarget.obj_render_unhide()
 
@@ -567,7 +570,6 @@ class RetopoFlow_Target:
         self.rftarget.select(eloop, **kwargs)
 
     def update_rot_object(self):
-        # self.rot_object.location = self.rftarget.get_selection_center()
         bbox = self.rftarget.get_selection_bbox()
         if bbox.min == None:
             #bbox = BBox.merge(src.get_bbox() for src in self.rfsources)
@@ -579,8 +581,9 @@ class RetopoFlow_Target:
             bbox = BBox.merge(bboxes)
         # print('update_rot_object', bbox)
         diff = bbox.max - bbox.min
-        self.rot_object.location = bbox.min + diff / 2
-        self.rot_object.scale = diff / 2
+        rot_object = bpy.data.objects[options['rotate object']]
+        rot_object.location = bbox.min + diff / 2
+        rot_object.scale = diff / 2
 
     #######################################################
     # delete / dissolve

@@ -108,102 +108,97 @@ class Options:
     default_options = {                 # all the default settings for unset or reset
         'rf version':           None,   # if versions differ, flush stored options
 
+        'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
+        'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
+
+        'screenshot filename':  'RetopoFlow_screenshot.png',
+        'instrument_filename':  'RetopoFlow_instrument',
+        'log_filename':         'RetopoFlow_log',
+        'backup_filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
+        'quickstart_filename':  'RetopoFlow_quickstart',
+        'profiler_filename':    'RetopoFlow_profiler.txt',
+        'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
+        'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
+
         'show experimental':    False,  # should show experimental tools?
 
+        # AUTO SAVE
+        'last auto save path':  '',     # file path of last auto save (used for recover)
+
+        # STARTUP
+        'check auto save':      True,   # give warning about disabled auto save at start
+        'check unsaved':        True,   # give warning about unsaved blend file at start
         'welcome':              True,   # show welcome message?
+        'quickstart tool':      'Contours',  # which tool to start with when clicking diamond
+
+        # DIALOGS
+        'show main window':     True,   # True: show main window; False: show tiny
+        'show options window':  True,   # show options window
+        'show geometry window': True,   # show geometry counts window
+        'tools autohide': True,         # should tool's options auto-hide/-show when switching tools?
+
+        # DEBUGGING SETTINGS
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
         'debug level':          0,      # debug level, 0--5 (for printing to console). 0=no print; 5=print all
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
-        'visualize counts':     True,   # visualize geometry counts
-
-        'visualize fps':        False,  # visualize fps
-        'low fps threshold':    5,      # threshold of a low fps
-        'low fps warn':         True,   # warn user of low fps?
-        'low fps time':         10,     # time (seconds) before warning user of low fps
-
         'show tooltips':        True,
         'tooltip delay':        0.75,
+        'escape to quit':       False,  # True:ESC is action for quitting
+
         'keyboard repeat delay': 0.25,  # delay before repeating
         'keyboard repeat pause': 0.10,  # pause between repeats
+
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
-        'show main window':     True,  # minimize tools window?
-        'show geometry window': True,
-        'show options window':  True,
-
-        'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
-        'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
-        'github low fps url':   'https://github.com/CGCookie/retopoflow/issues/448#new_comment_field',
-
-        'tools pos':    7,
-        'info pos':     1,
-        'options pos':  9,
-
-        'async mesh loading': True,
-
-        'tools autohide': True,         # should tool's options auto-hide/-show when switching tools?
-        'tools autocollapse': True,     # should tool's options auto-open/-collapse when switching tools?
-        'background gradient': True,    # draw focus gradient
-
-        'escape to quit': False,        # True:ESC is action for quitting
-
-        'quickstart tool': 'Contours',
-
-        # True=tool's options are visible
-        'tool contours visible': True,
-        'tool polystrips visible': True,
-        'tool polypen visible': True,
-        'tool relax visible': True,
-        'tool tweak visible': True,
-        'tool loops visible': True,
-        'tool patches visible': True,
-        'tool strokes visible': True,
-
-        # True=tool's options are collapsed
-        'tools general collapsed': False,       # is general tools collapsed
-        'tools symmetry collapsed': True,       # is symmetry tools collapsed
-        'tool contours collapsed': True,
-        'tool polystrips collapsed': True,
-        'tool polypen collapsed': True,
-        'tool relax collapsed': True,
-        'tool tweak collapsed': True,
-        'tool loops collapsed': True,
-        'tool patches collapsed': True,
-        'tool strokes collapsed': True,
+        'async mesh loading':   True,   # True: load source meshes asynchronously
 
         'select dist':          10,             # pixels away to select
         'action dist':          20,             # pixels away to allow action
         'remove doubles dist':  0.001,
 
-        # visibility test tuning parameters
+        # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.001,          # rf_sources.visibility_preset_*
         'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
 
+        # VISUALIZATION SETTINGS
         'color theme':              'Green',
         'symmetry view':            'Edge',
         'symmetry effect':          0.5,
         'normal offset multiplier': 1.0,
         'constrain offset':         True,
         'ui scale':                 1.0,
-
-        # visualization settings
         'target vert size':         4.0,
         'target edge size':         1.0,
         'target alpha':             0.10,
         'target hidden alpha':      0.02,
         'target alpha backface':    0.2,
         'target cull backfaces':    False,
+        'target alpha poly':                  0.60,
+        'target alpha poly selected':         0.60,
+        'target alpha poly mirror':           0.25,
+        'target alpha poly mirror selected':  0.25,
+        'target alpha line':                  1.00,
+        'target alpha line selected':         1.00,
+        'target alpha line mirror':           0.25,
+        'target alpha line mirror selected':  0.25,
+        'target alpha point':                 1.00,
+        'target alpha point selected':        1.00,
+        'target alpha point mirror':          0.25,
+        'target alpha point mirror selected': 0.25,
+        'target alpha point highlight':       1.00,
 
-        # 'options filename':     'RetopoFlow_options.json',  # must get handled specially?
-        'screenshot filename':  'RetopoFlow_screenshot.png',
-        'instrument_filename':  'RetopoFlow_instrument',
-        'log_filename':         'RetopoFlow_log',
-        'backup_filename':      'RetopoFlow_backup',
-        'quickstart_filename':  'RetopoFlow_quickstart',
-        'profiler_filename':    'RetopoFlow_profiler.txt',
+        # ADDON UPDATER SETTINGS
+        'updater auto check update': True,
+        'updater interval months': 0,
+        'updater interval days': 1,
+        'updater interval hours': 0,
+        'updater interval minutes': 0,
+
+        #######################################
+        # TOOL SETTINGS
 
         'contours count':   16,
         'contours uniform': True,               # should new cuts be made uniformly about circumference?
@@ -237,13 +232,6 @@ class Options:
         'tweak mask selected':  'all',
 
         'patches angle':        120,
-
-        # addon updater settings
-        'updater auto check update': True,
-        'updater interval months': 0,
-        'updater interval days': 1,
-        'updater interval hours': 0,
-        'updater interval minutes': 0,
     }
 
     db = None           # current options dict
@@ -389,12 +377,11 @@ class Options:
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
-    def temp_filepath(self, ext):
+    def get_auto_save_filepath(self):
         if not getattr(bpy.data, 'filepath', ''):
             # not working on a saved .blend file, yet!
-            tempdir = tempfile.gettempdir()
-            return os.path.join(tempdir, '%s.%s' % (self['backup_filename'], ext))
-        base,ext = os.path.splitext(bpy.data.filepath)
+            return os.path.join(tempfile.gettempdir(), self['backup_filename'])
+        base, ext = os.path.splitext(bpy.data.filepath)
         return '%s_RetopoFlow_AutoSave%s' % (base, ext)
 
 
@@ -406,7 +393,9 @@ class Themes:
     common = {
         'mesh':       ints_to_Color(255, 255, 255, 255),
         'warning':    ints_to_Color(182,  31,   0, 128),
+
         'stroke':     ints_to_Color( 40, 255,  40, 255),
+        'highlight':  ints_to_Color(255, 255,  25, 255),
 
         # RFTools
         'polystrips': ints_to_Color(128, 255, 255,  96),
@@ -417,19 +406,19 @@ class Themes:
 
     themes = {
         'Blue': {
-            'select':  ints_to_Color( 26, 111, 255, 255),
-            'new':     ints_to_Color( 40,  40, 255, 255),
-            'active':  ints_to_Color( 26, 111, 255, 255),
+            'select':  ints_to_Color( 26, 111, 255),
+            'new':     ints_to_Color( 40,  40, 255),
+            'active':  ints_to_Color( 26, 111, 255),
         },
         'Green': {
-            'select':  ints_to_Color( 78, 207,  81, 255),
-            'new':     ints_to_Color( 40, 255,  40, 255),
-            'active':  ints_to_Color( 78, 207,  81, 255),
+            'select':  ints_to_Color( 78, 207,  81),
+            'new':     ints_to_Color( 40, 255,  40),
+            'active':  ints_to_Color( 78, 207,  81),
         },
         'Orange': {
-            'select':  ints_to_Color(207, 135,  78, 255),
-            'new':     ints_to_Color(255, 128,  64, 255),
-            'active':  ints_to_Color(207, 135,  78, 255),
+            'select':  ints_to_Color(207, 135,  78),
+            'new':     ints_to_Color(255, 128,  64),
+            'active':  ints_to_Color(207, 135,  78),
         },
     }
 
@@ -446,12 +435,31 @@ class Visualization_Settings:
         self.update_settings()
 
     def update_settings(self):
-        watch = ['color theme', 'normal offset multiplier', 'constrain offset', 'target vert size', 'target edge size']
+        watch = [
+            'color theme',
+            'normal offset multiplier',
+            'constrain offset',
+            'target vert size',
+            'target edge size',
+            'target alpha poly',
+            'target alpha poly selected',
+            'target alpha poly mirror selected',
+            'target alpha line',
+            'target alpha line selected',
+            'target alpha line mirror',
+            'target alpha line mirror selected',
+            'target alpha point',
+            'target alpha point selected',
+            'target alpha point mirror',
+            'target alpha point mirror selected',
+            'target alpha point highlight',
+        ]
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
 
         color_mesh = themes['mesh']
         color_select = themes['select']
+        color_hilight = themes['highlight']
         normal_offset_multiplier = options['normal offset multiplier']
         constrain_offset = options['constrain offset']
         vert_size = options['target vert size']
@@ -476,37 +484,35 @@ class Visualization_Settings:
         }
 
         self._target_settings = {
-            'poly color':                  (*color_mesh[:3],   0.20),
-            'poly color selected':         (*color_select[:3], 0.30),
+            'poly color':                  (*color_mesh[:3],   options['target alpha poly']),
+            'poly color selected':         (*color_select[:3], options['target alpha poly selected']),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
-            'poly mirror color':           (*color_mesh[:3],   0.10),
-            'poly mirror color selected':  (*color_select[:3], 0.10),
+            'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror']),
+            'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected']),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
-            'line color':                  (*color_mesh[:3],   1.00),
-            'line color selected':         (*color_select[:3], 1.00),
+            'line color':                  (*color_mesh[:3],   options['target alpha line']),
+            'line color selected':         (*color_select[:3], options['target alpha line selected']),
             'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
-            'line mirror stipple':         False,
-            'line mirror color':           (*color_mesh[:3],   0.25),
-            'line mirror color selected':  (*color_select[:3], 0.25),
+            'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror']),
+            'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected']),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
-            'line mirror stipple':         False,
 
-            'point color':                 (*color_mesh[:3],   1.00),
-            'point color selected':        (*color_select[:3], 1.00),
-            'point color highlight':       (1.0, 1.0, 0.1, 1.0),
+            'point color':                 (*color_mesh[:3],   options['target alpha point']),
+            'point color selected':        (*color_select[:3], options['target alpha point selected']),
+            'point color highlight':       (*color_hilight[:3],options['target alpha point highlight']),
             'point size':                  vert_size,
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
-            'point mirror color':          (*color_mesh[:3],   0.25),
-            'point mirror color selected': (*color_select[:3], 0.25),
+            'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror']),
+            'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected']),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,

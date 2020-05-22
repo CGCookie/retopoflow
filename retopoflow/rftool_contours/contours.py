@@ -602,7 +602,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
     @Contours_RFWidgets.RFWidget_LineCut.on_action
     def new_line(self):
-        xy0,xy1 = self.rfwidget.line2D
+        xy0,xy1 = self.rfwidgets['cut'].line2D
         if not xy0 or not xy1: return
         if (xy1-xy0).length < 0.001: return
         xy01 = xy0 + (xy1-xy0) / 2
