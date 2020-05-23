@@ -16,6 +16,11 @@ You can get support for tools by sending a message to CG Cookie on your [Blender
 
 A valid purchase is required for product support.
 
+:warning:
+While it is permissable to grab a copy of RetopoFlow from GitHub, this method is recommended for developers only, because it can get technical.
+If you have issues with enabling the add-on after installing RetopoFlow using this method, please make sure that you have installed RetopoFlow _correctly_ before creating an issue.
+Alternatively, you can purchase a copy from the [Blender Market](https://blendermarket.com/products/retopoflow), and you will get full support along with a packaged version of RetopoFlow.
+
 # Contributing
 Pull requests are welcome! If you'd like to contribute to the project then simply Fork the repo, work on your changes, and then submit a pull request. We are quite strict on what we allow in, but all suggestions are welcome. If you're unsure what to contribute, then look at the [open issues](https://github.com/CGCookie/retopoflow/issues) for the current to-dos.
 
