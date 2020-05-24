@@ -22,35 +22,19 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import os
 import re
 import time
+import textwrap
 import importlib
-import faulthandler
 from concurrent.futures import ThreadPoolExecutor
-
-
-if "bpy" in locals():
-    print('RetopoFlow: RELOADING!')
-    # reloading RF modules
-    importlib.reload(retopoflow)
-    importlib.reload(options)
-    importlib.reload(updater)
-else:
-    print('RetopoFlow: Initial load')
-    from .retopoflow import retopoflow
-    from .config.options import options, retopoflow_version
-    from .retopoflow import updater
 
 import bpy
 from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
-from .addon_common.common.blender import show_blender_text
-
-
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
-    "author":      "Jonathan Denning, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
+    "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Header",
@@ -60,221 +44,322 @@ bl_info = {
     "category":    "3D View",
 }
 
-faulthandler.enable()
-
-class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
-    """Open RetopoFlow Quick Start Guide"""
-    bl_idname = "cgcookie.retopoflow_help_quickstart"
-    bl_label = "Open Quick Start Guide"
-    bl_description = "Open RetopoFlow Quick Start Guide"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
-    rf_startdoc = 'quick_start.md'
-
-class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
-    """Open RetopoFlow Welcome"""
-    bl_idname = "cgcookie.retopoflow_help_welcome"
-    bl_label = "Open Welcome Message"
-    bl_description = "Open RetopoFlow Welcome Message"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
-    rf_startdoc = 'welcome.md'
-
-
-class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
-    """Create new target object+mesh and start RetopoFlow"""
-    bl_idname = "cgcookie.retopoflow_newtarget"
-    bl_label = "RF: Create new target"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def invoke(self, context, event):
-        auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
-        bpy.context.preferences.edit.use_enter_edit_mode = False
-        for o in bpy.data.objects: o.select_set(False)
-        mesh = bpy.data.meshes.new('RetopoFlow')
-        obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
-        obj.select_set(True)
-        context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
-        return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
+import_succeeded = False
+try:
+    if "retopoflow" in locals():
+        print('RetopoFlow: RELOADING!')
+        # reloading RF modules
+        importlib.reload(retopoflow)
+        importlib.reload(options)
+        importlib.reload(updater)
+    else:
+        print('RetopoFlow: Initial load')
+        from .retopoflow import retopoflow
+        from .config.options import options, retopoflow_version
+        from .retopoflow import updater
+    import_succeeded = True
+except ModuleNotFoundError as e:
+    print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
+    print(e)
+except Exception as e:
+    print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
+    print(e)
 
 
-class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
-    """Start RetopoFlow"""
-    bl_idname = "cgcookie.retopoflow"
-    bl_label = "Start RetopoFlow"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'UNDO', 'BLOCKING'}
+# the classes to register/unregister
+RF_classes = []
 
 
-def RF_Factory(starting_tool):
-    class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
-        """Start RetopoFlow with a specific tool"""
-        bl_idname = "cgcookie.retopoflow_%s" % starting_tool.lower()
-        bl_label = "RF: %s" % starting_tool
-        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s" % starting_tool
+if import_succeeded:
+    '''
+    create operators for viewing RetopoFlow help documents
+    '''
+
+    class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Quick Start Guide"""
+        bl_idname = "cgcookie.retopoflow_help_quickstart"
+        bl_label = "Open Quick Start Guide"
+        bl_description = "Open RetopoFlow Quick Start Guide"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = {'REGISTER', 'UNDO'}
-        rf_starting_tool = starting_tool
-    return VIEW3D_OT_RetopoFlow_Tool
-customs = [
-    RF_Factory(n) for n in [
-        'Contours',
-        'PolyStrips',
-        'PolyPen',
-        'Relax',
-        'Tweak',
-        'Loops',
-        'Patches',
-        'Strokes',
-    ] ]
+        rf_startdoc = 'quick_start.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_QuickStart]
+
+    class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Welcome"""
+        bl_idname = "cgcookie.retopoflow_help_welcome"
+        bl_label = "Open Welcome Message"
+        bl_description = "Open RetopoFlow Welcome Message"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+        rf_startdoc = 'welcome.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
 
-perform_backup_recovery = False
-backup_executor = ThreadPoolExecutor()
-@persistent
-def delayed_check():
-    global perform_backup_recovery, backup_executor
-    time.sleep(0.2)
-    if perform_backup_recovery:
-        print('Performing backup')
-        perform_backup_recovery = False
-        retopoflow.RetopoFlow.backup_recover()
-    else:
-        #print('skipping backup')
-        pass
-    backup_executor.submit(delayed_check)
-#delayed_check()
-
-
-class VIEW3D_OT_RetopoFlow_Recover(Operator):
-    bl_idname = 'cgcookie.retopoflow_recover'
-    bl_label = 'Recover Auto Save'
-    bl_description = 'Recover from RetopoFlow auto save'
+class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
+    bl_idname = 'cgcookie.retopoflow_blendermarket'
+    bl_label = 'Visit Blender Market'
+    bl_description = 'Open the Blender Market RetopoFlow page'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    rf_icon = 'rf_recover_icon'
-
-    @classmethod
-    def poll(cls, context):
-        return retopoflow.RetopoFlow.has_backup()
 
     def invoke(self, context, event):
-        global perform_backup_recovery
-        #perform_backup_recovery = True
-        retopoflow.RetopoFlow.backup_recover()
+        bpy.ops.wm.url_open(url='https://blendermarket.com/products/retopoflow')
         return {'FINISHED'}
+RF_classes += [VIEW3D_OT_RetopoFlow_BlenderMarket]
 
 
-class VIEW3D_PT_RetopoFlow(Panel):
-    """RetopoFlow Blender Menu"""
-    bl_label = "RetopoFlow %s" % retopoflow_version
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
 
-    @staticmethod
-    def is_editing_target(context):
-        obj = context.active_object
-        mode_string = context.mode
-        edit_object = context.edit_object
-        gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
-        return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
+if import_succeeded:
+    '''
+    create operators to start RetopoFlow
+    '''
 
-    def draw(self, context):
-        layout = self.layout
-        box = layout.box()
-        if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-            # currently editing target, so show RF tools
-            box.label(text='Start RetopoFlow with Tool')
-            col = box.column()
-            for c in customs:
-                col.operator(c.bl_idname)
-        else:
-            box.label(text='Start RetopoFlow')
-            # currently not editing target, so show operator to create new target
-            box.operator('cgcookie.retopoflow_newtarget')
+    class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
+        """Create new target object+mesh and start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow_newtarget"
+        bl_label = "RF: Create new target"
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
 
-        box = layout.box()
-        box.label(text='Open Help')
-        col = box.column()
-        col.operator('cgcookie.retopoflow_help_quickstart')
-        col.operator('cgcookie.retopoflow_help_welcome')
+        @classmethod
+        def poll(cls, context):
+            return True
 
-        box = layout.box()
-        box.label(text='Auto Save')
-        box.operator('cgcookie.retopoflow_recover')
-        # if retopoflow.RetopoFlow.has_backup():
-        #     box.label(text=options['last auto save path'])
+        def invoke(self, context, event):
+            auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
+            bpy.context.preferences.edit.use_enter_edit_mode = False
+            for o in bpy.data.objects: o.select_set(False)
+            mesh = bpy.data.meshes.new('RetopoFlow')
+            obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
+            return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
+    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget]
 
-        box = layout.box()
-        box.label(text='RetopoFlow Updater (disabled)')
-        col = box.column()
-        col.operator('cgcookie.retopoflow_updater_check_now')
-        col.operator('cgcookie.retopoflow_updater_update_now')
+    class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
+        """Start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow"
+        bl_label = "Start RetopoFlow"
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'UNDO', 'BLOCKING'}
+    RF_classes += [VIEW3D_OT_RetopoFlow]
 
-    #############################################################################
-    # the following two methods add/remove RF to/from the main 3D View menu
-    # NOTE: this is a total hack: hijacked the draw function!
-    @staticmethod
-    def menu_add():
-        # for more icon options, see:
-        #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
-        VIEW3D_PT_RetopoFlow.menu_remove()
-        VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
-        def hijacked(context, layout):
+    def VIEW3D_OT_RetopoFlow_Tool_Factory(starting_tool):
+        class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
+            """Start RetopoFlow with a specific tool"""
+            bl_idname = "cgcookie.retopoflow_%s" % starting_tool.lower()
+            bl_label = "RF: %s" % starting_tool
+            bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s" % starting_tool
+            bl_space_type = "VIEW_3D"
+            bl_region_type = "TOOLS"
+            bl_options = {'REGISTER', 'UNDO'}
+            rf_starting_tool = starting_tool
+        # just in case: remove spaces, so that class name is proper
+        VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % starting_tool.replace(' ', '')
+        return VIEW3D_OT_RetopoFlow_Tool
+    RF_tool_classes = [
+        VIEW3D_OT_RetopoFlow_Tool_Factory(n) for n in [
+            'Contours',
+            'PolyStrips',
+            'PolyPen',
+            'Relax',
+            'Tweak',
+            'Loops',
+            'Patches',
+            'Strokes',
+        ] ]
+    RF_classes += RF_tool_classes
+
+
+if import_succeeded:
+    '''
+    create operator for recovering auto save
+    '''
+
+    class VIEW3D_OT_RetopoFlow_Recover(Operator):
+        bl_idname = 'cgcookie.retopoflow_recover'
+        bl_label = 'Recover Auto Save'
+        bl_description = 'Recover from RetopoFlow auto save'
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'TOOLS'
+        rf_icon = 'rf_recover_icon'
+
+        @classmethod
+        def poll(cls, context):
+            return retopoflow.RetopoFlow.has_backup()
+
+        def invoke(self, context, event):
+            global perform_backup_recovery
+            retopoflow.RetopoFlow.backup_recover()
+            return {'FINISHED'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_Recover]
+
+
+if import_succeeded:
+    '''
+    create panel for showing tools in Blender
+    '''
+
+    class VIEW3D_PT_RetopoFlow(Panel):
+        """RetopoFlow Blender Menu"""
+        bl_label = "RetopoFlow %s" % retopoflow_version
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+
+        @staticmethod
+        def is_editing_target(context):
             obj = context.active_object
             mode_string = context.mode
             edit_object = context.edit_object
             gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+            return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
 
-            VIEW3D_PT_RetopoFlow._menu_original(context, layout)
-
-            row = layout.row(align=True)
+        def draw(self, context):
+            layout = self.layout
+            box = layout.box()
             if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
-            # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-            row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
-            row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
-        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
-    @staticmethod
-    def menu_remove():
-        if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
-        bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
-        del VIEW3D_PT_RetopoFlow._menu_original
+                # currently editing target, so show RF tools
+                box.label(text='Start RetopoFlow with Tool')
+                col = box.column()
+                for c in RF_tool_classes:
+                    col.operator(c.bl_idname)
+            else:
+                box.label(text='Start RetopoFlow')
+                # currently not editing target, so show operator to create new target
+                box.operator('cgcookie.retopoflow_newtarget', icon='ADD')
+
+            box = layout.box()
+            box.label(text='Help and Support')
+            col = box.column()
+            col.operator('cgcookie.retopoflow_help_quickstart', icon='QUESTION')
+            col.operator('cgcookie.retopoflow_help_welcome', icon='QUESTION')
+            col = box.column()
+            col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+
+            box = layout.box()
+            box.label(text='Auto Save')
+            box.operator('cgcookie.retopoflow_recover')
+            # if retopoflow.RetopoFlow.has_backup():
+            #     box.label(text=options['last auto save path'])
+
+            box = layout.box()
+            box.label(text='RetopoFlow Updater (disabled)')
+            col = box.column()
+            col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates')
+            col.operator('cgcookie.retopoflow_updater_update_now', text='Update now')
+
+        #############################################################################
+        # the following two methods add/remove RF to/from the main 3D View menu
+        # NOTE: this is a total hack: hijacked the draw function!
+        @staticmethod
+        def menu_add():
+            # for more icon options, see:
+            #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
+            VIEW3D_PT_RetopoFlow.menu_remove()
+            VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+            def hijacked(context, layout):
+                obj = context.active_object
+                mode_string = context.mode
+                edit_object = context.edit_object
+                gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+
+                VIEW3D_PT_RetopoFlow._menu_original(context, layout)
+
+                row = layout.row(align=True)
+                if VIEW3D_PT_RetopoFlow.is_editing_target(context):
+                    row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
+                # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+                row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
+                row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
+            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
+        @staticmethod
+        def menu_remove():
+            if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
+            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
+            del VIEW3D_PT_RetopoFlow._menu_original
+    RF_classes += [VIEW3D_PT_RetopoFlow]
 
 
-# registration
-classes = [
-    VIEW3D_PT_RetopoFlow,
-    VIEW3D_OT_RetopoFlow,
-    VIEW3D_OT_RetopoFlow_NewTarget,
-    VIEW3D_OT_RetopoFlow_Recover,
-    VIEW3D_OT_RetopoFlow_Help_QuickStart,
-    VIEW3D_OT_RetopoFlow_Help_Welcome,
-] + customs
+if not import_succeeded:
+    '''
+    importing failed.  show this to the user!
+    '''
+
+    class VIEW3D_PT_RetopoFlow(Panel):
+        """RetopoFlow Blender Menu"""
+        bl_label = "RetopoFlow (broken)"
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+
+        def draw(self, context):
+            layout = self.layout
+
+            box = layout.box()
+            box.label(text='RetopoFlow cannot start.', icon='ERROR')
+
+            box = layout.box()
+            tw = textwrap.TextWrapper(width=35)
+            report_lines = [
+                'This is likely due to an incorrect installation of the add-on.',
+                'Please download the latest version from the Blender Market.',
+                'If you continue to see this error, contact us through the Blender Market Indox, and we will work to get it fixed!',
+            ]
+            for report_line in report_lines:
+                col = box.column()
+                for l in tw.wrap(text=report_line):
+                    col.label(text=l)
+
+            box = layout.box()
+            box.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+
+        #############################################################################
+        # the following two methods add/remove RF to/from the main 3D View menu
+        # NOTE: this is a total hack: hijacked the draw function!
+        @staticmethod
+        def menu_add():
+            # for more icon options, see:
+            #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
+            VIEW3D_PT_RetopoFlow.menu_remove()
+            VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+            def hijacked(context, layout):
+                obj = context.active_object
+                mode_string = context.mode
+                edit_object = context.edit_object
+                gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+
+                VIEW3D_PT_RetopoFlow._menu_original(context, layout)
+
+                row = layout.row(align=True)
+                # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+                row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow (broken)")
+            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
+        @staticmethod
+        def menu_remove():
+            if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
+            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
+            del VIEW3D_PT_RetopoFlow._menu_original
+    RF_classes += [VIEW3D_PT_RetopoFlow]
+
+
 
 def register():
-    for cls in classes: bpy.utils.register_class(cls)
-    updater.register(bl_info)
+    for cls in RF_classes: bpy.utils.register_class(cls)
+    if import_succeeded: updater.register(bl_info)
     VIEW3D_PT_RetopoFlow.menu_add()
 
 def unregister():
     VIEW3D_PT_RetopoFlow.menu_remove()
-    updater.unregister()
-    for cls in reversed(classes): bpy.utils.unregister_class(cls)
+    if import_succeeded: updater.unregister()
+    for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)
 
 if __name__ == "__main__":
     register()
