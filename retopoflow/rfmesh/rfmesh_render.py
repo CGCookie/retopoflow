@@ -122,6 +122,7 @@ class RFMeshRender():
         self.buffered_renders = []
         self.drawing = Globals.drawing
 
+        self.opts = {}
         self.replace_rfmesh(rfmesh)
         self.replace_opts(opts)
 
@@ -138,8 +139,10 @@ class RFMeshRender():
 
     @profiler.function
     def replace_opts(self, opts):
+        opts = dict(opts)
+        opts['dpi mult'] = self.drawing.get_dpi_mult()
+        if opts == self.opts: return
         self.opts = opts
-        self.opts['dpi mult'] = self.drawing.get_dpi_mult()
         self.rfmesh_version = None
 
     @profiler.function

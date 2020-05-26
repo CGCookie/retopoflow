@@ -32,6 +32,7 @@ from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.debug import tprint
 from ...addon_common.common.hasher import Hasher
 from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
@@ -110,8 +111,8 @@ class RetopoFlow_Drawing:
 
     @CookieCutter.Draw('post3d')
     def draw_greasemarks(self):
-        if not self.actions.r3d: return
         return
+        if not self.actions.r3d: return
         # THE FOLLOWING CODE NEEDS UPDATED TO NOT USE GLBEGIN!
         with profiler.code('grease marks'):
             bgl.glBegin(bgl.GL_QUADS)
