@@ -473,7 +473,7 @@ class RetopoFlow_UI:
                 radio = ui.input_radio(
                     id='ttool-%s' % lbl.lower(),
                     value=lbl.lower(),
-                    title='%s (%s): %s' % (rftool.name, humanread(rftool.shortcut), rftool.description),
+                    title='%s: %s. Shortcut: %s' % (rftool.name, rftool.description, humanread(rftool.shortcut)),
                     name="ttool",
                     classes="ttool",
                     checked=checked,
@@ -499,7 +499,7 @@ class RetopoFlow_UI:
                 radio = ui.input_radio(
                     id='tool-%s' % lbl.lower(),
                     value=lbl.lower(),
-                    title='%s (%s)' % (rftool.description, humanread(rftool.shortcut)),
+                    title='%s. Shortcut: %s' % (rftool.description, humanread(rftool.shortcut)),
                     name="tool",
                     classes="tool",
                     checked=checked,
