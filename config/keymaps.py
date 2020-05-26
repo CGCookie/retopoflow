@@ -69,9 +69,6 @@ default_rf_keymaps = {
 
     'done': {'TAB'},  # if options['escape to quit'], then 'ESC' is added
 
-    'undo': {'CTRL+Z'},
-    'redo': {'CTRL+SHIFT+Z'},
-
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE', 'CTRL+SHIFT+LEFTMOUSE+DOUBLE'},

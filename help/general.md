@@ -16,7 +16,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 |  |  |  |
 | --- | --- | --- |
 | {{done}}          | : | quit RetopoFlow |
-| {{save action}}   | : | save blend file (same as Blender's save) |
+| {{blender save}}  | : | save blend file (same as Blender's save) |
 | {{general help}}  | : | view general help (this document) |
 | {{all help}}      | : | view all help documents (table of contents) |
 | {{tool help}}     | : | view help for currently selected tool |
@@ -60,8 +60,8 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{rotate}}                            | : | rotate selected geometry |
 | {{scale}}                             | : | scale selected geometry |
 | {{delete}}                            | : | delete / dissolve selection |
-| {{undo}}                              | : | undo |
-| {{redo}}                              | : | redo |
+| {{blender undo}}                      | : | undo |
+| {{blender redo}}                      | : | redo |
 
 
 

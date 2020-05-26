@@ -90,7 +90,7 @@ class RetopoFlow_States(CookieCutter):
                 self.helpsystem_open(self.rftool.help)
                 return
 
-            if self.actions.pressed('save action'):
+            if self.actions.pressed('blender save'):
                 self.save_normal()
                 return
 
@@ -135,11 +135,11 @@ class RetopoFlow_States(CookieCutter):
             #     return
 
             # handle undo/redo
-            if self.actions.pressed('undo'):
+            if self.actions.pressed('blender undo'):
                 self.undo_pop()
                 if self.rftool: self.rftool._reset()
                 return
-            if self.actions.pressed('redo'):
+            if self.actions.pressed('blender redo'):
                 self.redo_pop()
                 if self.rftool: self.rftool._reset()
                 return

@@ -77,7 +77,7 @@ class RetopoFlow_BlenderSave:
     def check_auto_save_warnings(self):
         prefs = get_preferences(self.actions.context)
         use_auto_save = prefs.filepaths.use_auto_save_temporary_files
-        save = self.actions.to_human_readable('save action')
+        save = self.actions.to_human_readable('blender save')
         path_blend = getattr(bpy.data, 'filepath', '')
         path_autosave = options.get_auto_save_filepath()
 
