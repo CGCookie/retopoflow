@@ -378,6 +378,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
 
+        if len(nstroke) < 2: return  # too few stroke points, from a short stroke?
+
         snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].size)
         snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].size)
 
