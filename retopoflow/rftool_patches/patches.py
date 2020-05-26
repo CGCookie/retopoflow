@@ -75,6 +75,10 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         self._var_angle = BoundFloat('''options['patches angle']''', min_value=0, max_value=180)
         self._var_crosses = BoundInt('''self.var_crosses''', min_value=1, max_value=500)
 
+    @RFTool_Patches.on_reset
+    def reset(self):
+        self.defer_recomputing = False
+
     @property
     def var_crosses(self):
         if self.crosses is None: return 0
@@ -134,6 +138,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
     @RFTool_Patches.on_reset
     @RFTool_Patches.on_target_change
     def update(self):
+        if self.defer_recomputing: return
         self.rfcontext.get_vis_accel()
         self.crosses = None
         self._recompute()
@@ -157,8 +162,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         if self.hovering_sel_edge or self.hovering_sel_face:
             if self.actions.pressed('action'):
-                self.rfcontext.undo_push('move grabbed')
-                self.prep_move()
                 self.move_done_pressed = None
                 self.move_done_released = 'action'
                 self.move_cancelled = 'cancel'
@@ -179,8 +182,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             return
 
         if self.rfcontext.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
             self.move_done_pressed = 'confirm'
             self.move_done_released = None
             self.move_cancelled = 'cancel'
@@ -230,10 +231,25 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
+    @RFTool_Patches.FSM_State('move', 'enter')
+    def move_enter(self):
+        self.sel_verts = self.rfcontext.get_selected_verts()
+        self.vis_accel = self.rfcontext.get_vis_accel()
+        self.vis_verts = self.rfcontext.accel_vis_verts
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
+        self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.sel_verts]
+        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv and bmv not in self.sel_verts]
+        self.mousedown = self.rfcontext.actions.mouse
+        self.defer_recomputing = True
+
+        self.rfcontext.undo_push('move grabbed')
+
+        self._timer = self.actions.start_timer(120)
+
     @RFTool_Patches.FSM_State('move')
     @RFTool.dirty_when_done
-    @profiler.function
-    def modal_move(self):
+    def move_main(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -248,22 +264,31 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        if not self.rfcontext.actions.timer: return
+        if self.actions.mouse_prev == self.actions.mouse: return
+        # if not self.actions.mousemove: return
+
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
             xy_updated = xy + delta
-            # check if xy_updated is "close" to any visible verts (in image plane)
-            # if so, snap xy_updated to vert position (in image plane)
-            if options['polypen automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
-                    set2D_vert(bmv, xy_updated)
-            else:
-                set2D_vert(bmv, xy_updated)
+            set2D_vert(bmv, xy_updated)
+            # # check if xy_updated is "close" to any visible verts (in image plane)
+            # # if so, snap xy_updated to vert position (in image plane)
+            # if options['polypen automerge']:
+            #     for bmv1,xy1 in self.vis_bmverts:
+            #         if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
+            #             set2D_vert(bmv, xy1)
+            #             break
+            #     else:
+            #         set2D_vert(bmv, xy_updated)
+            # else:
+            #     set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+
+    @RFTool_Patches.FSM_State('move', 'exit')
+    def move_exit(self):
+        self._timer.done()
 
     @RFTool.dirty_when_done
     def fill_patch(self):
