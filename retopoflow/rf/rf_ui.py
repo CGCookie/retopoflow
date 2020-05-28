@@ -46,7 +46,7 @@ from ...addon_common.common.profiler import profiler
 from ...config.options import (
     options, themes, visualization,
     retopoflow_issues_url, retopoflow_tip_url,
-    retopoflow_version, retopoflow_version_git,
+    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
     gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
@@ -62,6 +62,8 @@ def get_environment_details():
     env_details += ['- RetopoFlow: %s' % (retopoflow_version, )]
     if retopoflow_version_git:
         env_details += ['- RF git: %s' % (retopoflow_version_git, )]
+    if retopoflow_cgcookie_built:
+        env_details += ['- CG Cookie built']
     env_details += ['- Blender: %s' % (' '.join([
         blender_version,
         blender_branch,
@@ -151,7 +153,7 @@ class RetopoFlow_UI:
             nonlocal msg_report
             nonlocal report_details
 
-            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template.md')
+            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
                 'title': '%s: %s' % (self.rftool.name, title),

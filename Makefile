@@ -21,6 +21,8 @@ GIT_TAG         = v3.00.0
 GIT_TAG_MESSAGE = "Version 3.00.0"
 
 BUILD_DIR       = ../retopoflow_release
+DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py
+CGCOOKIE_BUILT  = $(NAME)/.cgcookie
 ZIP_FILE        = $(NAME)_$(VERSION).zip
 TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
 
@@ -48,9 +50,16 @@ build:
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
-	# rsync flag -a == archive (same as -rlptgoD)
+	# copy files over to build folder
+	# note: rsync flag -a == archive (same as -rlptgoD)
 	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
-	cd $(BUILD_DIR) ; zip -r $(ZIP_FILE) $(NAME)
+	cd $(BUILD_DIR)
+	# run debug cleanup
+	python3 $(DEBUG_CLEANUP) "YES!"
+	# touch file so that we know it was packaged by us
+	cat "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
+	# zip it!
+	zip -r $(ZIP_FILE) $(NAME)
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"

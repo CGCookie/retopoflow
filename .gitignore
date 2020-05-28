@@ -1,3 +1,7 @@
+# do not include the CG Cookie built indicator file
+.cgcookie
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

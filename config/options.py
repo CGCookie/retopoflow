@@ -66,12 +66,13 @@ retopoflow_version_git = None
 def get_git_info():
     global retopoflow_version_git
     try:
-        git_head_path = os.path.join('.git', 'HEAD')
+        path_git = os.path.join(os.path.dirname(__file__), '..', '.git')
+        git_head_path = os.path.join(path_git, 'HEAD')
         if not os.path.exists(git_head_path): return
         git_ref_path = open(git_head_path).read().split()[1]
         assert git_ref_path.startswith('refs/heads/')
         git_ref_path = git_ref_path[len('refs/heads/'):]
-        git_ref_fullpath = os.path.join('.git', 'logs', 'refs', 'heads', git_ref_path)
+        git_ref_fullpath = os.path.join(path_git, 'logs', 'refs', 'heads', git_ref_path)
         if not os.path.exists(git_ref_fullpath): return
         log = open(git_ref_fullpath).read().splitlines()
         commit = log[-1].split()[1]
@@ -81,6 +82,8 @@ def get_git_info():
         print('An exception occurred while checking git info')
         print(e)
 get_git_info()
+
+retopoflow_cgcookie_built = os.path.exists(os.path.join(os.path.dirname(__file__), '..', '.cgcookie'))
 
 
 ###########################################

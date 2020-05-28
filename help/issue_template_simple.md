@@ -14,13 +14,6 @@ Please prefix your issue name with one of the following: **[BUG]** **[PROPOSAL]*
 Issue Template
 -----------------------------------
 
-RetopoFlow Version: {*add here*}
-
-Blender Version/Hash: {*add here*}
-
-Platform Version/Distribution: {*add here*}
-
-
 **Issue:**
 
 {*enter your issue here*}
