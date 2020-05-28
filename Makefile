@@ -53,13 +53,12 @@ build:
 	# copy files over to build folder
 	# note: rsync flag -a == archive (same as -rlptgoD)
 	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
-	cd $(BUILD_DIR)
-	# run debug cleanup
-	python3 $(DEBUG_CLEANUP) "YES!"
 	# touch file so that we know it was packaged by us
-	cat "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
+	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
+	# run debug cleanup
+	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
 	# zip it!
-	zip -r $(ZIP_FILE) $(NAME)
+	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"

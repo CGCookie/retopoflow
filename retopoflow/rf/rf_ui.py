@@ -109,9 +109,10 @@ class RetopoFlow_UI:
 
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
+        print('RF_UI.handle_exception', e)
         if False:
-            print('RF_UI.handle_exception', e)
-            for entry in inspect.stack(): print('  %s' % str(entry))
+            for entry in inspect.stack():
+                print('  %s' % str(entry))
         message,h = Globals.debugger.get_exception_info_and_hash()
         message = '\n'.join('- %s'%l for l in message.splitlines())
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)

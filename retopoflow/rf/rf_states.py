@@ -111,6 +111,9 @@ class RetopoFlow_States(CookieCutter):
                     self.ui_geometry.is_visible = self.ui_show_geometry.disabled
                 return
 
+            # if self.actions.pressed('F5'): breakit = 42 / 0
+            # if self.actions.pressed('F6'): assert False
+
             if self.actions.pressed('F10'):
                 profiler.clear()
                 return
