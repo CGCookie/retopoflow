@@ -345,7 +345,8 @@ class Options:
         if keys is None:
             keys = list(Options.db.keys())
         for key in keys:
-            del Options.db[key]
+            if key in Options.db:
+                del Options.db[key]
         if version:
             Options.db['rf version'] = retopoflow_version
         self.dirty()
