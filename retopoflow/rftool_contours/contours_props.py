@@ -44,6 +44,7 @@ class Contours_Props:
         self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
         self._var_cut_count = BoundInt('''self.var_cut_count''', min_value=3, max_value=500)
         self._var_uniform_cut = BoundBool('''options['contours uniform']''')
+        self._var_nonmanifold = BoundBool('''options['contours non-manifold check']''')
 
     @property
     def var_cut_count(self):

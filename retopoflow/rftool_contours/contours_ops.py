@@ -45,7 +45,7 @@ RFTool_Contours = rftools['RFTool_Contours']
 
 class Contours_Ops:
     @RFTool_Contours.dirty_when_done
-    def new_cut(self, ray, plane, count=None, walk_to_plane=True, check_hit=None):
+    def new_cut(self, ray, plane, count=None, walk_to_plane=True, check_hit=None, perform_nonmanifold_check=None):
         self.pts = []
         self.cut_pts = []
         self.cuts = []
@@ -303,6 +303,14 @@ class Contours_Ops:
 
         self.rfcontext.select(edges)
 
+        if perform_nonmanifold_check is None or perform_nonmanifold_check:
+            if options['contours non-manifold check'] and not connected and (verts[0].co - verts[-1].co).length < 0.01:
+                self.rfcontext.alert_user('\n'.join([
+                    'It seems the stroke has cut across a non-manifold edge in the source mesh.',
+                    '',
+                    '''<input type="checkbox" value="options['contours non-manifold check']">Perform this check</input>'''
+                ]), level='warning')
+
     @RFTool_Contours.dirty_when_done
     def fill(self):
         sel_edges = self.rfcontext.get_selected_edges()
@@ -371,7 +379,7 @@ class Contours_Ops:
         plane = cl.plane
         ray = self.rfcontext.Point2D_to_Ray(self.rfcontext.Point_to_Point2D(avg))
         self.rfcontext.delete_edges(e for v in string for e in v.link_edges)
-        self.new_cut(ray, plane, walk_to_plane=True, count=count_new)
+        self.new_cut(ray, plane, walk_to_plane=True, count=count_new, perform_nonmanifold_check=False)
 
 
 

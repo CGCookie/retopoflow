@@ -32,6 +32,7 @@ from ..rftool import rftools
 
 from ...addon_common.common import ui
 from ...addon_common.common.utils import delay_exec
+from ...addon_common.common.boundvar import BoundBool
 from ...config.options import options
 
 
@@ -50,11 +51,16 @@ class Contours_UI:
             ui.labeled_input_text(
                 label='Initial Count',
                 title='Number of vertices to create in a new cut.',
-                value=self._var_init_count
+                value=self._var_init_count,
             ),
             ui.labeled_input_text(
                 label='Cut Count',
                 title='Number of vertices in currently selected cut.',
-                value=self._var_cut_count
+                value=self._var_cut_count,
+            ),
+            ui.input_checkbox(
+                label='Non-manifold check',
+                title='Check for non-manifold edges under each cut.',
+                checked=self._var_nonmanifold,
             ),
         ])

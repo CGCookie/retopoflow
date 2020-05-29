@@ -28,6 +28,7 @@ from mathutils import Matrix
 from ..rftool import RFTool
 
 from ...addon_common.common.globals import Globals
+from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
@@ -234,7 +235,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         sel_loops = find_loops(sel_edges)
         if not sel_loops:
             if self.strings_data:
-                self.rfcontext.alert_user('Cannot plane-rotate loops that cross the symmetry plane')
+                self.rfcontext.alert_user('Can only plane-rotate complete loops that do not cross the symmetry plane')
             else:
                 self.rfcontext.alert_user('Could not find valid loops to plane-rotate')
             return False
@@ -672,7 +673,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         text_draw2D = self.rfcontext.drawing.text_draw2D
         self.rfcontext.drawing.set_font_size(12)
 
-        bmv_count = {}
+        bmv_count = set()
+        bmv_count_loops = {}
+        bmv_count_strings = {}
 
         for loop_data in self.loops_data:
             loop = loop_data['loop']
@@ -687,8 +690,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             if any(vis):
                 loop = [(bmv,co) for (bmv, co, vi) in zip(loop, cos, vis) if vi]
                 bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
-                if bmv not in bmv_count: bmv_count[bmv] = []
-                bmv_count[bmv].append( (count, True) )
+                if bmv not in bmv_count_loops: bmv_count_loops[bmv] = []
+                bmv_count_loops[bmv].append(count)
+                bmv_count.add(bmv)
 
             # draw arrows
             # if self.show_arrows:
@@ -714,8 +718,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             if any(vis):
                 string = [(bmv,co) for (bmv, co, vi) in zip(string, cos, vis) if vi]
                 bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
-                if bmv not in bmv_count: bmv_count[bmv] = []
-                bmv_count[bmv].append( (count, False) )
+                if bmv not in bmv_count_strings: bmv_count_strings[bmv] = []
+                bmv_count_strings[bmv].append(count)
+                bmv_count.add(bmv)
 
             # draw arrows
             # if self.show_arrows:
@@ -729,13 +734,18 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             #         bgl.glColor4f(1,0,1,0.5)
             #         draw2D_arrow(p0, p1)
 
-        for bmv in bmv_count.keys():
-            counts = bmv_count[bmv]
-            counts = sorted([c for c,_ in counts])
-            s = ','.join(map(str, counts))
+        for bmv in bmv_count:
+            counts_loops = sorted(bmv_count_loops.get(bmv, []))
+            counts_strings = sorted(bmv_count_strings.get(bmv, []))
+            s_loops = ','.join(map(str, counts_loops))
+            s_strings = ','.join(map(str, counts_strings))
             xy = point_to_point2d(bmv.co)
             xy.y += 10
-            text_draw2D(s, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
+            if s_loops:
+                text_draw2D('O ' + s_loops, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
+                xy.y += 10
+            if s_strings:
+                text_draw2D('C ' + s_strings, xy, color=(0,1,1,1), dropshadow=(0,0,0,0.5))
 
         # # draw new cut info
         # if self.show_cut:

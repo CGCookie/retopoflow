@@ -203,8 +203,9 @@ class Options:
         #######################################
         # TOOL SETTINGS
 
-        'contours count':   16,
-        'contours uniform': True,               # should new cuts be made uniformly about circumference?
+        'contours count':               16,
+        'contours uniform':             True,   # should new cuts be made uniformly about circumference?
+        'contours non-manifold check':  True,
 
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
