@@ -278,7 +278,6 @@ div.collapsible > div.inside {
 dialog#loadingdialog {
     width: 40%;
     left: 30%;
-    /*height: 60%;*/
     top: -40%;
     z-index: 10000;
 }
@@ -497,7 +496,7 @@ div.issue-checker button.action {
 
 dialog#geometrydialog {
     right: 0px;
-    bottom: 130px;
+    bottom: 0px;
     width: 120px;
     min-width: 120px;
     max-width: 120px;
