@@ -41,7 +41,13 @@ Below is a short list of major changes from RetopoFlow&nbsp;2.x.
 - Some of the keymaps for some tools have changed to allow for LMB-select.
 - The target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.
 - Some RF tools have improved options.
-
+- Major UI and UX improvements, including: tooltips, labels, help docs, gizmo rendering, minimizing main tool window
+- Improved consistency across all tools
+- Tools refresh faster when in middle of editing
+- Code optimization, cleanup, and refactoring
+- Reworked Auto Save and Save to be more intuitive and handle errors better
+- Works in Blender 2.8x and 2.9x
+- Fixed many issues
 
 ### Blender versions
 
