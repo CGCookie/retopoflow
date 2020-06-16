@@ -37,7 +37,7 @@ from ..addon_common.common.logger import Logger
 from ..addon_common.common.maths import Color
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
-from ..addon_common.common.ui_core import UI_Document
+from ..addon_common.common.ui_document import UI_Document
 from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 
 
@@ -248,7 +248,7 @@ class Options:
         self._callbacks = []
         self._calling = False
         if not Options.fndb:
-            path = os.path.split(os.path.abspath(__file__))[0]
+            path = os.path.dirname(os.path.abspath(__file__))
             Options.path_root = os.path.abspath(os.path.join(path, '..'))
             Options.fndb = os.path.join(Options.path_root, Options.options_filename)
             # Options.fndb = self.get_path('options filename')

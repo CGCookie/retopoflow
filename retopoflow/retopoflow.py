@@ -173,7 +173,7 @@ class RetopoFlow(
             print('RetopoFlow: done with start')
             self.loading_done = True
             self.fsm.force_set_state('main')
-            self.document.body.delete_child(d['ui_window']._default_element)
+            self.document.body.delete_child(d['ui_window'].proxy_default_element)
             d['timer'].done()
         d['working'] = False
 
