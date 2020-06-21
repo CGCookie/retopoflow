@@ -93,7 +93,7 @@ The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
-![](help_themes.png)
+![](help_themes.png max-height:128px)
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.
