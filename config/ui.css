@@ -21,6 +21,7 @@ button {
     /*padding: 0px;*/
     background: rgba(64, 64, 64, 0.25);
     border: 1px rgba(16, 16, 16, 0.50);
+    color: white;
 }
 button:focus {
     background: rgba(64, 64, 64, 1.00);
@@ -96,7 +97,8 @@ input[type="radio"].third-size {
 
 
 
-
+/********************************/
+/* GENERAL DIALOG STYLING       */
 
 button.dialog-close {
     margin: 2px 4px 2px 0px;
@@ -115,6 +117,11 @@ dialog.framed > div.inside {
     margin: 0px;
     padding: 0px 0px 2px 0px;
 }
+
+
+
+/********************************/
+/* MAIN TOOLS STYLING           */
 
 
 
@@ -187,26 +194,33 @@ input.symmetry-enable {
 
 
 
+/********************************/
+/* TEXT INPUT STYLING           */
 
+*.inputtext-container > input[type="text"] {
+    color: white;
+}
 
-
-
-input[type="text"]:hover {
+*.inputtext-container > input[type="text"]:hover {
     color: black;
 }
-input[type="text"]:focus {
+
+*.inputtext-container > input[type="text"]:focus {
     color: black;
 }
-*.inputtext-cursor {
+
+*.inputtext-container > input[type="text"] > *.inputtext-cursor {
     color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
 }
 
-input[type="text"]:disabled {
+*.inputtext-container > input[type="text"]:disabled {
     border-color: rgb(64,64,64);
     background-color: rgb(64, 64, 64);
     color: rgb(32,32,32);
     cursor: default;
 }
+
+
 
 
 

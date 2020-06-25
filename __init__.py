@@ -38,7 +38,7 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Header",
-    "warning":     "beta2 (β2)",  # used for warning icon and text in addons panel
+    "warning":     "beta3 (β3)",  # used for warning icon and text in addons panel
     "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
@@ -64,6 +64,10 @@ except ModuleNotFoundError as e:
 except Exception as e:
     print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
     print(e)
+    from .addon_common.common.debug import Debugger
+    message,h = Debugger.get_exception_info_and_hash()
+    message = '\n'.join('- %s'%l for l in message.splitlines())
+    print(message)
 
 
 # the classes to register/unregister
