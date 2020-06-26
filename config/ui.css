@@ -201,19 +201,19 @@ input.symmetry-enable {
     color: white;
 }
 
-*.inputtext-container > input[type="text"]:hover {
+input[type="text"]:hover {
     color: black;
 }
 
-*.inputtext-container > input[type="text"]:focus {
+input[type="text"]:focus {
     color: black;
 }
 
-*.inputtext-container > input[type="text"] > *.inputtext-cursor {
+input[type="text"] > *.inputtext-cursor {
     color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
 }
 
-*.inputtext-container > input[type="text"]:disabled {
+input[type="text"]:disabled {
     border-color: rgb(64,64,64);
     background-color: rgb(64, 64, 64);
     color: rgb(32,32,32);
