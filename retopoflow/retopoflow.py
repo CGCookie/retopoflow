@@ -23,6 +23,7 @@ import os
 import bpy
 import glob
 import time
+import atexit
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -72,7 +73,7 @@ def preload_help_images():
     os.chdir(path_cur)
 
     from concurrent.futures import ThreadPoolExecutor
-    def preload():
+    def start():
         for png in images:
             print(f'RetopoFlow: preloading image "{png}"')
             preload_image(png)
@@ -85,8 +86,11 @@ def preload_help_images():
                 break
             if preload_help_images.quit:
                 break
-    ThreadPoolExecutor().submit(preload)
+    ThreadPoolExecutor().submit(start)
 
+    def abort():
+        preload_help_images.quit = True
+    atexit.register(abort)
 
 class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     @classmethod
