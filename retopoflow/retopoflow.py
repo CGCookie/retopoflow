@@ -76,9 +76,15 @@ def preload_help_images():
         for png in images:
             print(f'RetopoFlow: preloading image "{png}"')
             preload_image(png)
-            while preload_help_images.paused and not preload_help_images.quit:
+            for loop in range(10):
+                if not preload_help_images.paused: break
+                if preload_help_images.quit: break
                 time.sleep(0.5)
-            if preload_help_images.quit: break
+            else:
+                # if looped too many times, just quit
+                break
+            if preload_help_images.quit:
+                break
     ThreadPoolExecutor().submit(preload)
 
 
