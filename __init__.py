@@ -101,6 +101,8 @@ if import_succeeded:
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
+    retopoflow.preload_help_images()
+
 
 class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     bl_idname = 'cgcookie.retopoflow_blendermarket'

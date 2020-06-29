@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import bpy
+import glob
 import time
 
 from concurrent.futures import ThreadPoolExecutor
@@ -47,11 +48,30 @@ from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec
 from ..addon_common.common.ui_styling import load_defaultstylings
+from ..addon_common.common.ui_core import preload_image
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ..config.keymaps import get_keymaps
 from ..config.options import options
+
+
+def preload_help_images():
+    # preload help images to allow help to load faster
+    path_here = os.path.dirname(__file__)
+    path_root = os.path.join(path_here, '..', 'help')
+    path_cur = os.getcwd()
+
+    os.chdir(path_root)
+    pngs = list(glob.glob('*.png'))
+    os.chdir(path_cur)
+
+    from concurrent.futures import ThreadPoolExecutor
+    def preload():
+        for png in pngs:
+            print(f'RetopoFlow: preloading "{png}"')
+            preload_image(png)
+    ThreadPoolExecutor().submit(preload)
 
 
 class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
