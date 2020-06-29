@@ -76,7 +76,6 @@ def get_git_info():
         if not os.path.exists(git_ref_fullpath): return
         log = open(git_ref_fullpath).read().splitlines()
         commit = log[-1].split()[1]
-        print('git: %s %s' % (git_ref_path,commit))
         retopoflow_version_git = '%s %s' % (git_ref_path, commit)
     except Exception as e:
         print('An exception occurred while checking git info')

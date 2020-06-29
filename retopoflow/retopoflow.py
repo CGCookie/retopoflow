@@ -43,6 +43,7 @@ from .rf.rf_undo        import RetopoFlow_Undo
 
 from ..addon_common.common import ui
 from ..addon_common.common.blender import tag_redraw_all
+from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
@@ -56,21 +57,28 @@ from ..config.keymaps import get_keymaps
 from ..config.options import options
 
 
+@add_cache('paused', False)
+@add_cache('quit', False)
 def preload_help_images():
     # preload help images to allow help to load faster
-    path_here = os.path.dirname(__file__)
-    path_root = os.path.join(path_here, '..', 'help')
     path_cur = os.getcwd()
+    path_here = os.path.abspath(os.path.dirname(__file__))
 
-    os.chdir(path_root)
-    pngs = list(glob.glob('*.png'))
+    images = []
+    os.chdir(os.path.join(path_here, '..', 'help'))
+    images += list(glob.glob('*.png'))
+    os.chdir(os.path.join(path_here, '..', 'icons'))
+    images += list(glob.glob('*.png'))
     os.chdir(path_cur)
 
     from concurrent.futures import ThreadPoolExecutor
     def preload():
-        for png in pngs:
-            print(f'RetopoFlow: preloading "{png}"')
+        for png in images:
+            print(f'RetopoFlow: preloading image "{png}"')
             preload_image(png)
+            while preload_help_images.paused and not preload_help_images.quit:
+                time.sleep(0.5)
+            if preload_help_images.quit: break
     ThreadPoolExecutor().submit(preload)
 
 
@@ -88,6 +96,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.header_text_set('RetopoFlow')
 
     def start(self):
+        preload_help_images.paused = True
         keymaps = get_keymaps()
         keymaps['done'] = keymaps['done'] | {'ESC'}
         self.actions = ActionHandler(self.context, keymaps)
@@ -98,6 +107,9 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
 
     def end(self):
         self._cc_blenderui_end()
+
+    def update(self):
+        preload_help_images.paused = False
 
     @CookieCutter.FSM_State('main')
     def main(self):
@@ -154,6 +166,7 @@ class RetopoFlow(
         d['time'] = 0           # will be updated to current time
         d['delay'] = 0.01
         d['stages'] = [
+            ('Pausing help image preloading',       self.preload_help_pause),
             ('Setting up target mesh',              self.setup_target),
             ('Setting up source mesh(es)',          self.setup_sources),
             ('Setting up symmetry data structures', self.setup_sources_symmetry),    # must be called after self.setup_target()!!
@@ -166,6 +179,7 @@ class RetopoFlow(
             ('Setting up undo system',              self.setup_undo),                # must be called after self.setup_ui()!!
             ('Loading welcome message',             self.show_welcome_message),
             ('Checking auto save / save',           self.check_auto_save_warnings),
+            ('Resuming help image preloading',      self.preload_help_resume),
         ]
         self._setup_data = d
 
@@ -196,6 +210,12 @@ class RetopoFlow(
             self.document.body.delete_child(d['ui_window'].proxy_default_element)
             d['timer'].done()
         d['working'] = False
+
+    def preload_help_pause(self):
+        preload_help_images.paused = True
+
+    def preload_help_resume(self):
+        preload_help_images.paused = False
 
     def start(self):
         self.loading_done = False

@@ -363,6 +363,7 @@ def register():
     VIEW3D_PT_RetopoFlow.menu_add()
 
 def unregister():
+    if import_succeeded: preload_help_images.quit = True
     VIEW3D_PT_RetopoFlow.menu_remove()
     if import_succeeded: updater.unregister()
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)
