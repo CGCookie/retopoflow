@@ -110,6 +110,8 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             # the artist might move mouse off selected edge before drag kicks in!
             self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+        if not self.hovering_edge.is_valid: self.hovering_edge = None
+        if not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
