@@ -25,7 +25,7 @@ import glob
 import time
 import atexit
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
 from .rf.rf_blender     import RetopoFlow_Blender
@@ -50,7 +50,7 @@ from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec
 from ..addon_common.common.ui_styling import load_defaultstylings
-from ..addon_common.common.ui_core import preload_image
+from ..addon_common.common.ui_core import preload_image, set_image_cache
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -60,37 +60,61 @@ from ..config.options import options
 
 @add_cache('paused', False)
 @add_cache('quit', False)
-def preload_help_images():
+def preload_help_images(version='process'):
     # preload help images to allow help to load faster
     path_cur = os.getcwd()
     path_here = os.path.abspath(os.path.dirname(__file__))
 
-    images = []
+    path_images = []
     os.chdir(os.path.join(path_here, '..', 'help'))
-    images += list(glob.glob('*.png'))
+    path_images += list(glob.glob('*.png'))
     os.chdir(os.path.join(path_here, '..', 'icons'))
-    images += list(glob.glob('*.png'))
+    path_images += list(glob.glob('*.png'))
     os.chdir(path_cur)
 
-    from concurrent.futures import ThreadPoolExecutor
-    def start():
-        for png in images:
-            print(f'RetopoFlow: preloading image "{png}"')
-            preload_image(png)
-            for loop in range(10):
-                if not preload_help_images.paused: break
-                if preload_help_images.quit: break
-                time.sleep(0.5)
-            else:
-                # if looped too many times, just quit
-                break
-            if preload_help_images.quit:
-                break
-    ThreadPoolExecutor().submit(start)
+    if version == 'process':
+        # this version spins up new Processes, so Python's GIL isn't an issue
+        # :) loading is much FASTER!      (truly parallel loading)
+        # :( DIFFICULT to pause or abort  (no shared resources)
+        def setter(p):
+            if preload_help_images.quit: return
+            for path_image, img in p.result():
+                if img is None: continue
+                print(f'RetopoFlow: {path_image} is preloaded')
+                set_image_cache(path_image, img)
+        executor = ProcessPoolExecutor() # ThreadPoolExecutor()
+        for path_image in path_images:
+            p = executor.submit(preload_image, path_image)
+            p.add_done_callback(setter)
+        def abort():
+            nonlocal executor
+            preload_help_images.quit = True
+            # the following line causes a crash :(
+            # executor.shutdown(wait=False)
+        atexit.register(abort)
 
-    def abort():
-        preload_help_images.quit = True
-    atexit.register(abort)
+    elif version == 'thread':
+        # this version spins up new Threads, so Python's GIL is used
+        # :( loading is much SLOWER!  (serial loading)
+        # :) EASY to pause and abort  (shared resources)
+        def abort():
+            preload_help_images.quit = True
+        atexit.register(abort)
+        def start():
+            for png in path_images:
+                print(f'RetopoFlow: preloading image "{png}"')
+                preload_image(png)
+                for loop in range(10):
+                    if not preload_help_images.paused: break
+                    if preload_help_images.quit: break
+                    time.sleep(0.5)
+                else:
+                    # if looped too many times, just quit
+                    break
+                if preload_help_images.quit:
+                    break
+        ThreadPoolExecutor().submit(start)
+
 
 class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     @classmethod

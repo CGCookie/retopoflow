@@ -337,11 +337,11 @@ dialog#tinydialog input[type="radio"] > img {
     display: none;
 }
 
-div#ttools {
+dialog#tinydialog div#ttools {
     border: 1px black;
     margin: 0px;
 }
-input.ttool {
+dialog#tinydialog input.ttool {
     display: inline;
     background: transparent;
     margin: 0px;
@@ -349,22 +349,22 @@ input.ttool {
     width: 28px;
     padding: 0px;
 }
-input.ttool > img {
+dialog#tinydialog input.ttool > img {
     display: none;
 }
-input.ttool:hover {
+dialog#tinydialog input.ttool:hover {
     background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
-input.ttool[checked] {
+dialog#tinydialog input.ttool[checked] {
     background: hsla(200, 100%, 62.5%, 1.0);
 }
-input.ttool:active {
+dialog#tinydialog input.ttool:active {
     background: hsla(200, 100%, 62.5%, 0.5);
 }
-input.ttool:active:hover {
+dialog#tinydialog input.ttool:active:hover {
     background: hsla(200, 100%, 62.5%, 0.75);
 }
-input.ttool > label {
+dialog#tinydialog input.ttool > label {
     display: inline;
     margin: 0px;
     border: 0px;
@@ -374,13 +374,13 @@ input.ttool > label {
     /*height:20px;*/
     color: white;
 }
-input.ttool[checked] label {
+dialog#tinydialog input.ttool[checked] label {
     color: black;
 }
-input.ttool:active label {
+dialog#tinydialog input.ttool:active label {
     color: black;
 }
-input.ttool > label > img {
+dialog#tinydialog input.ttool > label > img {
     display: inline;
     border-radius: 0px;
     border:0px white;

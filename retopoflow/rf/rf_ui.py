@@ -586,6 +586,7 @@ class RetopoFlow_UI:
                     self.actions.keymap2['done'].add('ESC')
                 else:
                     self.actions.keymap2['done'].discard('ESC')
+            update_esctoquit()
 
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),

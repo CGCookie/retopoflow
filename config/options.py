@@ -216,7 +216,7 @@ class Options:
 
         'polypen merge dist':       10,         # pixels away to merge
         'polypen automerge':        True,
-        'polypen triangle only':    False,
+        'polypen insert mode':      'Tri/Quad',
 
         'relax mask boundary':  'include',
         'relax mask symmetry':  'maintain',
