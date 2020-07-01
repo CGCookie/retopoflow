@@ -79,12 +79,16 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
+        def update_options_mode():
+            mode = options['polypen insert mode']
+            self.ui_options.label = f'PolyPen: {mode}'
         def insert_mode_change(e):
             if not e.target.checked: return
             if e.target.value is None: return
             options['polypen insert mode'] = e.target.value
+            update_options_mode()
 
-        return ui.collapsible('PolyPen', children=[
+        self.ui_options = ui.collapsible('PolyPen', children=[
             ui.collection(label='Insert Mode', children=[
                 ui.input_radio(
                     id='polypen-insert-mode-triquad',
@@ -141,6 +145,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 ),
             ]),
         ])
+        update_options_mode()
+
+        return self.ui_options
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
@@ -178,7 +185,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         num_edges = len(self.sel_edges)
         num_faces = len(self.sel_faces)
 
-        if options['polypen insert mode'] == 'Tri/Quad':
+        # overriding
+        # if hovering over a selected edge, knife it!
+        if self.nearest_edge and self.nearest_edge.select:
+            self.next_state = 'knife selected edge'
+
+        elif options['polypen insert mode'] == 'Tri/Quad':
             if num_verts == 1 and num_edges == 0 and num_faces == 0:
                 self.next_state = 'vert-edge'
             elif num_edges and num_faces == 0:
@@ -238,7 +250,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if num_verts == 0:
                 self.next_state = 'new vertex'
             else:
-                self.next_state = 'vert-edge-vert'
+                if self.nearest_edge:
+                    self.next_state = 'vert-edge'
+                else:
+                    self.next_state = 'vert-edge-vert'
 
         else:
             assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
@@ -323,12 +338,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         return self._insert()
 
     def _get_edge_quad_verts(self):
-        # a Desmos construction of how this works: https://www.desmos.com/geometry/bmmx206thi
+        # a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
         e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
         if not e0: return (None, None, None, None)
         bmv0,bmv1 = e0.verts
         xy0 = self.rfcontext.Point_to_Point2D(bmv0.co)
         xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+        d01 = (xy0 - xy1).length
         mid01 = xy0 + (xy1 - xy0) / 2
         mid23 = self.actions.mouse
         mid0123 = mid01 + (mid23 - mid01) / 2
@@ -337,14 +353,27 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         perp = Direction2D((-between.y, between.x))
         if perp.dot(xy1 - xy0) < 0: perp.reverse()
         intersection = intersect_line_line(xy0, xy1, mid0123, mid0123 + perp)[0]
+
         toward = Direction2D(mid23 - intersection)
-        d = (xy0 - xy1).length
-        if toward.dot(perp) < 0: d = -d
+        if toward.dot(perp) < 0: d01 = -d01
+
+        # push intersection out just a bit to make it more stable (prevent crossing) when |between| < d01
+        between_len = between.length * Direction2D(xy1 - xy0).dot(perp)
+
         for tries in range(32):
-            xy2 = self.actions.mouse + toward * (d / 2)
-            xy3 = self.actions.mouse - toward * (d / 2)
+            v = toward * (d01 / 2)
+            xy2, xy3 = mid23 + v, mid23 - v
+
+            # try to prevent quad from crossing
+            v03 = xy3 - xy0
+            if v03.dot(between) < 0 or v03.length < between_len:
+                xy3 = xy0 + Direction2D(v03) * (between_len * (-1 if v03.dot(between) < 0 else 1))
+            v12 = xy2 - xy1
+            if v12.dot(between) < 0 or v12.length < between_len:
+                xy2 = xy1 + Direction2D(v12) * (between_len * (-1 if v12.dot(between) < 0 else 1))
+
             if self.rfcontext.raycast_sources_Point2D(xy2)[0] and self.rfcontext.raycast_sources_Point2D(xy3)[0]: break
-            d /= 2
+            d01 /= 2
         else:
             return (None, None, None, None)
         return (xy0, xy1, xy2, xy3)
@@ -367,7 +396,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         # overriding
         # if hovering over a selected edge, knife it!
-        if self.nearest_edge and self.nearest_edge.select:
+        if self.next_state == 'knife selected edge':  # self.nearest_edge and self.nearest_edge.select:
             #print('knifing selected, hovered edge')
             bmv = self.rfcontext.new2D_vert_mouse()
             if not bmv:
@@ -385,7 +414,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.bmverts = [(bmv, xy)]
             self.set_vis_bmverts()
             return 'move'
-
 
         if self.next_state in {'vert-edge', 'vert-edge-vert'}:
             bmv0 = next(iter(sel_verts))
@@ -713,7 +741,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
-        #if not self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl: return
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return
 
@@ -723,11 +750,23 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         CC_DRAW.stipple(pattern=[4,4])
         CC_DRAW.point_size(8)
         CC_DRAW.line_width(2)
-        # self.drawing.enable_stipple()
-        # self.drawing.line_width(2.0)
-        # self.drawing.point_size(4.0)
 
-        if self.next_state == 'new vertex':
+        if self.next_state == 'knife selected edge':
+            bmv1,bmv2 = self.nearest_edge.verts
+            faces = self.nearest_edge.link_faces
+            if faces:
+                for f in faces:
+                    lco = []
+                    for v0,v1 in iter_pairs(f.verts, True):
+                        lco.append(v0.co)
+                        if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                            lco.append(hit_pos)
+                    self.draw_lines(lco)
+            else:
+                self.draw_lines([bmv1.co, hit_pos])
+                self.draw_lines([bmv2.co, hit_pos])
+
+        elif self.next_state == 'new vertex':
             p0 = hit_pos
             e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
             if e1:
