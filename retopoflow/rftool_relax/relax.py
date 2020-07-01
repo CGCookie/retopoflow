@@ -43,6 +43,7 @@ class RFTool_Relax(RFTool):
     icon        = 'relax_32.png'
     help        = 'relax.md'
     shortcut    = 'relax tool'
+    statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
 
 class Relax_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['relax'])

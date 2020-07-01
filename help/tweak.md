@@ -22,7 +22,6 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 | {{brush strength}} | : | adjust brush strength |
 | {{brush falloff}}  | : | adjust brush falloff |
 
-
 ## Masking
 
 Tweak has several options to control which vertices are or are not moved.

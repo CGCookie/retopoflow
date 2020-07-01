@@ -45,6 +45,9 @@ class RetopoFlow_Tools:
         if e: e.checked = True
         e = self.document.body.getElementById('ttool-%s'%rftool.name.lower())
         if e: e.checked = True
+        statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
+        statusbar = statusbar.replace('\t', '    ')
+        self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
         self.update_ui()
         options['quickstart tool'] = rftool.name
 

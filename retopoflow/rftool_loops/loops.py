@@ -45,6 +45,7 @@ class RFTool_Loops(RFTool):
     icon        = 'loops_32.png'
     help        = 'loops.md'
     shortcut    = 'loops tool'
+    statusbar   = '{{insert}} Insert edge loop'
 
 class Loops_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()

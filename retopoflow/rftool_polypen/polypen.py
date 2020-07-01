@@ -51,6 +51,7 @@ class RFTool_PolyPen(RFTool):
     icon        = 'polypen_32.png'
     help        = 'polypen.md'
     shortcut    = 'polypen tool'
+    statusbar   = '{{insert}} Insert'
 
 class PolyPen_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()

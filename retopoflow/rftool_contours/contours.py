@@ -44,6 +44,7 @@ class RFTool_Contours(RFTool):
     icon        = 'contours_32.png'
     help        = 'contours.md'
     shortcut    = 'contours tool'
+    statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
 
 
 ################################################################################################

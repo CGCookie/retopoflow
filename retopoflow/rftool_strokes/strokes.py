@@ -64,6 +64,7 @@ class RFTool_Strokes(RFTool):
     icon        = 'strokes_32.png'
     help        = 'strokes.md'
     shortcut    = 'strokes tool'
+    statusbar   = '{{insert}} Insert edge strip and bridge\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
 
 class Strokes_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()

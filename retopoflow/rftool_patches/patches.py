@@ -54,6 +54,7 @@ class RFTool_Patches(RFTool):
     icon        = 'patches_32.png'
     help        = 'patches.md'
     shortcut    = 'patches tool'
+    statusbar   = '{{action alt0}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
 
 class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()

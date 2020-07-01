@@ -46,12 +46,14 @@ class RetopoFlow_HelpSystem:
         Globals.ui_document.body.dirty_styling()
         Globals.ui_document.body.dirty_flow()
 
-    def substitute_keymaps(self, mdown):
+    def substitute_keymaps(self, mdown, wrap='`', pre='', post='', separator=', ', onlyfirst=None):
         while True:
             m = re.search(r'{{(?P<action>[^}]+)}}', mdown)
             if not m: break
-            action = {s.strip() for s in m.group('action').split(',')}
-            sub = "`" + self.actions.to_human_readable(action, join='`, `') + "`"
+            if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
+            else: wrap_pre, wrap_post = wrap
+            action = { s.strip() for s in m.group('action').split(',') }
+            sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 

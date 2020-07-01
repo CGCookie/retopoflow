@@ -48,6 +48,7 @@ class RFTool_Tweak(RFTool):
     icon        = 'tweak_32.png'
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
+    statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
 
 class Tweak_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['tweak'])

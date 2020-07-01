@@ -258,6 +258,8 @@ class RetopoFlow(
         if options['escape to quit']: keymaps['done'] = keymaps['done'] | {'ESC'}
         self.actions = ActionHandler(self.context, keymaps)
 
+        self.context.workspace.status_text_set_internal('RetopoFlow is loading...')
+
         self.store_window_state(self.actions.r3d, self.actions.space)
         RetopoFlow.instance = self
 
