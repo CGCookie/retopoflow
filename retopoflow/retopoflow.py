@@ -60,7 +60,7 @@ from ..config.options import options
 
 @add_cache('paused', False)
 @add_cache('quit', False)
-def preload_help_images(version='process'):
+def preload_help_images(version='thread'):
     # preload help images to allow help to load faster
     path_cur = os.getcwd()
     path_here = os.path.abspath(os.path.dirname(__file__))
