@@ -19,19 +19,24 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import random
 
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import Cursors
+from ...addon_common.common.maths import Vec2D, Point2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
+from ..rfwidgets.rfwidget_piemenu import RFWidget_PieMenu_Factory
 
 
 class RetopoFlow_States(CookieCutter):
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
+        # self.pie_menu = RFWidget_PieMenu_Factory.create([], self.pie_menu_callback)(self)   # self has no rfcontext <----------
+        # break break break
 
     def update(self, timer=True):
         if not self.loading_done:
@@ -71,6 +76,82 @@ class RetopoFlow_States(CookieCutter):
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         self.ui_fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
 
+
+    def which_pie_menu_section(self):
+        delta = self.actions.mouse - self.pie_menu_center
+        angle = math.floor(-(math.atan2(delta.y, delta.x) * 180 / math.pi - 90 - 360 / 16) % 360 / (360 / 8))
+        return None if delta.length < self.drawing.scale(50) else angle
+
+    @CookieCutter.FSM_State('pie menu', 'enter')
+    def pie_menu_enter(self):
+        options = self.pie_menu_options
+        dial = {
+            1: [0],
+            2: [0, 4],
+            3: [0, 3, 5],
+            4: [0, 2, 4, 6],
+            5: [0, 2, 3, 4, 6],
+            6: [0, 2, 3, 4, 6, 7],
+            7: [0, 2, 3, 4, 5, 6, 7],
+            8: [0, 1, 2, 3, 4, 5, 6, 7],
+        }[len(options)]
+        self.pie_menu_options = [None] * 8
+        for section in self.ui_pie_sections:
+            section.innerText = ''
+            section.style = 'display:none'
+            section.del_pseudoclass('hover')
+        for i_option, i_section in enumerate(dial):
+            option = options[i_option]
+            section = self.ui_pie_sections[i_section]
+            if option is None: continue
+            if type(option) is str: option = (option, option)
+            section.innerText = option[0]
+            section.style = ''
+            self.pie_menu_options[i_section] = option[1]
+
+        self.ui_pie_menu.style = f'display: block'
+        self.document.force_clean(self.actions.context)
+        doc_h = self.document.body.height_pixels
+        # NOTE: I DO NOT KNOW WHY self.ui_pie_table.width_pixels DOES NOT RETURN THE CORRECT THING!
+        centered = self.actions.mouse - Vec2D((self.ui_pie_table.height_pixels / 2, doc_h - self.ui_pie_table.height_pixels / 2))
+        self.pie_menu_center = self.actions.mouse
+        self.ui_pie_table.style = f'left: {centered.x}px; top: {centered.y}px;'
+        self.pie_menu_mouse = self.actions.mouse
+        self.document.focus(self.ui_pie_menu)
+
+        self.document.force_clean(self.actions.context)
+        # self.document.center_on_mouse(self.ui_pie_table)
+        # self.document.sticky_element = win
+
+    @CookieCutter.FSM_State('pie menu')
+    def pie_menu_main(self):
+        confirm_p = self.actions.pressed('pie menu confirm')
+        confirm_r = self.actions.released('pie menu')
+        if confirm_p or confirm_r:
+            i_option = self.which_pie_menu_section()
+            if i_option is not None:
+                option = self.pie_menu_options[i_option]
+                self.pie_menu_callback(option)
+            return 'main' if confirm_r else 'pie menu wait'
+        if self.actions.pressed('cancel'):
+            return 'pie menu wait'
+        i_section = self.which_pie_menu_section()
+        for i_s,section in enumerate(self.ui_pie_sections):
+            if i_s == i_section:
+                section.add_pseudoclass('hover')
+            else:
+                section.del_pseudoclass('hover')
+
+    @CookieCutter.FSM_State('pie menu', 'exit')
+    def pie_menu_exit(self):
+        self.ui_pie_menu.style = f'display: none'
+
+    @CookieCutter.FSM_State('pie menu wait')
+    def pie_menu_wait(self):
+        if self.actions.released('pie menu'):
+            return 'main'
+
+
     @CookieCutter.FSM_State('main')
     def modal_main(self):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
@@ -90,10 +171,12 @@ class RetopoFlow_States(CookieCutter):
                 self.helpsystem_open(self.rftool.help)
                 return
 
+            # user wants to save?
             if self.actions.pressed('blender save'):
                 self.save_normal()
                 return
 
+            # toggle ui
             if self.actions.pressed('toggle ui'):
                 hide = self.ui_main.is_visible or self.ui_tiny.is_visible
                 if hide:
@@ -109,6 +192,12 @@ class RetopoFlow_States(CookieCutter):
                         self.ui_tiny.is_visible = True
                     self.ui_options.is_visible = self.ui_show_options.disabled
                     self.ui_geometry.is_visible = self.ui_show_geometry.disabled
+                return
+
+            if self.actions.pressed('pie menu'):
+                def callback(option):
+                    self.select_rftool(option)
+                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], callback)
                 return
 
             # if self.actions.pressed('F5'): breakit = 42 / 0

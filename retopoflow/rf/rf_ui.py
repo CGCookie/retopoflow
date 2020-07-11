@@ -119,6 +119,53 @@ class RetopoFlow_UI:
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
         self.rftool._reset()
 
+    #################################
+    # pie menu
+
+    def setup_pie_menu(self):
+        self.ui_pie_menu = ui.div(id='pie-menu', atomic=True, can_hover=False, parent=self.document.body, children=[
+            ui.table(id='pie-menu-table', children=[
+                ui.tr(id='pie-menu-top', children=[
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topleft',      classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topcenter',    classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topright',     classes='pie-menu-option')]),
+                ]),
+                ui.tr(id='pie-menu-middle', children=[
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middleleft',   classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middlecenter', classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middleright',  classes='pie-menu-option')]),
+                ]),
+                ui.tr(id='pie-menu-bottom', children=[
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomleft',   classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomcenter', classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomright',  classes='pie-menu-option')]),
+                ]),
+            ])
+        ])
+        self.ui_pie_table = self.document.body.getElementById('pie-menu-table')
+        self.ui_pie_sections = [
+            # 7 0 1
+            # 6   2
+            # 5 4 3
+            self.document.body.getElementById('pie-menu-topcenter'),
+            self.document.body.getElementById('pie-menu-topright'),
+            self.document.body.getElementById('pie-menu-middleright'),
+            self.document.body.getElementById('pie-menu-bottomright'),
+            self.document.body.getElementById('pie-menu-bottomcenter'),
+            self.document.body.getElementById('pie-menu-bottomleft'),
+            self.document.body.getElementById('pie-menu-middleleft'),
+            self.document.body.getElementById('pie-menu-topleft'),
+        ]
+
+    def show_pie_menu(self, options, fn_callback):
+        if len(options) == 0: return
+        assert len(options) <= 8, f'Unhandled number of pie menu options ({len(options)}): {options}'
+        self.pie_menu_callback = fn_callback
+        self.pie_menu_options = options
+        self.fsm.force_set_state('pie menu')
+
+
+
     def alert_user(self, message=None, title=None, level=None, msghash=None):
         show_quit = False
         level = level.lower() if level else 'note'
@@ -410,7 +457,7 @@ class RetopoFlow_UI:
 
     def setup_ui(self):
         # NOTE: lambda is needed on next line so that RF keymaps are bound!
-        humanread = lambda x: self.actions.to_human_readable(x)
+        humanread = lambda x: self.actions.to_human_readable(x, join='/')
 
         self.hide_target()
 
@@ -766,6 +813,9 @@ class RetopoFlow_UI:
             symmetry_changed()
             for opt in self.ui_options.getElementsByClassName('symmetry-enable'):
                 opt.add_eventListener('on_input', symmetry_changed)
+
+
+            self.setup_pie_menu()
 
             self.rftools_ui = {}
             for rftool in self.rftools:

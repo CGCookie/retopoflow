@@ -102,15 +102,19 @@ default_rf_keymaps = {
     'brush falloff': {'CTRL+F'},
     'brush strength': {'SHIFT+F'},
 
+    # pie menu
+    'pie menu': {'ACCENT_GRAVE'},
+    'pie menu confirm': {'LEFTMOUSE+CLICK', 'LEFTMOUSE+DRAG'},
+
     # shortcuts to tools
-    'contours tool': {'ONE'},
-    'polystrips tool': {'TWO'},
-    'polypen tool': {'THREE'},
-    'relax tool': {'FOUR'},
-    'tweak tool': {'FIVE'},
-    'loops tool': {'SIX'},
-    'patches tool': {'SEVEN'},
-    'strokes tool': {'EIGHT'},
+    'contours tool': {'ONE', 'CTRL+ALT+C'},
+    'polystrips tool': {'TWO', 'CTRL+ALT+P'},
+    'polypen tool': {'THREE', 'CTRL+ALT+V'},
+    'relax tool': {'FOUR', 'CTRL+ALT+X'},
+    'tweak tool': {'FIVE', 'CTRL+ALT+G'},
+    'loops tool': {'SIX', 'CTRL+ALT+Q'},
+    'patches tool': {'SEVEN', 'CTRL+ALT+F'},
+    'strokes tool': {'EIGHT', 'CTRL+ALT+B'},
     'stretch tool': {'NINE'},          # not ported from rf279, yet
     'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }

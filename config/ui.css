@@ -545,3 +545,60 @@ dialog#geometrydialog table div {
 div.mdown h3> span {
     color: rgba(192, 192, 192, 1.0);
 }
+
+
+
+div#pie-menu {
+    display: none;
+    position: fixed;
+    left: 0px;
+    top: 0%;
+    width: 100%;
+    height: 100%;
+    /*background-color: rgba(64, 0, 0, 0.2);*/
+    background-color: transparent;
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    z-index: 10000;
+}
+
+table#pie-menu-table {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0,0,0,0.15); /* transparent;*/
+    margin: 0px;
+    padding: 100px;
+    border: 1px rgba(0, 0, 0, 0.25);
+    border-radius: 250px;
+}
+table#pie-menu-table tr {
+    margin: 0px;
+    padding: 0px;
+    border: 0px transparent;
+}
+table#pie-menu-table td {
+    margin: 0px;
+    padding: 0px;
+    border: 0px transparent;
+}
+table#pie-menu-table div.pie-menu-option {
+    width: 100px;
+    height: 100px;
+    background-color: rgba(64, 64, 64, 0.8);
+    margin: 2px;
+    padding: 8px;
+    border: 2px rgba(0, 0, 0, 0.75);
+    /*text-align: center;*/
+}
+table#pie-menu-table div.pie-menu-option:hover {
+    color: black;
+    background-color: hsla(200, 100%, 62.5%, 1.0);
+    border-color: hsla(200, 100%, 100%, 0.6);
+}
+table#pie-menu-table div#pie-menu-middlecenter {
+    background-color: rgba(0, 0, 0, 0.15);
+    border: 1px rgba(0, 0, 0, 0.25);
+    border-radius: 50px;
+}
