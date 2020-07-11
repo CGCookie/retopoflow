@@ -28,15 +28,12 @@ from ...addon_common.common.maths import Vec2D, Point2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
-from ..rfwidgets.rfwidget_piemenu import RFWidget_PieMenu_Factory
 
 
 class RetopoFlow_States(CookieCutter):
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
-        # self.pie_menu = RFWidget_PieMenu_Factory.create([], self.pie_menu_callback)(self)   # self has no rfcontext <----------
-        # break break break
 
     def update(self, timer=True):
         if not self.loading_done:
