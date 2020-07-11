@@ -140,16 +140,19 @@ class RetopoFlow_Drawing:
     @CookieCutter.Draw('pre3d')
     def draw_tool_pre3d(self):
         if not self.loading_done: return
+        if self.fsm.state == 'pie menu': return
         self.rftool._draw_pre3d()
 
     @CookieCutter.Draw('post3d')
     def draw_tool_post3d(self):
         if not self.loading_done: return
+        if self.fsm.state == 'pie menu': return
         self.rftool._draw_post3d()
 
     @CookieCutter.Draw('post2d')
     def draw_tool_post2d(self):
         if not self.loading_done: return
+        if self.fsm.state == 'pie menu': return
         self.rftool._draw_post2d()
 
 

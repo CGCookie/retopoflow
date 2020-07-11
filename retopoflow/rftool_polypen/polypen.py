@@ -78,16 +78,21 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
         self._var_automerge = BoundBool('''options['polypen automerge']''')
 
+    def update_insert_mode(self):
+        mode = options['polypen insert mode']
+        self.ui_options.label = f'PolyPen: {mode}'
+        self.ui_insert_mode_triquad.checked  = (options['polypen insert mode'] == 'Tri/Quad')
+        self.ui_insert_mode_quadonly.checked = (options['polypen insert mode'] == 'Quad-Only')
+        self.ui_insert_mode_trionly.checked  = (options['polypen insert mode'] == 'Tri-Only')
+        self.ui_insert_mode_edgeonly.checked = (options['polypen insert mode'] == 'Edge-Only')
+
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
-        def update_options_mode():
-            mode = options['polypen insert mode']
-            self.ui_options.label = f'PolyPen: {mode}'
         def insert_mode_change(e):
             if not e.target.checked: return
             if e.target.value is None: return
             options['polypen insert mode'] = e.target.value
-            update_options_mode()
+            self.update_insert_mode()
 
         self.ui_options = ui.collapsible('PolyPen', children=[
             ui.collection(label='Insert Mode', children=[
@@ -122,7 +127,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     on_input=insert_mode_change,
                 ),
                 ui.input_radio(
-                    id='polypen-insert-mode-trionly',
+                    id='polypen-insert-mode-edgeonly',
                     title='Inserting Edges only',
                     value='Edge-Only',
                     checked=(options['polypen insert mode']=='Edge-Only'),
@@ -146,7 +151,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 ),
             ]),
         ])
-        update_options_mode()
+        self.ui_insert_mode_triquad  = self.ui_options.getElementById('polypen-insert-mode-triquad')
+        self.ui_insert_mode_quadonly = self.ui_options.getElementById('polypen-insert-mode-quadonly')
+        self.ui_insert_mode_trionly  = self.ui_options.getElementById('polypen-insert-mode-trionly')
+        self.ui_insert_mode_edgeonly = self.ui_options.getElementById('polypen-insert-mode-edgeonly')
+        self.update_insert_mode()
 
         return self.ui_options
 
@@ -282,6 +291,18 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if rfwidget.inactive_passthrough():
                 self.rfwidget = rfwidget
                 return
+
+        if self.rfcontext.actions.pressed('pie menu alt0'):
+            def callback(option):
+                options['polypen insert mode'] = option
+                self.update_insert_mode()
+            self.rfcontext.show_pie_menu([
+                'Tri/Quad',
+                'Quad-Only',
+                'Tri-Only',
+                'Edge-Only',
+            ], callback)
+            return
 
         if self.rfcontext.actions.pressed('insert'):
             return 'insert'

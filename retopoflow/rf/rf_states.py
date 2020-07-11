@@ -122,8 +122,8 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu')
     def pie_menu_main(self):
-        confirm_p = self.actions.pressed('pie menu confirm')
-        confirm_r = self.actions.released('pie menu')
+        confirm_p = self.actions.pressed('pie menu confirm', ignoremods=True)
+        confirm_r = self.actions.released('pie menu', ignoremods=True)
         if confirm_p or confirm_r:
             i_option = self.which_pie_menu_section()
             if i_option is not None:
@@ -145,7 +145,7 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu wait')
     def pie_menu_wait(self):
-        if self.actions.released('pie menu'):
+        if self.actions.released('pie menu', ignoremods=True):
             return 'main'
 
 
@@ -192,9 +192,7 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             if self.actions.pressed('pie menu'):
-                def callback(option):
-                    self.select_rftool(option)
-                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], callback)
+                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], self.select_rftool)
                 return
 
             # if self.actions.pressed('F5'): breakit = 42 / 0

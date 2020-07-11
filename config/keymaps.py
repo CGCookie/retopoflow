@@ -104,6 +104,7 @@ default_rf_keymaps = {
 
     # pie menu
     'pie menu': {'ACCENT_GRAVE'},
+    'pie menu alt0': {'CTRL+ACCENT_GRAVE'},
     'pie menu confirm': {'LEFTMOUSE+CLICK', 'LEFTMOUSE+DRAG'},
 
     # shortcuts to tools
