@@ -42,7 +42,7 @@ from ...addon_common.common.maths import Point, Normal
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
 from ...addon_common.common.hasher import hash_object, Hasher
-from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs
+from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs, accumulate_last
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler, time_it
@@ -1493,6 +1493,9 @@ class RFTarget(RFMesh):
         return self._wrap_bmedge(bme)
 
     def new_face(self, verts):
+        # see if a face happens to exist already...
+        face_in_common = accumulate_last((set(v.link_faces) for v in verts), lambda s0,s1: s0 & s1)
+        if face_in_common: return face_in_common
         verts = [self._unwrap(v) for v in verts]
         bmf = self.bme.faces.new(verts)
         self.update_face_normal(bmf)
