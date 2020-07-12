@@ -136,7 +136,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
-        self.helpsystem_open(self.rf_startdoc, done_on_esc=True)
+        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=False)
         Globals.ui_document.body.dirty('changed document size', children=True)
 
     def end(self):

@@ -157,11 +157,12 @@ class RetopoFlow_UI:
             self.document.body.getElementById('pie-menu-topleft'),
         ]
 
-    def show_pie_menu(self, options, fn_callback):
+    def show_pie_menu(self, options, fn_callback, highlighted=None):
         if len(options) == 0: return
         assert len(options) <= 8, f'Unhandled number of pie menu options ({len(options)}): {options}'
         self.pie_menu_callback = fn_callback
         self.pie_menu_options = options
+        self.pie_menu_highlighted = highlighted
         self.fsm.force_set_state('pie menu')
 
 

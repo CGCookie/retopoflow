@@ -57,7 +57,7 @@ class RetopoFlow_HelpSystem:
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
-    def helpsystem_open(self, mdown_path, done_on_esc=False):
+    def helpsystem_open(self, mdown_path, done_on_esc=False, closeable=True):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
             keymaps = get_keymaps()
@@ -73,7 +73,7 @@ class RetopoFlow_HelpSystem:
                 label='RetopoFlow Help System',
                 id='helpsystem',
                 resizable=False,
-                closeable=True,
+                closeable=closeable,
                 moveable=False,
                 parent=self.document.body
             )

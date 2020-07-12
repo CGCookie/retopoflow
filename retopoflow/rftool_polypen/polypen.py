@@ -301,7 +301,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 'Quad-Only',
                 'Tri-Only',
                 'Edge-Only',
-            ], callback)
+            ], callback, highlighted=options['polypen insert mode'])
             return
 
         if self.rfcontext.actions.pressed('insert'):

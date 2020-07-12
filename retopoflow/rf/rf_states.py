@@ -97,6 +97,7 @@ class RetopoFlow_States(CookieCutter):
             section.innerText = ''
             section.style = 'display:none'
             section.del_pseudoclass('hover')
+            section.del_class('highlighted')
         for i_option, i_section in enumerate(dial):
             option = options[i_option]
             section = self.ui_pie_sections[i_section]
@@ -104,6 +105,8 @@ class RetopoFlow_States(CookieCutter):
             if type(option) is str: option = (option, option)
             section.innerText = option[0]
             section.style = ''
+            if option[1] == self.pie_menu_highlighted:
+                section.add_class('highlighted')
             self.pie_menu_options[i_section] = option[1]
 
         self.ui_pie_menu.style = f'display: block'
@@ -192,7 +195,7 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             if self.actions.pressed('pie menu'):
-                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], self.select_rftool)
+                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], self.select_rftool, highlighted=self.rftool)
                 return
 
             # if self.actions.pressed('F5'): breakit = 42 / 0

@@ -546,6 +546,9 @@ div.mdown h3> span {
     color: rgba(192, 192, 192, 1.0);
 }
 
+div.mdown p {
+    text-align: justify;
+}
 
 
 div#pie-menu {
@@ -590,7 +593,13 @@ table#pie-menu-table div.pie-menu-option {
     margin: 2px;
     padding: 8px;
     border: 2px rgba(0, 0, 0, 0.75);
+    text-align: center;
     /*text-align: center;*/
+}
+table#pie-menu-table div.pie-menu-option.highlighted {
+    background-color: rgba(192, 192, 192, 1.0);
+    border-color: rgba(128, 128, 128, 0.75);
+    color: black;
 }
 table#pie-menu-table div.pie-menu-option:hover {
     color: black;
