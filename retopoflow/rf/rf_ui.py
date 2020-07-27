@@ -771,8 +771,18 @@ class RetopoFlow_UI:
                 ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
                 ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
-                ui.labeled_input_text(label='Threshold', title='Distance within which mirrored vertices will be merged.', value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0)),
-                ui.labeled_input_text(label='Effect', title='Effect of symmetry visualization.', value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)),
+                ui.labeled_input_text(
+                    label='Threshold',
+                    title='Distance within which mirrored vertices will be merged.',
+                    value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0, step_size=0.01),
+                    scrub=True,
+                ),
+                ui.labeled_input_text(
+                    label='Effect',
+                    title='Effect of symmetry visualization.',
+                    value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                    scrub=True,
+                ),
                 ui.input_radio(
                     id='symmetry-viz-none',
                     title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',

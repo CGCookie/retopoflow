@@ -104,6 +104,7 @@ def preload_help_images(version='thread'):
             for png in path_images:
                 print(f'RetopoFlow: preloading image "{png}"')
                 preload_image(png)
+                time.sleep(0.1)
                 for loop in range(10):
                     if not preload_help_images.paused: break
                     if preload_help_images.quit: break
