@@ -98,6 +98,22 @@ input[type="radio"].third-size {
 
 
 /********************************/
+/* GENERAL RANGE INPUT STYLING  */
+
+input[type="range"] > *.inputrange-left {
+    background-color: hsla(200, 50%, 62.5%, 1.0);
+    border-color: hsla(200, 50%, 10%, 0.5);
+}
+input[type="range"] > *.inputrange-right {
+    background-color: rgba(64, 64, 64, 1);
+    border-color: rgba(32, 32, 32, 0.5);
+}
+input[type="range"]:active > *.inputrange-left {
+    background-color: hsla(200, 100%, 62.5%, 1.0);
+}
+
+
+/********************************/
 /* GENERAL DIALOG STYLING       */
 
 button.dialog-close {

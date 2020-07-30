@@ -636,6 +636,7 @@ class RetopoFlow_UI:
                     self.actions.keymap2['done'].discard('ESC')
             update_esctoquit()
 
+            # ui.input_range(title='test', value=0.5, min_value=0, max_value=1, parent=self.ui_options)
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                 ui.input_checkbox(
@@ -782,6 +783,10 @@ class RetopoFlow_UI:
                     title='Effect of symmetry visualization.',
                     value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
                     scrub=True,
+                ),
+                ui.input_range(
+                    title='Effect of symmetry visualization.',
+                    value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
                 ),
                 ui.input_radio(
                     id='symmetry-viz-none',
