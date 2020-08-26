@@ -166,6 +166,11 @@ class Contours_Ops:
         count = sel_loop_pos[2] if sel_loop_pos else sel_loop_neg[2] if sel_loop_neg else count
         count = sel_string_pos[2] if sel_string_pos else sel_string_neg[2] if sel_string_neg else count
 
+        if count <= 2:
+            # too few verts for a cut!  need at least 3
+            # possible fix for issue #856
+            return
+
         if connected:
             cl_pos = Contours_Loop(sel_loop_pos[0], True) if sel_loop_pos else None
             cl_neg = Contours_Loop(sel_loop_neg[0], True) if sel_loop_neg else None
