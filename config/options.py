@@ -166,6 +166,7 @@ class Options:
         'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
 
         # VISUALIZATION SETTINGS
+        'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
         'color theme':              'Green',
         'symmetry view':            'Edge',
         'symmetry effect':          0.5,
