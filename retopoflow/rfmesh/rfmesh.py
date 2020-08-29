@@ -1481,6 +1481,8 @@ class RFTarget(RFMesh):
     def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
 
     def new_vert(self, co, norm):
+        # assuming co and norm are in world space!
+        # so, do not set co directly; need to xform to local first.
         bmv = self.bme.verts.new((0,0,0))
         rfv = self._wrap_bmvert(bmv)
         rfv.co = co

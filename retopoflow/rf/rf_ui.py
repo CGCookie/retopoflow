@@ -395,7 +395,7 @@ class RetopoFlow_UI:
             # DO NOT HIDE HEADER WHEN REGION OVERLAP IS OFF!!!
             # bug in 282a (at least)
             self.panels_hide()
-        self.overlays_hide()
+        if options['hide overlays']: self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
         if add_rotate: self.setup_rotate_about_active()
@@ -628,6 +628,9 @@ class RetopoFlow_UI:
                 options.reset()
                 self.update_ui()
                 self.document.body.dirty(children=True)
+            def update_hide_overlays():
+                if options['hide overlays']: self.overlays_hide()
+                else: self.overlays_restore()
 
             def update_esctoquit():
                 if options['escape to quit']:
@@ -658,6 +661,13 @@ class RetopoFlow_UI:
                     ]),
                 ]),
                 ui.collapsible(label='View Options', id='view-options', children=[
+                    ui.input_checkbox(
+                        label='Hide Overlays',
+                        title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
+                        checked=BoundBool('''options['hide overlays']'''),
+                        on_input=update_hide_overlays,
+                        style='display:block; width:100%',
+                    ),
                     ui.collection(label='Clipping', id='clipping', children=[
                         ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
                         ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
