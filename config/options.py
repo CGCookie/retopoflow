@@ -218,6 +218,7 @@ class Options:
         'polypen automerge':        True,
         'polypen insert mode':      'Tri/Quad',
 
+        'relax algorithm':      '2D',
         'relax mask boundary':  'include',
         'relax mask symmetry':  'maintain',
         'relax mask hidden':    'exclude',
