@@ -101,7 +101,7 @@ if import_succeeded:
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
-    retopoflow.preload_help_images()
+    if options['preload help images']: retopoflow.preload_help_images()
 
 
 class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):

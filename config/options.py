@@ -123,6 +123,7 @@ class Options:
         'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 
         'show experimental':    False,  # should show experimental tools?
+        'preload help images':  False,
 
         # AUTO SAVE
         'last auto save path':  '',     # file path of last auto save (used for recover)
