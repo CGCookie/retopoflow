@@ -150,6 +150,7 @@ class Options:
         'tooltip delay':        0.75,
         'escape to quit':       False,  # True:ESC is action for quitting
 
+        # TODO: USE THE REPEAT KEY EVENTS INSTEAD (BASED ON SYSTEM SETTINGS)
         'keyboard repeat delay': 0.25,  # delay before repeating
         'keyboard repeat pause': 0.10,  # pause between repeats
 
@@ -216,28 +217,29 @@ class Options:
         'polystrips handle outer size': 20,
         'polystrips handle border':     3,
 
-        'polypen merge dist':       10,         # pixels away to merge
-        'polypen automerge':        True,
-        'polypen insert mode':      'Tri/Quad',
+        'polypen merge dist':           10,         # pixels away to merge
+        'polypen automerge':            True,
+        'polypen insert mode':          'Tri/Quad',
 
-        'relax algorithm':      '2D',
-        'relax mask boundary':  'include',
-        'relax mask symmetry':  'maintain',
-        'relax mask hidden':    'exclude',
-        'relax mask selected':  'all',
-        'relax steps':          2,
-        'relax edge length':    True,
-        'relax face radius':    True,
-        'relax face sides':     True,
-        'relax face angles':    False,
-        'relax force multiplier': 1.5,
+        'relax algorithm':              '2D',
+        'relax mask boundary':          'include',
+        'relax mask symmetry':          'maintain',
+        'relax mask hidden':            'exclude',
+        'relax mask selected':          'all',
+        'relax steps':                  2,
+        'relax correct flipped faces':  True,
+        'relax edge length':            True,
+        'relax face radius':            True,
+        'relax face sides':             True,
+        'relax face angles':            False,
+        'relax force multiplier':       1.5,
 
-        'tweak mask boundary':  'include',
-        'tweak mask symmetry':  'maintain',
-        'tweak mask hidden':    'exclude',
-        'tweak mask selected':  'all',
+        'tweak mask boundary':          'include',
+        'tweak mask symmetry':          'maintain',
+        'tweak mask hidden':            'exclude',
+        'tweak mask selected':          'all',
 
-        'patches angle':        120,
+        'patches angle':                120,
     }
 
     db = None           # current options dict

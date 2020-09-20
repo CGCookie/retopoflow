@@ -58,6 +58,9 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
     @RFTool_Relax.on_ui_setup
     def ui(self):
+        def relax_algorithm_selected_change(e):
+            if not e.target.checked: return
+            options['relax algorithm'] = e.target.value
         def relax_mask_boundary_change(e):
             if not e.target.checked: return
             options['relax mask boundary'] = e.target.value
@@ -72,6 +75,26 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             options['relax mask selected'] = e.target.value
 
         return ui.collapsible('Relax', children=[
+            ui.collection('Algorithm', children=[
+                ui.input_radio(
+                    title='Relax algorithm uses 3D position of vertices in world.  Works in general, but can be unstable',
+                    value='3D',
+                    checked=(options['relax algorithm']=='3D'),
+                    name='relax-algorithm',
+                    classes='half-size',
+                    children=[ui.label(innerText='3D')],
+                    on_input=relax_algorithm_selected_change,
+                ),
+                ui.input_radio(
+                    title='Relax algorithm uses 2D position of vertices in screen space.  Only works on visible, but can be more stable',
+                    value='2D',
+                    checked=(options['relax algorithm']=='2D'),
+                    name='relax-algorithm',
+                    classes='half-size',
+                    children=[ui.label(innerText='2D')],
+                    on_input=relax_algorithm_selected_change,
+                ),
+            ]),
             ui.collection('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
                     ui.input_radio(
@@ -285,16 +308,17 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         vert_strength = vert_strength or {}
 
         # gather options
-        opt_mask_boundary = options['relax mask boundary']
-        opt_mask_symmetry = options['relax mask symmetry']
-        opt_mask_hidden   = options['relax mask hidden']
-        opt_mask_selected = options['relax mask selected']
-        opt_steps         = options['relax steps']
-        opt_edge_length   = options['relax edge length']
-        opt_face_radius   = options['relax face radius']
-        opt_face_sides    = options['relax face sides']
-        opt_face_angles   = options['relax face angles']
-        opt_mult          = options['relax force multiplier']
+        opt_mask_boundary   = options['relax mask boundary']
+        opt_mask_symmetry   = options['relax mask symmetry']
+        opt_mask_hidden     = options['relax mask hidden']
+        opt_mask_selected   = options['relax mask selected']
+        opt_correct_flipped = options['relax correct flipped faces']
+        opt_steps           = options['relax steps']
+        opt_edge_length     = options['relax edge length']
+        opt_face_radius     = options['relax face radius']
+        opt_face_sides      = options['relax face sides']
+        opt_face_angles     = options['relax face angles']
+        opt_mult            = options['relax force multiplier']
 
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
 
@@ -311,8 +335,14 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         chk_edges = set(bme for bmv in chk_verts for bme in bmv.link_edges)
         chk_faces = set(bmf for bmv in chk_verts for bmf in bmv.link_faces)
 
-        # perform smoothing
-        for step in range(opt_steps):
+        displace = {}
+
+        def relax_2d():
+            pass
+
+        def relax_3d():
+            nonlocal displace
+
             # compute average edge length
             avg_edge_len = sum(bme.calc_length() for bme in edges) / len(edges)
             # gather coords
@@ -330,7 +360,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     displace[bmv1] += f
 
             # push verts if neighboring faces seem flipped (still WiP!)
-            if options['show experimental']:
+            if opt_correct_flipped:
                 for bmv in verts:
                     vn,fn = bmv.normal,bmv.compute_normal()
                     d = fn - vn * vn.dot(fn)
@@ -379,6 +409,15 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         f_mag = (0.1 * (avg_angle - angle) * strength) / cnt #/ vec_len
                         displace[bmv0] -= fvec0 * f_mag
                         displace[bmv1] -= fvec1 * f_mag
+
+        # perform smoothing
+        for step in range(opt_steps):
+            displace = {}
+
+            if options['relax algorithm'] == '3D':
+                relax_3d()
+            elif options['relax algorithm'] == '2D':
+                relax_2d()
 
             # update
             for bmv in displace:
