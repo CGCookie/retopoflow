@@ -74,6 +74,34 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             if not e.target.checked: return
             options['relax mask selected'] = e.target.value
 
+        def reset_algorithm_options():
+            options.reset(keys=[
+                'relax steps',
+                'relax force multiplier',
+                'relax edge length',
+                'relax face radius',
+                'relax face sides',
+                'relax face angles',
+                'relax correct flipped faces',
+                'relax straight edge',
+            ])
+
+        def add_option_checkbox():
+            # opt_mask_boundary   = options['relax mask boundary']
+            # opt_mask_symmetry   = options['relax mask symmetry']
+            # opt_mask_hidden     = options['relax mask hidden']
+            # opt_mask_selected   = options['relax mask selected']
+
+            # opt_steps           = options['relax steps']
+            # opt_mult            = options['relax force multiplier']
+
+            # opt_correct_flipped = options['relax correct flipped faces']
+            # opt_edge_length     = options['relax edge length']
+            # opt_face_radius     = options['relax face radius']
+            # opt_face_sides      = options['relax face sides']
+            # opt_face_angles     = options['relax face angles']
+            pass
+
         return ui.collapsible('Relax', children=[
             ui.collection('Algorithm', children=[
                 ui.input_radio(
@@ -93,9 +121,71 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     classes='half-size',
                     children=[ui.label(innerText='2D')],
                     on_input=relax_algorithm_selected_change,
+                    disabled=True,
                 ),
             ]),
-            ui.collection('Masking Options', id='relax-masking', children=[
+            ui.collapsible('Algorithm Options', id='relax-alg-options', children=[
+                ui.collection('Iterations', children=[
+                    ui.labeled_input_text(
+                        label='Steps',
+                        title='Number of times to iterate',
+                        value=BoundInt('''options['relax steps']''', min_value=1, max_value=10),
+                    ),
+                    ui.labeled_input_text(
+                        label='Strength',
+                        title='Strength multiplier for each iteration',
+                        value=BoundFloat('''options['relax force multiplier']''', min_value=0.1, max_value=10.0),
+                    ),
+                ]),
+                ui.collection('Edge', children=[
+                    ui.input_checkbox(
+                        label='Average edge length',
+                        title='Squash / stretch each edge toward the average edge length',
+                        checked=BoundBool('''options['relax edge length']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.collection('Face', children=[
+                    ui.input_checkbox(
+                        label='Face radius',
+                        title='Move face vertices so their distance to face center is equalized',
+                        checked=BoundBool('''options['relax face radius']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Average face edge length',
+                        title='Squash / stretch face edges so lengths are equal in length',
+                        checked=BoundBool('''options['relax face sides']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Face angles',
+                        title='Move face vertices so they are equally spread around face center',
+                        checked=BoundBool('''options['relax face angles']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.collection('Experimental', children=[
+                    ui.input_checkbox(
+                        label='Correct flipped faces',
+                        title='Try to move vertices so faces are not flipped',
+                        checked=BoundBool('''options['relax correct flipped faces']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Straighten edges',
+                        title='Try to straighten edges (quad only)',
+                        checked=BoundBool('''options['relax straight edges']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.button(
+                    label='Reset to Defaults',
+                    title='Reset Algorithm options to default values',
+                    on_mouseclick=reset_algorithm_options,
+                ),
+            ]),
+            ui.collapsible('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
                     ui.input_radio(
                         title='Relax vertices not along boundary',
@@ -312,12 +402,13 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         opt_mask_symmetry   = options['relax mask symmetry']
         opt_mask_hidden     = options['relax mask hidden']
         opt_mask_selected   = options['relax mask selected']
-        opt_correct_flipped = options['relax correct flipped faces']
         opt_steps           = options['relax steps']
         opt_edge_length     = options['relax edge length']
         opt_face_radius     = options['relax face radius']
         opt_face_sides      = options['relax face sides']
         opt_face_angles     = options['relax face angles']
+        opt_correct_flipped = options['relax correct flipped faces']
+        opt_straight_edges  = options['relax straight edges']
         opt_mult            = options['relax force multiplier']
 
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
@@ -361,11 +452,37 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
             # push verts if neighboring faces seem flipped (still WiP!)
             if opt_correct_flipped:
-                for bmv in verts:
-                    vn,fn = bmv.normal,bmv.compute_normal()
-                    d = fn - vn * vn.dot(fn)
-                    # print(vn, fn, d)
-                    displace[bmv] += d
+                bmf_flipped = { bmf for bmf in chk_faces if bmf.is_flipped() }
+                for bmf in bmf_flipped:
+                    # find a non-flipped neighboring face
+                    for bme in bmf.edges:
+                        bmfs = set(bme.link_faces) - {bmf}
+                        if len(bmfs) != 1: continue
+                        bmf_other = next(iter(bmfs))
+                        if bmf_other not in chk_faces: continue
+                        if bmf_other in bmf_flipped: continue
+                        # pull edge toward bmf_other center
+                        bmf_other_center = bmf_other.center()
+                        bme_center = bme.calc_center()
+                        vec = bmf_other_center - bme_center
+                        bmv0,bmv1 = bme.verts
+                        if bmv0 in displace: displace[bmv0] += vec * 0.01
+                        if bmv1 in displace: displace[bmv1] += vec * 0.01
+                # for bmv in verts:
+                #     vn,fn = bmv.normal,bmv.compute_normal()
+                #     d = vn.dot(fn)
+                #     if d > 0: continue
+                #     d = fn - vn * vn.dot(fn)
+                #     # print(vn, fn, d)
+                #     displace[bmv] -= d * 0.1
+
+            if opt_straight_edges:
+                for bmv in displace:
+                    if bmv.is_boundary: continue
+                    bmes = bmv.link_edges
+                    if len(bmes) != 4: continue
+                    center = Point.average(bme.other_vert(bmv).co for bme in bmes)
+                    displace[bmv] += (center - bmv.co) * 0.1
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
@@ -380,7 +497,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     avg_rel_len = sum(rel.length for rel in rels) / cnt
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength) #/ rel_len
+                        f = rel * ((avg_rel_len - rel_len) * strength * 2) #/ rel_len
                         displace[bmv] += f
 
                 # push verts toward equal edge lengths
@@ -390,9 +507,9 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         bmv0, bmv1 = bme.verts
                         vec = bme.vector()
                         edge_len = vec.length
-                        f = vec * ((avg_face_edge_len - edge_len) * strength) #/ edge_len
-                        displace[bmv0] -= f
-                        displace[bmv1] += f
+                        f = vec * ((avg_face_edge_len - edge_len) * strength) / edge_len
+                        displace[bmv0] -= f * 0.5
+                        displace[bmv1] += f * 0.5
 
                 # push verts toward equal spread
                 if opt_face_angles:
@@ -435,3 +552,4 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
                 bmv.co = co
                 self.rfcontext.snap_vert(bmv)
+            self.rfcontext.update_verts_faces(displace)

@@ -527,6 +527,7 @@ class RFFace(BMElemWrapper):
         return len(self.bmelem.verts) == 3
 
     def center(self):
+        return Point.average(self.l2w_point(bmv.co) for bmv in self.bmelem.verts)
         cos = [Vec(self.l2w_point(bmv.co)) for bmv in self.bmelem.verts]
         return Point(sum(cos, Vec((0, 0, 0))) / len(cos))
 
@@ -542,8 +543,13 @@ class RFFace(BMElemWrapper):
         for i in range(len(vs)):
             bmv0,bmv1,bmv2 = bmv1,bmv2,vs[i]
             v0,v1 = -v1,bmv2.co-bmv1.co
-            an = an + Normal(v0.cross(v1))
+            an = an + Normal(v1.cross(v0))
         return self.l2w_normal(Normal(an))
+
+    def is_flipped(self):
+        fn = self.w2l_normal(self.compute_normal())
+        vs = list(self.bmelem.verts)
+        return any(v.normal.dot(fn) <= 0 for v in vs)
 
     def overlap2D(self, other, Point_to_Point2D):
         return self.overlap2D_center(other, Point_to_Point2D)

@@ -72,6 +72,10 @@ input[type="radio"]:active {
 input[type="radio"]:active:hover {
     background: hsla(200, 100%, 62.5%, 0.75);
 }
+input[type="radio"]:disabled {
+    background-color: rgba(64,64,64,0.5);
+    color: rgb(96,96,96);
+}
 input[type="radio"] > label {
     margin: 0px;
     border: 0px;
@@ -86,6 +90,9 @@ input[type="radio"][checked] label {
 }
 input[type="radio"]:active label {
     color: black;
+}
+input[type="radio"]:disabled label {
+    color: rgb(96,96,96);
 }
 
 input[type="radio"].half-size {
