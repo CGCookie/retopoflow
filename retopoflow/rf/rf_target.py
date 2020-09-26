@@ -255,10 +255,10 @@ class RetopoFlow_Target:
     def nearest_vert_mouse(self, verts=None):
         return self.nearest_vert_point(self.actions.mouse, verts=verts)
 
-    def nearest_verts_point(self, point, max_dist:float):
+    def nearest_verts_point(self, point, max_dist:float, bmverts=None):
         xyz = self.get_point3D(point)
         if xyz is None: return None
-        return self.rftarget.nearest_bmverts_Point(xyz, max_dist)
+        return self.rftarget.nearest_bmverts_Point(xyz, max_dist, bmverts=bmverts)
 
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
@@ -286,6 +286,13 @@ class RetopoFlow_Target:
     def visible_faces(self, verts=None):
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
+
+    def iter_verts(self):
+        yield from self.rftarget.iter_verts()
+    def iter_edges(self):
+        yield from self.rftarget.iter_edges()
+    def iter_faces(self):
+        yield from self.rftarget.iter_faces()
 
     ########################################
     # symmetry utils

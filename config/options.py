@@ -230,7 +230,7 @@ class Options:
         'relax force multiplier':       1.5,
         'relax edge length':            True,
         'relax face radius':            True,
-        'relax face sides':             True,
+        'relax face sides':             False,
         'relax face angles':            True,
         'relax correct flipped faces':  False,
         'relax straight edges':         True,

@@ -696,9 +696,11 @@ class RFMesh():
         bmv_world = self.xform.l2w_point(bv.co)
         return (self._wrap_bmvert(bv),(point-bmv_world).length)
 
-    def nearest_bmverts_Point(self, point:Point, dist3d:float):
+    def nearest_bmverts_Point(self, point:Point, dist3d:float, bmverts=None):
         nearest = []
-        for bmv in self.bme.verts:
+        unwrap = bmverts is not None
+        for bmv in (bmverts or self.bme.verts):
+            if unwrap: bmv = self._unwrap(bmv)
             if not bmv.is_valid: continue
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
@@ -909,6 +911,22 @@ class RFMesh():
     def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid]
     def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid]
     def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid]
+
+    def iter_verts(self):
+        wrap = self._wrap_bmvert
+        for bmv in self.bme.verts:
+            if not bmv.is_valid: continue
+            yield wrap(bmv)
+    def iter_edges(self):
+        wrap = self._wrap_bmedge
+        for bme in self.bme.edges:
+            if not bme.is_valid: continue
+            yield wrap(bme)
+    def iter_faces(self):
+        wrap = self._wrap_bmface
+        for bmf in self.bme.faces:
+            if not bmf.is_valid: continue
+            yield wrap(bmf)
 
     def get_vert_count(self): return len(self.bme.verts)
     def get_edge_count(self): return len(self.bme.edges)

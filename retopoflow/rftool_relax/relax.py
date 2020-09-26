@@ -83,8 +83,18 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 'relax face sides',
                 'relax face angles',
                 'relax correct flipped faces',
-                'relax straight edge',
+                'relax straight edges',
             ])
+        def disable_all_options():
+            for key in [
+                    'relax edge length',
+                    'relax face radius',
+                    'relax face sides',
+                    'relax face angles',
+                    'relax correct flipped faces',
+                    'relax straight edges',
+                ]:
+                options[key] = False
 
         def add_option_checkbox():
             # opt_mask_boundary   = options['relax mask boundary']
@@ -154,7 +164,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     ),
                     ui.input_checkbox(
                         label='Average face edge length',
-                        title='Squash / stretch face edges so lengths are equal in length',
+                        title='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
                         checked=BoundBool('''options['relax face sides']'''),
                         style='display:block; width:100%',
                     ),
@@ -179,11 +189,18 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.button(
-                    label='Reset to Defaults',
-                    title='Reset Algorithm options to default values',
-                    on_mouseclick=reset_algorithm_options,
-                ),
+                ui.collection('Presets', children=[
+                    ui.button(
+                        label='Reset',
+                        title='Reset Algorithm options to default values',
+                        on_mouseclick=reset_algorithm_options,
+                    ),
+                    ui.button(
+                        label='Disable All',
+                        title='Disable all Algorithm options',
+                        on_mouseclick=disable_all_options,
+                    ),
+                ]),
             ]),
             ui.collapsible('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
@@ -362,13 +379,41 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         self._time = time.time()
         self._timer = self.actions.start_timer(120)
 
+        opt_mask_boundary   = options['relax mask boundary']
+        opt_mask_symmetry   = options['relax mask symmetry']
+        opt_mask_hidden     = options['relax mask hidden']
+        opt_mask_selected   = options['relax mask selected']
+        opt_steps           = options['relax steps']
+        opt_edge_length     = options['relax edge length']
+        opt_face_radius     = options['relax face radius']
+        opt_face_sides      = options['relax face sides']
+        opt_face_angles     = options['relax face angles']
+        opt_correct_flipped = options['relax correct flipped faces']
+        opt_straight_edges  = options['relax straight edges']
+        opt_mult            = options['relax force multiplier']
+        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
+
+        self._bmverts = []
+        for bmv in self.rfcontext.iter_verts():
+            if self.sel_only and not bmv.select: continue
+            if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
+            if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
+            if opt_mask_hidden   == 'exclude' and not is_visible(bmv): continue
+            if opt_mask_selected == 'exclude' and bmv.select: continue
+            if opt_mask_selected == 'only' and not bmv.select: continue
+            self._bmverts.append(bmv)
+        print(f'Relaxing max of {len(self._bmverts)} bmverts')
+
     @RFTool_Relax.FSM_State('relax', 'exit')
     def relax_exit(self):
+        self.rfcontext.update_verts_faces(self._bmverts)
         self._timer.done()
 
     @RFTool_Relax.FSM_State('relax')
     @RFTool.dirty_when_done
     def relax(self):
+        st = time.time()
+
         if self.rfcontext.actions.released(['brush','brush alt']):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
@@ -382,7 +427,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
         # collect data for smoothing
         radius = self.rfwidget.get_scaled_radius()
-        nearest = self.rfcontext.nearest_verts_point(hit_pos, radius)
+        nearest = self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv,d in nearest:
             verts.add(bmv)
@@ -391,17 +436,14 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             vert_strength[bmv] = self.rfwidget.get_strength_dist(d) / radius
         # self.rfcontext.select(verts)
 
-        self._relax(verts, edges, faces, vert_strength)
-
-    def _relax(self, verts, edges, faces, vert_strength=None, vistest=True):
         if not verts or not edges: return
         vert_strength = vert_strength or {}
 
         # gather options
-        opt_mask_boundary   = options['relax mask boundary']
+        # opt_mask_boundary   = options['relax mask boundary']
         opt_mask_symmetry   = options['relax mask symmetry']
-        opt_mask_hidden     = options['relax mask hidden']
-        opt_mask_selected   = options['relax mask selected']
+        # opt_mask_hidden     = options['relax mask hidden']
+        # opt_mask_selected   = options['relax mask selected']
         opt_steps           = options['relax steps']
         opt_edge_length     = options['relax edge length']
         opt_face_radius     = options['relax face radius']
@@ -421,10 +463,10 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
-        chk_verts |= {bmv for bme in edges for bmv in bme.verts}
-        chk_verts |= {bmv for bmf in faces for bmv in bmf.verts}
-        chk_edges = set(bme for bmv in chk_verts for bme in bmv.link_edges)
-        chk_faces = set(bmf for bmv in chk_verts for bmf in bmv.link_faces)
+        chk_verts.update(bmv for bme in edges for bmv in bme.verts)
+        chk_verts.update(bmv for bmf in faces for bmv in bmf.verts)
+        chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
+        chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
 
         displace = {}
 
@@ -456,7 +498,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 for bmf in bmf_flipped:
                     # find a non-flipped neighboring face
                     for bme in bmf.edges:
-                        bmfs = set(bme.link_faces) - {bmf}
+                        bmfs = set(bme.link_faces)
+                        bmfs.discard(bmf)
                         if len(bmfs) != 1: continue
                         bmf_other = next(iter(bmfs))
                         if bmf_other not in chk_faces: continue
@@ -466,21 +509,15 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         bme_center = bme.calc_center()
                         vec = bmf_other_center - bme_center
                         bmv0,bmv1 = bme.verts
-                        if bmv0 in displace: displace[bmv0] += vec * 0.01
-                        if bmv1 in displace: displace[bmv1] += vec * 0.01
-                # for bmv in verts:
-                #     vn,fn = bmv.normal,bmv.compute_normal()
-                #     d = vn.dot(fn)
-                #     if d > 0: continue
-                #     d = fn - vn * vn.dot(fn)
-                #     # print(vn, fn, d)
-                #     displace[bmv] -= d * 0.1
+                        if bmv0 in displace: displace[bmv0] += vec * strength * 5
+                        if bmv1 in displace: displace[bmv1] += vec * strength * 5
 
+            # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
                 for bmv in displace:
                     if bmv.is_boundary: continue
                     bmes = bmv.link_edges
-                    if len(bmes) != 4: continue
+                    #if len(bmes) != 4: continue
                     center = Point.average(bme.other_vert(bmv).co for bme in bmes)
                     displace[bmv] += (center - bmv.co) * 0.1
 
@@ -540,12 +577,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             for bmv in displace:
                 if bmv not in verts: continue
                 if bmv not in vert_strength: continue
-                if self.sel_only and not bmv.select: continue
-                if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
-                if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
-                if opt_mask_hidden   == 'exclude' and vistest and not is_visible(bmv): continue
-                if opt_mask_selected == 'exclude' and bmv.select: continue
-                if opt_mask_selected == 'only' and not bmv.select: continue
+                # if self.sel_only and not bmv.select: continue
+                # if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
+                # if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
+                # if opt_mask_hidden   == 'exclude' and not is_visible(bmv): continue
+                # if opt_mask_selected == 'exclude' and bmv.select: continue
+                # if opt_mask_selected == 'only' and not bmv.select: continue
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv])
                 if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
                     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
@@ -553,3 +590,4 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 bmv.co = co
                 self.rfcontext.snap_vert(bmv)
             self.rfcontext.update_verts_faces(displace)
+        # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
