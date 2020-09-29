@@ -75,6 +75,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self.nearest_edge = None
         self.set_next_state()
         self.hovering_edge = None
+        self.hovering_sel_edge = None
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:

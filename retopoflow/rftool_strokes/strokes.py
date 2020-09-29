@@ -134,6 +134,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.strip_edges = False
         self.just_created = False
         self.defer_recomputing = False
+        self.hovering_edge = None
+        self.hovering_sel_edge = None
         self.update_ui()
 
     def update_ui(self):
