@@ -141,6 +141,16 @@ class RFVert(BMElemWrapper):
     def __repr__(self):
         return '<RFVert: %s>' % repr(self.bmelem)
 
+    @staticmethod
+    def get_link_edges(rfverts):
+        bmes = { bme for bmv in rfverts for bme in bmv.bmelem.link_edges }
+        return { RFEdge(bme) for bme in bmes }
+
+    @staticmethod
+    def get_link_faces(rfverts):
+        bmfs = { bmf for bmv in rfverts for bmf in bmv.bmelem.link_faces }
+        return { RFFace(bmf) for bmf in bmfs }
+
     @property
     def co(self):
         return self.l2w_point(self.bmelem.co)
@@ -233,6 +243,11 @@ class RFVert(BMElemWrapper):
 class RFEdge(BMElemWrapper):
     def __repr__(self):
         return '<RFEdge: %s>' % repr(self.bmelem)
+
+    @staticmethod
+    def get_verts(rfedges):
+        bmvs = { bmv for bme in rfedges for bmv in bme.bmelem.verts }
+        return { RFVert(bmv) for bmv in bmvs }
 
     @property
     def seam(self):
@@ -450,6 +465,11 @@ class RFEdge(BMElemWrapper):
 class RFFace(BMElemWrapper):
     def __repr__(self):
         return '<RFFace: %s>' % repr(self.bmelem)
+
+    @staticmethod
+    def get_verts(rffaces):
+        bmvs = { bmv for bmf in rffaces for bmv in bmf.bmelem.verts }
+        return { RFVert(bmv) for bmv in bmvs }
 
     @property
     def material_index(self):

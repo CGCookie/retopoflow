@@ -576,6 +576,22 @@ class RetopoFlow_Target:
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
 
+    #######################################################
+
+    def get_verts_link_edges(self, verts):
+        return RFVert.get_link_edges(verts)
+
+    def get_verts_link_faces(self, verts):
+        return RFVert.get_link_faces(verts)
+
+    def get_edges_verts(self, edges):
+        return RFEdge.get_verts(edges)
+
+    def get_faces_verts(self, faces):
+        return RFFace.get_verts(faces)
+
+    #######################################################
+
     def update_rot_object(self):
         bbox = self.rftarget.get_selection_bbox()
         if bbox.min == None:

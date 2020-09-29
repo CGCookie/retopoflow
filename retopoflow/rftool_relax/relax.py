@@ -113,27 +113,27 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             pass
 
         return ui.collapsible('Relax', children=[
-            ui.collection('Algorithm', children=[
-                ui.input_radio(
-                    title='Relax algorithm uses 3D position of vertices in world.  Works in general, but can be unstable',
-                    value='3D',
-                    checked=(options['relax algorithm']=='3D'),
-                    name='relax-algorithm',
-                    classes='half-size',
-                    children=[ui.label(innerText='3D')],
-                    on_input=relax_algorithm_selected_change,
-                ),
-                ui.input_radio(
-                    title='Relax algorithm uses 2D position of vertices in screen space.  Only works on visible, but can be more stable',
-                    value='2D',
-                    checked=(options['relax algorithm']=='2D'),
-                    name='relax-algorithm',
-                    classes='half-size',
-                    children=[ui.label(innerText='2D')],
-                    on_input=relax_algorithm_selected_change,
-                    disabled=True,
-                ),
-            ]),
+            # ui.collection('Algorithm', children=[
+            #     ui.input_radio(
+            #         title='Relax algorithm uses 3D position of vertices in world.  Works in general, but can be unstable',
+            #         value='3D',
+            #         checked=(options['relax algorithm']=='3D'),
+            #         name='relax-algorithm',
+            #         classes='half-size',
+            #         children=[ui.label(innerText='3D')],
+            #         on_input=relax_algorithm_selected_change,
+            #     ),
+            #     ui.input_radio(
+            #         title='Relax algorithm uses 2D position of vertices in screen space.  Only works on visible, but can be more stable',
+            #         value='2D',
+            #         checked=(options['relax algorithm']=='2D'),
+            #         name='relax-algorithm',
+            #         classes='half-size',
+            #         children=[ui.label(innerText='2D')],
+            #         on_input=relax_algorithm_selected_change,
+            #         disabled=True,
+            #     ),
+            # ]),
             ui.collapsible('Algorithm Options', id='relax-alg-options', children=[
                 ui.collection('Iterations', children=[
                     ui.labeled_input_text(
@@ -152,6 +152,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         label='Average edge length',
                         title='Squash / stretch each edge toward the average edge length',
                         checked=BoundBool('''options['relax edge length']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Straighten edges',
+                        title='Try to straighten edges',
+                        checked=BoundBool('''options['relax straight edges']'''),
                         style='display:block; width:100%',
                     ),
                 ]),
@@ -180,12 +186,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         label='Correct flipped faces',
                         title='Try to move vertices so faces are not flipped',
                         checked=BoundBool('''options['relax correct flipped faces']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Straighten edges',
-                        title='Try to straighten edges (quad only)',
-                        checked=BoundBool('''options['relax straight edges']'''),
                         style='display:block; width:100%',
                     ),
                 ]),
@@ -463,10 +463,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
-        chk_verts.update(bmv for bme in edges for bmv in bme.verts)
-        chk_verts.update(bmv for bmf in faces for bmv in bmf.verts)
-        chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
-        chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
+        chk_verts.update(self.rfcontext.get_edges_verts(edges))
+        chk_verts.update(self.rfcontext.get_faces_verts(faces))
+        #chk_verts.update(bmv for bme in edges for bmv in bme.verts)
+        # chk_verts.update(bmv for bmf in faces for bmv in bmf.verts)
+        chk_edges = self.rfcontext.get_verts_link_edges(chk_verts) #{ bme for bmv in chk_verts for bme in bmv.link_edges }
+        chk_faces = self.rfcontext.get_verts_link_faces(chk_verts) #{ bmf for bmv in chk_verts for bmf in bmv.link_faces }
 
         displace = {}
 
