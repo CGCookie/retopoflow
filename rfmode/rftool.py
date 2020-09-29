@@ -49,11 +49,11 @@ class RFTool(metaclass=SingletonRegisterClass):
         'Contours',
         'PolyStrips',
         'PolyPen',
-        'Strokes',
-        'Patches',
-        'Loops',
         'Relax',
         'Tweak',
+        'Loops',
+        'Patches',
+        'Strokes',
     ]
     order = None
 
