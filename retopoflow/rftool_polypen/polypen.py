@@ -630,8 +630,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         update_verts = []
         merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
         for bmv,xy in self.bmverts:
+            if not xy: continue
             xy_updated = xy + delta
             for bmv1,xy1 in self.vis_bmverts:
+                if not xy1: continue
                 if bmv1 == bmv: continue
                 if not bmv1.is_valid: continue
                 d = (xy_updated - xy1).length
@@ -706,11 +708,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
+            if not xy: continue
             xy_updated = xy + delta
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
                 for bmv1,xy1 in self.vis_bmverts:
+                    if not xy1: continue
                     if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
                         set2D_vert(bmv, xy1)
                         break
