@@ -380,7 +380,7 @@ class RetopoFlow_UI:
                 ui_elem.is_visible = show
                 changed = True
         if changed:
-            self.ui_options.dirty('update', parent=True, children=True)
+            self.ui_options.dirty(cause='update', parent=True, children=True)
 
     def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True, hide_target=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))

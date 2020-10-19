@@ -99,9 +99,9 @@ class RetopoFlow_BlenderSave:
         if not good_unsaved:
             message += ['\n'.join([
                 'You are currently working on an _UNSAVED_ Blender file.',
-                'Your changes will be saved to `%s` when you press `%s`' % (path_autosave, save),
+                f'Your changes will be saved to `{path_autosave}` when you press `{save}`',
                 '',
-                '''<input type="checkbox" value="options['check unsaved']">Check for Unsaved when RetopoFlow starts</input>''',
+                '''<input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</input>''',
             ])]
         else:
             message += ['Press `%s` any time to save your changes.' % (save)]
@@ -163,7 +163,7 @@ class RetopoFlow_BlenderSave:
             self.last_change_count = self.change_count
         except Exception as e:
             self._backup_broken = True
-            self.alert_user(title='Could not save backup', message='Could not save backup file.  Temporarily preventing further backup attempts.  You might try saving file manually.\n\nFile path: %s\n\nError message: "%s"' % (filepath, str(e)))
+            self.alert_user(title='Could not save backup', message=f'Could not save backup file.  Temporarily preventing further backup attempts.  You might try saving file manually.\n\nFile path: `{filepath}`\n\nError message: "{e}"')
 
     def save_normal(self):
         self.blender_ui_reset()

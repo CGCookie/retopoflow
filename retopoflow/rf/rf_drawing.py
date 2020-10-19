@@ -80,58 +80,58 @@ class RetopoFlow_Drawing:
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
             # get frame of target, used for symmetry decorations on sources
             ft = self.rftarget.get_frame()
-            with profiler.code('render sources'):
-                for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                    rfs.draw(
-                        view_forward, self.unit_scaling_factor,
-                        buf_matrix_target, buf_matrix_target_inv,
-                        buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                        1.00, 0.05, False, 0.5,
-                        symmetry=self.rftarget.mirror_mod.xyz,
-                        symmetry_view=options['symmetry view'],
-                        symmetry_effect=options['symmetry effect'],
-                        symmetry_frame=ft,
-                    )
-
-        with profiler.code('render target'):
-            # bgl.glEnable(bgl.GL_MULTISAMPLE)
-            # bgl.glEnable(bgl.GL_LINE_SMOOTH)
-            # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
-            bgl.glEnable(bgl.GL_BLEND)
-            if True:
-                alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
-                cull_backfaces = options['target cull backfaces']
-                alpha_backface = options['target alpha backface']
-                self.rftarget_draw.draw(
+            # render sources
+            for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+                rfs.draw(
                     view_forward, self.unit_scaling_factor,
                     buf_matrix_target, buf_matrix_target_inv,
                     buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                    alpha_above, alpha_below, cull_backfaces, alpha_backface
+                    1.00, 0.05, False, 0.5,
+                    symmetry=self.rftarget.mirror_mod.xyz,
+                    symmetry_view=options['symmetry view'],
+                    symmetry_effect=options['symmetry effect'],
+                    symmetry_frame=ft,
                 )
+
+        # render target
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        # bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
+        bgl.glEnable(bgl.GL_BLEND)
+        if True:
+            alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
+            cull_backfaces = options['target cull backfaces']
+            alpha_backface = options['target alpha backface']
+            self.rftarget_draw.draw(
+                view_forward, self.unit_scaling_factor,
+                buf_matrix_target, buf_matrix_target_inv,
+                buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                alpha_above, alpha_below, cull_backfaces, alpha_backface
+            )
 
     @CookieCutter.Draw('post3d')
     def draw_greasemarks(self):
         return
         if not self.actions.r3d: return
         # THE FOLLOWING CODE NEEDS UPDATED TO NOT USE GLBEGIN!
-        with profiler.code('grease marks'):
-            bgl.glBegin(bgl.GL_QUADS)
-            for stroke_data in self.grease_marks:
-                bgl.glColor4f(*stroke_data['color'])
-                t = stroke_data['thickness']
-                s0,p0,n0,d0,d1 = None,None,None,None,None
-                for s1 in stroke_data['marks']:
-                    p1,n1 = s1
-                    if p0 and p1:
-                        v01 = p1 - p0
-                        if d0 is None: d0 = Direction(v01.cross(n0))
-                        d1 = Direction(v01.cross(n1))
-                        bgl.glVertex3f(*(p0-d0*t+n0*0.001))
-                        bgl.glVertex3f(*(p0+d0*t+n0*0.001))
-                        bgl.glVertex3f(*(p1+d1*t+n1*0.001))
-                        bgl.glVertex3f(*(p1-d1*t+n1*0.001))
-                    s0,p0,n0,d0 = s1,p1,n1,d1
-            bgl.glEnd()
+        # grease marks
+        bgl.glBegin(bgl.GL_QUADS)
+        for stroke_data in self.grease_marks:
+            bgl.glColor4f(*stroke_data['color'])
+            t = stroke_data['thickness']
+            s0,p0,n0,d0,d1 = None,None,None,None,None
+            for s1 in stroke_data['marks']:
+                p1,n1 = s1
+                if p0 and p1:
+                    v01 = p1 - p0
+                    if d0 is None: d0 = Direction(v01.cross(n0))
+                    d1 = Direction(v01.cross(n1))
+                    bgl.glVertex3f(*(p0-d0*t+n0*0.001))
+                    bgl.glVertex3f(*(p0+d0*t+n0*0.001))
+                    bgl.glVertex3f(*(p1+d1*t+n1*0.001))
+                    bgl.glVertex3f(*(p1-d1*t+n1*0.001))
+                s0,p0,n0,d0 = s1,p1,n1,d1
+        bgl.glEnd()
 
 
     ##################################

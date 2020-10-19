@@ -38,7 +38,7 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Header",
-    "warning":     "beta3 (β3)",  # used for warning icon and text in addons panel
+    "warning":     "Release Candidate 1",  # used for warning icon and text in addons panel
     "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",

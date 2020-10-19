@@ -91,27 +91,26 @@ class RFMesh():
         deform=False, bme=None, triangulate=False,
         selection=True, keepeme=False
     ):
-        with profiler.code('checking for NaNs'):
-            hasnan = any(
-                math.isnan(v)
-                for emv in obj.data.vertices
-                for v in emv.co
-            )
-            with profiler.code('validating mesh data'):
-                if hasnan:
-                    print('Mesh data contains NaN in vertex coordinate!')
-                    print('Cleaning mesh')
-                    obj.data.validate(verbose=True, clean_customdata=False)
-                else:
-                    # cleaning mesh quietly
-                    obj.data.validate(verbose=False, clean_customdata=False)
+        # checking for NaNs
+        hasnan = any(
+            math.isnan(v)
+            for emv in obj.data.vertices
+            for v in emv.co
+        )
+        if hasnan:
+            print('Mesh data contains NaN in vertex coordinate!')
+            print('Cleaning mesh')
+            obj.data.validate(verbose=True, clean_customdata=False)
+        else:
+            # cleaning mesh quietly
+            obj.data.validate(verbose=False, clean_customdata=False)
 
-        with profiler.code('setup init'):
-            self.obj = obj
-            self.xform = XForm(self.obj.matrix_world)
-            self.hash = hash_object(self.obj)
-            self._version = None
-            self._version_selection = None
+        # setup init
+        self.obj = obj
+        self.xform = XForm(self.obj.matrix_world)
+        self.hash = hash_object(self.obj)
+        self._version = None
+        self._version_selection = None
 
         if bme is not None:
             self.bme = bme
@@ -134,10 +133,10 @@ class RFMesh():
         if triangulate:
             self.triangulate()
 
-        with profiler.code('setup finishing'):
-            self.selection_center = Point((0, 0, 0))
-            self.store_state()
-            self.dirty()
+        # setup finishing
+        self.selection_center = Point((0, 0, 0))
+        self.store_state()
+        self.dirty()
 
     def __del__(self):
         RFMesh.delete_count += 1
@@ -304,31 +303,31 @@ class RFMesh():
         side = plane_local.side
         triangle_intersection = plane_local.triangle_intersection
 
-        with profiler.code('vert sides'):
-            vert_side = {
-                bmv: side(bmv.co)
-                for bmv in self.bme.verts
-            }
-        with profiler.code('split edges'):
-            edges = {
-                bme
-                for bme in self.bme.edges
-                if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
-            }
-        with profiler.code('split faces'):
-            faces = {
-                bmf
-                for bme in edges
-                for bmf in bme.link_faces
-            }
-        with profiler.code('intersections'):
-            intersection = [
-                (l2w_point(p0), l2w_point(p1))
-                for bmf in faces
-                for (p0, p1) in triangle_intersection([
-                    bmv.co for bmv in bmf.verts
-                ])
-            ]
+        # vert sides
+        vert_side = {
+            bmv: side(bmv.co)
+            for bmv in self.bme.verts
+        }
+        # split edges
+        edges = {
+            bme
+            for bme in self.bme.edges
+            if vert_side[bme.verts[0]] != vert_side[bme.verts[1]]
+        }
+        # split faces
+        faces = {
+            bmf
+            for bme in edges
+            for bmf in bme.link_faces
+        }
+        # intersections
+        intersection = [
+            (l2w_point(p0), l2w_point(p1))
+            for bmf in faces
+            for (p0, p1) in triangle_intersection([
+                bmv.co for bmv in bmf.verts
+            ])
+        ]
         return intersection
 
     def get_xy_plane(self):
@@ -602,24 +601,24 @@ class RFMesh():
         w,l2w_point = self._wrap,self.xform.l2w_point
 
         # find all faces that cross the plane
-        with profiler.code('finding all edges crossing plane'):
-            dot = plane.n.dot
-            o = dot(plane.o)
-            edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
+        # finding all edges crossing plane
+        dot = plane.n.dot
+        o = dot(plane.o)
+        edges = [bme for bme in self.bme.edges if (dot(bme.verts[0].co)-o) * (dot(bme.verts[1].co)-o) <= 0]
 
-        with profiler.code('finding faces crossing plane'):
-            faces = set(bmf for bme in edges for bmf in bme.link_faces)
+        # finding faces crossing plane
+        faces = set(bmf for bme in edges for bmf in bme.link_faces)
 
-        with profiler.code('crawling faces along plane'):
-            rets = []
-            touched = set()
-            for bmf in faces:
-                if bmf in touched: continue
-                ret = self._crawl(bmf, plane)
-                touched |= set(f0 for f0,_,_,_ in ret if f0)
-                touched |= set(f1 for _,_,f1,_ in ret if f1)
-                ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-                rets += [ret]
+        # crawling faces along plane
+        rets = []
+        touched = set()
+        for bmf in faces:
+            if bmf in touched: continue
+            ret = self._crawl(bmf, plane)
+            touched |= set(f0 for f0,_,_,_ in ret if f0)
+            touched |= set(f1 for _,_,f1,_ in ret if f1)
+            ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
+            rets += [ret]
 
         return rets
 
