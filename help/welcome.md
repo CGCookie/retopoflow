@@ -29,51 +29,10 @@ When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will b
 These windows allow you to switch between RF tools, set tool options, and get more information.
 Also, this one-time Welcome message will greet you.
 
-Below are more details about the current version of RetopoFlow.
+See our [change list](changelist.md) to see details about the changes mode since RetopoFlow&nbsp;2.x.
 
 
-### Change List
-
-Below is a short list of major changes from RetopoFlow&nbsp;2.x.
-
-- Left-mouse select is now a thing!
-- Mouse dragging, clicking, and double-clicking are now possible actions.
-- Some of the keymaps for some tools have changed to allow for LMB-select.
-- The target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.
-- Some RF tools have improved options.
-- Major UI and UX improvements, including: tooltips, labels, help docs, gizmo rendering, minimizing main tool window
-- Improved consistency across all tools
-- Tools refresh faster when in middle of editing
-- Code optimization, cleanup, and refactoring
-- Reworked Auto Save and Save to be more intuitive and handle errors better
-- Works in Blender 2.8x and 2.9x
-- Fixed many issues
-
-### Blender versions
-
-As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.80--2.90α.
-
-RetopoFlow is slightly visually different starting in Blender&nbsp;2.83β.
-Since this is only a visual change---RF works just the same in all versions---we do not plan to correct for this by making RF visually consistent across all versions of Blender.
-
-Note: This version will *not* work in Blender&nbsp;2.79b or earlier.
-
-
-### New Framework
-
-Due to some significant changes in the Blender&nbsp;2.80 Python API, we had to rewrite a few key parts of RetopoFlow, specifically the rendering and UI.
-Rather than keeping these updates only for RetopoFlow users, we decided to build the changes into a new framework called [CookieCutter](https://github.com/CGCookie/addon_common).
-The CookieCutter framework has several brand new systems to handle states, UI drawing and interaction, debugging and exceptions, rendering, and much more.
-CookieCutter was built from the ground up to be a maintainable, extensible, and configurable framework for Blender add-ons.
-
-The new RetopoFlow sits on top of the CookieCutter framework, and we are excited to show off CookieCutter's features through RetopoFlow!
-
-But with any unveiling on new things, there are new bugs and performance issues.
-Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
-We will need your help, though.
-
-
-### Reporting Bugs
+## Reporting Bugs
 
 Whenever you see a bug, please let us know so that we can fix them!
 Be sure to submit screen shots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button or visiting [GitHub Issues](https://github.com/CGCookie/retopoflow/issues).
@@ -82,7 +41,7 @@ We have added buttons to open the issue tracker in your default browser and to s
 ![Global exception handling.](global_exception.png max-height:500px)
 
 
-### Feedback
+## Feedback
 
 We have worked hard to make this as production-ready as possible.
 We focused on stability and bug handling in addition to new features, improving overall speed, and making RetopoFlow easier to use.
@@ -96,7 +55,7 @@ Please consider doing the following:
 - Consider [donating](https://paypal.me/gfxcoder/) to our drink funds :)
 
 
-### Known Issues / Future Work
+## Known Issues / Future Work
 
 Below is a list of known issues that we are currently working on.
 

@@ -25,10 +25,11 @@ The following documents provide help for specific RetopoFlow tools.
 - ![Relax icon](relax_32.png width:24px;height:24px;padding:0px) [Relax](relax.md)
 - ![Tweak icon](tweak_32.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
 
-## Additional Help
+## Additional Information
 
-The following links provide additional help.
+The following links provide additional information.
 
+- [Change list](changelist.md)
 - [Blender Market](https://blendermarket.com/products/retopoflow)
 - [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)
 - [GitHub Issues](https://github.com/CGCookie/retopoflow/issues)
