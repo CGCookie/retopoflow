@@ -364,6 +364,10 @@ class RetopoFlow_UI:
             self.document.center_on_mouse(win)
             self.document.sticky_element = win
             win.dirty(cause='new window', parent=False, children=True)
+        else:
+            self.document.force_clean(self.actions.context)
+            self.document.center_on_mouse(win)
+            win.dirty(cause='new window', parent=False, children=True)
         if level in {'note', None}:
             win.add_eventListener('on_mouseleave', mouseleave_event)
             win.add_eventListener('on_keypress', keypress_event)
