@@ -116,6 +116,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     children=[ui.label(innerText='Quad-Only')],
                     on_input=insert_mode_change,
                 ),
+                # HACK: THE FOLLOWING LINE IS A HACK TO FORCE THE "Tri-Only" INPUT TO RESIZE CORRECTLY!
+                ui.p(
+                    style='display:none',
+                ),
                 ui.input_radio(
                     id='polypen-insert-mode-trionly',
                     title='Inserting Triangles only',

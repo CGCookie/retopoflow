@@ -71,7 +71,8 @@ class RetopoFlow_States(CookieCutter):
                 self.rftool.rfwidget._callback_widget('view change')
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
-        self.ui_fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
+        fpsdiv = self.document.body.getElementById('fpsdiv')
+        if fpsdiv: fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
 
 
     def which_pie_menu_section(self):

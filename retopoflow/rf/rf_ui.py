@@ -355,16 +355,15 @@ class RetopoFlow_UI:
         else:
             ui_close.style = 'width:100%'
 
-        #self.window_manager.set_focus(win, darken=darken)
         self.document.body.append_child(win)
         self.document.focus(win)
         self.alert_windows += 1
         if level in {'warning', 'note', None}:
             win.style = 'width:600px;'
-            # win.style = 'left:auto; top:auto;'
             self.document.force_clean(self.actions.context)
             self.document.center_on_mouse(win)
             self.document.sticky_element = win
+            win.dirty(cause='new window', parent=False, children=True)
         if level in {'note', None}:
             win.add_eventListener('on_mouseleave', mouseleave_event)
             win.add_eventListener('on_keypress', keypress_event)
@@ -617,6 +616,7 @@ class RetopoFlow_UI:
                 close_callback=self.hide_options_window,
                 parent=self.document.body,
             )
+            self.document.defer_cleaning = True
 
             options['remove doubles dist']
 
@@ -639,7 +639,6 @@ class RetopoFlow_UI:
                     self.actions.keymap2['done'].discard('ESC')
             update_esctoquit()
 
-            # ui.input_range(title='test', value=0.5, min_value=0, max_value=1, parent=self.ui_options)
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                 ui.input_checkbox(
@@ -773,7 +772,6 @@ class RetopoFlow_UI:
                     ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
                 ])
             ])
-            self.ui_fpsdiv = self.document.body.getElementById('fpsdiv')
 
             def symmetry_viz_change(e):
                 if not e.target.checked: return
@@ -855,6 +853,8 @@ class RetopoFlow_UI:
             else:
                 self.hide_options_window()
 
+            self.document.defer_cleaning = False
+
 
         def setup_delete_ui():
             def hide_ui_delete():
@@ -914,7 +914,9 @@ class RetopoFlow_UI:
 
     def show_welcome_message(self):
         if not options['welcome']: return
+        self.document.defer_cleaning = True
         self.helpsystem_open('welcome.md')
+        self.document.defer_cleaning = False
 
     def show_delete_dialog(self):
         if not self.any_selected():
