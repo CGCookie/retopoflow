@@ -34,7 +34,7 @@ from ...addon_common.common.drawing import (
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D
+from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D, intersection2d_line_line
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
@@ -378,7 +378,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if between.length < 0.0001: return (None, None, None, None)
         perp = Direction2D((-between.y, between.x))
         if perp.dot(xy1 - xy0) < 0: perp.reverse()
-        intersection = intersect_line_line(xy0, xy1, mid0123, mid0123 + perp)[0]
+        #pts = intersect_line_line(xy0, xy1, mid0123, mid0123 + perp)
+        #if not pts: return (None, None, None, None)
+        #intersection = pts[1]
+        intersection = intersection2d_line_line(xy0, xy1, mid0123, mid0123 + perp)
+        if not intersection: return (None, None, None, None)
+        intersection = Point2D(intersection)
 
         toward = Direction2D(mid23 - intersection)
         if toward.dot(perp) < 0: d01 = -d01
