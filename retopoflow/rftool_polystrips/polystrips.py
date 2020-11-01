@@ -61,7 +61,7 @@ from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors
-from ...addon_common.common.maths import Vec2D, Point, rotate2D
+from ...addon_common.common.maths import Vec2D, Point, rotate2D, Direction2D, Point2D, RelPoint2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 

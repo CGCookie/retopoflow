@@ -622,6 +622,11 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             stroke.reverse()
             s0, s1 = s1, s0
             bmv0, bmv1 = bmv1, None
+        if not bmv0:
+            # possible fix for issue #870?
+            # could not find a vert to extrude from?
+            self.rfcontext.undo_cancel()
+            return
         nedges,nverts = [],[bmv0]
         while True:
             bmes = set(nverts[-1].link_edges) & edges

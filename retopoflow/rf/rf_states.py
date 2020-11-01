@@ -24,7 +24,7 @@ import random
 
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import Cursors
-from ...addon_common.common.maths import Vec2D, Point2D
+from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...config.options import options
@@ -276,6 +276,10 @@ class RetopoFlow_States(CookieCutter):
         if not self.ignore_ui_events:
             self.handle_auto_save()
 
+            if self.actions.pressed('rotate'):
+                return 'rotate selected'
+
+
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):
         v01 = pt1 - pt0
@@ -313,6 +317,66 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('action handler', 'exit')
     def action_handler_exit(self):
         self.action_data['timer'].done()
+
+
+
+    @CookieCutter.FSM_State('rotate selected', 'can enter')
+    @profiler.function
+    def rotate_selected_canenter(self):
+        if not self.get_selected_verts(): return False
+
+    @CookieCutter.FSM_State('rotate selected', 'enter')
+    def rotate_selected_enter(self):
+        bmverts = self.get_selected_verts()
+        opts = {}
+        opts['bmverts'] = [(bmv, self.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        opts['center'] = RelPoint2D.average(co for _,co in opts['bmverts'])
+        opts['rotate_x'] = Direction2D(self.actions.mouse - opts['center'])
+        opts['rotate_y'] = Direction2D((-opts['rotate_x'].y, opts['rotate_x'].x))
+        opts['move_done_pressed'] = 'confirm'
+        opts['move_done_released'] = None
+        opts['move_cancelled'] = 'cancel'
+        opts['timer'] = self.actions.start_timer(120.0)
+        opts['mouselast'] = self.actions.mouse
+        self.rotate_selected_opts = opts
+        self.undo_push('rotate')
+
+    @CookieCutter.FSM_State('rotate selected')
+    @profiler.function
+    def rotate_selected(self):
+        opts = self.rotate_selected_opts
+        if self.actions.pressed(opts['move_done_pressed']):
+            return 'main'
+        if self.actions.released(opts['move_done_released']):
+            return 'main'
+        if self.actions.pressed(opts['move_cancelled']):
+            self.undo_cancel()
+            return 'main'
+
+        if (self.actions.mouse - opts['mouselast']).length == 0: return
+        opts['mouselast'] = self.actions.mouse
+
+        delta = Direction2D(self.actions.mouse - opts['center'])
+        dx,dy = opts['rotate_x'].dot(delta),opts['rotate_y'].dot(delta)
+        theta = math.atan2(dy, dx)
+
+        set2D_vert = self.set2D_vert
+        for bmv,xy in opts['bmverts']:
+            if not bmv.is_valid: continue
+            dxy = xy - opts['center']
+            nx = dxy.x * math.cos(theta) - dxy.y * math.sin(theta)
+            ny = dxy.x * math.sin(theta) + dxy.y * math.cos(theta)
+            nxy = Point2D((nx, ny)) + opts['center']
+            set2D_vert(bmv, nxy)
+        self.update_verts_faces(v for v,_ in opts['bmverts'])
+        self.dirty()
+
+    @CookieCutter.FSM_State('rotate selected', 'exit')
+    def rotate_selected_exit(self):
+        opts = self.rotate_selected_opts
+        opts['timer'].done()
+
+
 
 
     def setup_selection_painting(self, bmelem_type, select=None, sel_only=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
