@@ -279,6 +279,9 @@ class RetopoFlow_States(CookieCutter):
             if self.actions.pressed('rotate'):
                 return 'rotate selected'
 
+            if self.actions.pressed('scale'):
+                return 'scale selected'
+
 
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):
@@ -374,6 +377,59 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('rotate selected', 'exit')
     def rotate_selected_exit(self):
         opts = self.rotate_selected_opts
+        opts['timer'].done()
+
+
+
+    @CookieCutter.FSM_State('scale selected', 'can enter')
+    @profiler.function
+    def scale_selected_canenter(self):
+        if not self.get_selected_verts(): return False
+
+    @CookieCutter.FSM_State('scale selected', 'enter')
+    def scale_selected_enter(self):
+        bmverts = self.get_selected_verts()
+        opts = {}
+        opts['bmverts'] = [(bmv, self.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        opts['center'] = RelPoint2D.average(co for _,co in opts['bmverts'])
+        opts['start_dist'] = (self.actions.mouse - opts['center']).length
+        opts['move_done_pressed'] = 'confirm'
+        opts['move_done_released'] = None
+        opts['move_cancelled'] = 'cancel'
+        opts['timer'] = self.actions.start_timer(120.0)
+        opts['mouselast'] = self.actions.mouse
+        self.scale_selected_opts = opts
+        self.undo_push('scale')
+
+    @CookieCutter.FSM_State('scale selected')
+    @profiler.function
+    def scale_selected(self):
+        opts = self.scale_selected_opts
+        if self.actions.pressed(opts['move_done_pressed']):
+            return 'main'
+        if self.actions.released(opts['move_done_released']):
+            return 'main'
+        if self.actions.pressed(opts['move_cancelled']):
+            self.undo_cancel()
+            return 'main'
+
+        if (self.actions.mouse - opts['mouselast']).length == 0: return
+        opts['mouselast'] = self.actions.mouse
+
+        dist = (self.actions.mouse - opts['center']).length
+
+        set2D_vert = self.set2D_vert
+        for bmv,xy in opts['bmverts']:
+            if not bmv.is_valid: continue
+            dxy = xy - opts['center']
+            nxy = dxy * dist / opts['start_dist'] + opts['center']
+            set2D_vert(bmv, nxy)
+        self.update_verts_faces(v for v,_ in opts['bmverts'])
+        self.dirty()
+
+    @CookieCutter.FSM_State('scale selected', 'exit')
+    def scale_selected_exit(self):
+        opts = self.scale_selected_opts
         opts['timer'].done()
 
 
