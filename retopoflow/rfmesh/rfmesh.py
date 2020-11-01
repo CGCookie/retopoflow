@@ -1601,7 +1601,7 @@ class RFTarget(RFMesh):
                     lbme_dup += [(bme0,bme1)]
         mapping = {}
         for bme0,bme1 in lbme_dup:
-            if not bme0.is_valid or bme1.is_valid: continue
+            if not bme0.is_valid or not bme1.is_valid: continue
             l0,l1 = len(bme0.link_faces), len(bme1.link_faces)
             bme0.select |= bme1.select
             bme1.select |= bme0.select
