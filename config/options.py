@@ -225,6 +225,9 @@ class Options:
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
+        'relax radius':                 50.0,
+        'relax falloff':                1.5,
+        'relax strength':               0.5,
         'relax algorithm':              '3D',
         'relax mask boundary':          'include',
         'relax mask symmetry':          'maintain',
@@ -239,6 +242,9 @@ class Options:
         'relax correct flipped faces':  False,
         'relax straight edges':         True,
 
+        'tweak radius':                 50.0,
+        'tweak falloff':                1.5,
+        'tweak strength':               0.5,
         'tweak mask boundary':          'include',
         'tweak mask symmetry':          'maintain',
         'tweak mask hidden':            'exclude',

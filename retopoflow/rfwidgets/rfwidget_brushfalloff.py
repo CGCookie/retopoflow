@@ -40,7 +40,7 @@ class RFWidget_BrushFalloff_Factory:
     '''
 
     @staticmethod
-    def create(fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5))):
+    def create(radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5))):
         class RFW_BrushFalloff(RFWidget):
             rfw_name = 'Brush Falloff'
             rfw_cursor = 'CROSSHAIR'
@@ -53,13 +53,7 @@ class RFWidget_BrushFalloff_Factory:
                 self.fill_color = fill_color
                 self.last_mouse = None
                 self.scale = 1.0
-                self.reset_parameters()
                 self.redraw_on_mouse = True
-
-            def reset_parameters(self):
-                self.radius = 50.0
-                self.falloff = 1.5
-                self.strength = 0.5
 
             @RFW_BrushFalloff.FSM_State('main')
             def main(self):
@@ -118,11 +112,11 @@ class RFWidget_BrushFalloff_Factory:
                 if not depth: return
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
-                r = self._radius
+                r = self.radius
                 co = self.outer_color
                 ci = self.inner_color
                 cc = self.fill_color * self.fill_color_scale
-                ff = math.pow(0.5, 1.0 / self._falloff)
+                ff = math.pow(0.5, 1.0 / self.falloff)
                 fs = (1-ff) * r * self.scale
                 bgl.glDepthRange(0.0, 0.99996)
                 Globals.drawing.draw3D_circle(p, r*self.scale - fs, cc, n=n, width=fs)
@@ -135,11 +129,11 @@ class RFWidget_BrushFalloff_Factory:
             @RFW_BrushFalloff.FSM_OnlyInState('change')
             def draw_brush_sizing(self):
                 #r = (self._change_center - self.actions.mouse).length
-                r = self._radius
+                r = self.radius
                 co = self.outer_color
                 ci = self.inner_color
                 cc = self.fill_color * self.fill_color_scale
-                ff = math.pow(0.5, 1.0 / self._falloff)
+                ff = math.pow(0.5, 1.0 / self.falloff)
                 fs = (1-ff) * self.radius
                 Globals.drawing.draw2D_circle(self._change_center, r-fs/2, cc, width=fs)
                 Globals.drawing.draw2D_circle(self._change_center, r, co, width=1)
@@ -168,11 +162,10 @@ class RFWidget_BrushFalloff_Factory:
 
             @property
             def radius(self):
-                return self._radius
+                return radius.get()
             @radius.setter
             def radius(self, v):
-                # print('radius', v)
-                self._radius = max(1, float(v))
+                radius.set(max(1, float(v)))
 
             def radius_to_dist(self):
                 return self.radius
@@ -195,12 +188,11 @@ class RFWidget_BrushFalloff_Factory:
 
             @property
             def strength(self):
-                return self._strength
+                return strength.get()
             @strength.setter
             def strength(self, v):
                 # print('strength', v)
-                self._strength = max(0.01, min(1.0, float(v)))
-                self.fill_color_scale = Color((1, 1, 1, self.strength))
+                strength.set(max(0.01, min(1.0, float(v))))
 
             def strength_to_dist(self):
                 return self.radius * (1.0 - self.strength)
@@ -223,11 +215,11 @@ class RFWidget_BrushFalloff_Factory:
 
             @property
             def falloff(self):
-                return self._falloff
+                return falloff.get()
             @falloff.setter
             def falloff(self, v):
                 # print('falloff', v)
-                self._falloff = max(0.0, min(100.0, float(v)))
+                falloff.set(max(0.0, min(100.0, float(v))))
 
             def falloff_to_dist(self):
                 return self.radius * math.pow(0.5, 1.0 / self.falloff)
@@ -245,6 +237,13 @@ class RFWidget_BrushFalloff_Factory:
 
             def get_falloff_boundvar(self):
                 return BoundFloat('''self.falloff''', min_value=0.00, max_value=100.0)
+
+            ##################
+            # fill_color_scale
+
+            @property
+            def fill_color_scale(self):
+                return Color((1, 1, 1, self.strength))
 
             ##################
             # mouse

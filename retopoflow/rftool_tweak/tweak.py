@@ -36,7 +36,7 @@ from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
 from ...addon_common.common.globals import Globals
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options, themes
@@ -51,7 +51,12 @@ class RFTool_Tweak(RFTool):
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
 
 class Tweak_RFWidgets:
-    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['tweak'])
+    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
+        BoundFloat('''options['tweak radius']'''),
+        BoundFloat('''options['tweak falloff']'''),
+        BoundFloat('''options['tweak strength']'''),
+        fill_color=themes['tweak'],
+    )
 
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_BrushFalloff(self)
@@ -182,7 +187,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                 ui.labeled_input_text(label='Size', title='Adjust size of brush', value=self.rfwidget.get_radius_boundvar()),
                 ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=self.rfwidget.get_strength_boundvar()),
                 ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=self.rfwidget.get_falloff_boundvar()),
-                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=self.rfwidget.reset_parameters),
+                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"tweak radius","tweak falloff","tweak strength"})''')),
             ]),
         ])
 

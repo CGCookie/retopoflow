@@ -34,6 +34,7 @@ from ...addon_common.common.maths import (
 from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...config.options import options, themes
 
 
@@ -46,7 +47,12 @@ class RFTool_Relax(RFTool):
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
 
 class Relax_RFWidgets:
-    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(fill_color=themes['relax'])
+    RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
+        BoundFloat('''options['relax radius']'''),
+        BoundFloat('''options['relax falloff']'''),
+        BoundFloat('''options['relax strength']'''),
+        fill_color=themes['relax'],
+    )
 
     def init_rfwidgets(self):
         self.rfwidget = self.RFWidget_BrushFalloff(self)
@@ -306,7 +312,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 ui.labeled_input_text(label='Size', title='Adjust size of brush', value=self.rfwidget.get_radius_boundvar()),
                 ui.labeled_input_text(label='Strength', title='Adjust strength of brush', value=self.rfwidget.get_strength_boundvar()),
                 ui.labeled_input_text(label='Falloff', title='Adjust falloff of brush', value=self.rfwidget.get_falloff_boundvar()),
-                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=self.rfwidget.reset_parameters),
+                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"relax radius","relax falloff","relax strength"})''')),
             ]),
         ])
 
