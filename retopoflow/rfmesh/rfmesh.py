@@ -103,11 +103,13 @@ class RFMesh():
             obj.data.validate(verbose=True, clean_customdata=False)
         else:
             # cleaning mesh quietly
+            # print('skipping mesh validation')
             obj.data.validate(verbose=False, clean_customdata=False)
 
         # setup init
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
+        # print('hashing object')
         self.hash = hash_object(self.obj)
         self._version = None
         self._version_selection = None
@@ -115,9 +117,11 @@ class RFMesh():
         if bme is not None:
             self.bme = bme
         else:
+            # print('creating bmesh from object')
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
+                # print('copying selection')
                 with profiler.code('copying selection'):
                     self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                     # copy selection from editmesh
@@ -131,12 +135,15 @@ class RFMesh():
                 self.deselect_all()
 
         if triangulate:
+            # print('triangulating')
             self.triangulate()
 
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()
+        # print('dirtying')
         self.dirty()
+        # print('done')
 
     def __del__(self):
         RFMesh.delete_count += 1
@@ -1473,8 +1480,11 @@ class RFTarget(RFMesh):
 
     def clean(self):
         super().clean()
-        if self.editmesh_version == self.get_version(): return
-        self.editmesh_version = self.get_version()
+        version = self.get_version()
+        if self.editmesh_version == version: return
+        self.editmesh_version = version
+
+        # print('CLEANING RFTARGET')
 
         # bpy.ops.object.editmode_toggle()
         self.bme.to_mesh(self.obj.data)
