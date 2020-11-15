@@ -215,7 +215,7 @@ class addon_updater_check_now(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return False
+        return True
 
     def execute(self,context):
         if updater.invalidupdater == True:
@@ -260,7 +260,7 @@ class addon_updater_update_now(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return False
+        # return False
         return not updater.invalidupdater and updater.update_ready
 
 

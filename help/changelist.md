@@ -1,4 +1,4 @@
-# RetopoFlow 3.0.0 Release Candidate 1
+# RetopoFlow {[rf version]}
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 

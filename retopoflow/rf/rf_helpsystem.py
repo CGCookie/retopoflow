@@ -115,4 +115,5 @@ class RetopoFlow_HelpSystem:
                 )
             ])
             ui_help.add_eventListener('on_keypress', key)
+            self.document.body.dirty()
         ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fns=[self.substitute_keymaps, self.substitute_options])

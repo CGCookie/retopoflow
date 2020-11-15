@@ -38,7 +38,7 @@ bl_info = {
     "version":     (3, 0, 0),
     "blender":     (2, 80, 0),
     "location":    "View 3D > Header",
-    "warning":     "Release Candidate 1",  # used for warning icon and text in addons panel
+    "warning":     "Release Candidate 2",  # used for warning icon and text in addons panel
     "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
@@ -243,6 +243,7 @@ if import_succeeded:
 
         @staticmethod
         def are_sources_too_big(context):
+            # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
             total = 0
             for src in retopoflow.RetopoFlow.get_sources():
                 total += len(src.data.polygons)
@@ -251,6 +252,7 @@ if import_succeeded:
 
         @staticmethod
         def is_target_too_big(context):
+            # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
             tar = retopoflow.RetopoFlow.get_target()
             if not tar: return False
             m = convert_numstr_num(options['warning max target'])
@@ -330,7 +332,7 @@ if import_succeeded:
             #     box.label(text=options['last auto save path'])
 
             box = layout.box()
-            box.label(text='RetopoFlow Updater (disabled)')
+            box.label(text='RetopoFlow Updater')
             col = box.column()
             col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates')
             col.operator('cgcookie.retopoflow_updater_update_now', text='Update now')
