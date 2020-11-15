@@ -60,40 +60,25 @@ def get_environment_details():
 
     env_details = []
     env_details += ['Environment:\n']
-    env_details += ['- RetopoFlow: %s' % (retopoflow_version, )]
+    env_details += [f'- RetopoFlow: {retopoflow_version}']
     if retopoflow_version_git:
-        env_details += ['- RF git: %s' % (retopoflow_version_git, )]
+        env_details += [f'- RF git: {retopoflow_version_git}']
     if retopoflow_cgcookie_built:
         env_details += ['- CG Cookie built']
-    env_details += ['- Blender: %s' % (' '.join([
-        blender_version,
-        blender_branch,
-        blender_date
-    ]), )]
-    env_details += ['- Platform: %s' % (', '.join([
-        platform_system,
-        platform_release,
-        platform_version,
-        platform_machine,
-        platform_processor
-    ]), )]
-    env_details += ['- GPU: %s' % (', '.join([
-        gpu_vendor,
-        gpu_renderer,
-        gpu_version,
-        gpu_shading
-    ]), )]
-    env_details += ['- Timestamp: %s' % datetime.today().isoformat(' ')]
+    env_details += [f'- Blender: {blender_version} {blender_branch} {blender_date}']
+    env_details += [f'- Platform: {platform_system}, {platform_release}, {platform_version}, {platform_machine}, {platform_processor}']
+    env_details += [f'- GPU: {gpu_vendor}, {gpu_renderer}, {gpu_version}, {gpu_shading}']
+    env_details += [f'- Timestamp: {datetime.today().isoformat(" ")}']
 
     return '\n'.join(env_details)
 
 
 def get_trace_details(undo_stack, msghash=None, message=None):
     trace_details = []
-    trace_details += ['- Undo: %s' % (', '.join(undo_stack[:10]),)]
+    trace_details += [f'- Undo: {", ".join(undo_stack[:10])}']
     if msghash:
         trace_details += ['']
-        trace_details += ['Error Hash: %s' % (str(msghash),)]
+        trace_details += [f'Error Hash: {msghash}']
     if message:
         trace_details += ['']
         trace_details += ['Trace:\n']
@@ -113,9 +98,9 @@ class RetopoFlow_UI:
         print('RF_UI.handle_exception', e)
         if False:
             for entry in inspect.stack():
-                print('  %s' % str(entry))
+                print(f'  {entry}')
         message,h = Globals.debugger.get_exception_info_and_hash()
-        message = '\n'.join('- %s'%l for l in message.splitlines())
+        message = '\n'.join(f'- {l}' for l in message.splitlines())
         self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
         self.rftool._reset()
 
@@ -193,11 +178,11 @@ class RetopoFlow_UI:
                 # startup file
                 filepath = os.path.abspath(ss_filename)
             bpy.ops.screen.screenshot(filepath=filepath)
-            self.alert_user(message='Saved screenshot to "%s"' % filepath)
+            self.alert_user(message=f'Saved screenshot to "{filepath}"')
         def open_issues():
             bpy.ops.wm.url_open(url=retopoflow_issues_url)
         def search():
-            url = 'https://github.com/CGCookie/retopoflow/issues?q=is%%3Aissue+%s' % msghash
+            url = f'https://github.com/CGCookie/retopoflow/issues?q=is%3Aissue+{msghash}'
             bpy.ops.wm.url_open(url=url)
         def report():
             nonlocal msg_report
@@ -206,10 +191,10 @@ class RetopoFlow_UI:
             path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
-                'title': '%s: %s' % (self.rftool.name, title),
-                'body': '%s\n\n```\n%s\n```' % (issue_template, msg_report),
+                'title': f'{self.rftool.name}: {title}',
+                'body': f'{issue_template}\n\n```\n{msg_report}\n```',
             }
-            url = '%s?%s' % (options['github new issue url'], urllib.parse.urlencode(data))
+            url =  f'{options["github new issue url"]}?{urllib.parse.urlencode(data)}'
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
@@ -528,7 +513,7 @@ class RetopoFlow_UI:
                 radio = ui.input_radio(
                     id='ttool-%s' % lbl.lower(),
                     value=lbl.lower(),
-                    title='%s: %s. Shortcut: %s' % (rftool.name, rftool.description, humanread(rftool.shortcut)),
+                    title=f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}',
                     name="ttool",
                     classes="ttool",
                     checked=checked,
@@ -548,7 +533,7 @@ class RetopoFlow_UI:
                 debug_doc(c, level+1)
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(label='RetopoFlow %s' % retopoflow_version, id="maindialog", closeable=False, parent=self.document.body)
+            self.ui_main = ui.framed_dialog(label=f'RetopoFlow {retopoflow_version}', id="maindialog", closeable=False, parent=self.document.body)
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
@@ -559,9 +544,9 @@ class RetopoFlow_UI:
                 checked = (rftool.name == rf_starting_tool)
                 if checked: self.select_rftool(rftool)
                 radio = ui.input_radio(
-                    id='tool-%s' % lbl.lower(),
+                    id=f'tool-{lbl.lower()}',
                     value=lbl.lower(),
-                    title='%s. Shortcut: %s' % (rftool.description, humanread(rftool.shortcut)),
+                    title=f'{rftool.description}. Shortcut: {humanread(rftool.shortcut)}',
                     name="tool",
                     classes="tool",
                     checked=checked,
@@ -581,17 +566,17 @@ class RetopoFlow_UI:
                 ),
                 ui.button(
                     label='Table of Contents',
-                    title='Show help table of contents (%s)' % humanread('all help'),
+                    title=f'Show help table of contents ({humanread("all help")})',
                     on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
                 ),
                 ui.button(
                     label='General',
-                    title='Show general help (%s)' % humanread('general help'),
+                    title=f'Show general help ({humanread("general help")})',
                     on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
                 ),
                 ui.button(
                     label='Tool',
-                    title='Show help for currently selected tool (%s)' % humanread('tool help'),
+                    title=f'Show help for currently selected tool ({humanread("tool help")})',
                     on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
                 ),
             ])
@@ -599,7 +584,7 @@ class RetopoFlow_UI:
             self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
             self.ui_show_geometry = ui.button(label='Show Geometry', title='Show geometry window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(label='Exit', title='Quit RetopoFlow (%s)' % humanread('done'), parent=self.ui_main, on_mouseclick=self.done)
+            ui.button(label='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
             if False:
                 ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
             if False:

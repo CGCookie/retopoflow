@@ -57,6 +57,7 @@ try:
         from .retopoflow import retopoflow
         from .config.options import options, retopoflow_version
         from .retopoflow import updater
+        from .addon_common.common.maths import convert_numstr_num
     import_succeeded = True
 except ModuleNotFoundError as e:
     print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
@@ -100,6 +101,17 @@ if import_succeeded:
         bl_options = {'REGISTER', 'UNDO'}
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
+
+    class VIEW3D_OT_RetopoFlow_Help_Warnings(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Welcome"""
+        bl_idname = "cgcookie.retopoflow_help_warnings"
+        bl_label = "See details on these warnings"
+        bl_description = "See details on the RetopoFlow warnings"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+        rf_startdoc = 'warnings.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
     if options['preload help images']: retopoflow.preload_help_images()
 
@@ -229,8 +241,68 @@ if import_succeeded:
             gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
             return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
 
+        @staticmethod
+        def are_sources_too_big(context):
+            total = 0
+            for src in retopoflow.RetopoFlow.get_sources():
+                total += len(src.data.polygons)
+            m = convert_numstr_num(options['warning max sources'])
+            return total > m
+
+        @staticmethod
+        def is_target_too_big(context):
+            tar = retopoflow.RetopoFlow.get_target()
+            if not tar: return False
+            m = convert_numstr_num(options['warning max target'])
+            return len(tar.data.polygons) > m
+
+        @staticmethod
+        def multiple_3dviews(context):
+            views = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
+            return len(views) > 1
+
+        @staticmethod
+        def in_quadview(context):
+            for area in context.window.screen.areas:
+                if area.type != 'VIEW_3D': continue
+                for space in area.spaces:
+                    if space.type != 'VIEW_3D': continue
+                    if len(space.region_quadviews) > 0: return True
+            return False
+
         def draw(self, context):
             layout = self.layout
+
+            warningbox = None
+            warningsubboxes = {}
+            def add_warning():
+                nonlocal warningbox, layout
+                if not warningbox:
+                    warningbox = layout.box()
+                    warningbox.label(text='Warnings', icon='ERROR')
+                return warningbox.box()
+            def add_warning_subbox(label):
+                nonlocal warningsubboxes
+                if label not in warningsubboxes:
+                    box = add_warning().column()
+                    box.label(text=label)
+                    warningsubboxes[label] = box
+                return warningsubboxes[label]
+            if VIEW3D_PT_RetopoFlow.is_target_too_big(context):
+                box = add_warning_subbox('Performance Issue')
+                box.label(text=f'- Target is too large (>{options["warning max target"]})')
+            if VIEW3D_PT_RetopoFlow.are_sources_too_big(context):
+                box = add_warning_subbox('Performance Issue')
+                box.label(text=f'- Sources are too large (>{options["warning max sources"]})')
+            if VIEW3D_PT_RetopoFlow.multiple_3dviews(context):
+                box = add_warning_subbox('Layout Issue')
+                box.label(text='- Multiple 3D Views')
+            if VIEW3D_PT_RetopoFlow.in_quadview(context):
+                box = add_warning_subbox('Layout Issue')
+                box.label(text='- Using Quad View')
+            if warningbox:
+                warningbox.operator('cgcookie.retopoflow_help_warnings')
+
             box = layout.box()
             if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                 # currently editing target, so show RF tools

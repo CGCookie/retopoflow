@@ -57,6 +57,17 @@ class RetopoFlow_HelpSystem:
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
+    def substitute_options(self, mdown, wrap='', pre='', post='', separator=', ', onlyfirst=None):
+        while True:
+            m = re.search(r'{\[(?P<option>[^\]]+)\]}', mdown)
+            if not m: break
+            if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
+            else: wrap_pre, wrap_post = wrap
+            opts = { s.strip() for s in m.group('option').split(',') }
+            sub = f'{pre}{wrap_pre}' + separator.join(str(options[opt]) for opt in opts) + f'{wrap_post}{post}'
+            mdown = mdown[:m.start()] + sub + mdown[m.end():]
+        return mdown
+
     def helpsystem_open(self, mdown_path, done_on_esc=False, closeable=True):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
@@ -69,6 +80,17 @@ class RetopoFlow_HelpSystem:
                     e = self.document.body.getElementById('helpsystem')
                     if not e: return
                     self.document.body.delete_child(e)
+            def key(e):
+                nonlocal keymaps, self
+                if e.key in keymaps['all help']:
+                    self.helpsystem_open('table_of_contents.md')
+                elif e.key in keymaps['general help']:
+                    self.helpsystem_open('general.md')
+                elif e.key in keymaps['tool help']:
+                    if hasattr(self, 'rftool'):
+                        self.helpsystem_open(self.rftool.help)
+                elif e.key == 'ESC':
+                    close()
             ui_help = ui.framed_dialog(
                 label='RetopoFlow Help System',
                 id='helpsystem',
@@ -92,16 +114,5 @@ class RetopoFlow_HelpSystem:
                     parent=ui_help,
                 )
             ])
-            def key(e):
-                nonlocal keymaps, self
-                if e.key in keymaps['all help']:
-                    self.helpsystem_open('table_of_contents.md')
-                elif e.key in keymaps['general help']:
-                    self.helpsystem_open('general.md')
-                elif e.key in keymaps['tool help']:
-                    if hasattr(self, 'rftool'):
-                        self.helpsystem_open(self.rftool.help)
-                elif e.key == 'ESC':
-                    close()
             ui_help.add_eventListener('on_keypress', key)
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fn=self.substitute_keymaps)
+        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fns=[self.substitute_keymaps, self.substitute_options])

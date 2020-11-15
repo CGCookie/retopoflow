@@ -33,5 +33,5 @@ The following links provide additional information.
 - [Blender Market](https://blendermarket.com/products/retopoflow)
 - [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)
 - [GitHub Issues](https://github.com/CGCookie/retopoflow/issues)
-
+- [Warnings Details](warnings.md)
 

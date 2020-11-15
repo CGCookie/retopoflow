@@ -122,6 +122,10 @@ class Options:
         'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
         'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 
+        # WARNING THRESHOLDS
+        'warning max target':   '20k',  # can specify as 20000, 20_000, '20k', '20000', see convert_numstr_num() in addon_common.common.maths
+        'warning max sources':  '1m',
+
         'show experimental':    False,  # should show experimental tools?
         'preload help images':  False,
 

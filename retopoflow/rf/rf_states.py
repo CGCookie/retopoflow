@@ -199,13 +199,13 @@ class RetopoFlow_States(CookieCutter):
                 self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], self.select_rftool, highlighted=self.rftool)
                 return
 
-            # if self.actions.pressed('F5'): breakit = 42 / 0
-            # if self.actions.pressed('F6'): assert False
+            # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
+            # if self.actions.pressed('SHIFT+F6'): assert False
 
-            if self.actions.pressed('F10'):
+            if self.actions.pressed('SHIFT+F10'):
                 profiler.clear()
                 return
-            if self.actions.pressed('F11'):
+            if self.actions.pressed('SHIFT+F11'):
                 profiler.printout()
                 self.document.debug_print()
                 return
