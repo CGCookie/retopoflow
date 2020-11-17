@@ -47,24 +47,35 @@ class RetopoFlow_HelpSystem:
         Globals.ui_document.body.dirty_flow()
 
     def substitute_keymaps(self, mdown, wrap='`', pre='', post='', separator=', ', onlyfirst=None):
+        if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
+        else: wrap_pre, wrap_post = wrap
         while True:
             m = re.search(r'{{(?P<action>[^}]+)}}', mdown)
             if not m: break
-            if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
-            else: wrap_pre, wrap_post = wrap
             action = { s.strip() for s in m.group('action').split(',') }
             sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
     def substitute_options(self, mdown, wrap='', pre='', post='', separator=', ', onlyfirst=None):
+        if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
+        else: wrap_pre, wrap_post = wrap
         while True:
             m = re.search(r'{\[(?P<option>[^\]]+)\]}', mdown)
             if not m: break
-            if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
-            else: wrap_pre, wrap_post = wrap
             opts = { s.strip() for s in m.group('option').split(',') }
             sub = f'{pre}{wrap_pre}' + separator.join(str(options[opt]) for opt in opts) + f'{wrap_post}{post}'
+            mdown = mdown[:m.start()] + sub + mdown[m.end():]
+        return mdown
+
+    def substitute_python(self, mdown, wrap='', pre='', post=''):
+        if type(wrap) is str: wrap_pre, wrap_post = wrap, wrap
+        else: wrap_pre, wrap_post = wrap
+        while True:
+            m = re.search(r'{`(?P<python>[^`]+)`}', mdown)
+            if not m: break
+            pyret = eval(m.group('python'), globals(), locals())
+            sub = f'{pre}{wrap_pre}{pyret}{wrap_post}{post}'
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
@@ -116,4 +127,4 @@ class RetopoFlow_HelpSystem:
             ])
             ui_help.add_eventListener('on_keypress', key)
             self.document.body.dirty()
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fns=[self.substitute_keymaps, self.substitute_options])
+        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fns=[self.substitute_keymaps, self.substitute_options, self.substitute_python])

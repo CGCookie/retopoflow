@@ -50,14 +50,16 @@ try:
         print('RetopoFlow: RELOADING!')
         # reloading RF modules
         importlib.reload(retopoflow)
-        importlib.reload(options)
+        importlib.reload(configoptions)
         importlib.reload(updater)
     else:
         print('RetopoFlow: Initial load')
         from .retopoflow import retopoflow
-        from .config.options import options, retopoflow_version
+        from .config import options as configoptions
         from .retopoflow import updater
         from .addon_common.common.maths import convert_numstr_num
+    options = configoptions.options
+    retopoflow_version = configoptions.retopoflow_version
     import_succeeded = True
 except ModuleNotFoundError as e:
     print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
@@ -302,6 +304,12 @@ if import_succeeded:
             if VIEW3D_PT_RetopoFlow.in_quadview(context):
                 box = add_warning_subbox('Layout Issue')
                 box.label(text='- Using Quad View')
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
+                box = add_warning_subbox('Auto Save / Save')
+                box.label(text='- Auto Save is disabled')
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
+                box = add_warning_subbox('Auto Save / Save')
+                box.label(text='- Unsaved Blender file')
             if warningbox:
                 warningbox.operator('cgcookie.retopoflow_help_warnings')
 
