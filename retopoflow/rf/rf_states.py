@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import math
+import time
 import random
 
 from ...addon_common.common.blender import tag_redraw_all
@@ -34,6 +35,7 @@ class RetopoFlow_States(CookieCutter):
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
+        self._next_normal_check = 0
 
     def update(self, timer=True):
         if not self.loading_done:
@@ -253,6 +255,11 @@ class RetopoFlow_States(CookieCutter):
                 return
 
         self.ignore_ui_events = False
+
+        ct, nt = time.time(), self._next_normal_check
+        if ct > nt:
+            self._next_normal_check = ct + 0.25
+            self.normal_check()
 
         if self.rftool.rfwidget:
             Cursors.set(self.rftool.rfwidget.rfw_cursor)

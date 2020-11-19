@@ -47,6 +47,8 @@ from ...addon_common.common.decorators import stats_wrapper, blender_version_wra
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler, time_it
 
+from ...config.options import options
+
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 )
@@ -888,7 +890,7 @@ class RFMesh():
     def _visible_verts(self, is_visible):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
-        is_vis = lambda bmv: is_visible(l2w_point(bmv.co), None)
+        is_vis = lambda bmv: is_visible(l2w_point(bmv.co + 0.0050 * options['normal offset multiplier'] * bmv.normal), None)
         return { bmv for bmv in self.bme.verts if bmv.is_valid and is_vis(bmv) }
 
     def _visible_edges(self, is_visible, bmvs=None):
