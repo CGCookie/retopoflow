@@ -2,15 +2,18 @@
 
 RetopoFlow might present a warning if it detects a situation which is not ideal to start in. 
 
+
 ## Layout: Quad View / Multiple 3D Views
 
 RetopoFlow is designed to work in a single 3D view.
 Running RetopoFlow with Quad View turned on or with multiple 3D Views can result in RetopoFlow showing up in every 3D View, but only allowing interaction in one.
 
+
 ## Auto Save / Save
 If Blender's auto save is disabled, any work done since the last time you saved can be lost if Blender crashes. To enable auto save, go Edit > Preferences > Save & Load > Auto Save.
 
 If you are working on an unsaved blend file, your changes will be saved to {options.get_auto_save_filepath()} when you press {{blender save}}.
+
 
 ## Performance: Target/Sources Too Large
 
@@ -32,4 +35,17 @@ If your total source mesh(es) polygon count exceeds the {[warning max sources]} 
 - Disable any Subdivision Surface modifiers or lower the Multiresolution Modifier display level
 - Segment your sources into separate parts and retopologize one at a time
 
+
+## Layout: Quad View / Multiple 3D Views
+
+RetopoFlow is designed to work in a single 3D view.
+Running RetopoFlow with Quad View turned on or with multiple 3D Views can result in RetopoFlow showing up in every 3D View, but only allowing interaction in one.
+
+
+## Auto Save / Save
+
+If Blender's auto save is disabled, any work done since the last time you saved can be lost if Blender crashes.
+To enable auto save, go Edit > Preferences > Save & Load > Auto Save.
+
+If you are working on an _unsaved_ blend file, your changes will be saved to `{`options.get_auto_save_filepath()`}` when you press {{blender save}}.
 

@@ -74,15 +74,26 @@ class RetopoFlow_BlenderSave:
     backup / restore methods
     '''
 
-    def check_auto_save_warnings(self):
-        prefs = get_preferences(self.actions.context)
+    @staticmethod
+    def get_auto_save_settings(context):
+        prefs = get_preferences(context)
         use_auto_save = prefs.filepaths.use_auto_save_temporary_files
-        save = self.actions.to_human_readable('blender save')
         path_blend = getattr(bpy.data, 'filepath', '')
         path_autosave = options.get_auto_save_filepath()
-
         good_auto_save = (not options['check auto save']) or use_auto_save
         good_unsaved = (not options['check unsaved']) or path_blend
+        return {
+            'auto save': good_auto_save,
+            'auto save path': path_autosave,
+            'saved': good_unsaved,
+        }
+
+    def check_auto_save_warnings(self):
+        settings = RetopoFlow_BlenderSave.get_auto_save_settings(self.actions.context)
+        save = self.actions.to_human_readable('blender save')
+        good_auto_save = settings['auto save']
+        path_autosave = settings['auto save path']
+        good_unsaved = settings['saved']
 
         if good_auto_save and good_unsaved: return
 
