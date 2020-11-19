@@ -48,7 +48,7 @@ from ...config.options import options, themes
 class RFTool_PolyPen(RFTool):
     name        = 'PolyPen'
     description = 'Create complex topology on vertex-by-vertex basis'
-    icon        = 'polypen_32.png'
+    icon        = 'polypen-icon.png'
     help        = 'polypen.md'
     shortcut    = 'polypen tool'
     statusbar   = '{{insert}} Insert'

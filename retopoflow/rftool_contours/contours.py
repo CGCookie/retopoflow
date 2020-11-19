@@ -41,7 +41,7 @@ from ...config.options import options
 class RFTool_Contours(RFTool):
     name        = 'Contours'
     description = 'Retopologize cylindrical forms, like arms and legs'
-    icon        = 'contours_32.png'
+    icon        = 'contours-icon.png'
     help        = 'contours.md'
     shortcut    = 'contours tool'
     statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'

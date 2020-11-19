@@ -42,7 +42,7 @@ from ...config.options import options
 class RFTool_Loops(RFTool):
     name        = 'Loops'
     description = 'Edge loops creation, shifting, and deletion'
-    icon        = 'loops_32.png'
+    icon        = 'loops-icon.png'
     help        = 'loops.md'
     shortcut    = 'loops tool'
     statusbar   = '{{insert}} Insert edge loop'

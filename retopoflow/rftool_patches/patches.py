@@ -51,7 +51,7 @@ from ...config.options import options, themes, visualization
 class RFTool_Patches(RFTool):
     name        = 'Patches'
     description = 'Fill holes in your topology'
-    icon        = 'patches_32.png'
+    icon        = 'patches-icon.png'
     help        = 'patches.md'
     shortcut    = 'patches tool'
     statusbar   = '{{action alt0}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'

@@ -4,12 +4,32 @@
     right now, this is a test stylesheet.
 */
 
+:root {
+    --button-background: hsla(200, 0%, 20%, 1.0);
+    --button-hover-background: hsla(200, 0%, 50%, 0.50);
+    --button-selected-background: rgb(10, 135, 197);
+    
+    --button-text: hsl(200, 0%, 90%);
+    --button-selected-text: white;
+    --button-disabled-text: hsl(200, 0%, 50%);
 
+    --header-background: hsla(200, 0%, 5%, 0.95);
+    --panel-background: hsla(200, 0%, 15%, 0.98);
+    --panel-two-background: hsla(200, 0%, 5%, 0.4);
+    --collection: hsla(200, 0%, 5%, 0);
 
-* {
-    color: white;
+    --text: rgb(221, 221, 221);
+
+    --alert-note: rgba(34, 34, 34, 0.99);
+    --alert-warning: rgba(128, 72, 8, 0.95);
 }
 
+* {
+    color: var(--text);
+    border: 0px;
+    background: transparent;
+    font-size: 10px;
+}
 
 /********************************/
 /* GENERAL BUTTON STYLING       */
@@ -17,64 +37,58 @@
 button {
     display: block;
     width: 100%;
-    margin: 0px 1px;
-    /*padding: 0px;*/
-    background: rgba(64, 64, 64, 0.25);
-    border: 1px rgba(16, 16, 16, 0.50);
-    color: white;
+    margin: 1px;
+    border: 0px;
+    background: var(--button-background);
+    color: var(--text);
 }
 button:focus {
-    background: rgba(64, 64, 64, 1.00);
+    background: var(--button-hover-background);
 }
 button:active {
-    color: black;
-    /*background: rgb(192,128,128);*/
-    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
+    background: var(--button-selected-background); 
 }
 button:hover {
-    background: rgba(64, 64, 64, 1.00); /* hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
-    border: 1px rgba(32, 32, 32, 1.00);
+    background: var(--button-hover-background); 
 }
 button:active:hover {
-    color: black;
-    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
+    background: var(--button-selected-background); 
 }
 button:disabled {
-    background-color: rgba(64,64,64,0.5);
-    color: rgb(96,96,96);
-    /*border-width: 1px;*/
-    border-color: rgb(32,32,32);
-    cursor: default;
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
 }
+
+
 
 
 /********************************/
 /* GENERAL RADIO BUTTON STYLING */
 
 input[type="radio"] {
-    background: rgba(64, 64, 64, 0.25);
+    background: var(--button-background);
     margin: 0px 1px;
-    border: 0px rgba(64,64,64,0.5);
+    border: 0px;
     padding: 4px 0px 4px 6px;
 }
 input[type="radio"] > img {
     display: none;
 }
 input[type="radio"]:hover {
-    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+    background: var(--button-hover-background); 
 }
 input[type="radio"][checked] {
-    background: hsla(200, 100%, 62.5%, 1.0);
+    background: var(--button-selected-background);
 }
 input[type="radio"]:active {
-    background: hsla(200, 100%, 62.5%, 0.5);
+    background: var(--button-selected-background);
 }
 input[type="radio"]:active:hover {
-    background: hsla(200, 100%, 62.5%, 0.75);
+    background: var(--button-selected-background);
 }
 input[type="radio"]:disabled {
-    background-color: rgba(64,64,64,0.5);
-    color: rgb(96,96,96);
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
 }
 input[type="radio"] > label {
     margin: 0px;
@@ -83,202 +97,243 @@ input[type="radio"] > label {
     padding: 0px;
     width: 100%;
     /*height:20px;*/
-    color: white;
+    color: var(--button-text);
 }
 input[type="radio"][checked] label {
-    color: black;
+    color: var(--button-selected-text);
 }
 input[type="radio"]:active label {
-    color: black;
+    color: var(--button-selected-text);
 }
 input[type="radio"]:disabled label {
-    color: rgb(96,96,96);
+    color: var(--button-disabled-text);
 }
 
 input[type="radio"].half-size {
     width: 50%;
+    margin: 1.5px;
+}
+input[type="radio"].half-size > label {
+    text-align: center;
+    margin-left: -6px;
 }
 input[type="radio"].third-size {
     width: 33.333%;
 }
-
+input[type="radio"].third-size > label {
+    text-align: center;
+    margin-left: -6px;
+}
 
 
 /********************************/
 /* GENERAL RANGE INPUT STYLING  */
 
+div.inputrange-container {
+    margin: 4px;
+    height: 30px;
+    background: transparent;
+}
+
+input[type="range"] {
+    margin: 0px 0px 0px 0px;
+    padding: 0px 0px 0px 0px;
+    padding-right: -24px;
+    background: transparent;
+}
+
 input[type="range"] > *.inputrange-left {
-    background-color: hsla(200, 50%, 62.5%, 1.0);
-    border-color: hsla(200, 50%, 10%, 0.5);
+    background-color: var(--button-selected-background);
+    border: 0px;
+    top: -6px;
 }
 input[type="range"] > *.inputrange-right {
-    background-color: rgba(64, 64, 64, 1);
-    border-color: rgba(32, 32, 32, 0.5);
+    background-color: var(--button-background);
+    border: 0px;
+    top: -6px;
 }
 input[type="range"]:active > *.inputrange-left {
     background-color: hsla(200, 100%, 62.5%, 1.0);
 }
+input[type="range"] > *.inputrange-handle {
+    left: 0px;
+    top: 0px;
+    width: 16px;
+    height: 16px;
+    background-color: hsl(200, 0%, 60%);
+}
 
+/**********************/
+/* CHECKBOX INPUT     */
+
+input[type="checkbox"] {
+    background-color: transparent;
+    border-width: 0px;
+    padding: 0px;
+}
+input[type="checkbox"] > img.checkbox {
+    display: inline;
+    padding: 2px;
+    margin: 5px 6px 6px 5px;
+    width: 24px;
+    height: 24px;
+    background-color: var(--button-background); 
+    background-image: none;
+    border-radius: 6px;
+}
+input[type="checkbox"]:hover > img.checkbox {
+    background-color: var(--button-hover-background);
+}
+input[type="checkbox"][checked] > img.checkbox {
+    background-color: var(--button-selected-background);
+    background-image: url('checkmark.png');
+}
+input[type="checkbox"]:active > img.checkbox {
+    background-color: var(--button-selected-background);
+}
+
+input[type="checkbox"] > label {
+    color: var(--button-text);
+    margin: 0px;
+    margin-left: 4px;
+    padding: 0px;
+    padding-top: 4px;
+    padding-right: 10px;
+    border-width: 0px;
+}
+input[type="checkbox"]:hover > label {
+    color: var(--button-selected-text);
+}
+input[type="checkbox"][checked] > label {
+    color: var(--text);
+}
+
+/**************************/
+/* COLLAPSIBLE COLLECTION */
+
+div.collapsible > input.header {
+    display: block;
+    width: 100%;
+    padding: 4px;
+}
+div.collapsible > input.header > img {
+    background: transparent url('collapse_open_small.png');
+    padding: 4px;
+}
+div.collapsible > input.header > label{
+    margin-top: -2px;
+}
+div.collapsible:hover > input.header > img {
+    background: transparent url('collapse_open_small.png');
+}
+div.collapsible > input.header[checked] > img {
+    background: transparent url('collapse_close_small.png'); 
+}
+div.collapsible > div.inside {
+    display: block;
+    margin-top: 2px;
+    margin-left: 16px;
+}
+div.collapsible > div.inside.collapsed {
+    display: none;
+}
 
 /********************************/
 /* GENERAL DIALOG STYLING       */
 
-button.dialog-close {
-    margin: 2px 4px 2px 0px;
-    padding: 2px;
-    border: 1px rgba(0,0,0,0.4);
+dialog {
+    border-radius: 4px;
+    border: 0px;
+    background: var(--panel-background);
+    color: var(--text);
+}
+dialog.framed {
+    border: 1.5px rgba(0,0,0,0.9);
+    border-radius: 4px;
+    padding: 0px;
+    margin: 4px;
+}
+div.dialog-header {
+    background: var(--header-background);
+    margin: 0px;
+    padding: 4px;
+    border: 0px;
+    border-radius: 0px;
+}
+span.dialog-title {
     display: inline;
-    width: 20px;
-    height: 20px;
-    background: rgba(0,0,0,0.25) url('close.png');
+    margin: 0px;
+    padding: 0px;
+    margin-left: 8px;
+    color: var(--text);
+    font-size: 12;
+}
+button.dialog-close {
+    display: inline;
+    padding: 3px;
+    border: 0px;
+    width: 16px;
+    height: 16px;
+    background: rgba(0,0,0,0) url('close.png');
 }
 button.dialog-close:hover {
     background-color: rgba(255,255,255,0.25);
 }
-
 dialog.framed > div.inside {
     margin: 0px;
-    padding: 0px 0px 2px 0px;
-}
-
-
-
-/********************************/
-/* MAIN TOOLS STYLING           */
-
-
-
-div#tools {
-    border: 1px black;
-    margin: 1px 1px 2px 1px;
-}
-input.tool {
-    background: transparent;
-    margin: 0px;
-    border-width: 0px;
-    width: 100%;
-    display: block;
-    padding: 0px;
-}
-input.tool > img {
-    display: none;
-}
-input.tool:hover {
-    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
-}
-input.tool[checked] {
-    background: hsla(200, 100%, 62.5%, 1.0);
-}
-input.tool:active {
-    background: hsla(200, 100%, 62.5%, 0.5);
-}
-input.tool:active:hover {
-    background: hsla(200, 100%, 62.5%, 0.75);
-}
-input.tool > label {
-    margin: 0px;
+    padding: 4px;
     border: 0px;
-    border-radius: 0px;
-    padding: 1px;
+}
+div.dialog-footer {
+    right: 50px;
+    top: -200px;
     width: 100%;
-    /*height:20px;*/
-    color: white;
-}
-input.tool[checked] label {
-    color: black;
-}
-input.tool:active label {
-    color: black;
-}
-input.tool > label > img {
-    display: inline;
+    /*bottom: 0px;*/
+    background: rgba(255, 238, 0, 0.75); 
+    margin: 0px;
+    padding: 2px;
+    border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
     border-radius: 0px;
-    border:0px white;
-    padding:0px;
-    margin:0px;
-    width:20px;
-    height:20px;
 }
-input.tool > label > label {
-    border: 0px;
-    padding:2px 0px; margin:0px; margin-left: 4px;
-}
-
-
-
-
-
-input.symmetry-enable {
-    width: 33.33%;
-    overflow-x: hidden;
-    white-space: nowrap;
-}
-
-
-
-
-/********************************/
-/* TEXT INPUT STYLING           */
-
-*.inputtext-container > input[type="text"] {
-    color: white;
-}
-
-input[type="text"]:hover {
-    color: black;
-}
-
-input[type="text"]:focus {
-    color: black;
-}
-
-input[type="text"] > *.inputtext-cursor {
-    color: black; /* hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
-}
-
-input[type="text"]:disabled {
-    border-color: rgb(64,64,64);
-    background-color: rgb(64, 64, 64);
-    color: rgb(32,32,32);
-    cursor: default;
-}
-
-
-
 
 
 div.collection {
-    margin: 1px;
-    border: 1px rgba(32,32,32,1.0);
-    padding: 0px;
+    margin-top: 2px;
+    border: 0px;
+    padding: 4px;
+    border-radius: 4px;
+    background: var(--collection);
 }
 
 div.collection > div.header {
-    background-color: rgba(32,32,32,1.0);
+    background-color: transparent;
     display: block;
     width: 100%;
-    padding: 2px;
     margin: 0px;
-    border: 1px rgba(32,32,32,1.0);
-    border-bottom-color: rgba(48, 48, 48, 1.0);
+    border: 0px;
     border-radius: 0px;
-}
+    color: var(--text);
 
+}
 
 div.collapsible {
     margin: 0px;
-    border: 1px rgba(64,96,128,0.125);
-    padding: 1px;
+    border: 0px;
+    border-radius: 0px;
+    background: rgba(0, 0, 0, 0);
+    padding: 0px 0px 0px 0px;
 }
 div.collapsible > input.header {
     display: block;
     width: 100%;
-    padding: 0px;
+    background: transparent;
+    padding-top: 4px;
+    padding-bottom: 4px;
     margin: 0px;
     border: 0px;
 }
 div.collapsible > input.header:hover {
-    background: rgba(32, 32, 32, 1.00);
+    background: hsla(200, 0%, 50%, 0.25);
 }
 div.collapsible > input.header > img {
     margin: 2px 2px 0px 0px;
@@ -286,14 +341,15 @@ div.collapsible > input.header > img {
     border: 0px;
     width: 18px;
     height: 18px;
+    background: transparent;
 }
 div.collapsible > div.inside {
-    border: 1px rgba(64,64,64,0.5);
-    padding: 2px 2px 2px 8px;
-    margin: 1px 0px 0px 0px;
+    border: 0px;
+    border-color: transparent;
+    background: var(--panel-two-background);
+    padding: 4px 4px 4px 16px;
+    margin: 0px 0px 0px 0px;
 }
-
-
 
 *#merge-by-distance button {
     display: inline;
@@ -309,7 +365,6 @@ div.collapsible > div.inside {
     display: inline;
     width: 50%;
 }
-
 
 
 dialog#loadingdialog {
@@ -332,17 +387,121 @@ dialog#maindialog * {
 }
 
 
+/********************************/
+/* MAIN TOOLS STYLING           */
+
+
+
+div#tools {
+    border: 0px black;
+    margin: 0px;
+    padding: 0px;
+}
+input.tool {
+    background: transparent;
+    margin: 1px;
+    padding: 4px;
+    border-width: 0px;
+    width: 100%;
+    display: block;
+}
+input.tool > img {
+    display: none;
+}
+input.tool:hover {
+    background: rgba(64, 64, 64, 0.75); 
+}
+input.tool[checked] {
+    background: rgb(0, 146, 219);
+}
+input.tool:active {
+    background: rgb(0, 146, 219);
+}
+input.tool:active:hover {
+    background: rgb(0, 146, 219);
+}
+input.tool > label {
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding-top: 0px;
+    width: 100%;
+    align-items: center;
+    align-content: center;
+}
+input.tool[checked] label {
+    color: white;
+}
+input.tool:active label {
+    color: rgb(255, 255, 255);
+}
+input.tool > label > img {
+    display: inline;
+    border-radius: 0px;
+    border: 0px;
+    padding: 0px;
+    margin:0px;
+    width: 32px;
+    height: 32px;
+}
+input.tool > label > label {
+    border: 0px;
+    padding:2px 0px; 
+    margin-top: 7px; 
+    margin-left: 6px;
+}
+
+input.symmetry-enable {
+    width: 33.33%;
+    overflow-x: hidden;
+    white-space: nowrap;
+}
+
+
+/********************************/
+/* TEXT INPUT STYLING           */
+
+*.inputtext-container > input[type="text"] {
+    color: var(--text);
+    background: var(--button-background);
+    padding-left: 8px;
+    padding-top: 5px;
+}
+
+input[type="text"]:hover {
+    color: var(--text);
+    background: var(--button-hover-background);
+}
+
+input[type="text"]:focus {
+    color: var(--text);
+    background: var(--button-selected-background);
+}
+
+input[type="text"] > *.inputtext-cursor {
+    color: var(--text);
+}
+
+input[type="text"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+    cursor: default;
+}
+
+
+
+
+
 
 /***************************************************/
 /* tiny ui window                                  */
 /***************************************************/
 
 dialog#tinydialog {
-    width: 268px;
+    width: 360px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
-    border-width: 1px;
 }
 dialog#tinydialog * {
     overflow-x: hidden;
@@ -361,7 +520,6 @@ dialog#tinydialog input[type="radio"] > img {
 }
 
 dialog#tinydialog div#ttools {
-    border: 1px black;
     margin: 0px;
 }
 dialog#tinydialog input.ttool {
@@ -409,12 +567,12 @@ dialog#tinydialog input.ttool > label > img {
     border:0px white;
     padding:0px;
     margin:0px;
-    width:20px;
-    height:20px;
+    width:24px;
+    height:24px;
 }
 
 dialog#tinydialog div#ttools button.dialog-close {
-    padding: 4px;
+    padding: 8px;
     width: 28px;
     height: 28px;
 }
@@ -431,11 +589,10 @@ dialog#tinydialog div#ttools button.dialog-close {
 /***************************************************/
 
 dialog#optionsdialog {
-    width: 250px;
+    width: 225px;
     min-width: 150px;
     max-width: 500px;
 }
-
 
 
 /***************************************************/
@@ -445,15 +602,16 @@ dialog#optionsdialog {
 dialog#helpsystem {
     width: 60%;
     left: 20%;
-    background: rgba(64,64,64,0.9);
+    background: hsla(200, 0%, 10%, 0.98);
 }
 dialog#helpsystem div#helpsystem-buttons {
-    margin: 1px;
+    margin: 4px;
     width: 100%;
 }
 dialog#helpsystem div#helpsystem-buttons button {
     display: inline;
     width: 50%;
+    text-align: center;
 }
 
 
@@ -477,13 +635,13 @@ dialog.alertdialog div#alertdialog-buttons button {
 }
 
 dialog.alertdialog.note {
-    background-color: rgba(50, 50, 76, 0.95);
+    background-color: var(--alert-note);
 }
 
 
 dialog.alertdialog.warning {
     /*background-color: rgba(90, 64, 38, 0.95);*/
-    background-color: rgba(128, 72, 8, 0.95);
+    background-color: var(--alert-warning);
 }
 dialog.alertdialog.warning div#alertdialog-buttons {
     background-color: rgba(64, 36, 4, 1.0);
@@ -494,15 +652,6 @@ dialog.alertdialog.warning div#alertdialog-buttons button {
 dialog.alertdialog.warning div#alertdialog-buttons button:hover {
     /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
     background-color: rgba(128, 96, 32, 1.0);
-    border: 1px rgba(32, 32, 32, 1.00);
-}
-dialog.alertdialog.warning div#alertdialog-buttons button:active:hover {
-    color: black;
-    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
-}
-dialog.alertdialog.warning div#alertdialog-buttons button:focus {
-    color: black;
-    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
 }
 
 
@@ -563,14 +712,49 @@ dialog#geometrydialog table div {
     padding: 1px;
 }
 
-
-
+div.mdown h1 {
+    width: 100%;
+    padding: 4px;
+}
+div.mdown h1> span {
+    font-size: 18px;
+}
+div.mdown h2 {
+    width: 100%;
+    padding: 4px;
+}
+div.mdown h2> span {
+    font-size: 14px;
+}
+div.mdown h3 {
+    width: 100%;
+    padding: 4px;
+}
 div.mdown h3> span {
+    font-size: 12px;
     color: rgba(192, 192, 192, 1.0);
 }
 
 div.mdown p {
     text-align: justify;
+    padding-left: 16px;
+}
+div.mdown ul {
+    padding-left: 16px;
+}
+div.mdown a {
+    padding: 0px 0px 0px 0px;
+    margin: 0px;
+    background-color: transparent;
+    border: 1px transparent;
+    border-bottom-color: var(--text);
+    cursor: default;
+    color: var(--text);
+}
+div.mdown a:hover {
+    color: white;
+    border-bottom-color: white;
+    cursor: default;
 }
 
 

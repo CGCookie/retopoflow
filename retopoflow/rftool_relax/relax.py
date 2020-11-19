@@ -41,7 +41,7 @@ from ...config.options import options, themes
 class RFTool_Relax(RFTool):
     name        = 'Relax'
     description = 'Relax the vertex positions to smooth out topology'
-    icon        = 'relax_32.png'
+    icon        = 'relax-icon.png'
     help        = 'relax.md'
     shortcut    = 'relax tool'
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'

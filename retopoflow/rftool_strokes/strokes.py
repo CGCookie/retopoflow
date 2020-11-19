@@ -61,7 +61,7 @@ from .strokes_utils import (
 class RFTool_Strokes(RFTool):
     name        = 'Strokes'
     description = 'Insert edge strips and extrude edges into a patch'
-    icon        = 'strokes_32.png'
+    icon        = 'strokes-icon.png'
     help        = 'strokes.md'
     shortcut    = 'strokes tool'
     statusbar   = '{{insert}} Insert edge strip and bridge\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
