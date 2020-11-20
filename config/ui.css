@@ -242,20 +242,21 @@ div.collapsible > input.header:hover {
 
 div.collapsible > input.header > label{
     margin-top: 0px;
+    margin-left: 0px;
 }
 div.collapsible > input.header > img {
-    margin: 6px 0px 0px 0px;
+    margin: 8px 0px 2px -6px;
     padding: 0px;
     border: 0px;
     width: 18px;
     height: 18px;
-    background: transparent url('collapse_open_small.png');
+    background: transparent url('collapse_open.png');
 }
 div.collapsible:hover > input.header > img {
-    background: transparent url('collapse_open_small.png');
+    background: transparent url('collapse_open.png');
 }
 div.collapsible > input.header[checked] > img {
-    background: transparent url('collapse_close_small.png'); 
+    background: transparent url('collapse_close.png'); 
 }
 div.collapsible > div.inside.collapsed {
     display: none;
