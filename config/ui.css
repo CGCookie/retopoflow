@@ -168,18 +168,24 @@ input[type="range"] > *.inputrange-handle {
 
 input[type="checkbox"] {
     background-color: transparent;
+    width: 100%;
     border-width: 0px;
-    padding: 0px;
+    padding-left: 4px;
+    height: 24px;
+    margin: 1px;
+}
+input[type="checkbox"]:hover {
+    background-color: hsla(200, 0%, 50%, 0.25);;
 }
 input[type="checkbox"] > img.checkbox {
     display: inline;
     padding: 2px;
-    margin: 5px 6px 6px 5px;
-    width: 24px;
-    height: 24px;
+    margin: 4px 4px 2px 2px;
+    width: 20px;
+    height: 20px;
     background-color: var(--button-background); 
     background-image: none;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 input[type="checkbox"]:hover > img.checkbox {
     background-color: var(--button-hover-background);
@@ -198,6 +204,7 @@ input[type="checkbox"] > label {
     margin-left: 4px;
     padding: 0px;
     padding-top: 4px;
+    padding-bottom: -2px;
     padding-right: 10px;
     border-width: 0px;
 }
@@ -211,17 +218,38 @@ input[type="checkbox"][checked] > label {
 /**************************/
 /* COLLAPSIBLE COLLECTION */
 
+div.collapsible {
+    margin: 1px;
+    border: 0px;
+    border-radius: 0px;
+    background: rgba(0, 0, 0, 0);
+    padding: 0px 0px 0px 0px;
+}
+
 div.collapsible > input.header {
     display: block;
     width: 100%;
-    padding: 4px;
+    height: 24px;
+    background: transparent;
+    padding-top: 1px;
+    padding-bottom: 0px;
+    margin: 0px;
+    border: 0px;
+}
+div.collapsible > input.header:hover {
+    background: hsla(200, 0%, 50%, 0.25);
+}
+
+div.collapsible > input.header > label{
+    margin-top: 0px;
 }
 div.collapsible > input.header > img {
+    margin: 6px 0px 0px 0px;
+    padding: 0px;
+    border: 0px;
+    width: 18px;
+    height: 18px;
     background: transparent url('collapse_open_small.png');
-    padding: 4px;
-}
-div.collapsible > input.header > label{
-    margin-top: -2px;
 }
 div.collapsible:hover > input.header > img {
     background: transparent url('collapse_open_small.png');
@@ -229,13 +257,15 @@ div.collapsible:hover > input.header > img {
 div.collapsible > input.header[checked] > img {
     background: transparent url('collapse_close_small.png'); 
 }
-div.collapsible > div.inside {
-    display: block;
-    margin-top: 2px;
-    margin-left: 16px;
-}
 div.collapsible > div.inside.collapsed {
     display: none;
+}
+div.collapsible > div.inside {
+    border: 0px;
+    border-color: transparent;
+    background: var(--panel-two-background);
+    padding: 4px 4px 4px 16px;
+    margin: 0px 0px 0px 0px;
 }
 
 /********************************/
@@ -298,7 +328,7 @@ div.dialog-footer {
 
 
 div.collection {
-    margin-top: 2px;
+    margin-top: 0px;
     border: 0px;
     padding: 4px;
     border-radius: 4px;
@@ -314,41 +344,6 @@ div.collection > div.header {
     border-radius: 0px;
     color: var(--text);
 
-}
-
-div.collapsible {
-    margin: 0px;
-    border: 0px;
-    border-radius: 0px;
-    background: rgba(0, 0, 0, 0);
-    padding: 0px 0px 0px 0px;
-}
-div.collapsible > input.header {
-    display: block;
-    width: 100%;
-    background: transparent;
-    padding-top: 4px;
-    padding-bottom: 4px;
-    margin: 0px;
-    border: 0px;
-}
-div.collapsible > input.header:hover {
-    background: hsla(200, 0%, 50%, 0.25);
-}
-div.collapsible > input.header > img {
-    margin: 2px 2px 0px 0px;
-    padding: 0px;
-    border: 0px;
-    width: 18px;
-    height: 18px;
-    background: transparent;
-}
-div.collapsible > div.inside {
-    border: 0px;
-    border-color: transparent;
-    background: var(--panel-two-background);
-    padding: 4px 4px 4px 16px;
-    margin: 0px 0px 0px 0px;
 }
 
 *#merge-by-distance button {
@@ -466,6 +461,7 @@ input.symmetry-enable {
     background: var(--button-background);
     padding-left: 8px;
     padding-top: 5px;
+    height: 24px;
 }
 
 input[type="text"]:hover {
@@ -498,7 +494,7 @@ input[type="text"]:disabled {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 360px;
+    width: 382px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
@@ -508,6 +504,7 @@ dialog#tinydialog * {
 }
 dialog#tinydialog span.dialog-title {
     padding: 0px 2px;
+    margin-left: -2px;
     font-size: 9pt;
     height: 12px;
 }
@@ -525,10 +522,10 @@ dialog#tinydialog div#ttools {
 dialog#tinydialog input.ttool {
     display: inline;
     background: transparent;
-    margin: 0px;
+    margin: 0px 2px 0px 2px;
     border-width: 0px;
-    width: 28px;
-    padding: 0px;
+    width: 40px;
+    padding: 2px;
 }
 dialog#tinydialog input.ttool > img {
     display: none;
@@ -537,20 +534,20 @@ dialog#tinydialog input.ttool:hover {
     background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
 dialog#tinydialog input.ttool[checked] {
-    background: hsla(200, 100%, 62.5%, 1.0);
+    background: var(--button-selected-background);
 }
 dialog#tinydialog input.ttool:active {
-    background: hsla(200, 100%, 62.5%, 0.5);
+    background: var(--button-selected-background);
 }
 dialog#tinydialog input.ttool:active:hover {
-    background: hsla(200, 100%, 62.5%, 0.75);
+    background: var(--button-selected-background);
 }
 dialog#tinydialog input.ttool > label {
     display: inline;
-    margin: 0px;
     border: 0px;
     border-radius: 0px;
-    padding: 4px 4px;
+    padding: 0px;
+    margin: 0px;
     /*width: 100%;*/
     /*height:20px;*/
     color: white;
@@ -567,14 +564,14 @@ dialog#tinydialog input.ttool > label > img {
     border:0px white;
     padding:0px;
     margin:0px;
-    width:24px;
-    height:24px;
+    width:32px;
+    height:32px;
 }
 
 dialog#tinydialog div#ttools button.dialog-close {
-    padding: 8px;
-    width: 28px;
-    height: 28px;
+    padding: 12px;
+    width: 38px;
+    height: 38px;
 }
 /*dialog#tinydialog div#ttools button.dialog-close:hover {
     background: hsla(200, 100%, 62.5%, 0.75);
@@ -589,7 +586,7 @@ dialog#tinydialog div#ttools button.dialog-close {
 /***************************************************/
 
 dialog#optionsdialog {
-    width: 225px;
+    width: 236px;
     min-width: 150px;
     max-width: 500px;
 }
@@ -712,6 +709,7 @@ dialog#geometrydialog table div {
     padding: 1px;
 }
 
+
 div.mdown h1 {
     width: 100%;
     padding: 4px;
@@ -755,6 +753,26 @@ div.mdown a:hover {
     color: white;
     border-bottom-color: white;
     cursor: default;
+}
+
+div.mdown img {
+    border-radius: 4px;
+}
+
+div.mdown pre {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: var(--header-background);
+}
+
+div.mdown code {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: var(--header-background);
 }
 
 

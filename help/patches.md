@@ -1,4 +1,4 @@
-# ![](patches_32.png width:32px;height:32px;padding:0px) Patches Help 
+# ![](patches-icon.png width:32px;height:32px;padding:0px) Patches Help 
 
 Shortcut: {{patches tool}}
 

@@ -1,4 +1,4 @@
-# ![](tweak_32.png width:32px;height:32px;padding:0px) Tweak Help 
+# ![](tweak-icon.png width:32px;height:32px;padding:0px) Tweak Help 
 
 Shortcut: {{tweak tool}}
 
