@@ -582,7 +582,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
     border: 0px;
     width: 20px;
     height: 40px;
-    background: rgba(0,0,0,0) url('collapse_open.png');
+    background: rgba(0,0,0,0) url('collapse_close.png');
 }
 
 /*dialog#tinydialog div#ttools button.dialog-close:hover {
