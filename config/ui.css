@@ -655,7 +655,19 @@ dialog.alertdialog.warning div#alertdialog-buttons button:hover {
 dialog.alertdialog.error {
     width: 60%;
     background-color: rgba(76, 38, 38, 0.95);
+} 
+dialog.alertdialog.error div#alertdialog-buttons {
+    background-color: rgb(26, 26, 26);
 }
+dialog.alertdialog.error div#alertdialog-buttons button {
+    background-color: rgb(128, 8, 8);
+}
+dialog.alertdialog.error div#alertdialog-buttons button:hover {
+    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+    background-color: rgb(139, 35, 35);
+}
+
+
 dialog.alertdialog.assert, dialog.alertdialog.exception {
     width: 60%;
     background-color: rgba(96, 0, 0, 0.95);
@@ -709,6 +721,9 @@ dialog#geometrydialog table div {
     padding: 1px;
 }
 
+/***************************************************/
+/* markdown                                        */
+/***************************************************/
 
 div.mdown h1 {
     width: 100%;
@@ -775,6 +790,9 @@ div.mdown code {
     background-color: var(--header-background);
 }
 
+/***************************************************/
+/* pie menu                                        */
+/***************************************************/
 
 div#pie-menu {
     display: none;
@@ -798,7 +816,7 @@ table#pie-menu-table {
     background-color: rgba(0,0,0,0.15); /* transparent;*/
     margin: 0px;
     padding: 100px;
-    border: 1px rgba(0, 0, 0, 0.25);
+    border: 0px rgba(0, 0, 0, 0.25);
     border-radius: 250px;
 }
 table#pie-menu-table tr {
@@ -814,25 +832,33 @@ table#pie-menu-table td {
 table#pie-menu-table div.pie-menu-option {
     width: 100px;
     height: 100px;
-    background-color: rgba(64, 64, 64, 0.8);
-    margin: 2px;
-    padding: 8px;
-    border: 2px rgba(0, 0, 0, 0.75);
+    background-color: rgba(64, 64, 64, 0.975);
+    color: var(--text);
+    margin: 16px;
+    padding-top: 8px;
+    border: 1px rgba(0, 0, 0, 0.95);
+    border-radius: 5px;
     text-align: center;
     /*text-align: center;*/
 }
 table#pie-menu-table div.pie-menu-option.highlighted {
-    background-color: rgba(192, 192, 192, 1.0);
-    border-color: rgba(128, 128, 128, 0.75);
-    color: black;
+    background-color: var(--button-selected-background);
+    color: white;
 }
 table#pie-menu-table div.pie-menu-option:hover {
-    color: black;
-    background-color: hsla(200, 100%, 62.5%, 1.0);
-    border-color: hsla(200, 100%, 100%, 0.6);
+    color: white;
+    background-color: var(--button-selected-background);
 }
 table#pie-menu-table div#pie-menu-middlecenter {
     background-color: rgba(0, 0, 0, 0.15);
     border: 1px rgba(0, 0, 0, 0.25);
-    border-radius: 50px;
+    border-radius: 35px;
+}
+
+dialog.tooltip {
+    border: 1px black;
+    background: hsla(0, 0%, 9%, 0.99); /*rgba(32,32,32,0.8);*/
+    color: white;
+    margin: 2px;
+    padding: 4px;
 }
