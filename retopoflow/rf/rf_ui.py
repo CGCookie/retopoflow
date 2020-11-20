@@ -751,10 +751,10 @@ class RetopoFlow_UI:
                             ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
                         ]),
                     ]),
-                    ui.collapsible(label='Tooltips', children=[
-                        ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
-                        ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
-                    ]),
+                ]),
+                ui.collapsible(label='Tooltips', children=[
+                    ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
+                    ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
                 ]),
             ]),
             ui.collapsible(label='Target Cleaning', title='Target cleaning options', parent=self.ui_options, id='target-cleaning', children=[

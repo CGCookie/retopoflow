@@ -329,9 +329,11 @@ div.dialog-footer {
 
 
 div.collection {
-    margin-top: 0px;
+    margin-top: 4px;
+    margin-bottom: 4px;
     border: 0px;
-    padding: 4px;
+    padding: 0px;
+    padding-top: 0px;
     border-radius: 4px;
     background: var(--collection);
 }
@@ -344,6 +346,7 @@ div.collection > div.header {
     border: 0px;
     border-radius: 0px;
     color: var(--text);
+    padding-left: 6px;
 
 }
 
@@ -463,6 +466,10 @@ input.symmetry-enable {
     padding-left: 8px;
     padding-top: 5px;
     height: 24px;
+}
+
+*.labeledinputtext-container {
+    padding-left: 4px;
 }
 
 input[type="text"]:hover {
@@ -591,7 +598,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
 /***************************************************/
 
 dialog#optionsdialog {
-    width: 236px;
+    width: 250px;
     min-width: 150px;
     max-width: 500px;
 }
