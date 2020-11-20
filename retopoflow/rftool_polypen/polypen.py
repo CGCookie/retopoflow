@@ -95,6 +95,19 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.update_insert_mode()
 
         self.ui_options = ui.collapsible('PolyPen', children=[
+            ui.collection(label='Automerge', children=[
+                ui.input_checkbox(
+                    label='Enable Automerge',
+                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
+                    checked=self._var_automerge,
+                    style='display:block',
+                ),
+                ui.labeled_input_text(
+                    label='Merge Dist',
+                    title='Pixel distance for merging and snapping',
+                    value=self._var_merge_dist,
+                ),
+            ]),
             ui.collection(label='Insert Mode', children=[
                 ui.input_radio(
                     id='polypen-insert-mode-triquad',
@@ -139,19 +152,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     classes='half-size',
                     children=[ui.label(innerText='Edge-Only')],
                     on_input=insert_mode_change,
-                ),
-            ]),
-            ui.collection(label='Automerge', children=[
-                ui.input_checkbox(
-                    label='Enable Automerge',
-                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
-                    checked=self._var_automerge,
-                    style='display:block',
-                ),
-                ui.labeled_input_text(
-                    label='Merge Dist',
-                    title='Pixel distance for merging and snapping',
-                    value=self._var_merge_dist,
                 ),
             ]),
         ])

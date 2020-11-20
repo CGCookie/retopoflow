@@ -494,7 +494,7 @@ input[type="text"]:disabled {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 382px;
+    width: 370px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
@@ -568,11 +568,15 @@ dialog#tinydialog input.ttool > label > img {
     height:32px;
 }
 
-dialog#tinydialog div#ttools button.dialog-close {
-    padding: 12px;
-    width: 38px;
-    height: 38px;
+dialog#tinydialog div#ttools button.dialog-expand {
+    display: inline;
+    padding: 12px 4px 16px 4px;
+    border: 0px;
+    width: 20px;
+    height: 40px;
+    background: rgba(0,0,0,0) url('collapse_open.png');
 }
+
 /*dialog#tinydialog div#ttools button.dialog-close:hover {
     background: hsla(200, 100%, 62.5%, 0.75);
 }

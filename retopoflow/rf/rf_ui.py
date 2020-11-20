@@ -460,8 +460,9 @@ class RetopoFlow_UI:
 
         def setup_counts_ui():
             self.ui_geometry = ui.framed_dialog(
-                label="Geometry",
+                label="Poly Count",
                 id="geometrydialog",
+                left=0,
                 resizable=False,
                 closeable=True,
                 hide_on_close=True,
@@ -504,6 +505,7 @@ class RetopoFlow_UI:
                 parent=self.document.body,
             )
             ui_tools = ui.div(id='ttools', parent=self.ui_tiny)
+            ui.button(title='Maximize this window', classes='dialog-expand', on_mouseclick=self.show_main_ui_window, parent=ui_tools)
             def add_tool(rftool):
                 nonlocal ui_tools
                 # must be a fn so that local vars are unique and correctly captured
@@ -523,7 +525,6 @@ class RetopoFlow_UI:
                 ui.img(src=img, parent=radio, title=rftool.description)
             for rftool in self.rftools: add_tool(rftool)
             # ui_close = UI_Element(tagName='button', classes='dialog-close', title=title, on_mouseclick=close, parent=ui_header)
-            ui.button(title='Maximize this window', classes='dialog-close', on_mouseclick=self.show_main_ui_window, parent=ui_tools)
 
         def debug_doc(ui, level=0):
             print(f"{'  '*level} {ui}: document={ui.document}, root={ui.get_root()}")
@@ -557,8 +558,8 @@ class RetopoFlow_UI:
                 ui.label(innerText=lbl, parent=radio, title=rftool.description)
             for rftool in self.rftools: add_tool(rftool)
 
-            ui.button(label='Minimize', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window, parent=self.ui_main)
-            ui_help = ui.collapsible(label='Help', id='help-buttons', parent=self.ui_main, children=[
+            
+            ui_help = ui.collapsible(label='Documentation', id='help-buttons', parent=self.ui_main, children=[
                 ui.button(
                     label='Welcome!',
                     title='Show the "Welcome!" message from the RetopoFlow team',
@@ -570,19 +571,25 @@ class RetopoFlow_UI:
                     on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
                 ),
                 ui.button(
+                    label='Quick start guide',
+                    title='Show how to get started with RetopoFlow',
+                    on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
+                ),
+                ui.button(
                     label='General',
                     title=f'Show general help ({humanread("general help")})',
                     on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
                 ),
                 ui.button(
-                    label='Tool',
+                    label='Active Tool',
                     title=f'Show help for currently selected tool ({humanread("tool help")})',
                     on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
                 ),
             ])
             ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
+            ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window, parent=ui_show)
             self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
-            self.ui_show_geometry = ui.button(label='Show Geometry', title='Show geometry window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
+            self.ui_show_geometry = ui.button(label='Show Poly Count', title='Show poly count window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
             if False:
@@ -629,98 +636,8 @@ class RetopoFlow_UI:
             update_esctoquit()
 
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
-                ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
-                ui.input_checkbox(
-                    label='Auto Hide Tool Options',
-                    title='If enabled, options for selected tool will show while other tool options hide.',
-                    checked=self._var_auto_hide_options,
-                    style='display:block; width:100%',
-                ),
+                ui.input_checkbox(label='Escape to Quit', title='Check to allow Esc key to quit RetopoFlow', checked=BoundVar('''options['escape to quit']''', on_change=update_esctoquit)),
                 # ui.button(label='Maximize Area'),
-                ui.collapsible(label='Target Cleaning', id='target-cleaning', children=[
-                    ui.collection(label='Snap Verts', id='snap-verts', children=[
-                        ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
-                        ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
-                    ]),
-                    ui.collection(label='Merge by Distance', id='merge-by-distance', children=[
-                        ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
-                        ui.button(label='All', title='Merge all vertices within given distance.', on_mouseclick=self.remove_all_doubles),
-                        ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
-                    ]),
-                ]),
-                ui.collapsible(label='View Options', id='view-options', children=[
-                    ui.input_checkbox(
-                        label='Hide Overlays',
-                        title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                        checked=BoundBool('''options['hide overlays']'''),
-                        on_input=update_hide_overlays,
-                        style='display:block; width:100%',
-                    ),
-                    ui.collection(label='Clipping', id='clipping', children=[
-                        ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
-                        ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
-                    ]),
-                    ui.collection(label='Theme', children=[
-                        ui.input_radio(
-                            id='theme-color-green',
-                            title='Draw the target mesh using a green theme.',
-                            value='Green',
-                            checked=(options['color theme']=='Green'),
-                            name='theme-color',
-                            classes='third-size',
-                            children=[ui.label(innerText='Green')],
-                            on_input=theme_change,
-                        ),
-                        ui.input_radio(
-                            id='theme-color-blue',
-                            title='Draw the target mesh using a blue theme.',
-                            value='Blue',
-                            checked=(options['color theme']=='Blue'),
-                            name='theme-color',
-                            classes='third-size',
-                            children=[ui.label(innerText='Blue')],
-                            on_input=theme_change,
-                        ),
-                        ui.input_radio(
-                            id='theme-color-orange',
-                            title='Draw the target mesh using a orange theme.',
-                            value='Orange',
-                            checked=(options['color theme']=='Orange'),
-                            name='theme-color',
-                            classes='third-size',
-                            children=[ui.label(innerText='Orange')],
-                            on_input=theme_change,
-                        ),
-                    ]),
-                    ui.collection(label='Target Drawing', children=[
-                        ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
-                        ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
-                        ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
-                        ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
-                        ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
-                        ui.collapsible(label='Individual Alpha Values', children=[
-                            ui.collection(label='Verts', children=[
-                                ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
-                            ]),
-                            ui.collection(label="Edges", children=[
-                                ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
-                            ]),
-                            ui.collection(label='Faces', children=[
-                                ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
-                                ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
-                            ]),
-                        ]),
-                    ]),
-                ]),
                 ui.collapsible(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
                     ui.input_checkbox(
                         label='Check Auto Save',
@@ -735,20 +652,15 @@ class RetopoFlow_UI:
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collapsible(label='Visibility Test', title='These options are used to tune the parameters for visibility testing', children=[
-                    ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                    ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                    ui.collection(label='Presets', id='vistest-presets', children=[
-                        ui.button(label='Tiny', title='Preset options for working on tiny objects', on_mouseclick=self.visibility_preset_tiny),
-                        ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
-                    ]),
-                ]),
-                ui.input_checkbox(label='Escape to Quit', title='Check to allow Esc key to quit RetopoFlow', checked=BoundVar('''options['escape to quit']''', on_change=update_esctoquit)),
                 ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
                     ui.div(innerText='FPS: 0', id='fpsdiv'),
-                    ui.collapsible(label='Tooltip Settings', children=[
-                        ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
-                        ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
+                    ui.collapsible(label='Visibility Test', title='These options are used to tune the parameters for visibility testing', children=[
+                        ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                        ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                        ui.collection(label='Presets', id='vistest-presets', children=[
+                            ui.button(label='Tiny', title='Preset options for working on tiny objects', on_mouseclick=self.visibility_preset_tiny),
+                            ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
+                        ]),
                     ]),
                     ui.collapsible(label='Keyboard Settings', children=[
                         ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
@@ -760,8 +672,102 @@ class RetopoFlow_UI:
                     ]),
                     ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
                 ])
+            ]),
+            ui.collapsible(label='Display', title='Display options', id='view-options', parent=self.ui_options, children=[
+                ui.input_checkbox(
+                    label='Auto Hide Tool Options',
+                    title='If enabled, options for selected tool will show while other tool options hide.',
+                    checked=self._var_auto_hide_options,
+                    style='display:block; width:100%',
+                ),
+                ui.input_checkbox(
+                    label='Hide Overlays',
+                    title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
+                    checked=BoundBool('''options['hide overlays']'''),
+                    on_input=update_hide_overlays,
+                    style='display:block; width:100%',
+                ),                
+                ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
+                ui.collection(label='Theme', children=[
+                    ui.input_radio(
+                        id='theme-color-green',
+                        title='Draw the target mesh using a green theme.',
+                        value='Green',
+                        checked=(options['color theme']=='Green'),
+                        name='theme-color',
+                        classes='third-size',
+                        children=[ui.label(innerText='Green')],
+                        on_input=theme_change,
+                    ),
+                    ui.input_radio(
+                        id='theme-color-blue',
+                        title='Draw the target mesh using a blue theme.',
+                        value='Blue',
+                        checked=(options['color theme']=='Blue'),
+                        name='theme-color',
+                        classes='third-size',
+                        children=[ui.label(innerText='Blue')],
+                        on_input=theme_change,
+                    ),
+                    ui.input_radio(
+                        id='theme-color-orange',
+                        title='Draw the target mesh using a orange theme.',
+                        value='Orange',
+                        checked=(options['color theme']=='Orange'),
+                        name='theme-color',
+                        classes='third-size',
+                        children=[ui.label(innerText='Orange')],
+                        on_input=theme_change,
+                    ),
+                ]),
+                ui.collection(label='Clipping', id='clipping', children=[
+                    ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
+                    ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
+                ]),
+                ui.collection(label='Target Drawing', children=[
+                    ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
+                    ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
+                    ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
+                    ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
+                    ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
+                    ui.collapsible(label='Individual Alpha Values', children=[
+                        ui.collection(label='Verts', children=[
+                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
+                        ]),
+                        ui.collection(label="Edges", children=[
+                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
+                        ]),
+                        ui.collection(label='Faces', children=[
+                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
+                        ]),
+                    ]),
+                    ui.collapsible(label='Tooltips', children=[
+                        ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
+                        ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
+                    ]),
+                ]),
+            ]),
+            ui.collapsible(label='Target Cleaning', title='Target cleaning options', parent=self.ui_options, id='target-cleaning', children=[
+                ui.collection(label='Snap Verts', id='snap-verts', children=[
+                    ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
+                    ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
+                ]),
+                ui.collection(label='Merge by Distance', id='merge-by-distance', children=[
+                    ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
+                    ui.button(label='All', title='Merge all vertices within given distance.', on_mouseclick=self.remove_all_doubles),
+                    ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
+                ]),
             ])
-
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
