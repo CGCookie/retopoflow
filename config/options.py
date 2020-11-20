@@ -136,7 +136,7 @@ class Options:
         'check auto save':      True,   # give warning about disabled auto save at start
         'check unsaved':        True,   # give warning about unsaved blend file at start
         'welcome':              True,   # show welcome message?
-        'quickstart tool':      'Contours',  # which tool to start with when clicking diamond
+        'quickstart tool':      'PolyPen',  # which tool to start with when clicking diamond
 
         # DIALOGS
         'show main window':     True,   # True: show main window; False: show tiny
@@ -414,21 +414,21 @@ class Themes:
         'mesh':       ints_to_Color(255, 255, 255, 255),
         'warning':    ints_to_Color(182,  31,   0, 128),
 
-        'stroke':     ints_to_Color( 40, 255,  40, 255),
+        'stroke':     ints_to_Color( 255, 255,  0, 255),
         'highlight':  ints_to_Color(255, 255,  25, 255),
 
         # RFTools
-        'polystrips': ints_to_Color(128, 255, 255,  96),
-        'strokes':    ints_to_Color( 64,  64,  64,  96),
-        'tweak':      ints_to_Color(255, 128,  25, 255),
-        'relax':      ints_to_Color(128, 255, 128, 255),
+        'polystrips': ints_to_Color(0, 100, 25, 150),
+        'strokes':    ints_to_Color(0, 100, 90, 150),
+        'tweak':      ints_to_Color(135, 0,  130, 255),
+        'relax':      ints_to_Color(0, 135, 255, 255),
     }
 
     themes = {
         'Blue': {
-            'select':  ints_to_Color( 26, 111, 255),
+            'select':  ints_to_Color( 55, 160, 255),
             'new':     ints_to_Color( 40,  40, 255),
-            'active':  ints_to_Color( 26, 111, 255),
+            'active':  ints_to_Color( 55, 160, 255),
         },
         'Green': {
             'select':  ints_to_Color( 78, 207,  81),
@@ -436,9 +436,9 @@ class Themes:
             'active':  ints_to_Color( 78, 207,  81),
         },
         'Orange': {
-            'select':  ints_to_Color(207, 135,  78),
+            'select':  ints_to_Color(255, 135,  54),
             'new':     ints_to_Color(255, 128,  64),
-            'active':  ints_to_Color(207, 135,  78),
+            'active':  ints_to_Color(255, 135,  54),
         },
     }
 
