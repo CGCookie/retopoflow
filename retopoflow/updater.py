@@ -51,6 +51,7 @@ except Exception as e:
 # otherwise the bl_idname's will not match and have errors.
 # Must be all lowercase and no spaces
 updater.addon = "cgcookie"
+updater._addon_root = os.path.join('..', os.path.dirname(__file__))
 addon_package = __package__.split('.')[0]
 #updater.addon_package = ''
 
@@ -261,7 +262,9 @@ class addon_updater_update_now(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         # return False
-        return not updater.invalidupdater and updater.update_ready
+        if updater.invalidupdater: return False
+        if not updater.update_ready: return False
+        return True
 
 
     def execute(self,context):

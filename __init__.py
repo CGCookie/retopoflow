@@ -398,7 +398,8 @@ if not import_succeeded:
             tw = textwrap.TextWrapper(width=35)
             report_lines = [
                 'This is likely due to an incorrect installation of the add-on.',
-                'Please download the latest version from the Blender Market.',
+                'Please try restarting Blender.'
+                'If that does not work, please download the latest version from the Blender Market.',
                 'If you continue to see this error, contact us through the Blender Market Indox, and we will work to get it fixed!',
             ]
             for report_line in report_lines:
