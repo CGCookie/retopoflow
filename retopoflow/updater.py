@@ -51,9 +51,8 @@ except Exception as e:
 # otherwise the bl_idname's will not match and have errors.
 # Must be all lowercase and no spaces
 updater.addon = "cgcookie"
-updater._addon_root = os.path.join('..', os.path.dirname(__file__))
 addon_package = __package__.split('.')[0]
-#updater.addon_package = ''
+updater.addon_package = addon_package
 
 
 # -----------------------------------------------------------------------------
