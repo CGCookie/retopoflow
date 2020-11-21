@@ -24,6 +24,7 @@ Below is a short list of major changes from RetopoFlow&nbsp;2.x.
 - Mouse dragging, clicking, and double-clicking are now possible actions.
 - Some of the keymaps for some tools have changed to allow for LMB-select.
 - The target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.
+- RF now automatically detects many common mesh errors, such as vertices with invalid coordinates and inward-facing normals.
 - Some RF tools have improved options.
 - Major UI and UX improvements, including: tooltips, labels, help docs, gizmo rendering, minimizing main tool window
 - Improved consistency across all tools
@@ -42,7 +43,7 @@ As of the time of this release, RetopoFlow has been tested to work well with Ble
 RetopoFlow is slightly visually different starting in Blender&nbsp;2.83β.
 Since this is only a visual change---RF works just the same in all versions---we do not plan to correct for this by making RF visually consistent across all versions of Blender.
 
-Note: This version will *not* work in Blender&nbsp;2.79b or earlier.
+Note: This version of RetopoFlow will *not* work in Blender&nbsp;2.79b or earlier.
 
 
 ## New Framework
@@ -57,3 +58,4 @@ The new RetopoFlow sits on top of the CookieCutter framework, and we are excited
 But with any unveiling on new things, there are new bugs and performance issues.
 Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
 We will need your help, though.
+If you notice a bug, please report it on the [Blender Market](https://blendermarket.com/products/retopoflow) or on [GitHub](https://github.com/CGCookie/retopoflow/issues).

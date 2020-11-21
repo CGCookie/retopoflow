@@ -2,6 +2,7 @@
 
 RetopoFlow might present a warning if it detects a situation which is not ideal to start in.
 
+![](warnings.png max-height:300px)
 
 ## Layout: Quad View / Multiple 3D Views
 
@@ -10,11 +11,16 @@ Running RetopoFlow with Quad View turned on or with multiple 3D Views can result
 
 
 ## Auto Save / Save
+
 If Blender's auto save is disabled, any work done since the last time you saved can be lost if Blender crashes. To enable auto save, go Edit > Preferences > Save & Load > Auto Save.
 
 If you are working on an unsaved blend file, your changes will be saved to a temporary file (see path below) when you press {{blender save}}.
 
 Temporary file path: `{`options.get_auto_save_filepath()`}`
+
+<input type="checkbox" value="options['check auto save']">Warn if auto save is disabled</input>
+
+<input type="checkbox" value="options['check unsaved']">Warn if file is unsaved</input>
 
 
 ## Performance: Target/Sources Too Large

@@ -294,24 +294,24 @@ if import_succeeded:
                 return warningsubboxes[label]
             if VIEW3D_PT_RetopoFlow.is_target_too_big(context):
                 box = add_warning_subbox('Performance Issue')
-                box.label(text=f'- Target is too large (>{options["warning max target"]})')
+                box.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
             if VIEW3D_PT_RetopoFlow.are_sources_too_big(context):
                 box = add_warning_subbox('Performance Issue')
-                box.label(text=f'- Sources are too large (>{options["warning max sources"]})')
+                box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
             if VIEW3D_PT_RetopoFlow.multiple_3dviews(context):
                 box = add_warning_subbox('Layout Issue')
-                box.label(text='- Multiple 3D Views')
+                box.label(text='Multiple 3D Views', icon='DOT')
             if VIEW3D_PT_RetopoFlow.in_quadview(context):
                 box = add_warning_subbox('Layout Issue')
-                box.label(text='- Using Quad View')
+                box.label(text='Using Quad View', icon='DOT')
             if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
                 box = add_warning_subbox('Auto Save / Save')
-                box.label(text='- Auto Save is disabled')
+                box.label(text='Auto Save is disabled', icon='DOT')
             if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
                 box = add_warning_subbox('Auto Save / Save')
-                box.label(text='- Unsaved Blender file')
+                box.label(text='Unsaved Blender file', icon='DOT')
             if warningbox:
-                warningbox.operator('cgcookie.retopoflow_help_warnings')
+                warningbox.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
 
             box = layout.box()
             if VIEW3D_PT_RetopoFlow.is_editing_target(context):
@@ -326,24 +326,24 @@ if import_succeeded:
                 box.operator('cgcookie.retopoflow_newtarget', icon='ADD')
 
             box = layout.box()
-            box.label(text='Help and Support')
+            box.label(text='Help and Support') # , icon='QUESTION')
             col = box.column()
-            col.operator('cgcookie.retopoflow_help_quickstart', icon='QUESTION')
-            col.operator('cgcookie.retopoflow_help_welcome', icon='QUESTION')
+            col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
+            col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
             col = box.column()
             col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
             box = layout.box()
-            box.label(text='Auto Save')
-            box.operator('cgcookie.retopoflow_recover')
+            box.label(text='Auto Save') # , icon='FILE_TICK')
+            box.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
             # if retopoflow.RetopoFlow.has_backup():
             #     box.label(text=options['last auto save path'])
 
             box = layout.box()
             box.label(text='RetopoFlow Updater')
             col = box.column()
-            col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates')
-            col.operator('cgcookie.retopoflow_updater_update_now', text='Update now')
+            col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+            col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu

@@ -12,9 +12,9 @@ The tools work because of our custom "Retopology Mode", which gets more informat
 
 ## Getting Started
 
-Check out our [quick start guide](quick_start.md) to learn the basics of using RetopoFlow. 
+Check out our [quick start guide](quick_start.md) to learn the basics of using RetopoFlow.
 
-RetopoFlow also has a full documentation and help system within the app. 
+RetopoFlow also has a full documentation and help system within the app.
 
 You can find it in the Help section of the toolbar or, at any time, press {{general help}} to open the [general help document](general.md), {{all help}} to open the [table of contents](table_of_contents.md), or {{tool help}} to open the help documents for the currently selected tool.
 
@@ -23,7 +23,9 @@ You can find it in the Help section of the toolbar or, at any time, press {{gene
 
 Whenever you see a bug, please let us know so that we can fix it!
 
-Be sure to submit screen shots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button in the toolbar. We have added buttons to error messages that open the issue tracker in your default browser and save screen shots of Blender.
+Be sure to submit screen shots, .blend files, and/or instructions on reproducing the bug to our bug tracker by clicking the "Report Issue" button in the toolbar.
+We have added buttons to error messages that open the issue tracker in your default browser and save screen shots of Blender.
+
 
 ## Feedback
 
@@ -42,7 +44,6 @@ Below is a list of known issues that we are currently working on.
 - UI can take about a half second to register hovering or clicking.
 - Patches supports only basic fills.
 - Starting RF with large source or target meshes can be slow.
-- The updater is temporarily disabled for this release.
 - RF actions are not tied into Blender keymaps.
 - RF does not allow execution of other add-ons, pie menus, Blender operators, etc.
 - RF does not work correctly with more than one 3D View.
