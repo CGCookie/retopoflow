@@ -45,7 +45,7 @@ from ...config.options import options, themes
 class RFTool_Tweak(RFTool):
     name        = 'Tweak'
     description = 'Adjust vertex positions with a smooth brush'
-    icon        = 'tweak_32.png'
+    icon        = 'tweak-icon.png'
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'

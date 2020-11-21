@@ -1,4 +1,4 @@
-# ![](polypen_32.png width:32px;height:32px;padding:0px) PolyPen Help 
+# ![](polypen-icon.png width:32px;height:32px;padding:0px) PolyPen Help 
 
 Shortcut: {{polypen tool}}
 

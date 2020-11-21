@@ -1,4 +1,4 @@
-# ![](relax_32.png width:32px;height:32px;padding:0px) Relax Help 
+# ![](relax-icon.png width:32px;height:32px;padding:0px) Relax Help 
 
 Shortcut: {{relax tool}}
 

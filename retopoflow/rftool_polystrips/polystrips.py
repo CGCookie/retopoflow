@@ -32,7 +32,7 @@ from ..rftool import RFTool
 class RFTool_PolyStrips(RFTool):
     name        = 'PolyStrips'
     description = 'Create and edit strips of quads'
-    icon        = 'polystrips_32.png'
+    icon        = 'polystrips-icon.png'
     help        = 'polystrips.md'
     shortcut    = 'polystrips tool'
     statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'

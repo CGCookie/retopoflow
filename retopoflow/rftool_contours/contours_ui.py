@@ -48,6 +48,11 @@ class Contours_UI:
                 checked=self._var_uniform_cut,
                 style='display:block',
             ),
+            ui.input_checkbox(
+                label='Non-manifold check',
+                title='Check for non-manifold edges under each cut.',
+                checked=self._var_nonmanifold,
+            ),
             ui.labeled_input_text(
                 label='Initial Count',
                 title='Number of vertices to create in a new cut.',
@@ -57,10 +62,5 @@ class Contours_UI:
                 label='Cut Count',
                 title='Number of vertices in currently selected cut.',
                 value=self._var_cut_count,
-            ),
-            ui.input_checkbox(
-                label='Non-manifold check',
-                title='Check for non-manifold edges under each cut.',
-                checked=self._var_nonmanifold,
             ),
         ])
