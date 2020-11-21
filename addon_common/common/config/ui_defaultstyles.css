@@ -1,0 +1,792 @@
+/*
+
+https://en.wikipedia.org/wiki/Flat_design#/media/File:Flat_widgets.png
+https://bulma.io/documentation/elements/button/
+
+*/
+
+* {
+    margin:     2px 2px;
+    padding:    4px 8px;
+
+    width:      auto;
+    height:     auto;
+    min-width:  0;
+    min-height: 0;
+    max-width:  auto;
+    max-height: auto;
+
+    background-color:   transparent;
+
+    border-width:   1px;
+    border-color:   rgba(0, 0, 0, 0.75);
+    border-radius:  4px;
+
+    overflow: hidden;
+    font: normal normal 12pt sans-serif;
+    text-align: left;
+}
+
+body {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 4px rgba(0,0,0,0.25);
+    border-radius: 8px;
+    cursor: default;
+    overflow: hidden;
+}
+
+button {
+    white-space: normal;
+    cursor: default;
+    display: inline;
+    border-width: 0px;
+    border-radius: 4px;
+    border-color: white rgb(96,96,96) rgb(32,32,32) rgb(224,224,224);
+    background: rgba(160,160,160, 0.50);
+    color: black;
+}
+button:focus {
+    /*background: yellow;*/
+    /*background: lightcyan;*/
+    background: rgba(160,160,160, 1.00);
+}
+button:active {
+    /*background: rgb(192,128,128);*/
+    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
+}
+button:hover {
+    background: rgba(160, 160, 160, 1.00); /* hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+}
+button:active:hover {
+    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
+}
+button:disabled {
+    background-color: rgb(128,128,128);
+    color: rgb(192,192,192);
+    /*border-width: 1px;*/
+    border-color: rgb(96,96,96);
+    cursor: default;
+}
+
+p {
+    display: block;
+    width: 100%;
+    /*margin: 2px 0px;*/
+    padding: 2px;
+    border-width: 0px;
+    color: white;
+}
+
+p span {
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+}
+
+code {
+    font-family: monospace;
+    white-space: pre;
+}
+
+pre {
+    width: 100%;
+    display: block;
+    font-family: monospace;
+    background-color: rgba(128, 128, 128, 0.5);
+    font-size: 10pt;
+    white-space: pre-wrap;
+}
+
+textarea {
+    display: block;
+    width: 100%;
+    /*margin: 2px 0px;*/
+    padding: 4px;
+    background-color: rgba(255,255,255,0.9);
+    border: 1px black;
+    border-radius: 4px;
+    color: black;
+    cursor: text;
+}
+
+div {
+    background-color: rgba(0,0,0,0.25);
+    display: block;
+    width: 100%;
+    margin: 2px 0px;
+    padding: 2px;
+}
+
+br {
+    display: block;
+    width: 0px;
+    height: 0px;
+    margin: 0px;
+    padding: 0px;
+    border-width: 0px;
+}
+
+img {
+    /*max-width: 100%;*/
+    object-fit: contain;
+    border-width: 1px;
+    border-color: rgba(0,0,0,0.25);
+    background-color: hsla(200, 100%, 62.5%, 0.0); /* rgba(255,0,0,0); */
+    padding: 2px;
+}
+
+span {
+    color: white;
+    border-width: 0px;
+}
+
+/* make sure we handle cases correctly! */
+input {
+    background: pink;
+}
+
+dialog {
+    position: fixed;
+    border-radius: 4px;
+    border: 1px black;
+    background: rgba(32, 32, 32, 0.75);
+    /*overflow-x: scroll;*/
+    overflow-y: scroll;
+    color: white;
+    width: 500px;
+    /*max-width: 750px;*/
+    min-width: 200px;
+}
+
+dialog.framed {
+    border: 2px rgba(0,0,0,0.75);
+    border-radius: 5px;
+    overflow: hidden;
+    padding: 0px;
+    margin: 5px;
+}
+
+div.dialog-header {
+    background: hsla(200, 0%, 25%, 0.75); /* hsla(0, 0%, 25%, 0.75); */
+    margin: 0px;
+    padding: 2px;
+    border: 1px rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,1) rgba(0,0,0,0.25);
+    border-radius: 0px;
+}
+
+dialog.framed.moveable div.dialog-header {
+    cursor: grab;
+}
+dialog.framed.moveable div.dialog-header:hover {
+    background-color: hsla(200, 25%, 40%, 0.75); /* hsla(0,0%,40%,0.75);*/
+}
+dialog.framed.moveable div.dialog-header:active {
+    background-color: hsla(200, 100%, 60%, 0.75); /*hsla(0,0%,40%,0.5);*/
+}
+
+span.dialog-title {
+    margin: 0px;
+    border: 0px white;
+    padding: 2px;
+    color: white;
+    /*font-weight: bold;*/
+    white-space: pre;
+    cursor: grab;
+    text-shadow: 2px 2px rgba(0,0,0,0.25);
+}
+
+button.dialog-close {
+    margin: 0px;
+    padding: 2px;
+    border: 0px;
+    display: inline;
+    width: 16px;
+    height: 16px;
+    background: url('close.png');
+}
+
+dialog.framed > div.inside {
+    margin: 0px;
+    border-width: 1px;
+    border-radius: 0px;
+    border-color: rgba(0,0,0,1.0) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
+    padding: 5px 2px 2px 2px;
+}
+
+div.dialog-footer {
+    position: absolute;
+    left: auto;
+    right: 50px;
+    top: -200px;
+    width: 100%;
+    /*bottom: 0px;*/
+    background: hsla(200, 0%, 25%, 0.75); /* hsla(0, 0%, 25%, 0.75); */
+    margin: 0px;
+    padding: 2px;
+    border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
+    border-radius: 0px;
+}
+
+div.dialog-footer > * {
+    margin: 0px;
+    border: 0px white;
+    padding: 2px;
+}
+
+
+
+/*******************/
+/* TABLES          */
+
+table {
+    width: 100%;
+    display: table;
+    background: rgba(0,0,0,0.2);
+    border: 1px rgba(0,0,0,1);
+    margin: 0px 10px;
+    padding: 4px;
+}
+tr {
+    width: 100%;
+    display: table-row;
+    margin: 0px 0px;
+    border: 0px;
+    padding: 0px 2px;
+}
+th {
+    display: table-cell;
+    margin: 0px;
+    border: 0px;
+    padding: 2px;
+}
+td {
+    display: table-cell;
+    margin: 0px;
+    border: 0px;
+    padding: 2px;
+}
+
+
+
+
+/*******************/
+/* MARKDOWN        */
+
+
+div.mdown {
+    margin: 2px;
+    border: 1px rgba(0,0,0,0.5);
+    padding: 4px 4px 4px 4px;
+    /*padding: 4px 4px 16px 4px;*/
+    background: rgba(48,48,48,0.75);
+}
+
+div.mdown div {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+div.mdown span {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+div.mdown h1 {
+    width: 100%;
+    margin: 0px 4px 4px 4px;
+    padding: 4px 4px 4px 12px;
+    border: 0px;
+}
+div.mdown h1 > span {
+    font-size: 24;
+    font-weight: bold;
+    text-shadow: 2px 2px rgba(0,0,0,0.5);
+}
+
+div.mdown h2 {
+    width: 100%;
+    margin: 8px 4px 4px 4px;
+    padding: 4px 4px 4px 12px;
+    border: 1px transparent;
+    border-bottom-color: rgba(255, 255, 255, 0.25);
+    border-radius: 0px;
+}
+div.mdown h2 > span {
+    font-size: 18;
+    font-weight: bold;
+    text-shadow: 2px 2px rgba(0,0,0,0.5);
+}
+
+div.mdown h3 {
+    width: 100%;
+    margin: 8px 16px 4px 16px;
+    padding: 4px 4px 4px 12px;
+    border: 1px transparent;
+    border-bottom-color: rgba(255, 255, 255, 0.125);
+    border-radius: 0px;
+}
+div.mdown h3 > span {
+    font-size: 15;
+    font-weight: bold;
+    text-shadow: 2px 2px rgba(0,0,0,0.5);
+}
+
+div.mdown img {
+    display: block;
+    width: 100%;
+    border: 1px rgba(0, 0, 0, 0.50);
+    border-radius: 4px;
+}
+
+div.mdown p {  }
+
+div.mdown i {
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    font-style: italic;
+}
+
+div.mdown b {
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    font-weight: bold;
+}
+
+div.mdown pre {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+div.mdown code {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+
+div.mdown ul {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+}
+
+div.mdown ul > li {
+    /*margin: 8px 0px;*/
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    padding: 0px 0px 0px 8px;
+    display: block;
+}
+div.mdown ul > li > img.dot {
+    display: inline;
+    margin: 5px 10px 0px 5px;
+    border: 0px;
+    padding: 0px;
+    width: 20px;
+    height: 10px;
+}
+div.mdown ul > li > span.text {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: inline;
+}
+
+
+div.mdown ol {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+}
+
+div.mdown ol > li {
+    /*margin: 8px 0px;*/
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    padding: 0px 0px 0px 8px;
+    display: block;
+}
+div.mdown ol > li > span.number {
+    display: inline;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    width: 20px;
+    /*height: 10px;*/
+}
+div.mdown ol > li > span.text {
+    margin: 0px 0px 0px 8px;
+    border: 0px;
+    padding: 0px;
+    display: inline;
+}
+
+
+/* background-color: hsla(200, 25%, 25%, 0.75); */
+/* background-color: hsla(200, 25%, 40%, 0.75); */
+/* background-color: hsla(200, 25%, 60%, 0.75); */
+
+div.mdown a {
+    padding: 0px -1px 0px 0px;
+    margin: 0px;
+    background-color: transparent; /* hsla(200, 25%, 25%, 0.75); */
+    border: 1px transparent; /* hsla(200, 25%, 25%, 0.75); */
+    border-radius: 0px;
+    border-bottom-color: rgba(255,255,255,0.5);
+    cursor: pointer;
+}
+div.mdown a:hover {
+    background-color: hsla(200, 25%, 40%, 0.75);
+    border: 1px hsla(200, 25%, 40%, 0.75);
+    border-bottom-color: rgba(255,255,255,0.5);
+}
+
+div.mdown img.inline {
+    display: inline;
+    border: 0px;
+}
+
+
+
+
+/**********************/
+/* CHECKBOX INPUT     */
+
+input[type="checkbox"] {
+    background-color: transparent;
+    border-width: 0px;
+    padding: 0px;
+}
+
+input[type="checkbox"] > img.checkbox {
+    display: inline;
+    margin: 0;
+    padding: 4px;
+    margin-right: 5px;
+    border-width: 0px;
+    width: 29px;
+    height: 24px;
+    background-color: rgba(160, 160, 160, 0.50); /* hsla(200, 0%, 62.5%, 1.0);*/
+    background-image: none;
+}
+input[type="checkbox"]:hover > img.checkbox {
+    background-color: rgba(160, 160, 160, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+input[type="checkbox"][checked] > img.checkbox {
+    background-color: hsla(200, 100%, 62.5%, 1.0);
+    background-image: url('checkmark.png');
+}
+input[type="checkbox"]:active > img.checkbox {
+    background-color: hsla(200, 100%, 75%, 1.0);
+}
+
+input[type="checkbox"] > label {
+    color: rgba(255, 255, 255, 0.50);
+    margin: 0px;
+    padding: 0px;
+    padding-top: 3px;
+    padding-right: 10px;
+    border-width: 0px;
+}
+input[type="checkbox"]:hover > label {
+    color: rgba(255, 255, 255, 1.00);
+}
+input[type="checkbox"][checked] > label {
+    color: rgba(255, 255, 255, 1.00);
+}
+
+
+
+/*******************/
+/* RADIO INPUT     */
+
+input[type="radio"] {
+    background-color: transparent;
+    border-width: 0px;
+    padding: 0px;
+}
+
+input[type="radio"] > img.radio {
+    margin: 0;
+    padding: 4px;
+    margin-right: 5px;
+    border: 0px;
+    border-radius: 12px;
+    width: 29px;
+    height: 24px;
+    background-color: rgba(160, 160, 160, 0.50); /* hsla(200, 0%, 62.5%, 1.0);*/
+    background-image: none;
+}
+input[type="radio"]:hover > img.radio {
+    background-color: rgba(160, 160, 160, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+input[type="radio"]:active > img.radio {
+    background-color: hsla(200, 100%, 75%, 1.0);
+}
+input[type="radio"][checked] > img.radio {
+    background: hsla(200, 100%, 62.5%, 1.0) url('radio.png');
+}
+
+input[type="radio"] > label {
+    color: rgba(255, 255, 255, 0.50);
+    margin: 0px;
+    padding: 0px;
+    padding-top: 3px;
+    padding-right: 10px;
+    border-width: 0px;
+}
+input[type="radio"]:hover > label {
+    color: rgba(255, 255, 255, 1.00);
+}
+input[type="radio"][checked] > label {
+    color: rgba(255, 255, 255, 1.00);
+}
+
+
+
+/**************************/
+/* COLLAPSIBLE COLLECTION */
+
+div.collapsible > input.header {
+    display: block;
+    width: 100%;
+}
+div.collapsible > input.header > img {
+    background: transparent url('collapse_open.png');
+}
+div.collapsible > input.header[checked] > img {
+    background: transparent url('collapse_close.png');
+}
+div.collapsible > div.inside {
+    display: block;
+    margin-top: 2px;
+    margin-left: 16px;
+}
+div.collapsible > div.inside.collapsed {
+    display: none;
+}
+
+
+
+
+/**********************/
+/* TEXT INPUT         */
+
+/*
+    div.inputtext-container
+        input.inputtext-input
+            span.inputtext-cursor
+*/
+
+.inputtext-container {
+    margin: 0px;
+    /*position: relative;*/
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    min-height: 28px;
+    padding: 0px;
+    display: block;
+    background: rgba(160,160,160, 0.50);
+    /*background-color: rgba(255,255,255,0.5);*/
+    border-width: 1px;
+    border-radius: 4px;
+    border-color: black;
+}
+*.inputtext-container:hover {
+    background-color: rgba(160,160,160,1.00);
+}
+
+*.inputtext-container > *.inputtext-input {
+    position: relative; /* necessary for cursor! */
+    left: 0px;
+    top: 0px;
+    background-color: transparent;
+    white-space: pre;
+    display: block;
+    width: 100%;
+    min-height: 26px;
+    margin: 0px;
+    padding: 3px;
+    border-width: 2px;
+    border-color: transparent;
+    color: black;
+    overflow-x: scroll;
+    cursor: text;
+}
+*.inputtext-container > *.inputtext-input:focus {
+    background-color: rgba(255, 255, 255, 1.0);
+    border-color: hsla(200, 100%, 62.5%, 1.0);
+}
+
+*.inputtext-cursor {
+    position: absolute;
+    margin: 0px;
+    padding: 0px;
+    border-width: 0px;
+    left: 0px;
+    top: 0px;
+    display: none;
+    color: hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
+}
+
+*.inputtext-input:focus > *.inputtext-cursor {
+    display: block;
+}
+
+
+
+/***********************/
+/* LABELED TEXT INPUT  */
+
+/*
+    div.labeledinputtext-container
+        div.labeledinputtext-label-container
+            label.labeledinputtext-label
+        div.labeledinputtext-input-container
+            div.inputtext-container
+                input.inputtext-input
+                    span.inputtext-cursor
+*/
+
+*.labeledinputtext-container {
+    margin: 2px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+    width: 100%;
+    background: transparent;
+}
+*.labeledinputtext-container > *.labeledinputtext-label-container {
+    margin: 0px;
+    border: 0px;
+    padding: 4px 0px 0px 0px;
+    display: inline;
+    width: 50%;
+    background: transparent;
+}
+*.labeledinputtext-container > *.labeledinputtext-label-container > *.labeledinputtext-label {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+    width: 100%;
+    background: transparent;
+}
+*.labeledinputtext-container > *.labeledinputtext-input-container {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: inline;
+    width: 50%;
+}
+*.labeledinputtext-container > *.labeledinputtext-input-container > *.inputtext-container {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+    width: 100%;
+    /*max-height: 22px;*/
+    height: 26px;
+}
+*.labeledinputtext-container > *.labeledinputtext-input-container > *.inputtext-container > *.inputtext-input {
+    margin: 0px;
+    white-space: pre;
+}
+
+
+/*************************/
+/* INPUT RANGE           */
+
+div.inputrange-container {
+    display: block;
+    width: 100%;
+    height: 22px;
+    border: 0px;
+    padding: 0px;
+    /*height: 50px;*/
+}
+
+/* input.inputrange-input */
+input[type="range"] {
+    position: relative;
+    display: block;
+    margin: 0px 0px 0px 0px;
+    padding: 0px 8px 0px 0px;
+    border: 0px;
+    width: 100%;
+    height: 22px;
+    background-color: transparent;
+}
+
+input[type="range"] > * {
+    margin: 0px;
+    padding: 0px;
+    border-radius: 4px;
+}
+
+input[type="range"] > *.inputrange-left {
+    display: inline;
+    position: absolute;
+    top: -4px;
+    height: 8px;
+    border: 1px white;
+    background-color: rgba(0, 0, 255, 1);
+}
+input[type="range"] > *.inputrange-right {
+    display: inline;
+    position: absolute;
+    top: -4px;
+    height: 8px;
+    border: 1px white;
+    background-color: rgba(255, 0, 255, 1);
+}
+
+input[type="range"] > *.inputrange-handle {
+    display: inline;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 16px;
+    height: 16px;
+    border: 1px black;
+    background-color: rgba(128, 128, 128, 1);
+}
+input[type="range"]:hover > *.inputrange-handle {
+    background-color: rgba(192, 192, 192, 1);
+}
+input[type="range"]:active > *.inputrange-handle {
+    background-color: rgba(255, 255, 255, 1);
+}
+
+
+dialog.tooltip {
+    z-index: 100000;
+    position: fixed;
+    /*display: block;*/
+    border: 1px black;
+    background: hsla(200, 25%, 25%, 0.95); /*rgba(32,32,32,0.8);*/
+    color: white;
+    margin: 2px;
+    padding: 4px;
+    width: auto;
+    min-width: 0px;
+    max-width: 300px;
+}
+
