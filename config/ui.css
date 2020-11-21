@@ -841,25 +841,39 @@ table#pie-menu-table td {
     padding: 0px;
     border: 0px transparent;
 }
-table#pie-menu-table div.pie-menu-option {
+div.pie-menu-option {
     width: 100px;
     height: 100px;
     background-color: rgba(64, 64, 64, 0.975);
-    color: var(--text);
     margin: 16px;
     padding-top: 8px;
     border: 1px rgba(0, 0, 0, 0.95);
     border-radius: 5px;
+}
+table#pie-menu-table div.pie-menu-option-text {
+    color: var(--text);
     text-align: center;
-    /*text-align: center;*/
+}
+table#pie-menu-table img.pie-menu-option-image {
+    display: block;
+    width: 64px;
+    height: 20px;
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    background-color: transparent;
 }
 table#pie-menu-table div.pie-menu-option.highlighted {
     background-color: var(--button-selected-background);
+}
+table#pie-menu-table td.highlighted div.pie-menu-option-text {
     color: white;
 }
-table#pie-menu-table div.pie-menu-option:hover {
-    color: white;
+div.pie-menu-option:hover {
     background-color: var(--button-selected-background);
+}
+div.pie-menu-option:hover div.pie-menu-option-text {
+    color: white;
 }
 table#pie-menu-table div#pie-menu-middlecenter {
     background-color: rgba(0, 0, 0, 0.15);

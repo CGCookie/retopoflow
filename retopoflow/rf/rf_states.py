@@ -96,21 +96,24 @@ class RetopoFlow_States(CookieCutter):
             8: [0, 1, 2, 3, 4, 5, 6, 7],
         }[len(options)]
         self.pie_menu_options = [None] * 8
-        for section in self.ui_pie_sections:
-            section.innerText = ''
-            section.style = 'display:none'
-            section.del_pseudoclass('hover')
-            section.del_class('highlighted')
+        for (sct,text,img) in self.ui_pie_sections:
+            text.innerText = ''
+            sct.style = 'display:none'
+            img.src = ''
+            sct.del_pseudoclass('hover')
+            sct.del_class('highlighted')
         for i_option, i_section in enumerate(dial):
             option = options[i_option]
-            section = self.ui_pie_sections[i_section]
+            (sct,text,img) = self.ui_pie_sections[i_section]
             if option is None: continue
-            if type(option) is str: option = (option, option)
-            section.innerText = option[0]
-            section.style = ''
-            if option[1] == self.pie_menu_highlighted:
-                section.add_class('highlighted')
-            self.pie_menu_options[i_section] = option[1]
+            if type(option) is str: option = {'text':option, 'value':option}
+            text.innerText = option['text']
+            sct.style = ''
+            if option['value'] == self.pie_menu_highlighted:
+                sct.add_class('highlighted')
+            if option.get('image', None):
+                img.src = option['image']
+            self.pie_menu_options[i_section] = option['value']
 
         self.ui_pie_menu.style = f'display: block'
         self.document.force_clean(self.actions.context)
@@ -139,11 +142,11 @@ class RetopoFlow_States(CookieCutter):
         if self.actions.pressed('cancel'):
             return 'pie menu wait'
         i_section = self.which_pie_menu_section()
-        for i_s,section in enumerate(self.ui_pie_sections):
+        for i_s,(sct,text,img) in enumerate(self.ui_pie_sections):
             if i_s == i_section:
-                section.add_pseudoclass('hover')
+                sct.add_pseudoclass('hover')
             else:
-                section.del_pseudoclass('hover')
+                sct.del_pseudoclass('hover')
 
     @CookieCutter.FSM_State('pie menu', 'exit')
     def pie_menu_exit(self):
@@ -198,7 +201,7 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             if self.actions.pressed('pie menu'):
-                self.show_pie_menu([(rftool.name, rftool) for rftool in self.rftools], self.select_rftool, highlighted=self.rftool)
+                self.show_pie_menu([{'text':rftool.name, 'image':rftool.icon, 'value':rftool} for rftool in self.rftools], self.select_rftool, highlighted=self.rftool)
                 return
 
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0

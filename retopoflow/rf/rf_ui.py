@@ -111,35 +111,78 @@ class RetopoFlow_UI:
         self.ui_pie_menu = ui.div(id='pie-menu', atomic=True, can_hover=False, parent=self.document.body, children=[
             ui.table(id='pie-menu-table', children=[
                 ui.tr(id='pie-menu-top', children=[
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topleft',      classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topcenter',    classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-topright',     classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-topleft', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-topleft-text',       classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-topleft-image',      classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-topcenter', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-topcenter-text',     classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-topcenter-image',    classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-topright', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-topright-text',      classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-topright-image',     classes='pie-menu-option-image'),
+                        ]),
+                    ]),
                 ]),
                 ui.tr(id='pie-menu-middle', children=[
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middleleft',   classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middlecenter', classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-middleright',  classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-middleleft', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-middleleft-text',    classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-middleleft-image',   classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-middlecenter', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-middlecenter-text',  classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-middlecenter-image', classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-middleright', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-middleright-text',   classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-middleright-image',  classes='pie-menu-option-image'),
+                        ]),
+                    ]),
                 ]),
                 ui.tr(id='pie-menu-bottom', children=[
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomleft',   classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomcenter', classes='pie-menu-option')]),
-                    ui.td(classes='pie-menu-section', children=[ui.div(id='pie-menu-bottomright',  classes='pie-menu-option')]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-bottomleft', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-bottomleft-text',    classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-bottomleft-image',   classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-bottomcenter', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-bottomcenter-text',  classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-bottomcenter-image', classes='pie-menu-option-image'),
+                        ]),
+                    ]),
+                    ui.td(classes='pie-menu-section', children=[
+                        ui.div(id='pie-menu-bottomright', classes='pie-menu-option', children=[
+                            ui.div(id='pie-menu-bottomright-text',   classes='pie-menu-option-text'),
+                            ui.img(id='pie-menu-bottomright-image',  classes='pie-menu-option-image'),
+                        ]),
+                    ]),
                 ]),
             ])
         ])
         self.ui_pie_table = self.document.body.getElementById('pie-menu-table')
+        # 7 0 1
+        # 6   2
+        # 5 4 3
         self.ui_pie_sections = [
-            # 7 0 1
-            # 6   2
-            # 5 4 3
-            self.document.body.getElementById('pie-menu-topcenter'),
-            self.document.body.getElementById('pie-menu-topright'),
-            self.document.body.getElementById('pie-menu-middleright'),
-            self.document.body.getElementById('pie-menu-bottomright'),
-            self.document.body.getElementById('pie-menu-bottomcenter'),
-            self.document.body.getElementById('pie-menu-bottomleft'),
-            self.document.body.getElementById('pie-menu-middleleft'),
-            self.document.body.getElementById('pie-menu-topleft'),
+            (
+                self.document.body.getElementById(f'pie-menu-{n}'),
+                self.document.body.getElementById(f'pie-menu-{n}-text'),
+                self.document.body.getElementById(f'pie-menu-{n}-image'),
+            )
+            for n in ['topcenter', 'topright', 'middleright', 'bottomright', 'bottomcenter', 'bottomleft', 'middleleft', 'topleft']
         ]
 
     def show_pie_menu(self, options, fn_callback, highlighted=None):
