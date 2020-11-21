@@ -113,6 +113,7 @@ class RetopoFlow_States(CookieCutter):
                 sct.add_class('highlighted')
             if option.get('image', None):
                 img.src = option['image']
+                img.dirty()
             self.pie_menu_options[i_section] = option['value']
 
         self.ui_pie_menu.style = f'display: block'
