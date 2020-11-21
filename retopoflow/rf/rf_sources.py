@@ -51,6 +51,7 @@ class RetopoFlow_Sources:
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
         dprint('%d sources found' % len(self.rfsources))
         print('  done!')
+        self._have_warned_normals = False
 
     def done_sources(self):
         for rfs in self.rfsources:
@@ -182,4 +183,31 @@ class RetopoFlow_Sources:
         options['visible dist offset'] = 0.0004
         self.get_vis_accel()
 
+
+    ###################################################
+    # normal check
+
+    def normal_check(self):
+        if not options['warning normal check']: return  # user wishes not to do this check :(
+        if self._have_warned_normals: return            # already warned this session
+
+        _,hn,_,_ = self.raycast_sources_mouse()
+        vd = self.Point2D_to_Direction(self.actions.mouse)
+        if not hn: return                               # did not hit source mesh
+        if vd.dot(hn) < 0: return                       # facing correct direction (opposite of viewing direction)
+
+        self._have_warned_normals = True                # only warn once
+
+        message = ['\n'.join([
+            'One of the sources has inward facing normals.',
+            'Inward facing normals will cause new geometry to be created incorrectly or to prevent it from being selected.',
+            '',
+            'Possible fix: exit RetopoFlow, switch to Edit Mode on the source mesh, recalculate normals, then try RetopoFlow again.',
+        ])]
+
+        self.alert_user(
+            title='Source(s) with inverted normals',
+            message='\n\n'.join(message),
+            level='warning',
+        )
 
