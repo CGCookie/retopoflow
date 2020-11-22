@@ -43,7 +43,7 @@ $ git pull
 ## Releases
 
 In addition to the [Blender Market](https://blendermarket.com/products/retopoflow), all releases of RetopoFlow are accessible from the [GitHub RetopoFlow Releases](https://github.com/CGCookie/retopoflow/releases).
-Simply download the appropriate Source Code (zip), then install as Blender add-on (Blender > Edit > Preferences > Add-ons > Install...).
+Simply download the appropriate attached zip (_NOT_ the Source Code!), then install as Blender add-on (Blender > Edit > Preferences > Add-ons > Install...).
 
 
 # Contributing
