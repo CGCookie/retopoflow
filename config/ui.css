@@ -8,7 +8,7 @@
     --button-background: hsla(200, 0%, 20%, 1.0);
     --button-hover-background: hsla(200, 0%, 50%, 0.50);
     --button-selected-background: rgb(10, 135, 197);
-    
+
     --button-text: hsl(200, 0%, 90%);
     --button-selected-text: white;
     --button-disabled-text: hsl(200, 0%, 50%);
@@ -46,13 +46,13 @@ button:focus {
     background: var(--button-hover-background);
 }
 button:active {
-    background: var(--button-selected-background); 
+    background: var(--button-selected-background);
 }
 button:hover {
-    background: var(--button-hover-background); 
+    background: var(--button-hover-background);
 }
 button:active:hover {
-    background: var(--button-selected-background); 
+    background: var(--button-selected-background);
 }
 button:disabled {
     background-color: var(--button-background);
@@ -75,7 +75,7 @@ input[type="radio"] > img {
     display: none;
 }
 input[type="radio"]:hover {
-    background: var(--button-hover-background); 
+    background: var(--button-hover-background);
 }
 input[type="radio"][checked] {
     background: var(--button-selected-background);
@@ -183,7 +183,7 @@ input[type="checkbox"] > img.checkbox {
     margin: 4px 4px 2px 2px;
     width: 20px;
     height: 20px;
-    background-color: var(--button-background); 
+    background-color: var(--button-background);
     background-image: none;
     border-radius: 4px;
 }
@@ -241,8 +241,9 @@ div.collapsible > input.header:hover {
 }
 
 div.collapsible > input.header > label{
-    margin-top: 0px;
     margin-left: 0px;
+    margin-top: 5px;
+    padding: 0px;
 }
 div.collapsible > input.header > img {
     margin: 8px 0px 2px -6px;
@@ -256,7 +257,7 @@ div.collapsible:hover > input.header > img {
     background: transparent url('collapse_open.png');
 }
 div.collapsible > input.header[checked] > img {
-    background: transparent url('collapse_close.png'); 
+    background: transparent url('collapse_close.png');
 }
 div.collapsible > div.inside.collapsed {
     display: none;
@@ -320,7 +321,7 @@ div.dialog-footer {
     top: -200px;
     width: 100%;
     /*bottom: 0px;*/
-    background: rgba(255, 238, 0, 0.75); 
+    background: rgba(255, 238, 0, 0.75);
     margin: 0px;
     padding: 2px;
     border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
@@ -408,7 +409,7 @@ input.tool > img {
     display: none;
 }
 input.tool:hover {
-    background: rgba(64, 64, 64, 0.75); 
+    background: rgba(64, 64, 64, 0.75);
 }
 input.tool[checked] {
     background: rgb(0, 146, 219);
@@ -445,8 +446,8 @@ input.tool > label > img {
 }
 input.tool > label > label {
     border: 0px;
-    padding:2px 0px; 
-    margin-top: 7px; 
+    padding:2px 0px;
+    margin-top: 7px;
     margin-left: 6px;
 }
 
