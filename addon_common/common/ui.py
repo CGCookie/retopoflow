@@ -771,7 +771,7 @@ def markdown(mdown=None, mdown_path=None, preprocess_fns=None, f_globals=None, f
 
 
 
-def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=False, closeable=True, moveable=True, hide_on_close=False, close_callback=None, clamp_to_parent=True, **kwargs):
+def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=False, closeable=True, moveable=True, hide_on_close=False, close_callback=None, clamp_to_parent=True, parent=None, **kwargs):
     # TODO: always add header, and use UI_Proxy translate+map "label" to change header
     kw_inside = kwargs_splitter({'children'}, kwargs)
     ui_document = Globals.ui_document
@@ -889,6 +889,7 @@ def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=Fals
     ui_proxy.translate_map('label', 'innerText', ui_label)
     ui_proxy.map_children_to(ui_inside)
     ui_proxy.map_scroll_to(ui_inside)
+    if parent: parent.append_child(ui_proxy)
     return ui_proxy
 
 

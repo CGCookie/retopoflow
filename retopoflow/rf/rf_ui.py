@@ -290,7 +290,7 @@ class RetopoFlow_UI:
                     ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
                     print('Caught exception while trying to pull issues from GitHub')
-                    print('URL: "%s"' % url)
+                    print(f'URL: "{url}"')
                     print(e)
                     # ignore for now
                     pass
@@ -303,21 +303,21 @@ class RetopoFlow_UI:
             executor.submit(check_github)
 
         if level in {'note'}:
-            title = 'Note' + (': %s' % title if title else '')
+            title = 'Note' + (f': {title}' if title else '')
             message = message or 'a note'
         elif level in {'warning'}:
-            title = 'Warning' + (': %s' % title if title else '')
+            title = 'Warning' + (f': {title}' if title else '')
             darken = True
         elif level in {'error'}:
-            title = 'Error' + (': %s' % title if title else '!')
+            title = 'Error' + (f': {title}' if title else '!')
             show_quit = True
             darken = True
         elif level in {'assert', 'exception'}:
             if level == 'assert':
-                title = 'Assert Error' + (': %s' % title if title else '!')
+                title = 'Assert Error' + (f': {title}' if title else '!')
                 desc = 'An internal assertion has failed.'
             else:
-                title = 'Unhandled Exception Caught' + (': %s' % title if title else '!')
+                title = 'Unhandled Exception Caught' + (f': {title}' if title else '!')
                 desc = 'An unhandled exception was thrown.'
 
             message = '\n'.join([
@@ -346,7 +346,7 @@ class RetopoFlow_UI:
             show_quit = True
             darken = True
         else:
-            title = '%s' % (level.upper()) + (': %s' % title if title else '')
+            title = level.upper() + (f': {title}' if title else '')
             message = message or 'a note'
 
         def close():
@@ -354,7 +354,8 @@ class RetopoFlow_UI:
             if win.parent:
                 self.document.body.delete_child(win)
                 self.alert_windows -= 1
-            self.document.sticky_element = None
+            if self.document.sticky_element == win:
+                self.document.sticky_element = None
             self.document.clear_last_under()
         def mouseleave_event(e):
             nonlocal win
@@ -368,7 +369,7 @@ class RetopoFlow_UI:
             return
             #self.exit = True
 
-        win = ui.framed_dialog(label=title, classes='alertdialog %s'%str(level), close_callback=close)
+        win = ui.framed_dialog(label=title, classes=f'alertdialog {level}', close_callback=close, parent=self.document.body)
         ui.markdown(mdown=message, parent=win)
         if ui_details or ui_checker:
             container = ui.div(parent=win)
@@ -383,14 +384,13 @@ class RetopoFlow_UI:
         else:
             ui_close.style = 'width:100%'
 
-        self.document.body.append_child(win)
         self.document.focus(win)
         self.alert_windows += 1
         if level in {'warning', 'note', None}:
             win.style = 'width:600px;'
             self.document.force_clean(self.actions.context)
             self.document.center_on_mouse(win)
-            self.document.sticky_element = win
+            # self.document.sticky_element = win
             win.dirty(cause='new window', parent=False, children=True)
         else:
             self.document.force_clean(self.actions.context)
@@ -539,7 +539,7 @@ class RetopoFlow_UI:
 
         def setup_tiny_ui():
             self.ui_tiny = ui.framed_dialog(
-                label='RetopoFlow %s' % retopoflow_version,
+                label=f'RetopoFlow {retopoflow_version}',
                 id='tinydialog',
                 closeable=False,
                 hide_on_close=True,
@@ -556,7 +556,7 @@ class RetopoFlow_UI:
                 checked = (rftool.name == rf_starting_tool)
                 if checked: self.select_rftool(rftool)
                 radio = ui.input_radio(
-                    id='ttool-%s' % lbl.lower(),
+                    id=f'ttool-{lbl.lower()}',
                     value=lbl.lower(),
                     title=f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}',
                     name="ttool",
@@ -577,7 +577,12 @@ class RetopoFlow_UI:
                 debug_doc(c, level+1)
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(label=f'RetopoFlow {retopoflow_version}', id="maindialog", closeable=False, parent=self.document.body)
+            self.ui_main = ui.framed_dialog(
+                label=f'RetopoFlow {retopoflow_version}',
+                id="maindialog",
+                closeable=False,
+                parent=self.document.body,
+            )
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
@@ -601,7 +606,6 @@ class RetopoFlow_UI:
                 ui.label(innerText=lbl, parent=radio, title=rftool.description)
             for rftool in self.rftools: add_tool(rftool)
 
-            
             ui_help = ui.collapsible(label='Documentation', id='help-buttons', parent=self.ui_main, children=[
                 ui.button(
                     label='Welcome!',
@@ -729,7 +733,7 @@ class RetopoFlow_UI:
                     checked=BoundBool('''options['hide overlays']'''),
                     on_input=update_hide_overlays,
                     style='display:block; width:100%',
-                ),                
+                ),
                 ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                 ui.collection(label='Theme', children=[
                     ui.input_radio(
@@ -871,7 +875,7 @@ class RetopoFlow_UI:
                 if self.rftarget.mirror_mod.y: s += ['Y']
                 if self.rftarget.mirror_mod.z: s += ['Z']
                 if not s: s = ['(none)']
-                symmetryoptions.innerText = 'Symmetry: %s' % ','.join(s)
+                symmetryoptions.innerText = f'Symmetry: {",".join(s)}'
             symmetry_changed()
             for opt in self.ui_options.getElementsByClassName('symmetry-enable'):
                 opt.add_eventListener('on_input', symmetry_changed)

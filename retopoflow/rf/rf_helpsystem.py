@@ -108,7 +108,7 @@ class RetopoFlow_HelpSystem:
                 resizable=False,
                 closeable=closeable,
                 moveable=False,
-                parent=self.document.body
+                parent=self.document.body,
             )
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
             ui.div(id='helpsystem-buttons', parent=ui_help, children=[

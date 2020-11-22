@@ -307,7 +307,7 @@ class UI_Document(UI_Document_FSM):
 
     @property
     def sticky_element(self):
-        return self._stick_element
+        return self._sticky_element
     @sticky_element.setter
     def sticky_element(self, element):
         if type(element) is UI_Proxy:

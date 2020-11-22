@@ -768,11 +768,11 @@ class UI_Element_Properties:
         assert child, 'attempting to delete None child?'
         if child not in self._children:
             # child is not in children, could be wrapped in proxy
-            pchildren = [pchild for pchild in self._children if type(pchild) is UI_Proxy and child in pchild._all_elements]
+            pchildren = [pchild for pchild in self._children if type(pchild) is UI_Proxy and child in pchild._proxy_all_elements]
             assert len(pchildren) != 0, 'attempting to delete child that does not exist?'
             assert len(pchildren) == 1, 'attempting to delete child that is wrapped twice?'
             child = pchildren[0]
-        self.document.removed_element(child)
+        if self.document: self.document.removed_element(child)
         self._children.remove(child)
         child._parent = None
         child.document = None
@@ -3346,15 +3346,16 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
     @profiler.function
     def get_under_mouse(self, p:Point2D):
-        if not self.is_visible: return None
-        if not self.can_hover: return None
         if self._w < 1 or self._h < 1: return None
         if not (self._l <= p.x <= self._r and self._b <= p.y <= self._t): return None
-        if not self._atomic:
-            iter_under = (child.get_under_mouse(p) for child in reversed(self._children))
-            iter_under = dropwhile(lambda r: r is None, iter_under)
-            under = next(iter_under, self)
-            return under
+        # p is over element
+        if not self.is_visible: return None
+        if not self.can_hover: return None
+        # element is visible and hoverable
+        if self._atomic: return self
+        for child in reversed(self._children):
+            under = child.get_under_mouse(p)
+            if under: return under
         return self
 
     def get_mouse_distance(self, p:Point2D):
