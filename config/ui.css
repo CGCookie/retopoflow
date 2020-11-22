@@ -634,13 +634,16 @@ dialog.alertdialog {
     width: 600px;
     left: 20%;
 }
-dialog.alertdialog div#alertdialog-buttons {
+dialog.alertdialog div.alertdialog-buttons {
     margin: 1px;
     width: 100%;
 }
-dialog.alertdialog div#alertdialog-buttons button {
+dialog.alertdialog div.alertdialog-buttons button {
     display: inline;
     width: 50%;
+}
+dialog.alertdialog div.action-buttons button {
+    margin: 1px;
 }
 
 dialog.alertdialog.note {
@@ -667,7 +670,7 @@ dialog.alertdialog.warning div#alertdialog-buttons button:hover {
 dialog.alertdialog.error {
     width: 60%;
     background-color: rgba(76, 38, 38, 0.95);
-} 
+}
 dialog.alertdialog.error div#alertdialog-buttons {
     background-color: rgb(26, 26, 26);
 }

@@ -243,7 +243,7 @@ class RetopoFlow_UI:
         if msghash:
             ui_checker = ui.collapsible(label='Report an issue', classes='issue-checker', collapsed=False)
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
-            ui_buttons = ui.div(parent=ui_checker)
+            ui_buttons = ui.div(parent=ui_checker, classes='action-buttons')
 
             def check_github():
                 nonlocal win, ui_buttons
@@ -377,7 +377,7 @@ class RetopoFlow_UI:
                 container.append_child(ui_details)
             if ui_checker:
                 container.append_child(ui_checker)
-        ui_bottombuttons = ui.div(id='alertdialog-buttons', parent=win)
+        ui_bottombuttons = ui.div(classes='alertdialog-buttons', parent=win)
         ui_close = ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
         if show_quit:
             ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
