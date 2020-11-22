@@ -51,7 +51,8 @@ class RetopoFlow_Sources:
         self.rfsources_draw = [RFMeshRender.new(rfs, opts) for rfs in self.rfsources]
         dprint('%d sources found' % len(self.rfsources))
         print('  done!')
-        self._have_warned_normals = False
+        self._detected_bad_normals = False
+        self._warned_bad_normals = False
 
     def done_sources(self):
         for rfs in self.rfsources:
@@ -189,14 +190,15 @@ class RetopoFlow_Sources:
 
     def normal_check(self):
         if not options['warning normal check']: return  # user wishes not to do this check :(
-        if self._have_warned_normals: return            # already warned this session
+        if self._warned_bad_normals: return             # already warned this session
+        if not self._detected_bad_normals: return       # no bad normals detected
 
-        _,hn,_,_ = self.raycast_sources_mouse()
-        vd = self.Point2D_to_Direction(self.actions.mouse)
-        if not hn: return                               # did not hit source mesh
-        if vd.dot(hn) < 0: return                       # facing correct direction (opposite of viewing direction)
+        # _,hn,_,_ = self.raycast_sources_mouse()
+        # vd = self.Point2D_to_Direction(self.actions.mouse)
+        # if not hn: return                               # did not hit source mesh
+        # if vd.dot(hn) < 0: return                       # facing correct direction (opposite of viewing direction)
 
-        self._have_warned_normals = True                # only warn once
+        self._warned_bad_normals = True                 # only warn once
 
         message = ['\n'.join([
             'One of the sources has inward facing normals.',

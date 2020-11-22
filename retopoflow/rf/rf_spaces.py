@@ -97,6 +97,10 @@ class RetopoFlow_Spaces:
         oxyz = self.Point2D_to_Origin(xy)
         return (xyz - oxyz).length
 
+    def Point_to_Direction(self, xyz:Point):
+        xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
+        return self.Point2D_to_Direction(xy)
+
     @profiler.function
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)

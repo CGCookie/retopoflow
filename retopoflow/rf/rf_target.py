@@ -452,12 +452,18 @@ class RetopoFlow_Target:
     def new_vert_point(self, xyz:Point):
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
-        return self.rftarget.new_vert(xyz, norm)
+        rfvert = self.rftarget.new_vert(xyz, norm)
+        if rfvert.normal.dot(self.Point_to_Direction(xyz)) > 0:
+            self._detected_bad_normals = True
+        return rfvert
 
     def new2D_vert_point(self, xy:Point2D):
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if not xyz or not norm: return None
-        return self.rftarget.new_vert(xyz, norm)
+        rfvert = self.rftarget.new_vert(xyz, norm)
+        if rfvert.normal.dot(self.Point2D_to_Direction(xy)) > 0:
+            self._detected_bad_normals = True
+        return rfvert
 
     def new2D_vert_mouse(self):
         return self.new2D_vert_point(self.actions.mouse)
