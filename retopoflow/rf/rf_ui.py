@@ -685,7 +685,7 @@ class RetopoFlow_UI:
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.input_checkbox(label='Escape to Quit', title='Check to allow Esc key to quit RetopoFlow', checked=BoundVar('''options['escape to quit']''', on_change=update_esctoquit)),
                 # ui.button(label='Maximize Area'),
-                ui.collapsible(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
+                ui.collection(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
                     ui.input_checkbox(
                         label='Check Auto Save',
                         title='If enabled, check if Auto Save is disabled at start',
@@ -699,9 +699,13 @@ class RetopoFlow_UI:
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collapsible(label='Advanced', title='Advanced options and commands', children=[
-                    ui.div(innerText='FPS: 0', id='fpsdiv'),
-                    ui.collapsible(label='Visibility Test', title='These options are used to tune the parameters for visibility testing', children=[
+                ui.collapsible(label='Advanced', children=[
+                    ui.collection(label='Keyboard Settings', children=[
+                        ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
+                        ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
+                        ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
+                    ]),
+                    ui.collection(label='Visibility Testing', title='These options are used to tune the parameters for visibility testing', children=[
                         ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
                         ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
                         ui.collection(label='Presets', id='vistest-presets', children=[
@@ -709,15 +713,11 @@ class RetopoFlow_UI:
                             ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
                         ]),
                     ]),
-                    ui.collapsible(label='Keyboard Settings', children=[
-                        ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
-                        ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
-                        ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
-                    ]),
-                    ui.collapsible(label='Debugging', children=[
+                    ui.collection(label='Debugging', children=[
+                    ui.div(innerText='FPS: 0', id='fpsdiv'),
                         ui.input_checkbox(label='Print actions', title='Check to print (most) input actions to system console', checked=BoundBool('''self._debug_print_actions''')),
                     ]),
-                    ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
+                    ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options)
                 ])
             ]),
             ui.collapsible(label='Display', title='Display options', id='view-options', parent=self.ui_options, children=[
@@ -802,7 +802,7 @@ class RetopoFlow_UI:
                 ui.collapsible(label='Tooltips', children=[
                     ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
                     ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
-                ]),
+                ])
             ]),
             ui.collapsible(label='Target Cleaning', title='Target cleaning options', parent=self.ui_options, id='target-cleaning', children=[
                 ui.collection(label='Snap Verts', id='snap-verts', children=[
