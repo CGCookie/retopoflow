@@ -140,75 +140,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             #         disabled=True,
             #     ),
             # ]),
-            ui.collapsible('Algorithm Options', id='relax-alg-options', children=[
-                ui.collection('Iterations', children=[
-                    ui.labeled_input_text(
-                        label='Steps',
-                        title='Number of times to iterate',
-                        value=BoundInt('''options['relax steps']''', min_value=1, max_value=10),
-                    ),
-                    ui.labeled_input_text(
-                        label='Strength',
-                        title='Strength multiplier for each iteration',
-                        value=BoundFloat('''options['relax force multiplier']''', min_value=0.1, max_value=10.0),
-                    ),
-                ]),
-                ui.collection('Edge', children=[
-                    ui.input_checkbox(
-                        label='Average edge length',
-                        title='Squash / stretch each edge toward the average edge length',
-                        checked=BoundBool('''options['relax edge length']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Straighten edges',
-                        title='Try to straighten edges',
-                        checked=BoundBool('''options['relax straight edges']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                ui.collection('Face', children=[
-                    ui.input_checkbox(
-                        label='Face radius',
-                        title='Move face vertices so their distance to face center is equalized',
-                        checked=BoundBool('''options['relax face radius']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Average face edge length',
-                        title='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
-                        checked=BoundBool('''options['relax face sides']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Face angles',
-                        title='Move face vertices so they are equally spread around face center',
-                        checked=BoundBool('''options['relax face angles']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                ui.collection('Experimental', children=[
-                    ui.input_checkbox(
-                        label='Correct flipped faces',
-                        title='Try to move vertices so faces are not flipped',
-                        checked=BoundBool('''options['relax correct flipped faces']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                ui.collection('Presets', children=[
-                    ui.button(
-                        label='Reset',
-                        title='Reset Algorithm options to default values',
-                        on_mouseclick=reset_algorithm_options,
-                    ),
-                    ui.button(
-                        label='Disable All',
-                        title='Disable all Algorithm options',
-                        on_mouseclick=disable_all_options,
-                    ),
-                ]),
-            ]),
-            ui.collapsible('Masking Options', id='relax-masking', children=[
+            ui.collection('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
                     ui.input_radio(
                         title='Relax vertices not along boundary',
@@ -305,6 +237,74 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         classes='third-size',
                         children=[ui.label(innerText='All')],
                         on_input=relax_mask_selected_change,
+                    ),
+                ]),
+            ]),
+            ui.collapsible('Algorithm Options', id='relax-alg-options', children=[
+                ui.collection('Iterations', children=[
+                    ui.labeled_input_text(
+                        label='Steps',
+                        title='Number of times to iterate',
+                        value=BoundInt('''options['relax steps']''', min_value=1, max_value=10),
+                    ),
+                    ui.labeled_input_text(
+                        label='Strength',
+                        title='Strength multiplier for each iteration',
+                        value=BoundFloat('''options['relax force multiplier']''', min_value=0.1, max_value=10.0),
+                    ),
+                ]),
+                ui.collection('Edge', children=[
+                    ui.input_checkbox(
+                        label='Average edge length',
+                        title='Squash / stretch each edge toward the average edge length',
+                        checked=BoundBool('''options['relax edge length']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Straighten edges',
+                        title='Try to straighten edges',
+                        checked=BoundBool('''options['relax straight edges']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.collection('Face', children=[
+                    ui.input_checkbox(
+                        label='Face radius',
+                        title='Move face vertices so their distance to face center is equalized',
+                        checked=BoundBool('''options['relax face radius']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Average face edge length',
+                        title='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
+                        checked=BoundBool('''options['relax face sides']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Face angles',
+                        title='Move face vertices so they are equally spread around face center',
+                        checked=BoundBool('''options['relax face angles']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.collection('Experimental', children=[
+                    ui.input_checkbox(
+                        label='Correct flipped faces',
+                        title='Try to move vertices so faces are not flipped',
+                        checked=BoundBool('''options['relax correct flipped faces']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
+                ui.collection('Presets', children=[
+                    ui.button(
+                        label='Reset',
+                        title='Reset Algorithm options to default values',
+                        on_mouseclick=reset_algorithm_options,
+                    ),
+                    ui.button(
+                        label='Disable All',
+                        title='Disable all Algorithm options',
+                        on_mouseclick=disable_all_options,
                     ),
                 ]),
             ]),
