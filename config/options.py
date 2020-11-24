@@ -421,8 +421,8 @@ class Themes:
         # RFTools
         'polystrips': ints_to_Color(0, 100, 25, 150),
         'strokes':    ints_to_Color(0, 100, 90, 150),
-        'tweak':      ints_to_Color(135, 0,  130, 255),
-        'relax':      ints_to_Color(0, 135, 255, 255),
+        'tweak':      ints_to_Color(229, 137,  26, 255), # Opacity is set by brush strength
+        'relax':      ints_to_Color(0, 135, 255, 255), # Opacity is set by brush strength
     }
 
     themes = {
