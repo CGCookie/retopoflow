@@ -249,6 +249,11 @@ class RetopoFlow_States(CookieCutter):
                 self.select_toggle()
                 return
 
+            if self.actions.pressed('deselect all'):
+                self.undo_push('deselect all')
+                self.deselect_all()
+                return
+
             if self.actions.pressed('select invert'):
                 self.undo_push('select invert')
                 self.select_invert()

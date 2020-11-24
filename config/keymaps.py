@@ -53,6 +53,7 @@ default_rf_keymaps = {
 
     'select all': {'A'},
     'select invert': {'CTRL+I'},
+    'deselect all': {'ALT+A'},
 
     # various help
     'all help': {'SHIFT+F1'},

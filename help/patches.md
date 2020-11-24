@@ -25,7 +25,8 @@ Select the strip of boundary edges that you wish to fill.
 | {{select single, select single add}} | : | select edge |
 | {{select smart, select smart add}}   | : | smart select boundary edges |
 | {{select paint, select paint add}}   | : | paint edge selection |
-| {{select all}}                       | : | deselect / select all |
+| {{select all}}                       | : | select / deselect all |
+| {{deselect all}}                     | : | deselect all |
 
 
 ## Transforming

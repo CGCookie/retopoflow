@@ -58,6 +58,7 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{select paint, select paint add}}    | : | selection painting |
 | {{select smart, select smart add}}    | : | smart selection |
 | {{select all}}                        | : | select / deselect all |
+| {{deselect all}}                      | : | deselect all |
 | {{select invert}}                     | : | invert selection |
 | {{action}}                            | : | transform selection when mouse hovers selected geometry |
 | {{grab}}                              | : | grab and move selected geometry |
