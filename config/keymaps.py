@@ -110,12 +110,12 @@ default_rf_keymaps = {
     # shortcuts to tools
     'contours tool': {'ONE', 'CTRL+ALT+C'},
     'polystrips tool': {'TWO', 'CTRL+ALT+P'},
-    'polypen tool': {'THREE', 'CTRL+ALT+V'},
-    'relax tool': {'FOUR', 'CTRL+ALT+X'},
-    'tweak tool': {'FIVE', 'CTRL+ALT+G'},
-    'loops tool': {'SIX', 'CTRL+ALT+Q'},
-    'patches tool': {'SEVEN', 'CTRL+ALT+F'},
-    'strokes tool': {'EIGHT', 'CTRL+ALT+B'},
+    'strokes tool': {'THREE', 'CTRL+ALT+B'},
+    'patches tool': {'FOUR', 'CTRL+ALT+F'},
+    'polypen tool': {'FIVE', 'CTRL+ALT+V'},
+    'loops tool': {'SIX', 'CTRL+ALT+Q', 'CTRL+R'},
+    'tweak tool': {'SEVEN', 'CTRL+ALT+G'},
+    'relax tool': {'EIGHT', 'CTRL+ALT+X'},
     'stretch tool': {'NINE'},          # not ported from rf279, yet
     'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }
