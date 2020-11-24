@@ -288,24 +288,48 @@ if import_succeeded:
                     box.label(text=label)
                     warningsubboxes[label] = box
                 return warningsubboxes[label]
+
+            # PERFORMANCE CHECKS
             if VIEW3D_PT_RetopoFlow.is_target_too_big(context):
                 box = add_warning_subbox('Performance Issue')
                 box.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
             if VIEW3D_PT_RetopoFlow.are_sources_too_big(context):
                 box = add_warning_subbox('Performance Issue')
                 box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
+
+            # LAYOUT
             if VIEW3D_PT_RetopoFlow.multiple_3dviews(context):
                 box = add_warning_subbox('Layout Issue')
                 box.label(text='Multiple 3D Views', icon='DOT')
             if VIEW3D_PT_RetopoFlow.in_quadview(context):
                 box = add_warning_subbox('Layout Issue')
                 box.label(text='Using Quad View', icon='DOT')
+            lock_cursor = any(
+                space.lock_cursor
+                for space in context.area.spaces
+                if space.type == 'VIEW_3D'
+            )
+            if lock_cursor:
+                box = add_warning_subbox('Layout Issue')
+                box.label(text='View is locked to cursor', icon='DOT')
+            lock_object = any(
+                space.lock_object
+                for space in context.area.spaces
+                if space.type == 'VIEW_3D'
+            )
+            if lock_object:
+                box = add_warning_subbox('Layout Issue')
+                box.label(text='View is locked to object', icon='DOT')
+
+            # AUTO SAVE / UNSAVED
             if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
                 box = add_warning_subbox('Auto Save / Save')
                 box.label(text='Auto Save is disabled', icon='DOT')
             if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
                 box = add_warning_subbox('Auto Save / Save')
                 box.label(text='Unsaved Blender file', icon='DOT')
+
+            # show button for more warning details
             if warningbox:
                 warningbox.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
 

@@ -9,6 +9,10 @@ RetopoFlow might present a warning if it detects a situation which is not ideal 
 RetopoFlow is designed to work in a single 3D view.
 Running RetopoFlow with Quad View turned on or with multiple 3D Views can result in RetopoFlow showing up in every 3D View, but only allowing interaction in one.
 
+If either Lock to Object or Lock to 3D View are enabled, navigating in RetopoFlow can be incorrect.
+Disable either of these settings in the 3D View Sidebar (`N`) before starting RetopoFlow.
+
+![View Locks](warning_viewlock.png max-height:103px)
 
 ## Auto Save / Save
 
