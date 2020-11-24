@@ -52,15 +52,18 @@ try:
         importlib.reload(retopoflow)
         importlib.reload(configoptions)
         importlib.reload(updater)
+        importlib.reload(rftool)
     else:
         print('RetopoFlow: Initial load')
         from .retopoflow import retopoflow
         from .config import options as configoptions
         from .retopoflow import updater
         from .addon_common.common.maths import convert_numstr_num
+        from .retopoflow import rftool
     options = configoptions.options
     retopoflow_version = configoptions.retopoflow_version
     import_succeeded = True
+    RFTool = rftool.RFTool
 except ModuleNotFoundError as e:
     print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
     print(e)
@@ -187,16 +190,9 @@ if import_succeeded:
         VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % starting_tool.replace(' ', '')
         return VIEW3D_OT_RetopoFlow_Tool
     RF_tool_classes = [
-        VIEW3D_OT_RetopoFlow_Tool_Factory(n) for n in [
-            'Contours',
-            'PolyStrips',
-            'PolyPen',
-            'Relax',
-            'Tweak',
-            'Loops',
-            'Patches',
-            'Strokes',
-        ] ]
+        VIEW3D_OT_RetopoFlow_Tool_Factory(rftool.name)
+        for rftool in RFTool.registry
+    ]
     RF_classes += RF_tool_classes
 
 

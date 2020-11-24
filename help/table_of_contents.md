@@ -18,12 +18,12 @@ The following documents provide help for specific RetopoFlow tools.
 
 - ![Contours icon](contours-icon.png width:24px;height:24px;padding:0px) [Contours](contours.md)
 - ![PolyStrips icon](polystrips-icon.png width:24px;height:24px;padding:0px) [PolyStrips](polystrips.md)
-- ![PolyPen icon](polypen-icon.png width:24px;height:24px;padding:0px) [PolyPen](polypen.md)
-- ![Relax icon](relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
-- ![Tweak icon](tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
-- ![Loops icon](loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
-- ![Patches icon](patches-icon.png width:24px;height:24px;padding:0px) [Patches](patches.md)
 - ![Strokes icon](strokes-icon.png width:24px;height:24px;padding:0px) [Strokes](strokes.md)
+- ![Patches icon](patches-icon.png width:24px;height:24px;padding:0px) [Patches](patches.md)
+- ![PolyPen icon](polypen-icon.png width:24px;height:24px;padding:0px) [PolyPen](polypen.md)
+- ![Loops icon](loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
+- ![Tweak icon](tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
+- ![Relax icon](relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
 
 ## Additional Information
 
