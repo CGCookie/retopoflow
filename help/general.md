@@ -31,12 +31,12 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 | --- | --- | --- | --- |
 | {{contours tool}}   | : | Contours | [help](contours.md) |
 | {{polystrips tool}} | : | PolyStrips | [help](polystrips.md) |
-| {{polypen tool}}    | : | PolyPen | [help](polypen.md) |
-| {{relax tool}}      | : | Relax | [help](relax.md) |
-| {{tweak tool}}      | : | Tweak | [help](tweak.md) |
-| {{loops tool}}      | : | Loops | [help](loops.md) |
-| {{patches tool}}    | : | Patches | [help](patches.md) |
 | {{strokes tool}}    | : | Strokes | [help](strokes.md) |
+| {{patches tool}}    | : | Patches | [help](patches.md) |
+| {{polypen tool}}    | : | PolyPen | [help](polypen.md) |
+| {{loops tool}}      | : | Loops | [help](loops.md) |
+| {{tweak tool}}      | : | Tweak | [help](tweak.md) |
+| {{relax tool}}      | : | Relax | [help](relax.md) |
 
 Note: selection and the undo stack is maintained between tools.
 
