@@ -13,7 +13,7 @@
     --button-selected-text: white;
     --button-disabled-text: hsl(200, 0%, 50%);
 
-    --header-background: hsla(200, 0%, 5%, 0.95);
+    --header-background: hsla(200, 0%, 5%, 1);
     --panel-background: hsla(200, 0%, 15%, 0.98);
     --panel-two-background: hsla(200, 0%, 5%, 0.4);
     --collection: hsla(200, 0%, 5%, 0);
@@ -280,7 +280,7 @@ dialog {
     color: var(--text);
 }
 dialog.framed {
-    border: 1.5px rgba(0,0,0,0.9);
+    border: 1.5px var(--header-background);
     border-radius: 4px;
     padding: 0px;
     margin: 4px;
