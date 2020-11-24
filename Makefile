@@ -17,8 +17,8 @@
 
 NAME            = RetopoFlow
 VERSION         = v3.00.0
-GIT_TAG         = "v3.00.0-rc.2"
-GIT_TAG_MESSAGE = "This is the second release candidate for RetopoFlow 3.0.0. This version includes visual improvements, issue checkers, and a few bugs corrected."
+GIT_TAG         = "v3.00.0"
+GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.0."
 
 BUILD_DIR       = ../retopoflow_release
 DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py

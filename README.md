@@ -4,7 +4,8 @@ CG Cookie RetopoFlow
 RetopoFlow is a suite of retopology tools for Blender built by [CG Cookie](https://cgcookie.com).
 The tools are offered as add-on for Blender that provides a dedicated set of mesh tools designed specifically for retopology, creating a complete workflow in Blender without the need for outside applications.
 
-RetopoFlow includes several tools, all of which automatically snap the resulting mesh to the target object surface. All mesh generation is quad-based and tools are modal.
+RetopoFlow includes several tools, all of which automatically snap the resulting mesh to the target object surface.
+All mesh generation is quad-based (unless you explicitly create other ngons) and tools are modal.
 
 
 # Getting RetopoFlow

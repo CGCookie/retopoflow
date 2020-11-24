@@ -1,6 +1,6 @@
-# RetopoFlow 3.x Quick Start Guide
+# RetopoFlow {[rf version]} Quick Start Guide
 
-This guide will help you get started with the RetopoFlow&nbsp;3.x.
+This guide will help you get started with the RetopoFlow.
 
 More detailed help is available by pressing `F1` after you start RetopoFlow.
 
