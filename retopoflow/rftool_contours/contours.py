@@ -290,7 +290,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rot_axis2D = (self.rfcontext.Point_to_Point2D(p1) - self.rfcontext.Point_to_Point2D(p0))
         self.rot_axis2D.normalize()
         self.rot_perp2D = Vec2D((self.rot_axis2D.y, -self.rot_axis2D.x))
-        print(self.rot_axis, self.rot_axis2D, self.rot_perp2D)
+        # print(self.rot_axis, self.rot_axis2D, self.rot_perp2D)
 
         self.rfcontext.undo_push('rotate plane contours')
 
