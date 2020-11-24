@@ -2396,7 +2396,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                         words = re.split(r'([^ \n]* +)', l)
                     for word in words:
                         if not word: continue
-                        word = word.replace('&nbsp;', ' ')
+                        word = word.replace('&nbsp;', ' ').replace('&#96;', '`')
                         ui_word = UI_Element(innerTextAsIs=word, _parent=self)
                         self._children_text.append(ui_word)
                         for i in range(len(word)):

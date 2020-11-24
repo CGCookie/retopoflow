@@ -166,7 +166,7 @@ kmi_to_humanreadable = [
         'EQUAL':        '=',
         'SEMI_COLON':   ';', 'COMMA':         ',',
         'LEFT_BRACKET': '[', 'RIGHT_BRACKET': ']',
-        'QUOTE':        "'", 'ACCENT_GRAVE':  '`',
+        'QUOTE':        "'", 'ACCENT_GRAVE':  '&#96;', #'`',
         # prefix modifiers
         'SHIFT': 'Shift', 'CTRL': 'Ctrl', 'ALT': 'Alt', 'OSKEY': 'OSKey',
 

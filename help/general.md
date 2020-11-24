@@ -40,6 +40,10 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 Note: selection and the undo stack is maintained between tools.
 
+![Pie menu](pie_menu.png max-height:167.5px)
+
+Press {{pie menu}} at any time to show the tool pie menu.
+
 
 
 ## Universal Shortcuts
@@ -93,7 +97,7 @@ The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
-![](help_themes.png max-height:128px)
+![](help_themes.png max-height:100px)
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.
