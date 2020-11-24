@@ -407,6 +407,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             d01 /= 2
         else:
             return (None, None, None, None)
+
+        nearest_vert,_ = self.rfcontext.nearest2D_vert(point=xy2, verts=self.vis_verts, max_dist=options['polypen merge dist'])
+        if nearest_vert: xy2 = self.rfcontext.Point_to_Point2D(nearest_vert.co)
+        nearest_vert,_ = self.rfcontext.nearest2D_vert(point=xy3, verts=self.vis_verts, max_dist=options['polypen merge dist'])
+        if nearest_vert: xy3 = self.rfcontext.Point_to_Point2D(nearest_vert.co)
+
         return (xy0, xy1, xy2, xy3)
 
     @RFTool_PolyPen.dirty_when_done
@@ -545,8 +551,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
             if not e0: return
             bmv0,bmv1 = e0.verts
-            bmv2 = self.rfcontext.new2D_vert_point(xy2)
-            bmv3 = self.rfcontext.new2D_vert_point(xy3)
+
+            bmv2,_ = self.rfcontext.nearest2D_vert(point=xy2, verts=self.vis_verts, max_dist=options['polypen merge dist'])
+            if not bmv2: bmv2 = self.rfcontext.new2D_vert_point(xy2)
+            bmv3,_ = self.rfcontext.nearest2D_vert(point=xy3, verts=self.vis_verts, max_dist=options['polypen merge dist'])
+            if not bmv3: bmv3 = self.rfcontext.new2D_vert_point(xy3)
             if not bmv2 or not bmv3:
                 self.rfcontext.undo_cancel()
                 return 'main'
