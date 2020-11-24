@@ -311,4 +311,5 @@ void main() {
             outColor.a = 1.0;
         }
     }
+    gl_FragDepth = gl_FragDepth * 0.999999;
 }
