@@ -457,7 +457,7 @@ class RFMesh():
                 pt_current, bmelem_current = i_current
                 bmfs_adj = points[bmelem_current][1] if bmelem_current in points else []
                 bmf_next = next((bmf_adj for bmf_adj in bmfs_adj if bmf_adj != bmf_current), None)
-                ret += [(bmf_current, pt_current, bmf_next)]
+                ret.append((bmf_current, pt_current, bmf_next))
                 if bmf_next is None: return False
                 if bmf_next == bmf_start: return True
                 i0, i1 = points[bmf_next]
@@ -627,7 +627,7 @@ class RFMesh():
             touched |= set(f0 for f0,_,_,_ in ret if f0)
             touched |= set(f1 for _,_,f1,_ in ret if f1)
             ret = [(w(f0),w(e),w(f1),l2w_point(c)) for f0,e,f1,c in ret]
-            rets += [ret]
+            rets.append(ret)
 
         return rets
 
@@ -672,7 +672,7 @@ class RFMesh():
             p,n = l2w_point(p),l2w_normal(n)
             d = (origin - p).length
             dist += d
-            hits += [(p,n,i,dist)]
+            hits.append((p, n, i, dist))
             origin += direction * (d + 0.00001)
             maxdist -= d
         return hits
@@ -713,7 +713,7 @@ class RFMesh():
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
             if d3d > dist3d: continue
-            nearest += [(self._wrap_bmvert(bmv), d3d)]
+            nearest.append((self._wrap_bmvert(bmv), d3d))
         return nearest
 
     def nearest_bmedge_Point(self, point:Point, edges=None):
@@ -746,7 +746,7 @@ class RFMesh():
             pp = bmv0 + d * max(0, min(l, (point - bmv0).dot(d)))
             dist = (point - pp).length
             if dist > dist3d: continue
-            nearest += [(self._wrap_bmedge(bme), dist)]
+            nearest.append((self._wrap_bmedge(bme), dist))
         return nearest
 
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2D, verts=None):
@@ -762,7 +762,7 @@ class RFMesh():
             if p2d is None: continue
             if (p2d - xy).length > dist2D: continue
             d3d = 0
-            nearest += [(self._wrap_bmvert(bmv), d3d)]
+            nearest.append((self._wrap_bmvert(bmv), d3d))
         return nearest
 
     def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2D, verts=None, max_dist=None):
@@ -851,7 +851,7 @@ class RFMesh():
             # TODO: Get dist?
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
                 if intersect_point_tri(xy, pt0, pt1, pt2):
-                    nearest += [(self._wrap_bmface(bmf), dist)]
+                    nearest.append((self._wrap_bmface(bmf), dist))
             #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
             #d2d = (xy - p2d).length
             #if p2d is None: continue
@@ -1064,7 +1064,7 @@ class RFMesh():
         edges = []
         def crawl(bme0, bmv01):
             nonlocal edges
-            if bme0 not in touched: edges += [bme0]
+            if bme0 not in touched: edges.append(bme0)
             if bmv01 in touched: return True        # wrapped around the loop
             touched.add(bmv01)
             touched.add(bme0)
@@ -1222,7 +1222,7 @@ class RFMesh():
         edges = []
         def crawl(bme0, bmv01):
             nonlocal edges
-            if bme0 not in touched: edges += [self._wrap_bmedge(bme0)]
+            if bme0 not in touched: edges.append(self._wrap_bmedge(bme0))
             if bmv01 in touched: return True
             touched.add(bmv01)
             touched.add(bme0)
@@ -1610,7 +1610,7 @@ class RFTarget(RFMesh):
             for i1,bme1 in enumerate(lbme):
                 if i1 <= i0: continue
                 if bme0.other_vert(bmv) == bme1.other_vert(bmv):
-                    lbme_dup += [(bme0,bme1)]
+                    lbme_dup.append((bme0,bme1))
         mapping = {}
         for bme0,bme1 in lbme_dup:
             if not bme0.is_valid or not bme1.is_valid: continue

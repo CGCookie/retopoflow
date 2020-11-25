@@ -143,13 +143,11 @@ class RFVert(BMElemWrapper):
 
     @staticmethod
     def get_link_edges(rfverts):
-        bmes = { bme for bmv in rfverts for bme in bmv.bmelem.link_edges }
-        return { RFEdge(bme) for bme in bmes }
+        return { RFEdge(bme) for bmv in rfverts for bme in bmv.bmelem.link_edges }
 
     @staticmethod
     def get_link_faces(rfverts):
-        bmfs = { bmf for bmv in rfverts for bmf in bmv.bmelem.link_faces }
-        return { RFFace(bmf) for bmf in bmfs }
+        return { RFFace(bmf) for bmv in rfverts for bmf in bmv.bmelem.link_faces }
 
     @property
     def co(self):

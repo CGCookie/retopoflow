@@ -471,23 +471,27 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         chk_verts = set(verts)
         chk_verts.update(self.rfcontext.get_edges_verts(edges))
         chk_verts.update(self.rfcontext.get_faces_verts(faces))
-        #chk_verts.update(bmv for bme in edges for bmv in bme.verts)
-        # chk_verts.update(bmv for bmf in faces for bmv in bmf.verts)
-        chk_edges = self.rfcontext.get_verts_link_edges(chk_verts) #{ bme for bmv in chk_verts for bme in bmv.link_edges }
-        chk_faces = self.rfcontext.get_verts_link_faces(chk_verts) #{ bmf for bmv in chk_verts for bmf in bmv.link_faces }
+        chk_edges = self.rfcontext.get_verts_link_edges(chk_verts)
+        chk_faces = self.rfcontext.get_verts_link_faces(chk_verts)
 
         displace = {}
+        def reset_forces():
+            nonlocal displace
+            displace.clear()
+        def add_force(bmv, f):
+            nonlocal displace, verts, vert_strength
+            if bmv not in verts or bmv not in vert_strength: return
+            cur = displace[bmv] if bmv in displace else Vec((0,0,0))
+            displace[bmv] = cur + f
 
         def relax_2d():
             pass
 
         def relax_3d():
-            nonlocal displace
+            reset_forces()
 
             # compute average edge length
             avg_edge_len = sum(bme.calc_length() for bme in edges) / len(edges)
-            # gather coords
-            displace = {bmv:Vec((0,0,0)) for bmv in chk_verts}
 
             # push edges closer to average edge length
             if opt_edge_length:
@@ -497,8 +501,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     vec = bme.vector()
                     edge_len = vec.length
                     f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
-                    displace[bmv0] -= f
-                    displace[bmv1] += f
+                    add_force(bmv0, -f)
+                    add_force(bmv1, +f)
 
             # push verts if neighboring faces seem flipped (still WiP!)
             if opt_correct_flipped:
@@ -517,17 +521,17 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         bme_center = bme.calc_center()
                         vec = bmf_other_center - bme_center
                         bmv0,bmv1 = bme.verts
-                        if bmv0 in displace: displace[bmv0] += vec * strength * 5
-                        if bmv1 in displace: displace[bmv1] += vec * strength * 5
+                        add_force(bmv0, vec * strength * 5)
+                        add_force(bmv1, vec * strength * 5)
 
             # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
-                for bmv in displace:
+                for bmv in chk_verts:
                     if bmv.is_boundary: continue
                     bmes = bmv.link_edges
                     #if len(bmes) != 4: continue
                     center = Point.average(bme.other_vert(bmv).co for bme in bmes)
-                    displace[bmv] += (center - bmv.co) * 0.1
+                    add_force(bmv, (center - bmv.co) * 0.1)
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
@@ -543,7 +547,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
                         f = rel * ((avg_rel_len - rel_len) * strength * 2) #/ rel_len
-                        displace[bmv] += f
+                        add_force(bmv, f)
 
                 # push verts toward equal edge lengths
                 if opt_face_sides:
@@ -553,8 +557,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         vec = bme.vector()
                         edge_len = vec.length
                         f = vec * ((avg_face_edge_len - edge_len) * strength) / edge_len
-                        displace[bmv0] -= f * 0.5
-                        displace[bmv1] += f * 0.5
+                        add_force(bmv0, f * -0.5)
+                        add_force(bmv1, f * 0.5)
 
                 # push verts toward equal spread
                 if opt_face_angles:
@@ -569,13 +573,11 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         vec_len = vec.length
                         angle = rel0.angle(rel1)
                         f_mag = (0.1 * (avg_angle - angle) * strength) / cnt #/ vec_len
-                        displace[bmv0] -= fvec0 * f_mag
-                        displace[bmv1] -= fvec1 * f_mag
+                        add_force(bmv0, fvec0 * -f_mag)
+                        add_force(bmv1, fvec1 * -f_mag)
 
         # perform smoothing
         for step in range(opt_steps):
-            displace = {}
-
             if options['relax algorithm'] == '3D':
                 relax_3d()
             elif options['relax algorithm'] == '2D':
@@ -583,14 +585,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
             # update
             for bmv in displace:
-                if bmv not in verts: continue
-                if bmv not in vert_strength: continue
-                # if self.sel_only and not bmv.select: continue
-                # if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
-                # if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
-                # if opt_mask_hidden   == 'exclude' and not is_visible(bmv): continue
-                # if opt_mask_selected == 'exclude' and bmv.select: continue
-                # if opt_mask_selected == 'only' and not bmv.select: continue
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv])
                 if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
                     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
