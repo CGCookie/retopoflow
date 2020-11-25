@@ -22,7 +22,7 @@ import bpy
 from bpy.app.handlers import persistent
 
 from ..addon_common.common.blender import tag_redraw_all
-from ..config.options import options
+from ..config.options import options, retopoflow_version_git
 
 # updater import, import safely
 # Prevents popups for users with invalid python installs e.g. missing libraries
@@ -215,6 +215,7 @@ class addon_updater_check_now(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if retopoflow_version_git:   return False   # do not allow update if under git version control
         return True
 
     def execute(self,context):
@@ -261,8 +262,9 @@ class addon_updater_update_now(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         # return False
-        if updater.invalidupdater: return False
-        if not updater.update_ready: return False
+        if retopoflow_version_git:   return False   # do not allow update if under git version control
+        if updater.invalidupdater:   return False   # something bad happened; bail!
+        if not updater.update_ready: return False   # update not ready, yet
         return True
 
 
