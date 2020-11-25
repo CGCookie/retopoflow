@@ -1,3 +1,7 @@
+# do not include the CG Cookie built indicator file
+.cgcookie
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -59,10 +63,14 @@ target/
 
 # updater
 retopoflow_updater/updater_status.json
+retopoflow_updater_status.json
 
 # RF options files
 RetopoFlow_options
 RetopoFlow_options.json
+
+# RF backup file
+RetopoFlow_backup.blend
 
 # RF screenshot
 RetopoFlow_screenshot.png
@@ -71,12 +79,24 @@ RetopoFlow_screenshot.png
 profiler_data.txt
 RetopoFlow_profiler.txt
 
+system-info.txt
+
 # Blender symlinks
 blender
 b280
+b281
+b281a
+b282
+b282a
+b283
+b290
+b291
+b292
 
 # test models folder
 test-models
 
 # temp folders
 tmp/
+test/
+

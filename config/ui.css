@@ -1,0 +1,894 @@
+/*
+    this is a default UI stylesheet.
+
+    right now, this is a test stylesheet.
+*/
+
+:root {
+    --button-background: hsla(200, 0%, 20%, 1.0);
+    --button-hover-background: hsla(200, 0%, 50%, 0.50);
+    --button-selected-background: rgb(10, 135, 197);
+
+    --button-text: hsl(200, 0%, 90%);
+    --button-selected-text: white;
+    --button-disabled-text: hsl(200, 0%, 50%);
+
+    --header-background: hsla(200, 0%, 5%, 1);
+    --panel-background: hsla(200, 0%, 15%, 0.98);
+    --panel-two-background: hsla(200, 0%, 5%, 0.4);
+    --collection: hsla(200, 0%, 5%, 0);
+
+    --text: rgb(221, 221, 221);
+
+    --alert-note: rgba(34, 34, 34, 0.99);
+    --alert-warning: rgba(128, 72, 8, 0.95);
+}
+
+* {
+    color: var(--text);
+    border: 0px;
+    background: transparent;
+    font-size: 10px;
+}
+
+/********************************/
+/* GENERAL BUTTON STYLING       */
+
+button {
+    display: block;
+    width: 100%;
+    margin: 1px;
+    border: 0px;
+    background: var(--button-background);
+    color: var(--text);
+}
+button:focus {
+    background: var(--button-hover-background);
+}
+button:active {
+    background: var(--button-selected-background);
+}
+button:hover {
+    background: var(--button-hover-background);
+}
+button:active:hover {
+    background: var(--button-selected-background);
+}
+button:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+}
+
+
+
+
+/********************************/
+/* GENERAL RADIO BUTTON STYLING */
+
+input[type="radio"] {
+    background: var(--button-background);
+    margin: 0px 1px;
+    border: 0px;
+    padding: 4px 0px 4px 6px;
+}
+input[type="radio"] > img {
+    display: none;
+}
+input[type="radio"]:hover {
+    background: var(--button-hover-background);
+}
+input[type="radio"][checked] {
+    background: var(--button-selected-background);
+}
+input[type="radio"]:active {
+    background: var(--button-selected-background);
+}
+input[type="radio"]:active:hover {
+    background: var(--button-selected-background);
+}
+input[type="radio"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+}
+input[type="radio"] > label {
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding: 0px;
+    width: 100%;
+    /*height:20px;*/
+    color: var(--button-text);
+}
+input[type="radio"][checked] label {
+    color: var(--button-selected-text);
+}
+input[type="radio"]:active label {
+    color: var(--button-selected-text);
+}
+input[type="radio"]:disabled label {
+    color: var(--button-disabled-text);
+}
+
+input[type="radio"].half-size {
+    width: 50%;
+    margin: 1.5px;
+}
+input[type="radio"].half-size > label {
+    text-align: center;
+    margin-left: -6px;
+}
+input[type="radio"].third-size {
+    width: 33.333%;
+}
+input[type="radio"].third-size > label {
+    text-align: center;
+    margin-left: -6px;
+}
+
+
+/********************************/
+/* GENERAL RANGE INPUT STYLING  */
+
+div.inputrange-container {
+    margin: 4px;
+    height: 30px;
+    background: transparent;
+}
+
+input[type="range"] {
+    margin: 0px 0px 0px 0px;
+    padding: 0px 0px 0px 0px;
+    padding-right: -24px;
+    background: transparent;
+}
+
+input[type="range"] > *.inputrange-left {
+    background-color: var(--button-selected-background);
+    border: 0px;
+    top: -6px;
+}
+input[type="range"] > *.inputrange-right {
+    background-color: var(--button-background);
+    border: 0px;
+    top: -6px;
+}
+input[type="range"]:active > *.inputrange-left {
+    background-color: hsla(200, 100%, 62.5%, 1.0);
+}
+input[type="range"] > *.inputrange-handle {
+    left: 0px;
+    top: 0px;
+    width: 16px;
+    height: 16px;
+    background-color: hsl(200, 0%, 60%);
+}
+
+/**********************/
+/* CHECKBOX INPUT     */
+
+input[type="checkbox"] {
+    background-color: transparent;
+    width: 100%;
+    border-width: 0px;
+    padding-left: 4px;
+    height: 24px;
+    margin: 1px;
+}
+input[type="checkbox"]:hover {
+    background-color: hsla(200, 0%, 50%, 0.25);;
+}
+input[type="checkbox"] > img.checkbox {
+    display: inline;
+    padding: 2px;
+    margin: 4px 4px 2px 2px;
+    width: 20px;
+    height: 20px;
+    background-color: var(--button-background);
+    background-image: none;
+    border-radius: 4px;
+}
+input[type="checkbox"]:hover > img.checkbox {
+    background-color: var(--button-hover-background);
+}
+input[type="checkbox"][checked] > img.checkbox {
+    background-color: var(--button-selected-background);
+    background-image: url('checkmark.png');
+}
+input[type="checkbox"]:active > img.checkbox {
+    background-color: var(--button-selected-background);
+}
+
+input[type="checkbox"] > label {
+    color: var(--button-text);
+    margin: 0px;
+    margin-left: 4px;
+    padding: 0px;
+    padding-top: 4px;
+    padding-bottom: -2px;
+    padding-right: 10px;
+    border-width: 0px;
+}
+input[type="checkbox"]:hover > label {
+    color: var(--button-selected-text);
+}
+input[type="checkbox"][checked] > label {
+    color: var(--text);
+}
+
+/**************************/
+/* COLLAPSIBLE COLLECTION */
+
+div.collapsible {
+    margin: 1px;
+    border: 0px;
+    border-radius: 0px;
+    background: rgba(0, 0, 0, 0);
+    padding: 0px 0px 0px 0px;
+}
+
+div.collapsible > input.header {
+    display: block;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    padding-top: 1px;
+    padding-bottom: 0px;
+    margin: 0px;
+    border: 0px;
+}
+div.collapsible > input.header:hover {
+    background: hsla(200, 0%, 50%, 0.25);
+}
+
+div.collapsible > input.header > label{
+    margin-left: 0px;
+    margin-top: 5px;
+    padding: 0px;
+}
+div.collapsible > input.header > img {
+    margin: 8px 0px 2px -6px;
+    padding: 0px;
+    border: 0px;
+    width: 18px;
+    height: 18px;
+    background: transparent url('collapse_open.png');
+}
+div.collapsible:hover > input.header > img {
+    background: transparent url('collapse_open.png');
+}
+div.collapsible > input.header[checked] > img {
+    background: transparent url('collapse_close.png');
+}
+div.collapsible > div.inside.collapsed {
+    display: none;
+}
+div.collapsible > div.inside {
+    border: 0px;
+    border-color: transparent;
+    background: var(--panel-two-background);
+    padding: 4px 4px 4px 16px;
+    margin: 0px 0px 0px 0px;
+}
+
+/********************************/
+/* GENERAL DIALOG STYLING       */
+
+dialog {
+    border-radius: 4px;
+    border: 0px;
+    background: var(--panel-background);
+    color: var(--text);
+}
+dialog.framed {
+    border: 1.5px var(--header-background);
+    border-radius: 4px;
+    padding: 0px;
+    margin: 4px;
+}
+div.dialog-header {
+    background: var(--header-background);
+    margin: 0px;
+    padding: 4px;
+    border: 0px;
+    border-radius: 0px;
+}
+span.dialog-title {
+    display: inline;
+    margin: 0px;
+    padding: 0px;
+    margin-left: 8px;
+    color: var(--text);
+    font-size: 12;
+}
+button.dialog-close {
+    display: inline;
+    padding: 3px;
+    border: 0px;
+    width: 16px;
+    height: 16px;
+    background: rgba(0,0,0,0) url('close.png');
+}
+button.dialog-close:hover {
+    background-color: rgba(255,255,255,0.25);
+}
+dialog.framed > div.inside {
+    margin: 0px;
+    padding: 4px;
+    border: 0px;
+}
+div.dialog-footer {
+    right: 50px;
+    top: -200px;
+    width: 100%;
+    /*bottom: 0px;*/
+    background: rgba(255, 238, 0, 0.75);
+    margin: 0px;
+    padding: 2px;
+    border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
+    border-radius: 0px;
+}
+
+
+div.collection {
+    margin-top: 6px;
+    margin-bottom: 6px;
+    border: 0px;
+    padding: 0px;
+    padding-top: 0px;
+    border-radius: 4px;
+    background: var(--collection);
+}
+
+div.collection > div.header {
+    background-color: transparent;
+    display: block;
+    width: 100%;
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    color: var(--text);
+    padding-left: 6px;
+
+}
+
+*#merge-by-distance button {
+    display: inline;
+    width: 50%;
+}
+
+*#snap-verts button {
+    display: inline;
+    width: 50%;
+}
+
+*#vistest-presets button {
+    display: inline;
+    width: 50%;
+}
+
+
+dialog#loadingdialog {
+    width: 40%;
+    left: 30%;
+    top: -40%;
+    z-index: 10000;
+}
+
+
+dialog#maindialog {
+    width: 175px;
+    min-width: 50px;
+    max-width: 500px;
+    padding: 0px;
+    /*background: rgba(64,0,0,0.9);*/
+}
+dialog#maindialog * {
+    overflow-x: hidden;
+}
+
+
+/********************************/
+/* MAIN TOOLS STYLING           */
+
+
+
+div#tools {
+    border: 0px black;
+    margin: 0px;
+    padding: 0px;
+}
+input.tool {
+    background: transparent;
+    margin: 1px;
+    padding: 4px;
+    border-width: 0px;
+    width: 100%;
+    display: block;
+}
+input.tool > img {
+    display: none;
+}
+input.tool:hover {
+    background: rgba(64, 64, 64, 0.75);
+}
+input.tool[checked] {
+    background: rgb(0, 146, 219);
+}
+input.tool:active {
+    background: rgb(0, 146, 219);
+}
+input.tool:active:hover {
+    background: rgb(0, 146, 219);
+}
+input.tool > label {
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding-top: 0px;
+    width: 100%;
+    align-items: center;
+    align-content: center;
+}
+input.tool[checked] label {
+    color: white;
+}
+input.tool:active label {
+    color: rgb(255, 255, 255);
+}
+input.tool > label > img {
+    display: inline;
+    border-radius: 0px;
+    border: 0px;
+    padding: 0px;
+    margin:0px;
+    width: 32px;
+    height: 32px;
+}
+input.tool > label > label {
+    border: 0px;
+    padding:2px 0px;
+    margin-top: 7px;
+    margin-left: 6px;
+}
+
+input.symmetry-enable {
+    width: 33.33%;
+    overflow-x: hidden;
+    white-space: nowrap;
+}
+
+
+/********************************/
+/* TEXT INPUT STYLING           */
+
+*.inputtext-container > input[type="text"] {
+    color: var(--text);
+    background: var(--button-background);
+    padding-left: 8px;
+    padding-top: 5px;
+    height: 24px;
+}
+
+*.labeledinputtext-container {
+    padding-left: 4px;
+}
+
+input[type="text"]:hover {
+    color: var(--text);
+    background: var(--button-hover-background);
+}
+
+input[type="text"]:focus {
+    color: var(--text);
+    background: var(--button-selected-background);
+}
+
+input[type="text"] > *.inputtext-cursor {
+    color: var(--text);
+}
+
+input[type="text"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+    cursor: default;
+}
+
+
+
+
+
+
+/***************************************************/
+/* tiny ui window                                  */
+/***************************************************/
+
+dialog#tinydialog {
+    width: 370px;
+    min-width: 50px;
+    max-width: 500px;
+    padding: 0px;
+}
+dialog#tinydialog * {
+    overflow-x: hidden;
+}
+dialog#tinydialog span.dialog-title {
+    padding: 0px 2px;
+    margin-left: -2px;
+    font-size: 9pt;
+    height: 12px;
+}
+dialog#tinydialog > div#ttools > * {
+    display: inline;
+    /*background: white;*/
+}
+dialog#tinydialog input[type="radio"] > img {
+    display: none;
+}
+
+dialog#tinydialog div#ttools {
+    margin: 0px;
+}
+dialog#tinydialog input.ttool {
+    display: inline;
+    background: transparent;
+    margin: 0px 2px 0px 2px;
+    border-width: 0px;
+    width: 40px;
+    padding: 2px;
+}
+dialog#tinydialog input.ttool > img {
+    display: none;
+}
+dialog#tinydialog input.ttool:hover {
+    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+}
+dialog#tinydialog input.ttool[checked] {
+    background: var(--button-selected-background);
+}
+dialog#tinydialog input.ttool:active {
+    background: var(--button-selected-background);
+}
+dialog#tinydialog input.ttool:active:hover {
+    background: var(--button-selected-background);
+}
+dialog#tinydialog input.ttool > label {
+    display: inline;
+    border: 0px;
+    border-radius: 0px;
+    padding: 0px;
+    margin: 0px;
+    /*width: 100%;*/
+    /*height:20px;*/
+    color: white;
+}
+dialog#tinydialog input.ttool[checked] label {
+    color: black;
+}
+dialog#tinydialog input.ttool:active label {
+    color: black;
+}
+dialog#tinydialog input.ttool > label > img {
+    display: inline;
+    border-radius: 0px;
+    border:0px white;
+    padding:0px;
+    margin:0px;
+    width:32px;
+    height:32px;
+}
+
+dialog#tinydialog div#ttools button.dialog-expand {
+    display: inline;
+    padding: 12px 4px 16px 4px;
+    border: 0px;
+    width: 20px;
+    height: 40px;
+    background: rgba(0,0,0,0) url('collapse_close.png');
+}
+
+/*dialog#tinydialog div#ttools button.dialog-close:hover {
+    background: hsla(200, 100%, 62.5%, 0.75);
+}
+*/
+
+
+
+
+/***************************************************/
+/* options window                                  */
+/***************************************************/
+
+dialog#optionsdialog {
+    width: 250px;
+    min-width: 150px;
+    max-width: 500px;
+}
+
+
+/***************************************************/
+/* help window                                     */
+/***************************************************/
+
+dialog#helpsystem {
+    width: 60%;
+    left: 20%;
+    background: hsla(200, 0%, 10%, 0.98);
+}
+dialog#helpsystem div#helpsystem-buttons {
+    margin: 4px;
+    width: 100%;
+}
+dialog#helpsystem div#helpsystem-buttons button {
+    display: inline;
+    width: 50%;
+    text-align: center;
+}
+
+
+
+/***************************************************/
+/* alert window                                    */
+/***************************************************/
+
+
+dialog.alertdialog {
+    width: 600px;
+    left: 20%;
+}
+dialog.alertdialog div.alertdialog-buttons {
+    margin: 1px;
+    width: 100%;
+}
+dialog.alertdialog div.alertdialog-buttons button {
+    display: inline;
+    width: 50%;
+}
+dialog.alertdialog div.action-buttons button {
+    margin: 1px;
+}
+
+dialog.alertdialog.note {
+    background-color: var(--alert-note);
+}
+
+
+dialog.alertdialog.warning {
+    /*background-color: rgba(90, 64, 38, 0.95);*/
+    background-color: var(--alert-warning);
+}
+dialog.alertdialog.warning div#alertdialog-buttons {
+    background-color: rgba(64, 36, 4, 1.0);
+}
+dialog.alertdialog.warning div#alertdialog-buttons button {
+    background-color: rgba(128, 72, 8, 1.0);
+}
+dialog.alertdialog.warning div#alertdialog-buttons button:hover {
+    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+    background-color: rgba(128, 96, 32, 1.0);
+}
+
+
+dialog.alertdialog.error {
+    width: 60%;
+    background-color: rgba(76, 38, 38, 0.95);
+}
+dialog.alertdialog.error div#alertdialog-buttons {
+    background-color: rgb(26, 26, 26);
+}
+dialog.alertdialog.error div#alertdialog-buttons button {
+    background-color: rgb(128, 8, 8);
+}
+dialog.alertdialog.error div#alertdialog-buttons button:hover {
+    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
+    background-color: rgb(139, 35, 35);
+}
+
+
+dialog.alertdialog.assert, dialog.alertdialog.exception {
+    width: 60%;
+    background-color: rgba(96, 0, 0, 0.95);
+}
+dialog.alertdialog div#crashdetails pre {
+    white-space: pre;
+}
+
+div.issue-checker button.action {
+    display: inline;
+    margin: 0px;
+    width: 25%;
+    white-space: pre;
+}
+
+
+
+/***************************************************/
+/* geometry window                                 */
+/***************************************************/
+
+dialog#geometrydialog {
+    right: 0px;
+    bottom: 0px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+}
+
+dialog#geometrydialog table {
+    border: 0px transparent;
+    background-color: transparent;
+    margin: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog tr {
+    margin: 0px;
+    border-width: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog td {
+    margin: 0px;
+    border-width: 0px;
+    padding: 0px;
+}
+dialog#geometrydialog table div {
+    border: 0px transparent;
+    background-color: transparent;
+    width: auto;
+    margin: 1px;
+    padding: 1px;
+}
+
+/***************************************************/
+/* markdown                                        */
+/***************************************************/
+
+div.mdown h1 {
+    width: 100%;
+    padding: 4px;
+}
+div.mdown h1> span {
+    font-size: 18px;
+}
+div.mdown h2 {
+    width: 100%;
+    padding: 4px;
+}
+div.mdown h2> span {
+    font-size: 14px;
+}
+div.mdown h3 {
+    width: 100%;
+    padding: 4px;
+}
+div.mdown h3> span {
+    font-size: 12px;
+    color: rgba(192, 192, 192, 1.0);
+}
+
+div.mdown p {
+    text-align: justify;
+    padding-left: 16px;
+}
+div.mdown ul {
+    padding-left: 16px;
+}
+div.mdown a {
+    padding: 0px 0px 0px 0px;
+    margin: 0px;
+    background-color: transparent;
+    border: 1px transparent;
+    border-bottom-color: var(--text);
+    cursor: default;
+    color: var(--text);
+}
+div.mdown a:hover {
+    color: white;
+    border-bottom-color: white;
+    cursor: default;
+}
+
+div.mdown img {
+    border-radius: 4px;
+}
+
+div.mdown pre {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: var(--header-background);
+}
+
+div.mdown code {
+    font-family: monospace;
+    white-space: pre;
+    margin: 0px;
+    padding: 0px 4px;
+    background-color: var(--header-background);
+}
+
+/***************************************************/
+/* pie menu                                        */
+/***************************************************/
+
+div#pie-menu {
+    display: none;
+    position: fixed;
+    left: 0px;
+    top: 0%;
+    width: 100%;
+    height: 100%;
+    /*background-color: rgba(64, 0, 0, 0.2);*/
+    background-color: transparent;
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    z-index: 10000;
+}
+
+table#pie-menu-table {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0,0,0,0.15); /* transparent;*/
+    margin: 0px;
+    padding: 100px;
+    border: 0px rgba(0, 0, 0, 0.25);
+    border-radius: 250px;
+}
+table#pie-menu-table tr {
+    margin: 0px;
+    padding: 0px;
+    border: 0px transparent;
+}
+table#pie-menu-table td {
+    margin: 0px;
+    padding: 0px;
+    border: 0px transparent;
+}
+div.pie-menu-option {
+    width: 100px;
+    height: 100px;
+    background-color: rgba(64, 64, 64, 0.975);
+    margin: 16px;
+    padding-top: 8px;
+    border: 1px rgba(0, 0, 0, 0.95);
+    border-radius: 5px;
+}
+table#pie-menu-table div.pie-menu-option-text {
+    color: var(--text);
+    text-align: center;
+}
+table#pie-menu-table img.pie-menu-option-image {
+    display: block;
+    width: 64px;
+    height: 20px;
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+    background-color: transparent;
+}
+table#pie-menu-table div.pie-menu-option.highlighted {
+    background-color: var(--button-selected-background);
+}
+table#pie-menu-table td.highlighted div.pie-menu-option-text {
+    color: white;
+}
+div.pie-menu-option:hover {
+    background-color: var(--button-selected-background);
+}
+div.pie-menu-option:hover div.pie-menu-option-text {
+    color: white;
+}
+table#pie-menu-table div#pie-menu-middlecenter {
+    background-color: rgba(0, 0, 0, 0.15);
+    border: 1px rgba(0, 0, 0, 0.25);
+    border-radius: 35px;
+}
+
+dialog.tooltip {
+    border: 1px black;
+    background: hsla(0, 0%, 9%, 0.99); /*rgba(32,32,32,0.8);*/
+    color: white;
+    margin: 2px;
+    padding: 4px;
+}

@@ -11,22 +11,28 @@
 # SETTINGS
 # /./././././././././././././././././././././././././././././././
 
+# TODO: get version from options
+# TODO: warn if profiling is enabled!
+# see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
+
 NAME            = RetopoFlow
-VERSION         = v2.0.3
-GIT_TAG         = v2.0.3
-GIT_TAG_MESSAGE = "Version 2.0.3"
+VERSION         = v3.00.0
+GIT_TAG         = "v3.00.0"
+GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.0."
 
 BUILD_DIR       = ../retopoflow_release
+DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py
+CGCOOKIE_BUILT  = $(NAME)/.cgcookie
 ZIP_FILE        = $(NAME)_$(VERSION).zip
+TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
+
+
+.DEFAULT_GOAL 	:= build
 
 
 # /./././././././././././././././././././././././././././././././
 # TARGETS
 # /./././././././././././././././././././././././././././././././
-
-.DEFAULT_GOAL  := build
-
-.PHONY: clean gittag build
 
 
 clean:
@@ -38,19 +44,21 @@ gittag:
 	# create a new annotated (-a) tag and push to GitHub
 	git tag -a $(GIT_TAG) -m $(GIT_TAG_MESSAGE)
 	git push origin $(GIT_TAG)
-	@echo "git tag is pushed"
 
 
 build:
-	# first remove the build folder, in case there are extra files there
-	# then, create build folder (if they do not already exist)
-	rm -rf $(BUILD_DIR)/$(NAME)
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
-	# rsync flag -a == archive (same as -rlptgoD)
-	rsync -av --progress --no-links . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
-	cd $(BUILD_DIR) ; zip -r $(ZIP_FILE) $(NAME)
+	# copy files over to build folder
+	# note: rsync flag -a == archive (same as -rlptgoD)
+	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+	# touch file so that we know it was packaged by us
+	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
+	# run debug cleanup
+	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
+	# zip it!
+	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"
