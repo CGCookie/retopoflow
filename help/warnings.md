@@ -5,10 +5,14 @@ RetopoFlow might present a warning if it detects a situation which is not ideal 
 ![](warnings.png max-height:300px)
 
 
-##  Setup
+## Setup: Source / Target Meshes
 
 RetopoFlow requires at least source mesh to start.
 A source mesh can be any visible mesh that is not being edited.
+
+RetopoFlow assumes that the edited mesh is the target mesh.
+If the edited mesh is not visible, RetopoFlow cannot start.
+
 See [Quick Start Guide](quick_start.md) for more details.
 
 

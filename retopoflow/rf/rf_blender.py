@@ -83,8 +83,9 @@ class RetopoFlow_Blender:
     @blender_version_wrapper('>=','2.80')
     def is_valid_target(o):
         if not o: return False
-        if o != get_active_object(): return False
+        # if o != get_active_object(): return False
         if o != bpy.context.edit_object: return False
+        if not o.visible_get(): return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         return True
@@ -140,7 +141,28 @@ class RetopoFlow_Blender:
         if tar_object: scale_object(tar_object)
 
     def _scale_by(self, factor):
-        RetopoFlow_Blender.scale_by(factor, self.actions.r3d, self.actions.space, tar_object=getattr(self, 'tar_object', None))
+        # RetopoFlow_Blender.scale_by(factor, self.actions.r3d, self.actions.space, tar_object=getattr(self, 'tar_object', None))
+        r3d = self.actions.r3d
+        space = self.actions.space
+
+        def scale_object(o):
+            for i in range(3):
+                for j in range(4):
+                    o.matrix_world[i][j] *= factor
+
+        print('RetopoFlow: scaling view, sources, and target by %0.2f' % factor)
+
+        # scale view
+        r3d.view_distance *= factor
+        r3d.view_location *= factor
+        space.clip_start  *= factor
+        space.clip_end    *= factor
+
+        # scale sources
+        for src in self.src_objects: scale_object(src)
+
+        # scale target
+        scale_object(self.tar_object)
 
     def scale_to_unit_box(self):
         self._scale_by(1.0 / self.unit_scaling_factor)

@@ -300,6 +300,9 @@ if import_succeeded:
             if not retopoflow.RetopoFlow.get_sources():
                 box = add_warning_subbox('Setup Issue')
                 box.label(text=f'No sources detected', icon='DOT')
+            if VIEW3D_PT_RetopoFlow.is_editing_target(context) and not retopoflow.RetopoFlow.get_target():
+                box = add_warning_subbox('Setup Issue')
+                box.label(text=f'No target detected', icon='DOT')
 
             # PERFORMANCE CHECKS
             if VIEW3D_PT_RetopoFlow.is_target_too_big(context):

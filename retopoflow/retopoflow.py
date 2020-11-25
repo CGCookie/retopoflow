@@ -185,6 +185,7 @@ class RetopoFlow(
         # make sure we are editing a mesh object
         ob = context.active_object
         if not ob or ob.type != 'MESH': return False
+        if not ob.visible_get(): return False
         # make sure we have source meshes
         if not cls.get_sources(): return False
         # all seems good!
@@ -264,6 +265,10 @@ class RetopoFlow(
 
         self.store_window_state(self.actions.r3d, self.actions.space)
         RetopoFlow.instance = self
+
+        # DO THESE BEFORE SWITCHING TO OBJECT MODE BELOW AND BEFORE SETTING UP SOURCES AND TARGET!
+        self.src_objects = self.get_sources()
+        self.tar_object = self.get_target()
 
         # bpy.context.object.update_from_editmode()
         bpy.ops.object.mode_set(mode='OBJECT')
