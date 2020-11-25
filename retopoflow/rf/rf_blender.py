@@ -84,7 +84,7 @@ class RetopoFlow_Blender:
     def is_valid_target(o):
         if not o: return False
         if o != get_active_object(): return False
-        # if o != bpy.context.edit_object: return False
+        if o != bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         return True
