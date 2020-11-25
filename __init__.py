@@ -151,6 +151,13 @@ if import_succeeded:
 
         @classmethod
         def poll(cls, context):
+            if not context.region or context.region.type != 'WINDOW': return False
+            if not context.space_data or context.space_data.type != 'VIEW_3D': return False
+            # check we are not in mesh editmode
+            if context.mode == 'EDIT_MESH': return False
+            # make sure we have source meshes
+            if not retopoflow.RetopoFlow.get_sources(): return False
+            # all seems good!
             return True
 
         def invoke(self, context, event):
@@ -166,7 +173,7 @@ if import_succeeded:
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget]
 
-    class VIEW3D_OT_RetopoFlow(retopoflow.RetopoFlow):
+    class VIEW3D_OT_RetopoFlow_LastTool(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow"
         bl_label = "Start RetopoFlow"
@@ -174,7 +181,7 @@ if import_succeeded:
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = {'UNDO', 'BLOCKING'}
-    RF_classes += [VIEW3D_OT_RetopoFlow]
+    RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
     def VIEW3D_OT_RetopoFlow_Tool_Factory(starting_tool):
         class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
@@ -288,6 +295,11 @@ if import_succeeded:
                     box.label(text=label)
                     warningsubboxes[label] = box
                 return warningsubboxes[label]
+
+            # SETUP CHECKS
+            if not retopoflow.RetopoFlow.get_sources():
+                box = add_warning_subbox('Setup Issue')
+                box.label(text=f'No sources detected', icon='DOT')
 
             # PERFORMANCE CHECKS
             if VIEW3D_PT_RetopoFlow.is_target_too_big(context):

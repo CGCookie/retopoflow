@@ -4,6 +4,14 @@ RetopoFlow might present a warning if it detects a situation which is not ideal 
 
 ![](warnings.png max-height:300px)
 
+
+##  Setup
+
+RetopoFlow requires at least source mesh to start.
+A source mesh can be any visible mesh that is not being edited.
+See [Quick Start Guide](quick_start.md) for more details.
+
+
 ## Layout: Quad View / Multiple 3D Views
 
 RetopoFlow is designed to work in a single 3D view.
