@@ -58,8 +58,8 @@ class RetopoFlow_Blender:
     @blender_version_wrapper('>=','2.80')
     def is_valid_source(o):
         if not o: return False
-        if o == get_active_object(): return False
-        # if o == bpy.context.edit_object: return False
+        # if o == get_active_object(): return False
+        if o == bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         if not o.visible_get(): return False
