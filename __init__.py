@@ -374,8 +374,12 @@ if import_succeeded:
             box = layout.box()
             box.label(text='RetopoFlow Updater')
             col = box.column()
-            col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
-            col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
+            if configoptions.retopoflow_version_git:
+                col.label(text='RetopoFlow under Git control', icon='DOT')
+                col.label(text='Use Git to Pull latest updates', icon='DOT')
+            else:
+                col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+                col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu
