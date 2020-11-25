@@ -115,8 +115,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def ui(self):
         return ui.collapsible('Strokes', children=[
             ui.labeled_input_text(
-                label='Crosses',
-                title='Number of crosses for selected strip',
+                label='Spans',
+                title='Number of spans for selected strip',
                 value=self._var_cross_count,
             ),
             ui.labeled_input_text(

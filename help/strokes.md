@@ -13,8 +13,8 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 |  |  |  |
 | --- | --- | --- |
 | {{insert}}         | : | insert edge strip and bridge from selected geometry |
-| {{increase count}} | : | increase segment counts in bridge |
-| {{decrease count}} | : | decrease segment counts in bridge |
+| {{increase count}} | : | increase span/loop counts in bridge |
+| {{decrease count}} | : | decrease span/loop counts in bridge |
 
 
 ## Selecting
@@ -47,8 +47,8 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 Creating geometry is dependent on your selection:
 
 - When nothing is selected, a new edge strip is added
-- When an edge strip is selected and stroke is not a loop, the selected edge strip is extruded to the stroke
-- When an edge loop is selected and stroke is a loop, the selected edge loop is extruded to the stroke
+- When an edge strip is selected and stroke is not a loop, the selected edge strip is extruded to the stroke as a span
+- When an edge loop is selected and stroke is a loop, the selected edge loop is extruded to the stroke as a loop
 
 Note: only edges on boundary of target are considered in selection.
 
