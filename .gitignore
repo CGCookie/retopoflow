@@ -64,6 +64,7 @@ target/
 # updater
 retopoflow_updater/updater_status.json
 retopoflow_updater_status.json
+updater_tmp/*
 
 # RF options files
 RetopoFlow_options
