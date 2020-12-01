@@ -31,6 +31,7 @@ from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 
 
 from ...addon_common.common.debug import dprint
+from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import (
     Point, Vec, Direction,
@@ -136,6 +137,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.defer_recomputing = False
         self.hovering_edge = None
         self.hovering_sel_edge = None
+        self.connection_pre = None
+        self.connection_post = None
         self.update_ui()
 
     def update_ui(self):
@@ -187,6 +190,14 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             # the artist might move mouse off selected edge before drag kicks in!
             self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+
+        self.connection_pre = None
+        self.connection_post = None
+        if self.actions.using_onlymods('insert'):
+            hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].size)
+            if hovering_sel_vert:
+                point_to_point2d = self.rfcontext.Point_to_Point2D
+                self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['brush']
@@ -275,6 +286,14 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             elif self.strip_loops is not None and self.strip_loops > 1:
                 self.strip_loops -= 1
                 self.replay()
+
+    @Strokes_RFWidgets.RFWidget_BrushStroke.on_actioning
+    def stroking(self):
+        self.connection_post = None
+        hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].size)
+        if hovering_sel_vert:
+            point_to_point2d = self.rfcontext.Point_to_Point2D
+            self.connection_post = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
 
     @Strokes_RFWidgets.RFWidget_BrushStroke.on_action
     def stroke(self):
@@ -854,8 +873,9 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def move_exit(self):
         self._timer.done()
 
-
+    @RFTool_Strokes.Draw('post2d')
     def draw_postpixel(self):
+        bgl.glEnable(bgl.GL_BLEND)
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
@@ -868,5 +888,10 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             xy = point_to_point2d(c)
             if not xy: continue
             xy.y += 10
-            text_draw2D(str(l), xy, (1,1,0,1), dropshadow=(0,0,0,0.5))
+            text_draw2D(str(l), xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
+
+        if self.connection_pre:
+            Globals.drawing.draw2D_linestrip(self.connection_pre, themes['stroke'], width=2, stipple=[4,4])
+        if self.connection_post:
+            Globals.drawing.draw2D_linestrip(self.connection_post, themes['stroke'], width=2, stipple=[4,4])
 

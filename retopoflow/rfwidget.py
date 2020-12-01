@@ -73,6 +73,10 @@ class RFWidget:
     def on_action(fn):
         fn._widget_on_action = True
         return fn
+    @staticmethod
+    def on_actioning(fn):
+        fn._widget_on_actioning = True
+        return fn
 
 
     def __init__(self, rftool, **kwargs):
@@ -117,10 +121,14 @@ class RFWidget:
         }
         self._tool_callbacks = {
             'action':        ft('action'),           # called when user performs widget action, per instance!
+            'actioning':     ft('actioning'),        # called when user is performing widget action, per instance!
         }
 
     def callback_actions(self, *args, **kwargs):
         self._callback_tool('action', *args, **kwargs)
+
+    def callback_actioning(self, *args, **kwargs):
+        self._callback_tool('actioning', *args, **kwargs)
 
     def _reset(self):
         self._fsm.force_set_state('main')
