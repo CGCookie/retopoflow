@@ -80,6 +80,7 @@ default_rf_keymaps = {
     'rotate': {'R'},
     'scale': {'S'},
     'delete': {'X', 'DEL', 'BACK_SPACE'},
+    'delete pie menu': {'CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'},
 
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
