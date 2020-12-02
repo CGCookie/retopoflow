@@ -1,4 +1,4 @@
-# ![](contours-icon.png width:32px;height:32px;padding:0px) Contours Help 
+# ![](contours-icon.png) Contours Help
 
 Shortcut: {{contours tool}}
 

@@ -1,4 +1,4 @@
-# ![](polystrips-icon.png width:32px;height:32px;padding:0px) PolyStrips Help 
+# ![](polystrips-icon.png) PolyStrips Help
 
 Shortcut: {{polystrips tool}}
 

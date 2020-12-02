@@ -748,6 +748,11 @@ div.mdown h1 {
 div.mdown h1> span {
     font-size: 18px;
 }
+div.mdown h1 img {
+    width:32px;
+    height:32px;
+    padding:0px
+}
 div.mdown h2 {
     width: 100%;
     padding: 4px;

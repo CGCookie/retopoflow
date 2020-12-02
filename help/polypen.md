@@ -1,4 +1,4 @@
-# ![](polypen-icon.png width:32px;height:32px;padding:0px) PolyPen Help 
+# ![](polypen-icon.png) PolyPen Help
 
 Shortcut: {{polypen tool}}
 
@@ -41,9 +41,11 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 ## Insertion Modes
 
 Creating vertices/edges/faces is dependent on the selected mode and the selected geometry.
-Switch between modes using the PolyPen Options.
+Switch between modes using the PolyPen Options, or hold {{pie menu alt0}} to bring up a the PolyPen pie menu.
 
-![](help_polypen_modes.png max-height:250px)
+![](help_polypen_modes_options_pie.png max-height:250px)
+
+
 
 ### Triangle/Quad Insert Mode
 
