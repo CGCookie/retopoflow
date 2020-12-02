@@ -243,7 +243,7 @@ class RFWidget_BrushFalloff_Factory:
 
             @property
             def fill_color_scale(self):
-                return Color((1, 1, 1, self.strength))
+                return Color((1, 1, 1, self.strength * 0.60 + 0.10))
 
             ##################
             # mouse
