@@ -185,12 +185,14 @@ class RetopoFlow_UI:
             for n in ['topcenter', 'topright', 'middleright', 'bottomright', 'bottomcenter', 'bottomleft', 'middleleft', 'topleft']
         ]
 
-    def show_pie_menu(self, options, fn_callback, highlighted=None):
+    def show_pie_menu(self, options, fn_callback, highlighted=None, release=None, always_callback=False):
         if len(options) == 0: return
         assert len(options) <= 8, f'Unhandled number of pie menu options ({len(options)}): {options}'
         self.pie_menu_callback = fn_callback
         self.pie_menu_options = options
         self.pie_menu_highlighted = highlighted
+        self.pie_menu_release = release or 'pie menu'
+        self.pie_menu_always_callback = always_callback
         self.fsm.force_set_state('pie menu')
 
 
@@ -675,15 +677,21 @@ class RetopoFlow_UI:
                 if options['hide overlays']: self.overlays_hide()
                 else: self.overlays_restore()
 
-            def update_esctoquit():
-                if options['escape to quit']:
-                    self.actions.keymap2['done'].add('ESC')
-                else:
-                    self.actions.keymap2['done'].discard('ESC')
-            update_esctoquit()
-
             ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
-                ui.input_checkbox(label='Escape to Quit', title='Check to allow Esc key to quit RetopoFlow', checked=BoundVar('''options['escape to quit']''', on_change=update_esctoquit)),
+                ui.collection(label='Quit Options', title='These options control quitting RetopoFlow', children=[
+                    ui.input_checkbox(
+                        label='Confirm quit on Tab',
+                        title='Check to confirm quitting when pressing Tab',
+                        checked=BoundBool('''options['confirm tab quit']'''),
+                        style='display:block; width:100%',
+                    ),
+                    ui.input_checkbox(
+                        label='Escape to Quit',
+                        title='Check to allow Esc key to quit RetopoFlow',
+                        checked=BoundBool('''options['escape to quit']'''),
+                        style='display:block; width:100%',
+                    ),
+                ]),
                 # ui.button(label='Maximize Area'),
                 ui.collection(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
                     ui.input_checkbox(
@@ -898,6 +906,36 @@ class RetopoFlow_UI:
             self.document.defer_cleaning = False
 
 
+        def setup_quit_ui():
+            def hide_ui_quit():
+                self.ui_quit.is_visible = False
+                self.document.sticky_element = None
+                self.document.clear_last_under()
+            def mouseleave_event(e):
+                if self.ui_quit.is_hovered: return
+                hide_ui_quit()
+            def key(e):
+                if e.key in {'ESC', 'TAB'}: hide_ui_quit()
+                if e.key in {'RET', 'NUMPAD_ENTER'}: self.done()
+
+            self.ui_quit = ui.framed_dialog(
+                label='Quit RetopoFlow?',
+                id='quitdialog',
+                parent=self.document.body,
+                resizable_x=False,
+                hide_on_close=True,
+                close_callback=hide_ui_quit,
+                style='width:200px',
+            )
+            self.ui_quit.is_visible = False
+            self.ui_quit.add_eventListener('on_mouseleave', mouseleave_event)
+            self.ui_quit.add_eventListener('on_keypress', key)
+            ui.div(children=[
+                ui.button(label='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
+                ui.button(label='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
+            ], parent=self.ui_quit)
+            ui.input_checkbox(label='Confirm quit on Tab', title='Check to confirm quitting when pressing Tab', checked=BoundVar('''options['confirm tab quit']'''), parent=self.ui_quit)
+
         def setup_delete_ui():
             def hide_ui_delete():
                 self.ui_delete.is_visible = False
@@ -943,6 +981,7 @@ class RetopoFlow_UI:
         setup_main_ui()
         setup_tiny_ui()
         setup_options()
+        setup_quit_ui()
         setup_delete_ui()
         setup_counts_ui()
 
@@ -959,6 +998,17 @@ class RetopoFlow_UI:
         self.document.defer_cleaning = True
         self.helpsystem_open('welcome.md')
         self.document.defer_cleaning = False
+
+    def show_quit_dialog(self):
+        w,h = self.actions.region.width,self.actions.region.height
+        self.ui_quit.reposition(
+            left = self.actions.mouse.x - 100,
+            top = self.actions.mouse.y - h + 20,
+        )
+        self.ui_quit.is_visible = True
+        self.document.focus(self.ui_quit)
+        self.document.sticky_element = self.ui_quit
+
 
     def show_delete_dialog(self):
         if not self.any_selected():

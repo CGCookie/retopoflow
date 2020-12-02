@@ -1,4 +1,4 @@
-# ![](patches-icon.png width:32px;height:32px;padding:0px) Patches Help 
+# ![](patches-icon.png) Patches Help
 
 Shortcut: {{patches tool}}
 
@@ -12,7 +12,7 @@ Select the strip of boundary edges that you wish to fill.
 
 |  |  |  |
 | --- | --- | --- |
-| {{action alt0}}    | : | toggle vertex as a corner |
+| {{action alt1}}    | : | toggle vertex as a corner |
 | {{fill}}           | : | create visualized patch |
 | {{increase count}} | : | increase segment count when bridging |
 | {{decrease count}} | : | decrease segment count when bridging |

@@ -27,20 +27,6 @@ If you have issues with enabling the add-on after installing RetopoFlow using th
 Alternatively, you can purchase a copy from the [Blender Market](https://blendermarket.com/products/retopoflow), and you will get full support along with a packaged version of RetopoFlow.
 
 
-## Cloning
-
-The latest version of `b280` branch switched from using submodules (for [CookieCutter](https://github.com/CGCookie/addon_common)) to subtrees.
-
-```
-$ git clone git@github.com:CGCookie/retopoflow.git retopoflow
-$ cd retopoflow
-$ git checkout b280
-
-# to update addon_common
-$ cd retopoflow
-$ git pull
-```
-
 ## Releases
 
 In addition to the [Blender Market](https://blendermarket.com/products/retopoflow), all releases of RetopoFlow are accessible from the [GitHub RetopoFlow Releases](https://github.com/CGCookie/retopoflow/releases).

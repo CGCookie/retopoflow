@@ -145,7 +145,7 @@ class BoundInt(BoundVar):
     def int_validator(self, value):
         try:
             t = type(value)
-            if t is str:     nv = int(re.sub(r'\D', '', value))
+            if t is str:     nv = int(re.sub(r'[^\d.]', '', value))
             elif t is int:   nv = value
             elif t is float: nv = int(value)
             else: assert False, 'Unhandled type of value: %s (%s)' % (str(value), str(t))

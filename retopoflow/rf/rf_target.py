@@ -681,10 +681,10 @@ class RetopoFlow_Target:
     def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
         self.rftarget.dissolve_verts(verts, use_face_split, use_boundary_tear)
 
-    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+    def dissolve_edges(self, edges, use_verts=True, use_face_split=False):
         self.rftarget.dissolve_edges(edges, use_verts, use_face_split)
 
-    def dissolve_faces(self, faces, use_verts=False):
+    def dissolve_faces(self, faces, use_verts=True):
         self.rftarget.dissolve_faces(faces, use_verts)
 
     # def find_loops(self, edges):

@@ -189,7 +189,7 @@ def input_radio(**kwargs):
 
 def input_checkbox(**kwargs):
     kwargs_translate('label', 'innerText', kwargs)
-    kw_label = kwargs_splitter({'innerText'}, kwargs)
+    kw_label = kwargs_splitter({'innerText', 'children'}, kwargs)
     kw_all = kwargs_splitter({'title'}, kwargs)
 
     # https://www.w3schools.com/howto/howto_css_custom_checkbox.asp
@@ -540,7 +540,8 @@ def input_text(value='', scrub=False, **kwargs):
 
 def collection(label, **kwargs):
     kw_inside = kwargs_splitter({'children'}, kwargs)
-    ui_container = UI_Element(tagName='div', classes='collection', **kwargs)
+    kwargs['classes'] = f'{kwargs.get("classes", "")} collection'
+    ui_container = UI_Element(tagName='div', **kwargs)
     with ui_container.defer_dirty('creating content'):
         ui_label = div(innerText=label, classes='header', parent=ui_container)
         ui_inside = UI_Element(tagName='div', classes='inside', parent=ui_container, **kw_inside)

@@ -68,7 +68,8 @@ default_rf_keymaps = {
     'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
 
-    'done': {'TAB'},  # if options['escape to quit'], then 'ESC' is added
+    'done': {'TAB'},
+    'done alt0': {'ESC'},
 
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
@@ -79,6 +80,7 @@ default_rf_keymaps = {
     'rotate': {'R'},
     'scale': {'S'},
     'delete': {'X', 'DEL', 'BACK_SPACE'},
+    'delete pie menu': {'CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'},
 
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},

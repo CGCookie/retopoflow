@@ -298,6 +298,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         if self.rfcontext.actions.pressed('pie menu alt0'):
             def callback(option):
+                if not option: return
                 options['polypen insert mode'] = option
                 self.update_insert_mode()
             self.rfcontext.show_pie_menu([
@@ -563,7 +564,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
-            return 'main'
+            self.mousedown = self.rfcontext.actions.mousedown
+            self.bmverts = [
+                (bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)),
+                (bmv3, self.rfcontext.Point_to_Point2D(bmv3.co))
+            ]
+            self.set_vis_bmverts()
+            return 'move'
 
         if self.next_state == 'edge-quad-snap':
             e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)

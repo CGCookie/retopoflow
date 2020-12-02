@@ -47,8 +47,8 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.0.0'
-retopoflow_version_tuple = (3, 0, 0)
+retopoflow_version = '3.0.1'
+retopoflow_version_tuple = (3, 0, 1)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
@@ -127,6 +127,7 @@ class Options:
         'warning max sources':  '1m',
         'warning normal check': True,
 
+
         'show experimental':    False,  # should show experimental tools?
         'preload help images':  False,
 
@@ -154,6 +155,7 @@ class Options:
         'show tooltips':        True,
         'tooltip delay':        0.75,
         'escape to quit':       False,  # True:ESC is action for quitting
+        'confirm tab quit':     True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
 
         # TODO: USE THE REPEAT KEY EVENTS INSTEAD (BASED ON SYSTEM SETTINGS)
         'keyboard repeat delay': 0.25,  # delay before repeating

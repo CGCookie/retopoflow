@@ -91,7 +91,7 @@ class RetopoFlow_States(CookieCutter):
             3: [0, 3, 5],
             4: [0, 2, 4, 6],
             5: [0, 2, 3, 4, 6],
-            6: [0, 2, 3, 4, 6, 7],
+            6: [7, 0, 1, 3, 4, 5],
             7: [0, 2, 3, 4, 5, 6, 7],
             8: [0, 1, 2, 3, 4, 5, 6, 7],
         }[len(options)]
@@ -107,6 +107,7 @@ class RetopoFlow_States(CookieCutter):
             (sct,text,img) = self.ui_pie_sections[i_section]
             if option is None: continue
             if type(option) is str: option = {'text':option, 'value':option}
+            elif type(option) is tuple: option = {'text':option[0], 'value':option[1]}
             text.innerText = option['text']
             sct.style = ''
             if option['value'] == self.pie_menu_highlighted:
@@ -133,11 +134,13 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('pie menu')
     def pie_menu_main(self):
         confirm_p = self.actions.pressed('pie menu confirm', ignoremods=True)
-        confirm_r = self.actions.released('pie menu', ignoremods=True)
+        confirm_r = self.actions.released(self.pie_menu_release, ignoremods=True)
         if confirm_p or confirm_r:
+            # setting display to none in case callback needs to show some UI
+            self.ui_pie_menu.style = f'display: none'
             i_option = self.which_pie_menu_section()
-            if i_option is not None:
-                option = self.pie_menu_options[i_option]
+            option = self.pie_menu_options[i_option] if i_option is not None else None
+            if option is not None or self.pie_menu_always_callback:
                 self.pie_menu_callback(option)
             return 'main' if confirm_r else 'pie menu wait'
         if self.actions.pressed('cancel'):
@@ -155,7 +158,7 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu wait')
     def pie_menu_wait(self):
-        if self.actions.released('pie menu', ignoremods=True):
+        if self.actions.released(self.pie_menu_release, ignoremods=True):
             return 'main'
 
 
@@ -164,8 +167,15 @@ class RetopoFlow_States(CookieCutter):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
             if self.actions.pressed({'done'}):
+                if options['confirm tab quit']:
+                    self.show_quit_dialog()
+                else:
+                    self.done()
+                return
+            if options['escape to quit'] and self.actions.pressed({'done alt0'}):
                 self.done()
                 return
+
 
             # handle help actions
             if self.actions.pressed('all help'):
@@ -263,6 +273,21 @@ class RetopoFlow_States(CookieCutter):
                 self.show_delete_dialog()
                 return
 
+            if self.actions.pressed('delete pie menu'):
+                def callback(option):
+                    if not option: return
+                    self.delete_dissolve_option(option)
+                self.show_pie_menu([
+                    ('Delete Verts',   ('Delete',   'Vertices')),
+                    ('Delete Edges',   ('Delete',   'Edges')),
+                    ('Delete Faces',   ('Delete',   'Faces')),
+                    ('Dissolve Faces', ('Dissolve', 'Faces')),
+                    ('Dissolve Edges', ('Dissolve', 'Edges')),
+                    ('Dissolve Verts', ('Dissolve', 'Vertices')),
+                    #'Dissolve Loops',
+                ], callback, release='delete pie menu', always_callback=True)
+                return
+
         self.ignore_ui_events = False
 
         ct, nt = time.time(), self._next_normal_check
@@ -297,7 +322,6 @@ class RetopoFlow_States(CookieCutter):
 
             if self.actions.pressed('scale'):
                 return 'scale selected'
-
 
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):

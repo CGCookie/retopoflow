@@ -54,7 +54,7 @@ class RFTool_Patches(RFTool):
     icon        = 'patches-icon.png'
     help        = 'patches.md'
     shortcut    = 'patches tool'
-    statusbar   = '{{action alt0}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
+    statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
 
 class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -73,7 +73,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         self.init_rfwidgets()
         self.corners = {}
         self.crosses = None
-        self._var_angle = BoundFloat('''options['patches angle']''', min_value=0, max_value=180)
+        self._var_angle = BoundInt('''options['patches angle']''', min_value=0, max_value=180)
         self._var_crosses = BoundInt('''self.var_crosses''', min_value=1, max_value=500)
 
     @RFTool_Patches.on_reset
@@ -741,7 +741,8 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                 if dir0.dot(dir1) < 0:
                     sv1 = list(reversed(sv1))
                     dir1.reverse()
-                if math.degrees(dir0.angleBetween(dir1)) > 45: continue     # make sure strips are parallel enough
+                # make sure the I strip are good candidates for bridging
+                # if math.degrees(dir0.angleBetween(dir1)) > 80: continue     # make sure strips are parallel enough
                 if math.degrees(dir0.angleBetween(Direction(sv1[0].co-sv0[0].co))) < 45: continue
                 if math.degrees(dir1.angleBetween(Direction(sv0[0].co-sv1[0].co))) < 45: continue
                 dist = min((v0.co-v1.co).length for v0 in sv0 for v1 in sv1)

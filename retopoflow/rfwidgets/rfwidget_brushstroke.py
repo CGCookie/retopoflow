@@ -95,6 +95,7 @@ class RFWidget_BrushStroke_Factory:
                 npos = lpos + (cpos - lpos) * (1 - self.tightness)
                 self.stroke2D.append(npos)
                 tag_redraw_all('BrushStroke_PolyStrips line')
+                self.callback_actioning()
 
             @RFW_BrushStroke.FSM_State('stroking', 'exit')
             def modal_line_exit(self):
