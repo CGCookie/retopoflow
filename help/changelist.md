@@ -28,6 +28,7 @@ Below is a list of changes from RetopoFlow&nbsp;3.0.0.
 - Patches: improved code to detect good candidates for bridging two I-strips
 - PolyPen: PP-specific pie menu now shown in help doc
 - Added quit confirmation dialog when using {{done}}.  This dialog can be disabled.
+- Added Delete/Dissolve pie menu using {{delete pie menu}}
 - Other miscellaneous bug fixes
 
 
