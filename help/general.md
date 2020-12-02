@@ -15,12 +15,12 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| {{done}}          | : | quit RetopoFlow |
-| {{blender save}}  | : | save blend file (same as Blender's save) |
-| {{general help}}  | : | view general help (this document) |
-| {{all help}}      | : | view all help documents (table of contents) |
-| {{tool help}}     | : | view help for currently selected tool |
-| {{toggle ui}}     | : | toggle on/off main RF windows |
+| {{done,done alt0}} | : | quit RetopoFlow |
+| {{blender save}}   | : | save blend file (same as Blender's save) |
+| {{general help}}   | : | view general help (this document) |
+| {{all help}}       | : | view all help documents (table of contents) |
+| {{tool help}}      | : | view help for currently selected tool |
+| {{toggle ui}}      | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
 

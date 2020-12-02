@@ -134,7 +134,6 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     def start(self):
         preload_help_images.paused = True
         keymaps = get_keymaps()
-        keymaps['done'] = keymaps['done'] | {'ESC'}
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
@@ -149,7 +148,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
 
     @CookieCutter.FSM_State('main')
     def main(self):
-        if self.actions.pressed('done'):
+        if self.actions.pressed({'done', 'done alt0'}):
             self.done()
             return
         if self.actions.pressed({'F12'}):

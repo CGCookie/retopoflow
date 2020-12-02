@@ -2,7 +2,8 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
-## Version 3.0 Notes
+
+## Version 2.x => 3.x Notes
 
 In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
@@ -17,6 +18,18 @@ Below are more details about the current version of RetopoFlow.
 
 
 ## Change List
+
+Below is a list of changes from RetopoFlow&nbsp;3.0.0.
+
+- PolyPen: added ability to move edge with drag after inserting new quad (before releasing insert)
+- Strokes: added a simple visualization to show how a stroke will connect to hovered existing geometry.  Still a work-in-progress!
+- Dissolving edges now dissolves verts (similar to Blender)
+- Tweak/Relax: brushes now do not become fully opaque (nor fully transparent) when strength is set to 1 (or 0)
+- Patches: improved code to detect good candidates for bridging two I-strips
+- PolyPen: PP-specific pie menu now shown in help doc
+- Added quit confirmation dialog when using {{done}}.  This dialog can be disabled.
+- Other miscellaneous bug fixes
+
 
 Below is a short list of major changes from RetopoFlow&nbsp;2.x.
 
@@ -38,10 +51,7 @@ Below is a short list of major changes from RetopoFlow&nbsp;2.x.
 
 ## Blender versions
 
-As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.80--2.92α.
-
-RetopoFlow is slightly visually different starting in Blender&nbsp;2.83β.
-Since this is only a visual change---RF works just the same in all versions---we do not plan to correct for this by making RF visually consistent across all versions of Blender.
+As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.83&nbsp;(LTS)--2.92α.
 
 Note: This version of RetopoFlow will *not* work in Blender&nbsp;2.79b or earlier.
 
