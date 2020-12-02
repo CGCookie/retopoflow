@@ -1576,11 +1576,11 @@ class RFTarget(RFMesh):
         verts = list(map(self._unwrap, verts))
         dissolve_verts(self.bme, verts=verts, use_face_split=use_face_split, use_boundary_tear=use_boundary_tear)
 
-    def dissolve_edges(self, edges, use_verts=False, use_face_split=False):
+    def dissolve_edges(self, edges, use_verts=True, use_face_split=False):
         edges = list(map(self._unwrap, edges))
         dissolve_edges(self.bme, edges=edges, use_verts=use_verts, use_face_split=use_face_split)
 
-    def dissolve_faces(self, faces, use_verts=False):
+    def dissolve_faces(self, faces, use_verts=True):
         faces = list(map(self._unwrap, faces))
         dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
