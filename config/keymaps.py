@@ -68,7 +68,8 @@ default_rf_keymaps = {
     'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
 
-    'done': {'TAB'},  # if options['escape to quit'], then 'ESC' is added
+    'done': {'TAB'},
+    'done alt0': {'ESC'},
 
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},

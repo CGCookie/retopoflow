@@ -127,6 +127,7 @@ class Options:
         'warning max sources':  '1m',
         'warning normal check': True,
 
+
         'show experimental':    False,  # should show experimental tools?
         'preload help images':  False,
 
@@ -154,6 +155,7 @@ class Options:
         'show tooltips':        True,
         'tooltip delay':        0.75,
         'escape to quit':       False,  # True:ESC is action for quitting
+        'confirm tab quit':     True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
 
         # TODO: USE THE REPEAT KEY EVENTS INSTEAD (BASED ON SYSTEM SETTINGS)
         'keyboard repeat delay': 0.25,  # delay before repeating

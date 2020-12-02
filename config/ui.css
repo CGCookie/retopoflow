@@ -59,7 +59,10 @@ button:disabled {
     color: var(--button-disabled-text);
 }
 
-
+button.half-size {
+    display: inline;
+    width: 50%;
+}
 
 
 /********************************/
