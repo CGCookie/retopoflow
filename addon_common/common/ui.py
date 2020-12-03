@@ -196,7 +196,7 @@ def input_checkbox(**kwargs):
     ui_input = UI_Element(tagName='input', type='checkbox', atomic=True, **kwargs, **kw_all)
     with ui_input.defer_dirty('creating content'):
         ui_checkmark = UI_Element(tagName='img', classes='checkbox',  parent=ui_input, **kw_all)
-        ui_label = UI_Element(tagName='label', parent=ui_input, **kw_label, **kw_all)
+        ui_label = UI_Element(tagName='label', id='%s_label' % kwargs.get('id', get_unique_ui_id('checkbox-')), parent=ui_input, **kw_label, **kw_all)
         def mouseclick(e):
             ui_input.checked = not bool(ui_input.checked)
         ui_input.add_eventListener('on_mouseclick', mouseclick)
