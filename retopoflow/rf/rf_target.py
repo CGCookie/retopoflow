@@ -295,6 +295,10 @@ class RetopoFlow_Target:
     ########################################
     # symmetry utils
 
+    def apply_symmetry(self):
+        self.undo_push('applying symmetry')
+        self.rftarget.apply_symmetry(self.nearest_sources_Point)
+
     @profiler.function
     def clip_pointloop(self, pointloop, connected):
         # assuming loop will cross symmetry line exactly zero or two times

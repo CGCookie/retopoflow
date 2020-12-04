@@ -876,6 +876,11 @@ class RetopoFlow_UI:
                     children=[ui.label(innerText='Face')],
                     on_input=symmetry_viz_change
                 ),
+                ui.button(
+                    label='Apply symmetry',
+                    title='Apply symmetry to target mesh',
+                    on_mouseclick=delay_exec('''self.apply_symmetry()'''),
+                ),
             ])
             def symmetry_changed():
                 s = []

@@ -30,9 +30,9 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
     dissolve_verts, dissolve_edges, dissolve_faces,
-    remove_doubles,
+    remove_doubles, mirror
 )
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
@@ -1508,6 +1508,28 @@ class RFTarget(RFMesh):
     def enable_symmetry(self, axis): self.mirror_mod.enable_axis(axis)
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
     def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
+
+    def apply_symmetry(self, nearest):
+        out = []
+        if self.mirror_mod.x:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='X')['geom']
+            self.mirror_mod.x = False
+        if self.mirror_mod.y:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Y')['geom']
+            self.mirror_mod.y = False
+        if self.mirror_mod.z:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Z')['geom']
+            self.mirror_mod.z = False
+        for v in out:
+            if type(v) is not BMVert: continue
+            v = self._wrap_bmvert(v)
+            xyz,norm,_,_ = nearest(v.co)
+            v.co = xyz
+            v.normal = norm
+        self.dirty()
 
     def new_vert(self, co, norm):
         # assuming co and norm are in world space!
