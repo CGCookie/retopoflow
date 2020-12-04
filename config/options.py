@@ -194,12 +194,12 @@ class Options:
         'target alpha poly mirror selected':  0.25,
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
-        'target alpha line mirror':           0.25,
-        'target alpha line mirror selected':  0.25,
+        'target alpha line mirror':           0.1,
+        'target alpha line mirror selected':  0.5,
         'target alpha point':                 0.25,
         'target alpha point selected':        1.00,
-        'target alpha point mirror':          0.25,
-        'target alpha point mirror selected': 0.25,
+        'target alpha point mirror':          0.0,
+        'target alpha point mirror selected': 0.5,
         'target alpha point highlight':       1.00,
 
         # ADDON UPDATER SETTINGS
