@@ -28,7 +28,7 @@
     color: var(--text);
     border: 0px;
     background: transparent;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 /********************************/
@@ -37,10 +37,11 @@
 button {
     display: block;
     width: 100%;
-    margin: 1px;
+    margin: 2px;
     border: 0px;
     background: var(--button-background);
     color: var(--text);
+    text-align: center;
 }
 button:focus {
     background: var(--button-hover-background);
@@ -70,7 +71,7 @@ button.half-size {
 
 input[type="radio"] {
     background: var(--button-background);
-    margin: 0px 1px;
+    margin: 2px;
     border: 0px;
     padding: 4px 0px 4px 6px;
 }
@@ -114,7 +115,7 @@ input[type="radio"]:disabled label {
 
 input[type="radio"].half-size {
     width: 50%;
-    margin: 1.5px;
+    margin: 2px;
 }
 input[type="radio"].half-size > label {
     text-align: center;
@@ -222,7 +223,7 @@ input[type="checkbox"][checked] > label {
 /* COLLAPSIBLE COLLECTION */
 
 div.collapsible {
-    margin: 1px;
+    margin: 2px;
     border: 0px;
     border-radius: 0px;
     background: rgba(0, 0, 0, 0);
@@ -245,7 +246,7 @@ div.collapsible > input.header:hover {
 
 div.collapsible > input.header > label{
     margin-left: 0px;
-    margin-top: 5px;
+    margin-top: 4px;
     padding: 0px;
 }
 div.collapsible > input.header > img {
@@ -269,7 +270,7 @@ div.collapsible > div.inside {
     border: 0px;
     border-color: transparent;
     background: var(--panel-two-background);
-    padding: 4px 4px 4px 16px;
+    padding: 4px 4px 4px 4px;
     margin: 0px 0px 0px 0px;
 }
 
@@ -379,7 +380,7 @@ dialog#loadingdialog {
 
 
 dialog#maindialog {
-    width: 175px;
+    width: 150px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
@@ -602,7 +603,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
 /***************************************************/
 
 dialog#optionsdialog {
-    width: 250px;
+    width: 225px;
     min-width: 150px;
     max-width: 500px;
 }
