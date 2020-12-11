@@ -42,6 +42,19 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 | {{delete}}         | : | delete/dissolve selected |
 
 
+## Span Insertion Modes
+
+When extruding a strip, you can specify the number of spans to create using two different modes: Brush Size and Fixed.
+Switch between span insert modes using the Strokes Options, or hold {{pie menu alt0}} to bring up a the Strokes pie menu.
+
+If the Span Insert Mode is set to Brush Size, the number of spans will be created to have a size approximately the size of the brush.
+This means that a smaller brush will insert more, smaller spans, and a larger brush will insert fewer, larger spans.
+
+If the Span Insert Mode is set to Fixed, the number of spans will be exactly equal to the number specified by Fixed spans.
+
+![](help_strokes_modes_options_pie.png max-height:250px)
+
+
 ## Tips
 
 Creating geometry is dependent on your selection:
