@@ -850,9 +850,11 @@ table#pie-menu-table tr {
     border: 0px transparent;
 }
 table#pie-menu-table td {
-    margin: 0px;
+    margin:  0px;
     padding: 0px;
-    border: 0px transparent;
+    border:  0px transparent;
+    width:   134; /* pie-menu-option: 100+16+16+1+1+8+8; */
+    height:  134; /* pie-menu-option: 100+16+16+1+1+8+?; */
 }
 div.pie-menu-option {
     width: 100px;
@@ -893,6 +895,11 @@ table#pie-menu-table div#pie-menu-middlecenter {
     border: 1px rgba(0, 0, 0, 0.25);
     border-radius: 35px;
 }
+
+
+/***************************************************/
+/* tooltip                                         */
+/***************************************************/
 
 dialog.tooltip {
     border: 1px black;

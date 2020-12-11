@@ -43,7 +43,7 @@ from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.shaders import circleShader, edgeShortenShader, arrowShader
 from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundBool, BoundInt
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 # from ...addon_common.common.ui import (
 #     UI_Image, UI_Number, UI_BoolValue,
 #     UI_Button, UI_Label,
@@ -69,7 +69,10 @@ class RFTool_Strokes(RFTool):
 
 class Strokes_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
-    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(outer_border_color=themes['strokes'])
+    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
+        BoundFloat('''options['strokes radius']'''),
+        outer_border_color=themes['strokes'],
+    )
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
     def init_rfwidgets(self):
@@ -109,23 +112,69 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.init_rfwidgets()
         self.strip_crosses = None
         self.strip_loops = None
+        self._var_fixed_span_count = BoundInt('''options['strokes span count']''', min_value=1, max_value=128)
         self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
-        self._var_loop_count = BoundInt('''self.loop_count''', min_value=1, max_value=500)
+        self._var_loop_count  = BoundInt('''self.loop_count''', min_value=1, max_value=500)
+
+    def update_span_mode(self):
+        mode = options['strokes span insert mode']
+        self.ui_options.label = f'Strokes: {mode}'
+        self.ui_span_insert_mode_brushsize.checked = (mode == 'Brush Size')
+        self.ui_span_insert_mode_fixed.checked     = (mode == 'Fixed')
 
     @RFTool_Strokes.on_ui_setup
     def ui(self):
-        return ui.collapsible('Strokes', children=[
-            ui.labeled_input_text(
-                label='Spans',
-                title='Number of spans for selected strip',
-                value=self._var_cross_count,
-            ),
-            ui.labeled_input_text(
-                label='Loops',
-                title='Number of loops for selected strip',
-                value=self._var_loop_count,
-            ),
+        def span_mode_change(e):
+            if not e.target.checked: return
+            if e.target.value is None: return
+            options['strokes span insert mode'] = e.target.value
+            self.update_span_mode()
+
+        self.ui_options = ui.collapsible('Strokes', children=[
+            ui.collection(label='Span Insert Mode', children=[
+                ui.input_radio(
+                    id='strokes-span-mode-brush',
+                    value='Brush Size',
+                    title='Insert spans based on brush size',
+                    checked=(options['strokes span insert mode']=='Brush Size'),
+                    name='strokes-span-mode',
+                    classes='half-size',
+                    children=[ui.label(innerText='Brush Size')],
+                    on_input=span_mode_change,
+                ),
+                ui.input_radio(
+                    id='strokes-span-mode-fixed',
+                    value='Fixed',
+                    title='Insert fixed number of spans',
+                    checked=(options['strokes span insert mode']=='Fixed'),
+                    name='strokes-span-mode',
+                    classes='half-size',
+                    children=[ui.label(innerText='Fixed')],
+                    on_input=span_mode_change,
+                ),
+                ui.labeled_input_text(
+                    label='Fixed spans',
+                    title='Number of spans to insert when Span Insert Mode is set to Fixed',
+                    value=self._var_fixed_span_count,
+                ),
+            ]),
+            ui.collection(label='New Geometry Edit', children=[
+                ui.labeled_input_text(
+                    label='Spans',
+                    title='Number of spans between previously selected strip and newly created strip',
+                    value=self._var_cross_count,
+                ),
+                ui.labeled_input_text(
+                    label='Loops',
+                    title='Number of loops between previously selected loop and newly created loop',
+                    value=self._var_loop_count,
+                ),
+            ]),
         ])
+        self.ui_span_insert_mode_brushsize = self.ui_options.getElementById('strokes-span-mode-brush')
+        self.ui_span_insert_mode_fixed     = self.ui_options.getElementById('strokes-span-mode-fixed')
+        self.update_span_mode()
+        return self.ui_options
 
     @RFTool_Strokes.on_reset
     def reset(self):
@@ -194,7 +243,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.connection_pre = None
         self.connection_post = None
         if self.actions.using_onlymods('insert'):
-            hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].size)
+            hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
             if hovering_sel_vert:
                 point_to_point2d = self.rfcontext.Point_to_Point2D
                 self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
@@ -211,6 +260,17 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             if rfwidget.inactive_passthrough():
                 self.rfwidget = rfwidget
                 return
+
+        if self.rfcontext.actions.pressed('pie menu alt0'):
+            def callback(option):
+                if not option: return
+                options['strokes span insert mode'] = option
+                self.update_span_mode()
+            self.rfcontext.show_pie_menu([
+                'Brush Size',
+                'Fixed',
+            ], callback, highlighted=options['strokes span insert mode'])
+            return
 
         if self.hovering_sel_edge:
             if self.actions.pressed('action'):
@@ -290,7 +350,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @Strokes_RFWidgets.RFWidget_BrushStroke.on_actioning
     def stroking(self):
         self.connection_post = None
-        hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].size)
+        hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
         if hovering_sel_vert:
             point_to_point2d = self.rfcontext.Point_to_Point2D
             self.connection_post = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
@@ -304,7 +364,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         accel_nearest2D_vert = self.rfcontext.accel_nearest2D_vert
 
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
-        size = self.rfwidgets['brush'].size
+        radius = self.rfwidgets['brush'].radius
         stroke = self.rfwidgets['brush'].stroke2D
         stroke = process_stroke_filter(stroke)
         #stroke = process_stroke_source(stroke, raycast_sources_Point2D, is_point_on_mirrored_side=self.rfcontext.is_point_on_mirrored_side)
@@ -321,7 +381,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.strip_edges = False
         self.replay = None
 
-        cyclic = (stroke[0] - stroke[-1]).length < size and any((s-stroke[0]).length > size for s in stroke)
+        cyclic = (stroke[0] - stroke[-1]).length < radius and any((s-stroke[0]).length > radius for s in stroke)
         extrude = not all(e.is_manifold for e in self.rfcontext.get_selected_edges())
         if extrude:
             if cyclic:
@@ -330,8 +390,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 sel_verts = self.rfcontext.get_selected_verts()
                 sel_edges = self.rfcontext.get_selected_edges()
                 s0,s1 = Point_to_Point2D(stroke3D[0]),Point_to_Point2D(stroke3D[-1])
-                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
-                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
+                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
+                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
                 bmv0_sel = bmv0 and bmv0 in sel_verts
                 bmv1_sel = bmv1 and bmv1 in sel_verts
                 if bmv0_sel or bmv1_sel:
@@ -368,7 +428,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
@@ -395,15 +455,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
 
         if len(nstroke) < 2: return  # too few stroke points, from a short stroke?
 
-        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].size)
-        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].size)
+        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].radius)
+        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].radius)
 
         self.defer_recomputing = True
 
@@ -539,8 +599,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         assert bmv0 and bmv1
@@ -575,7 +635,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
@@ -632,8 +692,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         if bmv1 in sel_verts:
@@ -659,7 +719,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].size)))
+            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
@@ -701,8 +761,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         sd = s1 - s0
 
         # check if verts near stroke ends connect to any of the selected strips
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].size)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].size)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
@@ -760,7 +820,10 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         # determine cross count
         if self.strip_crosses is None:
-            self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidgets['brush'].size)), 2)
+            if options['strokes span insert mode'] == 'Brush Size':
+                self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidgets['brush'].radius)), 2)
+            else:
+                self.strip_crosses = options['strokes span count']
         crosses = self.strip_crosses + 1
 
         self.defer_recomputing = True

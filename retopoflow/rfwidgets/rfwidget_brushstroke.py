@@ -39,7 +39,7 @@ class RFWidget_BrushStroke_Factory:
     '''
 
     @staticmethod
-    def create(outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5))):
+    def create(radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5))):
 
         class RFW_BrushStroke(RFWidget):
             rfw_name = 'Brush Stroke'
@@ -50,7 +50,6 @@ class RFWidget_BrushStroke_Factory:
             def init(self):
                 self.stroke2D = []
                 self.tightness = 0.95
-                self.size = 40.0
                 self.redraw_on_mouse = True
                 self.sizing_pos = None
                 self.outer_border_color = outer_border_color
@@ -104,19 +103,34 @@ class RFWidget_BrushStroke_Factory:
             @RFW_BrushStroke.FSM_State('brush sizing', 'enter')
             def modal_brush_sizing_enter(self):
                 if self.actions.mouse.x > self.actions.size.x / 2:
-                    self.sizing_pos = self.actions.mouse - Vec2D((self.size, 0))
+                    self.sizing_pos = self.actions.mouse - Vec2D((self.radius, 0))
                 else:
-                    self.sizing_pos = self.actions.mouse + Vec2D((self.size, 0))
+                    self.sizing_pos = self.actions.mouse + Vec2D((self.radius, 0))
                 self.rfw_cursor = 'MOVE_X'
                 tag_redraw_all('BrushStroke_PolyStrips brush_sizing_enter')
 
             @RFW_BrushStroke.FSM_State('brush sizing')
             def modal_brush_sizing(self):
                 if self.actions.pressed('confirm'):
-                    self.size = (self.sizing_pos - self.actions.mouse).length
+                    self.radius = (self.sizing_pos - self.actions.mouse).length
                     return 'main'
                 if self.actions.pressed('cancel'):
                     return 'main'
+
+
+            ###################
+            # radius
+
+            @property
+            def radius(self):
+                return radius.get()
+            @radius.setter
+            def radius(self, v):
+                radius.set(max(1, float(v)))
+
+
+            ###################
+            # draw functions
 
             @RFW_BrushStroke.Draw('post3d')
             @RFW_BrushStroke.FSM_OnlyInState({'main','stroking'})
@@ -129,10 +143,10 @@ class RFWidget_BrushStroke_Factory:
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
                 bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, (self.size-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale)
+                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale)
                 bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, self.size*self.scale*1.0, self.outer_color, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, self.size*self.scale*0.5, self.inner_color, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color, n=n, width=2*self.scale)
                 bgl.glDepthRange(0.0, 1.0)
 
             @RFW_BrushStroke.Draw('post2d')

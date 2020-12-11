@@ -81,10 +81,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def update_insert_mode(self):
         mode = options['polypen insert mode']
         self.ui_options.label = f'PolyPen: {mode}'
-        self.ui_insert_mode_triquad.checked  = (options['polypen insert mode'] == 'Tri/Quad')
-        self.ui_insert_mode_quadonly.checked = (options['polypen insert mode'] == 'Quad-Only')
-        self.ui_insert_mode_trionly.checked  = (options['polypen insert mode'] == 'Tri-Only')
-        self.ui_insert_mode_edgeonly.checked = (options['polypen insert mode'] == 'Edge-Only')
+        self.ui_insert_mode_triquad.checked  = (mode == 'Tri/Quad')
+        self.ui_insert_mode_quadonly.checked = (mode == 'Quad-Only')
+        self.ui_insert_mode_trionly.checked  = (mode == 'Tri-Only')
+        self.ui_insert_mode_edgeonly.checked = (mode == 'Edge-Only')
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):

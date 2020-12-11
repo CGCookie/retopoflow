@@ -22,12 +22,17 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 
-from ...config.options import themes
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+
+from ...config.options import options, themes
 
 
 class PolyStrips_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
-    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(outer_border_color=themes['polystrips'])
+    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
+        BoundFloat('''options['polystrips radius']'''),
+        outer_border_color=themes['polystrips']
+    )
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
     def init_rfwidgets(self):

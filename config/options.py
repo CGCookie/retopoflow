@@ -216,6 +216,7 @@ class Options:
         'contours uniform':             True,   # should new cuts be made uniformly about circumference?
         'contours non-manifold check':  True,
 
+        'polystrips radius':            40.0,
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
@@ -223,6 +224,10 @@ class Options:
         'polystrips handle inner size': 15,
         'polystrips handle outer size': 20,
         'polystrips handle border':     3,
+
+        'strokes radius':               40.0,
+        'strokes span insert mode':    'Brush Size',
+        'strokes span count':           1,
 
         'polypen merge dist':           10,         # pixels away to merge
         'polypen automerge':            True,
