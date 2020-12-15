@@ -393,6 +393,7 @@ if import_succeeded:
             #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
             VIEW3D_PT_RetopoFlow.menu_remove()
             VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+
             def hijacked(context, layout):
                 obj = context.active_object
                 mode_string = context.mode
@@ -401,13 +402,16 @@ if import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                row = layout.row(align=True)
-                if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                    row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
-                # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-                row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
-                row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
+                if context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                    row = layout.row(align=True)
+                    if VIEW3D_PT_RetopoFlow.is_editing_target(context):
+                        row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
+                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+                    row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
+                    row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
+
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
+
         @staticmethod
         def menu_remove():
             if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
@@ -458,6 +462,7 @@ if not import_succeeded:
             #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
             VIEW3D_PT_RetopoFlow.menu_remove()
             VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+
             def hijacked(context, layout):
                 obj = context.active_object
                 mode_string = context.mode
@@ -466,10 +471,13 @@ if not import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                row = layout.row(align=True)
-                # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-                row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow (broken)")
+                if context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                    row = layout.row(align=True)
+                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+                    row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow (broken)")
+
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
+
         @staticmethod
         def menu_remove():
             if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
