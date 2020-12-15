@@ -765,6 +765,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
+        edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
+        edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
                 'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
