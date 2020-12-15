@@ -560,7 +560,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if not bmv2 or not bmv3:
                 self.rfcontext.undo_cancel()
                 return 'main'
-            e1 = self.rfcontext.new_edge([bmv2, bmv3])
+            e1 = bmv2.shared_edge(bmv3)
+            if not e1: e1 = self.rfcontext.new_edge([bmv2, bmv3])
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
