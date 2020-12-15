@@ -210,6 +210,11 @@ class Options:
         'updater interval minutes': 0,
 
         #######################################
+        # GENERAL SETTINGS
+
+        'smooth edge flow iterations':  10,
+
+        #######################################
         # TOOL SETTINGS
 
         'contours count':               16,

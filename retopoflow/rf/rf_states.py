@@ -288,6 +288,11 @@ class RetopoFlow_States(CookieCutter):
                 ], callback, release='delete pie menu', always_callback=True)
                 return
 
+            if self.actions.pressed('smooth edge flow'):
+                self.smooth_edge_flow(iterations=options['smooth edge flow iterations'])
+                return
+
+
         self.ignore_ui_events = False
 
         ct, nt = time.time(), self._next_normal_check

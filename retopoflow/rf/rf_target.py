@@ -599,6 +599,51 @@ class RetopoFlow_Target:
         return RFFace.get_verts(faces)
 
     #######################################################
+    def smooth_edge_flow(self, iterations=10):
+        self.undo_push(f'smooth edge flow')
+
+        # get connected loops/strips
+        all_edges = set(self.get_selected_edges())
+        edge_sets = []
+        while all_edges:
+            current_set = set()
+            working = { next(iter(all_edges)) }
+            while working:
+                e = working.pop()
+                if e not in all_edges: continue
+                all_edges.discard(e)
+                current_set.add(e)
+                v0,v1 = e.verts
+                working.update(o for o in v0.link_edges if o.select)
+                working.update(o for o in v1.link_edges if o.select)
+            edge_sets.append(current_set)
+
+        niters = 1 if len(edge_sets)==1 else iterations
+
+        for i in range(niters):
+            for current_set in edge_sets:
+                for e in current_set:
+                    v0,v1 = e.verts
+                    faces0 = e.shared_faces(v0)
+                    edges0 = [edge for f in faces0 for edge in f.edges if not edge.select and edge != e and edge.share_vert(e)]
+                    verts0 = [edge.other_vert(v0) for edge in edges0]
+                    verts0 = [v for v in verts0 if v and v != v1]
+                    faces1 = e.shared_faces(v1)
+                    edges1 = [edge for f in faces1 for edge in f.edges if not edge.select and edge != e and edge.share_vert(e)]
+                    verts1 = [edge.other_vert(v1) for edge in edges0]
+                    verts1 = [v for v in verts1 if v and v != v0]
+                    if len(verts0) > 1:
+                        v0.co = Point.average([v.co for v in verts0])
+                        self.snap_vert(v0)
+                    if len(verts1) > 1:
+                        v1.co = Point.average([v.co for v in verts1])
+                        self.snap_vert(v1)
+
+        self.dirty()
+
+
+
+    #######################################################
 
     def update_rot_object(self):
         bbox = self.rftarget.get_selection_bbox()

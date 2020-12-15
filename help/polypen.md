@@ -27,9 +27,9 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 |  |  |  |
 | --- | --- | --- |
-| {{grab}}   | : | grab and move selected geometry |
-| {{action}} | : | grab and move selected geometry under mouse |
-
+| {{grab}}             | : | grab and move selected geometry |
+| {{action}}           | : | grab and move selected geometry under mouse |
+| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
 
 ## Other
 

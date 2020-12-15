@@ -64,6 +64,7 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{grab}}                              | : | grab and move selected geometry |
 | {{rotate}}                            | : | rotate selected geometry |
 | {{scale}}                             | : | scale selected geometry |
+| {{smooth edge flow}}                  | : | smooths edge flow of selected geometry |
 | {{delete}}                            | : | delete / dissolve dialog |
 | {{delete pie menu}}                   | : | delete / dissolve pie menu
 | {{blender undo}}                      | : | undo |
