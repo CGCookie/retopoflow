@@ -169,7 +169,7 @@ class RetopoFlow_Target:
         if selected_only is not None:
             faces = { bmf for bmf in faces if bmf.select == selected_only }
 
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
+        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
 
 
     #########################################
@@ -208,7 +208,7 @@ class RetopoFlow_Target:
     def nearest2D_face(self, point=None, max_dist=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
+        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.Point_to_Point2D, faces=faces)
 
     # TODO: fix this function! Izzza broken
     @profiler.function
