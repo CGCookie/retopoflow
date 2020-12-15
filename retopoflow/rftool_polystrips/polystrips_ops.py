@@ -51,7 +51,7 @@ class PolyStrips_Ops:
     @RFTool_PolyStrips.dirty_when_done
     def new_brushstroke(self):
         # called when artist finishes a stroke
-        radius = self.rfwidgets['brushstroke'].size
+        radius = self.rfwidgets['brushstroke'].radius
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
         nearest_sources_Point = self.rfcontext.nearest_sources_Point
