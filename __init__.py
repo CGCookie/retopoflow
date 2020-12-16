@@ -88,7 +88,7 @@ if import_succeeded:
     class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Quick Start Guide"""
         bl_idname = "cgcookie.retopoflow_help_quickstart"
-        bl_label = "Open Quick Start Guide"
+        bl_label = "Quick Start Guide"
         bl_description = "Open RetopoFlow Quick Start Guide"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
@@ -99,7 +99,7 @@ if import_succeeded:
     class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Welcome"""
         bl_idname = "cgcookie.retopoflow_help_welcome"
-        bl_label = "Open Welcome Message"
+        bl_label = "Welcome Message"
         bl_description = "Open RetopoFlow Welcome Message"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
@@ -107,8 +107,19 @@ if import_succeeded:
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
+    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Table of Contents"""
+        bl_idname = "cgcookie.retopoflow_help_tableofcontents"
+        bl_label = "Table of Contents"
+        bl_description = "Open RetopoFlow Table of Contents"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+        rf_startdoc = 'table_of_contents.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
+
     class VIEW3D_OT_RetopoFlow_Help_Warnings(retopoflow.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Welcome"""
+        """Open RetopoFlow Warnings Document"""
         bl_idname = "cgcookie.retopoflow_help_warnings"
         bl_label = "See details on these warnings"
         bl_description = "See details on the RetopoFlow warnings"
@@ -234,7 +245,7 @@ if import_succeeded:
 
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
-        bl_label = "RetopoFlow %s" % retopoflow_version
+        bl_label = f'RetopoFlow {retopoflow_version}{" (git)" if configoptions.retopoflow_version_git else " (self)" if not configoptions.retopoflow_cgcookie_built else ""}'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
 
@@ -365,6 +376,7 @@ if import_succeeded:
             col = box.column()
             col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
             col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
+            col.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
             col = box.column()
             col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
@@ -407,7 +419,7 @@ if import_succeeded:
                     if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                         row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-                    row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow %s"%retopoflow_version)
+                    row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
                     row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
 
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked

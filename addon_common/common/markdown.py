@@ -42,6 +42,9 @@ class Markdown:
         'link':   re.compile(r'\[(?P<text>.+?)\]\((?P<link>.+?)\)'),
         'italic': re.compile(r'_(?P<text>.+?)_'),
         'checkbox': re.compile(r'<input (?P<params>.*?type="checkbox".*?)>(?P<innertext>.*?)<\/input>'),
+
+        # https://www.toptal.com/designers/htmlarrows/arrows/
+        'arrow':  re.compile(r'&(?P<dir>uarr|darr|larr|rarr|harr|varr|uArr|dArr|lArr|rArr|hArr|vArr); *'),
     }
 
     # https://stackoverflow.com/questions/3809401/what-is-a-good-regular-expression-to-match-a-url
@@ -77,8 +80,22 @@ class Markdown:
             if m: return (t, m)
         return (None, None)
 
+    re_html_char = re.compile(r'(?P<pre>[^ ]*?)(?P<code>&([a-zA-Z]+|#x?[0-9A-Fa-f]+);)(?P<post>.*)')
     @staticmethod
-    def split_word(line):
+    def split_word(line, allow_empty_pre=False):
+        m = Markdown.re_html_char.match(line)
+        if m:
+            pr = m.group('pre')
+            co = m.group('code')
+            po = m.group('post')
+            if co == '&nbsp;':
+                # &nbsp; must get handled specially later!
+                # for now, consider &nbsp; part of the pre
+                npr,npo = Markdown.split_word(po, allow_empty_pre=True)
+                return (f'{pr}{co}{npr}', npo)
+            if pr or allow_empty_pre:
+                return (pr, f'{co}{po}')
+            return (co, po)
         if ' ' not in line:
             return (line,'')
         i = line.index(' ') + 1

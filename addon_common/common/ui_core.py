@@ -96,6 +96,13 @@ DEBUG_LIST      = False
 CACHE_METHOD = 2                # 0:none, 1:only root, 2:hierarchical, 3:text leaves
 
 
+HTML_CHAR_MAP = [
+    ('&nbsp;', ' '),
+    ('&#96;',  '`'),
+    # ('&rarr;', '→'),
+]
+
+
 class UI_Element_Defaults:
     font_family = 'sans-serif'
     font_style  = 'normal'
@@ -2396,7 +2403,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                         words = re.split(r'([^ \n]* +)', l)
                     for word in words:
                         if not word: continue
-                        word = word.replace('&nbsp;', ' ').replace('&#96;', '`')
+                        for f,t in HTML_CHAR_MAP: word = word.replace(f, t)
                         ui_word = UI_Element(innerTextAsIs=word, _parent=self)
                         self._children_text.append(ui_word)
                         for i in range(len(word)):

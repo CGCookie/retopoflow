@@ -780,6 +780,14 @@ div.mdown p {
 div.mdown ul {
     padding-left: 16px;
 }
+div.mdown ul > li > span > p {
+    padding: 0px;
+    margin: 0px;
+}
+div.mdown ul > li > span > ul {
+    padding: 0px;
+    margin: 0px;
+}
 div.mdown a {
     padding: 0px 0px 0px 0px;
     margin: 0px;
@@ -813,6 +821,10 @@ div.mdown code {
     margin: 0px;
     padding: 0px 4px;
     background-color: var(--header-background);
+}
+
+div.mdown span.html-arrow {
+    font-weight: normal;
 }
 
 /***************************************************/
