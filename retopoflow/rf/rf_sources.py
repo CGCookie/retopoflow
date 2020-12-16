@@ -163,12 +163,14 @@ class RetopoFlow_Sources:
     # visibility testing
 
     @profiler.function
-    def is_visible(self, point:Point, normal:Normal=None):
+    def is_visible(self, point:Point, normal:Normal=None, bbox_factor_override=None, dist_offset_override=None):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size.x: return False
         if p2D.y < 0 or p2D.y > self.actions.size.y: return False
-        max_dist_offset = self.sources_bbox.get_min_dimension() * options['visible bbox factor'] + options['visible dist offset']
+        bbox_factor = options['visible bbox factor'] if bbox_factor_override is None else bbox_factor_override
+        dist_offset = options['visible dist offset'] if dist_offset_override is None else dist_offset_override
+        max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if normal and normal.dot(ray.d) >= 0: return False
