@@ -431,6 +431,7 @@ class RetopoFlow_UI:
         if options['hide overlays']: self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
+        self.statusbar_stats_hide()
         if add_rotate: self.setup_rotate_about_active()
         if hide_target: self.hide_target()
 

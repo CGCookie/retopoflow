@@ -41,10 +41,12 @@ class CookieCutter_Blender:
         self.manipulator_store()
         self.panels_store()
         self.overlays_store()
+        self.statusbar_stats_store()
 
     def _cc_blenderui_end(self, ignore_panels=False):
         self.overlays_restore()
         if not ignore_panels: self.panels_restore()
+        self.statusbar_stats_restore()
         self.manipulator_restore()
         self.viewaa_restore()
         self.cursor_modal_restore()
@@ -174,6 +176,11 @@ class CookieCutter_Blender:
             for k,v_ in v.items():
                 setattr(spc, k, v_)
 
+    def statusbar_stats_get(self):
+        return self.context.preferences.view.show_statusbar_stats
+    def statusbar_stats_set(self, v):
+        self.context.preferences.view.show_statusbar_stats = v
+
     def overlays_store(self):   self._overlays = self.overlays_get()
     def overlays_restore(self): self.overlays_set(self._overlays)
     def overlays_hide(self):    self.overlays_set(False)
@@ -183,6 +190,11 @@ class CookieCutter_Blender:
     def manipulator_restore(self): self.manipulator_set(self._manipulator)
     def manipulator_hide(self):    self.manipulator_set(False)
     def manipulator_show(self):    self.manipulator_set(True)
+
+    def statusbar_stats_store(self):   self._statusbar_stats = self.statusbar_stats_get()
+    def statusbar_stats_restore(self): self.statusbar_stats_set(self._statusbar_stats)
+    def statusbar_stats_hide(self):    self.statusbar_stats_set(False)
+    def statusbar_stats_show(self):    self.statusbar_stats_set(True)
 
     def gizmo_store(self):         self._manipulator = self.manipulator_get()
     def gizmo_restore(self):       self.manipulator_set(self._manipulator)
