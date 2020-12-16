@@ -250,7 +250,7 @@ def input_range(value=None, min_value=None, max_value=None, step_size=None, **kw
 
         w, W = ui_handle.width_pixels, ui_input.width_pixels
         if w == 'auto' or W == 'auto': return   # UI system is not ready yet
-        W -= ui_input._mbp_width
+        W -= (ui_input._mbp_width + ui_container._mbp_width) * 2
 
         mw = W - w                  # max dist the handle can move
         p = value.bounded_ratio     # convert value to [0,1] based on min,max

@@ -135,14 +135,14 @@ input[type="radio"].third-size > label {
 
 div.inputrange-container {
     margin: 4px;
+    padding: 0px;
     height: 30px;
     background: transparent;
 }
 
 input[type="range"] {
-    margin: 0px 0px 0px 0px;
-    padding: 0px 0px 0px 0px;
-    padding-right: -24px;
+    margin: 0px;
+    padding: 0px;
     background: transparent;
 }
 
