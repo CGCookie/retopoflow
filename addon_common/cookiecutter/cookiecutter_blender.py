@@ -31,12 +31,14 @@ from ..common.blender import toggle_screen_header, toggle_screen_toolbar, toggle
 
 class CookieCutter_Blender:
     def _cc_blenderui_init(self):
+        self._scene = self.context.scene
         self._area = self.context.area
         self._space = self.context.space_data
         self._window = self.context.window
         self._screen = self.context.screen
         self._region = self.context.region
         self._rgn3d = self.context.space_data.region_3d
+        self.scene_scale_store()
         self.viewaa_store()
         self.manipulator_store()
         self.panels_store()
@@ -51,6 +53,7 @@ class CookieCutter_Blender:
         self.viewaa_restore()
         self.cursor_modal_restore()
         self.header_text_restore()
+        self.scene_scale_restore()
 
 
     #########################################
@@ -156,6 +159,9 @@ class CookieCutter_Blender:
     @blender_version_wrapper("<=", "2.79")
     def manipulator_set(self, v): self._space.show_manipulator = v
 
+    def scene_scale_get(self): return self._scene.unit_settings.scale_length
+    def scene_scale_set(self, v): self._scene.unit_settings.scale_length = v
+
     @blender_version_wrapper(">=", "2.80")
     def manipulator_get(self):
         # return self._space.show_gizmo
@@ -185,6 +191,9 @@ class CookieCutter_Blender:
     def overlays_restore(self): self.overlays_set(self._overlays)
     def overlays_hide(self):    self.overlays_set(False)
     def overlays_show(self):    self.overlays_set(True)
+
+    def scene_scale_store(self):   self._scene_scale = self.scene_scale_get()
+    def scene_scale_restore(self): self.scene_scale_set(self._scene_scale)
 
     def manipulator_store(self):   self._manipulator = self.manipulator_get()
     def manipulator_restore(self): self.manipulator_set(self._manipulator)

@@ -264,6 +264,8 @@ class RetopoFlow(
         self.store_window_state(self.actions.r3d, self.actions.space)
         RetopoFlow.instance = self
 
+        self.scene_scale_set(1.0)
+
         # DO THESE BEFORE SWITCHING TO OBJECT MODE BELOW AND BEFORE SETTING UP SOURCES AND TARGET!
         self.src_objects = self.get_sources()
         self.tar_object = self.get_target()
