@@ -824,6 +824,7 @@ class RetopoFlow_UI:
                     ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
                 ]),
             ])
+
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
@@ -831,6 +832,16 @@ class RetopoFlow_UI:
                 ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
                 ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                ui.labeled_input_text(
+                    label='Mirror Effect',
+                    title='Factor for alpha of mirrored visualization.',
+                    value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                    scrub=True,
+                ),
+                ui.input_range(
+                    title='Factor for alpha of mirrored visualization.',
+                    value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                ),
                 ui.labeled_input_text(
                     label='Threshold',
                     title='Distance within which mirrored vertices will be merged.',

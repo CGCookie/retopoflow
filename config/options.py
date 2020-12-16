@@ -201,6 +201,7 @@ class Options:
         'target alpha point mirror':          0.0,
         'target alpha point mirror selected': 0.5,
         'target alpha point highlight':       1.00,
+        'target alpha mirror':                1.00,
 
         # ADDON UPDATER SETTINGS
         'updater auto check update': True,
@@ -518,6 +519,7 @@ class Visualization_Settings:
             'target alpha point mirror',
             'target alpha point mirror selected',
             'target alpha point highlight',
+            'target alpha mirror',
         ]
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
@@ -548,13 +550,14 @@ class Visualization_Settings:
             'constrain offset': constrain_offset,
         }
 
+        mirror_alpha_factor = options['target alpha mirror']
         self._target_settings = {
             'poly color':                  (*color_mesh[:3],   options['target alpha poly']),
             'poly color selected':         (*color_select[:3], options['target alpha poly selected']),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
-            'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror']),
-            'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected']),
+            'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror'] * mirror_alpha_factor),
+            'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected'] * mirror_alpha_factor),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
@@ -563,8 +566,8 @@ class Visualization_Settings:
             'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
-            'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror']),
-            'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected']),
+            'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror'] * mirror_alpha_factor),
+            'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected'] * mirror_alpha_factor),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
@@ -576,8 +579,8 @@ class Visualization_Settings:
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
-            'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror']),
-            'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected']),
+            'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror'] * mirror_alpha_factor),
+            'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected'] * mirror_alpha_factor),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,
