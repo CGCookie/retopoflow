@@ -182,10 +182,14 @@ class CookieCutter_Blender:
             for k,v_ in v.items():
                 setattr(spc, k, v_)
 
-    def statusbar_stats_get(self):
-        return self.context.preferences.view.show_statusbar_stats
-    def statusbar_stats_set(self, v):
-        self.context.preferences.view.show_statusbar_stats = v
+    @blender_version_wrapper('<=', '2.83')
+    def statusbar_stats_get(self): return None
+    @blender_version_wrapper('<=', '2.83')
+    def statusbar_stats_set(self, v): pass
+    @blender_version_wrapper('>', '2.83')
+    def statusbar_stats_get(self): return self.context.preferences.view.show_statusbar_stats
+    @blender_version_wrapper('>', '2.83')
+    def statusbar_stats_set(self, v): self.context.preferences.view.show_statusbar_stats = v
 
     def overlays_store(self):   self._overlays = self.overlays_get()
     def overlays_restore(self): self.overlays_set(self._overlays)
