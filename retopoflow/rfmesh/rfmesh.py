@@ -1156,6 +1156,7 @@ class RFMesh():
         bme,flipped,bmf,looped = self._crawl_quadstrip_to_loopend(edge)
         if not bme: return
         bme_start = bme
+        bmf_start = bmf
         while True:
             # find next bme and bmf, in case bmesh is edited!
             if bmf: bme_next,bmf_next = self._crawl_quadstrip_next(bme, bmf)
@@ -1163,6 +1164,7 @@ class RFMesh():
             if not bmf: break
             if not bme_next: break
             if bme_next == bme_start: break
+            if bmf_next == bmf_start: break
             if self._are_edges_flipped(bme, bme_next): flipped = not flipped
             bme,bmf = bme_next,bmf_next
 
