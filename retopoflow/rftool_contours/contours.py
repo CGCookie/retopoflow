@@ -686,10 +686,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             cl = loop_data['cl']
 
             # draw segment count label
-            cos = [point_to_point2d(vert.co) for vert in loop]
-            vis = [is_visible(vert.co, vert.normal) if co else False for (vert, co) in zip(loop, cos)]
-            if any(vis):
-                loop = [(bmv,co) for (bmv, co, vi) in zip(loop, cos, vis) if vi]
+            loop = [(vert, point_to_point2d(vert.co)) for vert in loop if is_visible(vert.co)]
+            if loop:
                 bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count_loops: bmv_count_loops[bmv] = []
                 bmv_count_loops[bmv].append(count)
@@ -714,10 +712,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             plane = string_data['plane']
 
             # draw segment count label
-            cos = [point_to_point2d(vert.co) for vert in string]
-            vis = [is_visible(vert.co, vert.normal) if co else False for (vert, co) in zip(string, cos)]
-            if any(vis):
-                string = [(bmv,co) for (bmv, co, vi) in zip(string, cos, vis) if vi]
+            string = [(vert, point_to_point2d(vert.co)) for vert in string if is_visible(vert.co)]
+            if string:
                 bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
                 if bmv not in bmv_count_strings: bmv_count_strings[bmv] = []
                 bmv_count_strings[bmv].append(count)
