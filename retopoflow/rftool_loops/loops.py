@@ -429,7 +429,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released, ignoremods=True):
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
