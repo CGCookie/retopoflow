@@ -16,9 +16,9 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 NAME            = RetopoFlow
-VERSION         = v3.00.2
-GIT_TAG         = "v3.00.2"
-GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.2."
+VERSION         = v3.00.3
+GIT_TAG         = "v3.00.3"
+GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.3."
 
 BUILD_DIR       = ../retopoflow_release
 DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py
