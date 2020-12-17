@@ -121,6 +121,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.ui_options.label = f'Strokes: {mode}'
         self.ui_span_insert_mode_brushsize.checked = (mode == 'Brush Size')
         self.ui_span_insert_mode_fixed.checked     = (mode == 'Fixed')
+        # self.ui_options_brush_size.disabled        = (mode != 'Brush Size')
+        # self.ui_options_fixed_spans.disabled       = (mode != 'Fixed')
 
     @RFTool_Strokes.on_ui_setup
     def ui(self):
@@ -153,6 +155,13 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                     on_input=span_mode_change,
                 ),
                 ui.labeled_input_text(
+                    id='strokes-options-brush-size',
+                    label='Brush Size',
+                    title='Adjust brush size',
+                    value=self.rfwidgets['brush'].get_radius_boundvar(),
+                ),
+                ui.labeled_input_text(
+                    id='strokes-options-fixed-spans',
                     label='Fixed spans',
                     title='Number of spans to insert when Span Insert Mode is set to Fixed',
                     value=self._var_fixed_span_count,
@@ -173,6 +182,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         ])
         self.ui_span_insert_mode_brushsize = self.ui_options.getElementById('strokes-span-mode-brush')
         self.ui_span_insert_mode_fixed     = self.ui_options.getElementById('strokes-span-mode-fixed')
+        self.ui_options_brush_size         = self.ui_options.getElementById('strokes-options-brush-size')
+        self.ui_options_fixed_spans        = self.ui_options.getElementById('strokes-options-fixed-spans')
         self.update_span_mode()
         return self.ui_options
 

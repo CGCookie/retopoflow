@@ -28,6 +28,7 @@ from ..rfwidget import RFWidget
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color, Vec2D
 from ...config.options import themes
 
@@ -127,6 +128,9 @@ class RFWidget_BrushStroke_Factory:
             @radius.setter
             def radius(self, v):
                 radius.set(max(1, float(v)))
+
+            def get_radius_boundvar(self):
+                return BoundFloat('''self.radius''', min_value=1)
 
 
             ###################
