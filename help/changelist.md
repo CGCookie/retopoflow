@@ -26,10 +26,10 @@ Below is a list of major changes.
 - Tweak/Relax: added brush presets
 - Symmetry: added button to apply symmetry, improved visualization
 - PolyStrips/Strokes: brush settings now remain through sessions
-- Strokes: added span insert modes (fixed, brush size)
+- Strokes: added span insert modes (fixed, brush size) and brush size adjustment
 - Improved ability to select geometry
 - Added edge flow smooth feature
-- Minor bug fixes and UX improvements
+- Several bug fixes and UX improvements
 
 ### RetopoFlow 3.00.0&rarr;3.00.1
 
