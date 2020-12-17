@@ -681,6 +681,7 @@ class UI_Document(UI_Document_FSM):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_SCISSOR_TEST)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
+        bgl.glClear(bgl.GL_DEPTH_BUFFER_BIT)
 
         Globals.drawing.glCheckError('UI_Document.draw: drawing')
         self._body.draw()
