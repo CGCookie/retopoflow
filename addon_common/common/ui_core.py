@@ -336,8 +336,11 @@ class UI_Draw:
 
         vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
+        print(f'Addon Common: compiling UI shader')
         shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+        print(f'Addon Common: batching for shader')
         batch = batch_for_shader(shader, 'TRIS', {"pos": vertex_positions})
+        print(f'Addon Common: UI shader initialized')
         # get_pixel_matrix = Globals.drawing.get_pixel_matrix
         get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
         def_color = (0,0,0,0)

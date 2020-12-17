@@ -43,7 +43,7 @@ from ..ext.bgl_ext import VoidBufValue
 #                      4.6    460
 print('Addon Common: (shaders) GLSL Version:', bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
 
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 
 vbv_zero = VoidBufValue(0)
 buf_zero = vbv_zero.buf    #bgl.Buffer(bgl.GL_BYTE, 1, [0])
@@ -217,7 +217,7 @@ class Shader():
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
 
-        dprint('RetopoFlow Shader Info: %s (%d)' % (self.name,self.shaderProg))
+        print('RetopoFlow Shader Info: %s (%d)' % (self.name,self.shaderProg))
         logv = self.shader_compile(name, self.shaderVert, srcVertex)
         logf = self.shader_compile(name, self.shaderFrag, srcFragment)
         if len(logv.strip()):
@@ -252,8 +252,8 @@ class Shader():
                 'reported': False,
                 }
 
-        dprint('  attribs: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
-        dprint('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
+        print('  attribs: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
+        print('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
 
         self.funcStart = funcStart
         self.funcEnd = funcEnd
@@ -273,7 +273,7 @@ class Shader():
             q,l,t = v['qualifier'],v['location'],v['type']
             if l == -1:
                 if not v['reported']:
-                    dprint('ASSIGNING TO UNUSED ATTRIBUTE (%s): %s = %s' % (self.name, varName,str(varValue)))
+                    print('ASSIGNING TO UNUSED ATTRIBUTE (%s): %s = %s' % (self.name, varName,str(varValue)))
                     v['reported'] = True
                 return
             if DEBUG_PRINT:
