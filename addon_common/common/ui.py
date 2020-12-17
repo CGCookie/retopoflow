@@ -248,9 +248,9 @@ def input_range(value=None, min_value=None, max_value=None, step_size=None, **kw
         # we can safely move them around without dirtying (the UI system does not need to
         # clean anything or reflow the elements)
 
-        w, W = ui_handle.width_pixels, ui_input.width_pixels
+        w, W = ui_handle.width_scissor, ui_input.width_scissor
         if w == 'auto' or W == 'auto': return   # UI system is not ready yet
-        W -= (ui_input._mbp_width + ui_container._mbp_width) * 2
+        W -= ui_container._mbp_width
 
         mw = W - w                  # max dist the handle can move
         p = value.bounded_ratio     # convert value to [0,1] based on min,max
