@@ -1,9 +1,9 @@
-# RetopoFlow {[rf version]}
+# RetopoFlow&nbsp;{[rf version]} Change List
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
 
-## Version 2.x => 3.x Notes
+## Version 2.x&rarr;3.x Notes
 
 In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
 Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
@@ -19,7 +19,19 @@ Below are more details about the current version of RetopoFlow.
 
 ## Change List
 
-Below is a list of changes from RetopoFlow&nbsp;3.0.0.
+Below is a list of major changes.
+
+### RetopoFlow 3.00.1&rarr;3.00.2
+
+- Tweak/Relax: added brush presets
+- Symmetry: added button to apply symmetry, improved visualization
+- PolyStrips/Strokes: brush settings now remain through sessions
+- Strokes: added span insert modes (fixed, brush size) and brush size adjustment
+- Improved ability to select geometry
+- Added edge flow smooth feature
+- Several bug fixes and UX improvements
+
+### RetopoFlow 3.00.0&rarr;3.00.1
 
 - PolyPen: added ability to move edge with drag after inserting new quad (before releasing insert)
 - Strokes: added a simple visualization to show how a stroke will connect to hovered existing geometry.  Still a work-in-progress!
@@ -31,8 +43,7 @@ Below is a list of changes from RetopoFlow&nbsp;3.0.0.
 - Added Delete/Dissolve pie menu using {{delete pie menu}}
 - Other miscellaneous bug fixes
 
-
-Below is a short list of major changes from RetopoFlow&nbsp;2.x.
+### RetopoFlow 2.x&rarr;3.00.0
 
 - Left-mouse select is now a thing!
 - Mouse dragging, clicking, and double-clicking are now possible actions.

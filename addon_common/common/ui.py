@@ -196,7 +196,7 @@ def input_checkbox(**kwargs):
     ui_input = UI_Element(tagName='input', type='checkbox', atomic=True, **kwargs, **kw_all)
     with ui_input.defer_dirty('creating content'):
         ui_checkmark = UI_Element(tagName='img', classes='checkbox',  parent=ui_input, **kw_all)
-        ui_label = UI_Element(tagName='label', parent=ui_input, **kw_label, **kw_all)
+        ui_label = UI_Element(tagName='label', id='%s_label' % kwargs.get('id', get_unique_ui_id('checkbox-')), parent=ui_input, **kw_label, **kw_all)
         def mouseclick(e):
             ui_input.checked = not bool(ui_input.checked)
         ui_input.add_eventListener('on_mouseclick', mouseclick)
@@ -248,9 +248,9 @@ def input_range(value=None, min_value=None, max_value=None, step_size=None, **kw
         # we can safely move them around without dirtying (the UI system does not need to
         # clean anything or reflow the elements)
 
-        w, W = ui_handle.width_pixels, ui_input.width_pixels
+        w, W = ui_handle.width_scissor, ui_input.width_scissor
         if w == 'auto' or W == 'auto': return   # UI system is not ready yet
-        W -= ui_input._mbp_width
+        W -= ui_container._mbp_width
 
         mw = W - w                  # max dist the handle can move
         p = value.bounded_ratio     # convert value to [0,1] based on min,max
@@ -644,6 +644,22 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                 else:
                     if t == 'br':
                         container.append_child(br())
+                    elif t == 'arrow':
+                        d = {   # https://www.toptal.com/designers/htmlarrows/arrows/
+                            'uarr': '↑',
+                            'darr': '↓',
+                            'larr': '←',
+                            'rarr': '→',
+                            'harr': '↔',
+                            'varr': '↕',
+                            'uArr': '⇑',
+                            'dArr': '⇓',
+                            'lArr': '⇐',
+                            'rArr': '⇒',
+                            'hArr': '⇔',
+                            'vArr': '⇕',
+                        }[m.group('dir')]
+                        UI_Element(tagName='span', classes='html-arrow', innerText=f'{d}', parent=container)
                     elif t == 'img':
                         style = m.group('style').strip() or None
                         UI_Element(tagName='img', classes='inline', style=style, src=m.group('filename'), title=m.group('caption'), parent=container)
@@ -682,53 +698,64 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                         assert False, 'Unhandled inline markdown type "%s" ("%s") with "%s"' % (str(t), str(m), line)
                     para = para[m.end():]
 
-    if ui_mdown._document: ui_mdown._document.defer_cleaning = True
-    with ui_mdown.defer_dirty('creating new children'):
-        ui_mdown.clear_children()
-        ui_mdown.scrollToTop(force=True)
-        if ui_mdown.parent: ui_mdown.parent.scrollToTop(force=True)
-
-        paras = mdown.split('\n\n')         # split into paragraphs
+    def process_mdown(ui_container, mdown):
+        #paras = mdown.split('\n\n')         # split into paragraphs
+        paras = re.split(r'\n\n(?!    )', mdown)
         for para in paras:
             t,m = Markdown.match_line(para)
 
             if t is None:
                 p_element = p()
                 process_para(p_element, para)
-                ui_mdown.append_child(p_element)
+                ui_container.append_child(p_element)
 
             elif t in ['h1','h2','h3']:
                 hn = {'h1':h1, 'h2':h2, 'h3':h3}[t]
                 #hn(innerText=m.group('text'), parent=ui_mdown)
                 ui_hn = hn()
                 process_para(ui_hn, m.group('text'))
-                ui_mdown.append_child(ui_hn)
+                ui_container.append_child(ui_hn)
 
             elif t == 'ul':
                 ui_ul = UI_Element(tagName='ul')
                 with ui_ul.defer_dirty('creating ul children'):
-                    para = para[2:]
+                    # add newline at beginning so that we can skip the first item (before "- ")
+                    skip_first = True
+                    para = f'\n{para}'
                     for litext in re.split(r'\n- ', para):
+                        if skip_first:
+                            skip_first = False
+                            continue
                         ui_li = UI_Element(tagName='li', parent=ui_ul)
                         UI_Element(tagName='img', classes='dot', src='radio.png', parent=ui_li)
                         span_element = UI_Element(tagName='span', classes='text', parent=ui_li)
-                        process_para(span_element, litext)
-                ui_mdown.append_child(ui_ul)
+                        if '\n' in litext:
+                            # remove leading spaces
+                            litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
+                            process_mdown(span_element, litext)
+                        else:
+                            process_para(span_element, litext)
+                ui_container.append_child(ui_ul)
 
             elif t == 'ol':
-                ui_ol = UI_Element(tagName='ol', parent=ui_mdown)
+                ui_ol = UI_Element(tagName='ol', parent=ui_container)
                 with ui_ol.defer_dirty('creating ol children'):
-                    para = para[2:]
+                    # add newline at beginning so that we can skip the first item (before "- ")
+                    skip_first = True
+                    para = f'\n{para}'
                     for ili,litext in enumerate(re.split(r'\n\d+\. ', para)):
+                        if skip_first:
+                            skip_first = False
+                            continue
                         ui_li = UI_Element(tagName='li', parent=ui_ol)
-                        UI_Element(tagName='span', classes='number', innerText='%d.'%(ili+1), parent=ui_li)
+                        UI_Element(tagName='span', classes='number', innerText=f'{ili}.', parent=ui_li)
                         span_element = UI_Element(tagName='span', classes='text', parent=ui_li)
                         process_para(span_element, litext)
-                ui_mdown.append_child(ui_ol)
+                ui_container.append_child(ui_ol)
 
             elif t == 'img':
                 style = m.group('style').strip() or None
-                UI_Element(tagName='img', style=style, src=m.group('filename'), title=m.group('caption'), parent=ui_mdown)
+                UI_Element(tagName='img', style=style, src=m.group('filename'), title=m.group('caption'), parent=ui_container)
 
             elif t == 'table':
                 # table!
@@ -753,10 +780,18 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                         for c in range(cols):
                             td_element = td(parent=tr_element)
                             process_para(td_element, data[r][c])
-                ui_mdown.append_child(table_element)
+                ui_container.append_child(table_element)
 
             else:
                 assert False, 'Unhandled markdown line type "%s" ("%s") with "%s"' % (str(t), str(m), para)
+
+    if ui_mdown._document: ui_mdown._document.defer_cleaning = True
+    with ui_mdown.defer_dirty('creating new children'):
+        ui_mdown.clear_children()
+        ui_mdown.scrollToTop(force=True)
+        process_mdown(ui_mdown, mdown)
+        if ui_mdown.parent: ui_mdown.parent.scrollToTop(force=True)
+
     if ui_mdown._document: ui_mdown._document.defer_cleaning = False
 
 

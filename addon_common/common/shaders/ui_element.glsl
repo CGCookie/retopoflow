@@ -7,6 +7,8 @@ uniform float bottom;
 uniform float width;
 uniform float height;
 
+uniform float depth;
+
 uniform float margin_left;
 uniform float margin_right;
 uniform float margin_top;
@@ -65,7 +67,7 @@ void main() {
     );
 
     screen_pos  = p;
-    gl_Position = uMVPMatrix * vec4(p, 0, 1);
+    gl_Position = uMVPMatrix * vec4(p, 1.0 - depth/1000.0, 1);
 }
 
 

@@ -169,7 +169,7 @@ class RetopoFlow_Target:
         if selected_only is not None:
             faces = { bmf for bmf in faces if bmf.select == selected_only }
 
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
+        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
 
 
     #########################################
@@ -208,7 +208,7 @@ class RetopoFlow_Target:
     def nearest2D_face(self, point=None, max_dist=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmface_Point2D(xy, self.Point_to_Point2D, faces=faces)
+        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.Point_to_Point2D, faces=faces)
 
     # TODO: fix this function! Izzza broken
     @profiler.function
@@ -294,6 +294,10 @@ class RetopoFlow_Target:
 
     ########################################
     # symmetry utils
+
+    def apply_symmetry(self):
+        self.undo_push('applying symmetry')
+        self.rftarget.apply_symmetry(self.nearest_sources_Point)
 
     @profiler.function
     def clip_pointloop(self, pointloop, connected):
@@ -451,7 +455,7 @@ class RetopoFlow_Target:
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
-        if rfvert.normal.dot(self.Point_to_Direction(xyz)) > 0 and self.is_visible(rfvert.co):
+        if rfvert.normal.dot(self.Point_to_Direction(xyz)) > 0 and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
             self._detected_bad_normals = True
         return rfvert
 
@@ -593,6 +597,51 @@ class RetopoFlow_Target:
 
     def get_faces_verts(self, faces):
         return RFFace.get_verts(faces)
+
+    #######################################################
+    def smooth_edge_flow(self, iterations=10):
+        self.undo_push(f'smooth edge flow')
+
+        # get connected loops/strips
+        all_edges = set(self.get_selected_edges())
+        edge_sets = []
+        while all_edges:
+            current_set = set()
+            working = { next(iter(all_edges)) }
+            while working:
+                e = working.pop()
+                if e not in all_edges: continue
+                all_edges.discard(e)
+                current_set.add(e)
+                v0,v1 = e.verts
+                working.update(o for o in v0.link_edges if o.select)
+                working.update(o for o in v1.link_edges if o.select)
+            edge_sets.append(current_set)
+
+        niters = 1 if len(edge_sets)==1 else iterations
+
+        for i in range(niters):
+            for current_set in edge_sets:
+                for e in current_set:
+                    v0,v1 = e.verts
+                    faces0 = e.shared_faces(v0)
+                    edges0 = [edge for f in faces0 for edge in f.edges if not edge.select and edge != e and edge.share_vert(e)]
+                    verts0 = [edge.other_vert(v0) for edge in edges0]
+                    verts0 = [v for v in verts0 if v and v != v1]
+                    faces1 = e.shared_faces(v1)
+                    edges1 = [edge for f in faces1 for edge in f.edges if not edge.select and edge != e and edge.share_vert(e)]
+                    verts1 = [edge.other_vert(v1) for edge in edges0]
+                    verts1 = [v for v in verts1 if v and v != v0]
+                    if len(verts0) > 1:
+                        v0.co = Point.average([v.co for v in verts0])
+                        self.snap_vert(v0)
+                    if len(verts1) > 1:
+                        v1.co = Point.average([v.co for v in verts1])
+                        self.snap_vert(v1)
+
+        self.dirty()
+
+
 
     #######################################################
 

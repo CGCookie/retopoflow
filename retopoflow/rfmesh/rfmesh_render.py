@@ -196,7 +196,7 @@ class RFMeshRender():
                                     for bmv in verts
                                 ],
                                 'vno': [
-                                    tuple(bmv.normal)
+                                    tuple(bmf.normal)
                                     for bmf, verts in tri_faces[i0:i1]
                                     for bmv in verts
                                 ],

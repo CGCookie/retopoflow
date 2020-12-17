@@ -28,7 +28,7 @@
     color: var(--text);
     border: 0px;
     background: transparent;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 /********************************/
@@ -37,10 +37,11 @@
 button {
     display: block;
     width: 100%;
-    margin: 1px;
+    margin: 2px;
     border: 0px;
     background: var(--button-background);
     color: var(--text);
+    text-align: center;
 }
 button:focus {
     background: var(--button-hover-background);
@@ -70,7 +71,7 @@ button.half-size {
 
 input[type="radio"] {
     background: var(--button-background);
-    margin: 0px 1px;
+    margin: 2px;
     border: 0px;
     padding: 4px 0px 4px 6px;
 }
@@ -114,7 +115,7 @@ input[type="radio"]:disabled label {
 
 input[type="radio"].half-size {
     width: 50%;
-    margin: 1.5px;
+    margin: 2px;
 }
 input[type="radio"].half-size > label {
     text-align: center;
@@ -134,14 +135,14 @@ input[type="radio"].third-size > label {
 
 div.inputrange-container {
     margin: 4px;
+    padding: 0px;
     height: 30px;
     background: transparent;
 }
 
 input[type="range"] {
-    margin: 0px 0px 0px 0px;
-    padding: 0px 0px 0px 0px;
-    padding-right: -24px;
+    margin: 0px;
+    padding: 0px;
     background: transparent;
 }
 
@@ -203,13 +204,9 @@ input[type="checkbox"]:active > img.checkbox {
 
 input[type="checkbox"] > label {
     color: var(--button-text);
-    margin: 0px;
-    margin-left: 4px;
+    margin: 4px 10px 0px 4px;
     padding: 0px;
-    padding-top: 4px;
-    padding-bottom: -2px;
-    padding-right: 10px;
-    border-width: 0px;
+    border: 0px;
 }
 input[type="checkbox"]:hover > label {
     color: var(--button-selected-text);
@@ -222,7 +219,7 @@ input[type="checkbox"][checked] > label {
 /* COLLAPSIBLE COLLECTION */
 
 div.collapsible {
-    margin: 1px;
+    margin: 2px;
     border: 0px;
     border-radius: 0px;
     background: rgba(0, 0, 0, 0);
@@ -245,7 +242,7 @@ div.collapsible > input.header:hover {
 
 div.collapsible > input.header > label{
     margin-left: 0px;
-    margin-top: 5px;
+    margin-top: 4px;
     padding: 0px;
 }
 div.collapsible > input.header > img {
@@ -269,7 +266,7 @@ div.collapsible > div.inside {
     border: 0px;
     border-color: transparent;
     background: var(--panel-two-background);
-    padding: 4px 4px 4px 16px;
+    padding: 4px 4px 4px 4px;
     margin: 0px 0px 0px 0px;
 }
 
@@ -379,7 +376,7 @@ dialog#loadingdialog {
 
 
 dialog#maindialog {
-    width: 175px;
+    width: 150px;
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
@@ -602,7 +599,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
 /***************************************************/
 
 dialog#optionsdialog {
-    width: 250px;
+    width: 225px;
     min-width: 150px;
     max-width: 500px;
 }
@@ -779,6 +776,14 @@ div.mdown p {
 div.mdown ul {
     padding-left: 16px;
 }
+div.mdown ul > li > span > p {
+    padding: 0px;
+    margin: 0px;
+}
+div.mdown ul > li > span > ul {
+    padding: 0px;
+    margin: 0px;
+}
 div.mdown a {
     padding: 0px 0px 0px 0px;
     margin: 0px;
@@ -812,6 +817,10 @@ div.mdown code {
     margin: 0px;
     padding: 0px 4px;
     background-color: var(--header-background);
+}
+
+div.mdown span.html-arrow {
+    font-weight: normal;
 }
 
 /***************************************************/
@@ -849,9 +858,11 @@ table#pie-menu-table tr {
     border: 0px transparent;
 }
 table#pie-menu-table td {
-    margin: 0px;
+    margin:  0px;
     padding: 0px;
-    border: 0px transparent;
+    border:  0px transparent;
+    width:   134; /* pie-menu-option: 100+16+16+1+1+8+8; */
+    height:  134; /* pie-menu-option: 100+16+16+1+1+8+?; */
 }
 div.pie-menu-option {
     width: 100px;
@@ -892,6 +903,11 @@ table#pie-menu-table div#pie-menu-middlecenter {
     border: 1px rgba(0, 0, 0, 0.25);
     border-radius: 35px;
 }
+
+
+/***************************************************/
+/* tooltip                                         */
+/***************************************************/
 
 dialog.tooltip {
     border: 1px black;

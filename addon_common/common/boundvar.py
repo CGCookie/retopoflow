@@ -26,7 +26,7 @@ import inspect
 class IgnoreChange(Exception): pass
 
 class BoundVar:
-    def __init__(self, value_str, *, on_change=None, frame_depth=1, f_globals=None, f_locals=None, callbacks=None, validators=None, disabled=False):
+    def __init__(self, value_str, *, on_change=None, frame_depth=1, f_globals=None, f_locals=None, callbacks=None, validators=None, disabled=False, pre_wrap=None, post_wrap=None, wrap=None):
         assert type(value_str) is str, 'BoundVar: constructor needs value as string!'
         if f_globals is None or f_locals is None:
             frame = inspect.currentframe()
@@ -49,6 +49,8 @@ class BoundVar:
         self._callbacks  = callbacks or []
         self._validators = validators or []
         self._disabled   = disabled
+        self._pre_wrap  = wrap if wrap is not None else pre_wrap  if pre_wrap  is not None else ''
+        self._post_wrap = wrap if wrap is not None else post_wrap if post_wrap is not None else ''
         if on_change: self.on_change(on_change)
 
     def clone_with_overrides(self, **overrides):
@@ -82,7 +84,7 @@ class BoundVar:
 
     @property
     def value(self):
-        exec('boundvar_interface(' + self._value_str + ')', self._f_globals, self._f_locals)
+        exec(f'boundvar_interface({self._value_str})', self._f_globals, self._f_locals)
         return self._v
     @value.setter
     def value(self, value):
@@ -91,7 +93,7 @@ class BoundVar:
         except IgnoreChange:
             return
         if self.value == value: return
-        exec(self._value_str + ' = ' + str(value), self._f_globals, self._f_locals)
+        exec(f'{self._value_str} = {self._pre_wrap}{value}{self._post_wrap}', self._f_globals, self._f_locals)
         self._call_callbacks()
     @property
     def value_as_str(self): return str(self)
@@ -105,6 +107,11 @@ class BoundVar:
 
     def add_validator(self, fn):
         self._validators.append(fn)
+
+
+class BoundString(BoundVar):
+    def __init__(self, value_str, **kwargs):
+        super().__init__(value_str, frame_depth=2, wrap='"', **kwargs)
 
 
 class BoundBool(BoundVar):

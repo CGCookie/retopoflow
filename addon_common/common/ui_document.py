@@ -87,7 +87,7 @@ class UI_Document(UI_Document_FSM):
     }
 
     doubleclick_time = bpy.context.preferences.inputs.mouse_double_click_time / 1000 # 0.25
-    wheel_scroll_lines = bpy.context.preferences.inputs.wheel_scroll_lines
+    wheel_scroll_lines = 3 # bpy.context.preferences.inputs.wheel_scroll_lines, see https://developer.blender.org/rBbec583951d736776d2096368ef8d2b764287ac11
     allow_disabled_to_blur = False
     key_repeat_delay = 0.25
     key_repeat_pause = 0.10
@@ -681,6 +681,7 @@ class UI_Document(UI_Document_FSM):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_SCISSOR_TEST)
         bgl.glDisable(bgl.GL_DEPTH_TEST)
+        bgl.glClear(bgl.GL_DEPTH_BUFFER_BIT)
 
         Globals.drawing.glCheckError('UI_Document.draw: drawing')
         self._body.draw()

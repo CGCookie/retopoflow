@@ -418,7 +418,9 @@ class RetopoFlow_UI:
     def blender_ui_set(self, scale_to_unit_box=True, add_rotate=True, hide_target=True):
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         bpy.ops.object.mode_set(mode='OBJECT')
-        if scale_to_unit_box: self.scale_to_unit_box()
+        if scale_to_unit_box:
+            self.scale_to_unit_box()
+            self.scene_scale_set(1.0)
         self.viewaa_simplify()
 
         self.manipulator_hide() # <---------------------------------------------------------------
@@ -431,6 +433,7 @@ class RetopoFlow_UI:
         if options['hide overlays']: self.overlays_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
+        self.statusbar_stats_hide()
         if add_rotate: self.setup_rotate_about_active()
         if hide_target: self.hide_target()
 
@@ -823,6 +826,7 @@ class RetopoFlow_UI:
                     ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
                 ]),
             ])
+
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
@@ -830,51 +834,68 @@ class RetopoFlow_UI:
                 ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
                 ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                ui.collection(label='Visualization', children=[
+                    ui.input_radio(
+                        id='symmetry-viz-none',
+                        title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
+                        value='None',
+                        checked=(options['symmetry view']=='None'),
+                        name='symmetry-viz',
+                        classes='third-size',
+                        children=[ui.label(innerText='None')],
+                        on_input=symmetry_viz_change
+                    ),
+                    ui.input_radio(
+                        id='symmetry-viz-edge',
+                        title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
+                        value='Edge',
+                        checked=(options['symmetry view']=='Edge'),
+                        name='symmetry-viz',
+                        classes='third-size',
+                        children=[ui.label(innerText='Edge')],
+                        on_input=symmetry_viz_change
+                    ),
+                    ui.input_radio(
+                        id='symmetry-viz-face',
+                        title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
+                        value='Face',
+                        checked=(options['symmetry view']=='Face'),
+                        name='symmetry-viz',
+                        classes='third-size',
+                        children=[ui.label(innerText='Face')],
+                        on_input=symmetry_viz_change
+                    ),
+                    ui.labeled_input_text(
+                        label='Source Effect',
+                        title='Effect of symmetry source visualization.',
+                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                        scrub=True,
+                    ),
+                    ui.input_range(
+                        title='Effect of symmetry source visualization.',
+                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                    ),
+                    ui.labeled_input_text(
+                        label='Target Effect',
+                        title='Factor for alpha of mirrored target visualization.',
+                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                        scrub=True,
+                    ),
+                    ui.input_range(
+                        title='Factor for alpha of mirrored target visualization.',
+                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                    ),
+                ]),
                 ui.labeled_input_text(
                     label='Threshold',
                     title='Distance within which mirrored vertices will be merged.',
                     value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0, step_size=0.01),
                     scrub=True,
                 ),
-                ui.labeled_input_text(
-                    label='Effect',
-                    title='Effect of symmetry visualization.',
-                    value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                    scrub=True,
-                ),
-                ui.input_range(
-                    title='Effect of symmetry visualization.',
-                    value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                ),
-                ui.input_radio(
-                    id='symmetry-viz-none',
-                    title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
-                    value='None',
-                    checked=(options['symmetry view']=='None'),
-                    name='symmetry-viz',
-                    classes='third-size',
-                    children=[ui.label(innerText='None')],
-                    on_input=symmetry_viz_change
-                ),
-                ui.input_radio(
-                    id='symmetry-viz-edge',
-                    title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
-                    value='Edge',
-                    checked=(options['symmetry view']=='Edge'),
-                    name='symmetry-viz',
-                    classes='third-size',
-                    children=[ui.label(innerText='Edge')],
-                    on_input=symmetry_viz_change
-                ),
-                ui.input_radio(
-                    id='symmetry-viz-face',
-                    title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
-                    value='Face',
-                    checked=(options['symmetry view']=='Face'),
-                    name='symmetry-viz',
-                    classes='third-size',
-                    children=[ui.label(innerText='Face')],
-                    on_input=symmetry_viz_change
+                ui.button(
+                    label='Apply symmetry',
+                    title='Apply symmetry to target mesh',
+                    on_mouseclick=delay_exec('''self.apply_symmetry()'''),
                 ),
             ])
             def symmetry_changed():

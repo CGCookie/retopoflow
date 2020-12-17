@@ -47,8 +47,8 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.0.1'
-retopoflow_version_tuple = (3, 0, 1)
+retopoflow_version = '3.00.2'
+retopoflow_version_tuple = (3, 0, 2)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 
@@ -194,13 +194,14 @@ class Options:
         'target alpha poly mirror selected':  0.25,
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
-        'target alpha line mirror':           0.25,
-        'target alpha line mirror selected':  0.25,
+        'target alpha line mirror':           0.1,
+        'target alpha line mirror selected':  0.5,
         'target alpha point':                 0.25,
         'target alpha point selected':        1.00,
-        'target alpha point mirror':          0.25,
-        'target alpha point mirror selected': 0.25,
+        'target alpha point mirror':          0.0,
+        'target alpha point mirror selected': 0.5,
         'target alpha point highlight':       1.00,
+        'target alpha mirror':                1.00,
 
         # ADDON UPDATER SETTINGS
         'updater auto check update': True,
@@ -210,12 +211,18 @@ class Options:
         'updater interval minutes': 0,
 
         #######################################
+        # GENERAL SETTINGS
+
+        'smooth edge flow iterations':  10,
+
+        #######################################
         # TOOL SETTINGS
 
         'contours count':               16,
         'contours uniform':             True,   # should new cuts be made uniformly about circumference?
         'contours non-manifold check':  True,
 
+        'polystrips radius':            40.0,
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
@@ -223,6 +230,10 @@ class Options:
         'polystrips handle inner size': 15,
         'polystrips handle outer size': 20,
         'polystrips handle border':     3,
+
+        'strokes radius':               40.0,
+        'strokes span insert mode':    'Brush Size',
+        'strokes span count':           1,
 
         'polypen merge dist':           10,         # pixels away to merge
         'polypen automerge':            True,
@@ -244,6 +255,22 @@ class Options:
         'relax face angles':            True,
         'relax correct flipped faces':  False,
         'relax straight edges':         True,
+        'relax preset 1 name':         'Preset 1',
+        'relax preset 1 radius':        50.0,
+        'relax preset 1 falloff':       1.5,
+        'relax preset 1 strength':      0.5,
+        'relax preset 2 name':         'Preset 2',
+        'relax preset 2 radius':        50.0,
+        'relax preset 2 falloff':       1.5,
+        'relax preset 2 strength':      0.5,
+        'relax preset 3 name':         'Preset 3',
+        'relax preset 3 radius':        50.0,
+        'relax preset 3 falloff':       1.5,
+        'relax preset 3 strength':      0.5,
+        'relax preset 4 name':         'Preset 4',
+        'relax preset 4 radius':        50.0,
+        'relax preset 4 falloff':       1.5,
+        'relax preset 4 strength':      0.5,
 
         'tweak radius':                 50.0,
         'tweak falloff':                1.5,
@@ -252,6 +279,22 @@ class Options:
         'tweak mask symmetry':          'maintain',
         'tweak mask hidden':            'exclude',
         'tweak mask selected':          'all',
+        'tweak preset 1 name':         'Preset 1',
+        'tweak preset 1 radius':        50.0,
+        'tweak preset 1 falloff':       1.5,
+        'tweak preset 1 strength':      0.5,
+        'tweak preset 2 name':         'Preset 2',
+        'tweak preset 2 radius':        50.0,
+        'tweak preset 2 falloff':       1.5,
+        'tweak preset 2 strength':      0.5,
+        'tweak preset 3 name':         'Preset 3',
+        'tweak preset 3 radius':        50.0,
+        'tweak preset 3 falloff':       1.5,
+        'tweak preset 3 strength':      0.5,
+        'tweak preset 4 name':         'Preset 4',
+        'tweak preset 4 radius':        50.0,
+        'tweak preset 4 falloff':       1.5,
+        'tweak preset 4 strength':      0.5,
 
         'patches angle':                120,
     }
@@ -476,6 +519,7 @@ class Visualization_Settings:
             'target alpha point mirror',
             'target alpha point mirror selected',
             'target alpha point highlight',
+            'target alpha mirror',
         ]
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
@@ -506,13 +550,14 @@ class Visualization_Settings:
             'constrain offset': constrain_offset,
         }
 
+        mirror_alpha_factor = options['target alpha mirror']
         self._target_settings = {
             'poly color':                  (*color_mesh[:3],   options['target alpha poly']),
             'poly color selected':         (*color_select[:3], options['target alpha poly selected']),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
-            'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror']),
-            'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected']),
+            'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror'] * mirror_alpha_factor),
+            'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected'] * mirror_alpha_factor),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
@@ -521,8 +566,8 @@ class Visualization_Settings:
             'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
-            'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror']),
-            'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected']),
+            'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror'] * mirror_alpha_factor),
+            'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected'] * mirror_alpha_factor),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
@@ -534,8 +579,8 @@ class Visualization_Settings:
             'point size highlight':        10.0,
             'point offset':                0.000015,
             'point dotoffset':             1.0,
-            'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror']),
-            'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected']),
+            'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror'] * mirror_alpha_factor),
+            'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected'] * mirror_alpha_factor),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,

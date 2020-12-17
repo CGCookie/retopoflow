@@ -54,6 +54,7 @@ from .useractions import ActionHandler, kmi_to_keycode
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
+from .drawing import Drawing
 from .fontmanager import FontManager
 from .globals import Globals
 from .hasher import Hasher
@@ -94,6 +95,13 @@ DEBUG_COLOR    = 1              # 0:time since change, 1:time of change
 DEBUG_LIST      = False
 
 CACHE_METHOD = 2                # 0:none, 1:only root, 2:hierarchical, 3:text leaves
+
+
+HTML_CHAR_MAP = [
+    ('&nbsp;', ' '),
+    ('&#96;',  '`'),
+    # ('&rarr;', '→'),
+]
 
 
 class UI_Element_Defaults:
@@ -329,13 +337,18 @@ class UI_Draw:
 
         vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
+        print(f'Addon Common: compiling UI shader')
         shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+        Drawing.glCheckError(f'Compiled shader {shader}')
+        print(f'Addon Common: batching for shader')
         batch = batch_for_shader(shader, 'TRIS', {"pos": vertex_positions})
+        Drawing.glCheckError(f'Batched for shader {batch}')
+        print(f'Addon Common: UI shader initialized')
         # get_pixel_matrix = Globals.drawing.get_pixel_matrix
         get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
         def_color = (0,0,0,0)
 
-        def draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override, atex=bgl.GL_TEXTURE0):
+        def draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override, depth, atex=bgl.GL_TEXTURE0):
             nonlocal shader, batch, def_color, get_MVP_matrix
             def get_v(style_key, def_val):
                 v = style.get(style_key, def_val)
@@ -351,6 +364,7 @@ class UI_Draw:
             shader.uniform_float('bottom',              top - (height - 1))
             shader.uniform_float('width',               width)
             shader.uniform_float('height',              height)
+            shader.uniform_float('depth',               depth)
             shader.uniform_float('margin_left',         get_v('margin-left', 0))
             shader.uniform_float('margin_right',        get_v('margin-right', 0))
             shader.uniform_float('margin_top',          get_v('margin-top', 0))
@@ -404,10 +418,10 @@ class UI_Draw:
         'scale-down': 3, # same as none or contain, whichever is smaller
         'none':       4, # not resized
     }
-    def draw(self, left, top, width, height, dpi_mult, style, texture_id=-1, texture_fit='fill', background_override=None):
+    def draw(self, left, top, width, height, dpi_mult, style, texture_id=-1, texture_fit='fill', background_override=None, depth=None):
         texture_fit = self.texture_fit_map.get(texture_fit, 0)
         #if texture_id != -1: print('texture_fit', texture_fit)
-        UI_Draw._draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override)
+        UI_Draw._draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override, depth)
 
 
 ui_draw = Globals.set(UI_Draw())
@@ -2396,7 +2410,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                         words = re.split(r'([^ \n]* +)', l)
                     for word in words:
                         if not word: continue
-                        word = word.replace('&nbsp;', ' ').replace('&#96;', '`')
+                        for f,t in HTML_CHAR_MAP: word = word.replace(f, t)
                         ui_word = UI_Element(innerTextAsIs=word, _parent=self)
                         self._children_text.append(ui_word)
                         for i in range(len(word)):
@@ -3155,7 +3169,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         with profiler.code('drawing mbp'):
             texture_id = self._image_data['texid'] if self._src == 'image' else -1
             texture_fit = self._computed_styles.get('object-fit', 'fill')
-            ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, texture_fit, background_override=background_override)
+            ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, texture_fit, background_override=background_override, depth=len(self._selector))
 
         with profiler.code('drawing children'):
             # compute inner scissor area

@@ -81,10 +81,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def update_insert_mode(self):
         mode = options['polypen insert mode']
         self.ui_options.label = f'PolyPen: {mode}'
-        self.ui_insert_mode_triquad.checked  = (options['polypen insert mode'] == 'Tri/Quad')
-        self.ui_insert_mode_quadonly.checked = (options['polypen insert mode'] == 'Quad-Only')
-        self.ui_insert_mode_trionly.checked  = (options['polypen insert mode'] == 'Tri-Only')
-        self.ui_insert_mode_edgeonly.checked = (options['polypen insert mode'] == 'Edge-Only')
+        self.ui_insert_mode_triquad.checked  = (mode == 'Tri/Quad')
+        self.ui_insert_mode_quadonly.checked = (mode == 'Quad-Only')
+        self.ui_insert_mode_trionly.checked  = (mode == 'Tri-Only')
+        self.ui_insert_mode_edgeonly.checked = (mode == 'Edge-Only')
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
@@ -560,7 +560,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if not bmv2 or not bmv3:
                 self.rfcontext.undo_cancel()
                 return 'main'
-            e1 = self.rfcontext.new_edge([bmv2, bmv3])
+            e1 = bmv2.shared_edge(bmv3)
+            if not e1: e1 = self.rfcontext.new_edge([bmv2, bmv3])
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)

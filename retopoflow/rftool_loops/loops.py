@@ -45,7 +45,7 @@ class RFTool_Loops(RFTool):
     icon        = 'loops-icon.png'
     help        = 'loops.md'
     shortcut    = 'loops tool'
-    statusbar   = '{{insert}} Insert edge loop'
+    statusbar   = '{{insert}} Insert edge loop\t{{smooth edge flow}} Smooth edge flow'
 
 class Loops_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -157,59 +157,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
         if self.rfcontext.actions.pressed('insert'):
             # insert edge loop / strip, select it, prep slide!
-            if not self.edges_: return
-
-            self.rfcontext.undo_push('insert edge %s' % ('loop' if self.edge_loop else 'strip'))
-
-            # if quad strip is a loop, then need to connect first and last new verts
-            is_looped = self.rfcontext.is_quadstrip_looped(self.nearest_edge)
-
-            def split_face(v0, v1):
-                nonlocal new_edges
-                f0 = next(iter(v0.shared_faces(v1)), None)
-                if not f0:
-                    self.rfcontext.alert_user('Something unexpected happened', level='warning')
-                    self.rfcontext.undo_cancel()
-                    return
-                f1 = f0.split(v0, v1)
-                new_edges.append(f0.shared_edge(f1))
-
-            # create new verts by splitting all the edges
-            new_verts, new_edges = [],[]
-
-            def compute_percent():
-                v0,v1 = self.nearest_edge.verts
-                c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
-                a,b = c1 - c0, self.rfcontext.actions.mouse - c0
-                adota = a.dot(a)
-                if adota <= 0.0000001: return 0
-                return a.dot(b) / adota;
-            percent = compute_percent()
-
-            for e,flipped in self.rfcontext.iter_quadstrip(self.nearest_edge):
-                bmv0,bmv1 = e.verts
-                if flipped: bmv0,bmv1 = bmv1,bmv0
-                ne,nv = e.split()
-                nv.co = bmv0.co + (bmv1.co - bmv0.co) * percent
-                self.rfcontext.snap_vert(nv)
-                if new_verts: split_face(new_verts[-1], nv)
-                new_verts.append(nv)
-
-            # connecting first and last new verts if quad strip is looped
-            if is_looped and len(new_verts) > 2: split_face(new_verts[-1], new_verts[0])
-
-            self.rfcontext.dirty()
-            self.rfcontext.select(new_edges)
-
-            self.prep_edit()
-            if not self.edit_ok:
-                self.rfcontext.undo_cancel()
-                return
-            self.move_done_pressed = None
-            self.move_done_released = ['insert', 'insert alt0']
-            self.move_cancelled = 'cancel'
-            self.rfcontext.undo_push('slide edge loop/strip')
-            return 'slide'
+            return self.insert_edge_loop_strip()
 
         if self.rfcontext.actions.pressed({'select paint'}):
             return self.rfcontext.setup_selection_painting(
@@ -240,7 +188,60 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             else:                         self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
             return
 
+    def insert_edge_loop_strip(self):
+        if not self.edges_: return
 
+        self.rfcontext.undo_push(f'insert edge {"loop" if self.edge_loop else "strip"}')
+
+        # if quad strip is a loop, then need to connect first and last new verts
+        is_looped = self.rfcontext.is_quadstrip_looped(self.nearest_edge)
+
+        def split_face(v0, v1):
+            nonlocal new_edges
+            f0 = next(iter(v0.shared_faces(v1)), None)
+            if not f0:
+                self.rfcontext.alert_user('Something unexpected happened', level='warning')
+                self.rfcontext.undo_cancel()
+                return
+            f1 = f0.split(v0, v1)
+            new_edges.append(f0.shared_edge(f1))
+
+        # create new verts by splitting all the edges
+        new_verts, new_edges = [],[]
+
+        def compute_percent():
+            v0,v1 = self.nearest_edge.verts
+            c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
+            a,b = c1 - c0, self.rfcontext.actions.mouse - c0
+            adota = a.dot(a)
+            if adota <= 0.0000001: return 0
+            return a.dot(b) / adota;
+        percent = compute_percent()
+
+        for e,flipped in self.rfcontext.iter_quadstrip(self.nearest_edge):
+            bmv0,bmv1 = e.verts
+            if flipped: bmv0,bmv1 = bmv1,bmv0
+            ne,nv = e.split()
+            nv.co = bmv0.co + (bmv1.co - bmv0.co) * percent
+            self.rfcontext.snap_vert(nv)
+            if new_verts: split_face(new_verts[-1], nv)
+            new_verts.append(nv)
+
+        # connecting first and last new verts if quad strip is looped
+        if is_looped and len(new_verts) > 2: split_face(new_verts[-1], new_verts[0])
+
+        self.rfcontext.dirty()
+        self.rfcontext.select(new_edges)
+
+        self.prep_edit()
+        if not self.edit_ok:
+            self.rfcontext.undo_cancel()
+            return
+        self.move_done_pressed = None
+        self.move_done_released = ['insert', 'insert alt0']
+        self.move_cancelled = 'cancel'
+        self.rfcontext.undo_push('slide edge loop/strip')
+        return 'slide'
 
     @RFTool_Loops.FSM_State('selectadd/deselect')
     def selectadd_deselect(self):
@@ -428,7 +429,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released):
+        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released, ignoremods=True):
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()

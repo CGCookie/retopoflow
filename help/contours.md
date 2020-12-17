@@ -37,10 +37,11 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| {{action}}        | : | grab and slide selected geometry under mouse |
-| {{grab}}          | : | slide selected loop |
-| {{rotate plane}}  | : | rotate selected loop in plane |
-| {{rotate screen}} | : | rotate selected loop in screen |
+| {{action}}           | : | grab and slide selected geometry under mouse |
+| {{grab}}             | : | slide selected loop |
+| {{rotate plane}}     | : | rotate selected loop in plane |
+| {{rotate screen}}    | : | rotate selected loop in screen |
+| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
 
 ## Other
 

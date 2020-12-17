@@ -30,15 +30,15 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
     dissolve_verts, dissolve_edges, dissolve_faces,
-    remove_doubles,
+    remove_doubles, mirror
 )
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
-from mathutils.geometry import normal as compute_normal, intersect_point_tri
+from mathutils.geometry import normal as compute_normal, intersect_point_tri, intersect_point_tri_2d
 
 from ...addon_common.common.blender import ModifierWrapper_Mirror
-from ...addon_common.common.maths import Point, Normal
+from ...addon_common.common.maths import Point, Normal, Direction
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
 from ...addon_common.common.hasher import hash_object, Hasher
@@ -850,7 +850,7 @@ class RFMesh():
             pt0 = pts[0]
             # TODO: Get dist?
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
-                if intersect_point_tri(xy, pt0, pt1, pt2):
+                if intersect_point_tri_2d(xy, pt0, pt1, pt2):
                     nearest.append((self._wrap_bmface(bmf), dist))
             #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
             #d2d = (xy - p2d).length
@@ -860,7 +860,7 @@ class RFMesh():
         #return (self._wrap_bmvert(bv),bd)
         return nearest
 
-    def nearest2D_bmface_Point2D(self, xy:Point2D, Point_to_Point2D, faces=None):
+    def nearest2D_bmface_Point2D(self, forward:Direction, xy:Point2D, Point_to_Point2D, faces=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
@@ -868,21 +868,20 @@ class RFMesh():
         else:
             faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
         bv,bd = None,None
+        best_d = float('inf')
+        best_f = None
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
             pts = [pt for pt in pts if pt]
             if len(pts) < 3: continue
             pt0 = pts[0]
             for pt1,pt2 in zip(pts[1:-1],pts[2:]):
-                if intersect_point_tri(xy, pt0, pt1, pt2):
-                    return (self._wrap_bmface(bmf), 0)  # either hits face (no distance) or misses
-            #p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
-            #d2d = (xy - p2d).length
-            #if p2d is None: continue
-            #if bv is None or d2d < bd: bv,bd = bmv,d2d
-        #if bv is None: return (None,None)
-        #return (self._wrap_bmvert(bv),bd)
-        return None,None
+                if intersect_point_tri_2d(xy, pt0, pt1, pt2):
+                    f = self._wrap_bmface(bmf)
+                    d = forward.dot(f.center())
+                    if d < best_d: best_d, best_f = d, f
+        if not best_f: return (None, None)
+        return (best_f, 0)
 
 
     ##########################################################
@@ -890,7 +889,10 @@ class RFMesh():
     def _visible_verts(self, is_visible):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
-        is_vis = lambda bmv: is_visible(l2w_point(bmv.co + 0.0050 * options['normal offset multiplier'] * bmv.normal), None)
+        is_vis = lambda bmv: (
+            is_visible(l2w_point(bmv.co), None) or
+            is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), None)
+        )
         return { bmv for bmv in self.bme.verts if bmv.is_valid and is_vis(bmv) }
 
     def _visible_edges(self, is_visible, bmvs=None):
@@ -1154,6 +1156,7 @@ class RFMesh():
         bme,flipped,bmf,looped = self._crawl_quadstrip_to_loopend(edge)
         if not bme: return
         bme_start = bme
+        bmf_start = bmf
         while True:
             # find next bme and bmf, in case bmesh is edited!
             if bmf: bme_next,bmf_next = self._crawl_quadstrip_next(bme, bmf)
@@ -1161,6 +1164,7 @@ class RFMesh():
             if not bmf: break
             if not bme_next: break
             if bme_next == bme_start: break
+            if bmf_next == bmf_start: break
             if self._are_edges_flipped(bme, bme_next): flipped = not flipped
             bme,bmf = bme_next,bmf_next
 
@@ -1508,6 +1512,28 @@ class RFTarget(RFMesh):
     def enable_symmetry(self, axis): self.mirror_mod.enable_axis(axis)
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
     def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
+
+    def apply_symmetry(self, nearest):
+        out = []
+        if self.mirror_mod.x:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='X')['geom']
+            self.mirror_mod.x = False
+        if self.mirror_mod.y:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Y')['geom']
+            self.mirror_mod.y = False
+        if self.mirror_mod.z:
+            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
+            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Z')['geom']
+            self.mirror_mod.z = False
+        for v in out:
+            if type(v) is not BMVert: continue
+            v = self._wrap_bmvert(v)
+            xyz,norm,_,_ = nearest(v.co)
+            v.co = xyz
+            v.normal = norm
+        self.dirty()
 
     def new_vert(self, co, norm):
         # assuming co and norm are in world space!
