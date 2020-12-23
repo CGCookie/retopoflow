@@ -243,7 +243,7 @@ class RetopoFlow_UI:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.collapsible(label='Report an issue', classes='issue-checker', collapsed=False)
+            ui_checker = ui.details(summary='Report an issue', classes='issue-checker', collapsed=False)
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
             ui_buttons = ui.div(parent=ui_checker, classes='action-buttons')
 
@@ -338,7 +338,7 @@ class RetopoFlow_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
-            ui_details = ui.collapsible(id='crashdetails', label='Crash details')
+            ui_details = ui.details(id='crashdetails', summary='Crash details')
             ui_details.builder([
                 ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),  # align=0
                 ui.pre(innerText=msg_report),    # fontid=fontid
@@ -611,7 +611,7 @@ class RetopoFlow_UI:
                 ui.label(innerText=lbl, parent=radio, title=rftool.description)
             for rftool in self.rftools: add_tool(rftool)
 
-            ui_help = ui.collapsible(label='Documentation', id='help-buttons', parent=self.ui_main, children=[
+            ui_help = ui.details(summary='Documentation', id='help-buttons', parent=self.ui_main, children=[
                 ui.button(
                     label='Welcome!',
                     title='Show the "Welcome!" message from the RetopoFlow team',
@@ -638,7 +638,7 @@ class RetopoFlow_UI:
                     on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
                 ),
             ])
-            ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
+            ui_show = ui.details(summary='Windows', parent=self.ui_main)
             ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window, parent=ui_show)
             self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
             self.ui_show_geometry = ui.button(label='Show Poly Count', title='Show poly count window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
@@ -680,7 +680,7 @@ class RetopoFlow_UI:
                 if options['hide overlays']: self.overlays_hide()
                 else: self.overlays_restore()
 
-            ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
+            ui.details(summary='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.collection(label='Quit Options', title='These options control quitting RetopoFlow', children=[
                     ui.input_checkbox(
                         label='Confirm quit on Tab',
@@ -710,7 +710,7 @@ class RetopoFlow_UI:
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collapsible(label='Advanced', children=[
+                ui.details(summary='Advanced', children=[
                     ui.collection(label='Keyboard Settings', children=[
                         ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
                         ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
@@ -731,7 +731,7 @@ class RetopoFlow_UI:
                     ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options)
                 ])
             ]),
-            ui.collapsible(label='Display', title='Display options', id='view-options', parent=self.ui_options, children=[
+            ui.details(summary='Display', title='Display options', id='view-options', parent=self.ui_options, children=[
                 ui.input_checkbox(
                     label='Auto Hide Tool Options',
                     title='If enabled, options for selected tool will show while other tool options hide.',
@@ -788,7 +788,7 @@ class RetopoFlow_UI:
                     ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
                     ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
                     ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
-                    ui.collapsible(label='Individual Alpha Values', children=[
+                    ui.details(summary='Individual Alpha Values', children=[
                         ui.collection(label='Verts', children=[
                             ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
                             ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
@@ -810,12 +810,13 @@ class RetopoFlow_UI:
                         ]),
                     ]),
                 ]),
-                ui.collapsible(label='Tooltips', children=[
+                ui.details(summary='Tooltips', children=[
                     ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
                     ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
                 ])
-            ]),
-            ui.collapsible(label='Target Cleaning', title='Target cleaning options', parent=self.ui_options, id='target-cleaning', children=[
+            ])
+
+            ui.details(summary='Target Cleaning', title='Target cleaning options', id='target-cleaning', parent=self.ui_options, children=[
                 ui.collection(label='Snap Verts', id='snap-verts', children=[
                     ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
                     ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
@@ -830,7 +831,7 @@ class RetopoFlow_UI:
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
-            symmetryoptions = ui.collapsible(label='Symmetry', title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options, children=[
+            symmetryoptions = ui.details(summary='Symmetry', title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options, children=[
                 ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
                 ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
@@ -898,15 +899,16 @@ class RetopoFlow_UI:
                     on_mouseclick=delay_exec('''self.apply_symmetry()'''),
                 ),
             ])
+            symmetryoptions_summary = symmetryoptions.getElementById('symmetryoptions_summary')
             def symmetry_changed():
                 s = []
                 if self.rftarget.mirror_mod.x: s += ['X']
                 if self.rftarget.mirror_mod.y: s += ['Y']
                 if self.rftarget.mirror_mod.z: s += ['Z']
                 if not s: s = ['(none)']
-                symmetryoptions.innerText = f'Symmetry: {",".join(s)}'
+                symmetryoptions_summary.innerText = f'Symmetry: {",".join(s)}'
             symmetry_changed()
-            for opt in self.ui_options.getElementsByClassName('symmetry-enable'):
+            for opt in symmetryoptions.getElementsByClassName('symmetry-enable'):
                 opt.add_eventListener('on_input', symmetry_changed)
 
 

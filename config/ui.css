@@ -218,7 +218,7 @@ input[type="checkbox"][checked] > label {
 /**************************/
 /* COLLAPSIBLE COLLECTION */
 
-div.collapsible {
+/*div.collapsible {
     margin: 2px;
     border: 0px;
     border-radius: 0px;
@@ -268,6 +268,65 @@ div.collapsible > div.inside {
     background: var(--panel-two-background);
     padding: 4px 4px 4px 4px;
     margin: 0px 0px 0px 0px;
+}*/
+
+
+
+details {
+    display: block;
+    width: 100%;
+    margin: 2px;
+    border: 0px;
+    border-radius: 0px;
+    background: rgba(0, 0, 0, 0);
+    padding: 0px 0px 0px 0px;
+}
+
+details > div.header {
+    display: block;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    padding-top: 1px;
+    padding-bottom: 0px;
+    padding-left: 1px;
+    margin: 0px;
+    border: 0px;
+}
+details > div.header:hover {
+    background: hsla(200, 0%, 50%, 0.25);
+}
+
+details > div.header > summary {
+    margin-left: 3px;
+    margin-top: 4px;
+    padding: 0px;
+}
+
+details > div.header > img.marker {
+    margin: 8px 0px 2px 0px;
+    padding: 0px;
+    border: 0px;
+    width: 18px;
+    height: 18px;
+}
+details[open] > div.header > img.marker {
+    background: transparent url('collapse_open.png');
+}
+details > div.header > img.marker {
+    background: transparent url('collapse_close.png');
+}
+
+details > div.inside {
+    display: none;
+    border: 0px;
+    border-color: transparent;
+    background: var(--panel-two-background);
+    padding: 4px 4px 4px 4px;
+    margin: 0px 0px 0px 0px;
+}
+details[open] > div.inside {
+    display: block;
 }
 
 /********************************/
@@ -334,7 +393,6 @@ div.collection {
     margin-bottom: 6px;
     border: 0px;
     padding: 0px;
-    padding-top: 0px;
     border-radius: 4px;
     background: var(--collection);
 }
@@ -348,7 +406,10 @@ div.collection > div.header {
     border-radius: 0px;
     color: var(--text);
     padding-left: 6px;
+}
 
+div.collection > div.inside {
+    padding-left: 0px;
 }
 
 *#merge-by-distance button {

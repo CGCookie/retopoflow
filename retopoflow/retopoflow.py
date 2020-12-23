@@ -70,6 +70,8 @@ def preload_help_images(version='thread'):
     path_images += list(glob.glob('*.png'))
     os.chdir(os.path.join(path_here, '..', 'icons'))
     path_images += list(glob.glob('*.png'))
+    os.chdir(os.path.join(path_here, '..', 'addon_common', 'common', 'images'))
+    path_images += list(glob.glob('*.png'))
     os.chdir(path_cur)
 
     if version == 'process':
@@ -194,13 +196,13 @@ class RetopoFlow(
     def setup_next_stage_enter(self):
         d = {}
         d['working'] = False
-        d['timer'] = self.actions.start_timer(30)
+        d['timer'] = self.actions.start_timer(120)
         d['ui_window'] = ui.framed_dialog(label='RetopoFlow is loading...', id='loadingdialog', closeable=False, parent=self.document.body)
         d['ui_div'] = ui.markdown(id='loadingdiv', mdown='Loading...', parent=d['ui_window'])
         d['i_stage'] = 0
         d['i_step'] = 0
         d['time'] = 0           # will be updated to current time
-        d['delay'] = 0.01
+        d['delay'] = 0.001
         d['stages'] = [
             ('Pausing help image preloading',       self.preload_help_pause),
             ('Setting up target mesh',              self.setup_target),
@@ -229,7 +231,7 @@ class RetopoFlow(
         try:
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
-                print('RetopoFlow: %s' % stage_name)
+                print(f'RetopoFlow: {stage_name} ({time.time()-d["time"]})')
                 ui.set_markdown(d['ui_div'], mdown='%s' % stage_name)
             else:
                 stage_fn()

@@ -93,7 +93,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
     @RFTool_Patches.on_ui_setup
     def ui(self):
-        return ui.collapsible('Patches', children=[
+        return ui.details(summary='Patches', children=[
             ui.labeled_input_text(
                 label='Angle',
                 title='A vertex between connected edges that form an angles below this threshold is a corner',

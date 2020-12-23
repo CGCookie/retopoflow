@@ -94,7 +94,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             options['polypen insert mode'] = e.target.value
             self.update_insert_mode()
 
-        self.ui_options = ui.collapsible('PolyPen', children=[
+        self.ui_options = ui.details(summary='PolyPen', children=[
             ui.collection(label='Automerge', children=[
                 ui.input_checkbox(
                     label='Enable Automerge',

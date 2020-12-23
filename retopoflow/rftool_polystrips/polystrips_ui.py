@@ -40,8 +40,7 @@ RFTool_PolyStrips = rftools['RFTool_PolyStrips']
 class PolyStrips_UI:
     @RFTool_PolyStrips.on_ui_setup
     def ui(self):
-        container = ui.collapsible('PolyStrips')
-        container.builder([
+        return ui.details(summary='PolyStrips', children=[
             ui.labeled_input_text(
                 label='Cut Count',
                 title='Number of cuts along selected strip.',
@@ -53,4 +52,3 @@ class PolyStrips_UI:
                 value=self._var_scale_falloff,
             ),
         ])
-        return container

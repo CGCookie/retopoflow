@@ -132,7 +132,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             options['strokes span insert mode'] = e.target.value
             self.update_span_mode()
 
-        self.ui_options = ui.collapsible('Strokes', children=[
+        self.ui_options = ui.details(summary='Strokes', children=[
             ui.collection(label='Span Insert Mode', children=[
                 ui.input_radio(
                     id='strokes-span-mode-brush',

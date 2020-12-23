@@ -563,7 +563,7 @@ input[type="radio"][checked] > label {
 /**************************/
 /* COLLAPSIBLE COLLECTION */
 
-div.collapsible > input.header {
+/*div.collapsible > input.header {
     display: block;
     width: 100%;
 }
@@ -580,6 +580,26 @@ div.collapsible > div.inside {
 }
 div.collapsible > div.inside.collapsed {
     display: none;
+}*/
+
+
+details > div.header {
+    display: block;
+    width: 100%;
+}
+details > div.header > img.marker {
+    background: transparent url('collapse_close.png');
+}
+details[open] > div.header > img.marker {
+    background: transparent url('collapse_open.png');
+}
+details > div.inside {
+    display: none;
+}
+details[open] > div.inside {
+    display: block;
+    margin-top: 2px;
+    margin-left: 16px;
 }
 
 
@@ -676,7 +696,7 @@ div.collapsible > div.inside.collapsed {
 *.labeledinputtext-container > *.labeledinputtext-label-container {
     margin: 0px;
     border: 0px;
-    padding: 4px 0px 0px 0px;
+    padding: 4px 4px 0px 0px;
     display: inline;
     width: 50%;
     background: transparent;

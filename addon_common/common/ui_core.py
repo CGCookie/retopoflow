@@ -25,6 +25,7 @@ import sys
 import math
 import time
 import random
+import inspect
 import traceback
 import contextlib
 from math import floor, ceil
@@ -185,26 +186,34 @@ def get_image_path(fn, ext=None, subfolders=None):
             addon_common/
                 common/
                     ui_core.py      <- this file
+                    images/         <- will look here
                     <...>
                 <...>
-            icons/                  <- will look here (if exists)
+            icons/                  <- and here (if exists)
                 <...>
-            images/                 <- will look here (if exists)
+            images/                 <- and here (if exists)
                 <...>
-            help/                   <- will look here (if exists)
+            help/                   <- and here (if exists)
                 <...>
             <...>
+    returns first path where fn is found
+    order of search: <addon_root>/icons, <addon_root>/images, <addon_root>/help, <addon_root>/addon_common/common/images
     '''
-    if subfolders is None:
-        subfolders = ['icons', 'images', 'help']
-    if ext:
-        fn = f'{fn}.{ext}'
     path_here = os.path.dirname(__file__)
     path_root = os.path.join(path_here, '..', '..')
-    paths = [os.path.join(path_root, p, fn) for p in subfolders]
-    paths += [os.path.join(path_here, 'images', fn)]
+    if subfolders is None:
+        path_addon_common = os.path.dirname(os.path.abspath(path_here))
+        subfolders = [
+            'icons',
+            'images',
+            'help',
+            os.path.join(path_addon_common, 'common', 'images'),
+        ]
+    if ext: fn = f'{fn}.{ext}'
+    paths = [os.path.join(path_root, subfolder, fn) for subfolder in subfolders]
     paths = [p for p in paths if os.path.exists(p)]
-    return iter_head(paths, None)
+    found = iter_head(paths, None)
+    return found
 
 math_isinf = math.isinf
 math_floor = math.floor
@@ -1323,6 +1332,16 @@ class UI_Element_Properties:
         self.dirty_selector(cause='changing type can affect selector', children=True)
 
     @property
+    def open(self):
+        return bool(self._open)
+    @open.setter
+    def open(self, v):
+        v = bool(v)
+        if self._open == v: return
+        self._open = bool(v)
+        self.dirty_selector(cause='changing open can affect selector', children=True)
+
+    @property
     def value(self):
         if self._value_bound:
             return self._value.value
@@ -1664,15 +1683,16 @@ class UI_Element_Dirtiness:
         # self.call_cleaning_callbacks()
         self._compute_selector()
         self._compute_style()
-        self._compute_content()
-        self._compute_blocks()
-        self._compute_static_content_size()
-        self._renderbuf()
+        if self.is_visible:
+            self._compute_content()
+            self._compute_blocks()
+            self._compute_static_content_size()
+            self._renderbuf()
 
-        profiler.add_note(f'mid: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
+            profiler.add_note(f'mid: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
 
-        for child in self._children_all:
-           child.clean(depth=depth+1)
+            for child in self._children_all:
+               child.clean(depth=depth+1)
 
         profiler.add_note(f'post: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
         if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean done')
@@ -1794,6 +1814,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._name            = None
         self._href            = None
         self._clamp_to_parent = False
+        self._open            = False
 
         self._was_dirty     = False
         self._preclean      = None      # fn that's called back right before clean is started
@@ -2030,11 +2051,14 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return self.__str__()
 
     def __str__(self):
-        info = ['tagName', 'id', 'classes', 'type', 'innerText', 'innerTextAsIs', 'value', 'title']
+        info = ['id', 'classes', 'type', 'innerText', 'innerTextAsIs', 'value', 'title'] # 'tagName', 
         info = [(k, getattr(self, k)) for k in info if hasattr(self, k)]
         info = [f'{k}="{v}"' for k,v in info if v]
+        if self.open:     info += ['open']
         if self.is_dirty: info += ['dirty']
-        if self._atomic: info += ['atomic']
+        if self._atomic:  info += ['atomic']
+        info = ' '.join(['']+info) if info else ''
+        return f'<{self.tagName}{info}>'
         return '<%s>' % ' '.join(['UI_Element'] + info)
 
     @property
@@ -2082,6 +2106,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             if self.checked:
                 sel_attribs += '[checked]'
                 sel_attribvals += '[checked="checked"]'
+            if self.open:
+                sel_attribs += '[open]'
             self_selector = sel_tagName + sel_id + sel_cls + sel_pseudo + sel_attribs + sel_attribvals
             selector = sel_parent + [self_selector]
             selector_before = sel_parent + [sel_tagName + sel_id + sel_cls + sel_pseudo + '::before']
@@ -2256,13 +2282,14 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         # tell children to recompute selector
         # NOTE: self._children_all has not been constructed, yet!
-        if self._children:
-            for child in self._children: child._compute_style()
-        if self._children_text:
-            for child in self._children_text: child._compute_style()
-        if self._child_before or self._child_after:
-            if self._child_before: self._child_before._compute_style()
-            if self._child_after:  self._child_after._compute_style()
+        if self.is_visible:
+            if self._children:
+                for child in self._children: child._compute_style()
+            if self._children_text:
+                for child in self._children_text: child._compute_style()
+            if self._child_before or self._child_after:
+                if self._child_before: self._child_before._compute_style()
+                if self._child_after:  self._child_after._compute_style()
 
         with profiler.code('style.hashing for cache'):
             # style changes => content changes
