@@ -30,8 +30,8 @@ The following documents provide help for specific RetopoFlow tools.
 The following links provide additional information.
 
 - [Change list](changelist.md)
+- [Warnings Details](warnings.md)
 - [Blender Market](https://blendermarket.com/products/retopoflow)
 - [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)
 - [GitHub Issues](https://github.com/CGCookie/retopoflow/issues)
-- [Warnings Details](warnings.md)
 
