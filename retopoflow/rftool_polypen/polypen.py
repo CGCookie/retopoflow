@@ -186,7 +186,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @profiler.function
     def set_next_state(self, force=False):
-        if not self.rfcontext.actions.mouse and not force: return
+        if not self.actions.mouse and not force: return
 
         with profiler.code('getting nearest geometry'):
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
@@ -278,7 +278,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if self.first_time or self.rfcontext.actions.mousemove:
+        if self.first_time or self.actions.mousemove:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')
@@ -296,7 +296,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 self.rfwidget = rfwidget
                 return
 
-        if self.rfcontext.actions.pressed('pie menu alt0'):
+        if self.actions.pressed('pie menu alt0'):
             def callback(option):
                 if not option: return
                 options['polypen insert mode'] = option
@@ -309,11 +309,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             ], callback, highlighted=options['polypen insert mode'])
             return
 
-        if self.rfcontext.actions.pressed('insert'):
+        if self.actions.pressed('insert'):
             return 'insert'
 
         if self.nearest_geom and self.nearest_geom.select:
-            if self.rfcontext.actions.pressed('action'):
+            if self.actions.pressed('action'):
                 self.rfcontext.undo_push('grab')
                 self.prep_move(defer_recomputing=False)
                 return 'move after select'
@@ -344,7 +344,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
             return
 
-        if self.rfcontext.actions.pressed('grab'):
+        if self.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
             self.move_done_pressed = 'confirm'
@@ -420,10 +420,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def _insert(self):
         self.last_delta = None
         self.move_done_pressed = None
-        self.move_done_released = ['insert', 'insert alt1']
+        self.move_done_released = 'insert'
         self.move_cancelled = 'cancel'
 
-        if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
+        if self.actions.shift and not self.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
             nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
             self.rfcontext.select(nearest_vert)
@@ -443,7 +443,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bme0,bmv2 = self.nearest_edge.split()
             bmv.merge(bmv2)
             self.rfcontext.select(bmv)
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv.co)
             if not xy:
                 #print('Could not insert: ' + str(bmv.co))
@@ -508,7 +508,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             else:
                 return 'main'
 
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
                 dprint('Could not insert: ' + str(bmv1.co))
@@ -535,7 +535,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
 
             self.rfcontext.select(bmf)
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
             if not xy:
                 dprint('Could not insert: ' + str(bmv2.co))
@@ -565,7 +565,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             self.bmverts = [
                 (bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)),
                 (bmv3, self.rfcontext.Point_to_Point2D(bmv3.co))
@@ -590,7 +590,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             return 'main'
 
         if self.next_state == 'tri-quad':
-            hit_pos = self.rfcontext.actions.hit_pos
+            hit_pos = self.actions.hit_pos
             if not hit_pos:
                 self.rfcontext.undo_cancel()
                 return 'main'
@@ -613,7 +613,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if len(bme12.link_faces) == 1: bme12.select = True
             else:
                 bmv1.co = hit_pos
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
@@ -633,7 +633,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bme0,bmv2 = nearest_edge.split()
             bmv.merge(bmv2)
         self.rfcontext.select(bmv)
-        self.mousedown = self.rfcontext.actions.mousedown
+        self.mousedown = self.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
         if not xy:
             dprint('Could not insert: ' + str(bmv.co))
@@ -651,7 +651,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         # TODO: remove colocated faces
         if self.mousedown is None: return
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         update_verts = []
         merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
@@ -685,7 +685,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if not bmverts: bmverts = self.sel_verts
         self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
         self.set_vis_bmverts()
-        self.mousedown = self.rfcontext.actions.mouse
+        self.mousedown = self.actions.mouse
         self.last_delta = None
         self.defer_recomputing = defer_recomputing
 
@@ -693,12 +693,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @profiler.function
     @RFTool_PolyPen.dirty_when_done
     def modal_move_after_select(self):
-        if self.rfcontext.actions.released('action'):
+        if self.actions.released('action'):
             return 'main'
-        if (self.rfcontext.actions.mouse - self.mousedown).length > 7:
+        if (self.actions.mouse - self.mousedown).length > 7:
             self.last_delta = None
             self.move_done_pressed = None
-            self.move_done_released = ['action']
+            self.move_done_released = 'action'
             self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('move after select')
             return 'move'
@@ -711,25 +711,24 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @profiler.function
     @RFTool_PolyPen.dirty_when_done
     def modal_move(self):
-        released = self.rfcontext.actions.released
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
             self.mergeSnapped()
             return 'main'
-        if self.move_done_released and all(released(item) for item in self.move_done_released):
+        if self.move_done_released and self.actions.released(self.move_done_released, ignoremods=True):
             self.defer_recomputing = False
             self.mergeSnapped()
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.move_cancelled and self.actions.pressed('cancel'):
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
 
         # only update verts on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
+        if not self.actions.timer: return
         if self.actions.mouse_prev == self.actions.mouse: return
 
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
@@ -793,7 +792,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
-        hit_pos = self.rfcontext.actions.hit_pos
+        hit_pos = self.actions.hit_pos
         if not hit_pos: return
 
         self.set_next_state()
@@ -868,13 +867,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 return
             self.draw_lines([bmv0.co, p0])
 
-        elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+        elif self.actions.shift and not self.actions.ctrl:
             if self.next_state in ['edge-face', 'edge-quad', 'edge-quad-snap', 'tri-quad']:
                 nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
                 if nearest_vert:
                     self.draw_lines([nearest_vert.co, hit_pos])
 
-        elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+        elif not self.actions.shift and self.actions.ctrl:
             if self.next_state == 'edge-face':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
                 if not e0: return

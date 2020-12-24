@@ -416,7 +416,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.rfwidget = None #self.rfwidgets['default']
         self.rfcontext.undo_push('scale')
         self.move_done_pressed = None
-        self.move_done_released = {'insert', 'insert alt0', 'insert alt1'}
+        self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
 
         falloff = options['polystrips scale falloff']
@@ -448,7 +448,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def scale(self):
         if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.rfcontext.actions.released(self.move_done_released):
+        if self.rfcontext.actions.released(self.move_done_released, ignoremods=True):
             return 'main'
         if self.rfcontext.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
