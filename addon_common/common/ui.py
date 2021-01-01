@@ -584,7 +584,6 @@ def details(**kwargs):
         doit |= e.target.tagName == 'summary' and e.target.parent == ui_details     # clicked on <summary> of <details>
         if not doit: return
         ui_details.open = not ui_details.open
-        if e.target == ui_details: do
     ui_details.add_eventListener('on_mouseclick', mouseclick)
     return ui_details
 
