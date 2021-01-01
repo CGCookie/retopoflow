@@ -2,7 +2,7 @@
 
 This guide will help you get started with the RetopoFlow.
 
-More detailed help is available by pressing `F1` after you start RetopoFlow.
+More detailed help is available by pressing {{general help}} after you start RetopoFlow.
 
 
 ## The Short, Short Version
