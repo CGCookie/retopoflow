@@ -94,7 +94,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             options['polypen insert mode'] = e.target.value
             self.update_insert_mode()
 
-        self.ui_options = ui.details(summary='PolyPen', children=[
+        self.ui_options = ui.details(children=[
+            ui.summary(innerText='PolyPen'),
             ui.collection(label='Automerge', children=[
                 ui.input_checkbox(
                     label='Enable Automerge',
@@ -116,7 +117,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     checked=(options['polypen insert mode']=='Tri/Quad'),
                     name='polypen-insert-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Tri/Quad')],
+                    children=[
+                        ui.label(
+                            innerText='Tri/Quad',
+                            title='Inserting alternates between Triangles and Quads',
+                        ),
+                    ],
                     on_input=insert_mode_change,
                 ),
                 ui.input_radio(
@@ -126,11 +132,16 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     checked=(options['polypen insert mode']=='Quad-Only'),
                     name='polypen-insert-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Quad-Only')],
+                    children=[
+                        ui.label(
+                            innerText='Quad-Only',
+                            title='Inserting Quads only',
+                        ),
+                    ],
                     on_input=insert_mode_change,
                 ),
                 # HACK: THE FOLLOWING LINE IS A HACK TO FORCE THE "Tri-Only" INPUT TO RESIZE CORRECTLY!
-                ui.p(
+                ui.br(
                     style='display:none',
                 ),
                 ui.input_radio(
@@ -140,7 +151,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     checked=(options['polypen insert mode']=='Tri-Only'),
                     name='polypen-insert-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Tri-Only')],
+                    children=[
+                        ui.label(
+                            innerText='Tri-Only',
+                            title='Inserting Triangles only',
+                        ),
+                    ],
                     on_input=insert_mode_change,
                 ),
                 ui.input_radio(
@@ -150,7 +166,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     checked=(options['polypen insert mode']=='Edge-Only'),
                     name='polypen-insert-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Edge-Only')],
+                    children=[
+                        ui.label(
+                            innerText='Edge-Only',
+                            title='Inserting Edges only',
+                        ),
+                    ],
                     on_input=insert_mode_change,
                 ),
             ]),

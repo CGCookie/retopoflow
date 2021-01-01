@@ -294,6 +294,11 @@ class UI_Document(UI_Document_FSM):
         print('')
         print('UI_Document.debug_print')
         self._body.debug_print(0, set())
+    def debug_print_toroot(self, fromHovered=True, fromFocused=False):
+        print('')
+        print('UI_Document.debug_print_toroot')
+        if fromHovered: self._debug_print(self._under_mouse)
+        if fromFocused: self._debug_print(self._focus)
     def _debug_print(self, ui_from):
         # debug print!
         path = ui_from.get_pathToRoot()
@@ -399,6 +404,9 @@ class UI_Document(UI_Document_FSM):
         if self.actions.pressed('SHIFT+F11'):
             profiler.printout()
             self.debug_print()
+            return
+        if self.actions.pressed('CTRL+SHIFT+F11'):
+            self.debug_print_toroot()
             return
 
         # if self.actions.pressed('RIGHTMOUSE') and self._under_mouse:
@@ -554,7 +562,7 @@ class UI_Document(UI_Document_FSM):
                 # send mouseclick events to ui_element indicated by forId!
                 ui_for = self._under_mousedown.get_root().getElementById(self._under_mousedown.forId)
                 if ui_for is None: return
-                ui_for.dispatch_event('mouseclick', ui_event=e)
+                ui_for.dispatch_event('on_mouseclick') #, ui_event=e)
             self._last_click_time = time.time()
         else:
             self._last_under_click = None

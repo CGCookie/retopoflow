@@ -156,36 +156,28 @@ def dialog(**kwargs):
     return UI_Element(tagName='dialog', **kwargs)
 
 def label(**kwargs):
-    return UI_Element(tagName='label', **kwargs)
+    ui_label = UI_Element(tagName='label', **kwargs)
+    def mouseclick(e):
+        if ui_label.forId is None: return
+        ui_for = ui_label.get_root().getElementById(ui_label.forId)
+        if not ui_for: return
+        ui_for.dispatch_event('on_mouseclick', ui_event=e)
+    ui_label.add_eventListener('on_mouseclick', mouseclick)
+    return ui_label
 
 def input_radio(**kwargs):
-    kwargs_translate('label', 'innerText', kwargs)
-    kw_label = kwargs_splitter({'innerText'}, kwargs)
-    kw_all = kwargs_splitter({'title'}, kwargs)
-
-    # https://www.w3schools.com/howto/howto_css_custom_checkbox.asp
-    ui_input = UI_Element(tagName='input', type='radio', atomic=True, **kwargs, **kw_all)
-    with ui_input.defer_dirty('creating content'):
-        ui_radio = UI_Element(tagName='img', classes='radio',  parent=ui_input, **kw_all)
-        ui_label = UI_Element(tagName='label', parent=ui_input, **kw_label, **kw_all)
-        def mouseclick(e):
-            ui_input.checked = True
-        def on_input(e):
-            # if ui_input is checked, uncheck all others with same name
-            if not ui_input.checked: return
-            if ui_input.name is None: return
-            ui_elements = ui_input.get_root().getElementsByName(ui_input.name)
-            for ui_element in ui_elements:
-                if ui_element != ui_input: ui_element.checked = False
-        ui_input.add_eventListener('on_mouseclick', mouseclick)
-        ui_input.add_eventListener('on_input', on_input)
-
-    ui_proxy = UI_Proxy('input_radio', ui_input)
-    ui_proxy.translate('label', 'innerText')
-    ui_proxy.map_children_to(ui_label)
-    ui_proxy.map('innerText', ui_label)
-    ui_proxy.map_to_all({'title'})
-    return ui_proxy
+    ui_input = UI_Element(tagName='input', type='radio', **kwargs)
+    def mouseclick(e):
+        ui_input.checked = True
+    def on_input(e):
+        if not ui_input.checked: return
+        if ui_input.name is None: return
+        ui_elements = ui_input.get_root().getElementsByName(ui_input.name)
+        for ui_element in ui_elements:
+            if ui_element != ui_input: ui_element.checked = False
+    ui_input.add_eventListener('on_mouseclick', mouseclick)
+    ui_input.add_eventListener('on_input', on_input)
+    return ui_input
 
 def input_checkbox(**kwargs):
     kwargs_translate('label', 'innerText', kwargs)
@@ -585,35 +577,49 @@ def get_and_discard(d, k, default=None):
     return v
 
 def details(**kwargs):
-    is_open = get_and_discard(kwargs, 'open', False)
-    summary = get_and_discard(kwargs, 'summary', 'Details')
-    details_id = kwargs.get('id', get_unique_ui_id('details-'))
+    ui_details = UI_Element(tagName='details', **kwargs)
+    def mouseclick(e):
+        doit = False
+        doit |= e.target == ui_details                                              # clicked on <details>
+        doit |= e.target.tagName == 'summary' and e.target.parent == ui_details     # clicked on <summary> of <details>
+        if not doit: return
+        ui_details.open = not ui_details.open
+        if e.target == ui_details: do
+    ui_details.add_eventListener('on_mouseclick', mouseclick)
+    return ui_details
 
-    kw_inside = kwargs_splitter({'children'}, kwargs)
-    kw_all    = kwargs_splitter({'title'},    kwargs)
+    # details_id = kwargs.get('id', get_unique_ui_id('details-'))
+    # summary = get_and_discard(kwargs, 'summary', 'Details')
+    # is_open = get_and_discard(kwargs, 'open', False)
 
-    if type(summary) is str:
-        ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', innerText=summary, **kw_all)
-    else:
-        if type(summary) is not list: summary = [summary]
-        ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', children=summary, **kw_all)
+    # kw_inside = kwargs_splitter({'children'}, kwargs)
+    # kw_all    = kwargs_splitter({'title'},    kwargs)
 
-    ui_details = UI_Element(tagName='details', open=is_open, children=[
-        UI_Element(tagName='div', classes='header', children=[
-            UI_Element(tagName='img', classes='marker', **kw_all),
-            ui_summary,
-        ], **kw_all),
-        UI_Element(tagName='div', classes='inside', **kw_inside, **kw_all),
-    ], **kwargs, **kw_all)
-    ui_header, ui_inside = ui_details.children
-    ui_header.add_eventListener('on_mouseclick', delay_exec('''ui_details.open = not ui_details.open'''))
 
-    ui_proxy = UI_Proxy('details', ui_details)
-    ui_proxy.map(['open'], ui_details)
-    ui_proxy.map_children_to(ui_inside)
-    ui_proxy.map_to_all({'title'})
-    return ui_proxy
+    # if type(summary) is str:
+    #     ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', innerText=summary, **kw_all)
+    # else:
+    #     if type(summary) is not list: summary = [summary]
+    #     ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', children=summary, **kw_all)
 
+    # ui_details = UI_Element(tagName='details', open=is_open, children=[
+    #     UI_Element(tagName='div', classes='header', children=[
+    #         UI_Element(tagName='img', classes='marker', **kw_all),
+    #         ui_summary,
+    #     ], **kw_all),
+    #     UI_Element(tagName='div', classes='inside', **kw_inside, **kw_all),
+    # ], **kwargs, **kw_all)
+    # ui_header, ui_inside = ui_details.children
+    # ui_header.add_eventListener('on_mouseclick', delay_exec('''ui_details.open = not ui_details.open'''))
+
+    # ui_proxy = UI_Proxy('details', ui_details)
+    # ui_proxy.map(['open'], ui_details)
+    # ui_proxy.map_children_to(ui_inside)
+    # ui_proxy.map_to_all({'title'})
+    # return ui_proxy
+
+def summary(**kwargs):
+    return UI_Element(tagName='summary', **kwargs)
 
 
 

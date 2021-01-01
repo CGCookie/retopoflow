@@ -49,9 +49,20 @@ from .decorators import blender_version_wrapper, debug_test_call, add_cache
 from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
 from .profiler import profiler
 from .drawing import Drawing, ScissorStack
-from .utils import iter_head, UniqueCounter
+from .utils import iter_head, UniqueCounter, join
 from .shaders import Shader
 from .fontmanager import FontManager
+
+
+'''
+
+reference: https://www.w3.org/TR/selectors/
+
+note: remove the element selector, and work directly with the DOM so that
+      relational combinators and pseudoclasses are doable
+      examples: h1 + p, p ~ p, h1:has(a)
+
+'''
 
 
 
@@ -116,10 +127,10 @@ token_rules = [
         r'/[*][\s\S]*?[*]/',    # multi-line comments
     ]),
     ('special', convert_token_to_string, [
-        r'[-.*>{},();#~]|[:]+',
+        r'[-.*>{},();#~+]|[:]+',
     ]),
     ('combinator', convert_token_to_string, [
-        r'[>~]',
+        r'[>~+]',
     ]),
     ('attribute', convert_token_to_string, [
         token_attribute,
@@ -193,37 +204,39 @@ token_rules = [
         r'pink|lightpink|hotpink|deeppink|mediumvioletred|palevioletred',                           # pinks
         r'coral|tomato|orangered|darkorange|orange',                                                # oranges
         r'gold|yellow|lightyellow|lemonchiffon|lightgoldenrodyellow|papayawhip|moccasin',           # yellows
-        r'peachpuff|palegoldenrod|khaki|darkkhaki',                                                 #   ^
+        r'peachpuff|palegoldenrod|khaki|darkkhaki',                                                 # __^
         r'lavender|thistle|plum|violet|orchid|fuchsia|magenta|mediumorchid|mediumpurple',           # purples
         r'blueviolet|darkviolet|darkorchid|darkmagenta|purple|rebeccapurple|indigo',                #   ^
-        r'mediumslateblue|slateblue|darkslateblue',                                                 #   ^
+        r'mediumslateblue|slateblue|darkslateblue',                                                 # __/
         r'greenyellow|chartreuse|lawngreen|lime|limegreen|palegreen|lightgreen',                    # greens
         r'mediumspringgreen|springgreen|mediumseagreen|seagreen|forestgreen|green',                 #   ^
-        r'darkgreen|yellowgreen|olivedrab|olive|darkolivegreen|mediumaquamarine',                   #   ^
-        r'darkseagreen|lightseagreen|darkcyan|teal',                                                #   ^
+        r'darkgreen|yellowgreen|olivedrab|olive|darkolivegreen|mediumaquamarine',                   #   |
+        r'darkseagreen|lightseagreen|darkcyan|teal',                                                # __/
         r'aqua|cyan|lightcyan|paleturquoise|aquamarine|turquoise|mediumturquoise',                  # blues
         r'darkturquoise|cadetblue|steelblue|lightsteelblue|powderblue|lightblue|skyblue',           #   ^
-        r'lightskyblue|deepskyblue|dodgerblue|cornflowerblue|royalblue|blue|mediumblue',            #   ^
-        r'darkblue|navy|midnightblue',                                                              #   ^
+        r'lightskyblue|deepskyblue|dodgerblue|cornflowerblue|royalblue|blue|mediumblue',            #   |
+        r'darkblue|navy|midnightblue',                                                              # __/
         r'cornsilk|blanchedalmond|bisque|navajowhite|wheat|burlywood|tan|rosybrown',                # browns
-        r'sandybrown|goldenrod|darkgoldenrod|peru|chocolate|saddlebrown|sienna|brown|maroon',       #   ^
+        r'sandybrown|goldenrod|darkgoldenrod|peru|chocolate|saddlebrown|sienna|brown|maroon',       # __^
         r'white|snow|honeydew|mintcream|azure|aliceblue|ghostwhite|whitesmoke|seashell',            # whites
-        r'beige|oldlace|floralwhite|ivory|antiquewhite|linen|lavenderblush|mistyrose',              #   ^
+        r'beige|oldlace|floralwhite|ivory|antiquewhite|linen|lavenderblush|mistyrose',              # __^
         r'gainsboro|lightgray|lightgrey|silver|darkgray|darkgrey|gray|grey|dimgray|dimgrey',        # grays
-        r'lightslategray|lightslategrey|slategray|slategrey|darkslategray|darkslategrey|black',     #   ^
+        r'lightslategray|lightslategrey|slategray|slategrey|darkslategray|darkslategrey|black',     # __^
     ]),
     ('pseudoclass', convert_token_to_string, [
-        r'hover',   # applies when mouse is hovering over
-        r'active',  # applies between mousedown and mouseup
-        r'focus',   # applies if element has focus
-        r'disabled',    # applies if element is disabled
+        r'hover',       # applied when mouse is hovering over
+        r'active',      # applied between mousedown and mouseup
+        r'focus',       # applied if element has focus
+        r'disabled',    # applied if element is disabled
+        r'checked',     # applied if element is checked (radio or checkbox)
+        r'root',        # applies to document
         # r'link',    # unvisited link
         # r'visited', # visited link
-        r'root',    # applies to document
     ]),
     ('pseudoelement', convert_token_to_string, [
-        r'before',  # inserts content before element
-        r'after',   # inserts content after element
+        r'before',          # inserts content before element
+        r'after',           # inserts content after element
+        r'marker',          # marker for <summary>, <li>, etc.
         # r'first-letter',
         # r'first-line',
         # r'selection',
@@ -244,6 +257,7 @@ token_rules = [
 
 
 default_fonts = {
+    #                  style     weight   size     family
     'default':       ('normal', 'normal', '12', 'sans-serif'),
     'caption':       ('normal', 'normal', '12', 'sans-serif'),
     'icon':          ('normal', 'normal', '12', 'sans-serif'),
@@ -263,7 +277,7 @@ default_styling = {
 # (?:(?P<type>[ .#:[]+)(?P<name>[^\n .#:[=\]]+)(?:=\"(?P<val>[^\"]+)\")?]?)
 # (?:(?P<type>[.#:[]+)?(?P<name>[^\n .#:[=\]]+)(?:=\"(?P<val>[^\"]+)\")?]?)
 
-selector_splitter = re.compile(r"(?:(?P<type>[.#:[]+)?(?P<name>[^\n .#:\[=\]]+)(?:=\"(?P<val>[^\"]+)\")?\]?)")
+selector_splitter = re.compile(r"(?:(?P<type>[.#:\[]+)?(?P<name>[^\n .#:\[=\]]+)(?:=\"(?P<val>[^\"]+)\")?\]?)")
 
 
 # XXX: this is a hack!
@@ -434,20 +448,20 @@ class UI_Style_RuleSet:
 
             for part in selector_splitter.finditer(sel):
                 t,n,v = part.group('type'),part.group('name'),part.group('val')
-                if t is None:   p['type'] = n
+                if   t is None: p['type'] = n
                 elif t == '.':  p['class'].add(n)
                 elif t == '#':  p['id'] = n
                 elif t == ':':  p['pseudoclass'].add(n)
                 elif t == '::': p['pseudoelement'].add(n)
                 elif t == '[':
                     if v is None: p['attribs'].add(n)
-                    else: p['attribvals'][n] = v
+                    else:         p['attribvals'][n] = v
                 else: assert False, 'Unhandled selector type "%s" (%s, %s) in "%s"' % (str(t), str(n), str(v), str(sel))
 
             # p['names'] is a set of all identifying elements in selector
             # useful for quickly and conservatively deciding that selector does NOT match
             p['names'] = p['class'] | p['pseudoelement'] | p['pseudoclass'] | p['attribs'] | p['attribvals'].keys() # | p['attribvals'].values()
-            if p['type'] not in {'*','>'}: p['names'].add(p['type'])
+            if p['type'] not in {'*','>','+','~'}: p['names'].add(p['type'])
             if p['id']: p['names'].add(p['id'])
 
             cache[osel] = p
@@ -459,20 +473,20 @@ class UI_Style_RuleSet:
         cache = UI_Style_RuleSet._join_selector_parts._cache
         op = str(p)
         if op not in cache:
-            sel = p['type'] if p['type'] else '*'
-            if p['class']:         sel += ''.join('.%s' % c for c in p['class'])
-            if p['id']:            sel += '#%s' % p['id']
-            if p['pseudoclass']:   sel += ''.join(':%s' % pc for pc in p['pseudoclass'])
-            if p['pseudoelement']: sel += ''.join(':%s' % pe for pe in p['pseudoelement'])
-            if p['attribs']:       sel += ''.join('[%s]' % a for a in p['attribs'])
-            if p['attribvals']:    sel += ''.join('[%s="%s"]' % (k,v) for (k,v) in p['attribvals'].items())
+            sel = p['type'] or '*'
+            if p['id']:            sel += f'#{p["id"]}'
+            if p['class']:         sel += join('.', p['class'], preSep='.')
+            if p['pseudoclass']:   sel += join(':', p['pseudoclass'], preSep=':')
+            if p['pseudoelement']: sel += join('::', p['pseudoelement'], preSep='::')
+            if p['attribs']:       sel += join('][', p['attribs'], preSep='[', postSep=']')
+            if p['attribvals']:    sel += join('][', p['attribvals'].items(), preSep='[', postSep=']', toStr=lambda kv:f'{kv[0]}="{kv[1]}"')
             cache[op] = sel
         return cache[op]
 
     @staticmethod
     def _match_selector_approx(parts_elem, parts_style, check_end=False):
         if check_end:
-            if parts_style[-1]['type'] not in {'*','>'} and parts_elem[-1]['type'] != parts_style[-1]['type']:
+            if parts_style[-1]['type'] not in {'*','>','+','~'} and parts_elem[-1]['type'] != parts_style[-1]['type']:
                 return False
             if parts_style[-1]['id'] and parts_elem[-1]['id'] != parts_style[-1]['id']:
                 return False
@@ -489,7 +503,7 @@ class UI_Style_RuleSet:
             ((bp['type'] == '*' and ap['type'] != '') or ap['type'] == bp['type']),
             (bp['id'] == '' or ap['id'] == bp['id']),
             all(c in ap['class'] for c in bp['class']),
-            all(c in ap['pseudoelement'] for c in bp['pseudoelement']),
+            (not ap['pseudoelement'] and not bp['pseudoelement']) or (bp['pseudoelement'] and all(c in ap['pseudoelement'] for c in bp['pseudoelement'])),
             all(c in ap['pseudoclass'] for c in bp['pseudoclass']),
             all(key in ap['attribs'] for key in bp['attribs']),
             all(key in ap['attribvals'] and ap['attribvals'][key] == val for (key,val) in bp['attribvals'].items()),
@@ -502,8 +516,8 @@ class UI_Style_RuleSet:
         sel_elem/pts_elem and sel_style/pts_style are corresponding lists for element and style
             sel_*: selector     pts_*: selector broken into parts
         cont:
-            if False, end of sel_elem/pts_elem and sel_style/pts_style must be exactly the same
-            if True, can allow skipping end of sel_style/pts_style
+            False: end of sel_elem/pts_elem and sel_style/pts_style must be exactly the same
+            True:  can allow skipping end of sel_style/pts_style
         '''
         # ex:
         #   sel_elem = ['body:hover', 'button:hover']
@@ -565,7 +579,7 @@ class UI_Style_RuleSet:
             for part in parts:
                 b += 1 if part['id'] else 0
                 c += len(part['class']) + len(part['pseudoclass']) + len(part['attribs']) + len(part['attribvals'])
-                if part['type'] not in {'', '*', '>'}: d += 1
+                if part['type'] not in {'', '*', '>', '+', '~'}: d += 1
             cache[k] = (a, b, c, d, e)
         return cache[k]
 
@@ -709,6 +723,8 @@ class UI_Styling:
                         if part['type']:
                             # NOTE: type can be '>', but this _should_ get handled in final `else`
                             assert part['type'] != '>', f'type can be `>` but not here. check if style has `> >`\nselector: {selector}\nstrip: {strip}\nnselector: {nselector}\npart: {part}\nparts: {parts}\n{self._trie}'
+                            assert part['type'] != '+', f'type can be `+` but not here. check if style has `> +`\nselector: {selector}\nstrip: {strip}\nnselector: {nselector}\npart: {part}\nparts: {parts}\n{self._trie}'
+                            assert part['type'] != '~', f'type can be `~` but not here. check if style has `> ~`\nselector: {selector}\nstrip: {strip}\nnselector: {nselector}\npart: {part}\nparts: {parts}\n{self._trie}'
                             node_cur = get_node(node_cur, f"{part['type']}")
                             part['type'] = ''
                         elif part['id']:
@@ -736,6 +752,14 @@ class UI_Styling:
                             if node_cur != trie:
                                 if parts[-1]['type'] == '>':
                                     node_cur = get_node(node_cur, '>')
+                                    skip = 2
+                                elif parts[-1]['type'] == '+':
+                                    assert False, f'adjacent sibling combinator (`+`) is not yet supported'
+                                    node_cur = get_node(node_cur, '+')
+                                    skip = 2
+                                elif parts[-1]['type'] == '~':
+                                    assert False, f'general sibling combinator (`~`) is not yet supported'
+                                    node_cur = get_node(node_cur, '~')
                                     skip = 2
                                 else:
                                     node_cur = get_node(node_cur, ' ')

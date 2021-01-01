@@ -62,7 +62,7 @@ from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
 from .shaders import Shader
-from .utils import iter_head, any_args
+from .utils import iter_head, any_args, join
 
 from ..ext import png
 from ..ext.apng import APNG
@@ -1281,7 +1281,10 @@ class UI_Element_Properties:
     @property
     def is_visible(self):
         # MUST BE CALLED AFTER `compute_style()` METHOD IS CALLED!
-        return self.get_is_visible() and (self._parent.is_visible if self._parent else True)
+        if self._parent:
+            if not self._parent.is_visible: return False
+            if self._tagName != 'summary' and self._parent._tagName == 'details' and not self._parent.open: return False
+        return self.get_is_visible()
     @is_visible.setter
     def is_visible(self, v):
         if self._is_visible == v: return
@@ -1338,8 +1341,16 @@ class UI_Element_Properties:
     def open(self, v):
         v = bool(v)
         if self._open == v: return
-        self._open = bool(v)
-        self.dirty_selector(cause='changing open can affect selector', children=True)
+        self._open = v
+        self.dirty_selector(cause='changing open can affect selector', children=False)
+        self.dirty_style(cause='changing open can affect styling', children=False)
+        self.dirty_content(cause='changing open can affect content')
+        if self._tagName == 'details':
+            for child in self._children:
+                child.dirty_selector(cause='changing open can affect selector', children=False)
+                child.dirty_style(cause='changing open can affect styling', children=False)
+                child.dirty_content(cause='changing open can affect content', children=False)
+        self.dirty_style(cause='changing open can affect style', children=True)
 
     @property
     def value(self):
@@ -1745,7 +1756,13 @@ class UI_Element_Debug:
             print(f'{sp}{tag}...{tagc}')
             return
         already_printed.add(self)
-        if self._children:
+        if self._innerText and self._children:
+            print(f'{sp}{tag}')
+            print(f'{sp}    {self._innerText}')
+            for c in self._children:
+                c.debug_print(d+1, already_printed)
+            print(f'{sp}{tagc}')
+        elif self._children:
             print(f'{sp}{tag}')
             for c in self._children:
                 c.debug_print(d+1, already_printed)
@@ -1829,7 +1846,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._children      = []        # read-only list of all children; append_child, delete_child, clear_children
         self._pseudoclasses = set()     # TODO: should order matter here? (make list)
                                         # updated by main ui system (hover, active, focus)
-        self._pseudoelement = ''        # set only if element is a pseudoelement ('::before' or '::after')
+        self._pseudoelement = ''        # set only if element is a pseudoelement ('::before', '::after', '::marker')
 
         self._style_left    = None
         self._style_top     = None
@@ -1913,6 +1930,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._is_scrollable_y  = False  # indicates is self is scrollable along y, set in compute_style(), based on self._computed_styles
         self._static_content_size     = None   # min and max size of content, determined from children and style
         self._children_text    = []     # innerText as children
+        self._children_gen     = []     # generated children (pseudoelements)
         self._child_before     = None   # ::before child
         self._child_after      = None   # ::after child
         self._children_all     = []     # all children in order
@@ -2051,15 +2069,15 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return self.__str__()
 
     def __str__(self):
-        info = ['id', 'classes', 'type', 'innerText', 'innerTextAsIs', 'value', 'title'] # 'tagName', 
+        tagName = f'{self.tagName}::{self._pseudoelement}' if self._pseudoelement else self.tagName
+        info = ['id', 'classes', 'type', 'innerText', 'innerTextAsIs', 'value', 'title']
         info = [(k, getattr(self, k)) for k in info if hasattr(self, k)]
         info = [f'{k}="{v}"' for k,v in info if v]
         if self.open:     info += ['open']
         if self.is_dirty: info += ['dirty']
         if self._atomic:  info += ['atomic']
         info = ' '.join(['']+info) if info else ''
-        return f'<{self.tagName}{info}>'
-        return '<%s>' % ' '.join(['UI_Element'] + info)
+        return f'<{tagName}{info}>'
 
     @property
     def as_html(self):
@@ -2071,8 +2089,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         ]
         info = [(k, getattr(self, k)) for k in info if hasattr(self, k)]
         info = [f'{k}="{v}"' for k,v in info if v]
+        if self.open:     info += ['open']
         if self.is_dirty: info += ['dirty']
-        if self._atomic: info += ['atomic']
+        if self._atomic:  info += ['atomic']
         return '<%s>' % ' '.join([self.tagName] + info)
 
     @profiler.function
@@ -2083,35 +2102,44 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         # sel_parent = [re.sub(r':(active|hover)', '', s) for s in sel_parent]
 
 
-        if self._pseudoelement:
-            # this is either a ::before or ::after pseudoelement
-            selector = sel_parent[:-1] + [sel_parent[-1] + '::' + self._pseudoelement]
-            selector_before = None
-            selector_after  = None
-        elif self._innerTextAsIs is not None:
+        selector_before = None
+        selector_after = None
+        if self._innerTextAsIs is not None:
             # this is a text element
-            selector = sel_parent + ['*text*']
-            selector_before = None
-            selector_after = None
+            selector = [*sel_parent, '*text*']
+        # elif self._pseudoelement:
+        #     # this has a pseudoelement: ::before, ::after, ::marker
+        #     selector = [*sel_parent[:-1], f'{sel_parent[-1]}::{self._pseudoelement}']
         else:
-            attribs = ['type', 'value']
-            sel_tagName = self._tagName
-            sel_id = f'#{self._id}' if self._id else ''
-            sel_cls = ''.join(f'.{c}' for c in self._classes)
-            sel_pseudo = ''.join(f':{p}' for p in self._pseudoclasses)
-            if self._value_bound and self._value.disabled: sel_pseudo += ':disabled'
-            if self._checked_bound and self._checked.disabled: sel_pseudo += ':disabled'
-            sel_attribs = ''.join(f'[{p}]' for p in attribs if getattr(self,p) is not None)
-            sel_attribvals = ''.join(f'[{p}="{getattr(self,p)}"]' for p in attribs if getattr(self,p) is not None)
+            attribs = ['type', 'value', 'name']
+            attribs = [a for a in attribs if getattr(self, a) is not None]
+            is_disabled = False
+            is_disabled |= self._value_bound and self._value.disabled
+            is_disabled |= self._checked_bound and self._checked.disabled
+
+            sel_tagName    = self._tagName
+            sel_id         = f'#{self._id}' if self._id else ''
+            sel_cls        = join('.', self._classes, preSep='.')
+            sel_attribs    = join('][', attribs, preSep='[', postSep=']')
+            sel_attribvals = join('][', attribs, preSep='[', postSep=']', toStr=lambda a:f'{a}="{getattr(self, a)}"')
+            sel_pseudocls  = join(':', self._pseudoclasses, preSep=':')
+            sel_pseudoelem = f'::{self._pseudoelement}' if self._pseudoelement else ''
+            if is_disabled:
+                sel_pseudocls += ':disabled'
             if self.checked:
-                sel_attribs += '[checked]'
+                sel_attribs    += '[checked]'
                 sel_attribvals += '[checked="checked"]'
+                sel_pseudocls  += ':checked'
             if self.open:
                 sel_attribs += '[open]'
-            self_selector = sel_tagName + sel_id + sel_cls + sel_pseudo + sel_attribs + sel_attribvals
-            selector = sel_parent + [self_selector]
-            selector_before = sel_parent + [sel_tagName + sel_id + sel_cls + sel_pseudo + '::before']
-            selector_after  = sel_parent + [sel_tagName + sel_id + sel_cls + sel_pseudo + '::after']
+
+            self_selector = f'{sel_tagName}{sel_id}{sel_cls}{sel_attribs}{sel_attribvals}{sel_pseudocls}{sel_pseudoelem}'
+            if self._pseudoelement:
+                selector = [*sel_parent[:-1], self_selector]
+            else:
+                selector = [*sel_parent,      self_selector]
+            #selector_before = sel_parent + [sel_tagName + sel_id + sel_cls + sel_pseudocls + '::before']
+            #selector_after  = sel_parent + [sel_tagName + sel_id + sel_cls + sel_pseudocls + '::after']
 
         # if selector hasn't changed, don't recompute trimmed styling
         if selector == self._selector and selector_before == self._selector_before and selector_after == self._selector_after:
@@ -2153,9 +2181,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             for child in self._children: child._compute_selector()
         if self._children_text:
             for child in self._children_text: child._compute_selector()
-        if self._child_before or self._child_after:
-            if self._child_before: self._child_before._compute_selector()
-            if self._child_after:  self._child_after._compute_selector()
+        if self._children_gen:
+            for child in self._children_gen: child._compute_selector()
+        # if self._child_before or self._child_after:
+        #     if self._child_before: self._child_before._compute_selector()
+        #     if self._child_after:  self._child_after._compute_selector()
         self._dirty_properties.discard('selector')
         self._dirty_callbacks['selector'].clear()
 
@@ -2287,9 +2317,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 for child in self._children: child._compute_style()
             if self._children_text:
                 for child in self._children_text: child._compute_style()
-            if self._child_before or self._child_after:
-                if self._child_before: self._child_before._compute_style()
-                if self._child_after:  self._child_after._compute_style()
+            if self._children_gen:
+                for child in self._children_gen: child._compute_style()
+            # if self._child_before or self._child_after:
+            #     if self._child_before: self._child_before._compute_style()
+            #     if self._child_after:  self._child_after._compute_style()
 
         with profiler.code('style.hashing for cache'):
             # style changes => content changes
@@ -2347,6 +2379,41 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         # self.defer_dirty_propagation = False
 
+    def _process_children(self):
+        if self._innerTextAsIs is not None: return []
+
+        def ui_elem(*args, _parent=None, **kwargs):
+            if not _parent: _parent = self
+            ui = UI_Element(*args, _parent=_parent, **kwargs)
+            ui.clean()
+            self._children_gen += [ui]
+            return ui
+        def childTagName(idx):
+            if not self._children: return None
+            return self._children[idx]._tagName
+
+        if self._tagName == 'details':
+            self._new_content = True
+            if childTagName(0) != 'summary':
+                # <details> does not have a <summary>, so create a default one
+                summary = ui_elem(tagName='summary', innerText='Details')
+                content = self._children
+            else:
+                summary = self._children[0]
+                content = self._children[1:]
+            if self.open:
+                return [summary, *content]
+            else:
+                return [summary]
+            return [summary, *self._children]
+
+        if self._tagName == 'summary' and self._pseudoelement != 'marker':
+            self._new_content = True
+            marker = ui_elem(tagName='summary', pseudoelement='marker')
+            return [marker, *self._children]
+
+        return self._children
+
     @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf'})
     @profiler.function
     def _compute_content(self):
@@ -2367,6 +2434,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} content')
 
         # self.defer_dirty_propagation = True
+        self._children_gen = []
 
         content_before = self._computed_styles_before.get('content', None) if self._computed_styles_before else None
         if content_before is not None:
@@ -2374,6 +2442,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._child_before = UI_Element(tagName=self._tagName, innerText=content_before, pseudoelement='before', _parent=self)
             self._child_before.clean()
             self._new_content = True
+            self._children_gen += [self._child_before]
         else:
             if self._child_before:
                 self._child_before = None
@@ -2385,6 +2454,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._child_after = UI_Element(tagName=self._tagName, innerText=content_after, pseudoelement='after', _parent=self)
             self._child_after.clean()
             self._new_content = True
+            self._children_gen += [self._child_after]
         else:
             if self._child_after:
                 self._child_after = None
@@ -2438,7 +2508,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     for word in words:
                         if not word: continue
                         for f,t in HTML_CHAR_MAP: word = word.replace(f, t)
-                        ui_word = UI_Element(innerTextAsIs=word, _parent=self)
+                        ui_word = UI_Element(
+                            #tagName=self._tagName, pseudoelement='text',
+                            innerTextAsIs=word,
+                            _parent=self,
+                        )
                         self._children_text.append(ui_word)
                         for i in range(len(word)):
                             self._text_map.append({
@@ -2449,7 +2523,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                                 'pre': word[:i],
                             })
                         idx += len(word)
-                ui_end = UI_Element(innerTextAsIs='', _parent=self)     # needed so cursor can reach end
+                ui_end = UI_Element(                                # needed so cursor can reach end
+                    #tagName=self._tagName, pseudoelement='text',
+                    innerTextAsIs='',
+                    _parent=self,
+                )
                 self._children_text.append(ui_end)
                 self._text_map.append({
                     'ui_element': ui_end,
@@ -2492,8 +2570,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         # TODO: some children are "detached" from self (act as if child.parent==root or as if floating)
         self._children_all = []
         if self._child_before:  self._children_all.append(self._child_before)
+        self._children_all += self._process_children()
         if self._children_text: self._children_all += self._children_text
-        if self._children:      self._children_all += self._children
         if self._child_after:   self._children_all.append(self._child_after)
 
         for child in self._children_all: child._compute_content()

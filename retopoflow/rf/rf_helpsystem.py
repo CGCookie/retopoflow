@@ -28,7 +28,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.ui_styling import load_defaultstylings
 
-from ...config.options import options
+from ...config.options import options, retopoflow_helpdocs_url
 from ...config.keymaps import get_keymaps
 
 class RetopoFlow_HelpSystem:
@@ -116,15 +116,28 @@ class RetopoFlow_HelpSystem:
                     label='Table of Contents',
                     title='Click to open table of contents for help.',
                     on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
-                    parent=ui_help,
+                ),
+                ui.button(
+                    label='View Online Docs',
+                    title='Click to open online help documents.  Note: this is an experimental feature.',
+                    on_mouseclick=delay_exec('''bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)'''),
                 ),
                 ui.button(
                     label='Close (Esc)',
                     title='Click to close this help dialog.',
                     on_mouseclick=close,
-                    parent=ui_help,
                 )
             ])
             ui_help.add_eventListener('on_keypress', key)
             self.document.body.dirty()
-        ui.set_markdown(ui_markdown, mdown_path=mdown_path, preprocess_fns=[self.substitute_keymaps, self.substitute_options, self.substitute_python])
+
+        ui.set_markdown(
+            ui_markdown,
+            mdown_path=mdown_path,
+            preprocess_fns=[
+                self.substitute_keymaps,
+                self.substitute_options,
+                self.substitute_python
+            ],
+        )
+

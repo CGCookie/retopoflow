@@ -124,13 +124,14 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             options[f'relax preset {n} falloff']  = options['relax falloff']
         def update_preset_name(n):
             nonlocal relax_options
-            ui = f'relax-preset-{n}_summary'
+            ui = f'relax-preset-{n}'
             name = options[f'relax preset {n} name']
             relax_options.getElementById(ui).innerText = f'Preset: {name}'
 
-        relax_options = ui.details(summary='Relax', children=[
+        relax_options = ui.details(children=[
+            ui.summary(innerText='Relax'),
             # ui.collection('Algorithm', children=[
-            #     ui.input_radio(
+            #     ui.labeled_input_radio(
             #         title='Relax algorithm uses 3D position of vertices in world.  Works in general, but can be unstable',
             #         value='3D',
             #         checked=(options['relax algorithm']=='3D'),
@@ -139,7 +140,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             #         children=[ui.label(innerText='3D')],
             #         on_input=relax_algorithm_selected_change,
             #     ),
-            #     ui.input_radio(
+            #     ui.labeled_input_radio(
             #         title='Relax algorithm uses 2D position of vertices in screen space.  Only works on visible, but can be more stable',
             #         value='2D',
             #         checked=(options['relax algorithm']=='2D'),
@@ -158,7 +159,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask boundary']=='exclude'),
                         name='relax-boundary',
                         classes='half-size',
-                        children=[ui.label(innerText='Exclude')],
+                        children=[
+                            ui.label(
+                                innerText='Exclude',
+                                title='Relax vertices not along boundary',
+                            ),
+                        ],
                         on_input=relax_mask_boundary_change,
                     ),
                     ui.input_radio(
@@ -167,7 +173,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask boundary']=='include'),
                         name='relax-boundary',
                         classes='half-size',
-                        children=[ui.label(innerText='Include')],
+                        children=[
+                            ui.label(
+                                innerText='Include',
+                                title='Relax all vertices within brush, regardless of being along boundary',
+                            ),
+                        ],
                         on_input=relax_mask_boundary_change,
                     ),
                 ]),
@@ -178,7 +189,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask symmetry']=='exclude'),
                         name='relax-symmetry',
                         classes='third-size',
-                        children=[ui.label(innerText='Exclude')],
+                        children=[
+                            ui.label(
+                                innerText='Exclude',
+                                title='Relax vertices not along symmetry plane',
+                            ),
+                        ],
                         on_input=relax_mask_symmetry_change,
                     ),
                     ui.input_radio(
@@ -187,7 +203,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask symmetry']=='maintain'),
                         name='relax-symmetry',
                         classes='third-size',
-                        children=[ui.label(innerText='Maintain')],
+                        children=[
+                            ui.label(
+                                innerText='Maintain',
+                                title='Relax vertices along symmetry plane, but keep them on symmetry plane',
+                            ),
+                        ],
                         on_input=relax_mask_symmetry_change,
                     ),
                     ui.input_radio(
@@ -196,7 +217,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask symmetry']=='include'),
                         name='relax-symmetry',
                         classes='third-size',
-                        children=[ui.label(innerText='Include')],
+                        children=[
+                            ui.label(
+                                innerText='Include',
+                                title='Relax all vertices within brush, regardless of being along symmetry plane',
+                            ),
+                        ],
                         on_input=relax_mask_symmetry_change,
                     ),
                 ]),
@@ -207,7 +233,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask hidden']=='exclude'),
                         name='relax-hidden',
                         classes='half-size',
-                        children=[ui.label(innerText='Exclude')],
+                        children=[
+                            ui.label(
+                                innerText='Exclude',
+                                title='Relax only visible vertices',
+                            ),
+                        ],
                         on_input=relax_mask_hidden_change,
                     ),
                     ui.input_radio(
@@ -216,7 +247,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask hidden']=='include'),
                         name='relax-hidden',
                         classes='half-size',
-                        children=[ui.label(innerText='Include')],
+                        children=[
+                            ui.label(
+                                innerText='Include',
+                                title='Relax all vertices within brush, regardless of visibility',
+                            ),
+                        ],
                         on_input=relax_mask_hidden_change,
                     ),
                 ]),
@@ -227,7 +263,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask selected']=='exclude'),
                         name='relax-selected',
                         classes='third-size',
-                        children=[ui.label(innerText='Exclude')],
+                        children=[
+                            ui.label(
+                                innerText='Exclude',
+                                title='Relax only unselected vertices',
+                            ),
+                        ],
                         on_input=relax_mask_selected_change,
                     ),
                     ui.input_radio(
@@ -236,7 +277,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask selected']=='only'),
                         name='relax-selected',
                         classes='third-size',
-                        children=[ui.label(innerText='Only')],
+                        children=[
+                            ui.label(
+                                innerText='Only',
+                                title='Relax only selected vertices',
+                            ),
+                        ],
                         on_input=relax_mask_selected_change,
                     ),
                     ui.input_radio(
@@ -245,12 +291,18 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         checked=(options['relax mask selected']=='all'),
                         name='relax-selected',
                         classes='third-size',
-                        children=[ui.label(innerText='All')],
+                        children=[
+                            ui.label(
+                                innerText='All',
+                                title='Relax all vertices within brush, regardless of selection',
+                            ),
+                        ],
                         on_input=relax_mask_selected_change,
                     ),
                 ]),
             ]),
-            ui.details(summary='Algorithm Options', id='relax-alg-options', children=[
+            ui.details(id='relax-alg-options', children=[
+                ui.summary(innerText='Algorithm Options'),
                 ui.collection('Iterations', children=[
                     ui.labeled_input_text(
                         label='Steps',
@@ -318,40 +370,45 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     ),
                 ]),
             ]),
-            ui.details(summary='Brush Options', children=[
+            ui.details(children=[
+                ui.summary(innerText='Brush Options'),
                 ui.collection(label='Current', children=[
                     ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
                     ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
                     ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),
                     ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"relax radius","relax falloff","relax strength"})''')),
                 ]),
-                ui.details(summary='Preset: Preset 1',    id='relax-preset-1', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 1',            id='relax-preset-1-name',     value=BoundString('''options['relax preset 1 name']''',    on_change=delay_exec('''update_preset_name(1)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 1',     id='relax-preset-1-size',     value=BoundFloat('''options['relax preset 1 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 1', id='relax-preset-1-strength', value=BoundFloat('''options['relax preset 1 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 1',  id='relax-preset-1-falloff',  value=BoundFloat('''options['relax preset 1 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
+                ui.details(children=[
+                    ui.summary(innerText='Preset: Preset 1', id='relax-preset-1'),
+                    ui.labeled_input_text(label='Name',      title='Adjust name of preset 1',            id='relax-preset-1-name',     value=BoundString('''options['relax preset 1 name']''',    on_change=delay_exec('''update_preset_name(1)'''))),
+                    ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 1',     id='relax-preset-1-size',     value=BoundFloat('''options['relax preset 1 radius']''',   min_value=1.0)),
+                    ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 1', id='relax-preset-1-strength', value=BoundFloat('''options['relax preset 1 strength']''', min_value=0.01, max_value=1.0)),
+                    ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 1',  id='relax-preset-1-falloff',  value=BoundFloat('''options['relax preset 1 falloff']''',  min_value=0.0,  max_value=100.0)),
+                    ui.button(label='Current to Preset',     title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
                 ]),
-                ui.details(summary='Preset: Preset 2',    id='relax-preset-2', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 2',            id='relax-preset-2-name',     value=BoundString('''options['relax preset 2 name']''',    on_change=delay_exec('''update_preset_name(2)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 2',     id='relax-preset-2-size',     value=BoundFloat('''options['relax preset 2 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 2', id='relax-preset-2-strength', value=BoundFloat('''options['relax preset 2 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 2',  id='relax-preset-2-falloff',  value=BoundFloat('''options['relax preset 2 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
+                ui.details(children=[
+                    ui.summary(innerText='Preset: Preset 2', id='relax-preset-2'),
+                    ui.labeled_input_text(label='Name',      title='Adjust name of preset 2',            id='relax-preset-2-name',     value=BoundString('''options['relax preset 2 name']''',    on_change=delay_exec('''update_preset_name(2)'''))),
+                    ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 2',     id='relax-preset-2-size',     value=BoundFloat('''options['relax preset 2 radius']''',   min_value=1.0)),
+                    ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 2', id='relax-preset-2-strength', value=BoundFloat('''options['relax preset 2 strength']''', min_value=0.01, max_value=1.0)),
+                    ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 2',  id='relax-preset-2-falloff',  value=BoundFloat('''options['relax preset 2 falloff']''',  min_value=0.0,  max_value=100.0)),
+                    ui.button(label='Current to Preset',     title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
                 ]),
-                ui.details(summary='Preset: Preset 3',    id='relax-preset-3', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 3',            id='relax-preset-3-name',     value=BoundString('''options['relax preset 3 name']''',    on_change=delay_exec('''update_preset_name(3)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 3',     id='relax-preset-3-size',     value=BoundFloat('''options['relax preset 3 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 3', id='relax-preset-3-strength', value=BoundFloat('''options['relax preset 3 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 3',  id='relax-preset-3-falloff',  value=BoundFloat('''options['relax preset 3 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
+                ui.details(children=[
+                    ui.summary(innerText='Preset: Preset 3', id='relax-preset-3'),
+                    ui.labeled_input_text(label='Name',      title='Adjust name of preset 3',            id='relax-preset-3-name',     value=BoundString('''options['relax preset 3 name']''',    on_change=delay_exec('''update_preset_name(3)'''))),
+                    ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 3',     id='relax-preset-3-size',     value=BoundFloat('''options['relax preset 3 radius']''',   min_value=1.0)),
+                    ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 3', id='relax-preset-3-strength', value=BoundFloat('''options['relax preset 3 strength']''', min_value=0.01, max_value=1.0)),
+                    ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 3',  id='relax-preset-3-falloff',  value=BoundFloat('''options['relax preset 3 falloff']''',  min_value=0.0,  max_value=100.0)),
+                    ui.button(label='Current to Preset',     title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
                 ]),
-                ui.details(summary='Preset: Preset 4',    id='relax-preset-4', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 4',            id='relax-preset-4-name',     value=BoundString('''options['relax preset 4 name']''',    on_change=delay_exec('''update_preset_name(4)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 4',     id='relax-preset-3-size',     value=BoundFloat('''options['relax preset 4 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 4', id='relax-preset-3-strength', value=BoundFloat('''options['relax preset 4 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 4',  id='relax-preset-3-falloff',  value=BoundFloat('''options['relax preset 4 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
+                ui.details(children=[
+                    ui.summary(innerText='Preset: Preset 4', id='relax-preset-4'),
+                    ui.labeled_input_text(label='Name',      title='Adjust name of preset 4',            id='relax-preset-4-name',     value=BoundString('''options['relax preset 4 name']''',    on_change=delay_exec('''update_preset_name(4)'''))),
+                    ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 4',     id='relax-preset-3-size',     value=BoundFloat('''options['relax preset 4 radius']''',   min_value=1.0)),
+                    ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 4', id='relax-preset-3-strength', value=BoundFloat('''options['relax preset 4 strength']''', min_value=0.01, max_value=1.0)),
+                    ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 4',  id='relax-preset-3-falloff',  value=BoundFloat('''options['relax preset 4 falloff']''',  min_value=0.0,  max_value=100.0)),
+                    ui.button(label='Current to Preset',     title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
                 ]),
             ]),
         ])

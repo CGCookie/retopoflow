@@ -1,9 +1,3 @@
-/*
-    this is a default UI stylesheet.
-
-    right now, this is a test stylesheet.
-*/
-
 :root {
     --button-background: hsla(200, 0%, 20%, 1.0);
     --button-hover-background: hsla(200, 0%, 50%, 0.50);
@@ -81,7 +75,7 @@ input[type="radio"] > img {
 input[type="radio"]:hover {
     background: var(--button-hover-background);
 }
-input[type="radio"][checked] {
+input[type="radio"]:checked {
     background: var(--button-selected-background);
 }
 input[type="radio"]:active {
@@ -103,7 +97,7 @@ input[type="radio"] > label {
     /*height:20px;*/
     color: var(--button-text);
 }
-input[type="radio"][checked] label {
+input[type="radio"]:checked label {
     color: var(--button-selected-text);
 }
 input[type="radio"]:active label {
@@ -194,7 +188,7 @@ input[type="checkbox"] > img.checkbox {
 input[type="checkbox"]:hover > img.checkbox {
     background-color: var(--button-hover-background);
 }
-input[type="checkbox"][checked] > img.checkbox {
+input[type="checkbox"]:checked > img.checkbox {
     background-color: var(--button-selected-background);
     background-image: url('checkmark.png');
 }
@@ -211,7 +205,7 @@ input[type="checkbox"] > label {
 input[type="checkbox"]:hover > label {
     color: var(--button-selected-text);
 }
-input[type="checkbox"][checked] > label {
+input[type="checkbox"]:checked > label {
     color: var(--text);
 }
 
@@ -256,7 +250,7 @@ div.collapsible > input.header > img {
 div.collapsible:hover > input.header > img {
     background: transparent url('collapse_open.png');
 }
-div.collapsible > input.header[checked] > img {
+div.collapsible > input.header:checked > img {
     background: transparent url('collapse_close.png');
 }
 div.collapsible > div.inside.collapsed {
@@ -277,57 +271,48 @@ details {
     width: 100%;
     margin: 2px;
     border: 0px;
-    border-radius: 0px;
-    background: rgba(0, 0, 0, 0);
-    padding: 0px 0px 0px 0px;
+    padding: 0px;
+    background: transparent;
 }
 
-details > div.header {
+details > summary {
     display: block;
     width: 100%;
     height: 24px;
     background: transparent;
-    padding-top: 1px;
-    padding-bottom: 0px;
-    padding-left: 1px;
     margin: 0px;
     border: 0px;
+    padding: 4px 6px;
 }
-details > div.header:hover {
+details > summary:hover {
     background: hsla(200, 0%, 50%, 0.25);
 }
-
-details > div.header > summary {
-    margin-left: 3px;
-    margin-top: 4px;
-    padding: 0px;
-}
-
-details > div.header > img.marker {
-    margin: 8px 0px 2px 0px;
-    padding: 0px;
+details > summary::marker {
+    display: inline;
+    margin: 1px 2px 3px 2px;
     border: 0px;
+    padding: 0px;
     width: 18px;
     height: 18px;
-}
-details[open] > div.header > img.marker {
-    background: transparent url('collapse_open.png');
-}
-details > div.header > img.marker {
     background: transparent url('collapse_close.png');
 }
+details[open] > summary::marker {
+    display: inline;
+    background: transparent url('collapse_open.png');
+}
 
-details > div.inside {
-    display: none;
+
+details > div.contents {
+    /*display: none;*/
     border: 0px;
     border-color: transparent;
     background: var(--panel-two-background);
     padding: 4px 4px 4px 4px;
     margin: 0px 0px 0px 0px;
 }
-details[open] > div.inside {
+/*details[open] > div.inside {
     display: block;
-}
+}*/
 
 /********************************/
 /* GENERAL DIALOG STYLING       */
@@ -454,25 +439,46 @@ dialog#maindialog * {
 
 
 div#tools {
-    border: 0px black;
     margin: 0px;
+    border: 0px;
     padding: 0px;
 }
 input.tool {
-    background: transparent;
-    margin: 1px;
-    padding: 4px;
-    border-width: 0px;
-    width: 100%;
     display: block;
+    width: 100%;
+    background: transparent;
 }
-input.tool > img {
+input.tool > label {
+    display: block;
+    width: 100%;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    background: transparent;
+}
+input.tool > label > img {
+    display: inline;
+    width: 32px;
+    height: 32px;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+input.tool > label > span {
+    display: inline;
+    margin: 7px 4px;
+    border: 0px;
+    padding: 0px;
+    align-items: center;
+    align-content: center;
+}
+/*input.tool::marker {
     display: none;
-}
+}*/
 input.tool:hover {
     background: rgba(64, 64, 64, 0.75);
 }
-input.tool[checked] {
+input.tool:checked {
     background: rgb(0, 146, 219);
 }
 input.tool:active {
@@ -481,35 +487,11 @@ input.tool:active {
 input.tool:active:hover {
     background: rgb(0, 146, 219);
 }
-input.tool > label {
-    margin: 0px;
-    border: 0px;
-    border-radius: 0px;
-    padding-top: 0px;
-    width: 100%;
-    align-items: center;
-    align-content: center;
-}
-input.tool[checked] label {
+input.tool:checked > label > span {
     color: white;
 }
-input.tool:active label {
-    color: rgb(255, 255, 255);
-}
-input.tool > label > img {
-    display: inline;
-    border-radius: 0px;
-    border: 0px;
-    padding: 0px;
-    margin:0px;
-    width: 32px;
-    height: 32px;
-}
-input.tool > label > label {
-    border: 0px;
-    padding:2px 0px;
-    margin-top: 7px;
-    margin-left: 6px;
+input.tool:active > label > span {
+    color: white;
 }
 
 input.symmetry-enable {
@@ -603,7 +585,7 @@ dialog#tinydialog input.ttool > img {
 dialog#tinydialog input.ttool:hover {
     background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
-dialog#tinydialog input.ttool[checked] {
+dialog#tinydialog input.ttool:checked {
     background: var(--button-selected-background);
 }
 dialog#tinydialog input.ttool:active {
@@ -622,7 +604,7 @@ dialog#tinydialog input.ttool > label {
     /*height:20px;*/
     color: white;
 }
-dialog#tinydialog input.ttool[checked] label {
+dialog#tinydialog input.ttool:checked label {
     color: black;
 }
 dialog#tinydialog input.ttool:active label {
@@ -681,7 +663,7 @@ dialog#helpsystem div#helpsystem-buttons {
 }
 dialog#helpsystem div#helpsystem-buttons button {
     display: inline;
-    width: 50%;
+    width: 33%;
     text-align: center;
 }
 

@@ -40,7 +40,8 @@ RFTool_PolyStrips = rftools['RFTool_PolyStrips']
 class PolyStrips_UI:
     @RFTool_PolyStrips.on_ui_setup
     def ui(self):
-        return ui.details(summary='PolyStrips', children=[
+        return ui.details(children=[
+            ui.summary(innerText='PolyStrips'),
             ui.labeled_input_text(
                 label='Cut Count',
                 title='Number of cuts along selected strip.',

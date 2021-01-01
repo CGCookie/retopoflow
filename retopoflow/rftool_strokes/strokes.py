@@ -132,7 +132,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             options['strokes span insert mode'] = e.target.value
             self.update_span_mode()
 
-        self.ui_options = ui.details(summary='Strokes', children=[
+        self.ui_options = ui.details(children=[
+            ui.summary(innerText='Strokes'),
             ui.collection(label='Span Insert Mode', children=[
                 ui.input_radio(
                     id='strokes-span-mode-brush',
@@ -141,7 +142,12 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                     checked=(options['strokes span insert mode']=='Brush Size'),
                     name='strokes-span-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Brush Size')],
+                    children=[
+                        ui.label(
+                            innerText='Brush Size',
+                            title='Insert spans based on brush size',
+                        ),
+                    ],
                     on_input=span_mode_change,
                 ),
                 ui.input_radio(
@@ -151,7 +157,12 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                     checked=(options['strokes span insert mode']=='Fixed'),
                     name='strokes-span-mode',
                     classes='half-size',
-                    children=[ui.label(innerText='Fixed')],
+                    children=[
+                        ui.label(
+                            innerText='Fixed',
+                            title='Insert fixed number of spans',
+                        ),
+                    ],
                     on_input=span_mode_change,
                 ),
                 ui.labeled_input_text(

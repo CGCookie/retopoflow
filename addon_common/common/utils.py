@@ -282,6 +282,18 @@ def any_args(*args):
 #################################################
 
 
+def join(sep, iterable, preSep='', postSep='', toStr=str):
+    '''
+    this function adds features on to sep.join(iterable)
+    if iterable is not empty, preSep is prepended and postSep is appended
+    also, all items of iterable are turned to strings using toStr, which can be customized
+    ex: join(', ', [1,2,3])                   => '1, 2, 3'
+    ex: join('.', ['foo', 'bar'], preSep='.') => '.foo.bar'
+    '''
+    s = sep.join(map(toStr, iterable))
+    if not s: return ''
+    return f'{preSep}{s}{postSep}'
+
 def accumulate_last(iterable, *args, **kwargs):
     # returns last result when accumulating
     # https://docs.python.org/3.7/library/itertools.html#itertools.accumulate

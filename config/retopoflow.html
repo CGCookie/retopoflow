@@ -1,0 +1,112 @@
+<html>
+<head>
+<style>
+:root {
+    --button-background: hsla(200, 0%, 20%, 1.0);
+    --button-hover-background: hsla(200, 0%, 50%, 0.50);
+    --button-selected-background: rgb(10, 135, 197);
+
+    --button-text: hsl(200, 0%, 90%);
+    --button-selected-text: white;
+    --button-disabled-text: hsl(200, 0%, 50%);
+
+    --header-background: hsla(200, 0%, 5%, 1);
+    --panel-background: hsla(200, 0%, 15%, 0.98);
+    --panel-two-background: hsla(200, 0%, 5%, 0.4);
+    --collection: hsla(200, 0%, 5%, 0);
+
+    --text: rgb(221, 221, 221);
+
+    --alert-note: rgba(34, 34, 34, 0.99);
+    --alert-warning: rgba(128, 72, 8, 0.95);
+}
+
+body {
+    background-color: rgb(16,16,16);
+}
+
+dialog {
+    border-radius: 4px;
+    border: 0px;
+    background: var(--panel-background);
+    color: var(--text);
+}
+dialog > h1 {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: gray;
+    margin: 0;
+    border-bottom: 1px solid black;
+}
+dialog > h1 + * {
+    margin-top: 32px;
+}
+
+dialog#maindialog {
+    width: 200px;
+}
+dialog#maindialog > * {
+    display: block;
+    width: 100%;
+}
+
+div#tools > label {
+    display: block;
+    width: 100%;
+}
+div#tools > label:hover {
+    background: rgba(64, 64, 64, 0.75);
+}
+div#tools > label > img {
+    width: 32px;
+    height: 32px;
+}
+input.tool {
+    visibility: hidden;
+    position: relative;
+    width: 0;
+    height: 0;
+}
+div#tools > input.tool:checked + label {
+    background: rgb(0, 146, 219);
+}
+
+details#documentation > button {
+    display: block;
+    width: 100%;
+}
+
+</style>
+</head>
+<body>
+
+<dialog open id="maindialog">
+    <h1>RetopoFlow</h1>
+    <div id="tools">
+        <input type="radio" class="tool" name="tool" id="tool-contours" checked>
+        <label title="Contours. Shortcut: ..." for="tool-contours">
+            <img src="../icons/contours-icon.png">
+            Contours
+        </label>
+        <input type="radio" class="tool" name="tool" id="tool-polystrips">
+        <label title="PolyStrips. Shortcut: ..." for="tool-polystrips">
+            <img src="../icons/polystrips-icon.png">
+            PolyStrips
+        </label>
+    </div>
+    <details id="documentation" title='Help documentation'>
+        <summary>Documentation</summary>
+        <button title="Show the Welcome message">Welcome!</button>
+        <button title="Show help table of contents">Table of Contents</button>
+    </details>
+</dialog>
+
+<dialog id="options">
+    <h1>Options</h1>
+</dialog>
+
+
+</body>
+</html>

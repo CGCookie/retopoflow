@@ -488,7 +488,7 @@ input[type="checkbox"] > img.checkbox {
 input[type="checkbox"]:hover > img.checkbox {
     background-color: rgba(160, 160, 160, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
-input[type="checkbox"][checked] > img.checkbox {
+input[type="checkbox"]:checked > img.checkbox {
     background-color: hsla(200, 100%, 62.5%, 1.0);
     background-image: url('checkmark.png');
 }
@@ -507,7 +507,7 @@ input[type="checkbox"] > label {
 input[type="checkbox"]:hover > label {
     color: rgba(255, 255, 255, 1.00);
 }
-input[type="checkbox"][checked] > label {
+input[type="checkbox"]:checked > label {
     color: rgba(255, 255, 255, 1.00);
 }
 
@@ -539,7 +539,7 @@ input[type="radio"]:hover > img.radio {
 input[type="radio"]:active > img.radio {
     background-color: hsla(200, 100%, 75%, 1.0);
 }
-input[type="radio"][checked] > img.radio {
+input[type="radio"]:checked > img.radio {
     background: hsla(200, 100%, 62.5%, 1.0) url('radio.png');
 }
 
@@ -554,7 +554,7 @@ input[type="radio"] > label {
 input[type="radio"]:hover > label {
     color: rgba(255, 255, 255, 1.00);
 }
-input[type="radio"][checked] > label {
+input[type="radio"]:checked > label {
     color: rgba(255, 255, 255, 1.00);
 }
 
@@ -570,7 +570,7 @@ input[type="radio"][checked] > label {
 div.collapsible > input.header > img {
     background: transparent url('collapse_open.png');
 }
-div.collapsible > input.header[checked] > img {
+div.collapsible > input.header:checked > img {
     background: transparent url('collapse_close.png');
 }
 div.collapsible > div.inside {
