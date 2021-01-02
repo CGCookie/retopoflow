@@ -127,6 +127,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @RFTool_Strokes.on_ui_setup
     def ui(self):
         def span_mode_change(e):
+            print(f'{e.target}')
             if not e.target.checked: return
             if e.target.value is None: return
             options['strokes span insert mode'] = e.target.value
@@ -135,35 +136,37 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.ui_options = ui.details(children=[
             ui.summary(innerText='Strokes'),
             ui.collection(label='Span Insert Mode', children=[
-                ui.input_radio(
-                    id='strokes-span-mode-brush',
-                    value='Brush Size',
+                ui.label(
+                    innerText='Brush Size',
                     title='Insert spans based on brush size',
-                    checked=(options['strokes span insert mode']=='Brush Size'),
-                    name='strokes-span-mode',
                     classes='half-size',
+                    #forId='strokes-span-mode-brush',
                     children=[
-                        ui.label(
-                            innerText='Brush Size',
+                        ui.input_radio(
+                            id='strokes-span-mode-brush',
+                            value='Brush Size',
                             title='Insert spans based on brush size',
+                            checked=(options['strokes span insert mode']=='Brush Size'),
+                            name='strokes-span-mode',
+                            on_input=span_mode_change,
                         ),
                     ],
-                    on_input=span_mode_change,
                 ),
-                ui.input_radio(
-                    id='strokes-span-mode-fixed',
-                    value='Fixed',
+                ui.label(
+                    innerText='Fixed',
                     title='Insert fixed number of spans',
-                    checked=(options['strokes span insert mode']=='Fixed'),
-                    name='strokes-span-mode',
                     classes='half-size',
+                    #forId='strokes-span-mode-fixed',
                     children=[
-                        ui.label(
-                            innerText='Fixed',
+                        ui.input_radio(
+                            id='strokes-span-mode-fixed',
+                            value='Fixed',
                             title='Insert fixed number of spans',
+                            checked=(options['strokes span insert mode']=='Fixed'),
+                            name='strokes-span-mode',
+                            on_input=span_mode_change,
                         ),
                     ],
-                    on_input=span_mode_change,
                 ),
                 ui.labeled_input_text(
                     id='strokes-options-brush-size',

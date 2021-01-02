@@ -277,6 +277,12 @@ def kwargs_splitter(keys, kwargs):
 def any_args(*args):
     return any(bool(a) for a in args)
 
+def get_and_discard(d, k, default=None):
+    if k not in d: return default
+    v = d[k]
+    del d[k]
+    return v
+
 
 
 #################################################

@@ -26,6 +26,23 @@
 }
 
 /********************************/
+/* GENERAL ELEMENT STYLING      */
+
+*.half-size {
+    display: inline;
+    width: 50%;
+    text-align: center;
+}
+
+*.third-size {
+    display: inline;
+    width: 33.333%;
+    text-align: center;
+}
+
+
+
+/********************************/
 /* GENERAL BUTTON STYLING       */
 
 button {
@@ -54,16 +71,11 @@ button:disabled {
     color: var(--button-disabled-text);
 }
 
-button.half-size {
-    display: inline;
-    width: 50%;
-}
-
 
 /********************************/
 /* GENERAL RADIO BUTTON STYLING */
 
-input[type="radio"] {
+/*input[type="radio"] {
     background: var(--button-background);
     margin: 2px;
     border: 0px;
@@ -94,7 +106,6 @@ input[type="radio"] > label {
     border-radius: 0px;
     padding: 0px;
     width: 100%;
-    /*height:20px;*/
     color: var(--button-text);
 }
 input[type="radio"]:checked label {
@@ -107,21 +118,56 @@ input[type="radio"]:disabled label {
     color: var(--button-disabled-text);
 }
 
-input[type="radio"].half-size {
-    width: 50%;
-    margin: 2px;
-}
+
 input[type="radio"].half-size > label {
     text-align: center;
     margin-left: -6px;
 }
-input[type="radio"].third-size {
-    width: 33.333%;
-}
 input[type="radio"].third-size > label {
     text-align: center;
     margin-left: -6px;
+}*/
+
+
+
+input[type="radio"] {
+    display: none;
+    /*display: inline;
+    width: 10px;
+    height: 10px;
+    margin: 0px;
+    border: 1px black;
+    padding: 0px;*/
 }
+input[type="radio"]::marker {
+    display: none;
+}
+
+label[type="radio"] {
+    background: var(--button-background);
+    color: var(--button-text);
+    margin: 2px;
+    border: 0px;
+    padding: 4px 6px 4px 6px;
+}
+label[type="radio"]:hover {
+    background: var(--button-hover-background);
+}
+label[type="radio"]:checked {
+    background: var(--button-selected-background);
+}
+label[type="radio"]:active {
+    background: var(--button-selected-background);
+}
+label[type="radio"]:active:hover {
+    background: var(--button-selected-background);
+}
+label[type="radio"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+}
+
+
 
 
 /********************************/
@@ -210,61 +256,7 @@ input[type="checkbox"]:checked > label {
 }
 
 /**************************/
-/* COLLAPSIBLE COLLECTION */
-
-/*div.collapsible {
-    margin: 2px;
-    border: 0px;
-    border-radius: 0px;
-    background: rgba(0, 0, 0, 0);
-    padding: 0px 0px 0px 0px;
-}
-
-div.collapsible > input.header {
-    display: block;
-    width: 100%;
-    height: 24px;
-    background: transparent;
-    padding-top: 1px;
-    padding-bottom: 0px;
-    margin: 0px;
-    border: 0px;
-}
-div.collapsible > input.header:hover {
-    background: hsla(200, 0%, 50%, 0.25);
-}
-
-div.collapsible > input.header > label{
-    margin-left: 0px;
-    margin-top: 4px;
-    padding: 0px;
-}
-div.collapsible > input.header > img {
-    margin: 8px 0px 2px -6px;
-    padding: 0px;
-    border: 0px;
-    width: 18px;
-    height: 18px;
-    background: transparent url('collapse_open.png');
-}
-div.collapsible:hover > input.header > img {
-    background: transparent url('collapse_open.png');
-}
-div.collapsible > input.header:checked > img {
-    background: transparent url('collapse_close.png');
-}
-div.collapsible > div.inside.collapsed {
-    display: none;
-}
-div.collapsible > div.inside {
-    border: 0px;
-    border-color: transparent;
-    background: var(--panel-two-background);
-    padding: 4px 4px 4px 4px;
-    margin: 0px 0px 0px 0px;
-}*/
-
-
+/* DETAILS COLLECTION     */
 
 details {
     display: block;
@@ -313,6 +305,8 @@ details > div.contents {
 /*details[open] > div.inside {
     display: block;
 }*/
+
+
 
 /********************************/
 /* GENERAL DIALOG STYLING       */
@@ -413,6 +407,10 @@ div.collection > div.inside {
 }
 
 
+/********************************/
+/* LOADING DIALOG STYLING       */
+/********************************/
+
 dialog#loadingdialog {
     width: 40%;
     left: 30%;
@@ -420,6 +418,10 @@ dialog#loadingdialog {
     z-index: 10000;
 }
 
+
+/********************************/
+/* MAIN TOOLS STYLING           */
+/********************************/
 
 dialog#maindialog {
     width: 150px;
@@ -432,31 +434,20 @@ dialog#maindialog * {
     overflow-x: hidden;
 }
 
-
-/********************************/
-/* MAIN TOOLS STYLING           */
-
-
-
 div#tools {
     margin: 0px;
     border: 0px;
     padding: 0px;
 }
-input.tool {
-    display: block;
-    width: 100%;
-    background: transparent;
-}
-input.tool > label {
+label.tool {
     display: block;
     width: 100%;
     margin: 0px;
     border: 0px;
-    padding: 0px;
+    padding: 7px 4px;
     background: transparent;
 }
-input.tool > label > img {
+label.tool > img {
     display: inline;
     width: 32px;
     height: 32px;
@@ -464,35 +455,43 @@ input.tool > label > img {
     border: 0px;
     padding: 0px;
 }
-input.tool > label > span {
+label.tool > span {
     display: inline;
-    margin: 7px 4px;
+    margin: 8px 4px; /*7px 4px;*/
     border: 0px;
     padding: 0px;
     align-items: center;
     align-content: center;
 }
-/*input.tool::marker {
+label.tool:hover {
+    background: var(--button-hover-background);
+    /*background: rgba(64, 64, 64, 0.75);*/
+}
+label.tool:checked {
+    background: var(--button-selected-background);
+    /*background: rgb(0, 146, 219);*/
+}
+label.tool:active {
+    background: var(--button-selected-background);
+    /*background: rgb(0, 146, 219);*/
+}
+label.tool:active:hover {
+    background: var(--button-selected-background);
+    /*background: rgb(0, 146, 219);*/
+}
+label.tool:checked > label > span {
+    color: white;
+}
+label.tool:active > label > span {
+    color: white;
+}
+input.tool::marker {
     display: none;
-}*/
-input.tool:hover {
-    background: rgba(64, 64, 64, 0.75);
 }
-input.tool:checked {
-    background: rgb(0, 146, 219);
-}
-input.tool:active {
-    background: rgb(0, 146, 219);
-}
-input.tool:active:hover {
-    background: rgb(0, 146, 219);
-}
-input.tool:checked > label > span {
-    color: white;
-}
-input.tool:active > label > span {
-    color: white;
-}
+
+
+
+
 
 input.symmetry-enable {
     width: 33.33%;
@@ -560,62 +559,52 @@ dialog#tinydialog span.dialog-title {
     font-size: 9pt;
     height: 12px;
 }
-dialog#tinydialog > div#ttools > * {
+div#ttools > * {
     display: inline;
-    /*background: white;*/
 }
-dialog#tinydialog input[type="radio"] > img {
-    display: none;
-}
+
 
 dialog#tinydialog div#ttools {
     margin: 0px;
 }
-dialog#tinydialog input.ttool {
+label.ttool {
     display: inline;
     background: transparent;
     margin: 0px 2px 0px 2px;
-    border-width: 0px;
-    width: 40px;
+    border: 0px;
     padding: 2px;
+    width: 40px;
 }
-dialog#tinydialog input.ttool > img {
+input.ttool {
+    
+}
+input.ttool::marker {
     display: none;
 }
-dialog#tinydialog input.ttool:hover {
-    background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+label.ttool:hover {
+    background: var(--button-hover-background);
+    /*background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
 }
-dialog#tinydialog input.ttool:checked {
+label.ttool:checked {
     background: var(--button-selected-background);
 }
-dialog#tinydialog input.ttool:active {
+label.ttool:active {
     background: var(--button-selected-background);
 }
-dialog#tinydialog input.ttool:active:hover {
+label.ttool:active:hover {
     background: var(--button-selected-background);
 }
-dialog#tinydialog input.ttool > label {
-    display: inline;
-    border: 0px;
-    border-radius: 0px;
-    padding: 0px;
-    margin: 0px;
-    /*width: 100%;*/
-    /*height:20px;*/
-    color: white;
-}
-dialog#tinydialog input.ttool:checked label {
+label.ttool:checked label {
     color: black;
 }
-dialog#tinydialog input.ttool:active label {
+label.ttool:active label {
     color: black;
 }
-dialog#tinydialog input.ttool > label > img {
+label.ttool > img {
     display: inline;
-    border-radius: 0px;
-    border:0px white;
-    padding:0px;
     margin:0px;
+    border:0px;
+    padding:0px;
     width:32px;
     height:32px;
 }

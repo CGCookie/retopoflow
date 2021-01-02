@@ -45,6 +45,8 @@ class RetopoFlow_Tools:
         if e: e.checked = True
         e = self.document.body.getElementById('ttool-%s'%rftool.name.lower())
         if e: e.checked = True
+        self.ui_tiny.dirty(cause='changed tools', children=True)
+        self.ui_main.dirty(cause='changed tools', children=True)
         statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
         statusbar = statusbar.replace('\t', '    ')
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')

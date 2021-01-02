@@ -555,35 +555,33 @@ class RetopoFlow_UI:
             )
             ui_tools = ui.div(id='ttools', parent=self.ui_tiny)
             ui.button(title='Maximize this window', classes='dialog-expand', on_mouseclick=self.show_main_ui_window, parent=ui_tools)
-            def add_tool(rftool):
-                # must be a fn so that local vars are unique and correctly captured
+            def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
+                nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
                 lbl, img = rftool.name, rftool.icon
+                id_radio = f'ttool-{lbl.lower()}'
                 title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
                 checked = (rftool.name == rf_starting_tool)
-                if checked: self.select_rftool(rftool)
-                ui_radio = ui.input_radio(
-                    id=f'ttool-{lbl.lower()}',
-                    value=lbl.lower(),
+                # if checked: self.select_rftool(rftool)
+                ui_label = ui.label(
                     title=title,
-                    name='ttool',
-                    classes='ttool',
-                    checked=checked,
+                    classes="ttool",
+                    parent=ui_tools,
                     children=[
-                        ui.label(
-                            id=f'ttool-{lbl.lower()}-label',
+                        ui.input_radio(
+                            id=id_radio,
+                            value=lbl.lower(),
                             title=title,
-                            forId=f'ttool-{lbl.lower()}',
-                            classes="ttool",
-                            children=[
-                                ui.img(
-                                    src=img,
-                                    title=title,
-                                ),
-                            ],
+                            name='ttool',
+                            classes='ttool',
+                            checked=checked,
+                        ),
+                        ui.img(
+                            src=img,
+                            title=title,
                         ),
                     ],
-                    parent=ui_tools,
                 )
+                ui_radio = ui_label.getElementById(id_radio)
                 ui_radio.add_eventListener('on_input', delay_exec('''if ui_radio.checked: self.select_rftool(rftool)'''))
             for rftool in self.rftools: add_tool(rftool)
             # ui_close = UI_Element(tagName='button', classes='dialog-close', title=title, on_mouseclick=close, parent=ui_header)
@@ -605,39 +603,37 @@ class RetopoFlow_UI:
 
             # tools
             ui_tools = ui.div(id="tools", parent=self.ui_main)
-            def add_tool(rftool):
-                # must be a fn so that local vars are unique and correctly captured
+            def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
+                nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
                 lbl, img = rftool.name, rftool.icon
+                id_radio = f'tool-{lbl.lower()}'
                 title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
                 checked = (rftool.name == rf_starting_tool)
-                if checked: self.select_rftool(rftool)
-                ui_radio = ui.input_radio(
-                    id=f'tool-{lbl.lower()}',
-                    value=lbl.lower(),
+                # if checked: self.select_rftool(rftool)
+                ui_label = ui.label(
                     title=title,
-                    name='tool',
-                    classes='tool',
-                    checked=checked,
+                    classes="tool",
+                    parent=ui_tools,
                     children=[
-                        ui.label(
-                            id=f'tool-{lbl.lower()}-label',
+                        ui.input_radio(
+                            id=id_radio,
+                            value=lbl.lower(),
                             title=title,
-                            forId=f'tool-{lbl.lower()}',
-                            classes="tool",
-                            children=[
-                                ui.img(
-                                    src=img,
-                                    title=title,
-                                ),
-                                ui.span(
-                                    innerText=lbl,
-                                    title=title,
-                                ),
-                            ],
+                            name='tool',
+                            classes='tool',
+                            checked=checked,
+                        ),
+                        ui.img(
+                            src=img,
+                            title=title,
+                        ),
+                        ui.span(
+                            innerText=lbl,
+                            title=title,
                         ),
                     ],
-                    parent=ui_tools,
                 )
+                ui_radio = ui_label.getElementById(id_radio)
                 ui_radio.add_eventListener('on_input', delay_exec('''if ui_radio.checked: self.select_rftool(rftool)'''))
             for rftool in self.rftools: add_tool(rftool)
 
@@ -782,50 +778,53 @@ class RetopoFlow_UI:
                 ),
                 ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                 ui.collection(label='Theme', children=[
-                    ui.input_radio(
-                        id='theme-color-green',
+                    ui.label(
+                        innerText='Green',
                         title='Draw the target mesh using a green theme.',
-                        value='Green',
-                        checked=(options['color theme']=='Green'),
-                        name='theme-color',
+                        forId='theme-color-green',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Green',
+                            ui.input_radio(
+                                id='theme-color-green',
                                 title='Draw the target mesh using a green theme.',
+                                value='Green',
+                                checked=(options['color theme']=='Green'),
+                                name='theme-color',
+                                on_input=theme_change,
                             ),
                         ],
-                        on_input=theme_change,
                     ),
-                    ui.input_radio(
-                        id='theme-color-blue',
+                    ui.label(
+                        innerText='Blue',
                         title='Draw the target mesh using a blue theme.',
-                        value='Blue',
-                        checked=(options['color theme']=='Blue'),
-                        name='theme-color',
+                        forId='theme-color-blue',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Blue',
+                            ui.input_radio(
+                                id='theme-color-blue',
                                 title='Draw the target mesh using a blue theme.',
+                                value='Blue',
+                                checked=(options['color theme']=='Blue'),
+                                name='theme-color',
+                                on_input=theme_change,
                             ),
                         ],
-                        on_input=theme_change,
                     ),
-                    ui.input_radio(
-                        id='theme-color-orange',
+                    ui.label(
+                        innerText='Orange',
                         title='Draw the target mesh using a orange theme.',
-                        value='Orange',
-                        checked=(options['color theme']=='Orange'),
-                        name='theme-color',
+                        forId='theme-color-orange',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Orange',
+                            ui.input_radio(
+                                id='theme-color-orange',
                                 title='Draw the target mesh using a orange theme.',
+                                value='Orange',
+                                checked=(options['color theme']=='Orange'),
+                                name='theme-color',
+                                on_input=theme_change,
                             ),
                         ],
-                        on_input=theme_change,
                     ),
                 ]),
                 ui.collection(label='Clipping', id='clipping', children=[
@@ -892,50 +891,53 @@ class RetopoFlow_UI:
                 ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
                 ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
                 ui.collection(label='Visualization', children=[
-                    ui.input_radio(
-                        id='symmetry-viz-none',
+                    ui.label(
+                        innerText='None',
                         title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
-                        value='None',
-                        checked=(options['symmetry view']=='None'),
-                        name='symmetry-viz',
+                        forId='symmetry-viz-none',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='None',
+                            ui.input_radio(
+                                id='symmetry-viz-none',
                                 title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
+                                value='None',
+                                checked=(options['symmetry view']=='None'),
+                                name='symmetry-viz',
+                                on_input=symmetry_viz_change
                             ),
                         ],
-                        on_input=symmetry_viz_change
                     ),
-                    ui.input_radio(
-                        id='symmetry-viz-edge',
+                    ui.label(
+                        innerText='Edge',
                         title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
-                        value='Edge',
-                        checked=(options['symmetry view']=='Edge'),
-                        name='symmetry-viz',
+                        forId='symmetry-viz-edge',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Edge',
+                            ui.input_radio(
+                                id='symmetry-viz-edge',
                                 title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
+                                value='Edge',
+                                checked=(options['symmetry view']=='Edge'),
+                                name='symmetry-viz',
+                                on_input=symmetry_viz_change
                             ),
                         ],
-                        on_input=symmetry_viz_change
                     ),
-                    ui.input_radio(
-                        id='symmetry-viz-face',
+                    ui.label(
+                        innerText='Face',
                         title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
-                        value='Face',
-                        checked=(options['symmetry view']=='Face'),
-                        name='symmetry-viz',
+                        forId='symmetry-viz-face',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Face',
+                            ui.input_radio(
+                                id='symmetry-viz-face',
                                 title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
+                                value='Face',
+                                checked=(options['symmetry view']=='Face'),
+                                name='symmetry-viz',
+                                on_input=symmetry_viz_change
                             ),
                         ],
-                        on_input=symmetry_viz_change
                     ),
                     ui.labeled_input_text(
                         label='Source Effect',
@@ -1078,6 +1080,10 @@ class RetopoFlow_UI:
         setup_quit_ui()
         setup_delete_ui()
         setup_counts_ui()
+
+        for rftool in self.rftools:
+            if rftool.name == rf_starting_tool:
+                self.select_rftool(rftool)
 
         if options['show main window']:
             self.show_main_ui_window()

@@ -712,19 +712,19 @@ class UI_Element_Properties:
         return None
 
     def getElementsByName(self, element_name):
-        if element_name is None: return None
+        if element_name is None: return []
         ret = [self] if self._name == element_name else []
         ret.extend(e for child in self.children for e in child.getElementsByName(element_name))
         return ret
 
     def getElementsByClassName(self, class_name):
-        if class_name is None: return None
+        if class_name is None: return []
         ret = [self] if class_name in self._classes else []
         ret.extend(e for child in self.children for e in child.getElementsByClassName(class_name))
         return ret
 
     def getElementsByTagName(self, tag_name):
-        if tag_name is None: return None
+        if tag_name is None: return []
         ret = [self] if tag_name == self._tagName else []
         ret.extend(e for child in self.children for e in child.getElementsByTagName(tag_name))
         return ret
@@ -861,6 +861,12 @@ class UI_Element_Properties:
     def forId(self, v):
         self._forId = v
 
+    def get_for_element(self):
+        if self._tagName == 'label' and not self._forId:
+            # this is a label, but no for attribute was specified, so we'll go with the first input child
+            return next((child for child in self._children if child._tagName == 'input'), None)
+        return self.get_root().getElementById(self._forId)
+
     @property
     def name(self):
         return self._name
@@ -917,6 +923,11 @@ class UI_Element_Properties:
     def pseudoclasses(self):
         return set(self._pseudoclasses)
 
+    def pseudoclasses_with_for(self, ui_for=None):
+        if not ui_for: ui_for = self.get_for_element()
+        if not ui_for: return self.pseudoclasses
+        return self._pseudoclasses | ui_for._pseudoclasses
+
     def _has_affected_descendant(self):
         self._rebuild_style_selector()
         return self._children_text or UI_Styling.has_matches(self._selector+['*'], *self._styling_list)
@@ -945,16 +956,18 @@ class UI_Element_Properties:
         return pseudo in self._pseudoclasses
 
     @property
-    def is_active(self): return 'active' in self._pseudoclasses
+    def is_active(self): return 'active' in self.pseudoclasses_with_for()
     @property
-    def is_hovered(self): return 'hover' in self._pseudoclasses
+    def is_hovered(self): return 'hover' in self.pseudoclasses_with_for()
     @property
-    def is_focused(self): return 'focus' in self._pseudoclasses
+    def is_focused(self): return 'focus' in self.pseudoclasses_with_for()
     @property
     def is_disabled(self):
-        if 'disabled' in self._pseudoclasses: return True
-        if self._value_bound: return self._value.disabled
-        if self._checked_bound: return self._checked.disabled
+        ui_for = self.get_for_element()
+        if 'disabled' in self.pseudoclasses_with_for(ui_for): return True
+        if self._value_bound   and self._value.disabled:      return True
+        if self._checked_bound and self._checked.disabled:    return True
+        if ui_for: return ui_for.is_disabled
         return False
         #return 'disabled' in self._pseudoclasses
 
@@ -1333,6 +1346,10 @@ class UI_Element_Properties:
     def type(self, v):
         self._type = v
         self.dirty_selector(cause='changing type can affect selector', children=True)
+    def type_with_for(self, ui_for=None):
+        if not ui_for: ui_for = self.get_for_element()
+        if not ui_for: return self._type
+        return self._type or ui_for._type
 
     @property
     def open(self):
@@ -1365,6 +1382,10 @@ class UI_Element_Properties:
         elif self._value != v:
             self._value = v
             self._value_change()
+    def value_with_for(self, ui_for=None):
+        if not ui_for: ui_for = self.get_for_element()
+        if not ui_for: return self.value
+        return self.value or ui_for.value
     def _value_change(self):
         if not self.is_visible: return
         self.dispatch_event('on_input')
@@ -1393,6 +1414,10 @@ class UI_Element_Properties:
         elif self._checked != v:
             self._checked = v
             self._checked_change()
+    def checked_with_for(self, ui_for=None):
+        if not ui_for: ui_for = self.get_for_element()
+        if not ui_for: return self.checked
+        return self.checked or ui_for.checked
     def _checked_change(self):
         self.dispatch_event('on_input')
         self.dirty_selector(cause='changing checked can affect selector and content', children=True)
@@ -2111,8 +2136,16 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         #     # this has a pseudoelement: ::before, ::after, ::marker
         #     selector = [*sel_parent[:-1], f'{sel_parent[-1]}::{self._pseudoelement}']
         else:
-            attribs = ['type', 'value', 'name']
-            attribs = [a for a in attribs if getattr(self, a) is not None]
+            ui_for = self.get_for_element()
+
+            attribvals = {}
+            type_val = self.type_with_for(ui_for)
+            if type_val: attribvals['type'] = type_val
+            value_val = self.value_with_for(ui_for)
+            if value_val: attribvals['value'] = value_val
+            name_val = self.name
+            if name_val: attribvals['name'] = name_val
+
             is_disabled = False
             is_disabled |= self._value_bound and self._value.disabled
             is_disabled |= self._checked_bound and self._checked.disabled
@@ -2120,13 +2153,13 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             sel_tagName    = self._tagName
             sel_id         = f'#{self._id}' if self._id else ''
             sel_cls        = join('.', self._classes, preSep='.')
-            sel_attribs    = join('][', attribs, preSep='[', postSep=']')
-            sel_attribvals = join('][', attribs, preSep='[', postSep=']', toStr=lambda a:f'{a}="{getattr(self, a)}"')
-            sel_pseudocls  = join(':', self._pseudoclasses, preSep=':')
+            sel_attribs    = join('][', attribvals.keys(),  preSep='[', postSep=']')
+            sel_attribvals = join('][', attribvals.items(), preSep='[', postSep=']', toStr=lambda kv:f'{kv[0]}="{kv[1]}"')
+            sel_pseudocls  = join(':', self.pseudoclasses_with_for(ui_for), preSep=':')
             sel_pseudoelem = f'::{self._pseudoelement}' if self._pseudoelement else ''
             if is_disabled:
                 sel_pseudocls += ':disabled'
-            if self.checked:
+            if self.checked_with_for(ui_for):
                 sel_attribs    += '[checked]'
                 sel_attribvals += '[checked="checked"]'
                 sel_pseudocls  += ':checked'
@@ -2409,7 +2442,12 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         if self._tagName == 'summary' and self._pseudoelement != 'marker':
             self._new_content = True
-            marker = ui_elem(tagName='summary', pseudoelement='marker')
+            marker = ui_elem(tagName='summary', classes=self._classes_str, pseudoelement='marker')
+            return [marker, *self._children]
+
+        if self._tagName == 'input' and self._type == 'radio' and self._pseudoelement != 'marker':
+            self._new_content = True
+            marker = ui_elem(tagName='input', type='radio', classes=self._classes_str, pseudoelement='marker')
             return [marker, *self._children]
 
         return self._children
@@ -3490,7 +3528,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
     # event-related functionality
 
     def add_eventListener(self, event, callback, useCapture=False):
-        assert event in self._events, 'Attempting to add unhandled event handler type "%s"' % event
+        ovent = event
+        event = event if event.startswith('on_') else f'on_{event}'
+        assert event in self._events, f'Attempting to add unhandled event handler type "{oevent}"'
         sig = signature(callback)
         old_callback = callback
         if len(sig.parameters) == 0:
@@ -3499,7 +3539,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
     def remove_eventListener(self, event, callback):
         # returns True if callback was successfully removed
-        assert event in self._events, 'Attempting to remove unhandled event handler type "%s"' % event
+        oevent = event
+        event = event if event.startswith('on_') else f'on_{event}'
+        assert event in self._events, f'Attempting to remove unhandled event handler type "{ovent}"'
         l = len(self._events[event])
         self._events[event] = [(capture,cb,old_cb) for (capture,cb,old_cb) in self._events[event] if old_cb != callback]
         return l != len(self._events[event])
@@ -3516,6 +3558,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
     @profiler.function
     def dispatch_event(self, event, mouse=None, button=None, key=None, ui_event=None, stop_at=None):
+        event = event if event.startswith('on_') else f'on_{event}'
         if self._document:
             if mouse is None:
                 mouse = self._document.actions.mouse

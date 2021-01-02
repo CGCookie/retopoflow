@@ -110,69 +110,69 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 ),
             ]),
             ui.collection(label='Insert Mode', children=[
-                ui.input_radio(
-                    id='polypen-insert-mode-triquad',
+                ui.label(
+                    innerText='Tri/Quad',
                     title='Inserting alternates between Triangles and Quads',
-                    value='Tri/Quad',
-                    checked=(options['polypen insert mode']=='Tri/Quad'),
-                    name='polypen-insert-mode',
+                    forId='polypen-insert-mode-triquad',
                     classes='half-size',
                     children=[
-                        ui.label(
-                            innerText='Tri/Quad',
+                        ui.input_radio(
+                            id='polypen-insert-mode-triquad',
                             title='Inserting alternates between Triangles and Quads',
+                            value='Tri/Quad',
+                            checked=(options['polypen insert mode']=='Tri/Quad'),
+                            name='polypen-insert-mode',
+                            on_input=insert_mode_change,
                         ),
                     ],
-                    on_input=insert_mode_change,
                 ),
-                ui.input_radio(
-                    id='polypen-insert-mode-quadonly',
+                ui.label(
+                    innerText='Quad-Only',
                     title='Inserting Quads only',
-                    value='Quad-Only',
-                    checked=(options['polypen insert mode']=='Quad-Only'),
-                    name='polypen-insert-mode',
+                    forId='polypen-insert-mode-quadonly',
                     classes='half-size',
                     children=[
-                        ui.label(
-                            innerText='Quad-Only',
+                        ui.input_radio(
+                            id='polypen-insert-mode-quadonly',
                             title='Inserting Quads only',
+                            value='Quad-Only',
+                            checked=(options['polypen insert mode']=='Quad-Only'),
+                            name='polypen-insert-mode',
+                            on_input=insert_mode_change,
                         ),
                     ],
-                    on_input=insert_mode_change,
                 ),
-                # HACK: THE FOLLOWING LINE IS A HACK TO FORCE THE "Tri-Only" INPUT TO RESIZE CORRECTLY!
-                ui.br(
-                    style='display:none',
-                ),
-                ui.input_radio(
-                    id='polypen-insert-mode-trionly',
+                ui.label(
+                    innerText='Tri-Only',
                     title='Inserting Triangles only',
-                    value='Tri-Only',
-                    checked=(options['polypen insert mode']=='Tri-Only'),
-                    name='polypen-insert-mode',
+                    forId='polypen-insert-mode-trionly',
                     classes='half-size',
                     children=[
-                        ui.label(
-                            innerText='Tri-Only',
+                        ui.input_radio(
+                            id='polypen-insert-mode-trionly',
                             title='Inserting Triangles only',
+                            value='Tri-Only',
+                            checked=(options['polypen insert mode']=='Tri-Only'),
+                            name='polypen-insert-mode',
+                            on_input=insert_mode_change,
                         ),
                     ],
-                    on_input=insert_mode_change,
                 ),
-                ui.input_radio(
-                    id='polypen-insert-mode-edgeonly',
+                ui.label(
+                    innerText='Edge-Only',
                     title='Inserting Edges only',
-                    value='Edge-Only',
-                    checked=(options['polypen insert mode']=='Edge-Only'),
-                    name='polypen-insert-mode',
+                    forId='polypen-insert-mode-edgeonly',
                     classes='half-size',
                     children=[
-                        ui.label(
-                            innerText='Edge-Only',
+                        ui.input_radio(
+                            id='polypen-insert-mode-edgeonly',
                             title='Inserting Edges only',
+                            value='Edge-Only',
+                            checked=(options['polypen insert mode']=='Edge-Only'),
+                            name='polypen-insert-mode',
+                            on_input=insert_mode_change,
                         ),
                     ],
-                    on_input=insert_mode_change,
                 ),
             ]),
         ])

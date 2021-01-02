@@ -95,151 +95,151 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
             ui.summary(innerText='Tweak'),
             ui.collection('Masking Options', id='tweak-masking', children=[
                 ui.collection('Boundary', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Tweak vertices not along boundary',
-                        value='exclude',
-                        checked=(options['tweak mask boundary']=='exclude'),
-                        name='tweak-boundary',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Tweak vertices not along boundary',
+                                value='exclude',
+                                checked=(options['tweak mask boundary']=='exclude'),
+                                name='tweak-boundary',
+                                on_input=tweak_mask_boundary_change,
                             ),
                         ],
-                        on_input=tweak_mask_boundary_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Tweak all vertices within brush, regardless of being along boundary',
-                        value='include',
-                        checked=(options['tweak mask boundary']=='include'),
-                        name='tweak-boundary',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Tweak all vertices within brush, regardless of being along boundary',
+                                value='include',
+                                checked=(options['tweak mask boundary']=='include'),
+                                name='tweak-boundary',
+                                on_input=tweak_mask_boundary_change,
                             ),
                         ],
-                        on_input=tweak_mask_boundary_change,
                     ),
                 ]),
                 ui.collection('Symmetry', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Tweak vertices not along symmetry plane',
-                        value='exclude',
-                        checked=(options['tweak mask symmetry']=='exclude'),
-                        name='tweak-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Tweak vertices not along symmetry plane',
+                                value='exclude',
+                                checked=(options['tweak mask symmetry']=='exclude'),
+                                name='tweak-symmetry',
+                                on_input=tweak_mask_symmetry_change,
                             ),
                         ],
-                        on_input=tweak_mask_symmetry_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Maintain',
                         title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
-                        value='maintain',
-                        checked=(options['tweak mask symmetry']=='maintain'),
-                        name='tweak-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Maintain',
+                            ui.input_radio(
                                 title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
+                                value='maintain',
+                                checked=(options['tweak mask symmetry']=='maintain'),
+                                name='tweak-symmetry',
+                                on_input=tweak_mask_symmetry_change,
                             ),
                         ],
-                        on_input=tweak_mask_symmetry_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Tweak all vertices within brush, regardless of being along symmetry plane',
-                        value='include',
-                        checked=(options['tweak mask symmetry']=='include'),
-                        name='tweak-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Tweak all vertices within brush, regardless of being along symmetry plane',
+                                value='include',
+                                checked=(options['tweak mask symmetry']=='include'),
+                                name='tweak-symmetry',
+                                on_input=tweak_mask_symmetry_change,
                             ),
                         ],
-                        on_input=tweak_mask_symmetry_change,
                     ),
                 ]),
                 ui.collection('Hidden', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Tweak only visible vertices',
-                        value='exclude',
-                        checked=(options['tweak mask hidden']=='exclude'),
-                        name='tweak-hidden',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Tweak only visible vertices',
+                                value='exclude',
+                                checked=(options['tweak mask hidden']=='exclude'),
+                                name='tweak-hidden',
+                                on_input=tweak_mask_hidden_change,
                             ),
                         ],
-                        on_input=tweak_mask_hidden_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Tweak all vertices within brush, regardless of visibility',
-                        value='include',
-                        checked=(options['tweak mask hidden']=='include'),
-                        name='tweak-hidden',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Tweak all vertices within brush, regardless of visibility',
+                                value='include',
+                                checked=(options['tweak mask hidden']=='include'),
+                                name='tweak-hidden',
+                                on_input=tweak_mask_hidden_change,
                             ),
                         ],
-                        on_input=tweak_mask_hidden_change,
                     ),
                 ]),
                 ui.collection('Selected', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Tweak only unselected vertices',
-                        value='exclude',
-                        checked=(options['tweak mask selected']=='exclude'),
-                        name='tweak-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Tweak only unselected vertices',
+                                value='exclude',
+                                checked=(options['tweak mask selected']=='exclude'),
+                                name='tweak-selected',
+                                on_input=tweak_mask_selected_change,
                             ),
                         ],
-                        on_input=tweak_mask_selected_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Only',
                         title='Tweak only selected vertices',
-                        value='only',
-                        checked=(options['tweak mask selected']=='only'),
-                        name='tweak-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Only',
+                            ui.input_radio(
                                 title='Tweak only selected vertices',
+                                value='only',
+                                checked=(options['tweak mask selected']=='only'),
+                                name='tweak-selected',
+                                on_input=tweak_mask_selected_change,
                             ),
                         ],
-                        on_input=tweak_mask_selected_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='All',
                         title='Tweak all vertices within brush, regardless of selection',
-                        value='all',
-                        checked=(options['tweak mask selected']=='all'),
-                        name='tweak-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='All',
+                            ui.input_radio(
                                 title='Tweak all vertices within brush, regardless of selection',
+                                value='all',
+                                checked=(options['tweak mask selected']=='all'),
+                                name='tweak-selected',
+                                on_input=tweak_mask_selected_change,
                             ),
                         ],
-                        on_input=tweak_mask_selected_change,
                     ),
                 ]),
             ]),

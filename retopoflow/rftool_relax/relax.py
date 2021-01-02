@@ -153,151 +153,151 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             # ]),
             ui.collection('Masking Options', id='relax-masking', children=[
                 ui.collection('Boundary', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Relax vertices not along boundary',
-                        value='exclude',
-                        checked=(options['relax mask boundary']=='exclude'),
-                        name='relax-boundary',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Relax vertices not along boundary',
+                                value='exclude',
+                                checked=(options['relax mask boundary']=='exclude'),
+                                name='relax-boundary',
+                                on_input=relax_mask_boundary_change,
                             ),
                         ],
-                        on_input=relax_mask_boundary_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Relax all vertices within brush, regardless of being along boundary',
-                        value='include',
-                        checked=(options['relax mask boundary']=='include'),
-                        name='relax-boundary',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Relax all vertices within brush, regardless of being along boundary',
+                                value='include',
+                                checked=(options['relax mask boundary']=='include'),
+                                name='relax-boundary',
+                                on_input=relax_mask_boundary_change,
                             ),
                         ],
-                        on_input=relax_mask_boundary_change,
                     ),
                 ]),
                 ui.collection('Symmetry', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Relax vertices not along symmetry plane',
-                        value='exclude',
-                        checked=(options['relax mask symmetry']=='exclude'),
-                        name='relax-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Relax vertices not along symmetry plane',
+                                value='exclude',
+                                checked=(options['relax mask symmetry']=='exclude'),
+                                name='relax-symmetry',
+                                on_input=relax_mask_symmetry_change,
                             ),
                         ],
-                        on_input=relax_mask_symmetry_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Maintain',
                         title='Relax vertices along symmetry plane, but keep them on symmetry plane',
-                        value='maintain',
-                        checked=(options['relax mask symmetry']=='maintain'),
-                        name='relax-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Maintain',
+                            ui.input_radio(
                                 title='Relax vertices along symmetry plane, but keep them on symmetry plane',
+                                value='maintain',
+                                checked=(options['relax mask symmetry']=='maintain'),
+                                name='relax-symmetry',
+                                on_input=relax_mask_symmetry_change,
                             ),
                         ],
-                        on_input=relax_mask_symmetry_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Relax all vertices within brush, regardless of being along symmetry plane',
-                        value='include',
-                        checked=(options['relax mask symmetry']=='include'),
-                        name='relax-symmetry',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Relax all vertices within brush, regardless of being along symmetry plane',
+                                value='include',
+                                checked=(options['relax mask symmetry']=='include'),
+                                name='relax-symmetry',
+                                on_input=relax_mask_symmetry_change,
                             ),
                         ],
-                        on_input=relax_mask_symmetry_change,
                     ),
                 ]),
                 ui.collection('Hidden', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Relax only visible vertices',
-                        value='exclude',
-                        checked=(options['relax mask hidden']=='exclude'),
-                        name='relax-hidden',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Relax only visible vertices',
+                                value='exclude',
+                                checked=(options['relax mask hidden']=='exclude'),
+                                name='relax-hidden',
+                                on_input=relax_mask_hidden_change,
                             ),
                         ],
-                        on_input=relax_mask_hidden_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Include',
                         title='Relax all vertices within brush, regardless of visibility',
-                        value='include',
-                        checked=(options['relax mask hidden']=='include'),
-                        name='relax-hidden',
                         classes='half-size',
                         children=[
-                            ui.label(
-                                innerText='Include',
+                            ui.input_radio(
                                 title='Relax all vertices within brush, regardless of visibility',
+                                value='include',
+                                checked=(options['relax mask hidden']=='include'),
+                                name='relax-hidden',
+                                on_input=relax_mask_hidden_change,
                             ),
                         ],
-                        on_input=relax_mask_hidden_change,
                     ),
                 ]),
                 ui.collection('Selected', children=[
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Exclude',
                         title='Relax only unselected vertices',
-                        value='exclude',
-                        checked=(options['relax mask selected']=='exclude'),
-                        name='relax-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Exclude',
+                            ui.input_radio(
                                 title='Relax only unselected vertices',
+                                value='exclude',
+                                checked=(options['relax mask selected']=='exclude'),
+                                name='relax-selected',
+                                on_input=relax_mask_selected_change,
                             ),
                         ],
-                        on_input=relax_mask_selected_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='Only',
                         title='Relax only selected vertices',
-                        value='only',
-                        checked=(options['relax mask selected']=='only'),
-                        name='relax-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='Only',
+                            ui.input_radio(
                                 title='Relax only selected vertices',
+                                value='only',
+                                checked=(options['relax mask selected']=='only'),
+                                name='relax-selected',
+                                on_input=relax_mask_selected_change,
                             ),
                         ],
-                        on_input=relax_mask_selected_change,
                     ),
-                    ui.input_radio(
+                    ui.label(
+                        innerText='All',
                         title='Relax all vertices within brush, regardless of selection',
-                        value='all',
-                        checked=(options['relax mask selected']=='all'),
-                        name='relax-selected',
                         classes='third-size',
                         children=[
-                            ui.label(
-                                innerText='All',
+                            ui.input_radio(
                                 title='Relax all vertices within brush, regardless of selection',
+                                value='all',
+                                checked=(options['relax mask selected']=='all'),
+                                name='relax-selected',
+                                on_input=relax_mask_selected_change,
                             ),
                         ],
-                        on_input=relax_mask_selected_change,
                     ),
                 ]),
             ]),

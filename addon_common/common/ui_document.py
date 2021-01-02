@@ -544,25 +544,36 @@ class UI_Document(UI_Document_FSM):
             self.ignore_hover_change = False
             return
         self._under_mousedown.dispatch_event('on_mouseup')
+        under_mouseclick = self._under_mousedown
         click = False
         click |= time.time() - self._mousedown_time < self.allow_click_time
         click |= self._under_mousedown.get_mouse_distance(self.actions.mouse) <= self.max_click_dist * self._ui_scale
+        if not click:
+            # find closest common ancestor of self._under_mouse and self._under_mousedown that is getting clicked
+            ancestors0 = self._under_mousedown.get_pathFromRoot()
+            ancestors1 = self._under_mouse.get_pathFromRoot()
+            ancestors = [a0 for (a0, a1) in zip(ancestors0, ancestors1) if a0 == a1 and a0.get_mouse_distance(self.actions.mouse) < 1]
+            if ancestors:
+                under_mouseclick = ancestors[-1]
+                click = True
         # print('mousedown_exit', time.time()-self._mousedown_time, self.allow_click_time, self.actions.mouse, self._under_mousedown.get_mouse_distance(self.actions.mouse), self.max_click_dist)
         if click:
             # old/simple: self._under_mouse == self._under_mousedown:
             dblclick = True
-            dblclick &= self._under_mousedown == self._last_under_click
+            dblclick &= under_mouseclick == self._last_under_click
             dblclick &= time.time() < self._last_click_time + self.doubleclick_time
-            self._under_mousedown.dispatch_event('on_mouseclick')
-            self._last_under_click = self._under_mousedown
+            under_mouseclick.dispatch_event('on_mouseclick')
+            self._last_under_click = under_mouseclick
             if dblclick:
-                self._under_mousedown.dispatch_event('on_mousedblclick')
+                under_mouseclick.dispatch_event('on_mousedblclick')
                 # self._last_under_click = None
-            if self._under_mousedown and self._under_mousedown.forId:
-                # send mouseclick events to ui_element indicated by forId!
-                ui_for = self._under_mousedown.get_root().getElementById(self._under_mousedown.forId)
-                if ui_for is None: return
-                ui_for.dispatch_event('on_mouseclick') #, ui_event=e)
+            # if self._under_mousedown:
+            #     # if applicable, send mouseclick events to ui_element indicated by forId
+            #     ui_for = self._under_mousedown.get_for_element()
+            #     print(f'mousedown_exit:')
+            #     print(f'    ui under: {self._under_mousedown}')
+            #     print(f'    ui for: {ui_for}')
+            #     if ui_for: ui_for.dispatch_event('on_mouseclick')
             self._last_click_time = time.time()
         else:
             self._last_under_click = None

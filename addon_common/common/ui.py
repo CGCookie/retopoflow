@@ -158,11 +158,12 @@ def dialog(**kwargs):
 def label(**kwargs):
     ui_label = UI_Element(tagName='label', **kwargs)
     def mouseclick(e):
-        if ui_label.forId is None: return
-        ui_for = ui_label.get_root().getElementById(ui_label.forId)
+        if not e.target.is_descendant_of(ui_label): return
+        ui_for = ui_label.get_for_element()
         if not ui_for: return
-        ui_for.dispatch_event('on_mouseclick', ui_event=e)
-    ui_label.add_eventListener('on_mouseclick', mouseclick)
+        if ui_for == e.target: return
+        ui_for.dispatch_event('on_mouseclick')
+    ui_label.add_eventListener('on_mouseclick', mouseclick, useCapture=True)
     return ui_label
 
 def input_radio(**kwargs):
@@ -171,7 +172,6 @@ def input_radio(**kwargs):
         ui_input.checked = True
     def on_input(e):
         if not ui_input.checked: return
-        if ui_input.name is None: return
         ui_elements = ui_input.get_root().getElementsByName(ui_input.name)
         for ui_element in ui_elements:
             if ui_element != ui_input: ui_element.checked = False
@@ -545,37 +545,6 @@ def collection(label, **kwargs):
     return ui_proxy
 
 
-# def collapsible(label, **kwargs):
-#     kwargs_translate('collapsed', 'checked', kwargs)
-#     kwargs.setdefault('checked', True)
-#     kw_input  = kwargs_splitter({'checked'}, kwargs)
-#     kw_inside = kwargs_splitter({'children'}, kwargs)
-#     kw_all    = kwargs_splitter({'title'}, kwargs)
-
-#     kwargs['classes'] = f"collapsible {kwargs.get('classes', '')}"
-#     ui_container = UI_Element(tagName='div', **kwargs, **kw_all)
-#     with ui_container.defer_dirty('creating content'):
-#         ui_label = input_checkbox(label=label, id='%s_check'%(kwargs.get('id', get_unique_ui_id('collapsible-'))), classes='header', parent=ui_container, **kw_input, **kw_all)
-#         ui_inside = UI_Element(tagName='div', classes='inside', parent=ui_container, **kw_inside, **kw_all)
-#         def toggle():
-#             if ui_label.checked: ui_inside.add_class('collapsed')
-#             else:                ui_inside.del_class('collapsed')
-#         ui_label.add_eventListener('on_input', toggle)
-#         toggle()
-
-#     ui_proxy = UI_Proxy('collapsible', ui_container)
-#     ui_proxy.translate_map('collapsed', 'checked', ui_label)
-#     ui_proxy.map(['innerText', 'label'], ui_label)
-#     ui_proxy.map_children_to(ui_inside)
-#     ui_proxy.map_to_all({'title'})
-#     return ui_proxy
-
-def get_and_discard(d, k, default=None):
-    if k not in d: return default
-    v = d[k]
-    del d[k]
-    return v
-
 def details(**kwargs):
     ui_details = UI_Element(tagName='details', **kwargs)
     def mouseclick(e):
@@ -586,36 +555,6 @@ def details(**kwargs):
         ui_details.open = not ui_details.open
     ui_details.add_eventListener('on_mouseclick', mouseclick)
     return ui_details
-
-    # details_id = kwargs.get('id', get_unique_ui_id('details-'))
-    # summary = get_and_discard(kwargs, 'summary', 'Details')
-    # is_open = get_and_discard(kwargs, 'open', False)
-
-    # kw_inside = kwargs_splitter({'children'}, kwargs)
-    # kw_all    = kwargs_splitter({'title'},    kwargs)
-
-
-    # if type(summary) is str:
-    #     ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', innerText=summary, **kw_all)
-    # else:
-    #     if type(summary) is not list: summary = [summary]
-    #     ui_summary = UI_Element(tagName='summary', id=f'{details_id}_summary', children=summary, **kw_all)
-
-    # ui_details = UI_Element(tagName='details', open=is_open, children=[
-    #     UI_Element(tagName='div', classes='header', children=[
-    #         UI_Element(tagName='img', classes='marker', **kw_all),
-    #         ui_summary,
-    #     ], **kw_all),
-    #     UI_Element(tagName='div', classes='inside', **kw_inside, **kw_all),
-    # ], **kwargs, **kw_all)
-    # ui_header, ui_inside = ui_details.children
-    # ui_header.add_eventListener('on_mouseclick', delay_exec('''ui_details.open = not ui_details.open'''))
-
-    # ui_proxy = UI_Proxy('details', ui_details)
-    # ui_proxy.map(['open'], ui_details)
-    # ui_proxy.map_children_to(ui_inside)
-    # ui_proxy.map_to_all({'title'})
-    # return ui_proxy
 
 def summary(**kwargs):
     return UI_Element(tagName='summary', **kwargs)

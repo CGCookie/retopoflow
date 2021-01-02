@@ -1,6 +1,46 @@
 <html>
 <head>
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Ubuntu+Mono&display=swap" rel="stylesheet">
 <style>
+
+/********************************/
+/* match html to how CC renders */
+/********************************/
+
+body {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10pt;
+    user-select: none;
+    background: url(background.jpg);
+    background-position: center;
+    background-size: cover;
+}
+table {
+    font-size: 10pt;
+}
+pre, code {
+    font-family: 'Ubuntu Mono', monospace;
+}
+img {
+    vertical-align: top;
+}
+span {
+    display: inline-block;
+}
+* {
+    box-sizing: border-box;
+    outline: 0px;
+}
+button {
+    border: 0px;
+}
+
+
+/********************************/
+/* RF styling                   */
+/********************************/
+
 :root {
     --button-background: hsla(200, 0%, 20%, 1.0);
     --button-hover-background: hsla(200, 0%, 50%, 0.50);
@@ -21,61 +61,168 @@
     --alert-warning: rgba(128, 72, 8, 0.95);
 }
 
+* {
+    border-radius: 4px;
+    color: var(--button-text);
+    /*margin: 4px;*/
+}
+
+div {
+    margin: 4px;
+}
+
 body {
-    background-color: rgb(16,16,16);
+    background-color: rgb(64,64,64);
 }
 
 dialog {
+    position: fixed;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    margin: 4px;
     border-radius: 4px;
-    border: 0px;
+    border: 1px solid black;
+    padding: 4px;
     background: var(--panel-background);
     color: var(--text);
 }
 dialog > h1 {
-    position: absolute;
-    left: 0;
-    top: 0;
+    font-size: 10pt;
+    font-weight: normal;
+    width: calc(100% + 8px);
+    background: black;
+    margin: -4px -4px 4px -4px;
+    padding: 4px 16px;
+    border-radius: 4px;
+}
+dialog > h1::after {
+    display: block;
+    content: "";
     width: 100%;
-    background: gray;
-    margin: 0;
     border-bottom: 1px solid black;
 }
-dialog > h1 + * {
-    margin-top: 32px;
+
+dialog.closeable > h1::before {
+    display: inline-block;
+    content: "×";
+    margin-left: -8px;
+    margin-right: 8px;
 }
+
+details {
+    padding-bottom: 1px;
+}
+
+summary {
+    padding: 4px;
+}
+summary:hover {
+    background-color: var(--button-hover-background);
+    cursor: default;
+}
+
+button {
+    display: block;
+    width: 100%;
+    color: var(--button-text);
+    background: var(--button-background);
+    margin: 4px 0px;
+    padding: 4px;
+}
+button:hover {
+    background: var(--button-hover-background);
+}
+button:active {
+    color: var(--button-selected-text);
+    background: var(--button-selected-background);
+}
+button:disabled:hover {
+    background: var(--button-background);
+}
+button:disabled {
+    color: var(--button-disabled-text);
+}
+
+label {
+    display: block;
+    padding: 4px;
+}
+label:hover {
+    background: var(--button-hover-background);
+}
+
+div.collection {
+    margin: 12px 4px;
+}
+
+div.collection > h2 {
+    font-size: 10pt;
+    font-weight: normal;
+    margin: 2px 0px;
+}
+
+
+
+/***********************/
+/* main dialog         */
+/***********************/
 
 dialog#maindialog {
+    left: 0px;
+    top: 0px;
     width: 200px;
 }
-dialog#maindialog > * {
-    display: block;
-    width: 100%;
-}
 
-div#tools > label {
-    display: block;
-    width: 100%;
-}
-div#tools > label:hover {
-    background: rgba(64, 64, 64, 0.75);
-}
-div#tools > label > img {
-    width: 32px;
-    height: 32px;
-}
 input.tool {
     visibility: hidden;
-    position: relative;
+    position: absolute;
     width: 0;
     height: 0;
 }
-div#tools > input.tool:checked + label {
+label.tool {
+    margin: 0px;
+    padding: 4px;
+    width: 100%;
+}
+label.tool.checked:hover {
+    background: rgb(0, 146, 219);
+}
+label.tool > img {
+    width: 32px;
+    height: 32px;
+}
+label.tool > span {
+    margin: 6px;
+}
+label.tool.checked {
     background: rgb(0, 146, 219);
 }
 
-details#documentation > button {
-    display: block;
-    width: 100%;
+
+/***********************/
+/* poly count dialog   */
+/***********************/
+
+dialog#geometrydialog {
+    left: 0px;
+    bottom: 0px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+}
+dialog#geometrydialog div {
+    margin: 0px;
+}
+
+
+dialog#optionsdialog {
+    right: 0px;
+    top: 0px;
+    width: 225px;
+    min-width: 225px;
+    max-width: 225px;
 }
 
 </style>
@@ -83,30 +230,111 @@ details#documentation > button {
 <body>
 
 <dialog open id="maindialog">
-    <h1>RetopoFlow</h1>
+    <h1>RetopoFlow 3.00.3</h1>
     <div id="tools">
         <input type="radio" class="tool" name="tool" id="tool-contours" checked>
-        <label title="Contours. Shortcut: ..." for="tool-contours">
+        <label title="Contours. Shortcut: ..." for="tool-contours" class="tool">
             <img src="../icons/contours-icon.png">
-            Contours
+            <span>Contours</span>
         </label>
         <input type="radio" class="tool" name="tool" id="tool-polystrips">
-        <label title="PolyStrips. Shortcut: ..." for="tool-polystrips">
+        <label title="PolyStrips. Shortcut: ..." for="tool-polystrips" class="tool">
             <img src="../icons/polystrips-icon.png">
-            PolyStrips
+            <span>PolyStrips</span>
         </label>
     </div>
     <details id="documentation" title='Help documentation'>
         <summary>Documentation</summary>
         <button title="Show the Welcome message">Welcome!</button>
-        <button title="Show help table of contents">Table of Contents</button>
+        <button title="Show help table of contents (Shift+F1)">Table of Contents</button>
+        <button title="Show how to get started with RetopoFlow">Quick Start Guide</button>
+        <button title="Show general help (F1)">General</button>
+        <button title="Show help for currently selected tool (F2)">Active Tool</button>
+    </details>
+    <details id="documentation" title='Windows'>
+        <summary>Windows</summary>
+        <button title="Minimize this window">Minimize Tools</button>
+        <button title="Show options window" disabled>Show Options</button>
+        <button title="Show poly count window" disabled>Show Poly Count</button>
+    </details>
+    <button title="Report an issue with RetopoFlow">Report Issue</button>
+    <button title="Quit RetopoFlow (Tab)">Exit</button>
+</dialog>
+
+<dialog id="optionsdialog" class="closeable" open>
+    <h1>Options</h1>
+    <details>
+        <summary>General</summary>
+        <div class="collection">
+            <h2>Quit Options</h2>
+            <label><input type="checkbox"> Confirm quit on Tab</label>
+            <label><input type="checkbox"> Escape to quite</label>
+        </div>
+        <div class="collection">
+            <h2>Start Up Checks</h2>
+            <label><input type="checkbox"> Check Auto Save</label>
+            <label><input type="checkbox"> Check Unsaved</label>
+        </div>
+        <details>
+            <summary>Advanced</summary>
+        </details>
+    </details>
+    <details>
+        <summary>Display</summary>
+    </details>
+    <details>
+        <summary>Target Cleaning</summary>
+    </details>
+    <details>
+        <summary>Symmetry: (none)</summary>
+    </details>
+    <details>
+        <summary>Contours</summary>
+    </details>
+    <details>
+        <summary>PolyStrips</summary>
     </details>
 </dialog>
 
-<dialog id="options">
-    <h1>Options</h1>
+<dialog id="geometrydialog" class="closeable" open>
+    <h1>Poly Count</h1>
+    <table>
+        <tr>
+            <td><div>Verts:</div></td>
+            <td><div>0</div></td>
+        </tr><tr>
+            <td><div>Edges:</div></td>
+            <td><div>0</div></td>
+        </tr><tr>
+            <td><div>Faces:</div></td>
+            <td><div>0</div></td>
+        </tr>
+    </table>
 </dialog>
 
-
 </body>
+
+<script>
+
+function sync() {
+    var labels = document.getElementsByTagName('label')
+    for(var i = 0; i < labels.length; i++) {
+        var label = labels[i]
+        if(!label.htmlFor) continue
+        var input = document.getElementById(label.htmlFor)
+        if(!input) continue
+        if(input.checked) label.classList.add('checked')
+        else label.classList.remove('checked')
+    }
+}
+sync()
+
+var inputs = document.getElementsByTagName('input')
+for(var i = 0; i < inputs.length; i++) {
+    var input = inputs[i]
+    if(input.type != 'radio') continue
+    input.addEventListener('input', sync)
+}
+
+</script>
 </html>
