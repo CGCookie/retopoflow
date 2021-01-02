@@ -151,8 +151,10 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             #         disabled=True,
             #     ),
             # ]),
-            ui.collection('Masking Options', id='relax-masking', children=[
-                ui.collection('Boundary', children=[
+            ui.div(classes='collection', id='relax-masking', children=[
+                ui.h1(innerText='Masking Options'),
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Boundary'),
                     ui.label(
                         innerText='Exclude',
                         title='Relax vertices not along boundary',
@@ -182,7 +184,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Symmetry', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Symmetry'),
                     ui.label(
                         innerText='Exclude',
                         title='Relax vertices not along symmetry plane',
@@ -226,7 +229,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Hidden', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Hidden'),
                     ui.label(
                         innerText='Exclude',
                         title='Relax only visible vertices',
@@ -256,7 +260,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Selected', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Selected'),
                     ui.label(
                         innerText='Exclude',
                         title='Relax only unselected vertices',
@@ -303,7 +308,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             ]),
             ui.details(id='relax-alg-options', children=[
                 ui.summary(innerText='Algorithm Options'),
-                ui.collection('Iterations', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Iterations'),
                     ui.labeled_input_text(
                         label='Steps',
                         title='Number of times to iterate',
@@ -315,7 +321,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         value=BoundFloat('''options['relax force multiplier']''', min_value=0.1, max_value=10.0),
                     ),
                 ]),
-                ui.collection('Edge', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Edge'),
                     ui.input_checkbox(
                         label='Average edge length',
                         title='Squash / stretch each edge toward the average edge length',
@@ -329,7 +336,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collection('Face', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Face'),
                     ui.input_checkbox(
                         label='Face radius',
                         title='Move face vertices so their distance to face center is equalized',
@@ -349,7 +357,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collection('Experimental', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Experimental'),
                     ui.input_checkbox(
                         label='Correct flipped faces',
                         title='Try to move vertices so faces are not flipped',
@@ -357,7 +366,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         style='display:block; width:100%',
                     ),
                 ]),
-                ui.collection('Presets', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Presets'),
                     ui.button(
                         label='Reset',
                         title='Reset Algorithm options to default values',
@@ -372,7 +382,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             ]),
             ui.details(children=[
                 ui.summary(innerText='Brush Options'),
-                ui.collection(label='Current', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Current'),
                     ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
                     ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
                     ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),

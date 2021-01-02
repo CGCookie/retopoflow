@@ -96,7 +96,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         self.ui_options = ui.details(children=[
             ui.summary(innerText='PolyPen'),
-            ui.collection(label='Automerge', children=[
+            ui.div(classes='collection', children=[
+                ui.h1(innerText='Automerge'),
                 ui.input_checkbox(
                     label='Enable Automerge',
                     title='If enabled, grabbed vertices automatically merge with nearby vertices',
@@ -109,7 +110,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     value=self._var_merge_dist,
                 ),
             ]),
-            ui.collection(label='Insert Mode', children=[
+            ui.div(classes='collection', children=[
+                ui.h1(innerText='Insert Mode'),
                 ui.label(
                     innerText='Tri/Quad',
                     title='Inserting alternates between Triangles and Quads',

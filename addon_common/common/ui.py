@@ -530,20 +530,6 @@ def input_text(value='', scrub=False, **kwargs):
 
     return ui_proxy
 
-def collection(label, **kwargs):
-    kw_inside = kwargs_splitter({'children'}, kwargs)
-    kwargs['classes'] = f'{kwargs.get("classes", "")} collection'
-    ui_container = UI_Element(tagName='div', **kwargs)
-    with ui_container.defer_dirty('creating content'):
-        ui_label = div(innerText=label, classes='header', parent=ui_container)
-        ui_inside = UI_Element(tagName='div', classes='inside', parent=ui_container, **kw_inside)
-
-    ui_proxy = UI_Proxy('collection', ui_container)
-    ui_proxy.map('innerText', ui_label)
-    ui_proxy.translate_map('label', 'innerText', ui_label)
-    ui_proxy.map_children_to(ui_inside)
-    return ui_proxy
-
 
 def details(**kwargs):
     ui_details = UI_Element(tagName='details', **kwargs)

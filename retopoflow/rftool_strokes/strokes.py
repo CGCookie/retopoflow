@@ -135,7 +135,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         self.ui_options = ui.details(children=[
             ui.summary(innerText='Strokes'),
-            ui.collection(label='Span Insert Mode', children=[
+            ui.div(classes='collection', children=[
+                ui.h1(innerText='Span Insert Mode'),
                 ui.label(
                     innerText='Brush Size',
                     title='Insert spans based on brush size',
@@ -181,7 +182,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                     value=self._var_fixed_span_count,
                 ),
             ]),
-            ui.collection(label='New Geometry Edit', children=[
+            ui.div(classes='collection', children=[
+                ui.h1(innerText='New Geometry Edit'),
                 ui.labeled_input_text(
                     label='Spans',
                     title='Number of spans between previously selected strip and newly created strip',

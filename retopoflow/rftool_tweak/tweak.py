@@ -93,8 +93,10 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
 
         tweak_options = ui.details(children=[
             ui.summary(innerText='Tweak'),
-            ui.collection('Masking Options', id='tweak-masking', children=[
-                ui.collection('Boundary', children=[
+            ui.div(classes='collection', id='tweak-masking', children=[
+                ui.h1(innerText='Masking Options'),
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Boundary'),
                     ui.label(
                         innerText='Exclude',
                         title='Tweak vertices not along boundary',
@@ -124,7 +126,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Symmetry', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Symmetry'),
                     ui.label(
                         innerText='Exclude',
                         title='Tweak vertices not along symmetry plane',
@@ -168,7 +171,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Hidden', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Hidden'),
                     ui.label(
                         innerText='Exclude',
                         title='Tweak only visible vertices',
@@ -198,7 +202,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                         ],
                     ),
                 ]),
-                ui.collection('Selected', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Selected'),
                     ui.label(
                         innerText='Exclude',
                         title='Tweak only unselected vertices',
@@ -245,7 +250,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
             ]),
             ui.details(children=[
                 ui.summary(innerText='Brush Options'),
-                ui.collection(label='Current', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Current'),
                     ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
                     ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
                     ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),

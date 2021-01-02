@@ -710,174 +710,223 @@ class RetopoFlow_UI:
 
             ui.details(title='General options', id='generaloptions', parent=self.ui_options, children=[
                 ui.summary(innerText='General'),
-                ui.collection(label='Quit Options', title='These options control quitting RetopoFlow', children=[
-                    ui.input_checkbox(
-                        label='Confirm quit on Tab',
-                        title='Check to confirm quitting when pressing Tab',
-                        checked=BoundBool('''options['confirm tab quit']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Escape to Quit',
-                        title='Check to allow Esc key to quit RetopoFlow',
-                        checked=BoundBool('''options['escape to quit']'''),
-                        style='display:block; width:100%',
-                    ),
+                ui.div(classes='contents', children=[
+                    ui.div(classes='collection', children=[
+                        ui.h1(
+                            innerText='Quit Options',
+                            title='These options control quitting RetopoFlow',
+                        ),
+                        ui.input_checkbox(
+                            label='Confirm quit on Tab',
+                            title='Check to confirm quitting when pressing Tab',
+                            checked=BoundBool('''options['confirm tab quit']'''),
+                            style='display:block; width:100%',
+                        ),
+                        ui.input_checkbox(
+                            label='Escape to Quit',
+                            title='Check to allow Esc key to quit RetopoFlow',
+                            checked=BoundBool('''options['escape to quit']'''),
+                            style='display:block; width:100%',
+                        ),
+                    ]),
+                    ui.div(classes='collection', children=[
+                        ui.h1(
+                            innerText='Start Up Checks',
+                            title='These options control what checks are run when RetopoFlow starts',
+                        ),
+                        ui.input_checkbox(
+                            label='Check Auto Save',
+                            title='If enabled, check if Auto Save is disabled at start',
+                            checked=BoundBool('''options['check auto save']'''),
+                            style='display:block; width:100%',
+                        ),
+                        ui.input_checkbox(
+                            label='Check Unsaved',
+                            title='If enabled, check if blend file is unsaved at start',
+                            checked=BoundBool('''options['check unsaved']'''),
+                            style='display:block; width:100%',
+                        ),
+                    ]),
+                    ui.details(children=[
+                        ui.summary(innerText='Advanced'),
+                        ui.div(
+                            classes='contents',
+                            children=[
+                                ui.div(classes='collection', children=[
+                                    ui.h1(innerText='Keyboard Settings'),
+                                    ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
+                                    ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
+                                    ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
+                                ]),
+                                ui.div(classes='collection', children=[
+                                    ui.h1(
+                                        innerText='Visibility Testing',
+                                        title='These options are used to tune the parameters for visibility testing',
+                                    ),
+                                    ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                                    ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
+                                    ui.div(classes='collection', children=[
+                                        ui.h1(innerText='Presets'),
+                                        ui.button(label='Tiny', title='Preset options for working on tiny objects', classes='half-size', on_mouseclick=self.visibility_preset_tiny),
+                                        ui.button(label='Normal', title='Preset options for working on normal-sized objects', classes='half-size', on_mouseclick=self.visibility_preset_normal),
+                                    ]),
+                                ]),
+                                ui.div(classes='collection', children=[
+                                    ui.h1(innerText='Debugging'),
+                                    ui.div(innerText='FPS: 0', id='fpsdiv'),
+                                    ui.input_checkbox(label='Print actions', title='Check to print (most) input actions to system console', checked=BoundBool('''self._debug_print_actions''')),
+                                ]),
+                                ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
+                            ],
+                        ),
+                    ]),
                 ]),
-                # ui.button(label='Maximize Area'),
-                ui.collection(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
-                    ui.input_checkbox(
-                        label='Check Auto Save',
-                        title='If enabled, check if Auto Save is disabled at start',
-                        checked=BoundBool('''options['check auto save']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Check Unsaved',
-                        title='If enabled, check if blend file is unsaved at start',
-                        checked=BoundBool('''options['check unsaved']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                ui.details(children=[
-                    ui.summary(innerText='Advanced'),
-                    ui.collection(label='Keyboard Settings', children=[
-                        ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
-                        ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
-                        ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
-                    ]),
-                    ui.collection(label='Visibility Testing', title='These options are used to tune the parameters for visibility testing', children=[
-                        ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                        ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                        ui.collection(label='Presets', id='vistest-presets', children=[
-                            ui.button(label='Tiny', title='Preset options for working on tiny objects', on_mouseclick=self.visibility_preset_tiny),
-                            ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
-                        ]),
-                    ]),
-                    ui.collection(label='Debugging', children=[
-                    ui.div(innerText='FPS: 0', id='fpsdiv'),
-                        ui.input_checkbox(label='Print actions', title='Check to print (most) input actions to system console', checked=BoundBool('''self._debug_print_actions''')),
-                    ]),
-                    ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options)
-                ])
             ]),
             ui.details(title='Display options', id='view-options', parent=self.ui_options, children=[
                 ui.summary(innerText='Display'),
-                ui.input_checkbox(
-                    label='Auto Hide Tool Options',
-                    title='If enabled, options for selected tool will show while other tool options hide.',
-                    checked=self._var_auto_hide_options,
-                    style='display:block; width:100%',
-                ),
-                ui.input_checkbox(
-                    label='Hide Overlays',
-                    title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                    checked=BoundBool('''options['hide overlays']'''),
-                    on_input=update_hide_overlays,
-                    style='display:block; width:100%',
-                ),
-                ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
-                ui.collection(label='Theme', children=[
-                    ui.label(
-                        innerText='Green',
-                        title='Draw the target mesh using a green theme.',
-                        forId='theme-color-green',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='theme-color-green',
+                ui.div(
+                    classes='contents',
+                    children=[
+                        ui.input_checkbox(
+                            label='Auto Hide Tool Options',
+                            title='If enabled, options for selected tool will show while other tool options hide.',
+                            checked=self._var_auto_hide_options,
+                            style='display:block; width:100%',
+                        ),
+                        ui.input_checkbox(
+                            label='Hide Overlays',
+                            title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
+                            checked=BoundBool('''options['hide overlays']'''),
+                            on_input=update_hide_overlays,
+                            style='display:block; width:100%',
+                        ),
+                        ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
+                        ui.div(classes='collection', children=[
+                            ui.h1(innerText='Theme'),
+                            ui.label(
+                                innerText='Green',
                                 title='Draw the target mesh using a green theme.',
-                                value='Green',
-                                checked=(options['color theme']=='Green'),
-                                name='theme-color',
-                                on_input=theme_change,
+                                forId='theme-color-green',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='theme-color-green',
+                                        title='Draw the target mesh using a green theme.',
+                                        value='Green',
+                                        checked=(options['color theme']=='Green'),
+                                        name='theme-color',
+                                        on_input=theme_change,
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                    ui.label(
-                        innerText='Blue',
-                        title='Draw the target mesh using a blue theme.',
-                        forId='theme-color-blue',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='theme-color-blue',
+                            ui.label(
+                                innerText='Blue',
                                 title='Draw the target mesh using a blue theme.',
-                                value='Blue',
-                                checked=(options['color theme']=='Blue'),
-                                name='theme-color',
-                                on_input=theme_change,
+                                forId='theme-color-blue',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='theme-color-blue',
+                                        title='Draw the target mesh using a blue theme.',
+                                        value='Blue',
+                                        checked=(options['color theme']=='Blue'),
+                                        name='theme-color',
+                                        on_input=theme_change,
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                    ui.label(
-                        innerText='Orange',
-                        title='Draw the target mesh using a orange theme.',
-                        forId='theme-color-orange',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='theme-color-orange',
+                            ui.label(
+                                innerText='Orange',
                                 title='Draw the target mesh using a orange theme.',
-                                value='Orange',
-                                checked=(options['color theme']=='Orange'),
-                                name='theme-color',
-                                on_input=theme_change,
+                                forId='theme-color-orange',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='theme-color-orange',
+                                        title='Draw the target mesh using a orange theme.',
+                                        value='Orange',
+                                        checked=(options['color theme']=='Orange'),
+                                        name='theme-color',
+                                        on_input=theme_change,
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                ]),
-                ui.collection(label='Clipping', id='clipping', children=[
-                    ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
-                    ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
-                ]),
-                ui.collection(label='Target Drawing', children=[
-                    ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
-                    ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
-                    ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
-                    ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
-                    ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
-                    ui.details(children=[
-                        ui.summary(innerText='Individual Alpha Values'),
-                        ui.collection(label='Verts', children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
                         ]),
-                        ui.collection(label="Edges", children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
+                        ui.div(classes='collection', id='clipping', children=[
+                            ui.h1(innerText='Clipping'),
+                            ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
+                            ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
                         ]),
-                        ui.collection(label='Faces', children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
+                        ui.div(classes='collection', children=[
+                            ui.h1(innerText='Target Drawing'),
+                            ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
+                            ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
+                            ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
+                            ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
+                            ui.details(children=[
+                                ui.summary(innerText='Individual Alpha Values'),
+                                ui.div(
+                                    classes='contents',
+                                    children=[
+                                        ui.div(classes='collection', children=[
+                                            ui.h1(innerText='Verts'),
+                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
+                                        ]),
+                                        ui.div(classes='collection', children=[
+                                            ui.h1(innerText="Edges"),
+                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
+                                        ]),
+                                        ui.div(classes='collection', children=[
+                                            ui.h1(innerText='Faces'),
+                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
+                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
+                                        ]),
+                                    ],
+                                ),
+                            ]),
                         ]),
-                    ]),
-                ]),
-                ui.details(children=[
-                    ui.summary(innerText='Tooltips'),
-                    ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
-                    ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
-                ])
+                        ui.details(children=[
+                            ui.summary(innerText='Tooltips'),
+                            ui.div(
+                                classes='contents',
+                                children=[
+                                    ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
+                                    ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
+                                ],
+                            ),
+                        ]),
+                    ],
+                ),
             ])
 
             ui.details(title='Target cleaning options', id='target-cleaning', parent=self.ui_options, children=[
                 ui.summary(innerText='Target Cleaning'),
-                ui.collection(label='Snap Verts', id='snap-verts', children=[
-                    ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
-                    ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
-                ]),
-                ui.collection(label='Merge by Distance', id='merge-by-distance', children=[
-                    ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
-                    ui.button(label='All', title='Merge all vertices within given distance.', on_mouseclick=self.remove_all_doubles),
-                    ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
-                ]),
+                ui.div(
+                    classes='contents',
+                    children=[
+                        ui.div(classes='collection', children=[
+                            ui.h1(innerText='Snap Verts'),
+                            ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_all_verts),
+                            ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_selected_verts),
+                        ]),
+                        ui.div(classes='collection', children=[
+                            ui.h1(innerText='Merge by Distance'),
+                            ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
+                            ui.button(label='All', title='Merge all vertices within given distance.', classes='half-size', on_mouseclick=self.remove_all_doubles),
+                            ui.button(label='Selected', title='Merge selected vertices within given distance.', classes='half-size', on_mouseclick=self.remove_selected_doubles)
+                        ]),
+                    ],
+                ),
             ])
 
 
@@ -887,89 +936,95 @@ class RetopoFlow_UI:
 
             symmetryoptions = ui.details(title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options, children=[
                 ui.summary(innerText='Symmetry', id='symmetryoptions_summary'),
-                ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
-                ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
-                ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
-                ui.collection(label='Visualization', children=[
-                    ui.label(
-                        innerText='None',
-                        title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
-                        forId='symmetry-viz-none',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='symmetry-viz-none',
+                ui.div(
+                    classes='contents',
+                    children=[
+                        ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
+                        ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
+                        ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                        ui.div(classes='collection', children=[
+                            ui.h1(innerText='Visualization'),
+                            ui.label(
+                                innerText='None',
                                 title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
-                                value='None',
-                                checked=(options['symmetry view']=='None'),
-                                name='symmetry-viz',
-                                on_input=symmetry_viz_change
+                                forId='symmetry-viz-none',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='symmetry-viz-none',
+                                        title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
+                                        value='None',
+                                        checked=(options['symmetry view']=='None'),
+                                        name='symmetry-viz',
+                                        on_input=symmetry_viz_change
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                    ui.label(
-                        innerText='Edge',
-                        title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
-                        forId='symmetry-viz-edge',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='symmetry-viz-edge',
+                            ui.label(
+                                innerText='Edge',
                                 title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
-                                value='Edge',
-                                checked=(options['symmetry view']=='Edge'),
-                                name='symmetry-viz',
-                                on_input=symmetry_viz_change
+                                forId='symmetry-viz-edge',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='symmetry-viz-edge',
+                                        title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
+                                        value='Edge',
+                                        checked=(options['symmetry view']=='Edge'),
+                                        name='symmetry-viz',
+                                        on_input=symmetry_viz_change
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                    ui.label(
-                        innerText='Face',
-                        title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
-                        forId='symmetry-viz-face',
-                        classes='third-size',
-                        children=[
-                            ui.input_radio(
-                                id='symmetry-viz-face',
+                            ui.label(
+                                innerText='Face',
                                 title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
-                                value='Face',
-                                checked=(options['symmetry view']=='Face'),
-                                name='symmetry-viz',
-                                on_input=symmetry_viz_change
+                                forId='symmetry-viz-face',
+                                classes='third-size',
+                                children=[
+                                    ui.input_radio(
+                                        id='symmetry-viz-face',
+                                        title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
+                                        value='Face',
+                                        checked=(options['symmetry view']=='Face'),
+                                        name='symmetry-viz',
+                                        on_input=symmetry_viz_change
+                                    ),
+                                ],
                             ),
-                        ],
-                    ),
-                    ui.labeled_input_text(
-                        label='Source Effect',
-                        title='Effect of symmetry source visualization.',
-                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                        scrub=True,
-                    ),
-                    ui.input_range(
-                        title='Effect of symmetry source visualization.',
-                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                    ),
-                    ui.labeled_input_text(
-                        label='Target Effect',
-                        title='Factor for alpha of mirrored target visualization.',
-                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
-                        scrub=True,
-                    ),
-                    ui.input_range(
-                        title='Factor for alpha of mirrored target visualization.',
-                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
-                    ),
-                ]),
-                ui.labeled_input_text(
-                    label='Threshold',
-                    title='Distance within which mirrored vertices will be merged.',
-                    value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0, step_size=0.01),
-                    scrub=True,
-                ),
-                ui.button(
-                    label='Apply symmetry',
-                    title='Apply symmetry to target mesh',
-                    on_mouseclick=delay_exec('''self.apply_symmetry()'''),
+                            ui.labeled_input_text(
+                                label='Source Effect',
+                                title='Effect of symmetry source visualization.',
+                                value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                                scrub=True,
+                            ),
+                            ui.input_range(
+                                title='Effect of symmetry source visualization.',
+                                value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                            ),
+                            ui.labeled_input_text(
+                                label='Target Effect',
+                                title='Factor for alpha of mirrored target visualization.',
+                                value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                                scrub=True,
+                            ),
+                            ui.input_range(
+                                title='Factor for alpha of mirrored target visualization.',
+                                value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                            ),
+                        ]),
+                        ui.labeled_input_text(
+                            label='Threshold',
+                            title='Distance within which mirrored vertices will be merged.',
+                            value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0, step_size=0.01),
+                            scrub=True,
+                        ),
+                        ui.button(
+                            label='Apply symmetry',
+                            title='Apply symmetry to target mesh',
+                            on_mouseclick=delay_exec('''self.apply_symmetry()'''),
+                        ),
+                    ],
                 ),
             ])
             symmetryoptions_summary = symmetryoptions.getElementById('symmetryoptions_summary')
@@ -1043,6 +1098,10 @@ class RetopoFlow_UI:
             def key(e):
                 if e.key == 'ESC': hide_ui_delete()
 
+            def act(opt):
+                self.delete_dissolve_option(opt)
+                hide_ui_delete()
+
             self.ui_delete = ui.framed_dialog(
                 label='Delete/Dissolve',
                 id='deletedialog',
@@ -1051,28 +1110,29 @@ class RetopoFlow_UI:
                 hide_on_close=True,
                 close_callback=hide_ui_delete,
                 style='width:200px',
+                children=[
+                    ui.div(classes='collection', children=[
+                        ui.h1(innerText='Delete'),
+                        ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))''')),
+                        ui.button(label='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))''')),
+                        ui.button(label='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))''')),
+                        ui.button(label='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))''')),
+                        ui.button(label='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))''')),
+                    ]),
+                    ui.div(classes='collection', children=[
+                        ui.h1(innerText='Dissolve'),
+                        ui.button(label='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))''')),
+                        ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))''')),
+                        ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))''')),
+                        ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))''')),
+                    ])
+                ],
                 )
             self.ui_delete.is_visible = False
             # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
             self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
             self.ui_delete.add_eventListener('on_keypress', key)
 
-            def act(opt):
-                self.delete_dissolve_option(opt)
-                hide_ui_delete()
-
-            ui_delete = ui.collection('Delete', parent=self.ui_delete)
-            ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
-            ui.button(label='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))'''), parent=ui_delete)
-            ui.button(label='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))'''), parent=ui_delete)
-
-            ui_dissolve = ui.collection('Dissolve', parent=self.ui_delete)
-            ui.button(label='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))'''), parent=ui_dissolve)
-            ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
-            ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
-            ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
 
         setup_main_ui()
         setup_tiny_ui()
