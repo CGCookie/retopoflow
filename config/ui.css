@@ -7,6 +7,14 @@
     --button-selected-text: white;
     --button-disabled-text: hsl(200, 0%, 50%);
 
+    --option-background: transparent;
+    --option-hover-background: hsla(200, 0%, 50%, 0.25);
+    --option-selected-background: rgb(10, 135, 197);
+
+    --option-text: hsl(200, 0%, 90%);
+    --option-selected-text: white;
+    --option-disabled-text: hsl(200, 0%, 50%);
+
     --header-background: hsla(200, 0%, 5%, 1);
     --panel-background: hsla(200, 0%, 15%, 0.98);
     --panel-two-background: hsla(200, 0%, 5%, 0.4);
@@ -75,69 +83,9 @@ button:disabled {
 /********************************/
 /* GENERAL RADIO BUTTON STYLING */
 
-/*input[type="radio"] {
-    background: var(--button-background);
-    margin: 2px;
-    border: 0px;
-    padding: 4px 0px 4px 6px;
-}
-input[type="radio"] > img {
-    display: none;
-}
-input[type="radio"]:hover {
-    background: var(--button-hover-background);
-}
-input[type="radio"]:checked {
-    background: var(--button-selected-background);
-}
-input[type="radio"]:active {
-    background: var(--button-selected-background);
-}
-input[type="radio"]:active:hover {
-    background: var(--button-selected-background);
-}
-input[type="radio"]:disabled {
-    background-color: var(--button-background);
-    color: var(--button-disabled-text);
-}
-input[type="radio"] > label {
-    margin: 0px;
-    border: 0px;
-    border-radius: 0px;
-    padding: 0px;
-    width: 100%;
-    color: var(--button-text);
-}
-input[type="radio"]:checked label {
-    color: var(--button-selected-text);
-}
-input[type="radio"]:active label {
-    color: var(--button-selected-text);
-}
-input[type="radio"]:disabled label {
-    color: var(--button-disabled-text);
-}
-
-
-input[type="radio"].half-size > label {
-    text-align: center;
-    margin-left: -6px;
-}
-input[type="radio"].third-size > label {
-    text-align: center;
-    margin-left: -6px;
-}*/
-
-
 
 input[type="radio"] {
     display: none;
-    /*display: inline;
-    width: 10px;
-    height: 10px;
-    margin: 0px;
-    border: 1px black;
-    padding: 0px;*/
 }
 input[type="radio"]::marker {
     display: none;
@@ -145,7 +93,7 @@ input[type="radio"]::marker {
 
 label[type="radio"] {
     background: var(--button-background);
-    color: var(--button-text);
+    color: var(--option-text);
     margin: 2px;
     border: 0px;
     padding: 4px 6px 4px 6px;
@@ -155,6 +103,7 @@ label[type="radio"]:hover {
 }
 label[type="radio"]:checked {
     background: var(--button-selected-background);
+    color: var(--option-selected-text);
 }
 label[type="radio"]:active {
     background: var(--button-selected-background);
@@ -164,7 +113,7 @@ label[type="radio"]:active:hover {
 }
 label[type="radio"]:disabled {
     background-color: var(--button-background);
-    color: var(--button-disabled-text);
+    color: var(--option-disabled-text);
 }
 
 
@@ -187,12 +136,12 @@ input[type="range"] {
 }
 
 input[type="range"] > *.inputrange-left {
-    background-color: var(--button-selected-background);
+    background-color: var(--option-selected-background);
     border: 0px;
     top: -6px;
 }
 input[type="range"] > *.inputrange-right {
-    background-color: var(--button-background);
+    background-color: var(--option-background);
     border: 0px;
     top: -6px;
 }
@@ -255,19 +204,22 @@ input[type="checkbox"]:checked > label {
     color: var(--text);
 }
 
+
+
+
 /**************************/
 /* DETAILS COLLECTION     */
 
 details {
+    background: var(--option-background);
     display: block;
     width: 100%;
     margin: 2px;
     border: 0px;
     padding: 0px;
-    background: transparent;
 }
 
-details > summary {
+summary {
     display: block;
     width: 100%;
     height: 24px;
@@ -276,20 +228,19 @@ details > summary {
     border: 0px;
     padding: 4px 6px;
 }
-details > summary:hover {
-    background: hsla(200, 0%, 50%, 0.25);
+summary:hover {
+    background: var(--option-hover-background);
 }
-details > summary::marker {
+summary::marker {
     display: inline;
-    margin: 1px 2px 3px 2px;
+    margin: 4px 8px 2px 0px;
     border: 0px;
     padding: 0px;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 14px;
     background: transparent url('collapse_close.png');
 }
 details[open] > summary::marker {
-    display: inline;
     background: transparent url('collapse_open.png');
 }
 
@@ -344,7 +295,7 @@ button.dialog-close {
     border: 0px;
     width: 16px;
     height: 16px;
-    background: rgba(0,0,0,0) url('close.png');
+    background: transparent url('close.png');
 }
 button.dialog-close:hover {
     background-color: rgba(255,255,255,0.25);
@@ -366,6 +317,11 @@ div.dialog-footer {
     border-radius: 0px;
 }
 
+
+
+/****************************/
+/* collections              */
+/****************************/
 
 div.collection {
     margin-top: 6px;
@@ -391,20 +347,6 @@ div.collection > div.inside {
     padding-left: 0px;
 }
 
-*#merge-by-distance button {
-    display: inline;
-    width: 50%;
-}
-
-*#snap-verts button {
-    display: inline;
-    width: 50%;
-}
-
-*#vistest-presets button {
-    display: inline;
-    width: 50%;
-}
 
 
 /********************************/
@@ -428,7 +370,6 @@ dialog#maindialog {
     min-width: 50px;
     max-width: 500px;
     padding: 0px;
-    /*background: rgba(64,0,0,0.9);*/
 }
 dialog#maindialog * {
     overflow-x: hidden;
@@ -440,12 +381,21 @@ div#tools {
     padding: 0px;
 }
 label.tool {
+    background: var(--option-background);
     display: block;
     width: 100%;
-    margin: 0px;
+    margin: 1px 0px;
     border: 0px;
-    padding: 7px 4px;
-    background: transparent;
+    padding: 2px 2px;
+}
+label.tool:hover {
+    background: var(--option-hover-background);
+}
+label.tool:hover:checked {
+    background: var(--option-selected-background);
+}
+label.tool:checked {
+    background: var(--option-selected-background);
 }
 label.tool > img {
     display: inline;
@@ -463,34 +413,28 @@ label.tool > span {
     align-items: center;
     align-content: center;
 }
-label.tool:hover {
-    background: var(--button-hover-background);
-    /*background: rgba(64, 64, 64, 0.75);*/
-}
-label.tool:checked {
-    background: var(--button-selected-background);
-    /*background: rgb(0, 146, 219);*/
-}
-label.tool:active {
-    background: var(--button-selected-background);
-    /*background: rgb(0, 146, 219);*/
-}
-label.tool:active:hover {
-    background: var(--button-selected-background);
-    /*background: rgb(0, 146, 219);*/
-}
-label.tool:checked > label > span {
-    color: white;
-}
-label.tool:active > label > span {
-    color: white;
-}
-input.tool::marker {
-    display: none;
-}
 
 
 
+
+/********************************/
+/*                              */
+/********************************/
+
+*#merge-by-distance button {
+    display: inline;
+    width: 50%;
+}
+
+*#snap-verts button {
+    display: inline;
+    width: 50%;
+}
+
+*#vistest-presets button {
+    display: inline;
+    width: 50%;
+}
 
 
 input.symmetry-enable {
@@ -502,6 +446,7 @@ input.symmetry-enable {
 
 /********************************/
 /* TEXT INPUT STYLING           */
+/********************************/
 
 *.inputtext-container > input[type="text"] {
     color: var(--text);
@@ -568,37 +513,21 @@ dialog#tinydialog div#ttools {
     margin: 0px;
 }
 label.ttool {
+    background: var(--option-background);
     display: inline;
-    background: transparent;
     margin: 0px 2px 0px 2px;
     border: 0px;
     padding: 2px;
     width: 40px;
 }
-input.ttool {
-    
-}
-input.ttool::marker {
-    display: none;
-}
 label.ttool:hover {
-    background: var(--button-hover-background);
-    /*background: rgba(64, 64, 64, 1.00); /* hsla(200, 0%, 75%, 1.0); */
+    background: var(--option-hover-background);
+}
+label.ttool:hover:checked {
+    background: var(--option-selected-background);
 }
 label.ttool:checked {
-    background: var(--button-selected-background);
-}
-label.ttool:active {
-    background: var(--button-selected-background);
-}
-label.ttool:active:hover {
-    background: var(--button-selected-background);
-}
-label.ttool:checked label {
-    color: black;
-}
-label.ttool:active label {
-    color: black;
+    background: var(--option-selected-background);
 }
 label.ttool > img {
     display: inline;
@@ -617,11 +546,6 @@ dialog#tinydialog div#ttools button.dialog-expand {
     height: 40px;
     background: rgba(0,0,0,0) url('collapse_close.png');
 }
-
-/*dialog#tinydialog div#ttools button.dialog-close:hover {
-    background: hsla(200, 100%, 62.5%, 0.75);
-}
-*/
 
 
 
