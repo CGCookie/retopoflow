@@ -128,52 +128,6 @@ label[type="radio"]:disabled {
 /**********************/
 
 
-/*input[type="checkbox"] {
-    background-color: transparent;
-    width: 100%;
-    border-width: 0px;
-    padding-left: 4px;
-    height: 24px;
-    margin: 1px;
-}
-input[type="checkbox"]:hover {
-    background-color: hsla(200, 0%, 50%, 0.25);;
-}
-input[type="checkbox"] > img.checkbox {
-    display: inline;
-    padding: 2px;
-    margin: 4px 4px 2px 2px;
-    width: 20px;
-    height: 20px;
-    background-color: var(--button-background);
-    background-image: none;
-    border-radius: 4px;
-}
-input[type="checkbox"]:hover > img.checkbox {
-    background-color: var(--button-hover-background);
-}
-input[type="checkbox"]:checked > img.checkbox {
-    background-color: var(--button-selected-background);
-    background-image: url('checkmark.png');
-}
-input[type="checkbox"]:active > img.checkbox {
-    background-color: var(--button-selected-background);
-}
-
-input[type="checkbox"] > label {
-    color: var(--button-text);
-    margin: 4px 10px 0px 4px;
-    padding: 0px;
-    border: 0px;
-}
-input[type="checkbox"]:hover > label {
-    color: var(--button-selected-text);
-}
-input[type="checkbox"]:checked > label {
-    color: var(--text);
-}*/
-
-
 label[type="checkbox"] {
     background: var(--option-background);
     color: var(--option-text);
