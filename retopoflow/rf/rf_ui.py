@@ -639,37 +639,44 @@ class RetopoFlow_UI:
 
             ui_help = ui.details(id='help-buttons', parent=self.ui_main, children=[
                 ui.summary(innerText='Documentation'),
-                ui.button(
-                    label='Welcome!',
-                    title='Show the "Welcome!" message from the RetopoFlow team',
-                    on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
-                ),
-                ui.button(
-                    label='Table of Contents',
-                    title=f'Show help table of contents ({humanread("all help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
-                ),
-                ui.button(
-                    label='Quick start guide',
-                    title='Show how to get started with RetopoFlow',
-                    on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
-                ),
-                ui.button(
-                    label='General',
-                    title=f'Show general help ({humanread("general help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
-                ),
-                ui.button(
-                    label='Active Tool',
-                    title=f'Show help for currently selected tool ({humanread("tool help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
-                ),
+                ui.div(classes='contents', children=[
+                    ui.button(
+                        label='Welcome!',
+                        title='Show the "Welcome!" message from the RetopoFlow team',
+                        on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
+                    ),
+                    ui.button(
+                        label='Table of Contents',
+                        title=f'Show help table of contents ({humanread("all help")})',
+                        on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
+                    ),
+                    ui.button(
+                        label='Quick start guide',
+                        title='Show how to get started with RetopoFlow',
+                        on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
+                    ),
+                    ui.button(
+                        label='General',
+                        title=f'Show general help ({humanread("general help")})',
+                        on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
+                    ),
+                    ui.button(
+                        label='Active Tool',
+                        title=f'Show help for currently selected tool ({humanread("tool help")})',
+                        on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
+                    ),
+                ]),
             ])
-            ui_show = ui.details(parent=self.ui_main)
-            ui.summary(innerText='Windows', parent=ui_show)
-            ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window, parent=ui_show)
-            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
-            self.ui_show_geometry = ui.button(label='Show Poly Count', title='Show poly count window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
+            ui_show = ui.details(parent=self.ui_main, children=[
+                ui.summary(innerText='Windows'),
+                ui.div(classes='contents', children=[
+                    ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window),
+                    ui.button(label='Show Options', title='Show options window', id='show-options', disabled=True, on_mouseclick=self.show_options_window),
+                    ui.button(label='Show Poly Count', title='Show poly count window', id='show-geometry', disabled=True, on_mouseclick=self.show_geometry_window),
+                ]),
+            ])
+            self.ui_show_options = ui_show.getElementById('show-options')
+            self.ui_show_geometry = ui_show.getElementById('show-geometry')
             ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
             ui.button(label='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
             if False:
@@ -716,17 +723,25 @@ class RetopoFlow_UI:
                             innerText='Quit Options',
                             title='These options control quitting RetopoFlow',
                         ),
-                        ui.input_checkbox(
-                            label='Confirm quit on Tab',
+                        ui.label(
+                            innerText='Confirm quit on Tab',
                             title='Check to confirm quitting when pressing Tab',
-                            checked=BoundBool('''options['confirm tab quit']'''),
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='Check to confirm quitting when pressing Tab',
+                                    checked=BoundBool('''options['confirm tab quit']'''),
+                                ),
+                            ],
                         ),
-                        ui.input_checkbox(
-                            label='Escape to Quit',
+                        ui.label(
+                            innerText='Escape to Quit',
                             title='Check to allow Esc key to quit RetopoFlow',
-                            checked=BoundBool('''options['escape to quit']'''),
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='Check to allow Esc key to quit RetopoFlow',
+                                    checked=BoundBool('''options['escape to quit']'''),
+                                ),
+                            ],
                         ),
                     ]),
                     ui.div(classes='collection', children=[
@@ -734,17 +749,25 @@ class RetopoFlow_UI:
                             innerText='Start Up Checks',
                             title='These options control what checks are run when RetopoFlow starts',
                         ),
-                        ui.input_checkbox(
-                            label='Check Auto Save',
+                        ui.label(
+                            innerText='Check Auto Save',
                             title='If enabled, check if Auto Save is disabled at start',
-                            checked=BoundBool('''options['check auto save']'''),
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='If enabled, check if Auto Save is disabled at start',
+                                    checked=BoundBool('''options['check auto save']'''),
+                                ),
+                            ],
                         ),
-                        ui.input_checkbox(
-                            label='Check Unsaved',
+                        ui.label(
+                            innerText='Check Unsaved',
                             title='If enabled, check if blend file is unsaved at start',
-                            checked=BoundBool('''options['check unsaved']'''),
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='If enabled, check if blend file is unsaved at start',
+                                    checked=BoundBool('''options['check unsaved']'''),
+                                ),
+                            ],
                         ),
                     ]),
                     ui.details(children=[
@@ -774,7 +797,16 @@ class RetopoFlow_UI:
                                 ui.div(classes='collection', children=[
                                     ui.h1(innerText='Debugging'),
                                     ui.div(innerText='FPS: 0', id='fpsdiv'),
-                                    ui.input_checkbox(label='Print actions', title='Check to print (most) input actions to system console', checked=BoundBool('''self._debug_print_actions''')),
+                                    ui.label(
+                                        innerText='Print actions',
+                                        title='Check to print (most) input actions to system console',
+                                        children=[
+                                            ui.input_checkbox(
+                                                title='Check to print (most) input actions to system console',
+                                                checked=BoundBool('''self._debug_print_actions'''),
+                                            ),
+                                        ],
+                                    ),
                                 ]),
                                 ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
                             ],
@@ -787,18 +819,26 @@ class RetopoFlow_UI:
                 ui.div(
                     classes='contents',
                     children=[
-                        ui.input_checkbox(
-                            label='Auto Hide Tool Options',
+                        ui.label(
+                            innerText='Auto Hide Tool Options',
                             title='If enabled, options for selected tool will show while other tool options hide.',
-                            checked=self._var_auto_hide_options,
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='If enabled, options for selected tool will show while other tool options hide.',
+                                    checked=self._var_auto_hide_options,
+                                ),
+                            ],
                         ),
-                        ui.input_checkbox(
-                            label='Hide Overlays',
+                        ui.label(
+                            innerText='Hide Overlays',
                             title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                            checked=BoundBool('''options['hide overlays']'''),
-                            on_input=update_hide_overlays,
-                            style='display:block; width:100%',
+                            children=[
+                                ui.input_checkbox(
+                                    title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
+                                    checked=BoundBool('''options['hide overlays']'''),
+                                    on_input=update_hide_overlays,
+                                ),
+                            ],
                         ),
                         ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
                         ui.div(classes='collection', children=[
@@ -900,7 +940,16 @@ class RetopoFlow_UI:
                             ui.div(
                                 classes='contents',
                                 children=[
-                                    ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
+                                    ui.label(
+                                        innerText='Show',
+                                        title='Check to show tooltips',
+                                        children=[
+                                            ui.input_checkbox(
+                                                title='Check to show tooltips',
+                                                checked=BoundVar('''options['show tooltips']''')
+                                            ),
+                                        ]
+                                    ),
                                     ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
                                 ],
                             ),
@@ -939,9 +988,39 @@ class RetopoFlow_UI:
                 ui.div(
                     classes='contents',
                     children=[
-                        ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
-                        ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
-                        ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
+                        ui.label(
+                            innerText='x',
+                            title='Check to mirror along x-axis',
+                            classes='symmetry-enable',
+                            children=[
+                                ui.input_checkbox(
+                                    title='Check to mirror along x-axis',
+                                    checked=BoundVar('''self.rftarget.mirror_mod.x''')
+                                ),
+                            ],
+                        ),
+                        ui.label(
+                            innerText='y',
+                            title='Check to mirror along y-axis',
+                            classes='symmetry-enable',
+                            children=[
+                                ui.input_checkbox(
+                                    title='Check to mirror along y-axis',
+                                    checked=BoundVar('''self.rftarget.mirror_mod.y''')
+                                ),
+                            ],
+                        ),
+                        ui.label(
+                            innerText='z',
+                            title='Check to mirror along z-axis',
+                            classes='symmetry-enable',
+                            children=[
+                                ui.input_checkbox(
+                                    title='Check to mirror along z-axis',
+                                    checked=BoundVar('''self.rftarget.mirror_mod.z''')
+                                ),
+                            ],
+                        ),
                         ui.div(classes='collection', children=[
                             ui.h1(innerText='Visualization'),
                             ui.label(
@@ -1077,15 +1156,26 @@ class RetopoFlow_UI:
                 hide_on_close=True,
                 close_callback=hide_ui_quit,
                 style='width:200px',
+                children=[
+                    ui.div(children=[
+                        ui.button(label='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
+                        ui.button(label='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
+                    ]),
+                    ui.label(
+                        innerText='Confirm quit on Tab',
+                        title='Check to confirm quitting when pressing Tab',
+                        children=[
+                            ui.input_checkbox(
+                                title='Check to confirm quitting when pressing Tab',
+                                checked=BoundVar('''options['confirm tab quit']'''),
+                            ),
+                        ],
+                    ),
+                ],
             )
             self.ui_quit.is_visible = False
             self.ui_quit.add_eventListener('on_mouseleave', mouseleave_event)
             self.ui_quit.add_eventListener('on_keypress', key)
-            ui.div(children=[
-                ui.button(label='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
-                ui.button(label='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
-            ], parent=self.ui_quit)
-            ui.input_checkbox(label='Confirm quit on Tab', title='Check to confirm quitting when pressing Tab', checked=BoundVar('''options['confirm tab quit']'''), parent=self.ui_quit)
 
         def setup_delete_ui():
             def hide_ui_delete():

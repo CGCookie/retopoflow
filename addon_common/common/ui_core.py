@@ -933,27 +933,33 @@ class UI_Element_Properties:
         return self._children_text or UI_Styling.has_matches(self._selector+['*'], *self._styling_list)
 
     def clear_pseudoclass(self):
-        if not self._pseudoclasses: return
-        self._pseudoclasses.clear()
-        self.dirty_selector(cause=f'clearing psuedoclasses for {self} affects selector', children=True) #self._has_affected_descendant())
+        if self._pseudoclasses:
+            self._pseudoclasses.clear()
+            self.dirty_selector(cause=f'clearing psuedoclasses for {self} affects selector', children=True)
+        ui_for = self.get_for_element()
+        if ui_for: ui_for.clear_pseudoclass()
 
     def add_pseudoclass(self, pseudo):
-        if pseudo in self._pseudoclasses: return
-        if pseudo == 'disabled':
-            self._pseudoclasses.discard('active')
-            self._pseudoclasses.discard('focus')
-            # TODO: on_blur?
-        self._pseudoclasses.add(pseudo)
-        self.dirty_selector(cause=f'adding psuedoclass {pseudo} for {self} affects selector', children=True) #self._has_affected_descendant())
+        if pseudo not in self._pseudoclasses:
+            if pseudo == 'disabled':
+                self._pseudoclasses.discard('active')
+                self._pseudoclasses.discard('focus')
+                # TODO: on_blur?
+            self._pseudoclasses.add(pseudo)
+            self.dirty_selector(cause=f'adding psuedoclass {pseudo} for {self} affects selector', children=True)
+        ui_for = self.get_for_element()
+        if ui_for: ui_for.add_pseudoclass(pseudo)
 
     def del_pseudoclass(self, pseudo):
-        if pseudo not in self._pseudoclasses: return
-        self._pseudoclasses.discard(pseudo)
-        self.dirty_selector(cause=f'deleting psuedoclass {pseudo} for {self} affects selector', children=True) #self._has_affected_descendant())
+        if pseudo in self._pseudoclasses:
+            self._pseudoclasses.discard(pseudo)
+            self.dirty_selector(cause=f'deleting psuedoclass {pseudo} for {self} affects selector', children=True)
+        ui_for = self.get_for_element()
+        if ui_for: ui_for.del_pseudoclass(pseudo)
 
     def has_pseudoclass(self, pseudo):
         if pseudo == 'disabled' and self._disabled: return True
-        return pseudo in self._pseudoclasses
+        return pseudo in self.pseudoclasses_with_for()
 
     @property
     def is_active(self): return 'active' in self.pseudoclasses_with_for()
@@ -2366,7 +2372,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 self._computed_styles_before.get('content', None) if self._computed_styles_before else None,
                 self._computed_styles_after.get('content',  None) if self._computed_styles_after  else None,
             )
-            if style_content_hash != getattr(self, '_style_content_hash', None):
+            if style_content_hash != getattr(self, '_style_content_hash', None) or self._children_gen:
                 self.dirty_content(cause='style change might have changed content (::before / ::after)')
                 self.dirty_renderbuf(cause='style change might have changed content (::before / ::after)')
                 # self.dirty(cause='style change might have changed content (::before / ::after)', properties='content')
@@ -2447,7 +2453,12 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         if self._tagName == 'input' and self._type == 'radio' and self._pseudoelement != 'marker':
             self._new_content = True
-            marker = ui_elem(tagName='input', type='radio', classes=self._classes_str, pseudoelement='marker')
+            marker = ui_elem(tagName='input', type='radio', checked=self.checked, classes=self._classes_str, pseudoelement='marker')
+            return [marker, *self._children]
+
+        if self._tagName == 'input' and self._type == 'checkbox' and self._pseudoelement != 'marker':
+            self._new_content = True
+            marker = ui_elem(tagName='input', type='checkbox', checked=self.checked, classes=self._classes_str, pseudoelement='marker')
             return [marker, *self._children]
 
         return self._children

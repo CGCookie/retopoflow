@@ -42,14 +42,16 @@ class PolyStrips_UI:
     def ui(self):
         return ui.details(children=[
             ui.summary(innerText='PolyStrips'),
-            ui.labeled_input_text(
-                label='Cut Count',
-                title='Number of cuts along selected strip.',
-                value=self._var_cut_count,
-            ),
-            ui.labeled_input_text(
-                label='Scale Falloff',
-                title='Controls how quickly control point scaling falls off.',
-                value=self._var_scale_falloff,
-            ),
+            ui.div(classes='contents', children=[
+                ui.labeled_input_text(
+                    label='Cut Count',
+                    title='Number of cuts along selected strip.',
+                    value=self._var_cut_count,
+                ),
+                ui.labeled_input_text(
+                    label='Scale Falloff',
+                    title='Controls how quickly control point scaling falls off.',
+                    value=self._var_scale_falloff,
+                ),
+            ]),
         ])

@@ -168,38 +168,19 @@ def label(**kwargs):
 
 def input_radio(**kwargs):
     ui_input = UI_Element(tagName='input', type='radio', **kwargs)
-    def mouseclick(e):
-        ui_input.checked = True
     def on_input(e):
         if not ui_input.checked: return
         ui_elements = ui_input.get_root().getElementsByName(ui_input.name)
         for ui_element in ui_elements:
             if ui_element != ui_input: ui_element.checked = False
-    ui_input.add_eventListener('on_mouseclick', mouseclick)
+    ui_input.add_eventListener('on_mouseclick', delay_exec('''ui_input.checked = True'''))
     ui_input.add_eventListener('on_input', on_input)
     return ui_input
 
 def input_checkbox(**kwargs):
-    kwargs_translate('label', 'innerText', kwargs)
-    kw_label = kwargs_splitter({'innerText', 'children'}, kwargs)
-    kw_all = kwargs_splitter({'title'}, kwargs)
-
-    # https://www.w3schools.com/howto/howto_css_custom_checkbox.asp
-    ui_input = UI_Element(tagName='input', type='checkbox', atomic=True, **kwargs, **kw_all)
-    with ui_input.defer_dirty('creating content'):
-        ui_checkmark = UI_Element(tagName='img', classes='checkbox',  parent=ui_input, **kw_all)
-        ui_label = UI_Element(tagName='label', id='%s_label' % kwargs.get('id', get_unique_ui_id('checkbox-')), parent=ui_input, **kw_label, **kw_all)
-        def mouseclick(e):
-            ui_input.checked = not bool(ui_input.checked)
-        ui_input.add_eventListener('on_mouseclick', mouseclick)
-
-    ui_proxy = UI_Proxy('input_checkbox', ui_input)
-    ui_proxy.translate_map('label', 'innerText', ui_label)
-    ui_proxy.translate('value', 'checked')
-    ui_proxy.map_children_to(ui_label)
-    ui_proxy.map('innerText', ui_label)
-    ui_proxy.map_to_all({'title'})
-    return ui_proxy
+    ui_input = UI_Element(tagName='input', type='checkbox', **kwargs)
+    ui_input.add_eventListener('on_mouseclick', delay_exec('''ui_input.checked = not bool(ui_input.checked)'''))
+    return ui_input
 
 def input_range(value=None, min_value=None, max_value=None, step_size=None, **kwargs):
     # right now, step_size is not used

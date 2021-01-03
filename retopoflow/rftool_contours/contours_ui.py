@@ -43,25 +43,36 @@ class Contours_UI:
     def ui(self):
         return ui.details(children=[
             ui.summary(innerText='Contours'),
-            ui.input_checkbox(
-                label='Uniform Cut',
-                title='If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.',
-                checked=self._var_uniform_cut,
-                style='display:block',
-            ),
-            ui.input_checkbox(
-                label='Non-manifold check',
-                title='Check for non-manifold edges under each cut.',
-                checked=self._var_nonmanifold,
-            ),
-            ui.labeled_input_text(
-                label='Initial Count',
-                title='Number of vertices to create in a new cut.',
-                value=self._var_init_count,
-            ),
-            ui.labeled_input_text(
-                label='Cut Count',
-                title='Number of vertices in currently selected cut.',
-                value=self._var_cut_count,
-            ),
+            ui.div(classes='contents', children=[
+                ui.label(
+                    innerText='Uniform Cut',
+                    title='If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.',
+                    children=[
+                        ui.input_checkbox(
+                            title='If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.',
+                            checked=self._var_uniform_cut,
+                        ),
+                    ],
+                ),
+                ui.label(
+                    innerText='Non-manifold check',
+                    title='Check for non-manifold edges under each cut.',
+                    children=[
+                        ui.input_checkbox(
+                            title='Check for non-manifold edges under each cut.',
+                            checked=self._var_nonmanifold,
+                        ),
+                    ],
+                ),
+                ui.labeled_input_text(
+                    label='Initial Count',
+                    title='Number of vertices to create in a new cut.',
+                    value=self._var_init_count,
+                ),
+                ui.labeled_input_text(
+                    label='Cut Count',
+                    title='Number of vertices in currently selected cut.',
+                    value=self._var_cut_count,
+                ),
+            ]),
         ])

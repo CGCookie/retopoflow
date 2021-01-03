@@ -96,86 +96,96 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         self.ui_options = ui.details(children=[
             ui.summary(innerText='PolyPen'),
-            ui.div(classes='collection', children=[
-                ui.h1(innerText='Automerge'),
-                ui.input_checkbox(
-                    label='Enable Automerge',
-                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
-                    checked=self._var_automerge,
-                    style='display:block',
-                ),
-                ui.labeled_input_text(
-                    label='Merge Dist',
-                    title='Pixel distance for merging and snapping',
-                    value=self._var_merge_dist,
-                ),
-            ]),
-            ui.div(classes='collection', children=[
-                ui.h1(innerText='Insert Mode'),
-                ui.label(
-                    innerText='Tri/Quad',
-                    title='Inserting alternates between Triangles and Quads',
-                    forId='polypen-insert-mode-triquad',
-                    classes='half-size',
-                    children=[
-                        ui.input_radio(
-                            id='polypen-insert-mode-triquad',
+            ui.div(classes='contents', children=[
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Automerge'),
+                    ui.div(classes='contents', children=[
+                        ui.label(
+                            innerText='Enable Automerge',
+                            title='If enabled, grabbed vertices automatically merge with nearby vertices',
+                            children=[
+                                ui.input_checkbox(
+                                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
+                                    checked=self._var_automerge,
+                                ),
+                            ],
+                        ),
+                        ui.labeled_input_text(
+                            label='Merge Dist',
+                            title='Pixel distance for merging and snapping',
+                            value=self._var_merge_dist,
+                        ),
+                    ]),
+                ]),
+                ui.div(classes='collection', children=[
+                    ui.h1(innerText='Insert Mode'),
+                    ui.div(classes='contents', children=[
+                        ui.label(
+                            innerText='Tri/Quad',
                             title='Inserting alternates between Triangles and Quads',
-                            value='Tri/Quad',
-                            checked=(options['polypen insert mode']=='Tri/Quad'),
-                            name='polypen-insert-mode',
-                            on_input=insert_mode_change,
+                            forId='polypen-insert-mode-triquad',
+                            classes='half-size',
+                            children=[
+                                ui.input_radio(
+                                    id='polypen-insert-mode-triquad',
+                                    title='Inserting alternates between Triangles and Quads',
+                                    value='Tri/Quad',
+                                    checked=(options['polypen insert mode']=='Tri/Quad'),
+                                    name='polypen-insert-mode',
+                                    on_input=insert_mode_change,
+                                ),
+                            ],
                         ),
-                    ],
-                ),
-                ui.label(
-                    innerText='Quad-Only',
-                    title='Inserting Quads only',
-                    forId='polypen-insert-mode-quadonly',
-                    classes='half-size',
-                    children=[
-                        ui.input_radio(
-                            id='polypen-insert-mode-quadonly',
+                        ui.label(
+                            innerText='Quad-Only',
                             title='Inserting Quads only',
-                            value='Quad-Only',
-                            checked=(options['polypen insert mode']=='Quad-Only'),
-                            name='polypen-insert-mode',
-                            on_input=insert_mode_change,
+                            forId='polypen-insert-mode-quadonly',
+                            classes='half-size',
+                            children=[
+                                ui.input_radio(
+                                    id='polypen-insert-mode-quadonly',
+                                    title='Inserting Quads only',
+                                    value='Quad-Only',
+                                    checked=(options['polypen insert mode']=='Quad-Only'),
+                                    name='polypen-insert-mode',
+                                    on_input=insert_mode_change,
+                                ),
+                            ],
                         ),
-                    ],
-                ),
-                ui.label(
-                    innerText='Tri-Only',
-                    title='Inserting Triangles only',
-                    forId='polypen-insert-mode-trionly',
-                    classes='half-size',
-                    children=[
-                        ui.input_radio(
-                            id='polypen-insert-mode-trionly',
+                        ui.label(
+                            innerText='Tri-Only',
                             title='Inserting Triangles only',
-                            value='Tri-Only',
-                            checked=(options['polypen insert mode']=='Tri-Only'),
-                            name='polypen-insert-mode',
-                            on_input=insert_mode_change,
+                            forId='polypen-insert-mode-trionly',
+                            classes='half-size',
+                            children=[
+                                ui.input_radio(
+                                    id='polypen-insert-mode-trionly',
+                                    title='Inserting Triangles only',
+                                    value='Tri-Only',
+                                    checked=(options['polypen insert mode']=='Tri-Only'),
+                                    name='polypen-insert-mode',
+                                    on_input=insert_mode_change,
+                                ),
+                            ],
                         ),
-                    ],
-                ),
-                ui.label(
-                    innerText='Edge-Only',
-                    title='Inserting Edges only',
-                    forId='polypen-insert-mode-edgeonly',
-                    classes='half-size',
-                    children=[
-                        ui.input_radio(
-                            id='polypen-insert-mode-edgeonly',
+                        ui.label(
+                            innerText='Edge-Only',
                             title='Inserting Edges only',
-                            value='Edge-Only',
-                            checked=(options['polypen insert mode']=='Edge-Only'),
-                            name='polypen-insert-mode',
-                            on_input=insert_mode_change,
+                            forId='polypen-insert-mode-edgeonly',
+                            classes='half-size',
+                            children=[
+                                ui.input_radio(
+                                    id='polypen-insert-mode-edgeonly',
+                                    title='Inserting Edges only',
+                                    value='Edge-Only',
+                                    checked=(options['polypen insert mode']=='Edge-Only'),
+                                    name='polypen-insert-mode',
+                                    on_input=insert_mode_change,
+                                ),
+                            ],
                         ),
-                    ],
-                ),
+                    ]),
+                ]),
             ]),
         ])
         self.ui_insert_mode_triquad  = self.ui_options.getElementById('polypen-insert-mode-triquad')

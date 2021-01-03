@@ -48,7 +48,10 @@
     text-align: center;
 }
 
-
+label {
+    display: block;
+    width: 100%;
+}
 
 /********************************/
 /* GENERAL BUTTON STYLING       */
@@ -80,8 +83,10 @@ button:disabled {
 }
 
 
+
 /********************************/
-/* GENERAL RADIO BUTTON STYLING */
+/* radio input                  */
+/********************************/
 
 
 input[type="radio"] {
@@ -118,48 +123,12 @@ label[type="radio"]:disabled {
 
 
 
-
-/********************************/
-/* GENERAL RANGE INPUT STYLING  */
-
-div.inputrange-container {
-    margin: 4px;
-    padding: 0px;
-    height: 30px;
-    background: transparent;
-}
-
-input[type="range"] {
-    margin: 0px;
-    padding: 0px;
-    background: transparent;
-}
-
-input[type="range"] > *.inputrange-left {
-    background-color: var(--option-selected-background);
-    border: 0px;
-    top: -6px;
-}
-input[type="range"] > *.inputrange-right {
-    background-color: var(--option-background);
-    border: 0px;
-    top: -6px;
-}
-input[type="range"]:active > *.inputrange-left {
-    background-color: hsla(200, 100%, 62.5%, 1.0);
-}
-input[type="range"] > *.inputrange-handle {
-    left: 0px;
-    top: 0px;
-    width: 16px;
-    height: 16px;
-    background-color: hsl(200, 0%, 60%);
-}
-
 /**********************/
-/* CHECKBOX INPUT     */
+/* checkbox input     */
+/**********************/
 
-input[type="checkbox"] {
+
+/*input[type="checkbox"] {
     background-color: transparent;
     width: 100%;
     border-width: 0px;
@@ -202,13 +171,91 @@ input[type="checkbox"]:hover > label {
 }
 input[type="checkbox"]:checked > label {
     color: var(--text);
+}*/
+
+
+label[type="checkbox"] {
+    background: var(--option-background);
+    color: var(--option-text);
+    margin: 2px 2px;
+    border: 0px;
+    padding: 4px 2px;
+}
+label[type="checkbox"]:hover {
+    background: var(--option-hover-background);
+}
+label[type="checkbox"]:active {
+    background: var(--option-hover-background);
+}
+input[type="checkbox"]::marker {
+    background: var(--button-background);
+    margin: 0px 6px 1px 2px;
+    border: 0px;
+    padding: 2px;
+    width: 20px;
+    height: 14px;
+}
+label[type="checkbox"]:hover input[type="checkbox"]::marker {
+    background-color: var(--button-hover-background);
+}
+label[type="checkbox"]:hover input[type="checkbox"]:checked::marker {
+    background-color: var(--button-selected-background);
+}
+input[type="checkbox"]:checked::marker {
+    background-color: var(--button-selected-background);
+    background-image: url('checkmark.png');
+}
+label[type="checkbox"]:active:hover input[type="checkbox"]::marker {
+    background-color: var(--button-selected-background);
+}
+
+
+
+
+/********************************/
+/* range input                  */
+/********************************/
+
+div.inputrange-container {
+    margin: 4px;
+    padding: 0px;
+    height: 30px;
+    background: transparent;
+}
+
+input[type="range"] {
+    margin: 0px;
+    padding: 0px;
+    background: transparent;
+}
+
+input[type="range"] > *.inputrange-left {
+    background-color: var(--option-selected-background);
+    border: 0px;
+    top: -6px;
+}
+input[type="range"] > *.inputrange-right {
+    background-color: var(--option-background);
+    border: 0px;
+    top: -6px;
+}
+input[type="range"]:active > *.inputrange-left {
+    background-color: hsla(200, 100%, 62.5%, 1.0);
+}
+input[type="range"] > *.inputrange-handle {
+    left: 0px;
+    top: 0px;
+    width: 16px;
+    height: 16px;
+    background-color: hsl(200, 0%, 60%);
 }
 
 
 
 
 /**************************/
-/* DETAILS COLLECTION     */
+/* details                */
+/**************************/
 
 details {
     background: var(--option-background);
@@ -261,6 +308,7 @@ details > div.contents {
 
 /********************************/
 /* GENERAL DIALOG STYLING       */
+/********************************/
 
 dialog {
     border-radius: 4px;
@@ -339,7 +387,7 @@ div.collection > h1 {
     border: 1px transparent;
     border-bottom-color: rgba(0, 0, 0, 0.20);
     border-radius: 0px;
-    padding: 6px 6px 2px 6px;
+    padding: 2px 6px 2px 6px;
 }
 
 div.collection > div.contents {
@@ -387,8 +435,6 @@ div#tools {
 }
 label.tool {
     background: var(--option-background);
-    display: block;
-    width: 100%;
     margin: 1px 0px;
     border: 0px;
     padding: 2px 2px;
@@ -428,10 +474,12 @@ label.tool > span {
 
 
 
-input.symmetry-enable {
-    width: 33.33%;
+label.symmetry-enable {
+    display: inline;
+    width: 33.333%;
     overflow-x: hidden;
     white-space: nowrap;
+    padding-left: 14px;
 }
 
 

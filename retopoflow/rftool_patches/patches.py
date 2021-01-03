@@ -95,16 +95,18 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
     def ui(self):
         return ui.details(children=[
             ui.summary(innerText='Patches'),
-            ui.labeled_input_text(
-                label='Angle',
-                title='A vertex between connected edges that form an angles below this threshold is a corner',
-                value=self._var_angle,
-            ),
-            ui.labeled_input_text(
-                label='Crosses',
-                title='Number of crosses',
-                value=self._var_crosses,
-            ),
+            ui.div(classes='contents', children=[
+                ui.labeled_input_text(
+                    label='Angle',
+                    title='A vertex between connected edges that form an angles below this threshold is a corner',
+                    value=self._var_angle,
+                ),
+                ui.labeled_input_text(
+                    label='Crosses',
+                    title='Number of crosses',
+                    value=self._var_crosses,
+                ),
+            ]),
         ])
 
     def update_ui(self):
