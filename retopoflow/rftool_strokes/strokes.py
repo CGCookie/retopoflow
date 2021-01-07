@@ -187,7 +187,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 ]),
                 ui.div(classes='collection', children=[
                     ui.h1(innerText='New Geometry Edit'),
-                    ui.div(classe='contents', children=[
+                    ui.div(classes='contents', children=[
                         ui.labeled_input_text(
                             label='Spans',
                             title='Number of spans between previously selected strip and newly created strip',

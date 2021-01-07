@@ -82,12 +82,10 @@ class BoundVar:
         self._disabled = bool(v)
         self._call_callbacks()
 
-    @property
-    def value(self):
+    def get_value(self):
         exec(f'boundvar_interface({self._value_str})', self._f_globals, self._f_locals)
         return self._v
-    @value.setter
-    def value(self, value):
+    def set_value(self, value):
         try:
             for validator in self._validators: value = validator(value)
         except IgnoreChange:
@@ -95,37 +93,59 @@ class BoundVar:
         if self.value == value: return
         exec(f'{self._value_str} = {self._pre_wrap}{value}{self._post_wrap}', self._f_globals, self._f_locals)
         self._call_callbacks()
+
+    @property
+    def value(self):        return self.get_value()
+    @value.setter
+    def value(self, value): self.set_value(value)
     @property
     def value_as_str(self): return str(self)
 
     @property
-    def is_bounded(self):
-        return False
+    def is_bounded(self): return False
 
-    def on_change(self, fn):
-        self._callbacks.append(fn)
+    def on_change(self, fn): self._callbacks.append(fn)
 
-    def add_validator(self, fn):
-        self._validators.append(fn)
+    def add_validator(self, fn): self._validators.append(fn)
 
 
 class BoundString(BoundVar):
-    def __init__(self, value_str, **kwargs):
-        super().__init__(value_str, frame_depth=2, wrap='"', **kwargs)
+    def __init__(self, value_str, *, frame_depth=2, **kwargs):
+        super().__init__(value_str, frame_depth=frame_depth, wrap='"', **kwargs)
+
+class BoundStringToBool(BoundVar):
+    def __init__(self, value_str, true_str, *, frame_depth=2, **kwargs):
+        self._true_str = true_str
+        super().__init__(value_str, frame_depth=frame_depth, wrap='"', **kwargs)
+
+    @property
+    def value(self):
+        return self.get_value() == self._true_str
+    @value.setter
+    def value(self, v):
+        if bool(v): self.set_value(self._true_str)
+    @property
+    def checked(self):
+        return self.get_value() == self._true_str
+    @checked.setter
+    def checked(self, v):
+        # sets to a true str iff v is True
+        # assuming that some other BoundStringToBool will get set to True
+        if bool(v): self.value = self._true_str
 
 
 class BoundBool(BoundVar):
-    def __init__(self, value_str, **kwargs):
-        super().__init__(value_str, frame_depth=2, **kwargs)
+    def __init__(self, value_str, *, frame_depth=2, **kwargs):
+        super().__init__(value_str, frame_depth=frame_depth, **kwargs)
     @property
-    def checked(self): return self.value
+    def checked(self): return self.get_value()
     @checked.setter
-    def checked(self,v): self.value = v
+    def checked(self,v): self.set_value(v)
 
 
 class BoundInt(BoundVar):
-    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, **kwargs):
-        super().__init__(value_str, frame_depth=2, **kwargs)
+    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, frame_depth=2, **kwargs):
+        super().__init__(value_str, frame_depth=frame_depth, **kwargs)
         self._min_value = min_value
         self._max_value = max_value
         self._step_size = step_size or 0
@@ -170,8 +190,8 @@ class BoundInt(BoundVar):
 
 
 class BoundFloat(BoundVar):
-    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, **kwargs):
-        super().__init__(value_str, frame_depth=2, **kwargs)
+    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, frame_depth=2, **kwargs):
+        super().__init__(value_str, frame_depth=frame_depth, **kwargs)
         self._min_value = min_value
         self._max_value = max_value
         self._step_size = step_size or 0

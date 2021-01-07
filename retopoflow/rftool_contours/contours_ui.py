@@ -32,7 +32,7 @@ from ..rftool import rftools
 
 from ...addon_common.common import ui
 from ...addon_common.common.utils import delay_exec
-from ...addon_common.common.boundvar import BoundBool
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundString, BoundStringToBool, BoundFloat
 from ...config.options import options
 
 
@@ -41,6 +41,12 @@ RFTool_Contours = rftools['RFTool_Contours']
 class Contours_UI:
     @RFTool_Contours.on_ui_setup
     def ui(self):
+        if True:
+            path_folder = os.path.dirname(__file__)
+            path_html = os.path.join(path_folder, 'contours_ui.html')
+            html = open(path_html, 'rt').read()
+            return ui.from_html(html)
+
         return ui.details(children=[
             ui.summary(innerText='Contours'),
             ui.div(classes='contents', children=[
@@ -60,7 +66,7 @@ class Contours_UI:
                     children=[
                         ui.input_checkbox(
                             title='Check for non-manifold edges under each cut.',
-                            checked=self._var_nonmanifold,
+                            checked=BoundBool('''options['contours non-manifold check']'''),
                         ),
                     ],
                 ),

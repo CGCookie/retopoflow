@@ -614,9 +614,9 @@ details[open] > div.inside {
             span.inputtext-cursor
 */
 
-.inputtext-container {
+/*.inputtext-container {
     margin: 0px;
-    /*position: relative;*/
+    /*position: relative;* /
     left: 0px;
     top: 0px;
     width: 100%;
@@ -624,16 +624,17 @@ details[open] > div.inside {
     padding: 0px;
     display: block;
     background: rgba(160,160,160, 0.50);
-    /*background-color: rgba(255,255,255,0.5);*/
+    /*background-color: rgba(255,255,255,0.5);* /
     border-width: 1px;
     border-radius: 4px;
     border-color: black;
 }
 *.inputtext-container:hover {
     background-color: rgba(160,160,160,1.00);
-}
+}*/
 
-*.inputtext-container > *.inputtext-input {
+/**.inputtext-container > */
+*.inputtext-input {
     position: relative; /* necessary for cursor! */
     left: 0px;
     top: 0px;
@@ -650,7 +651,8 @@ details[open] > div.inside {
     overflow-x: scroll;
     cursor: text;
 }
-*.inputtext-container > *.inputtext-input:focus {
+/**.inputtext-container > */
+*.inputtext-input:focus {
     background-color: rgba(255, 255, 255, 1.0);
     border-color: hsla(200, 100%, 62.5%, 1.0);
 }
@@ -666,8 +668,9 @@ details[open] > div.inside {
     color: hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
 }
 
-*.inputtext-input:focus > *.inputtext-cursor {
-    display: block;
+input[type="text"]:focus *.inputtext-cursor {
+    display: span;
+    background: pink;
 }
 
 

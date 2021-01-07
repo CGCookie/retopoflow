@@ -287,6 +287,10 @@ def get_and_discard(d, k, default=None):
 
 #################################################
 
+def strshort(s, l=50):
+    s = str(s)
+    return s[:l] + ('...' if len(s) > l else '')
+
 
 def join(sep, iterable, preSep='', postSep='', toStr=str):
     '''
@@ -437,3 +441,5 @@ class Dict():
                 self[k] = v
         for k,v in kwargs.items():
             self[k] = v
+    def __str__(self): return str(self.__dict__['__d'])
+    def __repr__(self): return repr(self.__dict__['__d'])

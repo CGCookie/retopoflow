@@ -163,6 +163,12 @@ label[type="checkbox"]:active:hover input[type="checkbox"]::marker {
     background-color: var(--button-selected-background);
 }
 
+label > span {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+
 
 
 
@@ -441,11 +447,10 @@ label.symmetry-enable {
 /* TEXT INPUT STYLING           */
 /********************************/
 
-*.inputtext-container > input[type="text"] {
+input[type="text"] {
     color: var(--text);
     background: var(--button-background);
-    padding-left: 8px;
-    padding-top: 5px;
+    padding: 4px 0px 0px 8px;
     height: 24px;
 }
 
@@ -463,10 +468,6 @@ input[type="text"]:focus {
     background: var(--button-selected-background);
 }
 
-input[type="text"] > *.inputtext-cursor {
-    color: var(--text);
-}
-
 input[type="text"]:disabled {
     background-color: var(--button-background);
     color: var(--button-disabled-text);
@@ -475,7 +476,36 @@ input[type="text"]:disabled {
 
 
 
+div.labeled-input-text label {
+    display: inline;
+    text-align: left;
+    margin: 4px 0px 0px 4px;
+    padding: 0px;
+    width: 50%;
+}
+div.labeled-input-text input[type="text"] {
+    display: inline;
+    width: 50%;
+    background: var(--button-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:hover {
+    background: var(--button-hover-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:focus {
+    background: var(--button-selected-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:disabled {
+    background: var(--button-background);
+    color: var(--button-disabled-text);
+}
 
+
+input[type="text"] *.inputtext-cursor {
+    color: var(--text);
+}
 
 
 /***************************************************/

@@ -1395,7 +1395,7 @@ class UI_Element_Properties:
     def _value_change(self):
         if not self.is_visible: return
         self.dispatch_event('on_input')
-        self.dirty_selector(cause='changing value can affect selector and content', children=True)
+        self.dirty(cause='changing value can affect selector and content', children=True)
     def value_bind(self, boundvar):
         self._value = boundvar
         self._value.on_change(self._value_change)
@@ -1409,6 +1409,8 @@ class UI_Element_Properties:
     @property
     def checked(self):
         if self._checked_bound:
+            if not self._value_bound and self._value is not None:
+                return self._checked.value == self._value
             return self._checked.value
         else:
             return self._checked
@@ -1416,7 +1418,10 @@ class UI_Element_Properties:
     def checked(self, v):
         # v = "checked" if v else None
         if self._checked_bound:
-            self._checked.value = v
+            if not self._value_bound and self._value is not None:
+                if bool(v): self._checked.value = self._value
+            else:
+                self._checked.value = v
         elif self._checked != v:
             self._checked = v
             self._checked_change()
@@ -1426,7 +1431,7 @@ class UI_Element_Properties:
         return self.checked or ui_for.checked
     def _checked_change(self):
         self.dispatch_event('on_input')
-        self.dirty_selector(cause='changing checked can affect selector and content', children=True)
+        self.dirty(cause='changing checked can affect selector and content', children=True)
     def checked_bind(self, boundvar):
         self._checked = boundvar
         self._checked.on_change(self._checked_change)
@@ -2451,15 +2456,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             marker = ui_elem(tagName='summary', classes=self._classes_str, pseudoelement='marker')
             return [marker, *self._children]
 
-        if self._tagName == 'input' and self._type == 'radio' and self._pseudoelement != 'marker':
-            self._new_content = True
-            marker = ui_elem(tagName='input', type='radio', checked=self.checked, classes=self._classes_str, pseudoelement='marker')
-            return [marker, *self._children]
-
-        if self._tagName == 'input' and self._type == 'checkbox' and self._pseudoelement != 'marker':
-            self._new_content = True
-            marker = ui_elem(tagName='input', type='checkbox', checked=self.checked, classes=self._classes_str, pseudoelement='marker')
-            return [marker, *self._children]
+        if self._pseudoelement != 'marker':
+            if self._tagName == 'input' and self._type in {'radio', 'checkbox'}:
+                self._new_content = True
+                marker = ui_elem(tagName=self._tagName, type=self._type, checked=self.checked, classes=self._classes_str, pseudoelement='marker')
+                return [marker, *self._children]
 
         return self._children
 

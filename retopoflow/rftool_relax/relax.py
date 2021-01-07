@@ -156,7 +156,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                     ui.h1(innerText='Masking Options'),
                     ui.div(classes='collection', children=[
                         ui.h1(innerText='Boundary'),
-                        ui.div(classe='contents', children=[
+                        ui.div(classes='contents', children=[
                             ui.label(
                                 innerText='Exclude',
                                 title='Relax vertices not along boundary',

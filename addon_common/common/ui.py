@@ -43,7 +43,7 @@ from .ui_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head
 from .ui_styling import UI_Styling
 
-from .boundvar import BoundVar, BoundFloat, BoundInt
+from .boundvar import BoundVar, BoundFloat, BoundInt, BoundString, BoundStringToBool, BoundBool
 from .decorators import blender_version_wrapper
 from .drawing import Drawing, ScissorStack
 from .fontmanager import FontManager
@@ -52,7 +52,7 @@ from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit
 from .markdown import Markdown
 from .profiler import profiler, time_it
 from .useractions import is_keycode
-from .utils import Dict, delay_exec
+from .utils import Dict, delay_exec, get_and_discard, strshort
 
 
 from ..ext import png
@@ -87,6 +87,127 @@ See top comment in `ui_utilities.py` for links to useful resources.
 
 
 # all html tags: https://www.w3schools.com/tags/
+
+re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
+re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+))?")
+re_html_comment = re.compile(r"<!--.*?-->")
+self_closing = {'area', 'br', 'col', 'embed', 'hr', 'iframe', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
+re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
+def from_html(html, *, frame_depth=1, f_globals=None, f_locals=None):
+    g = globals()
+    convert = {             # maps tag name to the function that creates that UI element
+        'button':   g['button'],
+        'p':        g['p'],
+        'a':        g['a'],
+        'b':        g['b'],
+        'i':        g['i'],
+        'div':      g['div'],
+        'span':     g['span'],
+        'h1':       g['h1'],
+        'h2':       g['h2'],
+        'h3':       g['h3'],
+        'pre':      g['pre'],
+        'code':     g['code'],
+        'br':       g['br'],
+        'img':      g['img'],
+        'table':    g['table'],
+        'tr':       g['tr'],
+        'th':       g['th'],
+        'td':       g['td'],
+        'textarea': g['textarea'],
+        'dialog':   g['dialog'],
+        'label':    g['label'],
+        'input':    g['input'],
+        'details':  g['details'],
+        'summary':  g['summary'],
+    }
+
+    # use passed global and local contexts or grab contexts from calling function
+    # these contexts are needed for bound variables
+    if f_globals and f_locals:
+        f_globals = f_globals
+        f_locals = dict(f_locals)
+    else:
+        frame = inspect.currentframe()
+        for i in range(frame_depth): frame = frame.f_back
+        f_globals = f_globals or frame.f_globals
+        f_locals = dict(f_locals or frame.f_locals)
+
+    def get_next_tag(html, tname_end, tab):
+        m_tag = re_html_tag.search(html)
+        if not m_tag: return None
+
+        pre_html = html[:m_tag.start()].strip()
+        post_html = html[m_tag.end():].lstrip()
+
+        tname = m_tag.group('name').lower()
+        attributes = m_tag.group('attributes')
+        is_close = m_tag.group('close') is not None
+        is_selfclose = m_tag.group('selfclose') is not None or tname in self_closing
+
+        attribs = {}
+        if attributes:
+            for m_attrib in re_attributes.finditer(attributes):
+                k, v = m_attrib.group('key'), m_attrib.group('value')
+
+                # translate HTML attribs to CC UI attribs
+                if k.lower() in {'class'}: k = 'classes'
+
+                # translate HTML attrib values to CC UI attrib values
+                if v is None: v = 'true'
+                if v.startswith('"'): v = v[1:-1]       # remove quotes
+                m_bound = re_bound.match(v)
+                if   v.lower() in {'true'}:  v = True
+                elif v.lower() in {'false'}: v = False
+                elif m_bound: v = eval(v, f_globals, f_locals)
+
+                attribs[k] = v
+
+        assert not (is_close and attribs), 'Cannot have closing tag with attributes'
+        assert not (is_close and is_selfclose), f'Cannot be closing and self-closing: {m_tag.group("tag")}'
+        assert not (is_close and tname != tname_end), f'Found ending tag {m_tag.group("tag")} but expecting </{tname_end}>'
+        assert tname in convert, f'Unhandled tag type: {m_tag.group("tag")}'
+
+        return Dict({
+            'pre_html':     pre_html,
+            'post_html':    post_html,
+            'tname':        tname,
+            'attribs':      attribs,
+            'is_close':     is_close,
+            'is_selfclose': is_selfclose,
+        })
+
+    def process(html, tname_end, depth):
+        tab = '  '*depth
+        ret = []
+        while html.strip():
+            tag = get_next_tag(html, tname_end, tab)
+            if not tag:
+                return (ret + [span(innerText=html)], '')
+
+            if tag.pre_html:
+                ret += [span(innerText=tag.pre_html)]
+
+            if tag.is_close:
+                return (ret, tag.post_html)
+            elif tag.is_selfclose:
+                ret += [convert[tag.tname](**tag.attribs)]
+                html = tag.post_html
+            else:
+                ntag = get_next_tag(tag.post_html, tag.tname, tab)
+                if ntag and ntag.is_close:
+                    # just stick pre_html into innerText
+                    ret += [convert[tag.tname](innerText=ntag.pre_html, **tag.attribs)]
+                    html = ntag.post_html
+                else:
+                    children, html = process(tag.post_html, tag.tname, depth+1)
+                    ret += [convert[tag.tname](children=children, **tag.attribs)]
+        return (ret, tag.post_html)
+
+    # html = re.sub(r'[ \n\r]+', ' ', html)
+    html = re_html_comment.sub('', html)    # remove comments
+    lui,_ = process(html, None, 0)
+    return lui
 
 
 
@@ -165,6 +286,13 @@ def label(**kwargs):
         ui_for.dispatch_event('on_mouseclick')
     ui_label.add_eventListener('on_mouseclick', mouseclick, useCapture=True)
     return ui_label
+
+def input(**kwargs):
+    t = get_and_discard(kwargs, 'type', 'text')
+    if t == 'radio':    return input_radio(**kwargs)
+    if t == 'checkbox': return input_checkbox(**kwargs)
+    if t == 'range':    return input_range(**kwargs)
+    if t == 'text':     return input_text(**kwargs)
 
 def input_radio(**kwargs):
     ui_input = UI_Element(tagName='input', type='radio', **kwargs)
@@ -388,9 +516,11 @@ def input_text(value='', scrub=False, **kwargs):
     if scrub == True, value must be a BoundInt or BoundFloat with min_value and max_value set!
     '''
 
-    kw_container = kwargs_splitter({'parent'}, kwargs)
-    ui_container = UI_Element(tagName='span', classes='inputtext-container', **kw_container)
-    ui_input  = UI_Element(tagName='input', classes='inputtext-input', type='text', can_focus=True, atomic=True, parent=ui_container, value=value, **kwargs)
+    #kw_container = kwargs_splitter({'parent'}, kwargs)
+    kwargs['classes'] = ' '.join(s for s in ['inputtext-input', kwargs.get('classes', '')] if s)
+
+    #ui_container = UI_Element(tagName='span', classes='inputtext-container', **kw_container)
+    ui_input  = UI_Element(tagName='input', type='text', can_focus=True, atomic=True, value=value, **kwargs) #, parent=ui_container
     ui_cursor = UI_Element(tagName='span', classes='inputtext-cursor', parent=ui_input, innerText='|') # │
 
     data = {'orig': None, 'text': None, 'idx': 0, 'pos': None}
@@ -501,15 +631,18 @@ def input_text(value='', scrub=False, **kwargs):
     ui_input.add_eventListener('on_mousedown', mousedown)
     ui_input.add_eventListener('on_mouseup', mouseup)
 
-    if scrub: setup_scrub(ui_container, value)
+    if scrub:
+        setup_scrub(ui_input, value)
+        # setup_scrub(ui_container, value)
 
-    ui_proxy = UI_Proxy('input_text', ui_container)
-    ui_proxy.map(['value', 'innerText'], ui_input)
-    ui_proxy.map_to_all({'title'})
+    #ui_proxy = UI_Proxy('input_text', ui_container)
+    #ui_proxy.map(['value', 'innerText'], ui_input)
+    #ui_proxy.map_to_all({'title'})
 
     preclean()
 
-    return ui_proxy
+    #return ui_proxy
+    return ui_input
 
 
 def details(**kwargs):

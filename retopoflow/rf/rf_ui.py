@@ -1124,6 +1124,17 @@ class RetopoFlow_UI:
             self.rftools_ui = {}
             for rftool in self.rftools:
                 ui_elems = rftool._callback('ui setup')
+                process = True
+                while process:
+                    process = False
+                    nui_elems = []
+                    for ui_elem in ui_elems:
+                        if type(ui_elem) is list:
+                            nui_elems += ui_elem
+                            process = True
+                        else:
+                            nui_elems += [ui_elem]
+                    ui_elems = nui_elems
                 self.rftools_ui[rftool] = ui_elems
                 for ui_elem in ui_elems:
                     self.ui_options.append_child(ui_elem)

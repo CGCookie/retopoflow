@@ -407,6 +407,7 @@ class UI_Document(UI_Document_FSM):
             return
         if self.actions.pressed('CTRL+SHIFT+F11'):
             self.debug_print_toroot()
+            print(f'{self._under_mouse._computed_styles}')
             return
 
         # if self.actions.pressed('RIGHTMOUSE') and self._under_mouse:
