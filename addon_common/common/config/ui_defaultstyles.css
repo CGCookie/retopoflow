@@ -277,7 +277,7 @@ td {
 /* MARKDOWN        */
 
 
-div.mdown {
+article.mdown {
     margin: 2px;
     border: 1px rgba(0,0,0,0.5);
     padding: 4px 4px 4px 4px;
@@ -285,30 +285,30 @@ div.mdown {
     background: rgba(48,48,48,0.75);
 }
 
-div.mdown div {
+article.mdown div {
     margin: 0;
     padding: 0;
     border: 0;
 }
-div.mdown span {
+article.mdown span {
     margin: 0;
     padding: 0;
     border: 0;
 }
 
-div.mdown h1 {
+article.mdown h1 {
     width: 100%;
     margin: 0px 4px 4px 4px;
     padding: 4px 4px 4px 12px;
     border: 0px;
 }
-div.mdown h1 > span {
+article.mdown h1 > span {
     font-size: 24;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
 }
 
-div.mdown h2 {
+article.mdown h2 {
     width: 100%;
     margin: 8px 4px 4px 4px;
     padding: 4px 4px 4px 12px;
@@ -316,13 +316,13 @@ div.mdown h2 {
     border-bottom-color: rgba(255, 255, 255, 0.25);
     border-radius: 0px;
 }
-div.mdown h2 > span {
+article.mdown h2 > span {
     font-size: 18;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
 }
 
-div.mdown h3 {
+article.mdown h3 {
     width: 100%;
     margin: 8px 16px 4px 16px;
     padding: 4px 4px 4px 12px;
@@ -330,36 +330,36 @@ div.mdown h3 {
     border-bottom-color: rgba(255, 255, 255, 0.125);
     border-radius: 0px;
 }
-div.mdown h3 > span {
+article.mdown h3 > span {
     font-size: 15;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
 }
 
-div.mdown img {
+article.mdown img {
     display: block;
     width: 100%;
     border: 1px rgba(0, 0, 0, 0.50);
     border-radius: 4px;
 }
 
-div.mdown p {  }
+article.mdown p {  }
 
-div.mdown i {
+article.mdown i {
     margin: 0px;
     padding: 0px;
     border: 0px;
     font-style: italic;
 }
 
-div.mdown b {
+article.mdown b {
     margin: 0px;
     padding: 0px;
     border: 0px;
     font-weight: bold;
 }
 
-div.mdown pre {
+article.mdown pre {
     font-family: monospace;
     white-space: pre;
     margin: 0px;
@@ -367,7 +367,7 @@ div.mdown pre {
     background-color: rgba(255, 255, 255, 0.25);
 }
 
-div.mdown code {
+article.mdown code {
     font-family: monospace;
     white-space: pre;
     margin: 0px;
@@ -376,14 +376,14 @@ div.mdown code {
 }
 
 
-div.mdown ul {
+article.mdown ul {
     margin: 0px;
     border: 0px;
     padding: 0px;
     display: block;
 }
 
-div.mdown ul > li {
+article.mdown ul > li {
     /*margin: 8px 0px;*/
     margin: 0px;
     border: 0px;
@@ -391,7 +391,7 @@ div.mdown ul > li {
     padding: 0px 0px 0px 8px;
     display: block;
 }
-div.mdown ul > li > img.dot {
+article.mdown ul > li > img.dot {
     display: inline;
     margin: 5px 10px 0px 5px;
     border: 0px;
@@ -399,7 +399,7 @@ div.mdown ul > li > img.dot {
     width: 20px;
     height: 10px;
 }
-div.mdown ul > li > span.text {
+article.mdown ul > li > span.text {
     margin: 0px;
     border: 0px;
     padding: 0px;
@@ -407,14 +407,14 @@ div.mdown ul > li > span.text {
 }
 
 
-div.mdown ol {
+article.mdown ol {
     margin: 0px;
     border: 0px;
     padding: 0px;
     display: block;
 }
 
-div.mdown ol > li {
+article.mdown ol > li {
     /*margin: 8px 0px;*/
     margin: 0px;
     border: 0px;
@@ -422,7 +422,7 @@ div.mdown ol > li {
     padding: 0px 0px 0px 8px;
     display: block;
 }
-div.mdown ol > li > span.number {
+article.mdown ol > li > span.number {
     display: inline;
     margin: 0px;
     border: 0px;
@@ -430,7 +430,7 @@ div.mdown ol > li > span.number {
     width: 20px;
     /*height: 10px;*/
 }
-div.mdown ol > li > span.text {
+article.mdown ol > li > span.text {
     margin: 0px 0px 0px 8px;
     border: 0px;
     padding: 0px;
@@ -442,7 +442,7 @@ div.mdown ol > li > span.text {
 /* background-color: hsla(200, 25%, 40%, 0.75); */
 /* background-color: hsla(200, 25%, 60%, 0.75); */
 
-div.mdown a {
+article.mdown a {
     padding: 0px -1px 0px 0px;
     margin: 0px;
     background-color: transparent; /* hsla(200, 25%, 25%, 0.75); */
@@ -451,13 +451,13 @@ div.mdown a {
     border-bottom-color: rgba(255,255,255,0.5);
     cursor: pointer;
 }
-div.mdown a:hover {
+article.mdown a:hover {
     background-color: hsla(200, 25%, 40%, 0.75);
     border: 1px hsla(200, 25%, 40%, 0.75);
     border-bottom-color: rgba(255,255,255,0.5);
 }
 
-div.mdown img.inline {
+article.mdown img.inline {
     display: inline;
     border: 0px;
 }

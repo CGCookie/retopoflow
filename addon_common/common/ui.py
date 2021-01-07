@@ -882,7 +882,7 @@ def markdown(mdown=None, mdown_path=None, preprocess_fns=None, f_globals=None, f
         if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
         if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
 
-    ui_container = UI_Element(tagName='div', classes='mdown', **kwargs)
+    ui_container = UI_Element(tagName='article', classes='mdown', **kwargs)
     set_markdown(ui_container, mdown=mdown, mdown_path=mdown_path, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
     return ui_container
 

@@ -720,50 +720,50 @@ dialog#geometrydialog table div {
 /* markdown                                        */
 /***************************************************/
 
-div.mdown h1 {
+article.mdown h1 {
     width: 100%;
     padding: 4px;
 }
-div.mdown h1> span {
+article.mdown h1> span {
     font-size: 18px;
 }
-div.mdown h1 img {
+article.mdown h1 img {
     width:32px;
     height:32px;
     padding:0px
 }
-div.mdown h2 {
+article.mdown h2 {
     width: 100%;
     padding: 4px;
 }
-div.mdown h2> span {
+article.mdown h2> span {
     font-size: 14px;
 }
-div.mdown h3 {
+article.mdown h3 {
     width: 100%;
     padding: 4px;
 }
-div.mdown h3> span {
+article.mdown h3> span {
     font-size: 12px;
     color: rgba(192, 192, 192, 1.0);
 }
 
-div.mdown p {
+article.mdown p {
     text-align: justify;
     padding-left: 16px;
 }
-div.mdown ul {
+article.mdown ul {
     padding-left: 16px;
 }
-div.mdown ul > li > span > p {
+article.mdown ul > li > span > p {
     padding: 0px;
     margin: 0px;
 }
-div.mdown ul > li > span > ul {
+article.mdown ul > li > span > ul {
     padding: 0px;
     margin: 0px;
 }
-div.mdown a {
+article.mdown a {
     padding: 0px 0px 0px 0px;
     margin: 0px;
     background-color: transparent;
@@ -772,17 +772,17 @@ div.mdown a {
     cursor: default;
     color: var(--text);
 }
-div.mdown a:hover {
+article.mdown a:hover {
     color: white;
     border-bottom-color: white;
     cursor: default;
 }
 
-div.mdown img {
+article.mdown img {
     border-radius: 4px;
 }
 
-div.mdown pre {
+article.mdown pre {
     font-family: monospace;
     white-space: pre;
     margin: 0px;
@@ -790,7 +790,7 @@ div.mdown pre {
     background-color: var(--header-background);
 }
 
-div.mdown code {
+article.mdown code {
     font-family: monospace;
     white-space: pre;
     margin: 0px;
@@ -798,7 +798,7 @@ div.mdown code {
     background-color: var(--header-background);
 }
 
-div.mdown span.html-arrow {
+article.mdown span.html-arrow {
     font-weight: normal;
 }
 
