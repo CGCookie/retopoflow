@@ -141,6 +141,7 @@ label[type="checkbox"]:hover {
 label[type="checkbox"]:active {
     background: var(--option-hover-background);
 }
+
 input[type="checkbox"]::marker {
     background: var(--button-background);
     margin: 0px 6px 1px 2px;
@@ -149,15 +150,26 @@ input[type="checkbox"]::marker {
     width: 20px;
     height: 14px;
 }
+input[type="checkbox"]:checked::marker {
+    background-color: var(--button-selected-background);
+    background-image: url('checkmark.png');
+}
+input[type="checkbox"]:hover::marker {
+    background-color: var(--button-hover-background);
+}
+input[type="checkbox"]:hover:checked::marker {
+    background-color: var(--button-selected-background);
+}
+input[type="checkbox"]:active:hover::marker {
+    background-color: var(--button-selected-background);
+}
+
+
 label[type="checkbox"]:hover input[type="checkbox"]::marker {
     background-color: var(--button-hover-background);
 }
 label[type="checkbox"]:hover input[type="checkbox"]:checked::marker {
     background-color: var(--button-selected-background);
-}
-input[type="checkbox"]:checked::marker {
-    background-color: var(--button-selected-background);
-    background-image: url('checkmark.png');
 }
 label[type="checkbox"]:active:hover input[type="checkbox"]::marker {
     background-color: var(--button-selected-background);
@@ -211,6 +223,74 @@ input[type="range"] > *.inputrange-handle {
 }
 
 
+
+
+/********************************/
+/* text input                   */
+/********************************/
+
+*.labeledinputtext-container {
+    padding-left: 4px;
+}
+
+
+/* old ^, new v */
+
+input[type="text"] {
+    color: var(--text);
+    background: var(--button-background);
+    padding: 4px 8px 4px 8px;
+    height: 24px;
+}
+
+input[type="text"]:hover {
+    color: var(--text);
+    background: var(--button-hover-background);
+}
+
+input[type="text"]:focus {
+    color: var(--text);
+    background: var(--button-selected-background);
+}
+
+input[type="text"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+    cursor: default;
+}
+
+
+
+div.labeled-input-text label {
+    display: inline;
+    text-align: left;
+    margin: 4px 0px 0px 4px;
+    padding: 0px;
+    width: 50%;
+}
+div.labeled-input-text input[type="text"] {
+    display: inline;
+    width: 50%;
+    background: var(--button-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:hover {
+    background: var(--button-hover-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:focus {
+    background: var(--button-selected-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="text"]:disabled {
+    background: var(--button-background);
+    color: var(--button-disabled-text);
+}
+
+
+/*input[type="text"] *.inputtext-cursor {
+    color: var(--text);
+}*/
 
 
 /**************************/
@@ -441,71 +521,6 @@ label.symmetry-enable {
     white-space: nowrap;
     padding-left: 14px;
 }
-
-
-/********************************/
-/* TEXT INPUT STYLING           */
-/********************************/
-
-input[type="text"] {
-    color: var(--text);
-    background: var(--button-background);
-    padding: 4px 8px 4px 8px;
-    height: 24px;
-}
-
-*.labeledinputtext-container {
-    padding-left: 4px;
-}
-
-input[type="text"]:hover {
-    color: var(--text);
-    background: var(--button-hover-background);
-}
-
-input[type="text"]:focus {
-    color: var(--text);
-    background: var(--button-selected-background);
-}
-
-input[type="text"]:disabled {
-    background-color: var(--button-background);
-    color: var(--button-disabled-text);
-    cursor: default;
-}
-
-
-
-div.labeled-input-text label {
-    display: inline;
-    text-align: left;
-    margin: 4px 0px 0px 4px;
-    padding: 0px;
-    width: 50%;
-}
-div.labeled-input-text input[type="text"] {
-    display: inline;
-    width: 50%;
-    background: var(--button-background);
-    color: var(--text);
-}
-div.labeled-input-text input[type="text"]:hover {
-    background: var(--button-hover-background);
-    color: var(--text);
-}
-div.labeled-input-text input[type="text"]:focus {
-    background: var(--button-selected-background);
-    color: var(--text);
-}
-div.labeled-input-text input[type="text"]:disabled {
-    background: var(--button-background);
-    color: var(--button-disabled-text);
-}
-
-
-/*input[type="text"] *.inputtext-cursor {
-    color: var(--text);
-}*/
 
 
 /***************************************************/

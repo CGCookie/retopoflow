@@ -39,6 +39,7 @@ import blf
 import gpu
 
 from .ui_proxy import UI_Proxy
+from .ui_elements import UI_Element_Elements
 
 from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
@@ -818,6 +819,22 @@ class UI_Element_Properties:
         return sum(child.count_all_children() for child in self._children_all)
     def count_all_children(self): return 1 + self._count_all_children()
 
+
+    # returns tagName of child at specified idx
+    def _get_child_tagName(self, idx):
+        if not self._children: return None
+        return self._children[idx]._tagName
+
+    # generates new UI_Element child and adds to self._children_gen
+    def _generate_new_ui_elem(self, *args, **kwargs):
+        kwargs.setdefault('_parent', self)
+        ui = UI_Element(*args, **kwargs)
+        ui.clean()
+        self._children_gen += [ui]
+        self._new_content = True
+        return ui
+
+
     #########################################
     # style methods
 
@@ -921,6 +938,8 @@ class UI_Element_Properties:
 
     @property
     def pseudoclasses(self):
+        if self._pseudoelement:
+            return self._parent._pseudoclasses | self._pseudoclasses
         return set(self._pseudoclasses)
 
     def pseudoclasses_with_for(self, ui_for=None):
@@ -1028,6 +1047,42 @@ class UI_Element_Properties:
     def title(self, v):
         self._title = v
         # self.dirty('title changed', parent=True, children=False)
+
+
+    @property
+    def selectionStart(self):
+        if not self._ui_cursor: return None
+        return self._selectionStart
+    @selectionStart.setter
+    def selectionStart(self, v):
+        if self._innerText is None: return
+        self._selectionStart = clamp(v, 0, len(self._innerText))
+        self._selectionEnd = None
+
+    @property
+    def selectionEnd(self):
+        if not self._ui_cursor: return None
+        return self._selectionStart if self._selectionEnd is None else self._selectionEnd
+    @selectionEnd.setter
+    def selectionEnd(self, v):
+        if self._innerText is None: return
+        if v is None:
+            self._selectionEnd = None
+            return
+        s,e = self._selectionStart, clamp(v, 0, len(self._innerText))
+        self._selectionStart = min(s, e)
+        self._selectionEnd =  max(s, e)
+
+    def setSelectionRange(start, end=None):
+        if self._innerText is None: return
+        self.selectionStart = start
+        self.selectionEnd = end
+
+    def select(self):
+        if self._innerText is None: return
+        self.selectionStart = 0
+        self.selectionEnd = len(self._innerText)
+
 
     def reposition(self, left=None, top=None, bottom=None, right=None, clamp_position=True):
         assert not bottom and not right, 'repositioning UI via bottom or right not implemented yet :('
@@ -1380,6 +1435,7 @@ class UI_Element_Properties:
                 child.dirty_style(cause='changing open can affect styling', children=False)
                 child.dirty_content(cause='changing open can affect content', children=False)
         self.dirty_style(cause='changing open can affect style', children=True)
+        self.dispatch_event('on_toggle')
 
     @property
     def value(self):
@@ -1414,6 +1470,8 @@ class UI_Element_Properties:
 
     @property
     def checked(self):
+        if self._pseudoelement:
+            return self._parent.checked
         if self._checked_bound:
             if not self._value_bound and self._value is not None:
                 return self._checked.value == self._value
@@ -1676,6 +1734,13 @@ class UI_Element_Dirtiness:
                 parent=False,
                 children=True,
             )
+        for child in self._children_gen:
+            child.dirty(
+                cause=f'propagating {self._dirty_propagation["children"]}',
+                properties=self._dirty_propagation['children'],
+                parent=False,
+                children=True
+            )
         self._dirty_propagation['children'].clear()
 
 
@@ -1837,7 +1902,7 @@ class UI_Element_PreventMultiCalls:
 
 
 
-class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, UI_Element_Debug, UI_Element_PreventMultiCalls):
+class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, UI_Element_Debug, UI_Element_PreventMultiCalls, UI_Element_Elements):
     @staticmethod
     @add_cache('uid', 0)
     def get_uid():
@@ -1924,7 +1989,12 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._all_lines            = None       # all children elements broken up into lines (for horizontal alignment)
         self._blocks               = None
         self._children_text_min_size = None
-        self._cursor               = None       # cursor element for text input
+
+        #######################################
+        # properties for text input
+        self._selectionStart       = None
+        self._selectionEnd         = None
+        self._ui_marker            = None       # cursor element, checkbox, radio button, etc.
 
         self._left_override = None
         self._top_override = None
@@ -1959,6 +2029,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             'on_mouseleave':    [],     # mouse leaves self (:hover is removed)
             'on_scroll':        [],     # self is being scrolled
             'on_input':         [],     # occurs immediately after value has changed
+            'on_toggle':        [],     # occurs when open attribute is toggled
         }
 
         ####################################################################
@@ -2431,67 +2502,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._dirty_callbacks['style parent'].clear()
 
         # self.defer_dirty_propagation = False
-
-    def _process_children(self):
-        if self._innerTextAsIs is not None: return []
-
-        def ui_elem(*args, _parent=None, **kwargs):
-            if not _parent: _parent = self
-            ui = UI_Element(*args, _parent=_parent, **kwargs)
-            ui.clean()
-            self._children_gen += [ui]
-            return ui
-        def childTagName(idx):
-            if not self._children: return None
-            return self._children[idx]._tagName
-
-        if self._tagName == 'details':
-            self._new_content = True
-            if childTagName(0) != 'summary':
-                # <details> does not have a <summary>, so create a default one
-                summary = ui_elem(tagName='summary', innerText='Details')
-                content = self._children
-            else:
-                summary = self._children[0]
-                content = self._children[1:]
-            if self.open:
-                return [summary, *content]
-            else:
-                return [summary]
-            return [summary, *self._children]
-
-        if self._tagName == 'summary' and self._pseudoelement != 'marker':
-            self._new_content = True
-            marker = ui_elem(tagName='summary', classes=self._classes_str, pseudoelement='marker')
-            return [marker, *self._children]
-
-        if self._pseudoelement != 'marker':
-            if self._tagName == 'input':
-                if self._type in {'radio', 'checkbox'}:
-                    self._new_content = True
-                    marker = ui_elem(
-                        tagName=self._tagName,
-                        type=self._type,
-                        checked=self.checked,
-                        classes=self._classes_str,
-                        pseudoelement='marker'
-                    )
-                    return [marker, *self._children]
-                if self._type == 'text':
-                    self._curser = None
-                    if self.is_focused:
-                        self._new_content = True
-                        marker = ui_elem(
-                            tagName=self._tagName,
-                            type=self._type,
-                            classes=self._classes_str,
-                            pseudoelement='marker',
-                        )
-                        marker.clean()
-                        self._cursor = marker
-                        return [*self._children, marker]
-
-        return self._children
 
     @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf'})
     @profiler.function

@@ -294,6 +294,10 @@ def input(**kwargs):
     if t == 'range':    return input_range(**kwargs)
     if t == 'text':     return input_text(**kwargs)
 
+def input_text(value='', scrub=False, **kwargs):
+    return UI_Element(tagName='input', type='text', value=value, can_focus=True, **kwargs)
+
+
 def input_radio(**kwargs):
     ui_input = UI_Element(tagName='input', type='radio', **kwargs)
     def on_input(e):
@@ -306,9 +310,7 @@ def input_radio(**kwargs):
     return ui_input
 
 def input_checkbox(**kwargs):
-    ui_input = UI_Element(tagName='input', type='checkbox', **kwargs)
-    ui_input.add_eventListener('on_mouseclick', delay_exec('''ui_input.checked = not bool(ui_input.checked)'''))
-    return ui_input
+    return UI_Element(tagName='input', type='checkbox', **kwargs)
 
 def input_range(value=None, min_value=None, max_value=None, step_size=None, **kwargs):
     # right now, step_size is not used
@@ -408,83 +410,6 @@ def input_range(value=None, min_value=None, max_value=None, step_size=None, **kw
     return ui_proxy
 
 
-def setup_scrub(ui_element, value):
-    if not type(value) in {BoundInt, BoundFloat}: return
-    if not value.is_bounded and not value.step_size: return
-
-    state = {}
-    def reset_state():
-        nonlocal state
-        state = {
-            'can scrub': True,
-            'pressed': False,
-            'scrubbing': False,
-            'down': None,
-            'initval': None,
-            'cancelled': False,
-        }
-    reset_state()
-
-    def cancel():
-        nonlocal state
-        if not state['scrubbing']: return
-        value.value = state['initval']
-        state['cancelled'] = True
-
-    def mousedown(e):
-        nonlocal state
-        if not ui_element.document: return
-        if ui_element.document.activeElement and ui_element.document.activeElement.is_descendant_of(ui_element):
-            # do not scrub if descendant of ui_element has focus
-            return
-        if e.button[2] and state['scrubbing']:
-            # right mouse button cancels
-            value.value = state['initval']
-            state['cancelled'] = True
-            e.stop_propagation()
-        elif e.button[0]:
-            state['pressed'] = True
-            state['down'] = e.mouse
-            state['initval'] = value.value
-    def mouseup(e):
-        nonlocal state
-        if e.button[0]: return
-        if state['scrubbing']: e.stop_propagation()
-        reset_state()
-    def mousemove(e):
-        nonlocal state
-        if not state['pressed']: return
-        if e.button[2]:
-            cancel()
-            e.stop_propagation()
-        if state['cancelled']: return
-        state['scrubbing'] |= (e.mouse - state['down']).length > Globals.drawing.scale(5)
-        if not state['scrubbing']: return
-
-        if ui_element._document:
-            ui_element._document.blur()
-
-        if value.is_bounded:
-            m, M = value.min_value, value.max_value
-            p = (e.mouse.x - state['down'].x) / ui_element.width_pixels
-            v = clamp(state['initval'] + (M - m) * p, m, M)
-            value.value = v
-        else:
-            delta = Globals.drawing.unscale(e.mouse.x - state['down'].x)
-            value.value = state['initval'] + delta * value.step_size
-        e.stop_propagation()
-    def keypress(e):
-        nonlocal state
-        if not state['pressed']: return
-        if state['cancelled']: return
-        if type(e.key) is int and is_keycode(e.key, 'ESC'):
-            cancel()
-            e.stop_propagation()
-
-    ui_element.add_eventListener('on_mousemove', mousemove, useCapture=True)
-    ui_element.add_eventListener('on_mousedown', mousedown, useCapture=True)
-    ui_element.add_eventListener('on_mouseup',   mouseup,   useCapture=True)
-    ui_element.add_eventListener('on_keypress',  keypress,  useCapture=True)
 
 def labeled_input_text(label, value='', scrub=False, **kwargs):
     '''
@@ -502,162 +427,13 @@ def labeled_input_text(label, value='', scrub=False, **kwargs):
         ui_label = UI_Element(tagName='label', classes='labeledinputtext-label', innerText=label, parent=ui_left, **kw_all)
         ui_input = input_text(parent=ui_right, value=value, **kwargs, **kw_all)
 
-    if scrub: setup_scrub(ui_container, value)
+    #if scrub: setup_scrub(ui_container, value)
 
     ui_proxy = UI_Proxy('labeled_input_text', ui_container)
     ui_proxy.translate_map('label', 'innerText', ui_label)
     ui_proxy.map('value', ui_input)
     ui_proxy.map_to_all({'title'})
     return ui_proxy
-
-def input_text(value='', scrub=False, **kwargs):
-    '''
-    use for text input, but can also restrict to numbers
-    if scrub == True, value must be a BoundInt or BoundFloat with min_value and max_value set!
-    '''
-
-    #kw_container = kwargs_splitter({'parent'}, kwargs)
-    kwargs['classes'] = ' '.join(s for s in ['inputtext-input', kwargs.get('classes', '')] if s)
-
-    #ui_container = UI_Element(tagName='span', classes='inputtext-container', **kw_container)
-    ui_input  = UI_Element(tagName='input', type='text', can_focus=True, atomic=True, value=value, **kwargs) #, parent=ui_container
-    # ui_cursor = UI_Element(tagName='span', classes='inputtext-cursor', parent=ui_input, innerText='|') # innerText="│"
-
-    data = {'orig': None, 'text': None, 'idx': 0, 'pos': None}
-    def preclean():
-        if data['text'] is None:
-            if type(ui_input.value) is float:
-                ui_input.innerText = '%0.4f' % ui_input.value
-            else:
-                ui_input.innerText = str(ui_input.value)
-        else:
-            ui_input.innerText = data['text']
-        #print(ui_input, type(ui_input.innerText), ui_input.innerText, type(ui_input.value), ui_input.value)
-        ui_input.dirty_content(cause='preclean called')
-    def postflow():
-        if data['text'] is None: return
-        data['pos'] = ui_input.get_text_pos(data['idx'])
-        if ui_input._cursor._absolute_size:
-            ui_input._cursor.reposition(
-                left=data['pos'].x - ui_input._mbp_left - ui_input._cursor._absolute_size.width / 2,
-                top=data['pos'].y + ui_input._mbp_top,
-                clamp_position=False,
-            )
-            cursor_postflow()
-        # ui_cursor.reposition(
-        #     left=data['pos'].x - ui_input._mbp_left - ui_cursor._absolute_size.width / 2,
-        #     top=data['pos'].y + ui_input._mbp_top,
-        #     clamp_position=False,
-        # )
-    def cursor_postflow():
-        if data['text'] is None: return
-        ui_input._setup_ltwh()
-        ui_input._cursor._setup_ltwh()
-        # ui_cursor._setup_ltwh()
-        # # if ui_cursor._l < ui_input._l:
-        # #     ui_input._scroll_offset.x = min(0, ui_input._l - ui_cursor._l)
-        vl = ui_input._l + ui_input._mbp_left
-        vr = ui_input._r - ui_input._mbp_right
-        vw = ui_input._w - ui_input._mbp_width
-        if ui_input._cursor._r > vr:
-            dx = ui_input._cursor._r - vr + 2
-            ui_input.scrollLeft = ui_input.scrollLeft + dx
-            ui_input._setup_ltwh()
-        if ui_input._cursor._l < vl:
-            dx = ui_input._cursor._l - vl - 2
-            ui_input.scrollLeft = ui_input.scrollLeft + dx
-            ui_input._setup_ltwh()
-        # if ui_cursor._r > vr:
-        #     dx = ui_cursor._r - vr + 2
-        #     ui_input.scrollLeft = ui_input.scrollLeft + dx
-        #     ui_input._setup_ltwh()
-        # if ui_cursor._l < vl:
-        #     dx = ui_cursor._l - vl - 2
-        #     ui_input.scrollLeft = ui_input.scrollLeft + dx
-        #     ui_input._setup_ltwh()
-    def set_cursor(e):
-        data['idx'] = ui_input.get_text_index(e.mouse)
-        data['pos'] = None
-        ui_input.dirty_flow()
-    def focus(e):
-        set_cursor(e)
-    def mouseup(e):
-        if not ui_input.is_focused: return
-        if type(ui_input.value) is float:
-            s = '%0.4f' % ui_input.value
-        else:
-            s = str(ui_input.value)
-        data['orig'] = data['text'] = s
-        set_cursor(e)
-    def mousemove(e):
-        if data['text'] is None: return
-        if not e.button[0]: return
-        set_cursor(e)
-    def mousedown(e):
-        if data['text'] is None: return
-        if not e.button[0]: return
-        set_cursor(e)
-    def blur(e):
-        ui_input.value = data['text']
-        data['text'] = None
-        #print('container:', ui_container._dynamic_full_size, ' input:', ui_input._dynamic_full_size, type(ui_input.value), ui_input.value)
-    def keypress(e):
-        if data['text'] == None: return
-        if type(e.key) is int:
-            if is_keycode(e.key, 'BACK_SPACE'):
-                if data['idx'] == 0: return
-                data['text'] = data['text'][0:data['idx']-1] + data['text'][data['idx']:]
-                data['idx'] -= 1
-            elif is_keycode(e.key, 'RET'):
-                ui_input.blur()
-            elif is_keycode(e.key, 'ESC'):
-                data['text'] = data['orig']
-                ui_input.blur()
-            elif is_keycode(e.key, 'END'):
-                data['idx'] = len(data['text'])
-                ui_input.dirty_flow()
-            elif is_keycode(e.key, 'HOME'):
-                data['idx'] = 0
-                ui_input.dirty_flow()
-            elif is_keycode(e.key, 'LEFT_ARROW'):
-                data['idx'] = max(data['idx'] - 1, 0)
-                ui_input.dirty_flow()
-            elif is_keycode(e.key, 'RIGHT_ARROW'):
-                data['idx'] = min(data['idx'] + 1, len(data['text']))
-                ui_input.dirty_flow()
-            elif is_keycode(e.key, 'DEL'):
-                if data['idx'] == len(data['text']): return
-                data['text'] = data['text'][0:data['idx']] + data['text'][data['idx']+1:]
-            else:
-                return
-        else:
-            data['text'] = data['text'][0:data['idx']] + e.key + data['text'][data['idx']:]
-            data['idx'] += 1
-        preclean()
-
-    ui_input.preclean = preclean
-    ui_input.postflow = postflow
-    # ui_cursor.postflow = cursor_postflow
-    ui_input.add_eventListener('on_focus', focus)
-    ui_input.add_eventListener('on_blur', blur)
-    ui_input.add_eventListener('on_keypress', keypress)
-    ui_input.add_eventListener('on_mousemove', mousemove)
-    ui_input.add_eventListener('on_mousedown', mousedown)
-    ui_input.add_eventListener('on_mouseup', mouseup)
-
-    if scrub:
-        setup_scrub(ui_input, value)
-        # setup_scrub(ui_container, value)
-
-    #ui_proxy = UI_Proxy('input_text', ui_container)
-    #ui_proxy.map(['value', 'innerText'], ui_input)
-    #ui_proxy.map_to_all({'title'})
-
-    preclean()
-
-    #return ui_proxy
-    return ui_input
-
 
 def details(**kwargs):
     ui_details = UI_Element(tagName='details', **kwargs)

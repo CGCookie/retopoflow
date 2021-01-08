@@ -675,6 +675,23 @@ details[open] > div.inside {
 
 input[type="text"] {
     position: relative; /* necessary for cursor! */
+    left: 0px;
+    top: 0px;
+    background-color: transparent;
+    white-space: pre;
+    display: block;
+    width: 100%;
+    min-height: 26px;
+    margin: 0px;
+    padding: 3px;
+    border: 2px transparent;
+    color: black;
+    overflow-x: scroll;
+    cursor: text;
+}
+input[type="text"]:focus {
+    background-color: rgba(255, 255, 255, 1.0);
+    border-color: hsla(200, 100%, 62.5%, 1.0);
 }
 
 input[type="text"]::marker {
