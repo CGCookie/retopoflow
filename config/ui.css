@@ -90,7 +90,8 @@ button:disabled {
 
 
 input[type="radio"] {
-    display: none;
+    position: absolute;
+    /*display: none;*/
 }
 input[type="radio"]::marker {
     display: none;

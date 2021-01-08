@@ -199,9 +199,11 @@ class UI_Element_Elements():
                 set_cursor(e)
             def blur(e):
                 nonlocal data
+                changed = self.value == data['text']
                 self.value = data['text']
                 data['text'] = None
                 self._ui_marker.is_visible = False
+                if changed: self.dispatch('on_change')
 
             def mouseup(e):
                 nonlocal data
@@ -318,16 +320,28 @@ class UI_Element_Elements():
         return [self._ui_marker, *self._children]
 
     def _process_input_radio(self):
-        return [
-            self._generate_new_ui_elem(
+        if self._ui_marker is None:
+            self._ui_marker = self._generate_new_ui_elem(
                 tagName=self._tagName,
                 type=self._type,
                 checked=self.checked,
                 classes=self._classes_str,
-                pseudoelement='marker'
-            ),
-            *self._children
-        ]
+                pseudoelement='marker',
+            )
+            def on_input(e):
+                if not self.checked: return
+                ui_elements = self.get_root().getElementsByName(self.name)
+                for ui_element in ui_elements:
+                    if ui_element != self:
+                        ui_element.checked = False
+            def on_click(e):
+                self.checked = True
+            self.add_eventListener('on_mouseclick', on_click)
+            self.add_eventListener('on_input', on_input)
+        else:
+            self._children_gen += [self._ui_marker]
+            self._new_content = True
+        return [self._ui_marker, *self._children]
 
     def _process_details(self):
         is_open, was_open = self.open, getattr(self, '_was_open', None)

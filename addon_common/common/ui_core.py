@@ -1439,6 +1439,7 @@ class UI_Element_Properties:
 
     @property
     def value(self):
+        if self._pseudoelement: return self._parent.value
         if self._value_bound:
             return self._value.value
         else:
@@ -1470,8 +1471,7 @@ class UI_Element_Properties:
 
     @property
     def checked(self):
-        if self._pseudoelement:
-            return self._parent.checked
+        if self._pseudoelement: return self._parent.checked
         if self._checked_bound:
             if not self._value_bound and self._value is not None:
                 return self._checked.value == self._value
@@ -2029,6 +2029,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             'on_mouseleave':    [],     # mouse leaves self (:hover is removed)
             'on_scroll':        [],     # self is being scrolled
             'on_input':         [],     # occurs immediately after value has changed
+            'on_change':        [],     # occurs after blur if value has changed
             'on_toggle':        [],     # occurs when open attribute is toggled
         }
 

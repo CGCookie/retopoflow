@@ -293,24 +293,17 @@ def input(**kwargs):
     if t == 'checkbox': return input_checkbox(**kwargs)
     if t == 'range':    return input_range(**kwargs)
     if t == 'text':     return input_text(**kwargs)
+    assert False, f'Unhandled input type: {t}'
 
 def input_text(value='', scrub=False, **kwargs):
     return UI_Element(tagName='input', type='text', value=value, can_focus=True, **kwargs)
 
-
 def input_radio(**kwargs):
-    ui_input = UI_Element(tagName='input', type='radio', **kwargs)
-    def on_input(e):
-        if not ui_input.checked: return
-        ui_elements = ui_input.get_root().getElementsByName(ui_input.name)
-        for ui_element in ui_elements:
-            if ui_element != ui_input: ui_element.checked = False
-    ui_input.add_eventListener('on_mouseclick', delay_exec('''ui_input.checked = True'''))
-    ui_input.add_eventListener('on_input', on_input)
-    return ui_input
+    return UI_Element(tagName='input', type='radio', **kwargs)
 
 def input_checkbox(**kwargs):
     return UI_Element(tagName='input', type='checkbox', **kwargs)
+
 
 def input_range(value=None, min_value=None, max_value=None, step_size=None, **kwargs):
     # right now, step_size is not used
