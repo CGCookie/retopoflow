@@ -113,17 +113,17 @@ class RetopoFlow_HelpSystem:
             ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
             ui.div(id='helpsystem-buttons', parent=ui_help, children=[
                 ui.button(
-                    label='Table of Contents',
+                    innerText='Table of Contents',
                     title='Click to open table of contents for help.',
                     on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
                 ),
                 ui.button(
-                    label='View Online Docs',
+                    innerText='View Online Docs',
                     title='Click to open online help documents.  Note: this is an experimental feature.',
                     on_mouseclick=delay_exec('''bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)'''),
                 ),
                 ui.button(
-                    label='Close (Esc)',
+                    innerText='Close (Esc)',
                     title='Click to close this help dialog.',
                     on_mouseclick=close,
                 )

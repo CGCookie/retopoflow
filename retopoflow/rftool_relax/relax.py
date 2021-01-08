@@ -412,12 +412,12 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                             ui.h1(innerText='Presets'),
                             ui.div(classes='contents', children=[
                                 ui.button(
-                                    label='Reset',
+                                    innerText='Reset',
                                     title='Reset Algorithm options to default values',
                                     on_mouseclick=reset_algorithm_options,
                                 ),
                                 ui.button(
-                                    label='Disable All',
+                                    innerText='Disable All',
                                     title='Disable all Algorithm options',
                                     on_mouseclick=disable_all_options,
                                 ),

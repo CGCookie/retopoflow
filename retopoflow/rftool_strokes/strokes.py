@@ -127,7 +127,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @RFTool_Strokes.on_ui_setup
     def ui(self):
         def span_mode_change(e):
-            print(f'{e.target}')
             if not e.target.checked: return
             if e.target.value is None: return
             options['strokes span insert mode'] = e.target.value

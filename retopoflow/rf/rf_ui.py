@@ -641,27 +641,27 @@ class RetopoFlow_UI:
                 ui.summary(innerText='Documentation'),
                 ui.div(classes='contents', children=[
                     ui.button(
-                        label='Welcome!',
+                        innerText='Welcome!',
                         title='Show the "Welcome!" message from the RetopoFlow team',
                         on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
                     ),
                     ui.button(
-                        label='Table of Contents',
+                        innerText='Table of Contents',
                         title=f'Show help table of contents ({humanread("all help")})',
                         on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
                     ),
                     ui.button(
-                        label='Quick start guide',
+                        innerText='Quick start guide',
                         title='Show how to get started with RetopoFlow',
                         on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
                     ),
                     ui.button(
-                        label='General',
+                        innerText='General',
                         title=f'Show general help ({humanread("general help")})',
                         on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
                     ),
                     ui.button(
-                        label='Active Tool',
+                        innerText='Active Tool',
                         title=f'Show help for currently selected tool ({humanread("tool help")})',
                         on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
                     ),
@@ -1099,7 +1099,7 @@ class RetopoFlow_UI:
                             scrub=True,
                         ),
                         ui.button(
-                            label='Apply symmetry',
+                            innerText='Apply symmetry',
                             title='Apply symmetry to target mesh',
                             on_mouseclick=delay_exec('''self.apply_symmetry()'''),
                         ),
