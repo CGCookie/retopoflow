@@ -552,7 +552,7 @@ class UI_Document(UI_Document_FSM):
         if not click:
             # find closest common ancestor of self._under_mouse and self._under_mousedown that is getting clicked
             ancestors0 = self._under_mousedown.get_pathFromRoot()
-            ancestors1 = self._under_mouse.get_pathFromRoot()
+            ancestors1 = self._under_mouse.get_pathFromRoot() if self._under_mouse else []
             ancestors = [a0 for (a0, a1) in zip(ancestors0, ancestors1) if a0 == a1 and a0.get_mouse_distance(self.actions.mouse) < 1]
             if ancestors:
                 under_mouseclick = ancestors[-1]

@@ -521,7 +521,7 @@ def input_text(value='', scrub=False, **kwargs):
 
     #ui_container = UI_Element(tagName='span', classes='inputtext-container', **kw_container)
     ui_input  = UI_Element(tagName='input', type='text', can_focus=True, atomic=True, value=value, **kwargs) #, parent=ui_container
-    ui_cursor = UI_Element(tagName='span', classes='inputtext-cursor', parent=ui_input, innerText='|') # │
+    # ui_cursor = UI_Element(tagName='span', classes='inputtext-cursor', parent=ui_input, innerText='|') # innerText="│"
 
     data = {'orig': None, 'text': None, 'idx': 0, 'pos': None}
     def preclean():
@@ -533,34 +533,48 @@ def input_text(value='', scrub=False, **kwargs):
         else:
             ui_input.innerText = data['text']
         #print(ui_input, type(ui_input.innerText), ui_input.innerText, type(ui_input.value), ui_input.value)
+        ui_input.dirty_content(cause='preclean called')
     def postflow():
         if data['text'] is None: return
         data['pos'] = ui_input.get_text_pos(data['idx'])
-        ui_cursor.reposition(
-            left=data['pos'].x - ui_input._mbp_left - ui_cursor._absolute_size.width / 2,
-            top=data['pos'].y + ui_input._mbp_top,
-            clamp_position=False,
-        )
-        # ui_cursor.left = data['pos'].x - ui_input._mbp_left - ui_cursor._absolute_size.width / 2
-        # ui_cursor.top  = data['pos'].y + ui_input._mbp_top
-        # print('input_text.postflow', ui_cursor.left, ui_cursor.top, ui_cursor.left_pixels, ui_cursor.top_pixels)
+        if ui_input._cursor._absolute_size:
+            ui_input._cursor.reposition(
+                left=data['pos'].x - ui_input._mbp_left - ui_input._cursor._absolute_size.width / 2,
+                top=data['pos'].y + ui_input._mbp_top,
+                clamp_position=False,
+            )
+            cursor_postflow()
+        # ui_cursor.reposition(
+        #     left=data['pos'].x - ui_input._mbp_left - ui_cursor._absolute_size.width / 2,
+        #     top=data['pos'].y + ui_input._mbp_top,
+        #     clamp_position=False,
+        # )
     def cursor_postflow():
         if data['text'] is None: return
         ui_input._setup_ltwh()
-        ui_cursor._setup_ltwh()
-        # if ui_cursor._l < ui_input._l:
-        #     ui_input._scroll_offset.x = min(0, ui_input._l - ui_cursor._l)
+        ui_input._cursor._setup_ltwh()
+        # ui_cursor._setup_ltwh()
+        # # if ui_cursor._l < ui_input._l:
+        # #     ui_input._scroll_offset.x = min(0, ui_input._l - ui_cursor._l)
         vl = ui_input._l + ui_input._mbp_left
         vr = ui_input._r - ui_input._mbp_right
         vw = ui_input._w - ui_input._mbp_width
-        if ui_cursor._r > vr:
-            dx = ui_cursor._r - vr + 2
+        if ui_input._cursor._r > vr:
+            dx = ui_input._cursor._r - vr + 2
             ui_input.scrollLeft = ui_input.scrollLeft + dx
             ui_input._setup_ltwh()
-        if ui_cursor._l < vl:
-            dx = ui_cursor._l - vl - 2
+        if ui_input._cursor._l < vl:
+            dx = ui_input._cursor._l - vl - 2
             ui_input.scrollLeft = ui_input.scrollLeft + dx
             ui_input._setup_ltwh()
+        # if ui_cursor._r > vr:
+        #     dx = ui_cursor._r - vr + 2
+        #     ui_input.scrollLeft = ui_input.scrollLeft + dx
+        #     ui_input._setup_ltwh()
+        # if ui_cursor._l < vl:
+        #     dx = ui_cursor._l - vl - 2
+        #     ui_input.scrollLeft = ui_input.scrollLeft + dx
+        #     ui_input._setup_ltwh()
     def set_cursor(e):
         data['idx'] = ui_input.get_text_index(e.mouse)
         data['pos'] = None
@@ -623,7 +637,7 @@ def input_text(value='', scrub=False, **kwargs):
 
     ui_input.preclean = preclean
     ui_input.postflow = postflow
-    ui_cursor.postflow = cursor_postflow
+    # ui_cursor.postflow = cursor_postflow
     ui_input.add_eventListener('on_focus', focus)
     ui_input.add_eventListener('on_blur', blur)
     ui_input.add_eventListener('on_keypress', keypress)

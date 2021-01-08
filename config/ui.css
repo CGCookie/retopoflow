@@ -450,7 +450,7 @@ label.symmetry-enable {
 input[type="text"] {
     color: var(--text);
     background: var(--button-background);
-    padding: 4px 0px 0px 8px;
+    padding: 4px 8px 4px 8px;
     height: 24px;
 }
 
@@ -503,9 +503,9 @@ div.labeled-input-text input[type="text"]:disabled {
 }
 
 
-input[type="text"] *.inputtext-cursor {
+/*input[type="text"] *.inputtext-cursor {
     color: var(--text);
-}
+}*/
 
 
 /***************************************************/

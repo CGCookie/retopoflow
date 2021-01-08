@@ -444,7 +444,7 @@ class UI_Style_RuleSet:
         cache = UI_Style_RuleSet._split_selector._cache
         osel = str(sel)
         if osel not in cache:
-            p = {'type':'*', 'class':set(), 'id':'', 'pseudoelement':set(), 'pseudoclass':set(), 'attribs':set(), 'attribvals':{}}
+            p = {'type':'*', 'class':set(), 'id':'', 'pseudoelement':'', 'pseudoclass':set(), 'attribs':set(), 'attribvals':{}}
 
             for part in selector_splitter.finditer(sel):
                 t,n,v = part.group('type'),part.group('name'),part.group('val')
@@ -452,7 +452,7 @@ class UI_Style_RuleSet:
                 elif t == '.':  p['class'].add(n)
                 elif t == '#':  p['id'] = n
                 elif t == ':':  p['pseudoclass'].add(n)
-                elif t == '::': p['pseudoelement'].add(n)
+                elif t == '::': p['pseudoelement'] = n
                 elif t == '[':
                     if v is None: p['attribs'].add(n)
                     else:         p['attribvals'][n] = v
@@ -460,9 +460,10 @@ class UI_Style_RuleSet:
 
             # p['names'] is a set of all identifying elements in selector
             # useful for quickly and conservatively deciding that selector does NOT match
-            p['names'] = p['class'] | p['pseudoelement'] | p['pseudoclass'] | p['attribs'] | p['attribvals'].keys() # | p['attribvals'].values()
+            p['names'] = p['class'] | p['pseudoclass'] | p['attribs'] | p['attribvals'].keys() # | p['attribvals'].values()
             if p['type'] not in {'*','>','+','~'}: p['names'].add(p['type'])
             if p['id']: p['names'].add(p['id'])
+            if p['pseudoelement']: p['names'].add(p['pseudoelement'])
 
             cache[osel] = p
         return dict(cache[osel])  # NOTE: _not_ a deep copy!
@@ -477,7 +478,7 @@ class UI_Style_RuleSet:
             if p['id']:            sel += f'#{p["id"]}'
             if p['class']:         sel += join('.', p['class'], preSep='.')
             if p['pseudoclass']:   sel += join(':', p['pseudoclass'], preSep=':')
-            if p['pseudoelement']: sel += join('::', p['pseudoelement'], preSep='::')
+            if p['pseudoelement']: sel += f'::{p["pseudoelement"]}'
             if p['attribs']:       sel += join('][', p['attribs'], preSep='[', postSep=']')
             if p['attribvals']:    sel += join('][', p['attribvals'].items(), preSep='[', postSep=']', toStr=lambda kv:f'{kv[0]}="{kv[1]}"')
             cache[op] = sel
@@ -503,7 +504,7 @@ class UI_Style_RuleSet:
             ((bp['type'] == '*' and ap['type'] != '') or ap['type'] == bp['type']),
             (bp['id'] == '' or ap['id'] == bp['id']),
             all(c in ap['class'] for c in bp['class']),
-            (not ap['pseudoelement'] and not bp['pseudoelement']) or (bp['pseudoelement'] and all(c in ap['pseudoelement'] for c in bp['pseudoelement'])),
+            ap['pseudoelement'] == bp['pseudoelement'],
             all(c in ap['pseudoclass'] for c in bp['pseudoclass']),
             all(key in ap['attribs'] for key in bp['attribs']),
             all(key in ap['attribvals'] and ap['attribvals'][key] == val for (key,val) in bp['attribvals'].items()),
@@ -579,6 +580,7 @@ class UI_Style_RuleSet:
             for part in parts:
                 b += 1 if part['id'] else 0
                 c += len(part['class']) + len(part['pseudoclass']) + len(part['attribs']) + len(part['attribvals'])
+                if part['pseudoelement']: d += 1
                 if part['type'] not in {'', '*', '>', '+', '~'}: d += 1
             cache[k] = (a, b, c, d, e)
         return cache[k]
@@ -692,7 +694,7 @@ class UI_Styling:
         '''
         build a trie of selectors for faster matching
         the trie consists of
-            selector parts: type (str, t), class (set, .c), id (str, #i), pseudoelement (set, ::pe), pseudoclass (set, :pc), attribs (set, [k]), attribvals (dict, [k=v])
+            selector parts: type (str, t), class (set, .c), id (str, #i), pseudoelement (str, ::pe), pseudoclass (set, :pc), attribs (set, [k]), attribvals (dict, [k=v])
             and >
         '''
 
@@ -717,10 +719,13 @@ class UI_Styling:
                     nselector = UI_Styling.strip_selector_parts(selector, strip)
                     # print(f'selector specificity: {selector} => {specificity}')
                     parts = [split(p) for p in nselector]
-                    part = {'type':'', 'id':'', 'class': set(), 'pseudoelement':set(), 'pseudoclass':set(), 'attribs':set(), 'attribvals':dict()}
+                    part = {'type':'', 'id':'', 'class': set(), 'pseudoelement':'', 'pseudoclass':set(), 'attribs':set(), 'attribvals':dict()}
                     node_cur = trie
                     while True:
-                        if part['type']:
+                        if part['pseudoelement']:
+                            node_cur = get_node(node_cur, f"::{part['pseudoelement']}")
+                            part['pseudoelement'] = ''
+                        elif part['type']:
                             # NOTE: type can be '>', but this _should_ get handled in final `else`
                             assert part['type'] != '>', f'type can be `>` but not here. check if style has `> >`\nselector: {selector}\nstrip: {strip}\nnselector: {nselector}\npart: {part}\nparts: {parts}\n{self._trie}'
                             assert part['type'] != '+', f'type can be `+` but not here. check if style has `> +`\nselector: {selector}\nstrip: {strip}\nnselector: {nselector}\npart: {part}\nparts: {parts}\n{self._trie}'
@@ -733,9 +738,6 @@ class UI_Styling:
                         elif part['class']:
                             c = part['class'].pop()
                             node_cur = get_node(node_cur, f".{c}")
-                        elif part['pseudoelement']:
-                            pe = part['pseudoelement'].pop()
-                            node_cur = get_node(node_cur, f"::{pe}")
                         elif part['pseudoclass']:
                             pc = part['pseudoclass'].pop()
                             node_cur = get_node(node_cur, f":{pc}")
@@ -775,7 +777,7 @@ class UI_Styling:
                 # 'type',
                 # 'classes',
                 # 'id',
-                'pseudoelements',
+                # 'pseudoelements',
                 'pseudoclasses',
                 'attributes',
                 'attributevalues',
@@ -784,44 +786,47 @@ class UI_Styling:
     def get_matching_rules(self, selector, full_trie=True):
         self.optimize()
         rules = []
-        def m(node_cur, part, parts, depth):
+        split = UI_Style_RuleSet._split_selector
+        parts = [split(p) for p in selector]
+        if not parts: return []
+        def m(node_cur, part, parts, pseudoelement_handled, depth):
             nonlocal rules
+            part_has_pseudoelement = bool(part['pseudoelement'])
             for (edge_label, node_next) in node_cur.items():
                 if   edge_label == ' ':
                     ps = parts
                     while ps:
                         p,ps = ps[-1],ps[:-1]
-                        m(node_next, p, ps, depth+1)
+                        m(node_next, p, ps, False, depth+1)
                 elif edge_label == '>':
-                    if parts: m(node_next, parts[-1], parts[:-1], depth+1)
-                elif edge_label == '*':
-                    m(node_next, part, parts, depth+1)
+                    if parts: m(node_next, parts[-1], parts[:-1], False, depth+1)
+                elif edge_label == '*' and (pseudoelement_handled or not part_has_pseudoelement):
+                    m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '#':
-                    if edge_label[1:] == part['id']: m(node_next, part, parts, depth+1)
+                    if edge_label[1:] == part['id']: m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '.':
-                    if edge_label[1:] in part['class']: m(node_next, part, parts, depth+1)
-                elif len(edge_label) > 2 and edge_label[1] == ':':
-                    if edge_label[2:] in part['pseudoelement']: m(node_next, part, parts, depth+1)
+                    if edge_label[1:] in part['class']: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                elif edge_label[:2] == '::':
+                    if edge_label[2:] == part['pseudoelement']: m(node_next, part, parts, True, depth+1)
                 elif edge_label[0] == ':':
-                    if edge_label[1:] in part['pseudoclass']: m(node_next, part, parts, depth+1)
+                    if edge_label[1:] in part['pseudoclass']: m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '[':
                     attrib_parts = edge_label[1:-1].split('=')      # remove square brackets and split on `=`
                     attrib_key = attrib_parts[0]
                     if len(attrib_parts) == 1:
-                        if attrib_key in part['attribs']: m(node_next, part, parts, depth+1)
+                        if attrib_key in part['attribs']: m(node_next, part, parts, pseudoelement_handled, depth+1)
                     else:
                         attrib_val = attrib_parts[1][1:-1]          # remove quotes from attribute value
-                        if part['attribvals'].get(attrib_key) == attrib_val: m(node_next, part, parts, depth+1)
+                        if part['attribvals'].get(attrib_key) == attrib_val: m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label in {'__selectors', '__parent', '__uid'}:
                     pass
                 elif edge_label == '__rulesets':
                     rules.extend(node_cur['__rulesets'])
                 else:
                     # assuming type
-                    if edge_label == part['type']: m(node_next, part, parts, depth+1)
-        split = UI_Style_RuleSet._split_selector
-        parts = [split(p) for p in selector]
-        if parts: m(self._trie_full if full_trie else self._trie_stripped, parts[-1], parts[:-1], 0)
+                    if edge_label == part['type'] and (pseudoelement_handled or not part_has_pseudoelement):
+                        m(node_next, part, parts, pseudoelement_handled, depth+1)
+        m(self._trie_full if full_trie else self._trie_stripped, parts[-1], parts[:-1], False, 0)
         rules.sort(key=lambda sr:sr[0])
         return [r for (s,r) in rules]
 
@@ -845,7 +850,7 @@ class UI_Styling:
                 elif edge_label[0] == '.':
                     if edge_label[1:] in part['class'] and m(node_next, part, parts, depth+1): return True
                 elif edge_label[:2] == '::':
-                    if edge_label[2:] in part['pseudoelement'] and m(node_next, part, parts, depth+1): return True
+                    if edge_label[2:] == part['pseudoelement'] and m(node_next, part, parts, depth+1): return True
                 elif edge_label[0] == ':':
                     if edge_label[1:] in part['pseudoclass'] and m(node_next, part, parts, depth+1): return True
                 elif edge_label[0] == '[':
@@ -1053,7 +1058,7 @@ class UI_Styling:
                 if strip_type:            p['type'] = '*'
                 if strip_id:              p['id'] = ''
                 if strip_classes:         p['class'] = set()
-                if strip_pseudoelements:  p['pseudoelement'] = set()
+                if strip_pseudoelements:  p['pseudoelement'] = ''
                 if strip_pseudoclasses:   p['pseudoclass'] = set()
                 if strip_attributes:      p['attribs'] = set()
                 if strip_attributevalues: p['attribvals'] = dict()
@@ -1069,7 +1074,7 @@ class UI_Styling:
             # 'type',
             # 'classes',
             # 'id',
-            'pseudoelements',
+            # 'pseudoelements',
             'pseudoclasses',
             'attributes',
             'attributevalues',

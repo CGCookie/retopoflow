@@ -657,7 +657,7 @@ details[open] > div.inside {
     border-color: hsla(200, 100%, 62.5%, 1.0);
 }
 
-*.inputtext-cursor {
+/**.inputtext-cursor {
     position: absolute;
     margin: 0px;
     padding: 0px;
@@ -665,14 +665,29 @@ details[open] > div.inside {
     left: 0px;
     top: 0px;
     display: none;
-    color: hsla(200, 100%, 12.5%, 1.0); /* l=62.5% */
-}
+    color: hsla(200, 100%, 12.5%, 1.0); /* l=62.5% * /
+}*/
 
-input[type="text"]:focus *.inputtext-cursor {
+/*input[type="text"]:focus *.inputtext-cursor {
     display: span;
     background: pink;
+}*/
+
+input[type="text"] {
+    position: relative; /* necessary for cursor! */
 }
 
+input[type="text"]::marker {
+    position: absolute;
+    margin: -1px 0px 0px 0px;
+    border: 0px;
+    padding: 0px;
+    background: transparent;
+    color: white;
+    left: 0px;
+    top: 0px;
+    content: "|";
+}
 
 
 /***********************/

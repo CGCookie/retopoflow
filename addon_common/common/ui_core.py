@@ -935,7 +935,9 @@ class UI_Element_Properties:
     def clear_pseudoclass(self):
         if self._pseudoclasses:
             self._pseudoclasses.clear()
-            self.dirty_selector(cause=f'clearing psuedoclasses for {self} affects selector', children=True)
+            self.dirty_selector(cause=f'clearing pseudoclasses for {self} affects selector', children=True)
+            if self._tagName == 'input':
+                self.dirty(cause='changing checked can affect selector and content', children=True)
         ui_for = self.get_for_element()
         if ui_for: ui_for.clear_pseudoclass()
 
@@ -946,14 +948,18 @@ class UI_Element_Properties:
                 self._pseudoclasses.discard('focus')
                 # TODO: on_blur?
             self._pseudoclasses.add(pseudo)
-            self.dirty_selector(cause=f'adding psuedoclass {pseudo} for {self} affects selector', children=True)
+            self.dirty_selector(cause=f'adding pseudoclass {pseudo} for {self} affects selector', children=True)
+            if self._tagName == 'input':
+                self.dirty(cause='changing checked can affect selector and content', children=True)
         ui_for = self.get_for_element()
         if ui_for: ui_for.add_pseudoclass(pseudo)
 
     def del_pseudoclass(self, pseudo):
         if pseudo in self._pseudoclasses:
             self._pseudoclasses.discard(pseudo)
-            self.dirty_selector(cause=f'deleting psuedoclass {pseudo} for {self} affects selector', children=True)
+            self.dirty_selector(cause=f'deleting pseudoclass {pseudo} for {self} affects selector', children=True)
+            if self._tagName == 'input':
+                self.dirty(cause='changing checked can affect selector and content', children=True)
         ui_for = self.get_for_element()
         if ui_for: ui_for.del_pseudoclass(pseudo)
 
@@ -998,7 +1004,7 @@ class UI_Element_Properties:
         v = v or ''
         if self._pseudoelement == v: return
         self._pseudoelement = v
-        self.dirty_selector(cause='changing psuedoelement affects selector')
+        self.dirty_selector(cause='changing pseudoelement affects selector')
 
     @property
     def src(self):
@@ -1918,6 +1924,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._all_lines            = None       # all children elements broken up into lines (for horizontal alignment)
         self._blocks               = None
         self._children_text_min_size = None
+        self._cursor               = None       # cursor element for text input
 
         self._left_override = None
         self._top_override = None
@@ -2091,8 +2098,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     unhandled_keys.add(k)
 
             # report unhandled attribs
-            for k in unhandled_keys:
-                print('Unhandled pair:', (k, kwargs[k]))
+            if unhandled_keys:
+                print(f'When creating new UI_Element, found unhandled attribute value pairs:')
+                for k in unhandled_keys:
+                    print(f'  {k}={kwargs[k]}')
 
         self.dirty(cause='initially dirty')
 
@@ -2457,10 +2466,30 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             return [marker, *self._children]
 
         if self._pseudoelement != 'marker':
-            if self._tagName == 'input' and self._type in {'radio', 'checkbox'}:
-                self._new_content = True
-                marker = ui_elem(tagName=self._tagName, type=self._type, checked=self.checked, classes=self._classes_str, pseudoelement='marker')
-                return [marker, *self._children]
+            if self._tagName == 'input':
+                if self._type in {'radio', 'checkbox'}:
+                    self._new_content = True
+                    marker = ui_elem(
+                        tagName=self._tagName,
+                        type=self._type,
+                        checked=self.checked,
+                        classes=self._classes_str,
+                        pseudoelement='marker'
+                    )
+                    return [marker, *self._children]
+                if self._type == 'text':
+                    self._curser = None
+                    if self.is_focused:
+                        self._new_content = True
+                        marker = ui_elem(
+                            tagName=self._tagName,
+                            type=self._type,
+                            classes=self._classes_str,
+                            pseudoelement='marker',
+                        )
+                        marker.clean()
+                        self._cursor = marker
+                        return [*self._children, marker]
 
         return self._children
 
@@ -2513,6 +2542,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if self._src and not self.src:
             self._src = None
             self._new_content = True
+
+        if self._computed_styles.get('content', None) is not None:
+            self._innerText = self._computed_styles['content']
 
         if self._innerText is not None:
             # TODO: cache this!!
@@ -2679,7 +2711,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             blocked_inlines = False
             for child in self._children_all:
                 d = child._computed_styles.get('display', 'inline')
-                if d in {'inline', 'table-cell'}:
+                p = child._computed_styles.get('position', 'static')
+                if d in {'inline', 'table-cell'} and p != 'absolute':
                     if not blocked_inlines:
                         blocked_inlines = True
                         blocks.append([child])
@@ -3040,7 +3073,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if max_width  != 'auto': dw = min(max_width,  dw)
         if max_height != 'auto': dh = min(max_height, dh)
 
-        self._dynamic_full_size = Size2D(width=math.ceil(dw), height=math.ceil(dh))
+        dw = math.ceil(dw) if not math.isinf(dw) else 100000
+        dh = math.ceil(dh) if not math.isinf(dh) else 100000
+
+        self._dynamic_full_size = Size2D(width=dw, height=dh)
         # if self._tagName == 'body': print(self._dynamic_content_size, self._dynamic_full_size)
 
         # handle table elements
