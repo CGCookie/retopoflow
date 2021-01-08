@@ -286,7 +286,7 @@ class RetopoFlow_UI:
                                 ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                             def go():
                                 bpy.ops.wm.url_open(url=issueurl)
-                            ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                            ui.button(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
                     else:
                         ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
@@ -297,10 +297,10 @@ class RetopoFlow_UI:
                     print(e)
                     # ignore for now
                     pass
-                ui.button(label='Screenshot', classes='action', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
-                ui.button(label='Similar', classes='action', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
-                ui.button(label='All Issues', classes='action', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
-                ui.button(label='Report', classes='action', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                ui.button(innerText='Screenshot', classes='action', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
+                ui.button(innerText='Similar', classes='action', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
+                ui.button(innerText='All Issues', classes='action', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
+                ui.button(innerText='Report', classes='action', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
@@ -343,7 +343,7 @@ class RetopoFlow_UI:
                 ui.summary(innerText='Crash details'),
                 ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),
                 ui.pre(innerText=msg_report),
-                ui.button(label='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'),
+                ui.button(innerText='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'),
             ])
 
             show_quit = True
@@ -381,9 +381,9 @@ class RetopoFlow_UI:
             if ui_checker:
                 container.append_child(ui_checker)
         ui_bottombuttons = ui.div(classes='alertdialog-buttons', parent=win)
-        ui_close = ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
+        ui_close = ui.button(innerText='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
         if show_quit:
-            ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
+            ui.button(innerText='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
         else:
             ui_close.style = 'width:100%'
 
@@ -670,23 +670,23 @@ class RetopoFlow_UI:
             ui_show = ui.details(parent=self.ui_main, children=[
                 ui.summary(innerText='Windows'),
                 ui.div(classes='contents', children=[
-                    ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window),
-                    ui.button(label='Show Options', title='Show options window', id='show-options', disabled=True, on_mouseclick=self.show_options_window),
-                    ui.button(label='Show Poly Count', title='Show poly count window', id='show-geometry', disabled=True, on_mouseclick=self.show_geometry_window),
+                    ui.button(innerText='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window),
+                    ui.button(innerText='Show Options', title='Show options window', id='show-options', disabled=True, on_mouseclick=self.show_options_window),
+                    ui.button(innerText='Show Poly Count', title='Show poly count window', id='show-geometry', disabled=True, on_mouseclick=self.show_geometry_window),
                 ]),
             ])
             self.ui_show_options = ui_show.getElementById('show-options')
             self.ui_show_geometry = ui_show.getElementById('show-geometry')
-            ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(label='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
+            ui.button(innerText='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
+            ui.button(innerText='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
             if False:
-                ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
+                ui.button(innerText='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
             if False:
                 def printout_profiler():
                     profiler.printout()
                     print("Children: %d" % self.document.body.count_children())
-                ui.button(label='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
-                ui.button(label='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
+                ui.button(innerText='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
+                ui.button(innerText='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
 
 
         def setup_options():
@@ -779,7 +779,7 @@ class RetopoFlow_UI:
                                     ui.h1(innerText='Keyboard Settings'),
                                     ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
                                     ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
-                                    ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
+                                    ui.button(innerText='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
                                 ]),
                                 ui.div(classes='collection', children=[
                                     ui.h1(
@@ -790,8 +790,8 @@ class RetopoFlow_UI:
                                     ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
                                     ui.div(classes='collection', children=[
                                         ui.h1(innerText='Presets'),
-                                        ui.button(label='Tiny', title='Preset options for working on tiny objects', classes='half-size', on_mouseclick=self.visibility_preset_tiny),
-                                        ui.button(label='Normal', title='Preset options for working on normal-sized objects', classes='half-size', on_mouseclick=self.visibility_preset_normal),
+                                        ui.button(innerText='Tiny', title='Preset options for working on tiny objects', classes='half-size', on_mouseclick=self.visibility_preset_tiny),
+                                        ui.button(innerText='Normal', title='Preset options for working on normal-sized objects', classes='half-size', on_mouseclick=self.visibility_preset_normal),
                                     ]),
                                 ]),
                                 ui.div(classes='collection', children=[
@@ -808,7 +808,7 @@ class RetopoFlow_UI:
                                         ],
                                     ),
                                 ]),
-                                ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
+                                ui.button(innerText='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
                             ],
                         ),
                     ]),
@@ -965,14 +965,14 @@ class RetopoFlow_UI:
                     children=[
                         ui.div(classes='collection', children=[
                             ui.h1(innerText='Snap Verts'),
-                            ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_all_verts),
-                            ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_selected_verts),
+                            ui.button(innerText="All", title='Snap all target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_all_verts),
+                            ui.button(innerText="Selected", title='Snap selected target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_selected_verts),
                         ]),
                         ui.div(classes='collection', children=[
                             ui.h1(innerText='Merge by Distance'),
                             ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
-                            ui.button(label='All', title='Merge all vertices within given distance.', classes='half-size', on_mouseclick=self.remove_all_doubles),
-                            ui.button(label='Selected', title='Merge selected vertices within given distance.', classes='half-size', on_mouseclick=self.remove_selected_doubles)
+                            ui.button(innerText='All', title='Merge all vertices within given distance.', classes='half-size', on_mouseclick=self.remove_all_doubles),
+                            ui.button(innerText='Selected', title='Merge selected vertices within given distance.', classes='half-size', on_mouseclick=self.remove_selected_doubles)
                         ]),
                     ],
                 ),
@@ -1169,8 +1169,8 @@ class RetopoFlow_UI:
                 style='width:200px',
                 children=[
                     ui.div(children=[
-                        ui.button(label='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
-                        ui.button(label='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
+                        ui.button(innerText='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
+                        ui.button(innerText='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
                     ]),
                     ui.label(
                         innerText='Confirm quit on Tab',
@@ -1214,18 +1214,18 @@ class RetopoFlow_UI:
                 children=[
                     ui.div(classes='collection', children=[
                         ui.h1(innerText='Delete'),
-                        ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))''')),
-                        ui.button(label='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))''')),
-                        ui.button(label='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))''')),
-                        ui.button(label='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))''')),
-                        ui.button(label='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))''')),
+                        ui.button(innerText='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))''')),
+                        ui.button(innerText='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))''')),
+                        ui.button(innerText='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))''')),
+                        ui.button(innerText='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))''')),
+                        ui.button(innerText='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))''')),
                     ]),
                     ui.div(classes='collection', children=[
                         ui.h1(innerText='Dissolve'),
-                        ui.button(label='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))''')),
-                        ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))''')),
-                        ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))''')),
-                        ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))''')),
+                        ui.button(innerText='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))''')),
+                        ui.button(innerText='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))''')),
+                        ui.button(innerText='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))''')),
+                        ui.button(innerText='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))''')),
                     ])
                 ],
                 )

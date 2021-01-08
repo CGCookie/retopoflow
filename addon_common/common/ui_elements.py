@@ -347,9 +347,21 @@ class UI_Element_Elements():
         is_open, was_open = self.open, getattr(self, '_was_open', None)
         self._was_open = is_open
 
+        if not getattr(self, '_processed_details', False):
+            self._processed_details = True
+            def mouseclick(e):
+                doit = False
+                doit |= e.target == self                                              # clicked on <details>
+                doit |= e.target.tagName == 'summary' and e.target._parent == self    # clicked on <summary> of <details>
+                if not doit: return
+                self.open = not self.open
+            self.add_eventListener('on_mouseclick', mouseclick)
+
         if self._get_child_tagName(0) != 'summary':
             # <details> does not have a <summary>, so create a default one
-            summary = self._generate_new_ui_elem(tagName='summary', innerText='Details')
+            if self._ui_marker is None:
+                self._ui_marker = self._generate_new_ui_elem(tagName='summary', innerText='Details')
+            summary = self._ui_marker
             contents = self._children if is_open else []
         else:
             summary = self._children[0]

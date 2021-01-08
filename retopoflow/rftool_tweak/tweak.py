@@ -268,7 +268,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                                 ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
                                 ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
                                 ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),
-                                ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"tweak radius","tweak falloff","tweak strength"})''')),
+                                ui.button(innerText='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"tweak radius","tweak falloff","tweak strength"})''')),
                             ]),
                         ]),
                         ui.details(children=[
@@ -278,7 +278,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                                 ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 1',     id='tweak-preset-1-size',     value=BoundFloat('''options['tweak preset 1 radius']''',   min_value=1.0)),
                                 ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 1', id='tweak-preset-1-strength', value=BoundFloat('''options['tweak preset 1 strength']''', min_value=0.01, max_value=1.0)),
                                 ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 1',  id='tweak-preset-1-falloff',  value=BoundFloat('''options['tweak preset 1 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(label='Current to Preset',     title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
+                                ui.button(innerText='Current to Preset',     title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
                             ]),
                         ]),
                         ui.details(children=[
@@ -288,7 +288,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                                 ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 2',     id='tweak-preset-2-size',     value=BoundFloat('''options['tweak preset 2 radius']''',   min_value=1.0)),
                                 ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 2', id='tweak-preset-2-strength', value=BoundFloat('''options['tweak preset 2 strength']''', min_value=0.01, max_value=1.0)),
                                 ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 2',  id='tweak-preset-2-falloff',  value=BoundFloat('''options['tweak preset 2 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(label='Current to Preset',     title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
+                                ui.button(innerText='Current to Preset',     title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
                             ]),
                         ]),
                         ui.details(children=[
@@ -298,7 +298,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                                 ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 3',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 3 radius']''',   min_value=1.0)),
                                 ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 3', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 3 strength']''', min_value=0.01, max_value=1.0)),
                                 ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 3',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 3 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(label='Current to Preset',     title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
+                                ui.button(innerText='Current to Preset',     title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
                             ]),
                         ]),
                         ui.details(children=[
@@ -308,7 +308,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
                                 ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 4',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 4 radius']''',   min_value=1.0)),
                                 ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 4', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 4 strength']''', min_value=0.01, max_value=1.0)),
                                 ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 4',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 4 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(label='Current to Preset',     title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
+                                ui.button(innerText='Current to Preset',     title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
                             ]),
                         ]),
                     ]),

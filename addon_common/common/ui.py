@@ -212,14 +212,13 @@ def from_html(html, *, frame_depth=1, f_globals=None, f_locals=None):
 
 
 def button(**kwargs):
-    kwargs_translate('label', 'innerText', kwargs)
     return UI_Element(tagName='button', **kwargs)
 
 def p(**kwargs):
     return UI_Element(tagName='p', **kwargs)
 
 def a(**kwargs):
-    elem = UI_Element(tagName='a', **kwargs)
+    return UI_Element(tagName='a', **kwargs)
     # def mouseclick(e):
     #     nonlocal elem
     #     if not elem.href: return
@@ -276,6 +275,24 @@ def textarea(**kwargs):
 def dialog(**kwargs):
     return UI_Element(tagName='dialog', **kwargs)
 
+def details(**kwargs):
+    return UI_Element(tagName='details', **kwargs)
+
+def summary(**kwargs):
+    return UI_Element(tagName='summary', **kwargs)
+
+def input_text(value='', scrub=False, **kwargs):
+    return UI_Element(tagName='input', type='text', value=value, can_focus=True, **kwargs)
+
+def input_radio(**kwargs):
+    return UI_Element(tagName='input', type='radio', **kwargs)
+
+def input_checkbox(**kwargs):
+    return UI_Element(tagName='input', type='checkbox', **kwargs)
+
+
+
+
 def label(**kwargs):
     ui_label = UI_Element(tagName='label', **kwargs)
     def mouseclick(e):
@@ -294,15 +311,6 @@ def input(**kwargs):
     if t == 'range':    return input_range(**kwargs)
     if t == 'text':     return input_text(**kwargs)
     assert False, f'Unhandled input type: {t}'
-
-def input_text(value='', scrub=False, **kwargs):
-    return UI_Element(tagName='input', type='text', value=value, can_focus=True, **kwargs)
-
-def input_radio(**kwargs):
-    return UI_Element(tagName='input', type='radio', **kwargs)
-
-def input_checkbox(**kwargs):
-    return UI_Element(tagName='input', type='checkbox', **kwargs)
 
 
 def input_range(value=None, min_value=None, max_value=None, step_size=None, **kwargs):
@@ -427,21 +435,6 @@ def labeled_input_text(label, value='', scrub=False, **kwargs):
     ui_proxy.map('value', ui_input)
     ui_proxy.map_to_all({'title'})
     return ui_proxy
-
-def details(**kwargs):
-    ui_details = UI_Element(tagName='details', **kwargs)
-    def mouseclick(e):
-        doit = False
-        doit |= e.target == ui_details                                              # clicked on <details>
-        doit |= e.target.tagName == 'summary' and e.target.parent == ui_details     # clicked on <summary> of <details>
-        if not doit: return
-        ui_details.open = not ui_details.open
-    ui_details.add_eventListener('on_mouseclick', mouseclick)
-    return ui_details
-
-def summary(**kwargs):
-    return UI_Element(tagName='summary', **kwargs)
-
 
 
 
