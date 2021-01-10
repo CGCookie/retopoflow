@@ -72,7 +72,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.on_ui_setup
     def ui(self):
         path_folder = os.path.dirname(__file__)
-        path_html = os.path.join(path_folder, 'contours_ui.html')
+        path_html = os.path.join(path_folder, 'contours_options.html')
         html = open(path_html, 'rt').read()
         return UI_Element.fromHTML(html)
 

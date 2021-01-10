@@ -494,7 +494,9 @@ class UI_Document(UI_Document_FSM):
 
     @UI_Document_FSM.FSM_State('mousedown', 'can enter')
     def mousedown_canenter(self):
-        return self._under_mouse and self._under_mouse != self._body and not self._under_mouse.is_disabled
+        return self._focus or (
+                self._under_mouse and self._under_mouse != self._body and not self._under_mouse.is_disabled
+            )
 
     @UI_Document_FSM.FSM_State('mousedown', 'enter')
     def mousedown_enter(self):

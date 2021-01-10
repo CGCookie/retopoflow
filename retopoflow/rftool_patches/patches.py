@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import math
 from itertools import chain
 
@@ -44,6 +45,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ...addon_common.common.ui_core import UI_Element
 
 from ...config.options import options, themes, visualization
 
@@ -82,7 +84,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
     @property
     def var_crosses(self):
-        if self.crosses is None: return 0
+        if self.crosses is None: return 1
         return self.crosses - 1
     @var_crosses.setter
     def var_crosses(self, v):
@@ -93,21 +95,10 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
     @RFTool_Patches.on_ui_setup
     def ui(self):
-        return ui.details(children=[
-            ui.summary(innerText='Patches'),
-            ui.div(classes='contents', children=[
-                ui.labeled_input_text(
-                    label='Angle',
-                    title='A vertex between connected edges that form an angles below this threshold is a corner',
-                    value=self._var_angle,
-                ),
-                ui.labeled_input_text(
-                    label='Crosses',
-                    title='Number of crosses',
-                    value=self._var_crosses,
-                ),
-            ]),
-        ])
+        path_folder = os.path.dirname(__file__)
+        path_html = os.path.join(path_folder, 'patches_options.html')
+        html = open(path_html, 'rt').read()
+        return UI_Element.fromHTML(html)
 
     def update_ui(self):
         self._var_crosses.disabled = (self.crosses is None)

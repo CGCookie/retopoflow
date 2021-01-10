@@ -136,7 +136,7 @@ def setup_scrub(ui_element, value):
 
 re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
 re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+))?")
-re_html_comment = re.compile(r"<!--.*?-->")
+re_html_comment = re.compile(r"<!--(.|\n|\r)*?-->")
 re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
 tags_selfclose = {
     'area', 'br', 'col',
