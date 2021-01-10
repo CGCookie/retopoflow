@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import math
 import random
 
@@ -34,7 +35,8 @@ from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.boundvar import BoundVar, BoundInt
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundString, BoundStringToBool, BoundFloat, BoundVar
+from ...addon_common.common.ui_core import UI_Element
 
 from ...config.options import options
 
@@ -53,7 +55,6 @@ class RFTool_Contours(RFTool):
 
 from .contours_ops import Contours_Ops
 from .contours_props import Contours_Props
-from .contours_ui import Contours_UI
 from .contours_rfwidgets import Contours_RFWidgets
 from .contours_utils import (
     find_loops,
@@ -63,10 +64,18 @@ from .contours_utils import (
     Contours_Utils,
 )
 
-class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_UI, Contours_RFWidgets):
+class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
     @RFTool_Contours.on_init
     def init(self):
         self.init_rfwidgets()
+
+    @RFTool_Contours.on_ui_setup
+    def ui(self):
+        if True:
+            path_folder = os.path.dirname(__file__)
+            path_html = os.path.join(path_folder, 'contours_ui.html')
+            html = open(path_html, 'rt').read()
+            return UI_Element.fromHTML(html)
 
     @RFTool_Contours.on_reset
     def reset(self):

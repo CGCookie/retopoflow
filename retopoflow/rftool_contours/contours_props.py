@@ -41,8 +41,8 @@ RFTool_Contours = rftools['RFTool_Contours']
 class Contours_Props:
     @RFTool_Contours.on_init
     def init_props(self):
-        self._var_init_count = BoundInt('''options['contours count']''', min_value=3, max_value=500)
-        self._var_cut_count = BoundInt('''self.var_cut_count''', min_value=3, max_value=500)
+        self._var_init_count  = BoundInt('''options['contours count']''', min_value=3, max_value=500)
+        self._var_cut_count   = BoundInt('''self.var_cut_count''', min_value=3, max_value=500)
         self._var_uniform_cut = BoundBool('''options['contours uniform']''')
         self._var_nonmanifold = BoundBool('''options['contours non-manifold check']''')
 

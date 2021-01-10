@@ -1538,7 +1538,7 @@ class UI_Element_Properties:
         self.update_document()
 
     @property
-    def can_focus(self): return self._can_focus
+    def can_focus(self): return self._can_focus and self._tagName == 'input' and self._type in {'text'}
     @can_focus.setter
     def can_focus(self, v): self._can_focus = v
 
@@ -1919,7 +1919,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._style_str     = ''        # custom style string
         self._innerText     = None      # text to display (converted to UI_Elements)
         self._src_str       = None      # path to resource, such as image
-        self._can_focus     = False     # True:self can take focus
+        self._can_focus     = True      # True:self can take focus if focusable element (ex: <input type="text">)
         self._can_hover     = True      # True:self can take hover
         self._title         = None      # tooltip
         self._forId         = None      # used for labels

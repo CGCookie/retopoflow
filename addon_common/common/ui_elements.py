@@ -47,7 +47,7 @@ from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .useractions import is_keycode
-from .utils import iter_head, any_args, join, delay_exec
+from .utils import iter_head, any_args, join, delay_exec, Dict
 
 
 def setup_scrub(ui_element, value):
@@ -132,8 +132,153 @@ def setup_scrub(ui_element, value):
     ui_element.add_eventListener('on_keypress',  keypress,  useCapture=True)
 
 
+# all html tags: https://www.w3schools.com/tags/
+
+re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
+re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+))?")
+re_html_comment = re.compile(r"<!--.*?-->")
+re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
+tags_selfclose = {
+    'area', 'br', 'col',
+    'embed', 'hr', 'iframe',
+    'img', 'input', 'link',
+    'meta', 'param', 'source',
+    'track', 'wbr'
+}
+tags_known = {
+    'button',
+    'span', 'div', 'p',
+    'a',
+    'b', 'i',
+    'h1', 'h2', 'h3',
+    'pre', 'code',
+    'br',
+    'img',
+    'table', 'tr', 'th', 'td',
+    'dialog',
+    'label', 'input',
+    'details', 'summary',
+}
+events_known = {
+    'focus':        'on_focus',         'onfocus':          'on_focus',         'on_focus':         'on_focus',
+    'blur':         'on_blur',          'onblur':           'on_blur',          'on_blur':          'on_blur',
+    'focusin':      'on_focusin',       'onfocusin':        'on_focusin',       'on_focusin':       'on_focusin',
+    'focusout':     'on_focusout',      'onfocusout':       'on_focusout',      'on_focusout':      'on_focusout',
+    'keydown':      'on_keydown',       'onkeydown':        'on_keydown',       'on_keydown':       'on_keydown',
+    'keyup':        'on_keyup',         'onkeyup':          'on_keyup',         'on_keyup':         'on_keyup',
+    'keypress':     'on_keypress',      'onkeypress':       'on_keypress',      'on_keypress':      'on_keypress',
+    'mouseenter':   'on_mouseenter',    'onmouseenter':     'on_mouseenter',    'on_mouseenter':    'on_mouseenter',
+    'mousemove':    'on_mousemove',     'onmousemove':      'on_mousemove',     'on_mousemove':     'on_mousemove',
+    'mousedown':    'on_mousedown',     'onmousedown':      'on_mousedown',     'on_mousedown':     'on_mousedown',
+    'mouseup':      'on_mouseup',       'onmouseup':        'on_mouseup',       'on_mouseup':       'on_mouseup',
+    'mouseclick':   'on_mouseclick',    'onmouseclick':     'on_mouseclick',    'on_mouseclick':    'on_mouseclick',
+    'mousedblclick':'on_mousedblclick', 'onmousedblclick':  'on_mousedblclick', 'on_mousedblclick': 'on_mousedblclick',
+    'mouseleave':   'on_mouseleave',    'onmouseleave':     'on_mouseleave',    'on_mouseleave':    'on_mouseleave',
+    'scroll':       'on_scroll',        'onscroll':         'on_scroll',        'on_scroll':        'on_scroll',
+    'input':        'on_input',         'oninput':          'on_input',         'on_input':         'on_input',
+    'change':       'on_change',        'onchange':         'on_change',        'on_change':        'on_change',
+    'toggle':       'on_toggle',        'ontoggle':         'on_toggle',        'on_toggle':        'on_toggle',
+}
+
 
 class UI_Element_Elements():
+
+    @classmethod
+    def fromHTML(cls, html, *, frame_depth=1, f_globals=None, f_locals=None):
+        # use passed global and local contexts or grab contexts from calling function
+        # these contexts are needed for bound variables
+        if f_globals and f_locals:
+            f_globals = f_globals
+            f_locals = dict(f_locals)
+        else:
+            frame = inspect.currentframe()
+            for i in range(frame_depth): frame = frame.f_back
+            f_globals = f_globals or frame.f_globals
+            f_locals = dict(f_locals or frame.f_locals)
+
+        def get_next_tag(html, tname_end, tab):
+            m_tag = re_html_tag.search(html)
+            if not m_tag: return None
+
+            pre_html = html[:m_tag.start()].strip()
+            post_html = html[m_tag.end():].lstrip()
+
+            tname = m_tag.group('name').lower()
+            attributes = m_tag.group('attributes')
+            is_close = m_tag.group('close') is not None
+            is_selfclose = m_tag.group('selfclose') is not None or tname in tags_selfclose
+
+            attribs = {}
+            if attributes:
+                for m_attrib in re_attributes.finditer(attributes):
+                    k, v = m_attrib.group('key'), m_attrib.group('value')
+
+                    # translate HTML attribs to CC UI attribs
+                    if k.lower() in {'class'}: k = 'classes'
+
+                    # translate HTML attrib values to CC UI attrib values
+                    if v is None: v = 'true'
+                    if v.startswith('"'): v = v[1:-1]       # remove quotes
+                    m_bound = re_bound.match(v)
+                    if   v.lower() in {'true'}:  v = True
+                    elif v.lower() in {'false'}: v = False
+                    elif m_bound: v = eval(v, f_globals, f_locals)
+                    elif k.lower() in events_known:
+                        k = events_known[k.lower()]
+                        v = delay_exec(v, f_globals=f_globals, f_locals=f_locals)
+
+                    attribs[k] = v
+
+            assert not (is_close and attribs), 'Cannot have closing tag with attributes'
+            assert not (is_close and is_selfclose), f'Cannot be closing and self-closing: {m_tag.group("tag")}'
+            assert not (is_close and tname != tname_end), f'Found ending tag {m_tag.group("tag")} but expecting </{tname_end}>'
+            assert tname in tags_known, f'Unhandled tag type: {m_tag.group("tag")}'
+
+            return Dict({
+                'pre_html':     pre_html,
+                'post_html':    post_html,
+                'tname':        tname,
+                'attribs':      attribs,
+                'is_close':     is_close,
+                'is_selfclose': is_selfclose,
+            })
+
+        def process(html, tname_end, depth):
+            tab = '  '*depth
+            ret = []
+            while html.strip():
+                tag = get_next_tag(html, tname_end, tab)
+                if not tag:
+                    return (ret + [cls(tagName='span', innerText=html)], '')
+
+                if tag.pre_html:
+                    ret += [cls(tagName='span', innerText=tag.pre_html)]
+
+                if tag.is_close:
+                    return (ret, tag.post_html)
+                elif tag.is_selfclose:
+                    ret += [cls(tagName=tag.tname, **tag.attribs)]
+                    html = tag.post_html
+                else:
+                    ntag = get_next_tag(tag.post_html, tag.tname, tab)
+                    if ntag and ntag.is_close:
+                        # just stick pre_html into innerText
+                        ret += [cls(tagName=tag.tname, innerText=ntag.pre_html, **tag.attribs)]
+                        html = ntag.post_html
+                    else:
+                        children, html = process(tag.post_html, tag.tname, depth+1)
+                        ret += [cls(tagName=tag.tname, children=children, **tag.attribs)]
+            return (ret, html.strip())
+
+        # strip leading and trailing whitespace characters
+        html = re.sub(r'^[ \n\r\t]+', '', html)
+        html = re.sub(r'[ \n\r\t]+$', '', html)
+        # remove HTML comments
+        html = re_html_comment.sub('', html)
+        lui,rest = process(html, None, 0)
+        assert not rest, f'Could not process all of HTML\nRemaining: {rest}\nHTML: {html}'
+        return lui
+
     def _process_input_text(self):
         if self._ui_marker is None:
             # just got focus, so create a cursor element
@@ -304,6 +449,19 @@ class UI_Element_Elements():
         return [*self._children, self._ui_marker]
 
 
+    def _process_label(self):
+        if not getattr(self, '_processed_label', False):
+            self._processed_label = True
+            def mouseclick(e):
+                if not e.target.is_descendant_of(self): return
+                ui_for = self.get_for_element()
+                if not ui_for: return
+                if ui_for == e.target: return
+                ui_for.dispatch_event('on_mouseclick')
+            self.add_eventListener('on_mouseclick', mouseclick, useCapture=True)
+        return self._children
+
+
     def _process_input_checkbox(self):
         if self._ui_marker is None:
             self._ui_marker = self._generate_new_ui_elem(
@@ -390,6 +548,7 @@ class UI_Element_Elements():
             'input text':     self._process_input_text,
             'details':        self._process_details,
             'summary':        self._process_summary,
+            'label':          self._process_label,
         }.get(tagtype, None)
 
         return processor() if processor else self._children
