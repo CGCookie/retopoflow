@@ -66,6 +66,7 @@ class RFTool_Strokes(RFTool):
     help        = 'strokes.md'
     shortcut    = 'strokes tool'
     statusbar   = '{{insert}} Insert edge strip and bridge\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
+    ui_config   = 'strokes_options.html'
 
 class Strokes_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -118,95 +119,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     def update_span_mode(self):
         mode = options['strokes span insert mode']
-        self.ui_options.label = f'Strokes: {mode}'
-        self.ui_span_insert_mode_brushsize.checked = (mode == 'Brush Size')
-        self.ui_span_insert_mode_fixed.checked     = (mode == 'Fixed')
-        # self.ui_options_brush_size.disabled        = (mode != 'Brush Size')
-        # self.ui_options_fixed_spans.disabled       = (mode != 'Fixed')
+        self.ui_summary.innerText = f'Strokes: {mode}'
+        self.ui_insert.dirty(cause='insert mode change', children=True)
 
     @RFTool_Strokes.on_ui_setup
     def ui(self):
-        def span_mode_change(e):
-            if not e.target.checked: return
-            if e.target.value is None: return
-            options['strokes span insert mode'] = e.target.value
-            self.update_span_mode()
-
-        self.ui_options = ui.details(children=[
-            ui.summary(innerText='Strokes'),
-            ui.div(classes='contents', children=[
-                ui.div(classes='collection', children=[
-                    ui.h1(innerText='Span Insert Mode'),
-                    ui.div(classes='contents', children=[
-                        ui.label(
-                            innerText='Brush Size',
-                            title='Insert spans based on brush size',
-                            classes='half-size',
-                            #forId='strokes-span-mode-brush',
-                            children=[
-                                ui.input_radio(
-                                    id='strokes-span-mode-brush',
-                                    value='Brush Size',
-                                    title='Insert spans based on brush size',
-                                    checked=(options['strokes span insert mode']=='Brush Size'),
-                                    name='strokes-span-mode',
-                                    on_input=span_mode_change,
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Fixed',
-                            title='Insert fixed number of spans',
-                            classes='half-size',
-                            #forId='strokes-span-mode-fixed',
-                            children=[
-                                ui.input_radio(
-                                    id='strokes-span-mode-fixed',
-                                    value='Fixed',
-                                    title='Insert fixed number of spans',
-                                    checked=(options['strokes span insert mode']=='Fixed'),
-                                    name='strokes-span-mode',
-                                    on_input=span_mode_change,
-                                ),
-                            ],
-                        ),
-                        ui.labeled_input_text(
-                            id='strokes-options-brush-size',
-                            label='Brush Size',
-                            title='Adjust brush size',
-                            value=self.rfwidgets['brush'].get_radius_boundvar(),
-                        ),
-                        ui.labeled_input_text(
-                            id='strokes-options-fixed-spans',
-                            label='Fixed spans',
-                            title='Number of spans to insert when Span Insert Mode is set to Fixed',
-                            value=self._var_fixed_span_count,
-                        ),
-                    ]),
-                ]),
-                ui.div(classes='collection', children=[
-                    ui.h1(innerText='New Geometry Edit'),
-                    ui.div(classes='contents', children=[
-                        ui.labeled_input_text(
-                            label='Spans',
-                            title='Number of spans between previously selected strip and newly created strip',
-                            value=self._var_cross_count,
-                        ),
-                        ui.labeled_input_text(
-                            label='Loops',
-                            title='Number of loops between previously selected loop and newly created loop',
-                            value=self._var_loop_count,
-                        ),
-                    ]),
-                ]),
-            ]),
-        ])
-        self.ui_span_insert_mode_brushsize = self.ui_options.getElementById('strokes-span-mode-brush')
-        self.ui_span_insert_mode_fixed     = self.ui_options.getElementById('strokes-span-mode-fixed')
-        self.ui_options_brush_size         = self.ui_options.getElementById('strokes-options-brush-size')
-        self.ui_options_fixed_spans        = self.ui_options.getElementById('strokes-options-fixed-spans')
+        ui_options = self.document.body.getElementById('strokes-options')
+        self.ui_summary = ui_options.getElementById('strokes-summary')
+        self.ui_insert = ui_options.getElementById('strokes-insert-modes')
         self.update_span_mode()
-        return self.ui_options
 
     @RFTool_Strokes.on_reset
     def reset(self):

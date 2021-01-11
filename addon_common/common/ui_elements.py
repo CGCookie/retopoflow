@@ -134,7 +134,7 @@ def setup_scrub(ui_element, value):
 
 # all html tags: https://www.w3schools.com/tags/
 
-re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
+re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+|\'(?:[^']|\\\')*?\'))?)*) *(?P<selfclose>/)?>)")
 re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+|\'(?:[^']|\\\')*?\'))?")
 re_html_comment = re.compile(r"<!--(.|\n|\r)*?-->")
 

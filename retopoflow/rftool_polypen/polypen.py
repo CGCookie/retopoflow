@@ -68,8 +68,6 @@ class PolyPen_RFWidgets:
         self.rfwidget = None
 
 class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
-    insert_modes = ['Tri/Quad', 'Tri-Only', 'Edge-Only']
-
     @RFTool_PolyPen.on_init
     def init(self):
         self.init_rfwidgets()
