@@ -137,7 +137,12 @@ def setup_scrub(ui_element, value):
 re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
 re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+|\'(?:[^']|\\\')*?\'))?")
 re_html_comment = re.compile(r"<!--(.|\n|\r)*?-->")
+
+re_self = re.compile(r"self\.")
 re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
+re_int = re.compile(r"^[-+]?[0-9]+$")
+re_float = re.compile(r"^[-+]?[0-9]*\.?[0-9]+$")
+
 tags_selfclose = {
     'area', 'br', 'col',
     'embed', 'hr', 'iframe',
@@ -222,17 +227,38 @@ class UI_Element_Elements():
                     # translate HTML attribs to CC UI attribs
                     if k.lower() in {'class'}: k = 'classes'
 
+                    ##############################################################
                     # translate HTML attrib values to CC UI attrib values
-                    if v is None: v = 'true'
-                    if   v.startswith('"'): v = v[1:-1]     # remove double quotes
-                    elif v.startswith("'"): v = v[1:-1]     # remove single quotes
+
+                    # if no value given, default is True
+                    if v is None: v = 'True'
+
+                    # remove wrapping quotes and un-escape any escaped quote
+                    if v.startswith('"'):
+                        # wrapped in double quotes
+                        v = v[1:-1]
+                        v = re.sub(r"\\\"", '"', v)
+                    elif v.startswith("'"):
+                        # wrapped in single quotes
+                        v = v[1:-1]
+                        v = re.sub(r"\\\'", "'", v)
+
+                    # convert value to Python value
+                    m_self  = re_self.match(v)
                     m_bound = re_bound.match(v)
-                    if   v.lower() in {'true'}:  v = True
-                    elif v.lower() in {'false'}: v = False
-                    elif m_bound: v = eval(v, f_globals, f_locals)
-                    elif k.lower() in events_known:
+                    m_int   = re_int.match(v)
+                    m_float = re_float.match(v)
+
+                    if k.lower() in events_known:
+                        # attribute is an event (value is callback)
                         k = events_known[k.lower()]
                         v = delay_exec(v, f_globals=f_globals, f_locals=f_locals)
+                    elif v.lower() in {'true'}:  v = True
+                    elif v.lower() in {'false'}: v = False
+                    elif m_self:                 v = eval(v, f_globals, f_locals)
+                    elif m_bound:                v = eval(v, f_globals, f_locals)
+                    elif m_int:                  v = int(v)
+                    elif m_float:                v = float(v)
 
                     attribs[k] = v
 

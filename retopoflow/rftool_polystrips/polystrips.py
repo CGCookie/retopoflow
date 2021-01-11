@@ -36,6 +36,7 @@ class RFTool_PolyStrips(RFTool):
     help        = 'polystrips.md'
     shortcut    = 'polystrips tool'
     statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
+    ui_config   = 'polystrips_options.html'
 
 
 ################################################################################################
@@ -44,7 +45,6 @@ class RFTool_PolyStrips(RFTool):
 
 from .polystrips_ops   import PolyStrips_Ops
 from .polystrips_props import PolyStrips_Props
-from .polystrips_ui    import PolyStrips_UI
 from .polystrips_rfwidgets import PolyStrips_RFWidgets
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
@@ -68,7 +68,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...config.options import options
 
 
-class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_UI, PolyStrips_RFWidgets):
+class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets):
     @RFTool_PolyStrips.on_init
     def init(self):
         self.init_rfwidgets()
