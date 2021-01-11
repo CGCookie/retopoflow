@@ -23,6 +23,13 @@ from functools import wraps
 
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
+from ..addon_common.common.boundvar import (
+    BoundVar,
+    BoundBool,
+    BoundInt, BoundFloat,
+    BoundString, BoundStringToBool,
+)
+from ..config.options import options, themes, visualization
 
 
 rftools = {}
@@ -105,6 +112,8 @@ class RFTool:
             ret.append(fn(self, *args, **kwargs))
         return ret
 
+    def call_wih_self_in_context(self, fn, *args, **kwargs):
+        return fn(*args, **kwargs)
 
 
     def __init__(self, rfcontext):

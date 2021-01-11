@@ -35,8 +35,6 @@ from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundString, BoundStringToBool, BoundFloat, BoundVar
-from ...addon_common.common.ui_core import UI_Element
 
 from ...config.options import options
 
@@ -47,6 +45,7 @@ class RFTool_Contours(RFTool):
     help        = 'contours.md'
     shortcut    = 'contours tool'
     statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
+    ui_config   = 'contours_options.html'
 
 
 ################################################################################################
@@ -68,13 +67,6 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.on_init
     def init(self):
         self.init_rfwidgets()
-
-    @RFTool_Contours.on_ui_setup
-    def ui(self):
-        path_folder = os.path.dirname(__file__)
-        path_html = os.path.join(path_folder, 'contours_options.html')
-        html = open(path_html, 'rt').read()
-        return UI_Element.fromHTML(html)
 
     @RFTool_Contours.on_reset
     def reset(self):

@@ -182,6 +182,12 @@ events_known = {
 
 
 class UI_Element_Elements():
+    @classmethod
+    def fromHTMLFile(cls, path_html, *, frame_depth=1, f_globals=None, f_locals=None):
+        if not path_html: return []
+        if not os.path.exists(path_html): return []
+        html = open(path_html, 'rt').read()
+        return cls.fromHTML(html, frame_depth=frame_depth+1, f_globals=f_globals, f_locals=f_locals)
 
     @classmethod
     def fromHTML(cls, html, *, frame_depth=1, f_globals=None, f_locals=None):

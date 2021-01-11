@@ -44,8 +44,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
-from ...addon_common.common.ui_core import UI_Element
+from ...addon_common.common.boundvar import BoundInt
 
 from ...config.options import options, themes, visualization
 
@@ -57,6 +56,7 @@ class RFTool_Patches(RFTool):
     help        = 'patches.md'
     shortcut    = 'patches tool'
     statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
+    ui_config   = 'patches_options.html'
 
 class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -92,13 +92,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         if self.crosses == nv: return
         self.crosses = nv
         self._recompute()
-
-    @RFTool_Patches.on_ui_setup
-    def ui(self):
-        path_folder = os.path.dirname(__file__)
-        path_html = os.path.join(path_folder, 'patches_options.html')
-        html = open(path_html, 'rt').read()
-        return UI_Element.fromHTML(html)
 
     def update_ui(self):
         self._var_crosses.disabled = (self.crosses is None)

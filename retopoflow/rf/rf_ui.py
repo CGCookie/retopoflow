@@ -40,6 +40,7 @@ from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import get_preferences
 from ...addon_common.common import ui
+from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_proxy import UI_Proxy
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
@@ -1123,7 +1124,13 @@ class RetopoFlow_UI:
 
             self.rftools_ui = {}
             for rftool in self.rftools:
-                ui_elems = rftool._callback('ui setup')
+                ui_elems = []
+                if getattr(rftool, 'ui_config', None):
+                    path_folder = os.path.dirname(inspect.getfile(rftool.__class__))
+                    path_html = os.path.join(path_folder, rftool.ui_config)
+                    ui_elems += rftool.call_wih_self_in_context(UI_Element.fromHTMLFile, path_html)
+                ui_elems += rftool._callback('ui setup')
+
                 process = True
                 while process:
                     process = False
