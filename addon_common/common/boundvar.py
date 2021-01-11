@@ -27,7 +27,7 @@ class IgnoreChange(Exception): pass
 
 class BoundVar:
     def __init__(self, value_str, *, on_change=None, frame_depth=1, f_globals=None, f_locals=None, callbacks=None, validators=None, disabled=False, pre_wrap=None, post_wrap=None, wrap=None):
-        assert type(value_str) is str, 'BoundVar: constructor needs value as string!'
+        assert type(value_str) is str, f'BoundVar: constructor needs value as string, but received {value_str} instead!'
         if f_globals is None or f_locals is None:
             frame = inspect.currentframe()
             for i in range(frame_depth): frame = frame.f_back

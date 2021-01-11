@@ -135,7 +135,7 @@ def setup_scrub(ui_element, value):
 # all html tags: https://www.w3schools.com/tags/
 
 re_html_tag = re.compile(r"(?P<tag><(?P<close>/)?(?P<name>[a-zA-Z0-9\-_]+)(?P<attributes>( +(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*\"|[a-zA-Z0-9\-_]+))?)*) *(?P<selfclose>/)?>)")
-re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+))?")
+re_attributes = re.compile(r" *(?P<key>[a-zA-Z0-9\-_]+)(?:=(?P<value>\"(?:[^\"]|\\\")*?\"|[a-zA-Z0-9\-]+|\'(?:[^']|\\\')*?\'))?")
 re_html_comment = re.compile(r"<!--(.|\n|\r)*?-->")
 re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
 tags_selfclose = {
@@ -202,7 +202,7 @@ class UI_Element_Elements():
             f_globals = f_globals or frame.f_globals
             f_locals = dict(f_locals or frame.f_locals)
 
-        def get_next_tag(html, tname_end, tab):
+        def get_next_tag(html, tname_end, tab, hierarchy):
             m_tag = re_html_tag.search(html)
             if not m_tag: return None
 
@@ -224,7 +224,8 @@ class UI_Element_Elements():
 
                     # translate HTML attrib values to CC UI attrib values
                     if v is None: v = 'true'
-                    if v.startswith('"'): v = v[1:-1]       # remove quotes
+                    if   v.startswith('"'): v = v[1:-1]     # remove double quotes
+                    elif v.startswith("'"): v = v[1:-1]     # remove single quotes
                     m_bound = re_bound.match(v)
                     if   v.lower() in {'true'}:  v = True
                     elif v.lower() in {'false'}: v = False
@@ -237,7 +238,7 @@ class UI_Element_Elements():
 
             assert not (is_close and attribs), 'Cannot have closing tag with attributes'
             assert not (is_close and is_selfclose), f'Cannot be closing and self-closing: {m_tag.group("tag")}'
-            assert not (is_close and tname != tname_end), f'Found ending tag {m_tag.group("tag")} but expecting </{tname_end}>'
+            assert not (is_close and tname != tname_end), f'Found ending tag {m_tag.group("tag")} but expecting </{tname_end}>\n{hierarchy}'
             assert tname in tags_known, f'Unhandled tag type: {m_tag.group("tag")}'
 
             return Dict({
@@ -249,11 +250,12 @@ class UI_Element_Elements():
                 'is_selfclose': is_selfclose,
             })
 
-        def process(html, tname_end, depth):
+        def process(html, tname_end, hierarchy=[]):
+            depth = len(hierarchy)
             tab = '  '*depth
             ret = []
             while html.strip():
-                tag = get_next_tag(html, tname_end, tab)
+                tag = get_next_tag(html, tname_end, tab, hierarchy)
                 if not tag:
                     return (ret + [cls(tagName='span', innerText=html)], '')
 
@@ -266,13 +268,13 @@ class UI_Element_Elements():
                     ret += [cls(tagName=tag.tname, **tag.attribs)]
                     html = tag.post_html
                 else:
-                    ntag = get_next_tag(tag.post_html, tag.tname, tab)
+                    ntag = get_next_tag(tag.post_html, tag.tname, tab, hierarchy+[tag.tname])
                     if ntag and ntag.is_close:
                         # just stick pre_html into innerText
                         ret += [cls(tagName=tag.tname, innerText=ntag.pre_html, **tag.attribs)]
                         html = ntag.post_html
                     else:
-                        children, html = process(tag.post_html, tag.tname, depth+1)
+                        children, html = process(tag.post_html, tag.tname, hierarchy+[tag.tname])
                         ret += [cls(tagName=tag.tname, children=children, **tag.attribs)]
             return (ret, html.strip())
 
@@ -281,7 +283,7 @@ class UI_Element_Elements():
         html = re.sub(r'[ \n\r\t]+$', '', html)
         # remove HTML comments
         html = re_html_comment.sub('', html)
-        lui,rest = process(html, None, 0)
+        lui,rest = process(html, None)
         assert not rest, f'Could not process all of HTML\nRemaining: {rest}\nHTML: {html}'
         return lui
 

@@ -120,6 +120,7 @@ class RFTool:
         RFTool.rfcontext = rfcontext
         RFTool.drawing = rfcontext.drawing
         RFTool.actions = rfcontext.actions
+        RFTool.document = rfcontext.document
         self.rfwidget = None
         self._last_mouse = None
         self._fsm.init(self, start='main')

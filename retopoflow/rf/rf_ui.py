@@ -1125,23 +1125,23 @@ class RetopoFlow_UI:
             self.rftools_ui = {}
             for rftool in self.rftools:
                 ui_elems = []
+                def add_elem(ui_elem):
+                    if not ui_elem:
+                        return
+                    if type(ui_elem) is list:
+                        for ui in ui_elem:
+                            add_elem(ui)
+                        return
+                    ui_elems.append(ui_elem)
+                    self.ui_options.append_child(ui_elem)
                 if getattr(rftool, 'ui_config', None):
                     path_folder = os.path.dirname(inspect.getfile(rftool.__class__))
                     path_html = os.path.join(path_folder, rftool.ui_config)
-                    ui_elems += rftool.call_wih_self_in_context(UI_Element.fromHTMLFile, path_html)
-                ui_elems += rftool._callback('ui setup')
+                    ret = rftool.call_wih_self_in_context(UI_Element.fromHTMLFile, path_html)
+                    add_elem(ret)
+                ret = rftool._callback('ui setup')
+                add_elem(ret)
 
-                process = True
-                while process:
-                    process = False
-                    nui_elems = []
-                    for ui_elem in ui_elems:
-                        if type(ui_elem) is list:
-                            nui_elems += ui_elem
-                            process = True
-                        else:
-                            nui_elems += [ui_elem]
-                    ui_elems = nui_elems
                 self.rftools_ui[rftool] = ui_elems
                 for ui_elem in ui_elems:
                     self.ui_options.append_child(ui_elem)

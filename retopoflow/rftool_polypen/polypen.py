@@ -52,6 +52,7 @@ class RFTool_PolyPen(RFTool):
     help        = 'polypen.md'
     shortcut    = 'polypen tool'
     statusbar   = '{{insert}} Insert'
+    ui_config   = 'polypen_options.html'
 
 class PolyPen_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -81,101 +82,15 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     def update_insert_mode(self):
         mode = options['polypen insert mode']
-        self.ui_options.label = f'PolyPen: {mode}'
+        self.ui_options_label.innerText = f'PolyPen: {mode}'
         self.ui_insert_modes.dirty(cause='insert mode change', children=True)
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
-        self.ui_options = ui.details(children=[
-            ui.summary(innerText='PolyPen'),
-            ui.div(classes='contents', children=[
-                ui.div(classes='collection', children=[
-                    ui.h1(innerText='Automerge'),
-                    ui.div(classes='contents', children=[
-                        ui.label(
-                            innerText='Enable Automerge',
-                            title='If enabled, grabbed vertices automatically merge with nearby vertices',
-                            children=[
-                                ui.input_checkbox(
-                                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
-                                    checked=self._var_automerge,
-                                ),
-                            ],
-                        ),
-                        ui.labeled_input_text(
-                            label='Merge Dist',
-                            title='Pixel distance for merging and snapping',
-                            value=self._var_merge_dist,
-                        ),
-                    ]),
-                ]),
-                ui.div(classes='collection', children=[
-                    ui.h1(innerText='Insert Mode'),
-                    ui.div(classes='contents', id='polypen-insert-modes', children=[
-                        ui.label(
-                            innerText='Tri/Quad',
-                            title='Inserting alternates between Triangles and Quads',
-                            classes='half-size',
-                            children=[
-                                ui.input_radio(
-                                    title='Inserting alternates between Triangles and Quads',
-                                    value='Tri/Quad',
-                                    checked=self._var_insert_mode,
-                                    name='polypen-insert-mode',
-                                    on_input=self.update_insert_mode,
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Quad-Only',
-                            title='Inserting Quads only',
-                            classes='half-size',
-                            children=[
-                                ui.input_radio(
-                                    title='Inserting Quads only',
-                                    value='Quad-Only',
-                                    checked=self._var_insert_mode,
-                                    name='polypen-insert-mode',
-                                    on_input=self.update_insert_mode,
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Tri-Only',
-                            title='Inserting Triangles only',
-                            classes='half-size',
-                            children=[
-                                ui.input_radio(
-                                    title='Inserting Triangles only',
-                                    value='Tri-Only',
-                                    checked=self._var_insert_mode,
-                                    name='polypen-insert-mode',
-                                    on_input=self.update_insert_mode,
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Edge-Only',
-                            title='Inserting Edges only',
-                            classes='half-size',
-                            children=[
-                                ui.input_radio(
-                                    title='Inserting Edges only',
-                                    value='Edge-Only',
-                                    checked=self._var_insert_mode,
-                                    name='polypen-insert-mode',
-                                    on_input=self.update_insert_mode,
-                                ),
-                            ],
-                        ),
-                    ]),
-                ]),
-            ]),
-        ])
-        self.ui_insert_modes = self.ui_options.getElementById('polypen-insert-modes')
+        ui_options = self.document.body.getElementById('polypen-options')
+        self.ui_options_label = ui_options.getElementById('polypen-summary-label')
+        self.ui_insert_modes  = ui_options.getElementById('polypen-insert-modes')
         self.update_insert_mode()
-
-        return self.ui_options
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
