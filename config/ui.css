@@ -261,6 +261,30 @@ input[type="text"]:disabled {
 }
 
 
+input[type="number"] {
+    color: var(--text);
+    background: var(--button-background);
+    padding: 4px 8px 4px 8px;
+    height: 24px;
+}
+
+input[type="number"]:hover {
+    color: var(--text);
+    background: var(--button-hover-background);
+}
+
+input[type="number"]:focus {
+    color: var(--text);
+    background: var(--button-selected-background);
+}
+
+input[type="number"]:disabled {
+    background-color: var(--button-background);
+    color: var(--button-disabled-text);
+    cursor: default;
+}
+
+
 
 div.labeled-input-text label {
     display: inline;
@@ -269,6 +293,7 @@ div.labeled-input-text label {
     padding: 0px;
     width: 50%;
 }
+
 div.labeled-input-text input[type="text"] {
     display: inline;
     width: 50%;
@@ -284,6 +309,26 @@ div.labeled-input-text input[type="text"]:focus {
     color: var(--text);
 }
 div.labeled-input-text input[type="text"]:disabled {
+    background: var(--button-background);
+    color: var(--button-disabled-text);
+}
+
+
+div.labeled-input-text input[type="number"] {
+    display: inline;
+    width: 50%;
+    background: var(--button-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="number"]:hover {
+    background: var(--button-hover-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="number"]:focus {
+    background: var(--button-selected-background);
+    color: var(--text);
+}
+div.labeled-input-text input[type="number"]:disabled {
     background: var(--button-background);
     color: var(--button-disabled-text);
 }

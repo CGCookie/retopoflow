@@ -13,13 +13,13 @@
             <label title="Number of vertices to create in a new cut.">
                 Initial Count
             </label>
-            <input type="text" value="BoundInt('''options['contours count']''', min_value=3, max_value=500)">
+            <input type="number" value="BoundInt('''options['contours count']''', min_value=3, max_value=500)">
         </div>
         <div class="labeled-input-text">
             <label title="Number of vertices in currently selected cut.">
                 Cut Count
             </label>
-            <input type="text" value="self._var_cut_count">
+            <input type="number" value="self._var_cut_count">
         </div>
         <!--<label title="Number of vertices in currently selected cut." class="input-text">
             Cut Count

@@ -30,7 +30,7 @@ from ...config.options import options, themes
 class PolyStrips_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
-        BoundFloat('''options['polystrips radius']'''),
+        BoundInt('''options['polystrips radius']''', min_value=1),
         outer_border_color=themes['polystrips']
     )
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')

@@ -13,12 +13,12 @@
                     Fixed
                 </label>
                 <div class="labeled-input-text">
-                    <label title="Adjust brush size">Brush Size</label>
-                    <input type="text" value="self.rfwidgets['brush'].get_radius_boundvar()">
+                    <label title="Adjust brush size">Brush size</label>
+                    <input type="number" id='strokes-radius' value="self.rfwidgets['brush'].get_radius_boundvar()">
                 </div>
                 <div class="labeled-input-text">
                     <label title="Number of spans to insert when Span Insert Mode is set to Fixed">Fixed spans</label>
-                    <input type="text" value="self._var_fixed_span_count">
+                    <input type="number" value="self._var_fixed_span_count">
                 </div>
             </div>
         </div>
@@ -27,11 +27,11 @@
             <div class="contents">
                 <div class="labeled-input-text">
                     <label title="Number of spans between previously selected strip and newly created strip">Spans</label>
-                    <input type="text" value="self._var_cross_count">
+                    <input type="number" value="self._var_cross_count">
                 </div>
                 <div class="labeled-input-text">
                     <label title="Number of loops between previously selected loop and newly created loop">Loops</label>
-                    <input type="text" value="self._var_loop_count">
+                    <input type="number" value="self._var_loop_count">
                 </div>
             </div>
         </div>

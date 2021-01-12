@@ -38,7 +38,7 @@ from ..addon_common.common.maths import Color
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
 from ..addon_common.common.ui_document import UI_Document
-from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 
 ###########################################

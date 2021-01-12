@@ -1538,7 +1538,7 @@ class UI_Element_Properties:
         self.update_document()
 
     @property
-    def can_focus(self): return self._can_focus and self._tagName == 'input' and self._type in {'text'}
+    def can_focus(self): return self._can_focus and self._tagName == 'input' and self._type in {'text', 'number'}
     @can_focus.setter
     def can_focus(self, v): self._can_focus = v
 

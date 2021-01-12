@@ -130,7 +130,7 @@ class RFWidget_BrushStroke_Factory:
                 radius.set(max(1, float(v)))
 
             def get_radius_boundvar(self):
-                return BoundFloat('''self.radius''', min_value=1)
+                return radius
 
 
             ###################

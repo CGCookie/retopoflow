@@ -276,6 +276,15 @@ class UI_Element_Elements():
                 'is_selfclose': is_selfclose,
             })
 
+        def create(*args, **kwargs):
+            ui = cls(*args, **kwargs)
+            def cb():
+                ui.dirty(cause='BoundVar changed')
+            for k,v in kwargs.items():
+                if isinstance(v, BoundVar):
+                    v.on_change(cb)
+            return ui
+
         def process(html, tname_end, hierarchy=[]):
             depth = len(hierarchy)
             tab = '  '*depth
@@ -283,25 +292,25 @@ class UI_Element_Elements():
             while html.strip():
                 tag = get_next_tag(html, tname_end, tab, hierarchy)
                 if not tag:
-                    return (ret + [cls(tagName='span', innerText=html)], '')
+                    return (ret + [create(tagName='span', innerText=html)], '')
 
                 if tag.pre_html:
-                    ret += [cls(tagName='span', innerText=tag.pre_html)]
+                    ret += [create(tagName='span', innerText=tag.pre_html)]
 
                 if tag.is_close:
                     return (ret, tag.post_html)
                 elif tag.is_selfclose:
-                    ret += [cls(tagName=tag.tname, **tag.attribs)]
+                    ret += [create(tagName=tag.tname, **tag.attribs)]
                     html = tag.post_html
                 else:
                     ntag = get_next_tag(tag.post_html, tag.tname, tab, hierarchy+[tag.tname])
                     if ntag and ntag.is_close:
                         # just stick pre_html into innerText
-                        ret += [cls(tagName=tag.tname, innerText=ntag.pre_html, **tag.attribs)]
+                        ret += [create(tagName=tag.tname, innerText=ntag.pre_html, **tag.attribs)]
                         html = ntag.post_html
                     else:
                         children, html = process(tag.post_html, tag.tname, hierarchy+[tag.tname])
-                        ret += [cls(tagName=tag.tname, children=children, **tag.attribs)]
+                        ret += [create(tagName=tag.tname, children=children, **tag.attribs)]
             return (ret, html.strip())
 
         # strip leading and trailing whitespace characters
@@ -314,6 +323,11 @@ class UI_Element_Elements():
         return lui
 
     def _process_input_text(self):
+        return self._process_input_box('text')
+    def _process_input_number(self):
+        return self._process_input_box('number')
+
+    def _process_input_box(self, input_type):
         if self._ui_marker is None:
             # just got focus, so create a cursor element
             self._ui_marker = self._generate_new_ui_elem(
@@ -323,6 +337,14 @@ class UI_Element_Elements():
                 pseudoelement='marker',
             )
             self._ui_marker.is_visible = False
+
+            if input_type == 'text':
+                # allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
+                allowed = None
+            elif input_type == 'number':
+                allowed = '''0123456789.-'''
+            else:
+                assert False, f'UI_Element.process_input_box: unhandled type {input_type}'
 
             data = {'orig':None, 'text':None, 'idx':0, 'pos':None}
 
@@ -430,7 +452,7 @@ class UI_Element_Elements():
                         data['text'] = data['text'][0:data['idx']] + data['text'][data['idx']+1:]
                     else:
                         return
-                else:
+                elif allowed is None or e.key in allowed:
                     data['text'] = data['text'][0:data['idx']] + e.key + data['text'][data['idx']:]
                     data['idx'] += 1
                 preclean()
@@ -580,6 +602,7 @@ class UI_Element_Elements():
             'input radio':    self._process_input_radio,
             'input checkbox': self._process_input_checkbox,
             'input text':     self._process_input_text,
+            'input number':   self._process_input_number,
             'details':        self._process_details,
             'summary':        self._process_summary,
             'label':          self._process_label,

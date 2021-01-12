@@ -707,6 +707,40 @@ input[type="text"]::marker {
 }
 
 
+input[type="number"] {
+    position: relative; /* necessary for cursor! */
+    left: 0px;
+    top: 0px;
+    background-color: transparent;
+    white-space: pre;
+    display: block;
+    width: 100%;
+    min-height: 26px;
+    margin: 0px;
+    padding: 3px;
+    border: 2px transparent;
+    color: black;
+    overflow-x: scroll;
+    cursor: text;
+}
+input[type="number"]:focus {
+    background-color: rgba(255, 255, 255, 1.0);
+    border-color: hsla(200, 100%, 62.5%, 1.0);
+}
+
+input[type="number"]::marker {
+    position: absolute;
+    margin: -1px 0px 0px 0px;
+    border: 0px;
+    padding: 0px;
+    background: transparent;
+    color: white;
+    left: 0px;
+    top: 0px;
+    content: "|";
+}
+
+
 /***********************/
 /* LABELED TEXT INPUT  */
 

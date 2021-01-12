@@ -71,7 +71,7 @@ class RFTool_Strokes(RFTool):
 class Strokes_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
-        BoundFloat('''options['strokes radius']'''),
+        BoundInt('''options['strokes radius']''', min_value=1),
         outer_border_color=themes['strokes'],
     )
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')
@@ -127,6 +127,10 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         ui_options = self.document.body.getElementById('strokes-options')
         self.ui_summary = ui_options.getElementById('strokes-summary')
         self.ui_insert = ui_options.getElementById('strokes-insert-modes')
+        self.ui_radius = ui_options.getElementById('strokes-radius')
+        def dirty_radius():
+            self.ui_radius.dirty(cause='radius changed')
+        self.rfwidgets['brush'].get_radius_boundvar().on_change(dirty_radius)
         self.update_span_mode()
 
     @RFTool_Strokes.on_reset
