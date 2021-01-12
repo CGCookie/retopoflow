@@ -134,9 +134,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         if self.rfcontext.actions.pressed('pie menu alt0', unpress=False):
             def callback(option):
                 if option is None: return
-                options['relax radius']   = options[f'relax preset {option} radius']
-                options['relax strength'] = options[f'relax preset {option} strength']
-                options['relax falloff']  = options[f'relax preset {option} falloff']
+                self.copy_preset_to_current(option)
             self.rfcontext.show_pie_menu([
                 (f'Preset: {options["relax preset 1 name"]}', 1),
                 (f'Preset: {options["relax preset 2 name"]}', 2),

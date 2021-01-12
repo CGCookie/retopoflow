@@ -1137,7 +1137,7 @@ class RetopoFlow_UI:
                 if getattr(rftool, 'ui_config', None):
                     path_folder = os.path.dirname(inspect.getfile(rftool.__class__))
                     path_html = os.path.join(path_folder, rftool.ui_config)
-                    ret = rftool.call_wih_self_in_context(UI_Element.fromHTMLFile, path_html)
+                    ret = rftool.call_with_self_in_context(UI_Element.fromHTMLFile, path_html)
                     add_elem(ret)
                 ret = rftool._callback('ui setup')
                 add_elem(ret)

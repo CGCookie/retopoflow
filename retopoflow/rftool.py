@@ -112,7 +112,7 @@ class RFTool:
             ret.append(fn(self, *args, **kwargs))
         return ret
 
-    def call_wih_self_in_context(self, fn, *args, **kwargs):
+    def call_with_self_in_context(self, fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
 

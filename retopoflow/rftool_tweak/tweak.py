@@ -49,6 +49,7 @@ class RFTool_Tweak(RFTool):
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
+    ui_config   = 'tweak_options.html'
 
 class Tweak_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
@@ -67,259 +68,38 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     def init(self):
         self.init_rfwidgets()
 
+    def reset_current_brush(self):
+        options.reset(keys={'tweak radius', 'tweak falloff', 'tweak strength'})
+        self.document.body.getElementById(f'tweak-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-falloff').dirty(cause='copied preset to current brush')
+
+    def update_preset_name(self, n):
+        name = options[f'tweak preset {n} name']
+        self.document.body.getElementById(f'tweak-preset-{n}-summary').innerText = f'Preset: {name}'
+
+    def copy_current_to_preset(self, n):
+        options[f'tweak preset {n} radius']   = options['tweak radius']
+        options[f'tweak preset {n} strength'] = options['tweak strength']
+        options[f'tweak preset {n} falloff']  = options['tweak falloff']
+        self.document.body.getElementById(f'tweak-preset-{n}-radius').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'tweak-preset-{n}-strength').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'tweak-preset-{n}-falloff').dirty(cause='copied current brush to preset')
+
+    def copy_preset_to_current(self, n):
+        options['tweak radius']   = options[f'tweak preset {n} radius']
+        options['tweak strength'] = options[f'tweak preset {n} strength']
+        options['tweak falloff']  = options[f'tweak preset {n} falloff']
+        self.document.body.getElementById(f'tweak-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-falloff').dirty(cause='copied preset to current brush')
+
     @RFTool_Tweak.on_ui_setup
     def ui(self):
-        def tweak_mask_boundary_change(e):
-            if not e.target.checked: return
-            options['tweak mask boundary'] = e.target.value
-        def tweak_mask_symmetry_change(e):
-            if not e.target.checked: return
-            options['tweak mask symmetry'] = e.target.value
-        def tweak_mask_hidden_change(e):
-            if not e.target.checked: return
-            options['tweak mask hidden'] = e.target.value
-        def tweak_mask_selected_change(e):
-            if not e.target.checked: return
-            options['tweak mask selected'] = e.target.value
-        def assign_preset_to_current(n):
-            options[f'tweak preset {n} radius']   = options['tweak radius']
-            options[f'tweak preset {n} strength'] = options['tweak strength']
-            options[f'tweak preset {n} falloff']  = options['tweak falloff']
-        def update_preset_name(n):
-            nonlocal tweak_options
-            ui = f'tweak-preset-{n}'
-            name = options[f'tweak preset {n} name']
-            tweak_options.getElementById(ui).innerText = f'Preset: {name}'
-
-        tweak_options = ui.details(children=[
-            ui.summary(innerText='Tweak'),
-            ui.div(classes='contents', children=[
-                ui.div(classes='collection', id='tweak-masking', children=[
-                    ui.h1(innerText='Masking Options'),
-                    ui.div(classes='contents', children=[
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Boundary'),
-                        ui.div(classes='contents', children=[
-                            ui.label(
-                                innerText='Exclude',
-                                title='Tweak vertices not along boundary',
-                                classes='half-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak vertices not along boundary',
-                                        value='exclude',
-                                        checked=(options['tweak mask boundary']=='exclude'),
-                                        name='tweak-boundary',
-                                        on_input=tweak_mask_boundary_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Include',
-                                title='Tweak all vertices within brush, regardless of being along boundary',
-                                classes='half-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak all vertices within brush, regardless of being along boundary',
-                                        value='include',
-                                        checked=(options['tweak mask boundary']=='include'),
-                                        name='tweak-boundary',
-                                        on_input=tweak_mask_boundary_change,
-                                    ),
-                                ],
-                            ),
-                        ]),
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Symmetry'),
-                        ui.div(classes='contents', children=[
-                            ui.label(
-                                innerText='Exclude',
-                                title='Tweak vertices not along symmetry plane',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak vertices not along symmetry plane',
-                                        value='exclude',
-                                        checked=(options['tweak mask symmetry']=='exclude'),
-                                        name='tweak-symmetry',
-                                        on_input=tweak_mask_symmetry_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Maintain',
-                                title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
-                                        value='maintain',
-                                        checked=(options['tweak mask symmetry']=='maintain'),
-                                        name='tweak-symmetry',
-                                        on_input=tweak_mask_symmetry_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Include',
-                                title='Tweak all vertices within brush, regardless of being along symmetry plane',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak all vertices within brush, regardless of being along symmetry plane',
-                                        value='include',
-                                        checked=(options['tweak mask symmetry']=='include'),
-                                        name='tweak-symmetry',
-                                        on_input=tweak_mask_symmetry_change,
-                                    ),
-                                ],
-                            ),
-                        ]),
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Hidden'),
-                        ui.div(classes='contents', children=[
-                            ui.label(
-                                innerText='Exclude',
-                                title='Tweak only visible vertices',
-                                classes='half-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak only visible vertices',
-                                        value='exclude',
-                                        checked=(options['tweak mask hidden']=='exclude'),
-                                        name='tweak-hidden',
-                                        on_input=tweak_mask_hidden_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Include',
-                                title='Tweak all vertices within brush, regardless of visibility',
-                                classes='half-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak all vertices within brush, regardless of visibility',
-                                        value='include',
-                                        checked=(options['tweak mask hidden']=='include'),
-                                        name='tweak-hidden',
-                                        on_input=tweak_mask_hidden_change,
-                                    ),
-                                ],
-                            ),
-                        ]),
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Selected'),
-                        ui.div(classes='contents', children=[
-                            ui.label(
-                                innerText='Exclude',
-                                title='Tweak only unselected vertices',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak only unselected vertices',
-                                        value='exclude',
-                                        checked=(options['tweak mask selected']=='exclude'),
-                                        name='tweak-selected',
-                                        on_input=tweak_mask_selected_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Only',
-                                title='Tweak only selected vertices',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak only selected vertices',
-                                        value='only',
-                                        checked=(options['tweak mask selected']=='only'),
-                                        name='tweak-selected',
-                                        on_input=tweak_mask_selected_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='All',
-                                title='Tweak all vertices within brush, regardless of selection',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        title='Tweak all vertices within brush, regardless of selection',
-                                        value='all',
-                                        checked=(options['tweak mask selected']=='all'),
-                                        name='tweak-selected',
-                                        on_input=tweak_mask_selected_change,
-                                    ),
-                                ],
-                            ),
-                        ]),
-                    ]),
-                ]),
-                ui.details(children=[
-                    ui.summary(innerText='Brush Options'),
-                    ui.div(classes='contents', children=[
-                        ui.div(classes='collection', children=[
-                            ui.h1(innerText='Current'),
-                            ui.div(classes='contents', children=[
-                                ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
-                                ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
-                                ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),
-                                ui.button(innerText='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"tweak radius","tweak falloff","tweak strength"})''')),
-                            ]),
-                        ]),
-                        ui.details(children=[
-                            ui.summary(innerText='Preset: Preset 1', id='tweak-preset-1'),
-                            ui.div(classes='contents', children=[
-                                ui.labeled_input_text(label='Name',      title='Adjust name of preset 1',            id='tweak-preset-1-name',     value=BoundString('''options['tweak preset 1 name']''',    on_change=delay_exec('''update_preset_name(1)'''))),
-                                ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 1',     id='tweak-preset-1-size',     value=BoundFloat('''options['tweak preset 1 radius']''',   min_value=1.0)),
-                                ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 1', id='tweak-preset-1-strength', value=BoundFloat('''options['tweak preset 1 strength']''', min_value=0.01, max_value=1.0)),
-                                ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 1',  id='tweak-preset-1-falloff',  value=BoundFloat('''options['tweak preset 1 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(innerText='Current to Preset',     title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
-                            ]),
-                        ]),
-                        ui.details(children=[
-                            ui.summary(innerText='Preset: Preset 2', id='tweak-preset-2'),
-                            ui.div(classes='contents', children=[
-                                ui.labeled_input_text(label='Name',      title='Adjust name of preset 2',            id='tweak-preset-2-name',     value=BoundString('''options['tweak preset 2 name']''',    on_change=delay_exec('''update_preset_name(2)'''))),
-                                ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 2',     id='tweak-preset-2-size',     value=BoundFloat('''options['tweak preset 2 radius']''',   min_value=1.0)),
-                                ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 2', id='tweak-preset-2-strength', value=BoundFloat('''options['tweak preset 2 strength']''', min_value=0.01, max_value=1.0)),
-                                ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 2',  id='tweak-preset-2-falloff',  value=BoundFloat('''options['tweak preset 2 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(innerText='Current to Preset',     title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
-                            ]),
-                        ]),
-                        ui.details(children=[
-                            ui.summary(innerText='Preset: Preset 3', id='tweak-preset-3'),
-                            ui.div(classes='contents', children=[
-                                ui.labeled_input_text(label='Name',      title='Adjust name of preset 3',            id='tweak-preset-3-name',     value=BoundString('''options['tweak preset 3 name']''',    on_change=delay_exec('''update_preset_name(3)'''))),
-                                ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 3',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 3 radius']''',   min_value=1.0)),
-                                ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 3', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 3 strength']''', min_value=0.01, max_value=1.0)),
-                                ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 3',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 3 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(innerText='Current to Preset',     title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
-                            ]),
-                        ]),
-                        ui.details(children=[
-                            ui.summary(innerText='Preset: Preset 4', id='tweak-preset-4'),
-                            ui.div(classes='contents', children=[
-                                ui.labeled_input_text(label='Name',      title='Adjust name of preset 4',            id='tweak-preset-4-name',     value=BoundString('''options['tweak preset 4 name']''',    on_change=delay_exec('''update_preset_name(4)'''))),
-                                ui.labeled_input_text(label='Size',      title='Adjust brush size for preset 4',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 4 radius']''',   min_value=1.0)),
-                                ui.labeled_input_text(label='Strength',  title='Adjust brush strength for preset 4', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 4 strength']''', min_value=0.01, max_value=1.0)),
-                                ui.labeled_input_text(label='Falloff',   title='Adjust brush falloff for preset 4',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 4 falloff']''',  min_value=0.0,  max_value=100.0)),
-                                ui.button(innerText='Current to Preset',     title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
-                            ]),
-                        ]),
-                    ]),
-                ]),
-            ]),
-        ])
-        update_preset_name(1)
-        update_preset_name(2)
-        update_preset_name(3)
-        update_preset_name(4)
-        return tweak_options
+        self.update_preset_name(1)
+        self.update_preset_name(2)
+        self.update_preset_name(3)
+        self.update_preset_name(4)
 
     @RFTool_Tweak.on_reset
     def reset(self):
@@ -335,9 +115,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         if self.rfcontext.actions.pressed('pie menu alt0', unpress=False):
             def callback(option):
                 if option is None: return
-                options['tweak radius']   = options[f'tweak preset {option} radius']
-                options['tweak strength'] = options[f'tweak preset {option} strength']
-                options['tweak falloff']  = options[f'tweak preset {option} falloff']
+                self.copy_preset_to_current(option)
             self.rfcontext.show_pie_menu([
                 (f'Preset: {options["tweak preset 1 name"]}', 1),
                 (f'Preset: {options["tweak preset 2 name"]}', 2),
